@@ -1186,7 +1186,7 @@ static void copyPlaneVS(
     uint8_t*     &buffer,
     size_t     &offset,
     size_t     &rqsize,
-    const VSFrameRef *frame,
+    const VSFrame *frame,
     int          plane,
     unsigned     alignMask,/*align-1*/
     const VSAPI *vsapi) {
@@ -1234,7 +1234,7 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
   bool success = true;
   if (vssynther) {
       const VSAPI *vsapi = vssynther->GetVSApi();
-      const VSFrameRef *frame = vssynther->GetFrame(log, n, &success);
+      const VSFrame *frame = vssynther->GetFrame(log, n, &success);
       if (success) {
           if (NeedsPacking(vssynther->GetVideoInfo().vf)) {
               memcpy(buffer, vssynther->GetPackedFrame() + offset, size);

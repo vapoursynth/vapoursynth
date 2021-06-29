@@ -126,9 +126,9 @@ static bool AVSPixelTypeToVSFormat(VSVideoFormat &f, const VideoInfo &vi, VSCore
     return false;
 }
 
-const VSFrameRef *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
-    const VSFrameRef *ref = nullptr;
-    std::map<VideoFrame *, const VSFrameRef *>::iterator it = ownedFrames.find(frame);
+const VSFrame *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
+    const VSFrame *ref = nullptr;
+    std::map<VideoFrame *, const VSFrame *>::iterator it = ownedFrames.find(frame);
 
     if (it != ownedFrames.end()) {
         ref = vsapi->cloneFrameRef(it->second);
@@ -154,7 +154,7 @@ const VSFrameRef *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
 }
 
 FakeAvisynth::~FakeAvisynth() {
-    std::map<VideoFrame *, const VSFrameRef *>::iterator it = ownedFrames.begin();
+    std::map<VideoFrame *, const VSFrame *>::iterator it = ownedFrames.begin();
 
     while (it != ownedFrames.end()) {
         delete it->first;
@@ -239,7 +239,7 @@ std::string FakeAvisynth::charToFilterArgumentString(char c) {
     }
 }
 
-VSClip::VSClip(VSNodeRef *clip, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
+VSClip::VSClip(VSNode *clip, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
     : clip(clip), fakeEnv(fakeEnv), vsapi(vsapi), numSlowWarnings(0) {
     const ::VSVideoInfo *srcVi = vsapi->getVideoInfo(clip);
     vi = {};
@@ -258,7 +258,7 @@ VSClip::VSClip(VSNodeRef *clip, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
 }
 
 PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
-    const VSFrameRef *ref;
+    const VSFrame *ref;
     n = std::min(std::max(0, n), vi.num_frames - 1);
 
     if (fakeEnv->initializing)
@@ -302,11 +302,11 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
     return pvf;
 }
 
-WrappedClip::WrappedClip(const std::string &filterName, const PClip &clip, const std::vector<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv)
+WrappedClip::WrappedClip(const std::string &filterName, const PClip &clip, const std::vector<VSNode *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv)
     : filterName(filterName), prefetchInfo(prefetchInfo), preFetchClips(preFetchClips), clip(clip), fakeEnv(fakeEnv) {
 }
 
-static void prefetchHelper(int n, VSNodeRef *node, const PrefetchInfo &p, VSFrameContext *frameCtx, const VSAPI *vsapi) {
+static void prefetchHelper(int n, VSNode *node, const PrefetchInfo &p, VSFrameContext *frameCtx, const VSAPI *vsapi) {
     n /= p.div;
     n *= p.mul;
 
@@ -500,7 +500,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     return PrefetchInfo(1, 1, 0, -1);
 }
 
-static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC avisynthFilterGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     WrappedClip *clip = reinterpret_cast<WrappedClip *>(instanceData);
     PVideoFrame frame;
     n = std::min(n, clip->clip->GetVideoInfo().num_frames - 1);
@@ -528,7 +528,7 @@ static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReaso
 
         clip->fakeEnv->uglyCtx = nullptr;
     } else if (activationReason == arInitial) {
-        for (VSNodeRef *c : clip->preFetchClips)
+        for (VSNode *c : clip->preFetchClips)
             prefetchHelper(n, c, clip->prefetchInfo, frameCtx, vsapi);
     } else if (activationReason == arError) {
         return nullptr;
@@ -536,7 +536,7 @@ static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReaso
 
     // Enjoy the casting to trigger the void * operator. Please contact me if you can make it pretty.
 
-    const VSFrameRef *ref = nullptr;
+    const VSFrame *ref = nullptr;
 
     if (frame)
         ref = clip->fakeEnv->avsToVSFrame((VideoFrame *)((void *)frame));
@@ -562,7 +562,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     WrappedFunction *wf = (WrappedFunction *)userData;
     FakeAvisynth *fakeEnv = new FakeAvisynth(wf->interfaceVersion, core, vsapi);
     std::vector<AVSValue> inArgs(wf->parsedArgs.size());
-    std::vector<VSNodeRef *> preFetchClips;
+    std::vector<VSNode *> preFetchClips;
 
     for (size_t i = 0; i < inArgs.size(); i++) {
         const AvisynthArgs &parsedArg = wf->parsedArgs.at(i);
@@ -582,7 +582,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                 inArgs[i] = vsapi->mapGetData(in, parsedArg.name.c_str(), 0, nullptr);
                 break;
             case 'c':
-                VSNodeRef *cr = vsapi->mapGetNode(in, parsedArg.name.c_str(), 0, nullptr);
+                VSNode *cr = vsapi->mapGetNode(in, parsedArg.name.c_str(), 0, nullptr);
                 const VSVideoInfo *vi = vsapi->getVideoInfo(cr);
                 if (!isConstantVideoFormat(vi) || !isSupportedPF(vi->format, wf->interfaceVersion)) {
                     vsapi->mapSetError(out, "Invalid avisynth colorspace in one of the input clips");
@@ -763,12 +763,12 @@ void FakeAvisynth::PopContext() {
 }
 
 PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
-    VSFrameRef *ref = nullptr;
+    VSFrame *ref = nullptr;
     assert(vi.width > 0);
     assert(vi.height > 0);
 
     // attempt to copy over the right set of properties, assuming that frame n in is also n out
-    const VSFrameRef *propSrc = nullptr;
+    const VSFrame *propSrc = nullptr;
 
     if (uglyNode && uglyCtx)
         propSrc = vsapi->getFrameFilter(uglyN, uglyNode, uglyCtx);
@@ -809,7 +809,7 @@ bool FakeAvisynth::MakeWritable(PVideoFrame *pvf) {
     VideoFrame *vfb = (VideoFrame *)(void *)(*pvf);
     auto it = ownedFrames.find(vfb);
     assert(it != ownedFrames.end());
-    VSFrameRef *ref = vsapi->copyFrame(it->second, core);
+    VSFrame *ref = vsapi->copyFrame(it->second, core);
     uint8_t *firstPlanePtr = vsapi->getWritePtr(ref, 0);
     VideoFrame *newVfb = new VideoFrame(
         // the data will never be modified due to the writable protections embedded in this mess
@@ -855,7 +855,7 @@ PVideoFrame FakeAvisynth::Subframe(PVideoFrame src, int rel_offset, int new_pitc
     if (src->row_size != new_row_size)
         vsapi->logMessage(mtFatal, "Subframe only partially implemented (row_size != new_row_size)", core);
     // not pretty at all, but the underlying frame has to be fished out to have any idea what the input really is
-    const VSFrameRef *f = avsToVSFrame((VideoFrame *)(void *)src);
+    const VSFrame *f = avsToVSFrame((VideoFrame *)(void *)src);
     const VSVideoFormat *fi = vsapi->getVideoFrameFormat(f);
     VideoInfo vi;
     vi.height = new_height;
@@ -892,7 +892,7 @@ PVideoFrame FakeAvisynth::SubframePlanar(PVideoFrame src, int rel_offset, int ne
     if (src->row_size != new_row_size)
         vsapi->logMessage(mtFatal, "SubframePlanar only partially implemented", core);
     // not pretty at all, but the underlying frame has to be fished out to have any idea what the input really is
-    const VSFrameRef *f = avsToVSFrame((VideoFrame *)(void *)src);
+    const VSFrame *f = avsToVSFrame((VideoFrame *)(void *)src);
     const VSVideoFormat *fi = vsapi->getVideoFrameFormat(f);
     VideoInfo vi;
     vi.height = new_height;

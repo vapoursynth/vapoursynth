@@ -52,8 +52,8 @@ class VapourSynther final :
     const VSSCRIPTAPI *vssapi;
     VSScript *se = nullptr;
     bool enable_v210 = false;
-    VSNodeRef *videoNode = nullptr;
-    VSNodeRef *audioNode = nullptr;
+    VSNode *videoNode = nullptr;
+    VSNode *audioNode = nullptr;
 
     std::wstring errText;
 
@@ -70,7 +70,7 @@ class VapourSynther final :
 
     // Cache last accessed frame, to reduce interference with read-ahead.
     int lastPosition = -1;
-    const VSFrameRef *lastFrame = nullptr;
+    const VSFrame *lastFrame = nullptr;
 
     // Exception protected take a copy of the current error message
     void setError(const char *text, const wchar_t *alt = 0);
@@ -89,7 +89,7 @@ class VapourSynther final :
     // Print the VideoInfo contents to the log file.
     void reportFormat(AvfsLog_* log);
 
-    static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
+    static void VS_CC frameDoneCallback(void *userData, const VSFrame *f, int n, VSNode *, const char *errorMsg);
 public:
 
     int BitsPerPixel();
@@ -100,7 +100,7 @@ public:
     bool GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned count);
 
     // Exception protected GetFrame()
-    const VSFrameRef *GetFrame(AvfsLog_* log, int n, bool *success = 0);
+    const VSFrame *GetFrame(AvfsLog_* log, int n, bool *success = 0);
 
     // Readonly reference to VideoInfo
     VideoInfoAdapter GetVideoInfo();
@@ -121,7 +121,7 @@ public:
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-void VS_CC VapourSynther::frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
+void VS_CC VapourSynther::frameDoneCallback(void *userData, const VSFrame *f, int n, VSNode *, const char *errorMsg) {
     VapourSynther *vsynther = static_cast<VapourSynther *>(userData);
     vsynther->vsapi->freeFrame(f);
     --vsynther->pendingRequests;
@@ -271,7 +271,7 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
     size_t bytesPerOutputSample = (af.bitsPerSample + 7) / 8;
 
     for (int i = startFrame; i <= endFrame; i++) {
-        const VSFrameRef *f = vsapi->getFrame(i, audioNode, nullptr, 0);
+        const VSFrame *f = vsapi->getFrame(i, audioNode, nullptr, 0);
         int64_t firstFrameSample = i * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
         size_t offset = 0;
         int copyLength = VS_AUDIO_FRAME_SAMPLES;
@@ -308,9 +308,9 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
 }
 
 // Exception protected PVideoFrame->GetFrame()
-const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
+const VSFrame *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 
-    const VSFrameRef *f = nullptr;
+    const VSFrame *f = nullptr;
     bool success = false;
     bool doPrefetch = false;
 

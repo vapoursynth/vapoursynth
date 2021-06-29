@@ -10,7 +10,7 @@
 #include "VSHelper4.h"
 
 typedef struct {
-    VSNodeRef *node;
+    VSNode *node;
     int enabled;
 } InvertData;
 
@@ -21,14 +21,14 @@ typedef struct {
 // upstream filters.
 // Once all frames are ready, the filter will be called with arAllFramesReady. It is now time to
 // do the actual processing.
-static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *)instanceData;
 
     if (activationReason == arInitial) {
         // Request the source frame on the first call
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         // The reason we query this on a per frame basis is because we want our filter
         // to accept clips with varying dimensions. If we reject such content using d->vi
         // would be easier.
@@ -40,7 +40,7 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         // When creating a new frame for output it is VERY EXTREMELY SUPER IMPORTANT to
         // supply the "dominant" source frame to copy properties from. Frame props
         // are an essential part of the filter chain and you should NEVER break it.
-        VSFrameRef *dst = vsapi->newVideoFrame(fi, width, height, src, core);
+        VSFrame *dst = vsapi->newVideoFrame(fi, width, height, src, core);
 
         // It's processing loop time!
         // Loop over all the planes

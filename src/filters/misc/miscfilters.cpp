@@ -46,12 +46,12 @@ using namespace vsh;
 // SCDetect
 
 typedef struct {
-    VSNodeRef *node;
-    VSNodeRef *diffnode;
+    VSNode *node;
+    VSNode *diffnode;
     double threshold;
 } SCDetectData;
 
-static const VSFrameRef *VS_CC scDetectGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC scDetectGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     SCDetectData *d = static_cast<SCDetectData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -59,14 +59,14 @@ static const VSFrameRef *VS_CC scDetectGetFrame(int n, int activationReason, voi
         vsapi->requestFrameFilter(std::max(n - 1, 0), d->diffnode, frameCtx);
         vsapi->requestFrameFilter(n, d->diffnode, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFrameRef *prevframe = vsapi->getFrameFilter(std::max(n - 1, 0), d->diffnode, frameCtx);
-        const VSFrameRef *nextframe = vsapi->getFrameFilter(n, d->diffnode, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *prevframe = vsapi->getFrameFilter(std::max(n - 1, 0), d->diffnode, frameCtx);
+        const VSFrame *nextframe = vsapi->getFrameFilter(n, d->diffnode, frameCtx);
 
         double prevdiff = vsapi->mapGetFloat(vsapi->getFramePropertiesRO(prevframe), "SCPlaneStatsDiff", 0, nullptr);
         double nextdiff = vsapi->mapGetFloat(vsapi->getFramePropertiesRO(nextframe), "SCPlaneStatsDiff", 0, nullptr);
 
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        VSFrame *dst = vsapi->copyFrame(src, core);
         VSMap *rwprops = vsapi->getFramePropertiesRW(dst);
         vsapi->mapSetInt(rwprops, "_SceneChangePrev", prevdiff > d->threshold, paReplace);
         vsapi->mapSetInt(rwprops, "_SceneChangeNext", nextdiff > d->threshold, paReplace);
@@ -110,7 +110,7 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         vsapi->mapSetNode(invmap, "clip", d->node, paAppend);
         vsapi->mapSetInt(invmap, "first", 1, paAppend);
         invmap2 = vsapi->invoke(stdplugin, "Trim", invmap);
-        VSNodeRef *tempnode = vsapi->mapGetNode(invmap2, "clip", 0, nullptr);
+        VSNode *tempnode = vsapi->mapGetNode(invmap2, "clip", 0, nullptr);
         vsapi->freeMap(invmap2);
         vsapi->clearMap(invmap);
         vsapi->mapSetNode(invmap, "clipa", d->node, paAppend);
@@ -140,7 +140,7 @@ namespace {
 typedef struct {
     std::vector<int> weights;
     std::vector<float> fweights;
-    std::vector<VSNodeRef *> nodes;
+    std::vector<VSNode *> nodes;
     VSVideoInfo vi;
     unsigned scale;
     float fscale;
@@ -150,7 +150,7 @@ typedef struct {
 } // namespace
 
 template <typename T>
-static void averageFramesI(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
+static void averageFramesI(const AverageFrameData *d, const VSFrame * const *srcs, VSFrame *dst, int plane, const VSAPI *vsapi) {
     ptrdiff_t stride = vsapi->getStride(dst, plane) / sizeof(T);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
@@ -158,7 +158,7 @@ static void averageFramesI(const AverageFrameData *d, const VSFrameRef * const *
     const T *srcpp[32];
     const size_t numSrcs = d->weights.size();
 
-    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) {
+    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrame *f) {
         return reinterpret_cast<const T *>(vsapi->getReadPtr(f, plane));
     });
 
@@ -192,7 +192,7 @@ static void averageFramesI(const AverageFrameData *d, const VSFrameRef * const *
     }
 }
 
-static void averageFramesF(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
+static void averageFramesF(const AverageFrameData *d, const VSFrame * const *srcs, VSFrame *dst, int plane, const VSAPI *vsapi) {
     ptrdiff_t stride = vsapi->getStride(dst, plane) / sizeof(float);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
@@ -200,7 +200,7 @@ static void averageFramesF(const AverageFrameData *d, const VSFrameRef * const *
     const float *srcpp[32];
     const size_t numSrcs = d->weights.size();
 
-    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) {
+    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrame *f) {
         return reinterpret_cast<const float *>(vsapi->getReadPtr(f, plane));
     });
 
@@ -221,7 +221,7 @@ static void averageFramesF(const AverageFrameData *d, const VSFrameRef * const *
 }
 
 #ifdef VS_TARGET_CPU_X86
-static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
+static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrame * const *srcs, VSFrame *dst, int plane, const VSAPI *vsapi) {
     ptrdiff_t stride = vsapi->getStride(dst, plane);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
@@ -229,7 +229,7 @@ static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrameRef * 
     const uint8_t *srcpp[32];
     const size_t numSrcs = d->weights.size();
 
-    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) { return vsapi->getReadPtr(f, plane); });
+    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrame *f) { return vsapi->getReadPtr(f, plane); });
     if (numSrcs % 2)
         srcpp[numSrcs] = srcpp[numSrcs - 1];
 
@@ -351,7 +351,7 @@ static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrameRef * 
     }
 }
 
-static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
+static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrame * const *srcs, VSFrame *dst, int plane, const VSAPI *vsapi) {
     ptrdiff_t stride = vsapi->getStride(dst, plane) / sizeof(uint16_t);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
@@ -359,7 +359,7 @@ static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * 
     const uint16_t *srcpp[32];
     const size_t numSrcs = d->weights.size();
 
-    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) {
+    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrame *f) {
         return reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(f, plane));
     });
     if (numSrcs % 2)
@@ -464,7 +464,7 @@ static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * 
     }
 }
 
-static void averageFramesFloatSSE2(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
+static void averageFramesFloatSSE2(const AverageFrameData *d, const VSFrame * const *srcs, VSFrame *dst, int plane, const VSAPI *vsapi) {
     ptrdiff_t stride = vsapi->getStride(dst, plane) / sizeof(float);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
@@ -472,7 +472,7 @@ static void averageFramesFloatSSE2(const AverageFrameData *d, const VSFrameRef *
     const float *srcpp[32];
     const size_t numSrcs = d->weights.size();
 
-    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) {
+    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrame *f) {
         return reinterpret_cast<const float *>(vsapi->getReadPtr(f, plane));
     });
 
@@ -502,7 +502,7 @@ static void averageFramesFloatSSE2(const AverageFrameData *d, const VSFrameRef *
 }
 #endif
 
-static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC averageFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AverageFrameData *d = static_cast<AverageFrameData *>(instanceData);
     bool singleClipMode = (d->nodes.size() == 1);
     bool clamp = (n > INT_MAX - 1 - (int)(d->weights.size() / 2));
@@ -517,7 +517,7 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
                 vsapi->requestFrameFilter(n, iter, frameCtx);
         }
     } else if (activationReason == arAllFramesReady) {
-        std::vector<const VSFrameRef *> frames(d->weights.size());
+        std::vector<const VSFrame *> frames(d->weights.size());
 
         if (singleClipMode) {
             int fn = n - (int)(d->weights.size() / 2);
@@ -531,17 +531,17 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
                 frames[i] = vsapi->getFrameFilter(n, d->nodes[i], frameCtx);
         }
 
-        const VSFrameRef *center = (singleClipMode ? frames[frames.size() / 2] : frames[0]);
+        const VSFrame *center = (singleClipMode ? frames[frames.size() / 2] : frames[0]);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(center);
 
         const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = {
+        const VSFrame *fr[] = {
             d->process[0] ? nullptr : center,
             d->process[1] ? nullptr : center,
             d->process[2] ? nullptr : center
         };
 
-        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(center, 0), vsapi->getFrameHeight(center, 0), fr, pl, center, core);
+        VSFrame *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(center, 0), vsapi->getFrameHeight(center, 0), fr, pl, center, core);
 
         std::vector<int> weights(d->weights);
         std::vector<float> fweights(d->fweights);
@@ -724,14 +724,14 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
 // Hysteresis
 
 struct HysteresisData {
-    VSNodeRef * node1, *node2;
+    VSNode * node1, *node2;
     bool process[3];
     uint16_t peak;
     size_t labelSize;
 };
 
 template<typename T>
-static void process_frame_hysteresis(const VSFrameRef * src1, const VSFrameRef * src2, VSFrameRef * dst, const VSVideoFormat *fi, const HysteresisData * d, const VSAPI * vsapi) VS_NOEXCEPT {
+static void process_frame_hysteresis(const VSFrame * src1, const VSFrame * src2, VSFrame * dst, const VSVideoFormat *fi, const HysteresisData * d, const VSAPI * vsapi) VS_NOEXCEPT {
     uint8_t * VS_RESTRICT label = nullptr;
 
     for (int plane = 0; plane < fi->numPlanes; plane++) {
@@ -790,19 +790,19 @@ static void process_frame_hysteresis(const VSFrameRef * src1, const VSFrameRef *
     delete[] label;
 }
 
-static const VSFrameRef *VS_CC hysteresisGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC hysteresisGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     HysteresisData * d = static_cast<HysteresisData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
         vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef * src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef * src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
-        const VSFrameRef * fr[]{ d->process[0] ? nullptr : src1, d->process[1] ? nullptr : src1, d->process[2] ? nullptr : src1 };
+        const VSFrame * src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame * src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        const VSFrame * fr[]{ d->process[0] ? nullptr : src1, d->process[1] ? nullptr : src1, d->process[2] ? nullptr : src1 };
         const int pl[]{ 0, 1, 2 };
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src1);
-        VSFrameRef * dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src1, 0), vsapi->getFrameHeight(src1, 0), fr, pl, src1, core);
+        VSFrame * dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src1, 0), vsapi->getFrameHeight(src1, 0), fr, pl, src1, core);
 
         if (fi->bytesPerSample == 1)
             process_frame_hysteresis<uint8_t>(src1, src2, dst, fi, d, vsapi);

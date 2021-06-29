@@ -39,7 +39,7 @@ enum class MismatchCauses {
     DifferentLengths
 };
 
-static MismatchCauses findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int ignorelength, const VSAPI *vsapi) {
+static MismatchCauses findCommonVi(VSNode **nodes, int num, VSVideoInfo *outvi, int ignorelength, const VSAPI *vsapi) {
     MismatchCauses mismatch = MismatchCauses::Match;
     const VSVideoInfo *vi;
     *outvi = *vsapi->getVideoInfo(nodes[0]);
@@ -97,7 +97,7 @@ typedef struct {
 
 typedef SingleNodeData<TrimDataExtra> TrimData;
 
-static const VSFrameRef *VS_CC trimGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC trimGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     TrimData *d = reinterpret_cast<TrimData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -171,15 +171,15 @@ typedef struct {
 typedef VariableNodeData<InterleaveDataExtra> InterleaveData;
 
 
-static const VSFrameRef *VS_CC interleaveGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC interleaveGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     InterleaveData *d = reinterpret_cast<InterleaveData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
         if (d->modifyDuration) {
-            VSFrameRef *dst = vsapi->copyFrame(src, core);
+            VSFrame *dst = vsapi->copyFrame(src, core);
             vsapi->freeFrame(src);
 
             VSMap *dst_props = vsapi->getFramePropertiesRW(dst);
@@ -212,7 +212,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
     d->numclips = vsapi->mapNumElements(in, "clips");
 
     if (d->numclips == 1) { // passthrough for the special case with only one clip
-        VSNodeRef *cref = vsapi->mapGetNode(in, "clips", 0, 0);
+        VSNode *cref = vsapi->mapGetNode(in, "clips", 0, 0);
         vsapi->mapSetNode(out, "clip", cref, paReplace);
         vsapi->freeNode(cref);
     } else {
@@ -258,7 +258,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
 
 typedef SingleNodeData<VIPointerData> ReverseData;
 
-static const VSFrameRef *VS_CC reverseGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC reverseGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ReverseData *d = reinterpret_cast<ReverseData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -285,7 +285,7 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
 typedef SingleNodeData<VIPointerData> LoopData;
 
-static const VSFrameRef *VS_CC loopGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC loopGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     LoopData *d = reinterpret_cast<LoopData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -338,7 +338,7 @@ typedef struct {
 
 typedef SingleNodeData<SelectEveryDataExtra> SelectEveryData;
 
-static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC selectEveryGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     SelectEveryData *d = reinterpret_cast<SelectEveryData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -346,9 +346,9 @@ static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, 
         frameData[0] = reinterpret_cast<void *>(static_cast<intptr_t>(n));
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[0])), d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[0])), d->node, frameCtx);
         if (d->modifyDuration) {
-            VSFrameRef *dst = vsapi->copyFrame(src, core);
+            VSFrame *dst = vsapi->copyFrame(src, core);
             VSMap *dst_props = vsapi->getFramePropertiesRW(dst);
             int errNum, errDen;
             int64_t durationNum = vsapi->mapGetInt(dst_props, "_DurationNum", 0, &errNum);
@@ -421,7 +421,7 @@ typedef struct {
 
 typedef VariableNodeData<SpliceDataExtra> SpliceData;
 
-static const VSFrameRef *VS_CC spliceGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC spliceGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     SpliceData *d = reinterpret_cast<SpliceData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -443,7 +443,7 @@ static const VSFrameRef *VS_CC spliceGetframe(int n, int activationReason, void 
         frameData[1] = reinterpret_cast<void *>(static_cast<intptr_t>(frame));
         vsapi->requestFrameFilter(frame, d->node[idx], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *f = vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[1])), reinterpret_cast<VSNodeRef *>(frameData[0]), frameCtx);
+        const VSFrame *f = vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[1])), reinterpret_cast<VSNode *>(frameData[0]), frameCtx);
         return f;
     }
 
@@ -459,7 +459,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     bool mismatch = !!vsapi->mapGetInt(in, "mismatch", 0, &err);
 
     if (d->numclips == 1) { // passthrough for the special case with only one clip
-        VSNodeRef *cref = vsapi->mapGetNode(in, "clips", 0, 0);
+        VSNode *cref = vsapi->mapGetNode(in, "clips", 0, 0);
         vsapi->mapSetNode(out, "clip", cref, paReplace);
         vsapi->freeNode(cref);
     } else {
@@ -499,7 +499,7 @@ typedef struct {
 
 typedef SingleNodeData<DuplicateFramesDataExtra> DuplicateFramesData;
 
-static const VSFrameRef *VS_CC duplicateFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC duplicateFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     DuplicateFramesData *d = reinterpret_cast<DuplicateFramesData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -556,7 +556,7 @@ typedef struct {
 
 typedef SingleNodeData<DeleteFramesDataExtra> DeleteFramesData;
 
-static const VSFrameRef *VS_CC deleteFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC deleteFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     DeleteFramesData *d = reinterpret_cast<DeleteFramesData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -625,7 +625,7 @@ typedef struct {
 
 typedef SingleNodeData<FreezeFramesDataExtra> FreezeFramesData;
 
-static const VSFrameRef *VS_CC freezeFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC freezeFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     FreezeFramesData *d = reinterpret_cast<FreezeFramesData *>(instanceData);
 
     if (activationReason == arInitial) {

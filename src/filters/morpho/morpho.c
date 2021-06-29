@@ -96,7 +96,7 @@ error:
     vsapi->mapSetError(out, msg);
 }
 
-static const VSFrameRef *VS_CC MorphoGetFrame(int n, int activationReason,
+static const VSFrame *VS_CC MorphoGetFrame(int n, int activationReason,
                                               void *instanceData,
                                               void **frameData,
                                               VSFrameContext *frameCtx,
@@ -108,8 +108,8 @@ static const VSFrameRef *VS_CC MorphoGetFrame(int n, int activationReason,
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width,
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width,
                                                d->vi.height, src, core);
 
         int i;

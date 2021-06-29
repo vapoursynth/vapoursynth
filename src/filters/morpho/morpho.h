@@ -17,7 +17,7 @@
  */
 
 typedef struct MorphoData {
-    VSNodeRef *node;
+    VSNode *node;
     VSVideoInfo vi;
 
     uint8_t *selem;
@@ -27,7 +27,7 @@ typedef struct MorphoData {
     uintptr_t filter;
 } MorphoData;
 
-static const VSFrameRef *VS_CC MorphoGetFrame(int n, int activationReason,
+static const VSFrame *VS_CC MorphoGetFrame(int n, int activationReason,
                                               void *instanceData,
                                               void **frameData,
                                               VSFrameContext *frameCtx,

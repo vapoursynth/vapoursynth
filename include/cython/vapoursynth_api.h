@@ -24,9 +24,9 @@ static void (*__pyx_api_f_11vapoursynth_vpy4_freeScript)(VSScript *) = 0;
 #define vpy4_freeScript __pyx_api_f_11vapoursynth_vpy4_freeScript
 static char const *(*__pyx_api_f_11vapoursynth_vpy4_getError)(VSScript *) = 0;
 #define vpy4_getError __pyx_api_f_11vapoursynth_vpy4_getError
-static VSNodeRef *(*__pyx_api_f_11vapoursynth_vpy4_getOutput)(VSScript *, int) = 0;
+static VSNode *(*__pyx_api_f_11vapoursynth_vpy4_getOutput)(VSScript *, int) = 0;
 #define vpy4_getOutput __pyx_api_f_11vapoursynth_vpy4_getOutput
-static VSNodeRef *(*__pyx_api_f_11vapoursynth_vpy4_getAlphaOutput)(VSScript *, int) = 0;
+static VSNode *(*__pyx_api_f_11vapoursynth_vpy4_getAlphaOutput)(VSScript *, int) = 0;
 #define vpy4_getAlphaOutput __pyx_api_f_11vapoursynth_vpy4_getAlphaOutput
 static int (*__pyx_api_f_11vapoursynth_vpy_clearOutput)(VSScript *, int) = 0;
 #define vpy_clearOutput __pyx_api_f_11vapoursynth_vpy_clearOutput

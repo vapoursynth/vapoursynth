@@ -64,8 +64,8 @@ private:
     const VSSCRIPTAPI *vssapi = nullptr;
     VSScript *se = nullptr;
     bool enable_v210 = false;
-    VSNodeRef *videoNode = nullptr;
-    VSNodeRef *audioNode = nullptr;
+    VSNode *videoNode = nullptr;
+    VSNode *audioNode = nullptr;
     std::atomic<long> m_refs;
     std::string szScriptName;
     const VSVideoInfo *vi = nullptr;
@@ -86,7 +86,7 @@ public:
     ~VapourSynthFile();
 
     static HRESULT Create(const CLSID& rclsid, const IID& riid, void **ppv);
-    static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
+    static void VS_CC frameDoneCallback(void *userData, const VSFrame *f, int n, VSNode *, const char *errorMsg);
 
     //////////// IUnknown
 
@@ -742,7 +742,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) noexce
 ////////////////////////////////////////////////////////////////////////
 //////////// local
 
-void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
+void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrame *f, int n, VSNode *, const char *errorMsg) {
     VapourSynthFile *vsfile = static_cast<VapourSynthFile *>(userData);
     vsfile->vsapi->freeFrame(f);
     --vsfile->pending_requests;
@@ -752,7 +752,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     const VSAPI *vsapi = parent->vsapi;
     const VSSCRIPTAPI *vssapi = parent->vssapi;
     std::vector<char> errMsg(32 * 1024);
-    const VSFrameRef *f = vsapi->getFrame(n, parent->videoNode, errMsg.data(), static_cast<int>(errMsg.size()));
+    const VSFrame *f = vsapi->getFrame(n, parent->videoNode, errMsg.data(), static_cast<int>(errMsg.size()));
     VSScript *errSe = nullptr;
     if (!f) {
         std::string matrix;
@@ -774,7 +774,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         frameErrorScript += "err_script_clip.set_output()\n";
 
         errSe = vssapi->evaluateBuffer(frameErrorScript.c_str(), "vfw_error.message", nullptr, 0);
-        VSNodeRef *node = vssapi->getOutputNode(errSe, 0);
+        VSNode *node = vssapi->getOutputNode(errSe, 0);
         f = vsapi->getFrame(0, node, nullptr, 0);
         vsapi->freeNode(node);
 
@@ -922,7 +922,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         size_t dstPos = 0;
 
         for (int i = startFrame; i <= endFrame; i++) {
-            const VSFrameRef *f = vsapi->getFrame(i, parent->audioNode, nullptr, 0);
+            const VSFrame *f = vsapi->getFrame(i, parent->audioNode, nullptr, 0);
             int64_t firstFrameSample = i * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
             size_t offset = 0;
             size_t copyLength = VS_AUDIO_FRAME_SAMPLES;

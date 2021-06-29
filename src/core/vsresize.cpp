@@ -368,11 +368,11 @@ void propagate_sar(const VSMap *src_props, VSMap *dst_props, const zimg_image_fo
 }
 
 
-void import_frame_get_ptr(const VSFrameRef *frame, zimg_image_buffer_const *buf, unsigned p, const VSAPI *vsapi) {
+void import_frame_get_ptr(const VSFrame *frame, zimg_image_buffer_const *buf, unsigned p, const VSAPI *vsapi) {
     buf->plane[p].data = vsapi->getReadPtr(frame, p);
 }
 
-void import_frame_get_ptr(VSFrameRef *frame, zimg_image_buffer *buf, unsigned p, const VSAPI *vsapi) {
+void import_frame_get_ptr(VSFrame *frame, zimg_image_buffer *buf, unsigned p, const VSAPI *vsapi) {
     buf->plane[p].data = vsapi->getWritePtr(frame, p);
 }
 
@@ -449,7 +449,7 @@ bool is_shifted(const zimg_image_format &fmt) {
 class vszimg_callback_base {
 protected:
     vszimgxx::zimage_buffer m_tmp_buffer;
-    VSFrameRef *m_tmp_alloc;
+    VSFrame *m_tmp_alloc;
     const VSAPI *m_vsapi;
 
     vszimg_callback_base() : m_tmp_buffer(), m_tmp_alloc(), m_vsapi() {}
@@ -488,7 +488,7 @@ class unpack_callback : private vszimg_callback_base {
         return 0;
     }
 public:
-    unpack_callback(const vszimgxx::FilterGraph &graph, const VSFrameRef *frame, const zimg_image_format &format, const VSVideoFormat *vsformat, bool interlaced, VSCore *core, const VSAPI *vsapi) :
+    unpack_callback(const vszimgxx::FilterGraph &graph, const VSFrame *frame, const zimg_image_format &format, const VSVideoFormat *vsformat, bool interlaced, VSCore *core, const VSAPI *vsapi) :
         m_vs_buffer(),
         m_p2p_func()
     {
@@ -515,7 +515,7 @@ class pack_callback : private vszimg_callback_base {
         return 0;
     }
 public:
-    pack_callback(const vszimgxx::FilterGraph &graph, VSFrameRef *frame, const zimg_image_format &format, const VSVideoFormat *vsformat, bool interlaced, VSCore *core, const VSAPI *vsapi) :
+    pack_callback(const vszimgxx::FilterGraph &graph, VSFrame *frame, const zimg_image_format &format, const VSVideoFormat *vsformat, bool interlaced, VSCore *core, const VSAPI *vsapi) :
         m_vs_buffer(),
         m_p2p_func()
     {
@@ -531,7 +531,7 @@ public:
 };
 
 void VS_CC vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi);
-const VSFrameRef * VS_CC vszimg_get_frame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+const VSFrame * VS_CC vszimg_get_frame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 
 class vszimg {
     template <class T>
@@ -580,7 +580,7 @@ class vszimg {
     std::shared_ptr<graph_data> m_graph_data_t;
     std::shared_ptr<graph_data> m_graph_data_b;
 
-    VSNodeRef *m_node;
+    VSNode *m_node;
     VSVideoInfo m_vi;
     bool m_prefer_props; // If true, frame properties have precedence over filter arguments.
     double m_src_left, m_src_top, m_src_width, m_src_height;
@@ -772,8 +772,8 @@ class vszimg {
         propagate_if_present(m_frame_params.chromaloc, &dst_format->chroma_location);
     }
 
-    const VSFrameRef *real_get_frame(const VSFrameRef *src_frame, VSCore *core, const VSAPI *vsapi) {
-        VSFrameRef *dst_frame = nullptr;
+    const VSFrame *real_get_frame(const VSFrame *src_frame, VSCore *core, const VSAPI *vsapi) {
+        VSFrame *dst_frame = nullptr;
         vszimgxx::zimage_format src_format, dst_format;
 
         try {
@@ -807,7 +807,7 @@ class vszimg {
             set_dst_colorspace(src_format, &dst_format);
 
             if (src_format == dst_format && isSameVideoFormat(src_vsformat, dst_vsformat) && !is_shifted(src_format)) {
-                VSFrameRef *clone = vsapi->copyFrame(src_frame, core);
+                VSFrame *clone = vsapi->copyFrame(src_frame, core);
                 export_frame_props(dst_format, vsapi->getFramePropertiesRW(clone), vsapi);
                 return clone;
             }
@@ -894,9 +894,9 @@ public:
         m_node = nullptr;
     }
 
-    const VSFrameRef *get_frame(int n, int activationReason, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-        const VSFrameRef *ret = nullptr;
-        const VSFrameRef *src_frame = nullptr;
+    const VSFrame *get_frame(int n, int activationReason, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+        const VSFrame *ret = nullptr;
+        const VSFrame *src_frame = nullptr;
 
         try {
             if (activationReason == arInitial) {
@@ -963,7 +963,7 @@ void VS_CC vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     delete x;
 }
 
-const VSFrameRef * VS_CC vszimg_get_frame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+const VSFrame * VS_CC vszimg_get_frame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     return static_cast<vszimg *>(instanceData)->get_frame(n, activationReason, frameData, frameCtx, core, vsapi);
 }
 

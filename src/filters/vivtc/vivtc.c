@@ -41,8 +41,8 @@ static int isPowerOf2(int i) {
 // VFM
 
 typedef struct {
-    VSNodeRef *node;
-    VSNodeRef *clip2;
+    VSNode *node;
+    VSNode *clip2;
     const VSVideoInfo *vi;
     double scthresh;
     int tpitchy;
@@ -63,7 +63,7 @@ typedef struct {
 } VFMData;
 
 
-static void copyField(VSFrameRef *dst, const VSFrameRef *src, int field, const VSAPI *vsapi) {
+static void copyField(VSFrame *dst, const VSFrame *src, int field, const VSAPI *vsapi) {
     const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
     int plane;
     for (plane=0; plane<fi->numPlanes; plane++) {
@@ -90,8 +90,8 @@ static void buildABSDiffMask(const uint8_t *prvp, const uint8_t *nxtp,
 }
 
 
-static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
-    int *blockN, int chroma, int cthresh, VSFrameRef *cmask, int *cArray, int blockx, int blocky)
+static int calcMI(const VSFrame *src, const VSAPI *vsapi,
+    int *blockN, int chroma, int cthresh, VSFrame *cmask, int *cArray, int blockx, int blocky)
 {
     int ret = 0;
     const int cthresh6 = cthresh*6;
@@ -397,7 +397,7 @@ static void buildDiffMap(const uint8_t *prvp, const uint8_t *nxtp,
     }
 }
 
-static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const VSFrameRef *nxt, VSFrameRef *map, int match1,
+static int compareFieldsSlow(const VSFrame *prv, const VSFrame *src, const VSFrame *nxt, VSFrame *map, int match1,
     int match2, int mchroma, int field, int y0, int y1, uint8_t *tbuffer, int tpitchy, int tpitchuv, const VSAPI *vsapi)
 {
     int plane, ret;
@@ -555,12 +555,12 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
 }
 
 
-static const VSFrameRef *createWeaveFrame(const VSFrameRef *prv, const VSFrameRef *src,
-    const VSFrameRef *nxt, const VSAPI *vsapi, VSCore *core, int match, int field) {
+static const VSFrame *createWeaveFrame(const VSFrame *prv, const VSFrame *src,
+    const VSFrame *nxt, const VSAPI *vsapi, VSCore *core, int match, int field) {
     if (match == 1) {
         return vsapi->cloneFrameRef(src);
     } else {
-        VSFrameRef *dst = vsapi->newVideoFrame(vsapi->getVideoFrameFormat(src), vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
+        VSFrame *dst = vsapi->newVideoFrame(vsapi->getVideoFrameFormat(src), vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
         if (match == 0) {
             copyField(dst, src, 1-field, vsapi);
@@ -581,8 +581,8 @@ static const VSFrameRef *createWeaveFrame(const VSFrameRef *prv, const VSFrameRe
 }
 
 
-static int checkmm(int m1, int m2, int *m1mic, int *m2mic, int *blockN, int MI, int field, int chroma, int cthresh, const VSFrameRef **genFrames,
-    const VSFrameRef *prv, const VSFrameRef *src, const VSFrameRef *nxt, VSFrameRef *cmask, int *cArray, int blockx, int blocky, const VSAPI *vsapi, VSCore *core) {
+static int checkmm(int m1, int m2, int *m1mic, int *m2mic, int *blockN, int MI, int field, int chroma, int cthresh, const VSFrame **genFrames,
+    const VSFrame *prv, const VSFrame *src, const VSFrame *nxt, VSFrame *cmask, int *cArray, int blockx, int blocky, const VSAPI *vsapi, VSCore *core) {
     if (*m1mic < 0) {
         if (!genFrames[m1])
             genFrames[m1] = createWeaveFrame(prv, src, nxt, vsapi, core, m1, field);
@@ -628,7 +628,7 @@ typedef enum {
     VFMFieldOppositeOfOrder
 } VFMField;
 
-static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC vfmGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     const VFMData *vfm = (const VFMData *)instanceData;
     n = VSMIN(vfm->vi->numFrames - 1, n);
     if (activationReason == arInitial) {
@@ -646,9 +646,9 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void *in
                 vsapi->requestFrameFilter(n+1, vfm->clip2, frameCtx);
         }
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *prv = vsapi->getFrameFilter(n > 0 ? n-1 : 0, vfm->node, frameCtx);
-        const VSFrameRef *src = vsapi->getFrameFilter(n, vfm->node, frameCtx);
-        const VSFrameRef *nxt = vsapi->getFrameFilter(n < vfm->vi->numFrames - 1 ? n+1 : vfm->vi->numFrames - 1, vfm->node, frameCtx);
+        const VSFrame *prv = vsapi->getFrameFilter(n > 0 ? n-1 : 0, vfm->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, vfm->node, frameCtx);
+        const VSFrame *nxt = vsapi->getFrameFilter(n < vfm->vi->numFrames - 1 ? n+1 : vfm->vi->numFrames - 1, vfm->node, frameCtx);
         int mics[] = { -1,-1,-1,-1,-1 };
 
         int order, field;
@@ -673,18 +673,18 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void *in
         const int *fxo = field ^ order ? fxo1m : fxo0m;
         int match;
         int i;
-        const VSFrameRef *genFrames[] =  { NULL, NULL, NULL, NULL, NULL };
+        const VSFrame *genFrames[] =  { NULL, NULL, NULL, NULL, NULL };
         int blockN;
-        const VSFrameRef *dst1;
-        VSFrameRef *dst2;
+        const VSFrame *dst1;
+        VSFrame *dst2;
         VSMap *m;
         int sc = 0;
         const VSVideoFormat *format = vsapi->getVideoFrameFormat(src);
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
 
-        VSFrameRef *map = vsapi->newVideoFrame(format, width, height, NULL, core);
-        VSFrameRef *cmask = vsapi->newVideoFrame(format, width, height, NULL, core);
+        VSFrame *map = vsapi->newVideoFrame(format, width, height, NULL, core);
+        VSFrame *cmask = vsapi->newVideoFrame(format, width, height, NULL, core);
 
         uint8_t *tbuffer = (uint8_t *)malloc((height>>1)*vfm->tpitchy*sizeof(uint8_t));
         int *cArray = (int *)malloc((((width+vfm->blockx/2)/vfm->blockx)+1)*(((height+vfm->blocky/2)/vfm->blocky)+1)*4*sizeof(int));
@@ -749,9 +749,9 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void *in
 
         // Alternative clip handling
         if (vfm->clip2) {
-            const VSFrameRef *prv2 = vsapi->getFrameFilter(n > 0 ? n-1 : 0, vfm->clip2, frameCtx);
-            const VSFrameRef *src2 = vsapi->getFrameFilter(n, vfm->clip2, frameCtx);
-            const VSFrameRef *nxt2 = vsapi->getFrameFilter(n < vfm->vi->numFrames - 1 ? n+1 : vfm->vi->numFrames - 1, vfm->clip2, frameCtx);
+            const VSFrame *prv2 = vsapi->getFrameFilter(n > 0 ? n-1 : 0, vfm->clip2, frameCtx);
+            const VSFrame *src2 = vsapi->getFrameFilter(n, vfm->clip2, frameCtx);
+            const VSFrame *nxt2 = vsapi->getFrameFilter(n < vfm->vi->numFrames - 1 ? n+1 : vfm->vi->numFrames - 1, vfm->clip2, frameCtx);
             dst1 = createWeaveFrame(prv2, src2, nxt2, vsapi, core, match, field);
             vsapi->freeFrame(prv2);
             vsapi->freeFrame(src2);
@@ -795,8 +795,8 @@ static void VS_CC vfmFree(void *instanceData, VSCore *core, const VSAPI *vsapi) 
     free(vfm);
 }
 
-static VSMap *invokePlaneDifference(VSNodeRef *node, VSCore *core, const VSAPI *vsapi) {
-    VSNodeRef *node2;
+static VSMap *invokePlaneDifference(VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    VSNode *node2;
     VSMap *args, *ret;
     const char *prop = "VFMPlaneStats";
     VSPlugin *stdplugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
@@ -1019,8 +1019,8 @@ typedef struct CycleCache {
 
 
 typedef struct {
-    VSNodeRef *node;
-    VSNodeRef *clip2;
+    VSNode *node;
+    VSNode *clip2;
     VSVideoInfo vi;
     int inCycle;
     int outCycle;
@@ -1129,7 +1129,7 @@ CycleInfo *getCycleFromCache(int cycleNum, CycleCache *cache, VDecimateData *vdm
     return cycle;
 }
 
-static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *totdiff, VDecimateData *vdm, const VSAPI *vsapi) {
+static int64_t calcMetric(const VSFrame *f1, const VSFrame *f2, int64_t *totdiff, VDecimateData *vdm, const VSAPI *vsapi) {
     int64_t *bdiffs = vdm->bdiffs;
     int numplanes = vdm->chroma ? 3 : 1;
     int64_t maxdiff = -1;
@@ -1362,7 +1362,7 @@ static inline void getCycleBoundaries(int n, int *cyclestart, int *cycleend, VDe
         *cycleend = vdm->inputNumFrames;
 }
 
-static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC vdecimateGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     VDecimateData *vdm = (VDecimateData *)instanceData;
 
     if (activationReason == arInitial) {
@@ -1413,8 +1413,8 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         if (cycle->drop == DropUnknown || (vdm->dryrun && cycle->metrics[0].totdiff == DropUnknown)) {
             // Calculate metrics
             for (int i = cyclestart; i < cycleend; i++) {
-                const VSFrameRef *prv = vsapi->getFrameFilter(VSMAX(i - 1, 0), vdm->node, frameCtx);
-                const VSFrameRef *cur = vsapi->getFrameFilter(i, vdm->node, frameCtx);
+                const VSFrame *prv = vsapi->getFrameFilter(VSMAX(i - 1, 0), vdm->node, frameCtx);
+                const VSFrame *cur = vsapi->getFrameFilter(i, vdm->node, frameCtx);
                 cycle->metrics[i - cyclestart].maxbdiff = calcMetric(prv, cur, &cycle->metrics[i - cyclestart].totdiff, vdm, vsapi);
                 vsapi->freeFrame(prv);
                 vsapi->freeFrame(cur);
@@ -1438,7 +1438,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
             FrameDuration oldDurations[MaxCycleLength];
 
             for (int i = cyclestart; i < cyclestart + vdm->inCycle; i++) {
-                const VSFrameRef *frame = vsapi->getFrameFilter(i, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
+                const VSFrame *frame = vsapi->getFrameFilter(i, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
                 const VSMap *frameProps = vsapi->getFramePropertiesRO(frame);
                 int err;
                 oldDurations[i % vdm->inCycle].num = vsapi->mapGetInt(frameProps, "_DurationNum", 0, &err);
@@ -1451,8 +1451,8 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
 
         int outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, cycle->drop, vdm->dryrun);
 
-        const VSFrameRef *src = vsapi->getFrameFilter(outputFrame, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        const VSFrame *src = vsapi->getFrameFilter(outputFrame, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
+        VSFrame *dst = vsapi->copyFrame(src, core);
         vsapi->freeFrame(src);
         VSMap *dstProps = vsapi->getFramePropertiesRW(dst);
 

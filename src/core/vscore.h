@@ -67,20 +67,20 @@ static const uint32_t VS_FRAME_GUARD_PATTERN = 0xDEADBEEF;
 // Internal only filter mode for use by caches to make requests more linear
 const int fmUnorderedLinear = fmFrameState + 1;
 
-struct VSFrameRef;
+struct VSFrame;
 struct VSCore;
 class VSCache;
-struct VSNodeRef;
-struct VSNodeRef;
+struct VSNode;
+struct VSNode;
 class VSThreadPool;
 struct VSFrameContext;
-struct VSFunctionRef;
+struct VSFunction;
 class VSMapData;
 
-typedef vs_intrusive_ptr<VSFrameRef> PVSFrameRef;
-typedef vs_intrusive_ptr<VSNodeRef> PVSNode;
-typedef vs_intrusive_ptr<VSNodeRef> PVSNodeRef;
-typedef vs_intrusive_ptr<VSFunctionRef> PVSFunctionRef;
+typedef vs_intrusive_ptr<VSFrame> PVSFrameRef;
+typedef vs_intrusive_ptr<VSNode> PVSNode;
+typedef vs_intrusive_ptr<VSNode> PVSNodeRef;
+typedef vs_intrusive_ptr<VSFunction> PVSFunctionRef;
 typedef vs_intrusive_ptr<VSFrameContext> PVSFrameContext;
 
 extern const VSPLUGINAPI vs_internal_vspapi;
@@ -92,7 +92,7 @@ class VSException : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-typedef std::tuple<VSNodeRef *, int> NodeOutputKey;
+typedef std::tuple<VSNode *, int> NodeOutputKey;
 
 template<>
 struct std::hash<NodeOutputKey> {
@@ -101,7 +101,7 @@ struct std::hash<NodeOutputKey> {
     }
 };
 
-struct VSFunctionRef {
+struct VSFunction {
 private:
     std::atomic<long> refcount;
     VSPublicFunction func;
@@ -109,7 +109,7 @@ private:
     VSFreeFunctionData freeFunction;
     VSCore *core;
     int apiMajor;
-    ~VSFunctionRef();
+    ~VSFunction();
 public:
     void add_ref() noexcept {
         ++refcount;
@@ -121,7 +121,7 @@ public:
             delete this;
     }
 
-    VSFunctionRef(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core, int apiMajor);
+    VSFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core, int apiMajor);
     void call(const VSMap *in, VSMap *out);
 };
 
@@ -414,7 +414,7 @@ public:
     void release() noexcept;
 };
 
-struct VSFrameRef {
+struct VSFrame {
 private:
     std::atomic<long> refcount;
     VSMediaType contentType;
@@ -439,12 +439,12 @@ public:
     static const int guardSpace = 0;
 #endif
 
-    VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc, VSCore *core) noexcept;
-    VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core) noexcept;
-    VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core) noexcept;
-    VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef * const *channelSrc, const int *channel, const VSFrameRef *propSrc, VSCore *core) noexcept;
-    VSFrameRef(const VSFrameRef &f) noexcept;
-    ~VSFrameRef();
+    VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept;
+    VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) noexcept;
+    VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc, VSCore *core) noexcept;
+    VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *channelSrc, const int *channel, const VSFrame *propSrc, VSCore *core) noexcept;
+    VSFrame(const VSFrame &f) noexcept;
+    ~VSFrame();
 
     void add_ref() noexcept {
         ++refcount;
@@ -593,12 +593,12 @@ public:
     SemiStaticVector<PVSFrameContext, NUM_FRAMECONTEXT_FAST_REQS> reqList;
     SemiStaticVector<std::pair<NodeOutputKey, PVSFrameRef>, NUM_FRAMECONTEXT_FAST_REQS> availableFrames;
 
-    VSNodeRef *node;
+    VSNode *node;
     void *frameContext[4];
 
     // only used for queryCompletedFrame
     int lastCompletedN = -1;
-    VSNodeRef *lastCompletedNode = nullptr;
+    VSNode *lastCompletedNode = nullptr;
     //
 
     void add_ref() noexcept {
@@ -620,8 +620,8 @@ public:
     }
 
     bool setError(const std::string &errorMsg);
-    VSFrameContext(int n, VSNodeRef *clip, const PVSFrameContext &upstreamContext);
-    VSFrameContext(int n, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput = true);
+    VSFrameContext(int n, VSNode *clip, const PVSFrameContext &upstreamContext);
+    VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput = true);
 };
 
 struct VSFunctionFrame;
@@ -637,7 +637,7 @@ struct VSFunctionFrame {
 
 
 
-struct VSNodeRef {
+struct VSNode {
     friend class VSThreadPool;
     friend struct VSCore;
 private:
@@ -671,10 +671,10 @@ private:
 
     PVSFrameRef getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
 public:
-    VSNodeRef(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
-    VSNodeRef(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
-    VSNodeRef(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
-    ~VSNodeRef();
+    VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
+    VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
+    VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
+    ~VSNode();
 
     void add_ref() noexcept {
         ++refcount;
@@ -724,7 +724,7 @@ public:
 
     const char *getCreationFunctionName(int level) const;
     const VSMap *getCreationFunctionArguments(int level) const;
-    void setFilterRelation(VSNodeRef **dependencies, int numDeps);
+    void setFilterRelation(VSNode **dependencies, int numDeps);
 
     // to get around encapsulation a bit, more elegant than making everything friends in this case
     void reserveThread();
@@ -857,7 +857,7 @@ private:
     std::mutex videoFormatLock;
     int videoFormatIdOffset = 1000;
     VSCoreInfo coreInfo;
-    std::set<VSNodeRef *> caches;
+    std::set<VSNode *> caches;
     std::mutex cacheLock;
 
     std::atomic<int> cpuLevel;
@@ -941,7 +941,7 @@ public:
     void functionInstanceDestroyed();
     void filterInstanceCreated();
     void filterInstanceDestroyed();
-    void destroyFilterInstance(VSNodeRef *node);
+    void destroyFilterInstance(VSNode *node);
 
     explicit VSCore(int flags);
     void freeCore();

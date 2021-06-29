@@ -24,7 +24,7 @@
 #include <VapourSynth4.h>
 #include <string>
 
-std::string printFullNodeGraph(VSNodeRef *node, const VSAPI *vsapi);
-std::string printNodeTimes(VSNodeRef *node, double processingTime, const VSAPI *vsapi);
+std::string printFullNodeGraph(VSNode *node, const VSAPI *vsapi);
+std::string printNodeTimes(VSNode *node, double processingTime, const VSAPI *vsapi);
 
 #endif

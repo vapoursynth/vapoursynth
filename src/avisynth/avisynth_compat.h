@@ -41,19 +41,19 @@ private:
     VSCore *core;
     std::set<std::string> savedStrings;
     const VSAPI *vsapi;
-    std::map<VideoFrame *, const VSFrameRef *> ownedFrames;
+    std::map<VideoFrame *, const VSFrame *> ownedFrames;
     int interfaceVersion;
     std::string charToFilterArgumentString(char c);
     std::mutex registerFunctionLock;
     std::set<std::string> registeredFunctions;
 public:
-    const VSFrameRef *avsToVSFrame(VideoFrame *frame);
+    const VSFrame *avsToVSFrame(VideoFrame *frame);
 
     // ugly, but unfortunately the best place to put the pseudo global variables, actually they're per context
     // the locking prevents multiple accesses at once
     bool initializing;
     int uglyN;
-    VSNodeRef *uglyNode;
+    VSNode *uglyNode;
     VSFrameContext *uglyCtx;
 
     FakeAvisynth(int interfaceVersion, VSCore *core, const VSAPI *vsapi) : core(core), vsapi(vsapi), interfaceVersion(interfaceVersion), initializing(true), uglyN(-1), uglyNode(nullptr), uglyCtx(nullptr) {}
@@ -161,13 +161,13 @@ public:
 
 class VSClip : public IClip {
 private:
-    VSNodeRef *clip;
+    VSNode *clip;
     FakeAvisynth *fakeEnv;
     const VSAPI *vsapi;
     int numSlowWarnings;
     VideoInfo vi;
 public:
-    VSClip(VSNodeRef *clip, FakeAvisynth *fakeEnv, const VSAPI *vsapi);
+    VSClip(VSNode *clip, FakeAvisynth *fakeEnv, const VSAPI *vsapi);
     PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env);
     bool __stdcall GetParity(int n) {
         return true;
@@ -197,10 +197,10 @@ struct PrefetchInfo {
 struct WrappedClip {
     std::string filterName;
     PrefetchInfo prefetchInfo;
-    std::vector<VSNodeRef *> preFetchClips;
+    std::vector<VSNode *> preFetchClips;
     PClip clip;
     FakeAvisynth *fakeEnv;
-    WrappedClip(const std::string &filterName, const PClip &clip, const std::vector<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv);
+    WrappedClip(const std::string &filterName, const PClip &clip, const std::vector<VSNode *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv);
     ~WrappedClip() {
         clip = nullptr;
         delete fakeEnv;

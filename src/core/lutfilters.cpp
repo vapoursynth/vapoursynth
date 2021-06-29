@@ -49,17 +49,17 @@ typedef SingleNodeData<LutDataExtra> LutData;
 } // namespace
 
 template<typename T, typename U>
-static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     LutData *d = reinterpret_cast<LutData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat &fi = d->vi_out.format;
         const int pl[] = {0, 1, 2};
-        const VSFrameRef *fr[] = {d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src};
-        VSFrameRef *dst = vsapi->newVideoFrame2(&fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+        const VSFrame *fr[] = {d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src};
+        VSFrame *dst = vsapi->newVideoFrame2(&fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
         T maxval = static_cast<T>((static_cast<int64_t>(1) << fi.bitsPerSample) - 1);
 
@@ -93,7 +93,7 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void *in
 }
 
 template<typename T>
-static bool funcToLut(int nin, int nout, void *vlut, VSFunctionRef *func, const VSAPI *vsapi, std::string &errstr) {
+static bool funcToLut(int nin, int nout, void *vlut, VSFunction *func, const VSAPI *vsapi, std::string &errstr) {
     VSMap *in = vsapi->createMap();
     VSMap *out = vsapi->createMap();
 
@@ -140,7 +140,7 @@ static bool funcToLut(int nin, int nout, void *vlut, VSFunctionRef *func, const 
 }
 
 template<typename T, typename U>
-static void lutCreateHelper(const VSMap *in, VSMap *out, VSFunctionRef *func, std::unique_ptr<LutData> &d, VSCore *core, const VSAPI *vsapi) {
+static void lutCreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std::unique_ptr<LutData> &d, VSCore *core, const VSAPI *vsapi) {
     int inrange = 1 << d->vi->format.bitsPerSample;
     int maxval = 1 << d->vi_out.format.bitsPerSample;
 
@@ -208,7 +208,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 
         getPlanesArg(in, d->process, vsapi);
 
-        VSFunctionRef *func = vsapi->mapGetFunction(in, "function", 0, &err);
+        VSFunction *func = vsapi->mapGetFunction(in, "function", 0, &err);
         int lut_elem = vsapi->mapNumElements(in, "lut");
         int lutf_elem = vsapi->mapNumElements(in, "lutf");
 
@@ -277,19 +277,19 @@ struct Lut2DataExtra {
 typedef DualNodeData<Lut2DataExtra> Lut2Data;
 
 template<typename T, typename U, typename V>
-static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC lut2Getframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     Lut2Data *d = reinterpret_cast<Lut2Data *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
         vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *srcx = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef *srcy = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        const VSFrame *srcx = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame *srcy = vsapi->getFrameFilter(n, d->node2, frameCtx);
         const VSVideoFormat &fi = d->vi_out.format;
         const int pl[] = {0, 1, 2};
-        const VSFrameRef *fr[] = {d->process[0] ? 0 : srcx, d->process[1] ? 0 : srcx, d->process[2] ? 0 : srcx};
-        VSFrameRef *dst = vsapi->newVideoFrame2(&fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), fr, pl, srcx, core);
+        const VSFrame *fr[] = {d->process[0] ? 0 : srcx, d->process[1] ? 0 : srcx, d->process[2] ? 0 : srcx};
+        VSFrame *dst = vsapi->newVideoFrame2(&fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), fr, pl, srcx, core);
 
         int shift = vsapi->getVideoFrameFormat(srcx)->bitsPerSample;
         T maxvalx = static_cast<T>((static_cast<int64_t>(1) << shift) - 1);
@@ -327,7 +327,7 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void *i
 }
 
 template<typename T>
-static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFunctionRef *func, const VSAPI *vsapi, std::string &errstr) {
+static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFunction *func, const VSAPI *vsapi, std::string &errstr) {
     VSMap *in = vsapi->createMap();
     VSMap *out = vsapi->createMap();
 
@@ -381,7 +381,7 @@ static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFunctionRef *
 }
 
 template<typename T, typename U, typename V>
-static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunctionRef *func, std::unique_ptr<Lut2Data> &d, VSCore *core, const VSAPI *vsapi) {
+static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std::unique_ptr<Lut2Data> &d, VSCore *core, const VSAPI *vsapi) {
     int inrange = (1 << d->vi[0]->format.bitsPerSample) * (1 << d->vi[1]->format.bitsPerSample);
     int maxval = 1 << d->vi_out.format.bitsPerSample;
 
@@ -453,7 +453,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
         getPlanesArg(in, d->process, vsapi);
 
-        VSFunctionRef *func = vsapi->mapGetFunction(in, "function", 0, &err);
+        VSFunction *func = vsapi->mapGetFunction(in, "function", 0, &err);
         int lut_elem = vsapi->mapNumElements(in, "lut");
         int lutf_elem = vsapi->mapNumElements(in, "lutf");
 

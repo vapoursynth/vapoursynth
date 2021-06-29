@@ -37,7 +37,7 @@ using namespace vsh;
 
 typedef VariableNodeData<VIPointerData> PreMultiplyData;
 
-static int getLimitedRangeOffset(const VSFrameRef *f, const VSVideoInfo *vi, const VSAPI *vsapi) {
+static int getLimitedRangeOffset(const VSFrame *f, const VSVideoInfo *vi, const VSAPI *vsapi) {
     int err;
     int limited = !!vsapi->mapGetInt(vsapi->getFramePropertiesRO(f), "_ColorRange", 0, &err);
     if (err)
@@ -45,7 +45,7 @@ static int getLimitedRangeOffset(const VSFrameRef *f, const VSVideoInfo *vi, con
     return (limited ? (16 << (vi->format.bitsPerSample - 8)) : 0);
 }
 
-static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC preMultiplyGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     PreMultiplyData *d = reinterpret_cast<PreMultiplyData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -54,12 +54,12 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
         if (d->node[2])
             vsapi->requestFrameFilter(n, d->node[2], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node[0], frameCtx);
-        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node[1], frameCtx);
-        const VSFrameRef *src2_23 = 0;
+        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node[0], frameCtx);
+        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node[1], frameCtx);
+        const VSFrame *src2_23 = 0;
         if (d->node[2])
             src2_23 = vsapi->getFrameFilter(n, d->node[2], frameCtx);
-        VSFrameRef *dst = vsapi->newVideoFrame(&d->vi->format, d->vi->width, d->vi->height, src1, core);
+        VSFrame *dst = vsapi->newVideoFrame(&d->vi->format, d->vi->width, d->vi->height, src1, core);
         for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
             int h = vsapi->getFrameHeight(src1, plane);
             int w = vsapi->getFrameWidth(src1, plane);
@@ -203,19 +203,19 @@ typedef DualNodeData<MergeDataExtra> MergeData;
 
 const unsigned MergeShift = 15;
 
-static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC mergeGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     MergeData *d = reinterpret_cast<MergeData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
         vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         const int pl[] = {0, 1, 2};
-        const VSFrameRef *fs[] = { 0, src1, src2 };
-        const VSFrameRef *fr[] = {fs[d->process[0]], fs[d->process[1]], fs[d->process[2]]};
-        VSFrameRef *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
+        const VSFrame *fs[] = { 0, src1, src2 };
+        const VSFrame *fr[] = {fs[d->process[0]], fs[d->process[1]], fs[d->process[2]]};
+        VSFrame *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
             if (d->process[plane] == 0) {
                 int h = vsapi->getFrameHeight(src1, plane);
@@ -349,7 +349,7 @@ typedef struct {
 
 typedef VariableNodeData<MaskedMergeDataExtra> MaskedMergeData;
 
-static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     MaskedMergeData *d = reinterpret_cast<MaskedMergeData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -359,16 +359,16 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
         if (d->node[3])
             vsapi->requestFrameFilter(n, d->node[3], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node[0], frameCtx);
-        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node[1], frameCtx);
-        const VSFrameRef *mask = vsapi->getFrameFilter(n, d->node[2], frameCtx);
-        const VSFrameRef *mask23 = nullptr;
+        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node[0], frameCtx);
+        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node[1], frameCtx);
+        const VSFrame *mask = vsapi->getFrameFilter(n, d->node[2], frameCtx);
+        const VSFrame *mask23 = nullptr;
         int offset1 = getLimitedRangeOffset(src1, d->vi, vsapi);
         int offset2 = getLimitedRangeOffset(src2, d->vi, vsapi);
 
         const int pl[] = {0, 1, 2};
-        const VSFrameRef *fr[] = {d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1};
-        VSFrameRef *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
+        const VSFrame *fr[] = {d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1};
+        VSFrame *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         if (d->node[3])
            mask23 = vsapi->getFrameFilter(n, d->node[3], frameCtx);
         for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
@@ -485,7 +485,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
             vsapi->mapSetInt(min, "planes", 0, paAppend);
             vsapi->mapSetInt(min, "colorfamily", cfGray, paAppend);
             VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShufflePlanes", min);
-            VSNodeRef *mask_first_plane = vsapi->mapGetNode(mout, "clip", 0, 0);
+            VSNode *mask_first_plane = vsapi->mapGetNode(mout, "clip", 0, 0);
             vsapi->freeMap(mout);
             vsapi->clearMap(min);
             vsapi->mapSetNode(min, "clip", mask_first_plane, paAppend);
@@ -520,18 +520,18 @@ typedef struct {
 
 typedef DualNodeData<MakeDiffDataExtra> MakeDiffData;
 
-static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC makeDiffGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     MakeDiffData *d = reinterpret_cast<MakeDiffData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
         vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = { d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1 };
-        VSFrameRef *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
+        const VSFrame *fr[] = { d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1 };
+        VSFrame *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
             if (d->process[plane]) {
                 int h = vsapi->getFrameHeight(src1, plane);
@@ -625,18 +625,18 @@ struct MergeDiffDataExtra {
 
 typedef DualNodeData<MergeDiffDataExtra> MergeDiffData;
 
-static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC mergeDiffGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     MergeDiffData *d = reinterpret_cast<MergeDiffData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
         vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = { d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1 };
-        VSFrameRef *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
+        const VSFrame *fr[] = { d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1 };
+        VSFrame *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
             if (d->process[plane]) {
                 int h = vsapi->getFrameHeight(src1, plane);

@@ -70,7 +70,7 @@ struct SingleNodeData : public T {
 private:
     const VSAPI *vsapi;
 public:
-    VSNodeRef *node = nullptr;
+    VSNode *node = nullptr;
 
     explicit SingleNodeData(const VSAPI *vsapi) noexcept : T(), vsapi(vsapi) {
     }
@@ -85,8 +85,8 @@ struct DualNodeData : public T {
 private:
     const VSAPI *vsapi;
 public:
-    VSNodeRef *node1 = nullptr;
-    VSNodeRef *node2 = nullptr;
+    VSNode *node1 = nullptr;
+    VSNode *node2 = nullptr;
 
     explicit DualNodeData(const VSAPI *vsapi) noexcept : T(), vsapi(vsapi) {
     }
@@ -102,7 +102,7 @@ struct VariableNodeData : public T {
 private:
     const VSAPI *vsapi;
 public:
-    std::vector<VSNodeRef *> node;
+    std::vector<VSNode *> node;
 
     explicit VariableNodeData(const VSAPI *vsapi) noexcept : T(), vsapi(vsapi) {
     }

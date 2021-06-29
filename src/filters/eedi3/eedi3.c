@@ -34,10 +34,10 @@
 #include "VSHelper4.h"
 
 typedef struct {
-    VSNodeRef *node;
+    VSNode *node;
     VSVideoInfo vi;
 
-    VSNodeRef *sclip;
+    VSNode *sclip;
 
     int dh, hp, ucubic, cost3;
     int planes;
@@ -372,12 +372,12 @@ static void interpLineHP(const uint8_t *srcp, const int width, const ptrdiff_t p
 }
 
 
-static VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi, void *instanceData)
+static VSFrame *copyPad(const VSFrame *src, int fn, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi, void *instanceData)
 {
     eedi3Data *d = (eedi3Data *)instanceData;
 
     const int off = 1 - fn;
-    VSFrameRef *srcPF = vsapi->newVideoFrame(&d->vi.format, d->vi.width + 24 * (1 << d->vi.format.subSamplingW), d->vi.height + 8 * (1 << d->vi.format.subSamplingH), NULL, core);
+    VSFrame *srcPF = vsapi->newVideoFrame(&d->vi.format, d->vi.width + 24 * (1 << d->vi.format.subSamplingW), d->vi.height + 8 * (1 << d->vi.format.subSamplingH), NULL, core);
 
     int b, x, y;
 
@@ -436,7 +436,7 @@ static VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameC
 }
 
 
-static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
+static const VSFrame *VS_CC eedi3GetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
 {
     eedi3Data *d = (eedi3Data *)instanceData;
 
@@ -447,7 +447,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
             vsapi->requestFrameFilter(n, d->sclip, frameCtx);
     } else if(activationReason == arAllFramesReady) {
 
-        const VSFrameRef *src = vsapi->getFrameFilter(d->field > 1 ? (n >> 1) : n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(d->field > 1 ? (n >> 1) : n, d->node, frameCtx);
 
         int field_n;
 
@@ -472,9 +472,9 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
         }
 
 
-        VSFrameRef *srcPF = copyPad(src, field_n, frameCtx, core, vsapi, instanceData);
+        VSFrame *srcPF = copyPad(src, field_n, frameCtx, core, vsapi, instanceData);
 
-        const VSFrameRef *scpPF;
+        const VSFrame *scpPF;
 
         if(d->vcheck > 0 && d->sclip)
             scpPF = vsapi->getFrameFilter(n, d->sclip, frameCtx);
@@ -482,7 +482,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
             scpPF = NULL;
 
         // fixme,  adjust duration
-        VSFrameRef *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
+        VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
         vsapi->freeFrame(src);
 
         float *workspace = NULL;

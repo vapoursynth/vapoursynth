@@ -142,13 +142,13 @@ struct GenericDataExtra {
 typedef SingleNodeData<GenericDataExtra> GenericData;
 
 template<typename T, typename OP>
-static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     T *d = reinterpret_cast<T *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
         if (!is8to16orFloatFormat(*fi)) {
@@ -158,13 +158,13 @@ static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, 
         }
 
         const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = {
+        const VSFrame *fr[] = {
             d->process[0] ? nullptr : src,
             d->process[1] ? nullptr : src,
             d->process[2] ? nullptr : src
         };
 
-        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+        VSFrame *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             if (d->process[plane]) {
@@ -396,13 +396,13 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
 }
 
 template <GenericOperations op>
-static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     GenericData *d = static_cast<GenericData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
         try {
@@ -418,13 +418,13 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         }
 
         const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = {
+        const VSFrame *fr[] = {
             d->process[0] ? nullptr : src,
             d->process[1] ? nullptr : src,
             d->process[2] ? nullptr : src
         };
 
-        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+        VSFrame *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
         void (*func)(const void *, ptrdiff_t, void *, ptrdiff_t, const vs_generic_params *, unsigned, unsigned) = nullptr;
 
@@ -820,7 +820,7 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
 /////////////////
 
 struct LevelsDataExtra {
-    VSNodeRef *node;
+    VSNode *node;
     const VSVideoInfo *vi;
     const char *name;
     bool process[3];
@@ -832,17 +832,17 @@ struct LevelsDataExtra {
 typedef SingleNodeData<LevelsDataExtra> LevelsData;
 
 template<typename T>
-static const VSFrameRef *VS_CC levelsGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC levelsGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     LevelsData *d = reinterpret_cast<LevelsData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
         const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
-        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+        const VSFrame *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
+        VSFrame *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             if (d->process[plane]) {
@@ -874,17 +874,17 @@ static const VSFrameRef *VS_CC levelsGetframe(int n, int activationReason, void 
 }
 
 template<typename T>
-static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC levelsGetframeF(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     LevelsData *d = reinterpret_cast<LevelsData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
         const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
-        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+        const VSFrame *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
+        VSFrame *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             if (d->process[plane]) {

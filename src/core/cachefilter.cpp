@@ -163,7 +163,7 @@ void VSCache::adjustSize(bool needMemory) {
 // controls how many frames beyond the number of threads is a good margin to catch bigger temporal radius filters that are out of order, just a guess
 static const int extraFrames = 7;
 
-static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC cacheGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     CacheInstance *c = static_cast<CacheInstance *>(instanceData);
 
     intptr_t *fd = (intptr_t *)frameData;
@@ -190,13 +190,13 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
     } else if (activationReason == arAllFramesReady) {
         if (*fd >= -1) {
             for (intptr_t i = *fd + 1; i < n; i++) {
-                const VSFrameRef *r = vsapi->getFrameFilter((int)i, c->clip, frameCtx);
-                c->cache.insert((int)i, const_cast<VSFrameRef *>(r));
+                const VSFrame *r = vsapi->getFrameFilter((int)i, c->clip, frameCtx);
+                c->cache.insert((int)i, const_cast<VSFrame *>(r));
             }
         }
 
-        const VSFrameRef *r = vsapi->getFrameFilter(n, c->clip, frameCtx);
-        c->cache.insert(n, PVSFrameRef(const_cast<VSFrameRef *>(r), true));
+        const VSFrame *r = vsapi->getFrameFilter(n, c->clip, frameCtx);
+        c->cache.insert(n, PVSFrameRef(const_cast<VSFrame *>(r), true));
         return r;
     }
 
@@ -212,7 +212,7 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     static std::atomic<size_t> cacheId(1);
-    VSNodeRef *node = vsapi->mapGetNode(in, "clip", 0, nullptr);
+    VSNode *node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     int err;
     bool fixed = !!vsapi->mapGetInt(in, "fixed", 0, &err);
     CacheInstance *c = new CacheInstance(node, core, fixed);
@@ -235,7 +235,7 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     else
         vsapi->createVideoFilter(out, ("Cache" + std::to_string(cacheId++)).c_str(), vsapi->getVideoInfo(node), cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache, c, core);
 
-    VSNodeRef *self = vsapi->mapGetNode(out, "clip", 0, nullptr);
+    VSNode *self = vsapi->mapGetNode(out, "clip", 0, nullptr);
     c->addCache(self);
     vsapi->freeNode(self);
 }

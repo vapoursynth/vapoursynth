@@ -42,7 +42,7 @@ struct VapourSynther_ : public Synther_ {
     virtual void Release(void) = 0;
 
     // Exception protected PVideoFrame->GetFrame()
-    virtual const VSFrameRef *GetFrame(AvfsLog_* log, int n, bool *success = 0) = 0;
+    virtual const VSFrame *GetFrame(AvfsLog_* log, int n, bool *success = 0) = 0;
 
     // Readonly reference to VideoInfo
     virtual VideoInfoAdapter GetVideoInfo() = 0;

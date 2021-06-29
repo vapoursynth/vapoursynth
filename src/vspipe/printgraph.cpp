@@ -26,15 +26,15 @@
 #include <cstring>
 #include <climits>
 
-static std::string mangleNode(VSNodeRef *node, const VSAPI *vsapi) {
+static std::string mangleNode(VSNode *node, const VSAPI *vsapi) {
     return "n" + std::to_string(reinterpret_cast<uintptr_t>(node));
 }
 
-static std::string mangleFrame(VSNodeRef *node, int level, const VSAPI *vsapi) {
+static std::string mangleFrame(VSNode *node, int level, const VSAPI *vsapi) {
     return "s" + std::to_string(reinterpret_cast<uintptr_t>(vsapi->getNodeCreationFunctionArguments(node, level)));
 }
 
-static int getMaxLevel(VSNodeRef *node, const VSAPI *vsapi) {
+static int getMaxLevel(VSNode *node, const VSAPI *vsapi) {
     for (int i = 0; i < INT_MAX; i++) {
         if (!vsapi->getNodeCreationFunctionArguments(node, i))
             return i - 1;
@@ -42,7 +42,7 @@ static int getMaxLevel(VSNodeRef *node, const VSAPI *vsapi) {
     return 0;
 }
 
-static int getMinRealLevel(VSNodeRef *node, const VSAPI *vsapi) {
+static int getMinRealLevel(VSNode *node, const VSAPI *vsapi) {
     int level = 0;
     while (vsapi->getNodeCreationFunctionArguments(node, level) && vsapi->getNodeCreationFunctionName(node, level) && !strcmp(vsapi->getNodeCreationFunctionName(node, level), ""))
         level++;
@@ -81,7 +81,7 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
                 break;
             case ptVideoNode:
                 for (int j = 0; j < std::min(maxPrintLength, numElems); j++) {
-                    VSNodeRef *ref = vsapi->mapGetNode(args, key, j, nullptr);
+                    VSNode *ref = vsapi->mapGetNode(args, key, j, nullptr);
                     const VSVideoInfo *vi = vsapi->getVideoInfo(ref);
                     char formatName[32];
                     vsapi->getVideoFormatName(&vi->format, formatName);
@@ -93,7 +93,7 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
                 break;
             case ptAudioNode:
                 for (int j = 0; j < std::min(maxPrintLength, numElems); j++) {
-                    VSNodeRef *ref = vsapi->mapGetNode(args, key, j, nullptr);
+                    VSNode *ref = vsapi->mapGetNode(args, key, j, nullptr);
                     const VSAudioInfo *ai = vsapi->getAudioInfo(ref);
                     char formatName[32];
                     vsapi->getAudioFormatName(&ai->format, formatName);
@@ -110,7 +110,7 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
     return setArgsStr;
 }
 
-static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, std::set<VSNodeRef *> &visited, VSNodeRef *node, const VSAPI *vsapi) {
+static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, std::set<VSNode *> &visited, VSNode *node, const VSAPI *vsapi) {
     if (!visited.insert(node).second)
         return;
 
@@ -142,7 +142,7 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
             case ptVideoNode:
             case ptAudioNode:
                 for (int j = 0; j < numElems; j++) {
-                    VSNodeRef *ref = vsapi->mapGetNode(args, key, j, nullptr);
+                    VSNode *ref = vsapi->mapGetNode(args, key, j, nullptr);
                     lines.insert(mangleNode(ref, vsapi) +  " -> " + thisFrame);
                     printNodeGraphHelper(lines, nodes, visited, ref, vsapi);
                     vsapi->freeNode(ref);
@@ -154,10 +154,10 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
     }
 }
 
-std::string printFullNodeGraph(VSNodeRef *node, const VSAPI *vsapi) {
+std::string printFullNodeGraph(VSNode *node, const VSAPI *vsapi) {
     std::map<std::string, std::set<std::string>> nodes;
     std::set<std::string> lines;
-    std::set<VSNodeRef *> visited;
+    std::set<VSNode *> visited;
     std::string s = "digraph {\n";
     printNodeGraphHelper(lines, nodes, visited, node, vsapi);
     for (const auto &iter : nodes) {
@@ -188,7 +188,7 @@ struct NodeTimeRecord {
     }
 };
 
-static void printNodeTimesHelper(std::list<NodeTimeRecord> &lines, std::set<VSNodeRef *> &visited, VSNodeRef *node, const VSAPI *vsapi) {
+static void printNodeTimesHelper(std::list<NodeTimeRecord> &lines, std::set<VSNode *> &visited, VSNode *node, const VSAPI *vsapi) {
     if (!visited.insert(node).second)
         return;
 
@@ -203,7 +203,7 @@ static void printNodeTimesHelper(std::list<NodeTimeRecord> &lines, std::set<VSNo
             case ptVideoNode:
             case ptAudioNode:
                 for (int j = 0; j < numElems; j++) {
-                    VSNodeRef *ref = vsapi->mapGetNode(args, key, j, nullptr);
+                    VSNode *ref = vsapi->mapGetNode(args, key, j, nullptr);
                     printNodeTimesHelper(lines, visited, ref, vsapi);
                     vsapi->freeNode(ref);
                 }
@@ -247,9 +247,9 @@ static std::string filterModeToString(int fm) {
         return "unordered";
 }
 
-std::string printNodeTimes(VSNodeRef *node, double processingTime, const VSAPI *vsapi) {
+std::string printNodeTimes(VSNode *node, double processingTime, const VSAPI *vsapi) {
     std::list<NodeTimeRecord> lines;
-    std::set<VSNodeRef *> visited;
+    std::set<VSNode *> visited;
     std::string s;
 
     printNodeTimesHelper(lines, visited, node, vsapi);

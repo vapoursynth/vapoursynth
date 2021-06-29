@@ -8,18 +8,18 @@
 #include "VSHelper4.h"
 
 typedef struct {
-    VSNodeRef *node;
+    VSNode *node;
     const VSVideoInfo *vi;
 } FilterData;
 
 
-static const VSFrameRef *VS_CC filterGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC filterGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     FilterData *d = (FilterData *)instanceData;
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *frame = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *frame = vsapi->getFrameFilter(n, d->node, frameCtx);
 
         // your code here...
 

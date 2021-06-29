@@ -178,14 +178,14 @@ static int cropVerify(int x, int y, int width, int height, int srcwidth, int src
     return !!msg[0];
 }
 
-static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC cropGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     CropData *d = reinterpret_cast<CropData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         char msg[150];
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
@@ -196,7 +196,7 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void *i
             return nullptr;
         }
 
-        VSFrameRef *dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
+        VSFrame *dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             ptrdiff_t srcstride = vsapi->getStride(src, plane);
@@ -318,16 +318,16 @@ static int addBordersVerify(int left, int right, int top, int bottom, const VSVi
     return !!msg[0];
 }
 
-static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC addBordersGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AddBordersData *d = reinterpret_cast<AddBordersData *>(instanceData);
     char msg[150];
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
-        VSFrameRef *dst;
+        VSFrame *dst;
 
         if (addBordersVerify(d->left, d->right, d->top, d->bottom, fi, msg, sizeof(msg))) {
             vsapi->freeFrame(src);
@@ -486,7 +486,7 @@ typedef struct {
 
 typedef VariableNodeData<ShufflePlanesDataExtra> ShufflePlanesData;
 
-static const VSFrameRef *VS_CC shufflePlanesGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC shufflePlanesGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ShufflePlanesData *d = reinterpret_cast<ShufflePlanesData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -499,8 +499,8 @@ static const VSFrameRef *VS_CC shufflePlanesGetframe(int n, int activationReason
             vsapi->requestFrameFilter(n, d->node[2], frameCtx);
     } else if (activationReason == arAllFramesReady) {
         if (d->vi.format.colorFamily != cfGray) {
-            const VSFrameRef *src[3];
-            VSFrameRef *dst;
+            const VSFrame *src[3];
+            VSFrame *dst;
 
             for (int i = 0; i < 3; i++)
                 src[i] = vsapi->getFrameFilter(n, d->node[i], frameCtx);
@@ -512,8 +512,8 @@ static const VSFrameRef *VS_CC shufflePlanesGetframe(int n, int activationReason
 
             return dst;
         } else {
-            VSFrameRef *dst;
-            const VSFrameRef *src = vsapi->getFrameFilter(n, d->node[0], frameCtx);
+            VSFrame *dst;
+            const VSFrame *src = vsapi->getFrameFilter(n, d->node[0], frameCtx);
             const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
             if (d->plane[0] >= fi->numPlanes) {
@@ -648,7 +648,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
 // SplitPlanes
 
 static void VS_CC splitPlanesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    VSNodeRef *node = vsapi->mapGetNode(in, "clip", 0, nullptr);
+    VSNode *node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
     if (vi->format.colorFamily == cfUndefined) {
@@ -672,7 +672,7 @@ static void VS_CC splitPlanesCreate(const VSMap *in, VSMap *out, void *userData,
     for (int i = 0; i < numPlanes; i++) {
         vsapi->mapSetInt(map, "plane", i, paReplace);
         VSMap *tmp = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShufflePlanes", map);
-        VSNodeRef *tmpnode = vsapi->mapGetNode(tmp, "clip", 0, nullptr);
+        VSNode *tmpnode = vsapi->mapGetNode(tmp, "clip", 0, nullptr);
         vsapi->mapSetNode(out, "clip", tmpnode, paAppend);
         vsapi->freeNode(tmpnode);
         vsapi->freeMap(tmp);
@@ -693,13 +693,13 @@ typedef struct {
 
 typedef SingleNodeData<SeparateFieldsDataExtra> SeparateFieldsData;
 
-static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC separateFieldsGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     SeparateFieldsData *d = reinterpret_cast<SeparateFieldsData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n / 2, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n / 2, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n / 2, d->node, frameCtx);
         const VSMap *props = vsapi->getFramePropertiesRO(src);
         int err = 0;
         int fieldBased = vsapi->mapGetIntSaturated(props, "_FieldBased", 0, &err);
@@ -714,7 +714,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
             return nullptr;
         }
 
-        VSFrameRef *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
+        VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(dst);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
@@ -795,15 +795,15 @@ typedef struct {
 
 typedef SingleNodeData<DoubleWeaveDataExtra> DoubleWeaveData;
 
-static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC doubleWeaveGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     DoubleWeaveData *d = reinterpret_cast<DoubleWeaveData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
         vsapi->requestFrameFilter(n + 1, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFrameRef *src2 = vsapi->getFrameFilter(n + 1, d->node, frameCtx);
+        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src2 = vsapi->getFrameFilter(n + 1, d->node, frameCtx);
 
         int err;
         int64_t src1_field = vsapi->mapGetInt(vsapi->getFramePropertiesRO(src1), "_Field", 0, &err);
@@ -813,8 +813,8 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
         if (err)
             src2_field = -1;
 
-        const VSFrameRef *srctop = nullptr;
-        const VSFrameRef *srcbtn = nullptr;
+        const VSFrame *srctop = nullptr;
+        const VSFrame *srcbtn = nullptr;
 
         if (src1_field == 0 && src2_field == 1) {
             srcbtn = src1;
@@ -838,7 +838,7 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
             return nullptr;
         }
 
-        VSFrameRef *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src1, core);
+        VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src1, core);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(dst);
         VSMap *dstprops = vsapi->getFramePropertiesRW(dst);
         vsapi->mapDeleteKey(dstprops, "_Field");
@@ -894,15 +894,15 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
 
 typedef SingleNodeData<NoExtraData> FlipVeritcalData;
 
-static const VSFrameRef *VS_CC flipVerticalGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC flipVerticalGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     FlipVeritcalData *d = reinterpret_cast<FlipVeritcalData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
-        VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
+        VSFrame *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
@@ -937,16 +937,16 @@ typedef struct {
 
 typedef SingleNodeData<FlipHorizontalDataExtra> FlipHorizontalData;
 
-static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC flipHorizontalGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     // optimize, pshufb, pshufw, palignr could make flipping a lot faster
     FlipHorizontalData *d = reinterpret_cast<FlipHorizontalData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
-        VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
+        VSFrame *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t * VS_RESTRICT srcp = vsapi->getReadPtr(src, plane);
@@ -1035,15 +1035,15 @@ typedef struct {
 
 typedef VariableNodeData<StackDataExtra> StackData;
 
-static const VSFrameRef *VS_CC stackGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC stackGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     StackData *d = reinterpret_cast<StackData *>(instanceData);
 
     if (activationReason == arInitial) {
         for (auto iter: d->node)
             vsapi->requestFrameFilter(n, iter, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node[0], frameCtx);
-        VSFrameRef *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node[0], frameCtx);
+        VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
         vsapi->freeFrame(src);
 
         for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
@@ -1086,7 +1086,7 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     int numclips = vsapi->mapNumElements(in, "clips");
 
     if (numclips == 1) { // passthrough for the special case with only one clip
-        VSNodeRef *node = vsapi->mapGetNode(in, "clips", 0, 0);
+        VSNode *node = vsapi->mapGetNode(in, "clips", 0, 0);
         vsapi->mapSetNode(out, "clip", node, paReplace);
         vsapi->freeNode(node);
     } else {
@@ -1126,17 +1126,17 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 // BlankClip
 
 typedef struct {
-    VSFrameRef *f;
+    VSFrame *f;
     VSVideoInfo vi;
     uint32_t color[3];
     bool keep;
 } BlankClipData;
 
-static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC blankClipGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = reinterpret_cast<BlankClipData *>(instanceData);
 
     if (activationReason == arInitial) {
-        VSFrameRef *frame = nullptr;
+        VSFrame *frame = nullptr;
         if (!d->f) {
             frame = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, 0, core);
             int bytesPerSample = d->vi.format.bytesPerSample;
@@ -1187,7 +1187,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     int64_t tmp2;
     int err;
 
-    VSNodeRef *node = vsapi->mapGetNode(in, "clip", 0, &err);
+    VSNode *node = vsapi->mapGetNode(in, "clip", 0, &err);
 
     if (!err) {
         d->vi = *vsapi->getVideoInfo(node);
@@ -1309,14 +1309,14 @@ typedef struct {
 
 typedef SingleNodeData<AssumeFPSDataExtra> AssumeFPSData;
 
-static const VSFrameRef *VS_CC assumeFPSGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC assumeFPSGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AssumeFPSData *d = reinterpret_cast<AssumeFPSData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrame *dst = vsapi->copyFrame(src, core);
         VSMap *m = vsapi->getFramePropertiesRW(dst);
         vsapi->freeFrame(src);
         vsapi->mapSetInt(m, "_DurationNum", d->vi.fpsDen, paReplace);
@@ -1346,7 +1346,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
     if (err)
         d->vi.fpsDen = 1;
 
-    VSNodeRef *src = vsapi->mapGetNode(in, "src", 0, &err);
+    VSNode *src = vsapi->mapGetNode(in, "src", 0, &err);
 
     if (!err) {
         const VSVideoInfo *vi = vsapi->getVideoInfo(src);
@@ -1373,13 +1373,13 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 
 typedef struct {
     VSVideoInfo vi;
-    VSFunctionRef *func;
-    std::vector<VSNodeRef *> propsrc;
+    VSFunction *func;
+    std::vector<VSNode *> propsrc;
     VSMap *in;
     VSMap *out;
 } FrameEvalData;
 
-static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC frameEvalGetFrameWithProps(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     FrameEvalData *d = reinterpret_cast<FrameEvalData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -1389,7 +1389,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
         int err;
         vsapi->mapSetInt(d->in, "n", n, paAppend);
         for (auto iter : d->propsrc) {
-            const VSFrameRef *f = vsapi->getFrameFilter(n, iter, frameCtx);
+            const VSFrame *f = vsapi->getFrameFilter(n, iter, frameCtx);
             vsapi->mapSetFrame(d->in, "f", f, paAppend);
             vsapi->freeFrame(f);
         }
@@ -1401,7 +1401,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
             return nullptr;
         }
 
-        VSNodeRef *node = vsapi->mapGetNode(d->out, "val", 0, &err);
+        VSNode *node = vsapi->mapGetNode(d->out, "val", 0, &err);
         vsapi->clearMap(d->out);
 
         if (err) {
@@ -1413,8 +1413,8 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
 
         vsapi->requestFrameFilter(n, node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *frame;
-        VSNodeRef *node = reinterpret_cast<VSNodeRef *>(frameData[0]);
+        const VSFrame *frame;
+        VSNode *node = reinterpret_cast<VSNode *>(frameData[0]);
         frame = vsapi->getFrameFilter(n, node, frameCtx);
         vsapi->freeNode(node);
 
@@ -1435,13 +1435,13 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
         }
         return frame;
     } else if (activationReason == arError) {
-        vsapi->freeNode(reinterpret_cast<VSNodeRef *>(frameData[0]));
+        vsapi->freeNode(reinterpret_cast<VSNode *>(frameData[0]));
     }
 
     return nullptr;
 }
 
-static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC frameEvalGetFrameNoProps(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     FrameEvalData *d = reinterpret_cast<FrameEvalData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -1456,7 +1456,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
             return nullptr;
         }
 
-        VSNodeRef *node = vsapi->mapGetNode(d->out, "val", 0, &err);
+        VSNode *node = vsapi->mapGetNode(d->out, "val", 0, &err);
         vsapi->clearMap(d->out);
 
         if (err) {
@@ -1468,8 +1468,8 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
 
         vsapi->requestFrameFilter(n, node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        VSNodeRef *node = reinterpret_cast<VSNodeRef *>(frameData[0]);
-        const VSFrameRef *frame = vsapi->getFrameFilter(n, node, frameCtx);
+        VSNode *node = reinterpret_cast<VSNode *>(frameData[0]);
+        const VSFrame *frame = vsapi->getFrameFilter(n, node, frameCtx);
         vsapi->freeNode(node);
 
         if (d->vi.width || d->vi.height) {
@@ -1489,7 +1489,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
         }
         return frame;
     } else if (activationReason == arError) {
-        vsapi->freeNode(reinterpret_cast<VSNodeRef *>(frameData[0]));
+        vsapi->freeNode(reinterpret_cast<VSNode *>(frameData[0]));
     }
 
     return nullptr;
@@ -1507,7 +1507,7 @@ static void VS_CC frameEvalFree(void *instanceData, VSCore *core, const VSAPI *v
 
 static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<FrameEvalData> d(new FrameEvalData());
-    VSNodeRef *node = vsapi->mapGetNode(in, "clip", 0, 0);
+    VSNode *node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(node);
     vsapi->freeNode(node);
     d->func = vsapi->mapGetFunction(in, "eval", 0, 0);
@@ -1529,14 +1529,14 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
 // ModifyFrame
 
 typedef struct {
-    std::vector<VSNodeRef *> node;
+    std::vector<VSNode *> node;
     const VSVideoInfo *vi;
-    VSFunctionRef *func;
+    VSFunction *func;
     VSMap *in;
     VSMap *out;
 } ModifyFrameData;
 
-static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC modifyFrameGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ModifyFrameData *d = reinterpret_cast<ModifyFrameData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -1548,7 +1548,7 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
         vsapi->mapSetInt(d->in, "n", n, paAppend);
 
         for (auto iter : d->node) {
-            const VSFrameRef *f = vsapi->getFrameFilter(n, iter, frameCtx);
+            const VSFrame *f = vsapi->getFrameFilter(n, iter, frameCtx);
             vsapi->mapSetFrame(d->in, "f", f, paAppend);
             vsapi->freeFrame(f);
         }
@@ -1562,7 +1562,7 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
             return nullptr;
         }
 
-        const VSFrameRef *f = vsapi->mapGetFrame(d->out, "val", 0, &err);
+        const VSFrame *f = vsapi->mapGetFrame(d->out, "val", 0, &err);
         vsapi->clearMap(d->out);
         if (err) {
             vsapi->freeFrame(f);
@@ -1600,7 +1600,7 @@ static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI 
 
 static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<ModifyFrameData> d(new ModifyFrameData());
-    VSNodeRef *formatnode = vsapi->mapGetNode(in, "clip", 0, 0);
+    VSNode *formatnode = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(formatnode);
     vsapi->freeNode(formatnode);
 
@@ -1627,14 +1627,14 @@ typedef struct {
 
 typedef SingleNodeData<TransposeDataExtra> TransposeData;
 
-static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC transposeGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     TransposeData *d = reinterpret_cast<TransposeData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
         int width;
         int height;
         const uint8_t * VS_RESTRICT srcp;
@@ -1713,13 +1713,13 @@ typedef struct {
 
 typedef SingleNodeData<PEMVerifierDataExtra> PEMVerifierData;
 
-static const VSFrameRef *VS_CC pemVerifierGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC pemVerifierGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     PEMVerifierData *d = reinterpret_cast<PEMVerifierData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
         char strbuf[512];
 
@@ -1842,7 +1842,7 @@ typedef struct {
 
 typedef DualNodeData<PlaneStatsDataExtra> PlaneStatsData;
 
-static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     PlaneStatsData *d = reinterpret_cast<PlaneStatsData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -1850,9 +1850,9 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         if (d->node2)
             vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef *src2 = d->node2 ? vsapi->getFrameFilter(n, d->node2, frameCtx) : nullptr;
-        VSFrameRef *dst = vsapi->copyFrame(src1, core);
+        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame *src2 = d->node2 ? vsapi->getFrameFilter(n, d->node2, frameCtx) : nullptr;
+        VSFrame *dst = vsapi->copyFrame(src1, core);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(dst);
         int width = vsapi->getFrameWidth(src1, d->plane);
         int height = vsapi->getFrameHeight(src1, d->plane);
@@ -1995,16 +1995,16 @@ typedef struct {
 
 typedef DualNodeData<ClipToPropDataExtra> ClipToPropData;
 
-static const VSFrameRef *VS_CC clipToPropGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC clipToPropGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ClipToPropData *d = reinterpret_cast<ClipToPropData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
         vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src1, core);
+        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        VSFrame *dst = vsapi->copyFrame(src1, core);
         vsapi->mapSetFrame(vsapi->getFramePropertiesRW(dst), d->prop.c_str(), src2, paReplace);
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
@@ -2041,15 +2041,15 @@ typedef struct {
 
 typedef SingleNodeData<PropToClipDataExtra> PropToClipData;
 
-static const VSFrameRef *VS_CC propToClipGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC propToClipGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     PropToClipData *d = reinterpret_cast<PropToClipData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         int err;
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFrameRef *dst = vsapi->mapGetFrame(vsapi->getFramePropertiesRO(src), d->prop.c_str(), 0, &err);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *dst = vsapi->mapGetFrame(vsapi->getFramePropertiesRO(src), d->prop.c_str(), 0, &err);
         vsapi->freeFrame(src);
 
         if (dst) {
@@ -2082,11 +2082,11 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     const char *tempprop = vsapi->mapGetData(in, "prop", 0, &err);
     d->prop = tempprop ? tempprop : "_Alpha";
 
-    const VSFrameRef *src = vsapi->getFrame(0, d->node, errmsg, sizeof(errmsg));
+    const VSFrame *src = vsapi->getFrame(0, d->node, errmsg, sizeof(errmsg));
     if (!src)
         RETERROR(("PropToClip: upstream error: " + std::string(errmsg)).c_str());
 
-    const VSFrameRef *msrc = vsapi->mapGetFrame(vsapi->getFramePropertiesRO(src), tempprop, 0, &err);
+    const VSFrame *msrc = vsapi->mapGetFrame(vsapi->getFramePropertiesRO(src), tempprop, 0, &err);
     if (err) {
         vsapi->freeFrame(src);
         RETERROR("PropToClip: no frame stored in property");
@@ -2118,14 +2118,14 @@ typedef struct {
 
 typedef SingleNodeData<SetFramePropDataExtra> SetFramePropData;
 
-static const VSFrameRef *VS_CC setFramePropGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC setFramePropGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     SetFramePropData *d = reinterpret_cast<SetFramePropData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrame *dst = vsapi->copyFrame(src, core);
         vsapi->freeFrame(src);
 
         VSMap *props = vsapi->getFramePropertiesRW(dst);
@@ -2212,14 +2212,14 @@ typedef struct {
 
 typedef SingleNodeData<SetFramePropsDataExtra> SetFramePropsData;
 
-static const VSFrameRef *VS_CC setFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC setFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     SetFramePropsData *d = reinterpret_cast<SetFramePropsData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrame *dst = vsapi->copyFrame(src, core);
         vsapi->freeFrame(src);
 
         VSMap *props = vsapi->getFramePropertiesRW(dst);
@@ -2261,14 +2261,14 @@ typedef struct {
 
 typedef SingleNodeData<RemoveFramePropsDataExtra> RemoveFramePropsData;
 
-static const VSFrameRef *VS_CC removeFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC removeFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     RemoveFramePropsData *d = reinterpret_cast<RemoveFramePropsData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrame *dst = vsapi->copyFrame(src, core);
         vsapi->freeFrame(src);
 
         VSMap *props = vsapi->getFramePropertiesRW(dst);
@@ -2312,14 +2312,14 @@ typedef struct {
 
 typedef SingleNodeData<SetFieldBasedDataExtra> SetFieldBasedData;
 
-static const VSFrameRef *VS_CC setFieldBasedGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC setFieldBasedGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     SetFieldBasedData *d = reinterpret_cast<SetFieldBasedData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrame *dst = vsapi->copyFrame(src, core);
         vsapi->freeFrame(src);
 
         VSMap *props = vsapi->getFramePropertiesRW(dst);
@@ -2349,16 +2349,16 @@ static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userDat
 
 typedef DualNodeData<NoExtraData> CopyFramePropsData;
 
-static const VSFrameRef *VS_CC copyFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC copyFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     CopyFramePropsData *d = reinterpret_cast<CopyFramePropsData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
         vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src1, core);
+        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        VSFrame *dst = vsapi->copyFrame(src1, core);
         VSMap *dstprops = vsapi->getFramePropertiesRW(dst);
         vsapi->clearMap(dstprops);
         vsapi->copyMap(vsapi->getFramePropertiesRO(src2), dstprops);

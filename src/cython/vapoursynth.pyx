@@ -606,7 +606,7 @@ cdef FuncData createFuncData(object func, VSCore *core, EnvironmentData env):
     
 cdef class Func(object):
     cdef const VSAPI *funcs
-    cdef VSFunctionRef *ref
+    cdef VSFunction *ref
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -647,7 +647,7 @@ cdef Func createFuncPython(object func, VSCore *core, const VSAPI *funcs):
     instance.ref = instance.funcs.createFunction(publicFunction, <void *>fdata, freeFunc, core)
     return instance
         
-cdef Func createFuncRef(VSFunctionRef *ref, const VSAPI *funcs):
+cdef Func createFuncRef(VSFunction *ref, const VSAPI *funcs):
     cdef Func instance = Func.__new__(Func)
     instance.funcs = funcs
     instance.ref = ref
@@ -701,7 +701,7 @@ cdef createCallbackData(const VSAPI* funcs, RawNode node, object cb, object wrap
 
 
 cdef class FramePtr(object):
-    cdef const VSFrameRef *f
+    cdef const VSFrame *f
     cdef const VSAPI *funcs
 
     def __init__(self):
@@ -711,14 +711,14 @@ cdef class FramePtr(object):
         if self.funcs:
             self.funcs.freeFrame(self.f)
 
-cdef FramePtr createFramePtr(const VSFrameRef *f, const VSAPI *funcs):
+cdef FramePtr createFramePtr(const VSFrame *f, const VSAPI *funcs):
     cdef FramePtr instance = FramePtr.__new__(FramePtr)    
     instance.f = f
     instance.funcs = funcs
     return instance
 
 
-cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) nogil:
+cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNode *node, const char *errormsg) nogil:
     with gil:
         d = <CallbackData>data
         try:
@@ -962,8 +962,8 @@ cdef VideoFormat createVideoFormat(const VSVideoFormat *f, const VSAPI *funcs, V
     return instance
 
 cdef class FrameProps(object):
-    cdef const VSFrameRef *constf
-    cdef VSFrameRef *f
+    cdef const VSFrame *constf
+    cdef VSFrame *f
     cdef VSCore *core
     cdef const VSAPI *funcs
     cdef bint readonly
@@ -1183,22 +1183,22 @@ cdef class FrameProps(object):
 
 cdef FrameProps createFrameProps(RawFrame f):
     cdef FrameProps instance = FrameProps.__new__(FrameProps)
-# since the vsapi only returns const refs when cloning a VSFrameRef it is safe to cast away the const here
+# since the vsapi only returns const refs when cloning a VSFrame it is safe to cast away the const here
     instance.constf = f.funcs.cloneFrameRef(f.constf)
     instance.f = NULL
     instance.funcs = f.funcs
     instance.core = f.core
     instance.readonly = f.readonly
     if not instance.readonly:
-        instance.f = <VSFrameRef *>instance.constf
+        instance.f = <VSFrame *>instance.constf
     return instance
 
 # Make sure the FrameProps-Object quacks like a Mapping.
 Mapping.register(FrameProps)
 
 cdef class RawFrame(object):
-    cdef const VSFrameRef *constf
-    cdef VSFrameRef *f
+    cdef const VSFrame *constf
+    cdef VSFrame *f
     cdef VSCore *core
     cdef const VSAPI *funcs
     cdef readonly bint readonly
@@ -1307,7 +1307,7 @@ cdef class VideoFrame(RawFrame):
         return s
 
 
-cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *funcs, VSCore *core):
+cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
     instance.constf = constf
     instance.f = NULL
@@ -1321,7 +1321,7 @@ cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *fun
     return instance
 
 
-cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core):
+cdef VideoFrame createVideoFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
     instance.constf = f
     instance.f = f
@@ -1492,7 +1492,7 @@ cdef class AudioFrame(RawFrame):
         return 'AudioFrame\n'
 
 
-cdef AudioFrame createConstAudioFrame(const VSFrameRef *constf, const VSAPI *funcs, VSCore *core):
+cdef AudioFrame createConstAudioFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
     cdef AudioFrame instance = AudioFrame.__new__(AudioFrame)
     instance.constf = constf
     instance.f = NULL
@@ -1509,7 +1509,7 @@ cdef AudioFrame createConstAudioFrame(const VSFrameRef *constf, const VSAPI *fun
     return instance
 
 
-cdef AudioFrame createAudioFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core):
+cdef AudioFrame createAudioFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     cdef AudioFrame instance = AudioFrame.__new__(AudioFrame)
     instance.constf = f
     instance.f = f
@@ -1590,7 +1590,7 @@ cdef class AudioChannel:
 
 
 cdef class RawNode(object):
-    cdef VSNodeRef *node
+    cdef VSNode *node
     cdef const VSAPI *funcs
     cdef Core core
    
@@ -1741,7 +1741,7 @@ cdef class VideoNode(RawNode):
     def get_frame(self, int n):
         cdef char errorMsg[512]
         cdef char *ep = errorMsg
-        cdef const VSFrameRef *f
+        cdef const VSFrame *f
         self.ensure_valid_frame_number(n)
         
         gc.collect()
@@ -1941,7 +1941,7 @@ cdef class VideoNode(RawNode):
 
         return s
 
-cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
+cdef VideoNode createVideoNode(VSNode *node, const VSAPI *funcs, Core core):
     cdef VideoNode instance = VideoNode.__new__(VideoNode)
     instance.core = core
     instance.node = node
@@ -2003,7 +2003,7 @@ cdef class AudioNode(RawNode):
     def get_frame(self, int n):
         cdef char errorMsg[512]
         cdef char *ep = errorMsg
-        cdef const VSFrameRef *f
+        cdef const VSFrame *f
         self.ensure_valid_frame_number(n)
         
         gc.collect()
@@ -2110,7 +2110,7 @@ cdef class AudioNode(RawNode):
                f'\tSample Rate: {self.sample_rate:d}\n'
                f'\tNum Samples: {self.num_samples:d}\n')
     
-cdef AudioNode createAudioNode(VSNodeRef *node, const VSAPI *funcs, Core core):
+cdef AudioNode createAudioNode(VSNode *node, const VSAPI *funcs, Core core):
     cdef AudioNode instance = AudioNode.__new__(AudioNode)
     instance.core = core
     instance.node = node
@@ -2302,13 +2302,13 @@ cdef class Core(object):
         s += '\tAdd Cache: ' + str(self.add_cache) + '\n'
         return s
 
-cdef object createNode(VSNodeRef *node, const VSAPI *funcs, Core core):
+cdef object createNode(VSNode *node, const VSAPI *funcs, Core core):
     if funcs.getNodeType(node) == VIDEO:
         return createVideoNode(node, funcs, core)
     else:
         return createAudioNode(node, funcs, core)
 
-cdef object createConstFrame(const VSFrameRef *f, const VSAPI *funcs, VSCore *core):
+cdef object createConstFrame(const VSFrame *f, const VSAPI *funcs, VSCore *core):
     if funcs.getFrameType(f) == VIDEO:
         return createConstVideoFrame(f, funcs, core)
     else:
@@ -2995,7 +2995,7 @@ cdef public api const char *vpy4_getError(VSScript *se) nogil:
         errstr = <bytes>se.errstr
         return errstr
             
-cdef public api VSNodeRef *vpy4_getOutput(VSScript *se, int index) nogil:
+cdef public api VSNode *vpy4_getOutput(VSScript *se, int index) nogil:
     with gil:
         pyenvdict = <dict>se.pyenvdict
         node = None
@@ -3012,7 +3012,7 @@ cdef public api VSNodeRef *vpy4_getOutput(VSScript *se, int index) nogil:
         else:
             return NULL
             
-cdef public api VSNodeRef *vpy4_getAlphaOutput(VSScript *se, int index) nogil:
+cdef public api VSNode *vpy4_getAlphaOutput(VSScript *se, int index) nogil:
     with gil:
         pyenvdict = <dict>se.pyenvdict
         node = None

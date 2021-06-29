@@ -162,7 +162,7 @@ static stringlist split_text(const std::string& txt, int width, int height, int 
 }
 
 
-static void scrawl_text(std::string txt, int alignment, int scale, VSFrameRef *frame, const VSAPI *vsapi) {
+static void scrawl_text(std::string txt, int alignment, int scale, VSFrame *frame, const VSAPI *vsapi) {
     const VSVideoFormat *frame_format = vsapi->getVideoFrameFormat(frame);
     int width = vsapi->getFrameWidth(frame, 0);
     int height = vsapi->getFrameHeight(frame, 0);
@@ -278,7 +278,7 @@ enum Filters {
 namespace {
 
 typedef struct {
-    VSNodeRef *node;
+    VSNode *node;
     const VSVideoInfo *vi;
 
     std::string text;
@@ -487,13 +487,13 @@ static std::string transferToString(int transfer) {
         return s;
 }
 
-static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     TextData *d = static_cast<TextData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
 
         const VSVideoFormat *frame_format = vsapi->getVideoFrameFormat(src);
         if ((frame_format->sampleType == stInteger && frame_format->bitsPerSample > 16) ||
@@ -515,7 +515,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void *i
             return nullptr;
         }
 
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        VSFrame *dst = vsapi->copyFrame(src, core);
 
         if (d->filter == FILTER_FRAMENUM) {
             scrawl_text(std::to_string(n), d->alignment, d->scale, dst, vsapi);

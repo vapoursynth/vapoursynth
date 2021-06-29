@@ -1371,7 +1371,7 @@ static void process_subplane_sse2 (const T *src_ptr, ptrdiff_t stride_src, T *ds
 }
 
 template <class OP1, class T1>
-static void do_process_plane_sse2 (const VSFrameRef *src_frame, VSFrameRef *dst_frame, int plane_id, const VSAPI *vsapi)
+static void do_process_plane_sse2 (const VSFrame *src_frame, VSFrame *dst_frame, int plane_id, const VSAPI *vsapi)
 {
     const int        w             = vsapi->getFrameWidth(src_frame, plane_id);
     const int        h             = vsapi->getFrameHeight(src_frame, plane_id);
@@ -1394,7 +1394,7 @@ static void do_process_plane_sse2 (const VSFrameRef *src_frame, VSFrameRef *dst_
 #endif
 
 template <class OP1, class T1>
-static void do_process_plane_cpp (const VSFrameRef *src_frame, VSFrameRef *dst_frame, int plane_id, const VSAPI *vsapi)
+static void do_process_plane_cpp (const VSFrame *src_frame, VSFrame *dst_frame, int plane_id, const VSAPI *vsapi)
 {
     const int        w             = vsapi->getFrameWidth(src_frame, plane_id);
     const int        h             = vsapi->getFrameHeight(src_frame, plane_id);
@@ -1417,21 +1417,21 @@ static void do_process_plane_cpp (const VSFrameRef *src_frame, VSFrameRef *dst_f
 };
 
 typedef struct {
-    VSNodeRef *node;
+    VSNode *node;
     const VSVideoInfo *vi;
     int mode[3];
 } RemoveGrainData;
 
-static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC removeGrainGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     RemoveGrainData *d = static_cast<RemoveGrainData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src_frame = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *src_frame = vsapi->getFrameFilter(n, d->node, frameCtx);
         int planes[3] = {0, 1, 2};
-        const VSFrameRef * cp_planes[3] = { d->mode[0] ? nullptr : src_frame, d->mode[1] ? nullptr : src_frame, d->mode[2] ? nullptr : src_frame };
-        VSFrameRef *dst_frame = vsapi->newVideoFrame2(vsapi->getVideoFrameFormat(src_frame), vsapi->getFrameWidth(src_frame, 0), vsapi->getFrameHeight(src_frame, 0), cp_planes, planes, src_frame, core);
+        const VSFrame * cp_planes[3] = { d->mode[0] ? nullptr : src_frame, d->mode[1] ? nullptr : src_frame, d->mode[2] ? nullptr : src_frame };
+        VSFrame *dst_frame = vsapi->newVideoFrame2(vsapi->getVideoFrameFormat(src_frame), vsapi->getFrameWidth(src_frame, 0), vsapi->getFrameHeight(src_frame, 0), cp_planes, planes, src_frame, core);
 
 
 #define PROC_ARGS_16(op) PlaneProc <op, uint16_t>::do_process_plane_cpp<op, uint16_t>(src_frame, dst_frame, i, vsapi); break;

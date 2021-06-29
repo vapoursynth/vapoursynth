@@ -27,9 +27,9 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VAPOURSYNTH_API_MINOR
         VAPOURSYNTH_API_VERSION
 
-    ctypedef struct VSFrameRef:
+    ctypedef struct VSFrame:
         pass
-    ctypedef struct VSNodeRef:
+    ctypedef struct VSNode:
         pass
     ctypedef struct VSCore:
         pass
@@ -37,7 +37,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         pass
     ctypedef struct VSPluginFunction:
         pass
-    ctypedef struct VSFunctionRef:
+    ctypedef struct VSFunction:
         pass
     ctypedef struct VSMap:
         pass
@@ -232,10 +232,10 @@ cdef extern from "include/VapourSynth4.h" nogil:
     ctypedef void (__stdcall *VSInitPlugin)(VSPlugin *plugin, const VSPLUGINAPI *vspapi)  
 
     ctypedef void (__stdcall *VSFreeFunctionData)(void *userData)
-    ctypedef const VSFrameRef *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
+    ctypedef const VSFrame *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
    
-    ctypedef void (__stdcall *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *node, const char *errorMsg)
+    ctypedef void (__stdcall *VSFrameDoneCallback)(void *userData, const VSFrame *f, int n, VSNode *node, const char *errorMsg)
     ctypedef void (__stdcall *VSLogHandler)(int msgType, const char *msg, void *userData)
     ctypedef void (__stdcall *VSLogHandlerFree)(void *userData)
 
@@ -246,36 +246,36 @@ cdef extern from "include/VapourSynth4.h" nogil:
         
     ctypedef struct VSAPI:
         # Audio and video filter
-        void createVideoFilter(const VSMap *input, VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
-        void createAudioFilter(const VSMap *input, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
-        void freeNode(VSNodeRef *node) nogil
-        VSNodeRef *cloneNodeRef(VSNodeRef *node) nogil
-        int getNodeType(VSNodeRef *node) nogil
-        int getNodeFlags(VSNodeRef *node) nogil
-        const VSVideoInfo *getVideoInfo(VSNodeRef *node) nogil
-        const VSAudioInfo *getAudioInfo(VSNodeRef *node) nogil
+        void createVideoFilter(const VSMap *input, VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        void createAudioFilter(const VSMap *input, VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        void freeNode(VSNode *node) nogil
+        VSNode *cloneNodeRef(VSNode *node) nogil
+        int getNodeType(VSNode *node) nogil
+        int getNodeFlags(VSNode *node) nogil
+        const VSVideoInfo *getVideoInfo(VSNode *node) nogil
+        const VSAudioInfo *getAudioInfo(VSNode *node) nogil
         
         # Frame related
-        VSFrameRef *newVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) nogil
-        VSFrameRef *newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) nogil
-        VSFrameRef *newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) nogil
-        VSFrameRef *newAudioFrame2(const VSAudioFormat *format, int numSamples, const VSFrameRef **channelSrc, const int *channels, const VSFrameRef *propSrc, VSCore *core) nogil
-        void freeFrame(const VSFrameRef *f) nogil
-        const VSFrameRef *cloneFrameRef(VSFrameRef *f) nogil
-        VSFrameRef *copyFrame(const VSFrameRef *f, VSCore *core) nogil
-        const VSMap *getFramePropertiesRO(const VSFrameRef *f) nogil
-        VSMap *getFramePropertiesRW(VSFrameRef *f) nogil
+        VSFrame *newVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrame *propSrc, VSCore *core) nogil
+        VSFrame *newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) nogil
+        VSFrame *newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrame *propSrc, VSCore *core) nogil
+        VSFrame *newAudioFrame2(const VSAudioFormat *format, int numSamples, const VSFrame **channelSrc, const int *channels, const VSFrame *propSrc, VSCore *core) nogil
+        void freeFrame(const VSFrame *f) nogil
+        const VSFrame *cloneFrameRef(VSFrame *f) nogil
+        VSFrame *copyFrame(const VSFrame *f, VSCore *core) nogil
+        const VSMap *getFramePropertiesRO(const VSFrame *f) nogil
+        VSMap *getFramePropertiesRW(VSFrame *f) nogil
     
-        ptrdiff_t getStride(const VSFrameRef *f, int plane) nogil
-        const uint8_t *getReadPtr(const VSFrameRef *f, int plane) nogil
-        uint8_t *getWritePtr(VSFrameRef *f, int plane) nogil
+        ptrdiff_t getStride(const VSFrame *f, int plane) nogil
+        const uint8_t *getReadPtr(const VSFrame *f, int plane) nogil
+        uint8_t *getWritePtr(VSFrame *f, int plane) nogil
         
-        const VSVideoFormat *getVideoFrameFormat(const VSFrameRef *f) nogil
-        const VSAudioFormat *getAudioFrameFormat(const VSFrameRef *f) nogil
-        int getFrameType(const VSFrameRef *f) nogil
-        int getFrameWidth(const VSFrameRef *f, int plane) nogil
-        int getFrameHeight(const VSFrameRef *f, int plane) nogil
-        int getFrameLength(const VSFrameRef *f) nogil
+        const VSVideoFormat *getVideoFrameFormat(const VSFrame *f) nogil
+        const VSAudioFormat *getAudioFrameFormat(const VSFrame *f) nogil
+        int getFrameType(const VSFrame *f) nogil
+        int getFrameWidth(const VSFrame *f, int plane) nogil
+        int getFrameHeight(const VSFrame *f, int plane) nogil
+        int getFrameLength(const VSFrame *f) nogil
     
         # General format functions
         bint getVideoFormatName(const VSVideoFormat *format, char *buffer) nogil
@@ -286,19 +286,18 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int getVideoFormatByID(VSVideoFormat *format, uint32_t id, VSCore *core) nogil
 
         # Frame requests
-        const VSFrameRef *getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize) nogil
-        void getFrameAsync(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) nogil
-        const VSFrameRef *getFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
-        void requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
-        void releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) nogil
-        int getOutputIndex(VSFrameContext *frameCtx) nogil
+        const VSFrame *getFrame(int n, VSNode *node, char *errorMsg, int bufSize) nogil
+        void getFrameAsync(int n, VSNode *node, VSFrameDoneCallback callback, void *userData) nogil
+        const VSFrame *getFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx) nogil
+        void requestFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx) nogil
+        void releaseFrameEarly(VSNode *node, int n, VSFrameContext *frameCtx) nogil
         void setFilterError(const char *errorMessage, VSFrameContext *frameCtx) nogil
         
         # External functions
-        VSFunctionRef *createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core) nogil
-        void freeFunction(VSFunctionRef *f) nogil
-        VSFunctionRef *cloneFunctionRef(VSFunctionRef *f) nogil
-        void callFunction(VSFunctionRef *func, const VSMap *inm, VSMap *outm) nogil
+        VSFunction *createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core) nogil
+        void freeFunction(VSFunction *f) nogil
+        VSFunction *cloneFunctionRef(VSFunction *f) nogil
+        void callFunction(VSFunction *func, const VSMap *inm, VSMap *outm) nogil
     
         # Map and proptery access
         VSMap *createMap() nogil
@@ -333,14 +332,14 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int mapGetDataTypeHint(const VSMap *map, const char *key, int index, int *error) nogil
         bint mapSetData(VSMap *map, const char *key, const char *data, int size, int type, int append) nogil
         
-        VSNodeRef *mapGetNode(const VSMap *map, const char *key, int index, int *error) nogil
-        bint mapSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) nogil
+        VSNode *mapGetNode(const VSMap *map, const char *key, int index, int *error) nogil
+        bint mapSetNode(VSMap *map, const char *key, VSNode *node, int append) nogil
         
-        const VSFrameRef *mapGetFrame(const VSMap *map, const char *key, int index, int *error) nogil
-        bint mapSetFrame(VSMap *map, const char *key, const VSFrameRef *f, int append) nogil
+        const VSFrame *mapGetFrame(const VSMap *map, const char *key, int index, int *error) nogil
+        bint mapSetFrame(VSMap *map, const char *key, const VSFrame *f, int append) nogil
         
-        VSFunctionRef *mapGetFunction(const VSMap *map, const char *key, int index, int *error) nogil
-        bint mapSetFunction(VSMap *map, const char *key, VSFunctionRef *func, int append) nogil
+        VSFunction *mapGetFunction(const VSMap *map, const char *key, int index, int *error) nogil
+        bint mapSetFunction(VSMap *map, const char *key, VSFunction *func, int append) nogil
 
         # Plugin and function related
         bint registerFunction(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil

@@ -196,16 +196,16 @@ private:
 class CacheInstance {
 public:
     VSCache cache;
-    VSNodeRef *clip;
+    VSNode *clip;
     VSCore *core;
-    VSNodeRef *node = nullptr;
+    VSNode *node = nullptr;
     int lastN = -1;
     int numThreads = 0;
     bool makeLinear = false;
 
-    CacheInstance(VSNodeRef *clip, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), core(core) {}
+    CacheInstance(VSNode *clip, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), core(core) {}
 
-    void addCache(VSNodeRef *clip) {
+    void addCache(VSNode *clip) {
         std::lock_guard<std::mutex> lock(core->cacheLock);
         assert(clip);
         node = clip;

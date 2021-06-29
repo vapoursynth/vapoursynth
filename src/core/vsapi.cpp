@@ -53,39 +53,39 @@ static const vs3::VSVideoFormat *VS_CC registerFormat3(int colorFamily, int samp
     return core->queryVideoFormat3(static_cast<vs3::VSColorFamily>(colorFamily), static_cast<VSSampleType>(sampleType), bitsPerSample, subSamplingW, subSamplingH);
 }
 
-static const VSFrameRef *VS_CC cloneFrameRef(const VSFrameRef *frame) VS_NOEXCEPT {
+static const VSFrame *VS_CC cloneFrameRef(const VSFrame *frame) VS_NOEXCEPT {
     assert(frame);
-    const_cast<VSFrameRef *>(frame)->add_ref();
+    const_cast<VSFrame *>(frame)->add_ref();
     return frame;
 }
 
-static VSNodeRef *VS_CC cloneNodeRef(VSNodeRef *node) VS_NOEXCEPT {
+static VSNode *VS_CC cloneNodeRef(VSNode *node) VS_NOEXCEPT {
     assert(node);
     node->add_ref();
     return node;
 }
 
-static ptrdiff_t VS_CC getStride(const VSFrameRef *frame, int plane) VS_NOEXCEPT {
+static ptrdiff_t VS_CC getStride(const VSFrame *frame, int plane) VS_NOEXCEPT {
     assert(frame);
     return frame->getStride(plane);
 }
 
-static int VS_CC getStride3(const VSFrameRef *frame, int plane) VS_NOEXCEPT {
+static int VS_CC getStride3(const VSFrame *frame, int plane) VS_NOEXCEPT {
     assert(frame);
     return static_cast<int>(frame->getStride(plane));
 }
 
-static const uint8_t *VS_CC getReadPtr(const VSFrameRef *frame, int plane) VS_NOEXCEPT {
+static const uint8_t *VS_CC getReadPtr(const VSFrame *frame, int plane) VS_NOEXCEPT {
     assert(frame);
     return frame->getReadPtr(plane);
 }
 
-static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) VS_NOEXCEPT {
+static uint8_t *VS_CC getWritePtr(VSFrame *frame, int plane) VS_NOEXCEPT {
     assert(frame);
     return frame->getWritePtr(plane);
 }
 
-static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) VS_NOEXCEPT {
+static void VS_CC getFrameAsync(int n, VSNode *clip, VSFrameDoneCallback fdc, void *userData) VS_NOEXCEPT {
     assert(clip && fdc);
     int numFrames = (clip->getNodeType() == mtVideo) ? clip->getVideoInfo().numFrames : clip->getAudioInfo().numFrames;
     VSFrameContext *ctx = new VSFrameContext(n, clip, fdc, userData);
@@ -99,13 +99,13 @@ static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc,
 struct GetFrameWaiter {
     std::mutex b;
     std::condition_variable a;
-    const VSFrameRef *r = nullptr;
+    const VSFrame *r = nullptr;
     char *errorMsg;
     int bufSize;
     GetFrameWaiter(char *errorMsg, int bufSize) : errorMsg(errorMsg), bufSize(bufSize) {}
 };
 
-static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, VSNodeRef *node, const char *errorMsg) VS_NOEXCEPT {
+static void VS_CC frameWaiterCallback(void *userData, const VSFrame *frame, int n, VSNode *node, const char *errorMsg) VS_NOEXCEPT {
     GetFrameWaiter *g = static_cast<GetFrameWaiter *>(userData);
     std::lock_guard<std::mutex> l(g->b);
     g->r = frame;
@@ -119,7 +119,7 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
     g->a.notify_one();
 }
 
-static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize) VS_NOEXCEPT {
+static const VSFrame *VS_CC getFrame(int n, VSNode *node, char *errorMsg, int bufSize) VS_NOEXCEPT {
     assert(node);
     GetFrameWaiter g(errorMsg, bufSize);
     std::unique_lock<std::mutex> l(g.b);
@@ -133,7 +133,7 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *node, char *errorMsg, 
     return g.r;
 }
 
-static void VS_CC requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) VS_NOEXCEPT {
+static void VS_CC requestFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
     int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
     if (n >= numFrames)
@@ -141,7 +141,7 @@ static void VS_CC requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *fra
     frameCtx->reqList.emplace_back(new VSFrameContext(n, node, PVSFrameContext(frameCtx, true)));
 }
 
-static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) VS_NOEXCEPT {
+static const VSFrame *VS_CC getFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
 
     int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
@@ -158,50 +158,50 @@ static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *node, VSFrameCon
     return nullptr;
 }
 
-static void VS_CC freeFrame(const VSFrameRef *frame) VS_NOEXCEPT {
+static void VS_CC freeFrame(const VSFrame *frame) VS_NOEXCEPT {
     if (frame)
-        const_cast<VSFrameRef *>(frame)->release();
+        const_cast<VSFrame *>(frame)->release();
 }
 
-static void VS_CC freeNode(VSNodeRef *clip) VS_NOEXCEPT {
+static void VS_CC freeNode(VSNode *clip) VS_NOEXCEPT {
     if (clip)
         clip->release();
 }
 
-static VSFrameRef *VS_CC newVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+static VSFrame *VS_CC newVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
-    return new VSFrameRef(*format, width, height, propSrc, core);
+    return new VSFrame(*format, width, height, propSrc, core);
 }
 
-static VSFrameRef *VS_CC newVideoFrame3(const vs3::VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+static VSFrame *VS_CC newVideoFrame3(const vs3::VSVideoFormat *format, int width, int height, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
     VSVideoFormat v4;
     if (core->VideoFormatFromV3(v4, format))
-        return new VSFrameRef(v4, width, height, propSrc, core);
+        return new VSFrame(v4, width, height, propSrc, core);
     else
         return nullptr;
 }
 
-static VSFrameRef *VS_CC newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+static VSFrame *VS_CC newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
-    return new VSFrameRef(*format, width, height, planeSrc, planes, propSrc, core);
+    return new VSFrame(*format, width, height, planeSrc, planes, propSrc, core);
 }
 
-static VSFrameRef *VS_CC newVideoFrame23(const vs3::VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+static VSFrame *VS_CC newVideoFrame23(const vs3::VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
     VSVideoFormat v4;
     if (core->VideoFormatFromV3(v4, format))
-        return new VSFrameRef(v4, width, height, planeSrc, planes, propSrc, core);
+        return new VSFrame(v4, width, height, planeSrc, planes, propSrc, core);
     else
         return nullptr;
 }
 
-static VSFrameRef *VS_CC copyFrame(const VSFrameRef *frame, VSCore *core) VS_NOEXCEPT {
+static VSFrame *VS_CC copyFrame(const VSFrame *frame, VSCore *core) VS_NOEXCEPT {
     assert(frame && core);
-    return new VSFrameRef(*frame);
+    return new VSFrame(*frame);
 }
 
-static void VS_CC copyFrameProps3(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) VS_NOEXCEPT {
+static void VS_CC copyFrameProps3(const VSFrame *src, VSFrame *dst, VSCore *core) VS_NOEXCEPT {
     assert(src && dst && core);
     dst->setProperties(src->getConstProperties());
 }
@@ -244,49 +244,49 @@ static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *conte
     context->setError(errorMessage);
 }
 
-static const VSVideoInfo *VS_CC getVideoInfo(VSNodeRef *node) VS_NOEXCEPT {
+static const VSVideoInfo *VS_CC getVideoInfo(VSNode *node) VS_NOEXCEPT {
     assert(node && node->getNodeType() == mtVideo);
     return &node->getVideoInfo();
 }
 
-static const vs3::VSVideoInfo *VS_CC getVideoInfo3(VSNodeRef *c) VS_NOEXCEPT {
+static const vs3::VSVideoInfo *VS_CC getVideoInfo3(VSNode *c) VS_NOEXCEPT {
     assert(c);
     return &c->getVideoInfo3();
 }
 
-static void VS_CC setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs, VSNodeRef *c) VS_NOEXCEPT {
+static void VS_CC setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs, VSNode *c) VS_NOEXCEPT {
     assert(vi && numOutputs > 0 && c);
     c->setVideoInfo3(vi, numOutputs);
 }
 
-static const VSVideoFormat *VS_CC getVideoFrameFormat(const VSFrameRef *f) VS_NOEXCEPT {
+static const VSVideoFormat *VS_CC getVideoFrameFormat(const VSFrame *f) VS_NOEXCEPT {
     assert(f);
     return f->getVideoFormat();
 }
 
-static const vs3::VSVideoFormat *VS_CC getFrameFormat3(const VSFrameRef *f) VS_NOEXCEPT {
+static const vs3::VSVideoFormat *VS_CC getFrameFormat3(const VSFrame *f) VS_NOEXCEPT {
     assert(f);
     return f->getVideoFormatV3();
 }
 
-static int VS_CC getFrameWidth(const VSFrameRef *f, int plane) VS_NOEXCEPT {
+static int VS_CC getFrameWidth(const VSFrame *f, int plane) VS_NOEXCEPT {
     assert(f);
     assert(plane >= 0);
     return f->getWidth(plane);
 }
 
-static int VS_CC getFrameHeight(const VSFrameRef *f, int plane) VS_NOEXCEPT {
+static int VS_CC getFrameHeight(const VSFrame *f, int plane) VS_NOEXCEPT {
     assert(f);
     assert(plane >= 0);
     return f->getHeight(plane);
 }
 
-static const VSMap *VS_CC getFramePropertiesRO(const VSFrameRef *frame) VS_NOEXCEPT {
+static const VSMap *VS_CC getFramePropertiesRO(const VSFrame *frame) VS_NOEXCEPT {
     assert(frame);
     return &frame->getConstProperties();
 }
 
-static VSMap *VS_CC getFramePropertiesRW(VSFrameRef *frame) VS_NOEXCEPT {
+static VSMap *VS_CC getFramePropertiesRW(VSFrame *frame) VS_NOEXCEPT {
     assert(frame);
     return &frame->getProperties();
 }
@@ -426,11 +426,11 @@ static int VS_CC mapGetDataTypeHint(const VSMap *map, const char *key, int index
         return dtUnknown;
 }
 
-static VSNodeRef *VS_CC mapGetNode(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static VSNode *VS_CC mapGetNode(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     int dummyError;
     VSArrayBase *arr = propGetShared(map, key, index, &dummyError, ptVideoNode);
     if (arr) {
-        VSNodeRef *ref = reinterpret_cast<VSVideoNodeArray *>(arr)->at(index).get();
+        VSNode *ref = reinterpret_cast<VSVideoNodeArray *>(arr)->at(index).get();
         ref->add_ref();
         if (error)
             *error = dummyError;
@@ -438,7 +438,7 @@ static VSNodeRef *VS_CC mapGetNode(const VSMap *map, const char *key, int index,
     } else {
         arr = propGetShared(map, key, index, error, ptAudioNode);
         if (arr) {
-            VSNodeRef *ref = reinterpret_cast<VSAudioNodeArray *>(arr)->at(index).get();
+            VSNode *ref = reinterpret_cast<VSAudioNodeArray *>(arr)->at(index).get();
             ref->add_ref();
             return ref;
         } else {
@@ -447,11 +447,11 @@ static VSNodeRef *VS_CC mapGetNode(const VSMap *map, const char *key, int index,
     }
 }
 
-static const VSFrameRef *VS_CC mapGetFrame(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static const VSFrame *VS_CC mapGetFrame(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     int dummyError;
     VSArrayBase *arr = propGetShared(map, key, index, &dummyError, ptVideoFrame);
     if (arr) {
-        VSFrameRef *ref = reinterpret_cast<VSVideoFrameArray *>(arr)->at(index).get();
+        VSFrame *ref = reinterpret_cast<VSVideoFrameArray *>(arr)->at(index).get();
         ref->add_ref();
         if (error)
             *error = dummyError;
@@ -459,7 +459,7 @@ static const VSFrameRef *VS_CC mapGetFrame(const VSMap *map, const char *key, in
     } else {
         arr = propGetShared(map, key, index, error, ptAudioFrame);
         if (arr) {
-            VSFrameRef *ref = reinterpret_cast<VSAudioFrameArray *>(arr)->at(index).get();
+            VSFrame *ref = reinterpret_cast<VSAudioFrameArray *>(arr)->at(index).get();
             ref->add_ref();
             return ref;
         } else {
@@ -586,18 +586,18 @@ static int VS_CC propSetData3(VSMap *map, const char *key, const char *d, int le
     return mapSetData(map, key, d, length, dtUnknown, append);
 }
 
-static int VS_CC mapSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT {
+static int VS_CC mapSetNode(VSMap *map, const char *key, VSNode *node, int append) VS_NOEXCEPT {
     if (node == nullptr || node->getNodeType() == mtVideo)
         return !propSetShared<PVSNodeRef, ptVideoNode>(map, key, { node, true }, append);
     else
         return !propSetShared<PVSNodeRef, ptAudioNode>(map, key, { node, true }, append);
 }
 
-static int VS_CC mapSetFrame(VSMap *map, const char *key, const VSFrameRef *frame, int append) VS_NOEXCEPT {
+static int VS_CC mapSetFrame(VSMap *map, const char *key, const VSFrame *frame, int append) VS_NOEXCEPT {
     if (frame == nullptr || frame->getFrameType() == mtVideo)
-        return !propSetShared<PVSFrameRef, ptVideoFrame>(map, key, { const_cast<VSFrameRef *>(frame), true }, append);
+        return !propSetShared<PVSFrameRef, ptVideoFrame>(map, key, { const_cast<VSFrame *>(frame), true }, append);
     else
-        return !propSetShared<PVSFrameRef, ptAudioFrame>(map, key, { const_cast<VSFrameRef *>(frame), true }, append);
+        return !propSetShared<PVSFrameRef, ptAudioFrame>(map, key, { const_cast<VSFrame *>(frame), true }, append);
 }
 
 static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
@@ -716,10 +716,10 @@ static const VSCoreInfo *VS_CC getCoreInfo3(VSCore *core) VS_NOEXCEPT {
     return &core->getCoreInfo3();
 }
 
-static VSFunctionRef *VS_CC mapGetFunction(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static VSFunction *VS_CC mapGetFunction(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     const VSArrayBase *arr = propGetShared(map, key, index, error, ptFunction);
     if (arr) {
-        VSFunctionRef *ref = reinterpret_cast<const VSFunctionArray *>(arr)->at(index).get();
+        VSFunction *ref = reinterpret_cast<const VSFunctionArray *>(arr)->at(index).get();
         ref->add_ref();
         return ref;
     } else {
@@ -727,42 +727,42 @@ static VSFunctionRef *VS_CC mapGetFunction(const VSMap *map, const char *key, in
     }
 }
 
-static int VS_CC mapSetFunction(VSMap *map, const char *key, VSFunctionRef *func, int append) VS_NOEXCEPT {
+static int VS_CC mapSetFunction(VSMap *map, const char *key, VSFunction *func, int append) VS_NOEXCEPT {
     return !propSetShared<PVSFunctionRef, ptFunction>(map, key, { func, true }, append);
 }
 
-static void VS_CC callFunction(VSFunctionRef *func, const VSMap *in, VSMap *out) VS_NOEXCEPT {
+static void VS_CC callFunction(VSFunction *func, const VSMap *in, VSMap *out) VS_NOEXCEPT {
     assert(func && in && out);
     func->call(in, out);
 }
 
-static void VS_CC callFunction3(VSFunctionRef *func, const VSMap *in, VSMap *out, VSCore *core, const vs3::VSAPI3 *vsapi) VS_NOEXCEPT {
+static void VS_CC callFunction3(VSFunction *func, const VSMap *in, VSMap *out, VSCore *core, const vs3::VSAPI3 *vsapi) VS_NOEXCEPT {
     assert(func && in && out);
     func->call(in, out);
 }
 
-static VSFunctionRef *VS_CC createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core) VS_NOEXCEPT {
+static VSFunction *VS_CC createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core) VS_NOEXCEPT {
     assert(func && core);
-    return new VSFunctionRef(func, userData, free, core, VAPOURSYNTH_API_MAJOR);
+    return new VSFunction(func, userData, free, core, VAPOURSYNTH_API_MAJOR);
 }
 
-static VSFunctionRef *VS_CC createFunction3(vs3::VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core, const vs3::VSAPI3 *vsapi) VS_NOEXCEPT {
+static VSFunction *VS_CC createFunction3(vs3::VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core, const vs3::VSAPI3 *vsapi) VS_NOEXCEPT {
     assert(func && core && vsapi);
-    return new VSFunctionRef(reinterpret_cast<VSPublicFunction>(func), userData, free, core, VAPOURSYNTH3_API_MAJOR);
+    return new VSFunction(reinterpret_cast<VSPublicFunction>(func), userData, free, core, VAPOURSYNTH3_API_MAJOR);
 }
 
-static void VS_CC freeFunction(VSFunctionRef *f) VS_NOEXCEPT {
+static void VS_CC freeFunction(VSFunction *f) VS_NOEXCEPT {
     if (f)
         f->release();
 }
 
-static void VS_CC queryCompletedFrame3(VSNodeRef **node, int *n, VSFrameContext *frameCtx) VS_NOEXCEPT {
+static void VS_CC queryCompletedFrame3(VSNode **node, int *n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && n && frameCtx);
     *node = frameCtx->lastCompletedNode;
     *n = frameCtx->lastCompletedN;
 }
 
-static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
+static void VS_CC releaseFrameEarly(VSNode *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
     auto key = NodeOutputKey(node, n);
     for (size_t i = 0; i < frameCtx->reqList.size(); i++) {
@@ -774,7 +774,7 @@ static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *fram
     }
 }
 
-static VSFunctionRef *VS_CC cloneFunctionRef(VSFunctionRef *func) VS_NOEXCEPT {
+static VSFunction *VS_CC cloneFunctionRef(VSFunction *func) VS_NOEXCEPT {
     assert(func);
     func->add_ref();
     return func;
@@ -897,14 +897,14 @@ static void VS_CC createAudioFilter(VSMap *out, const char *name, const VSAudioI
     core->createAudioFilter(out, name, ai, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
-static VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+static VSFrame *VS_CC newAudioFrame(const VSAudioFormat *format, int numSamples, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core && numSamples > 0);
-    return new VSFrameRef(*format, numSamples, propSrc, core);
+    return new VSFrame(*format, numSamples, propSrc, core);
 }
 
-static VSFrameRef *VS_CC newAudioFrame2(const VSAudioFormat *format, int numSamples, const VSFrameRef **channelSrc, const int *channels, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+static VSFrame *VS_CC newAudioFrame2(const VSAudioFormat *format, int numSamples, const VSFrame **channelSrc, const int *channels, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core && numSamples > 0 && channelSrc && channels);
-    return new VSFrameRef(*format, numSamples, channelSrc, channels, propSrc, core);
+    return new VSFrame(*format, numSamples, channelSrc, channels, propSrc, core);
 }
 
 static int VS_CC queryAudioFormat(VSAudioFormat *format, int sampleType, int bitsPerSample, uint64_t channelLayout, VSCore *core) VS_NOEXCEPT {
@@ -937,32 +937,32 @@ static int VS_CC getVideoFormatName(const VSVideoFormat *format, char *buffer) V
     return VSCore::getVideoFormatName(*format, buffer);
 }
 
-static const VSAudioInfo *VS_CC getAudioInfo(VSNodeRef *node) VS_NOEXCEPT {
+static const VSAudioInfo *VS_CC getAudioInfo(VSNode *node) VS_NOEXCEPT {
     assert(node && node->getNodeType() == mtAudio);
     return &node->getAudioInfo();
 }
 
-static const VSAudioFormat *VS_CC getAudioFrameFormat(const VSFrameRef *f) VS_NOEXCEPT {
+static const VSAudioFormat *VS_CC getAudioFrameFormat(const VSFrame *f) VS_NOEXCEPT {
     return f->getAudioFormat();
 }
 
-static int VS_CC getNodeType(VSNodeRef *node) VS_NOEXCEPT {
+static int VS_CC getNodeType(VSNode *node) VS_NOEXCEPT {
     assert(node);
     return node->getNodeType();
 }
 
 
-static int VS_CC getNodeFlags(VSNodeRef *node) VS_NOEXCEPT {
+static int VS_CC getNodeFlags(VSNode *node) VS_NOEXCEPT {
     assert(node);
     return node->getNodeFlags();
 }
 
-static int VS_CC getFrameType(const VSFrameRef *f) VS_NOEXCEPT {
+static int VS_CC getFrameType(const VSFrame *f) VS_NOEXCEPT {
     assert(f);
     return f->getFrameType();
 }
 
-static int VS_CC getFrameLength(const VSFrameRef *f) VS_NOEXCEPT {
+static int VS_CC getFrameLength(const VSFrame *f) VS_NOEXCEPT {
     assert(f);
     return f->getFrameLength();
 }
@@ -971,34 +971,34 @@ static int VS_CC getAPIVersion(void) VS_NOEXCEPT{
     return VAPOURSYNTH_API_VERSION;
 }
 
-static const char *VS_CC getNodeCreationFunctionName(VSNodeRef *node, int level) VS_NOEXCEPT {
+static const char *VS_CC getNodeCreationFunctionName(VSNode *node, int level) VS_NOEXCEPT {
     assert(node);
     return node->getCreationFunctionName(level);
 }
 
-static const VSMap *VS_CC getNodeCreationFunctionArguments(VSNodeRef *node, int level) VS_NOEXCEPT {
+static const VSMap *VS_CC getNodeCreationFunctionArguments(VSNode *node, int level) VS_NOEXCEPT {
     assert(node);
     return node->getCreationFunctionArguments(level);
 }
 
-static const char *VS_CC getNodeName(VSNodeRef *node) VS_NOEXCEPT {
+static const char *VS_CC getNodeName(VSNode *node) VS_NOEXCEPT {
     assert(node);
     return node->getName().c_str();
 }
 
-static int VS_CC getNodeFilterMode(VSNodeRef *node) VS_NOEXCEPT {
+static int VS_CC getNodeFilterMode(VSNode *node) VS_NOEXCEPT {
     assert(node);
     return node->getFilterMode();
 }
 
-static int64_t VS_CC getNodeFilterTime(VSNodeRef *node) VS_NOEXCEPT {
+static int64_t VS_CC getNodeFilterTime(VSNode *node) VS_NOEXCEPT {
     assert(node);
     return node->getFilterTime();
 }
 
-static void VS_CC setInternalFilterRelation(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT {
+static void VS_CC setInternalFilterRelation(const VSMap *nodeMap, VSNode **dependencies, int numDeps) VS_NOEXCEPT {
     assert(nodeMap && dependencies && dependencies > 0);
-    VSNodeRef *ref = mapGetNode(nodeMap, "clip", 0, nullptr);
+    VSNode *ref = mapGetNode(nodeMap, "clip", 0, nullptr);
     ref->setFilterRelation(dependencies, numDeps);
     freeNode(ref);
 }

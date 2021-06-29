@@ -32,9 +32,9 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define CLAMP(value, lower, upper) do { if (value < lower) value = lower; else if (value > upper) value = upper; } while(0)
 
 typedef struct {
-    VSNodeRef *cnode;
-    VSNodeRef *pnode;
-    VSNodeRef *nnode;
+    VSNode *cnode;
+    VSNode *pnode;
+    VSNode *nnode;
     const VSVideoInfo *vi;
     int mode;
     int process[3];
@@ -77,7 +77,7 @@ struct PlaneProcFB {
 };
 
 template<typename T, typename Processor>
-static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC clenseGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ClenseData *d = static_cast<ClenseData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -106,7 +106,7 @@ static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void 
             vsapi->requestFrameFilter(n, d->cnode, frameCtx);
         }
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = nullptr, *frame1 = nullptr, *frame2 = nullptr;
+        const VSFrame *src = nullptr, *frame1 = nullptr, *frame2 = nullptr;
 
         if (!*frameData) // skip processing on first/last frames
             return vsapi->getFrameFilter(n, d->cnode, frameCtx);
@@ -126,9 +126,9 @@ static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void 
         }
 
         const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = { d->process[0] ? nullptr : src, d->process[1] ? nullptr : src, d->process[2] ? nullptr : src };
+        const VSFrame *fr[] = { d->process[0] ? nullptr : src, d->process[1] ? nullptr : src, d->process[2] ? nullptr : src };
 
-        VSFrameRef *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src, core);
+        VSFrame *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src, core);
 
         int numPlanes = d->vi->format.numPlanes;
         for (int i = 0; i < numPlanes; i++) {

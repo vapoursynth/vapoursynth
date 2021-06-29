@@ -141,7 +141,7 @@ enum PlaneOp {
 };
 
 struct ExprData {
-    VSNodeRef *node[MAX_EXPR_INPUTS];
+    VSNode *node[MAX_EXPR_INPUTS];
     VSVideoInfo vi;
     std::vector<ExprInstruction> bytecode[3];
     int plane[3];
@@ -3139,7 +3139,7 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoFormat &
     return code;
 }
 
-static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC exprGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ExprData *d = static_cast<ExprData *>(instanceData);
     int numInputs = d->numInputs;
 
@@ -3147,15 +3147,15 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void *i
         for (int i = 0; i < numInputs; i++)
             vsapi->requestFrameFilter(n, d->node[i], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src[MAX_EXPR_INPUTS] = {};
+        const VSFrame *src[MAX_EXPR_INPUTS] = {};
         for (int i = 0; i < numInputs; i++)
             src[i] = vsapi->getFrameFilter(n, d->node[i], frameCtx);
 
         int height = vsapi->getFrameHeight(src[0], 0);
         int width = vsapi->getFrameWidth(src[0], 0);
         int planes[3] = { 0, 1, 2 };
-        const VSFrameRef *srcf[3] = { d->plane[0] != poCopy ? nullptr : src[0], d->plane[1] != poCopy ? nullptr : src[0], d->plane[2] != poCopy ? nullptr : src[0] };
-        VSFrameRef *dst = vsapi->newVideoFrame2(&d->vi.format, width, height, srcf, planes, src[0], core);
+        const VSFrame *srcf[3] = { d->plane[0] != poCopy ? nullptr : src[0], d->plane[1] != poCopy ? nullptr : src[0], d->plane[2] != poCopy ? nullptr : src[0] };
+        VSFrame *dst = vsapi->newVideoFrame2(&d->vi.format, width, height, srcf, planes, src[0], core);
 
         const uint8_t *srcp[MAX_EXPR_INPUTS] = {};
         ptrdiff_t src_stride[MAX_EXPR_INPUTS] = {};

@@ -77,8 +77,8 @@ struct VSSCRIPTAPI {
     * environment. Returns NULL if no node was set as output in the script. Index 0 is used by default in scripts and other
     * values are rarely used.
     */
-    VSNodeRef *(VS_CC *getOutputNode)(VSScript *handle, int index) VS_NOEXCEPT;
-    VSNodeRef *(VS_CC *getOutputAlphaNode)(VSScript *handle, int index) VS_NOEXCEPT;
+    VSNode *(VS_CC *getOutputNode)(VSScript *handle, int index) VS_NOEXCEPT;
+    VSNode *(VS_CC *getOutputAlphaNode)(VSScript *handle, int index) VS_NOEXCEPT;
 
     /*
     * Fetches the options set in scripts. In Python this means the set_options() function. Only simple types like int, float

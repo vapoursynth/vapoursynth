@@ -1784,7 +1784,7 @@ static void process_subplane_sse2 (const T *src1_ptr, const T *src2_ptr, T *dst_
 }
 
 template <class OP1, class T1>
-static void do_process_plane_sse2 (const VSFrameRef *src1_frame, const VSFrameRef *src2_frame, VSFrameRef *dst_frame, int plane_id, const VSAPI *vsapi)
+static void do_process_plane_sse2 (const VSFrame *src1_frame, const VSFrame *src2_frame, VSFrame *dst_frame, int plane_id, const VSAPI *vsapi)
 {
     const int        w             = vsapi->getFrameWidth(src1_frame, plane_id);
     const int        h             = vsapi->getFrameHeight(src1_frame, plane_id);
@@ -1808,7 +1808,7 @@ static void do_process_plane_sse2 (const VSFrameRef *src1_frame, const VSFrameRe
 #endif
 
 template <class OP1, class T1>
-static void do_process_plane_cpp (const VSFrameRef *src1_frame, const VSFrameRef *src2_frame, VSFrameRef *dst_frame, int plane_id, const VSAPI *vsapi)
+static void do_process_plane_cpp (const VSFrame *src1_frame, const VSFrame *src2_frame, VSFrame *dst_frame, int plane_id, const VSAPI *vsapi)
 {
     const int         w             = vsapi->getFrameWidth(src1_frame, plane_id);
     const int         h             = vsapi->getFrameHeight(src1_frame, plane_id);
@@ -1832,24 +1832,24 @@ static void do_process_plane_cpp (const VSFrameRef *src1_frame, const VSFrameRef
 };
 
 typedef struct {
-    VSNodeRef *node1;
-    VSNodeRef *node2;
+    VSNode *node1;
+    VSNode *node2;
     const VSVideoInfo *vi;
     int mode[3];
 } RepairData;
 
-static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC repairGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     RepairData *d = static_cast<RepairData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
         vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src1_frame = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef *src2_frame = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        const VSFrame *src1_frame = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame *src2_frame = vsapi->getFrameFilter(n, d->node2, frameCtx);
         int planes[3] = {0, 1, 2};
-        const VSFrameRef * cp_planes[3] = { d->mode[0] ? nullptr : src1_frame, d->mode[1] ? nullptr : src1_frame, d->mode[2] ? nullptr : src1_frame };
-        VSFrameRef *dst_frame = vsapi->newVideoFrame2(vsapi->getVideoFrameFormat(src1_frame), vsapi->getFrameWidth(src1_frame, 0), vsapi->getFrameHeight(src1_frame, 0), cp_planes, planes, src1_frame, core);
+        const VSFrame * cp_planes[3] = { d->mode[0] ? nullptr : src1_frame, d->mode[1] ? nullptr : src1_frame, d->mode[2] ? nullptr : src1_frame };
+        VSFrame *dst_frame = vsapi->newVideoFrame2(vsapi->getVideoFrameFormat(src1_frame), vsapi->getFrameWidth(src1_frame, 0), vsapi->getFrameHeight(src1_frame, 0), cp_planes, planes, src1_frame, core);
 
 
 #define PROC_ARGS_16(op) PlaneProc <op, uint16_t>::do_process_plane_cpp<op, uint16_t>(src1_frame, src2_frame, dst_frame, i, vsapi); break;

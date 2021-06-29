@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
     }
 
     // Get the clip set as output. It is valid until the out index is re-set/cleared/the script is freed
-    VSNodeRef *node = vssapi->getOutput(se, 0, nullptr);
+    VSNode *node = vssapi->getOutput(se, 0, nullptr);
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node\n");
        vssapi->freeScript(se);
@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
     char errMsg[1024];
     int error = 0;
     for (int n = 0; n < vi->numFrames; n++) {
-        const VSFrameRef *frame = vsapi->getFrame(n, node, errMsg, sizeof(errMsg));
+        const VSFrame *frame = vsapi->getFrame(n, node, errMsg, sizeof(errMsg));
 
         if (!frame) { // Check if an error happened when getting the frame
             error = 1;

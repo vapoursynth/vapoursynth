@@ -75,7 +75,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Go through all tasks from the top (oldest) and process the first one possible
-        std::set<VSNodeRef *> seenNodes;
+        std::set<VSNode *> seenNodes;
 
         for (auto iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
             VSFrameContext *mainContext = iter->get();
@@ -104,7 +104,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 mainContext = mainContext->upstreamContext.get();
             }
 
-            VSNodeRef *node = mainContext->node;
+            VSNode *node = mainContext->node;
             int filterMode = node->filterMode;
 
 /////////////////////////////////////////////////////////////////////////////////////////////

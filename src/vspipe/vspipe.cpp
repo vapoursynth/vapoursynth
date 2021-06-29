@@ -128,8 +128,8 @@ struct VSPipeOutputData {
     const VSAPI *vsapi = nullptr;
     VSPipeHeaders outputHeaders = VSPipeHeaders::None;
     FILE *outFile = nullptr;
-    VSNodeRef *node = nullptr;
-    VSNodeRef *alphaNode = nullptr;
+    VSNode *node = nullptr;
+    VSNode *alphaNode = nullptr;
 
     /* Total number of frames and samples */
     int totalFrames = -1;
@@ -140,7 +140,7 @@ struct VSPipeOutputData {
     int requestedFrames = 0;
     int completedFrames = 0;
     int completedAlphaFrames = 0;
-    std::map<int, std::pair<const VSFrameRef *, const VSFrameRef *>> reorderMap;
+    std::map<int, std::pair<const VSFrame *, const VSFrame *>> reorderMap;
 
     /* Error reporting */
     bool outputError = false;
@@ -227,11 +227,11 @@ static void VS_CC logMessageHandler(int msgType, const char *msg, void *userData
         fprintf(stderr, "%s: %s\n", messageTypeToString(msgType), msg);
 }
 
-static bool isCompletedFrame(const std::pair<const VSFrameRef *, const VSFrameRef *> &f, bool hasAlpha) {
+static bool isCompletedFrame(const std::pair<const VSFrame *, const VSFrame *> &f, bool hasAlpha) {
     return (f.first && (!hasAlpha || f.second));
 }
 
-static void outputFrame(const VSFrameRef *frame, VSPipeOutputData *data) {
+static void outputFrame(const VSFrame *frame, VSPipeOutputData *data) {
     if (!data->outputError && data->outFile) {
         if (data->vsapi->getFrameType(frame) == mtVideo) {
             const VSVideoFormat *fi = data->vsapi->getVideoFrameFormat(frame);
@@ -293,7 +293,7 @@ static void outputFrame(const VSFrameRef *frame, VSPipeOutputData *data) {
     }
 }
 
-static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *rnode, const char *errorMsg) {
+static void VS_CC frameDoneCallback(void *userData, const VSFrame *f, int n, VSNode *rnode, const char *errorMsg) {
     VSPipeOutputData *data = reinterpret_cast<VSPipeOutputData *>(userData);
 
     bool printToConsole = false;
@@ -343,8 +343,8 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
         }
 
         while (data->reorderMap.count(data->outputFrames) && isCompletedFrame(data->reorderMap[data->outputFrames], !!data->alphaNode)) {
-            const VSFrameRef *frame = data->reorderMap[data->outputFrames].first;
-            const VSFrameRef *alphaFrame = data->reorderMap[data->outputFrames].second;
+            const VSFrame *frame = data->reorderMap[data->outputFrames].first;
+            const VSFrame *alphaFrame = data->reorderMap[data->outputFrames].second;
             data->reorderMap.erase(data->outputFrames);
             if (!data->outputError) {
                 if (data->outputHeaders == VSPipeHeaders::Y4M && data->outFile) {
@@ -948,14 +948,14 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    VSNodeRef *node = vssapi->getOutputNode(se, opts.outputIndex);
+    VSNode *node = vssapi->getOutputNode(se, opts.outputIndex);
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
        vssapi->freeScript(se);
        return 1;
     }
 
-    VSNodeRef *alphaNode = vssapi->getOutputAlphaNode(se, opts.outputIndex);
+    VSNode *alphaNode = vssapi->getOutputAlphaNode(se, opts.outputIndex);
 
     std::chrono::duration<double> scriptEvaluationTime = std::chrono::steady_clock::now() - scriptEvaluationStart;
     if (opts.printProgress)

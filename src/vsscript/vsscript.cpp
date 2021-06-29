@@ -203,11 +203,11 @@ VS_API(const VSAPI *) vsscript_getVSApi2(int version) VS_NOEXCEPT {
 }
 
 // V3 API compatibility
-VS_API(VSNodeRef *) vsscript_getOutput2(VSScript *handle, int index, VSNodeRef **alpha) VS_NOEXCEPT {
+VS_API(VSNode *) vsscript_getOutput2(VSScript *handle, int index, VSNode **alpha) VS_NOEXCEPT {
     if (alpha)
         *alpha = nullptr;
     std::lock_guard<std::mutex> lock(vsscriptlock);
-    VSNodeRef *node = vpy4_getOutput(handle, index);
+    VSNode *node = vpy4_getOutput(handle, index);
     const VSAPI *vsapi = vpy4_getVSAPI(VAPOURSYNTH_API_VERSION);
     if (node && vsapi->getNodeType(node) == mtAudio) {
         vsapi->freeNode(node);
@@ -219,16 +219,16 @@ VS_API(VSNodeRef *) vsscript_getOutput2(VSScript *handle, int index, VSNodeRef *
 }
 
 // V3 API compatibility
-VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index) VS_NOEXCEPT {
+VS_API(VSNode *) vsscript_getOutput(VSScript *handle, int index) VS_NOEXCEPT {
     return vsscript_getOutput2(handle, index, nullptr);
 }
 
-static VSNodeRef *VS_CC getOutputNode(VSScript *handle, int index) VS_NOEXCEPT {
+static VSNode *VS_CC getOutputNode(VSScript *handle, int index) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     return vpy4_getOutput(handle, index);
 }
 
-static VSNodeRef *VS_CC getOutputAlphaNode(VSScript *handle, int index) VS_NOEXCEPT {
+static VSNode *VS_CC getOutputAlphaNode(VSScript *handle, int index) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     return vpy4_getAlphaOutput(handle, index);
 }

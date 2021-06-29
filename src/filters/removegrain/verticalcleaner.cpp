@@ -1,7 +1,7 @@
 #include "shared.h"
 
 struct VerticalCleanerData {
-    VSNodeRef * node;
+    VSNode * node;
     const VSVideoInfo * vi;
     int mode[3];
 };
@@ -58,16 +58,16 @@ static void relaxedVerticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT ds
     memcpy(dstp, srcp, stride * sizeof(T) * 2);
 }
 
-static const VSFrameRef *VS_CC verticalCleanerGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC verticalCleanerGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     const VerticalCleanerData * d = static_cast<const VerticalCleanerData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef * src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFrameRef * fr[] = { d->mode[0] ? nullptr : src, d->mode[1] ? nullptr : src, d->mode[2] ? nullptr : src };
+        const VSFrame * src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame * fr[] = { d->mode[0] ? nullptr : src, d->mode[1] ? nullptr : src, d->mode[2] ? nullptr : src };
         const int pl[] = { 0, 1, 2 };
-        VSFrameRef * dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src, core);
+        VSFrame * dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src, core);
 
         for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
             const int width = vsapi->getFrameWidth(src, plane);
