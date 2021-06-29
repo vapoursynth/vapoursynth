@@ -783,7 +783,7 @@ VSNodeRef::VSNodeRef(const VSMap *in, VSMap *out, const std::string &name, vs3::
 
     core->filterInstanceCreated();
     VSMap inval(in);
-    init(&inval, out, &this->instanceData, reinterpret_cast<vs3::VSNode *>(this), core, reinterpret_cast<const vs3::VSAPI3 *>(getVSAPIInternal(3)));
+    init(&inval, out, &this->instanceData, this, core, reinterpret_cast<const vs3::VSAPI3 *>(getVSAPIInternal(3)));
 
     if (out->hasError()) {
         core->filterInstanceDestroyed();

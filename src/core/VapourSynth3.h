@@ -29,7 +29,6 @@ namespace vs3 {
 #define VAPOURSYNTH3_API_MINOR 6
 #define VAPOURSYNTH3_API_VERSION ((VAPOURSYNTH_API_MAJOR << 16) | (VAPOURSYNTH_API_MINOR))
 
-    typedef struct VSNode VSNode;
     typedef struct VSAPI3 VSAPI3;
 
     static const int nfIsCache = 2;
@@ -165,7 +164,7 @@ namespace vs3 {
     typedef void (VS_CC *VSRegisterFunction)(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin);
     typedef void (VS_CC *VSConfigPlugin)(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readonly, VSPlugin *plugin);
     typedef void (VS_CC *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
-    typedef void (VS_CC *VSFilterInit)(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI3 *vsapi);
+    typedef void (VS_CC *VSFilterInit)(VSMap *in, VSMap *out, void **instanceData, VSNodeRef *node, VSCore *core, const VSAPI3 *vsapi);
     typedef const VSFrameRef *(VS_CC *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI3 *vsapi);
     typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
     typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
@@ -224,7 +223,7 @@ namespace vs3 {
         void (VS_CC *clearMap)(VSMap *map) VS_NOEXCEPT;
 
         const VSVideoInfo *(VS_CC *getVideoInfo)(VSNodeRef *node) VS_NOEXCEPT;
-        void (VS_CC *setVideoInfo)(const VSVideoInfo *vi, int numOutputs, VSNode *node) VS_NOEXCEPT;
+        void (VS_CC *setVideoInfo)(const VSVideoInfo *vi, int numOutputs, VSNodeRef *node) VS_NOEXCEPT;
         const VSVideoFormat *(VS_CC *getFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
         int (VS_CC *getFrameWidth)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
         int (VS_CC *getFrameHeight)(const VSFrameRef *f, int plane) VS_NOEXCEPT;

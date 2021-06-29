@@ -254,9 +254,9 @@ static const vs3::VSVideoInfo *VS_CC getVideoInfo3(VSNodeRef *c) VS_NOEXCEPT {
     return &c->getVideoInfo3();
 }
 
-static void VS_CC setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs, vs3::VSNode *c) VS_NOEXCEPT {
+static void VS_CC setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs, VSNodeRef *c) VS_NOEXCEPT {
     assert(vi && numOutputs > 0 && c);
-    reinterpret_cast<VSNodeRef *>(c)->setVideoInfo3(vi, numOutputs);
+    c->setVideoInfo3(vi, numOutputs);
 }
 
 static const VSVideoFormat *VS_CC getVideoFrameFormat(const VSFrameRef *f) VS_NOEXCEPT {
