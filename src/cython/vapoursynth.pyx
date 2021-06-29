@@ -1184,7 +1184,7 @@ cdef class FrameProps(object):
 cdef FrameProps createFrameProps(RawFrame f):
     cdef FrameProps instance = FrameProps.__new__(FrameProps)
 # since the vsapi only returns const refs when cloning a VSFrame it is safe to cast away the const here
-    instance.constf = f.funcs.cloneFrameRef(f.constf)
+    instance.constf = f.funcs.addFrameRef(f.constf)
     instance.f = NULL
     instance.funcs = f.funcs
     instance.core = f.core
@@ -3008,7 +3008,7 @@ cdef public api VSNode *vpy4_getOutput(VSScript *se, int index) nogil:
             node = node[0]
             
         if isinstance(node, RawNode):
-            return (<RawNode>node).funcs.cloneNodeRef((<RawNode>node).node)
+            return (<RawNode>node).funcs.addNodeRef((<RawNode>node).node)
         else:
             return NULL
             
@@ -3024,7 +3024,7 @@ cdef public api VSNode *vpy4_getAlphaOutput(VSScript *se, int index) nogil:
         if isinstance(node, AlphaOutputTuple):
             node = node[1]   
             if isinstance(node, RawNode):
-                return (<RawNode>node).funcs.cloneNodeRef((<RawNode>node).node)
+                return (<RawNode>node).funcs.addNodeRef((<RawNode>node).node)
         return NULL
         
 cdef public api int vpy_clearOutput(VSScript *se, int index) nogil:

@@ -249,7 +249,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void createVideoFilter(const VSMap *input, VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
         void createAudioFilter(const VSMap *input, VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
         void freeNode(VSNode *node) nogil
-        VSNode *cloneNodeRef(VSNode *node) nogil
+        VSNode *addNodeRef(VSNode *node) nogil
         int getNodeType(VSNode *node) nogil
         int getNodeFlags(VSNode *node) nogil
         const VSVideoInfo *getVideoInfo(VSNode *node) nogil
@@ -261,7 +261,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VSFrame *newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrame *propSrc, VSCore *core) nogil
         VSFrame *newAudioFrame2(const VSAudioFormat *format, int numSamples, const VSFrame **channelSrc, const int *channels, const VSFrame *propSrc, VSCore *core) nogil
         void freeFrame(const VSFrame *f) nogil
-        const VSFrame *cloneFrameRef(VSFrame *f) nogil
+        const VSFrame *addFrameRef(VSFrame *f) nogil
         VSFrame *copyFrame(const VSFrame *f, VSCore *core) nogil
         const VSMap *getFramePropertiesRO(const VSFrame *f) nogil
         VSMap *getFramePropertiesRW(VSFrame *f) nogil
@@ -296,7 +296,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         # External functions
         VSFunction *createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core) nogil
         void freeFunction(VSFunction *f) nogil
-        VSFunction *cloneFunctionRef(VSFunction *f) nogil
+        VSFunction *addFunctionRef(VSFunction *f) nogil
         void callFunction(VSFunction *func, const VSMap *inm, VSMap *outm) nogil
     
         # Map and proptery access
