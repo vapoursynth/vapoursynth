@@ -2576,52 +2576,6 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
         core = vsscript_get_core_internal(env)
         core.log_message(MESSAGE_TYPE_WARNING, s)
 
-
-cdef class PythonVSScriptStreamBridge(object):
-    cdef MessageType _level
-    cdef object _parent
-    cdef dict _lines
-    cdef object _lock
-    cdef int _warn_when_used
-
-    def __cinit__(self, level, parent):
-        self._level = level
-        self._parent = parent
-        self._lines = {}
-        self._lock = Lock()
-        self._warn_when_used = True
-
-    def write(self, msg):
-        if not msg:
-            return
-
-        env = _env_current()
-        if env is None:
-            self._parent.write(msg)
-            return
-
-        if self._warn_when_used:
-            self._warn_when_used = False
-            vsscript_get_core_internal(env).log_message(MessageType.MESSAGE_TYPE_WARNING, "Use logging.info instead of print.")
-
-        with self._lock:
-            self._lines.setdefault(env, []).append(msg)
-        if "\n" in msg:
-            self.flush()
-
-    def flush(self):
-        with self._lock:
-            for env, fragments in self._lines.items():
-                if not get_policy().is_alive(env):
-                    self._parent.write("".join(fragments))
-                    self._parent.flush()
-                else:
-                    core = vsscript_get_core_internal(env)
-                    msg = "".join(fragments)
-                    for line in msg.splitlines():
-                        core.log_message(self._level, line.rstrip())
-
-
 class PythonVSScriptLoggingBridge(logging.Handler):
 
     def __init__(self, parent, level=logging.NOTSET):
@@ -2706,11 +2660,6 @@ cdef class VSScriptEnvironmentPolicy:
         logging.basicConfig(level=logging.NOTSET, format="%(message)s", handlers=[
             PythonVSScriptLoggingBridge(logging.StreamHandler(sys.stderr)),
         ])
-
-        # Redirect sys.stderr and sys.stdout
-        sys.stdout = PythonVSScriptStreamBridge(MessageType.MESSAGE_TYPE_INFORMATION, sys.stdout)
-        sys.stderr = PythonVSScriptStreamBridge(MessageType.MESSAGE_TYPE_WARNING, sys.stderr)
-
 
     def on_policy_cleared(self):
         global _warnings_showwarning
