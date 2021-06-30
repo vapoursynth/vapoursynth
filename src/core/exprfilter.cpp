@@ -2324,6 +2324,7 @@ float evalConstantExpr(const ExpressionTreeNode &node)
     case ExprOpType::SUB: return LEFT - RIGHT;
     case ExprOpType::MUL: return LEFT * RIGHT;
     case ExprOpType::DIV: return LEFT / RIGHT;
+    case ExprOpType::FMA:
         switch (static_cast<FMAType>(node.op.imm.u)) {
         case FMAType::FMADD: return RIGHTLEFT * RIGHTRIGHT + LEFT;
         case FMAType::FMSUB: return RIGHTLEFT * RIGHTRIGHT - LEFT;
