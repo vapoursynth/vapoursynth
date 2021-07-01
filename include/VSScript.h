@@ -62,6 +62,7 @@ VS_API(int) vsscript_createScript(VSScript **handle);
 
 VS_API(void) vsscript_freeScript(VSScript *handle);
 VS_API(const char *) vsscript_getError(VSScript *handle);
+VS_API(int) vsscript_getExitCode(VSScript *handle);
 /* The node returned must be freed using freeNode() before calling vsscript_freeScript() */
 VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index);
 /* Both nodes returned must be freed using freeNode() before calling vsscript_freeScript(), the alpha node pointer will only be set if an alpha clip has been set in the script */

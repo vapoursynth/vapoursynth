@@ -32,6 +32,8 @@ Functions_
 
    vsscript_getError_
 
+   vsscript_getExitCode_
+
    vsscript_getOutput_
 
    vsscript_clearOutput_
@@ -150,7 +152,7 @@ vsscript_evaluateScript
 
     Restores the working directory before returning.
 
-    Returns non-zero in case of errors. The error message can be retrieved with vsscript_getError_\ ().
+    Returns non-zero in case of errors. The error message can be retrieved with vsscript_getError_\ (). If the script calls *sys.exit(code)* the exit code can be retrieved with vsscript_getExitCode_\ ().
 
     
 vsscript_evaluateFile
@@ -206,6 +208,16 @@ vsscript_getError
     
     VSScript retains ownership of the pointer.
 
+
+vsscript_getExitCode
+--------------------
+
+.. c:function:: int vsscript_getExitCode(VSScript *handle)
+
+    Returns the exit code if the script calls *sys.exit(code)*, or 0, if the script fails for other reasons or calls *sys.exit(0)*.
+
+    It is okay to pass NULL.
+    
 
 vsscript_getOutput
 ------------------

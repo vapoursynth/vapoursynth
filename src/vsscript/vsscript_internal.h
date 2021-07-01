@@ -25,6 +25,7 @@ struct VSScript {
     void *pyenvdict;
     void *errstr;
     int id;
+    int exitCode;
 };
 
 #endif
