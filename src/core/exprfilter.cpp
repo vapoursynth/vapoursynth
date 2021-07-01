@@ -1742,8 +1742,6 @@ do { \
             auto t3 = bytecodeRegs[insn.dst];
 
             YmmReg r1, one;
-            Reg a;
-            mov(a, 2);
             vmovaps(one, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
             vmovaps(r1, t1);
             log_(r1, zero, one, constants);
