@@ -1030,39 +1030,63 @@ do { \
         VEX1IMM(pslld, t4, t2, 31);
         VEX2(xorps, sign, sign, t4);
         VEX2(subps, t2, t2, t3);
-        VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi1 * 16]);
-        VEX2(subps, t1, t1, t4);
-        VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi2 * 16]);
-        VEX2(subps, t1, t1, t4);
-        VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi3 * 16]);
-        VEX2(subps, t1, t1, t4);
-        VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi4 * 16]);
-        VEX2(subps, t1, t1, t4);
+        if (cpuFeatures.fma3) {
+            vfnmadd231ps(t1, t2, xmmword_ptr[constants + ConstantIndex::float_pi1 * 16]);
+            vfnmadd231ps(t1, t2, xmmword_ptr[constants + ConstantIndex::float_pi2 * 16]);
+            vfnmadd231ps(t1, t2, xmmword_ptr[constants + ConstantIndex::float_pi3 * 16]);
+            vfnmadd231ps(t1, t2, xmmword_ptr[constants + ConstantIndex::float_pi4 * 16]);
+        } else {
+            VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi1 * 16]);
+            VEX2(subps, t1, t1, t4);
+            VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi2 * 16]);
+            VEX2(subps, t1, t1, t4);
+            VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi3 * 16]);
+            VEX2(subps, t1, t1, t4);
+            VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi4 * 16]);
+            VEX2(subps, t1, t1, t4);
+        }
         if (issin) {
             // Evaluate minimax polynomial for sin(x) in [-pi/2, pi/2] interval
             // Y <- X + X * X^2 * (C3 + X^2 * (C5 + X^2 * (C7 + X^2 * C9)))
             VEX2(mulps, t2, t1, t1);
-            VEX2(mulps, t3, t2, xmmword_ptr[constants + ConstantIndex::float_sinC9 * 16]);
-            VEX2(addps, t3, t3, xmmword_ptr[constants + ConstantIndex::float_sinC7 * 16]);
-            VEX2(mulps, t3, t3, t2);
-            VEX2(addps, t3, t3, xmmword_ptr[constants + ConstantIndex::float_sinC5 * 16]);
-            VEX2(mulps, t3, t3, t2);
-            VEX2(addps, t3, t3, xmmword_ptr[constants + ConstantIndex::float_sinC3 * 16]);
-            VEX2(mulps, t3, t3, t2);
-            VEX2(mulps, t3, t3, t1);
-            VEX2(addps, t1, t1, t3);
+            if (cpuFeatures.fma3) {
+                vmovaps(t3, xmmword_ptr[constants + ConstantIndex::float_sinC7 * 16]);
+                vfmadd231ps(t3, t2, xmmword_ptr[constants + ConstantIndex::float_sinC9 * 16]);
+                vfmadd213ps(t3, t2, xmmword_ptr[constants + ConstantIndex::float_sinC5 * 16]);
+                vfmadd213ps(t3, t2, xmmword_ptr[constants + ConstantIndex::float_sinC3 * 16]);
+                VEX2(mulps, t3, t3, t2);
+                vfmadd231ps(t1, t1, t3);
+            } else {
+                VEX2(mulps, t3, t2, xmmword_ptr[constants + ConstantIndex::float_sinC9 * 16]);
+                VEX2(addps, t3, t3, xmmword_ptr[constants + ConstantIndex::float_sinC7 * 16]);
+                VEX2(mulps, t3, t3, t2);
+                VEX2(addps, t3, t3, xmmword_ptr[constants + ConstantIndex::float_sinC5 * 16]);
+                VEX2(mulps, t3, t3, t2);
+                VEX2(addps, t3, t3, xmmword_ptr[constants + ConstantIndex::float_sinC3 * 16]);
+                VEX2(mulps, t3, t3, t2);
+                VEX2(mulps, t3, t3, t1);
+                VEX2(addps, t1, t1, t3);
+            }
         } else {
             // Evaluate minimax polynomial for cos(x) in [-pi/2, pi/2] interval
             // Y <- 1 + X^2 * (C2 + X^2 * (C4 + X^2 * (C6 + X^2 * C8)))
-            VEX2(mulps, t1, t1, t1);
-            VEX2(mulps, t2, t1, xmmword_ptr[constants + ConstantIndex::float_cosC8 * 16]);
-            VEX2(addps, t2, t2, xmmword_ptr[constants + ConstantIndex::float_cosC6 * 16]);
-            VEX2(mulps, t2, t2, t1);
-            VEX2(addps, t2, t2, xmmword_ptr[constants + ConstantIndex::float_cosC4 * 16]);
-            VEX2(mulps, t2, t2, t1);
-            VEX2(addps, t2, t2, xmmword_ptr[constants + ConstantIndex::float_cosC2 * 16]);
-            VEX2(mulps, t2, t2, t1);
-            VEX2(addps, t1, t2, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
+            VEX2(mulps, t2, t1, t1);
+            if (cpuFeatures.fma3) {
+                vmovaps(t1, xmmword_ptr[constants + ConstantIndex::float_cosC6 * 16]);
+                vfmadd231ps(t1, t2, xmmword_ptr[constants + ConstantIndex::float_cosC8 * 16]);
+                vfmadd213ps(t1, t2, xmmword_ptr[constants + ConstantIndex::float_cosC4 * 16]);
+                vfmadd213ps(t1, t2, xmmword_ptr[constants + ConstantIndex::float_cosC2 * 16]);
+                vfmadd213ps(t1, t2, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
+            } else {
+                VEX2(mulps, t1, t2, xmmword_ptr[constants + ConstantIndex::float_cosC8 * 16]);
+                VEX2(addps, t1, t1, xmmword_ptr[constants + ConstantIndex::float_cosC6 * 16]);
+                VEX2(mulps, t1, t1, t2);
+                VEX2(addps, t1, t1, xmmword_ptr[constants + ConstantIndex::float_cosC4 * 16]);
+                VEX2(mulps, t1, t1, t2);
+                VEX2(addps, t1, t1, xmmword_ptr[constants + ConstantIndex::float_cosC2 * 16]);
+                VEX2(mulps, t1, t1, t2);
+                VEX2(addps, t1, t1, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
+            }
         }
         // Apply sign
         VEX2(xorps, y, t1, sign);
