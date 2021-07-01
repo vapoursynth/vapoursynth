@@ -870,7 +870,7 @@ do { \
     void log_(XmmReg x, XmmReg zero, XmmReg one, Reg constants)
     {
         XmmReg emm0, invalid_mask, mask, y, etmp, z;
-        VEX2IMM(cmpps, invalid_mask, zero, x, _CMP_NLE_US);
+        VEX2IMM(cmpps, invalid_mask, zero, x, _CMP_NLT_US);
         VEX2(maxps, x, x, xmmword_ptr[constants + ConstantIndex::min_norm_pos * 16]);
         VEX1IMM(psrld, emm0, x, 23);
         VEX2(andps, x, x, xmmword_ptr[constants + ConstantIndex::inv_mant_mask * 16]);
@@ -1674,7 +1674,7 @@ do { \
     void log_(YmmReg x, YmmReg zero, YmmReg one, Reg constants)
     {
         YmmReg emm0, invalid_mask, mask, y, etmp, z;
-        vcmpps(invalid_mask, zero, x, _CMP_NLE_US);
+        vcmpps(invalid_mask, zero, x, _CMP_NLT_US);
         vmaxps(x, x, ymmword_ptr[constants + ConstantIndex::min_norm_pos * 32]);
         vpsrld(emm0, x, 23);
         vandps(x, x, ymmword_ptr[constants + ConstantIndex::inv_mant_mask * 32]);
