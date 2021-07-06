@@ -175,9 +175,9 @@ static const VSFrame *VS_CC interleaveGetframe(int n, int activationReason, void
     InterleaveData *d = reinterpret_cast<InterleaveData *>(instanceData);
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
+        vsapi->requestFrameFilter(n / d->numclips, d->nodes[n % d->numclips], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n / d->numclips, d->nodes[n % d->numclips], frameCtx);
         if (d->modifyDuration) {
             VSFrame *dst = vsapi->copyFrame(src, core);
             vsapi->freeFrame(src);
@@ -212,17 +212,15 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
     d->numclips = vsapi->mapNumElements(in, "clips");
 
     if (d->numclips == 1) { // passthrough for the special case with only one clip
-        VSNode *cref = vsapi->mapGetNode(in, "clips", 0, 0);
-        vsapi->mapSetNode(out, "clip", cref, paReplace);
-        vsapi->freeNode(cref);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, 0), paReplace);
     } else {
-        d->node.resize(d->numclips);
+        d->nodes.resize(d->numclips);
 
         for (int i = 0; i < d->numclips; i++) {
-            d->node[i] = vsapi->mapGetNode(in, "clips", i, 0);
+            d->nodes[i] = vsapi->mapGetNode(in, "clips", i, 0);
         }
 
-        MismatchCauses mismatchCause = findCommonVi(d->node.data(), d->numclips, &d->vi, 1, vsapi);
+        MismatchCauses mismatchCause = findCommonVi(d->nodes.data(), d->numclips, &d->vi, 1, vsapi);
         if (mismatchCause != MismatchCauses::Match && !mismatch)
             RETERROR(("Interleave: " + mismatchToText(mismatchCause)).c_str());
 
@@ -234,11 +232,11 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
             d->vi.numFrames *= d->numclips;
         } else if (d->vi.numFrames) {
             // this is exactly how avisynth does it
-            d->vi.numFrames = (vsapi->getVideoInfo(d->node[0])->numFrames - 1) * d->numclips + 1;
+            d->vi.numFrames = (vsapi->getVideoInfo(d->nodes[0])->numFrames - 1) * d->numclips + 1;
             for (int i = 0; i < d->numclips; i++) {
-                if (vsapi->getVideoInfo(d->node[i])->numFrames > ((INT_MAX - i - 1) / d->numclips + 1))
+                if (vsapi->getVideoInfo(d->nodes[i])->numFrames > ((INT_MAX - i - 1) / d->numclips + 1))
                     overflow = true;
-                d->vi.numFrames = std::max(d->vi.numFrames, (vsapi->getVideoInfo(d->node[i])->numFrames - 1) * d->numclips + i + 1);
+                d->vi.numFrames = std::max(d->vi.numFrames, (vsapi->getVideoInfo(d->nodes[i])->numFrames - 1) * d->numclips + i + 1);
             }
         }
 
@@ -439,9 +437,9 @@ static const VSFrame *VS_CC spliceGetframe(int n, int activationReason, void *in
             cumframe += d->numframes[i];
         }
 
-        frameData[0] = d->node[idx];
+        frameData[0] = d->nodes[idx];
         frameData[1] = reinterpret_cast<void *>(static_cast<intptr_t>(frame));
-        vsapi->requestFrameFilter(frame, d->node[idx], frameCtx);
+        vsapi->requestFrameFilter(frame, d->nodes[idx], frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrame *f = vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[1])), reinterpret_cast<VSNode *>(frameData[0]), frameCtx);
         return f;
@@ -459,25 +457,23 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     bool mismatch = !!vsapi->mapGetInt(in, "mismatch", 0, &err);
 
     if (d->numclips == 1) { // passthrough for the special case with only one clip
-        VSNode *cref = vsapi->mapGetNode(in, "clips", 0, 0);
-        vsapi->mapSetNode(out, "clip", cref, paReplace);
-        vsapi->freeNode(cref);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, 0), paReplace);
     } else {
-        d->node.resize(d->numclips);
+        d->nodes.resize(d->numclips);
 
         for (int i = 0; i < d->numclips; i++) {
-            d->node[i] = vsapi->mapGetNode(in, "clips", i, 0);
+            d->nodes[i] = vsapi->mapGetNode(in, "clips", i, 0);
         }
 
-        MismatchCauses mismatchCause = findCommonVi(d->node.data(), d->numclips, &vi, 1, vsapi);
-        if (mismatchCause != MismatchCauses::Match && !mismatch && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d->node[0])))
+        MismatchCauses mismatchCause = findCommonVi(d->nodes.data(), d->numclips, &vi, 1, vsapi);
+        if (mismatchCause != MismatchCauses::Match && !mismatch && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d->nodes[0])))
             RETERROR(("Splice: " + mismatchToText(mismatchCause)).c_str());
 
         d->numframes.resize(d->numclips);
         vi.numFrames = 0;
 
         for (int i = 0; i < d->numclips; i++) {
-            d->numframes[i] = (vsapi->getVideoInfo(d->node[i]))->numFrames;
+            d->numframes[i] = (vsapi->getVideoInfo(d->nodes[i]))->numFrames;
             vi.numFrames += d->numframes[i];
 
             // did it overflow?

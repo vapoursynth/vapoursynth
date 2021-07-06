@@ -170,7 +170,7 @@ static const VSFrame *VS_CC audioSpliceGetframe(int n, int activationReason, voi
                     int64_t reqStart = reqFrame * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
                     int reqSamples = static_cast<int>(std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES - reqStartOffset, d->numSamples[i] - reqStart));
                     reqStartOffset = 0;
-                    vsapi->requestFrameFilter(reqFrame, d->node[i], frameCtx);
+                    vsapi->requestFrameFilter(reqFrame, d->nodes[i], frameCtx);
                     remainingSamples -= reqSamples;
                     reqStart += reqSamples;
                     reqFrame++;
@@ -193,7 +193,7 @@ static const VSFrame *VS_CC audioSpliceGetframe(int n, int activationReason, voi
                 int reqStartOffset = static_cast<int>(currentStartSample % VS_AUDIO_FRAME_SAMPLES);
                 int reqFrame = static_cast<int>(currentStartSample / VS_AUDIO_FRAME_SAMPLES);
                 do {
-                    const VSFrame *src = vsapi->getFrameFilter(reqFrame++, d->node[i], frameCtx);
+                    const VSFrame *src = vsapi->getFrameFilter(reqFrame++, d->nodes[i], frameCtx);
                     int length = vsapi->getFrameLength(src) - reqStartOffset;
                     if (!dst)
                         dst = vsapi->newAudioFrame(&d->ai.format, remainingSamples, src, core);
@@ -223,27 +223,26 @@ static const VSFrame *VS_CC audioSpliceGetframe(int n, int activationReason, voi
 static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     int numNodes = vsapi->mapNumElements(in, "clips");
     if (numNodes == 1) {
-        VSNode *node = vsapi->mapGetNode(in, "clips", 0, nullptr);
-        vsapi->mapSetNode(out, "clip", node, paAppend);
-        vsapi->freeNode(node);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, nullptr), paAppend);
+        return;
     }
   
     std::unique_ptr<AudioSpliceData> d(new AudioSpliceData(vsapi));
 
-    d->node.reserve(numNodes);
+    d->nodes.reserve(numNodes);
     for (int i = 0; i < numNodes; i++)
-        d->node.push_back(vsapi->mapGetNode(in, "clips", i, nullptr));
+        d->nodes.push_back(vsapi->mapGetNode(in, "clips", i, nullptr));
 
-    d->ai = *vsapi->getAudioInfo(d->node[0]);
+    d->ai = *vsapi->getAudioInfo(d->nodes[0]);
 
     for (int i = 1; i < numNodes; i++) {
-        if (!isSameAudioInfo(&d->ai, vsapi->getAudioInfo(d->node[i])))
+        if (!isSameAudioInfo(&d->ai, vsapi->getAudioInfo(d->nodes[i])))
             RETERROR("AudioSplice: format mismatch");
     }
 
     d->ai.numSamples = 0;
     for (int i = 0; i < numNodes; i++) {
-        const VSAudioInfo *ai = vsapi->getAudioInfo(d->node[i]);
+        const VSAudioInfo *ai = vsapi->getAudioInfo(d->nodes[i]);
         d->numSamples.push_back(ai->numSamples);
         d->numFrames.push_back(ai->numFrames);
         d->ai.numSamples += ai->numSamples;
@@ -781,13 +780,12 @@ static void VS_CC splitChannelsCreate(const VSMap *in, VSMap *out, void *userDat
     
     // Pass through when nothing to do
     if (numChannels == 1) {
-        vsapi->mapSetNode(out, "clip", node, paAppend);
-        vsapi->freeNode(node);
+        vsapi->mapConsumeNode(out, "clip", node, paAppend);
         return;
     }
     
     VSMap *map = vsapi->createMap();
-    vsapi->mapSetNode(map, "clips", node, paAppend);
+    vsapi->mapConsumeNode(map, "clips", node, paAppend);
 
     size_t index = 0;
     for (int i = 0; i < numChannels; i++) {
@@ -796,14 +794,11 @@ static void VS_CC splitChannelsCreate(const VSMap *in, VSMap *out, void *userDat
         vsapi->mapSetInt(map, "channels_in", i, paReplace);
         vsapi->mapSetInt(map, "channels_out", i, paReplace);
         VSMap *tmp = vsapi->invoke2(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShuffleChannels", map);
-        VSNode *tmpnode = vsapi->mapGetNode(tmp, "clip", 0, nullptr);
-        vsapi->mapSetNode(out, "clip", tmpnode, paAppend);
-        vsapi->freeNode(tmpnode);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(tmp, "clip", 0, nullptr), paAppend);
         vsapi->freeMap(tmp);
     }
 
     vsapi->freeMap(map);
-    vsapi->freeNode(node);
 }
 
 //////////////////////////////////////////

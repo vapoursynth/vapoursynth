@@ -46,22 +46,22 @@ using namespace vsh;
 // SCDetect
 
 typedef struct {
-    VSNode *node;
-    VSNode *diffnode;
     double threshold;
-} SCDetectData;
+} SCDetectDataExtra;
+
+typedef DualNodeData<SCDetectDataExtra> SCDetectData;
 
 static const VSFrame *VS_CC scDetectGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     SCDetectData *d = static_cast<SCDetectData *>(instanceData);
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-        vsapi->requestFrameFilter(std::max(n - 1, 0), d->diffnode, frameCtx);
-        vsapi->requestFrameFilter(n, d->diffnode, frameCtx);
+        vsapi->requestFrameFilter(n, d->node1, frameCtx);
+        vsapi->requestFrameFilter(std::max(n - 1, 0), d->node2, frameCtx);
+        vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFrame *prevframe = vsapi->getFrameFilter(std::max(n - 1, 0), d->diffnode, frameCtx);
-        const VSFrame *nextframe = vsapi->getFrameFilter(n, d->diffnode, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame *prevframe = vsapi->getFrameFilter(std::max(n - 1, 0), d->node2, frameCtx);
+        const VSFrame *nextframe = vsapi->getFrameFilter(n, d->node2, frameCtx);
 
         double prevdiff = vsapi->mapGetFloat(vsapi->getFramePropertiesRO(prevframe), "SCPlaneStatsDiff", 0, nullptr);
         double nextdiff = vsapi->mapGetFloat(vsapi->getFramePropertiesRO(nextframe), "SCPlaneStatsDiff", 0, nullptr);
@@ -80,21 +80,14 @@ static const VSFrame *VS_CC scDetectGetFrame(int n, int activationReason, void *
     return nullptr;
 }
 
-static void VS_CC scDetectFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    SCDetectData *d = static_cast<SCDetectData *>(instanceData);
-    vsapi->freeNode(d->diffnode);
-    vsapi->freeNode(d->node);
-    delete d;
-}
-
 static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<SCDetectData> d(new SCDetectData());
+    std::unique_ptr<SCDetectData> d(new SCDetectData(vsapi));
     int err;
     d->threshold = vsapi->mapGetFloat(in, "threshold", 0, &err);
     if (err)
         d->threshold = 0.1;
-    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
-    const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
+    d->node1 = vsapi->mapGetNode(in, "clip", 0, nullptr);
+    const VSVideoInfo *vi = vsapi->getVideoInfo(d->node1);
 
     try {
         if (d->threshold < 0.0 || d->threshold > 1.0)
@@ -107,30 +100,27 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         VSPlugin *stdplugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
         VSMap *invmap = vsapi->createMap();
         VSMap *invmap2 = nullptr;
-        vsapi->mapSetNode(invmap, "clip", d->node, paAppend);
+        vsapi->mapSetNode(invmap, "clip", d->node1, paAppend);
         vsapi->mapSetInt(invmap, "first", 1, paAppend);
         invmap2 = vsapi->invoke(stdplugin, "Trim", invmap);
-        VSNode *tempnode = vsapi->mapGetNode(invmap2, "clip", 0, nullptr);
-        vsapi->freeMap(invmap2);
         vsapi->clearMap(invmap);
-        vsapi->mapSetNode(invmap, "clipa", d->node, paAppend);
-        vsapi->mapSetNode(invmap, "clipb", tempnode, paAppend);
+        vsapi->mapSetNode(invmap, "clipa", d->node1, paAppend);
+        vsapi->mapConsumeNode(invmap, "clipb", vsapi->mapGetNode(invmap2, "clip", 0, nullptr), paAppend);
         vsapi->mapSetData(invmap, "prop", "SCPlaneStats", -1, dtUtf8, paAppend);
         vsapi->mapSetInt(invmap, "plane", 0, paAppend);
-        vsapi->freeNode(tempnode);
+        vsapi->freeMap(invmap2);
         invmap2 = vsapi->invoke(stdplugin, "PlaneStats", invmap);
         vsapi->freeMap(invmap);
         invmap = vsapi->invoke(stdplugin, "Cache", invmap2);
         vsapi->freeMap(invmap2);
-        d->diffnode = vsapi->mapGetNode(invmap, "clip", 0, nullptr);
+        d->node2 = vsapi->mapGetNode(invmap, "clip", 0, nullptr);
         vsapi->freeMap(invmap);
     } catch (const std::runtime_error &e) {
-        vsapi->freeNode(d->node);
         vsapi->mapSetError(out, ("SCDetect: "_s + e.what()).c_str());
         return;
     }
 
-    vsapi->createVideoFilter(out, "SCDetect", vi, scDetectGetFrame, scDetectFree, fmParallel, 0, d.release(), core);
+    vsapi->createVideoFilter(out, "SCDetect", vi, scDetectGetFrame, filterFree<SCDetectData>, fmParallel, 0, d.release(), core);
 }
 
 ///////////////////////////////////////
@@ -140,13 +130,14 @@ namespace {
 typedef struct {
     std::vector<int> weights;
     std::vector<float> fweights;
-    std::vector<VSNode *> nodes;
     VSVideoInfo vi;
     unsigned scale;
     float fscale;
     bool useSceneChange;
     bool process[3];
-} AverageFrameData;
+} AverageFrameDataExtra;
+
+typedef VariableNodeData<AverageFrameDataExtra> AverageFrameData;
 } // namespace
 
 template <typename T>
@@ -628,15 +619,8 @@ static const VSFrame *VS_CC averageFramesGetFrame(int n, int activationReason, v
     return nullptr;
 }
 
-static void VS_CC averageFramesFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    AverageFrameData *d = static_cast<AverageFrameData *>(instanceData);
-    for (auto iter : d->nodes)
-        vsapi->freeNode(iter);
-    delete d;
-}
-
 static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<AverageFrameData> d(new AverageFrameData());
+    std::unique_ptr<AverageFrameData> d(new AverageFrameData(vsapi));
     int numNodes = vsapi->mapNumElements(in, "clips");
     int numWeights = vsapi->mapNumElements(in, "weights");
     int err;
@@ -716,19 +700,20 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         return;
     }
 
-    vsapi->createVideoFilter(out, "AverageFrames", &d->vi, averageFramesGetFrame, averageFramesFree, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "AverageFrames", &d->vi, averageFramesGetFrame, filterFree<AverageFrameData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
 ///////////////////////////////////////
 // Hysteresis
 
-struct HysteresisData {
-    VSNode * node1, *node2;
+struct HysteresisExtraData {
     bool process[3];
     uint16_t peak;
     size_t labelSize;
 };
+
+typedef DualNodeData<HysteresisExtraData> HysteresisData;
 
 template<typename T>
 static void process_frame_hysteresis(const VSFrame * src1, const VSFrame * src2, VSFrame * dst, const VSVideoFormat *fi, const HysteresisData * d, const VSAPI * vsapi) VS_NOEXCEPT {
@@ -819,17 +804,8 @@ static const VSFrame *VS_CC hysteresisGetFrame(int n, int activationReason, void
     return nullptr;
 }
 
-static void VS_CC hysteresisFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    HysteresisData *d = static_cast<HysteresisData *>(instanceData);
-
-    vsapi->freeNode(d->node1);
-    vsapi->freeNode(d->node2);
-
-    delete d;
-}
-
 static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<HysteresisData> d(new HysteresisData());
+    std::unique_ptr<HysteresisData> d(new HysteresisData(vsapi));
 
     d->node1 = vsapi->mapGetNode(in, "clipa", 0, nullptr);
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, nullptr);
@@ -852,13 +828,11 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
         d->labelSize = vi->width * vi->height;
 
     } catch (const std::runtime_error &e) {
-        vsapi->freeNode(d->node1);
-        vsapi->freeNode(d->node2);
         vsapi->mapSetError(out, ("Hysteresis: "_s + e.what()).c_str());
         return;
     }
 
-    vsapi->createVideoFilter(out, "Hysteresis", vi, hysteresisGetFrame, hysteresisFree, fmParallel, 0, d.release(), core);
+    vsapi->createVideoFilter(out, "Hysteresis", vi, hysteresisGetFrame, filterFree<HysteresisData>, fmParallel, 0, d.release(), core);
 }
 
 ///////////////////////////////////////

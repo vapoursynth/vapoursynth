@@ -102,13 +102,13 @@ struct VariableNodeData : public T {
 private:
     const VSAPI *vsapi;
 public:
-    std::vector<VSNode *> node;
+    std::vector<VSNode *> nodes;
 
     explicit VariableNodeData(const VSAPI *vsapi) noexcept : T(), vsapi(vsapi) {
     }
 
     ~VariableNodeData() {
-        for (auto iter : node)
+        for (auto iter : nodes)
             vsapi->freeNode(iter);
     }
 };

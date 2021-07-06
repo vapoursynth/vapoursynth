@@ -796,7 +796,6 @@ static void VS_CC vfmFree(void *instanceData, VSCore *core, const VSAPI *vsapi) 
 }
 
 static VSMap *invokePlaneDifference(VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    VSNode *node2;
     VSMap *args, *ret;
     const char *prop = "VFMPlaneStats";
     VSPlugin *stdplugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
@@ -809,26 +808,22 @@ static VSMap *invokePlaneDifference(VSNode *node, VSCore *core, const VSAPI *vsa
         vsapi->freeMap(args);
         return ret;
     }
-    node2 = vsapi->mapGetNode(ret, "clip", 0, 0);
-    vsapi->freeMap(ret);
-    vsapi->clearMap(args);
 
+    vsapi->clearMap(args);
     vsapi->mapSetNode(args, "clipa", node, paAppend);
-    vsapi->mapSetNode(args, "clipb", node2, paAppend);
-    vsapi->freeNode(node2);
+    vsapi->mapConsumeNode(args, "clipb", vsapi->mapGetNode(ret, "clip", 0, 0), paAppend);
     vsapi->mapSetInt(args, "plane", 0, paAppend);
     vsapi->mapSetData(args, "prop", prop, -1, dtUtf8, paAppend);
+    vsapi->freeMap(ret);
     ret = vsapi->invoke(stdplugin, "PlaneStats", args);
     if (vsapi->mapGetError(ret)) {
         vsapi->freeMap(args);
         return ret;
     }
-    node2 = vsapi->mapGetNode(ret, "clip", 0, 0);
-    vsapi->freeMap(ret);
-    vsapi->clearMap(args);
 
-    vsapi->mapSetNode(args, "clip", node2, paAppend);
-    vsapi->freeNode(node2);
+    vsapi->clearMap(args);
+    vsapi->mapConsumeNode(args, "clip", vsapi->mapGetNode(ret, "clip", 0, 0), paAppend);
+    vsapi->freeMap(ret);
     ret = vsapi->invoke(stdplugin, "Cache", args);
     vsapi->freeMap(args);
     return ret;

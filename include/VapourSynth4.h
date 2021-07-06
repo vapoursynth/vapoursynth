@@ -399,15 +399,15 @@ struct VSAPI {
 
     VSNode *(VS_CC *mapGetNode)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     int (VS_CC *mapSetNode)(VSMap *map, const char *key, VSNode *node, int append) VS_NOEXCEPT; /* returns 0 on success */
-    int (VS_CC *mapConsumeNode)(VSMap *map, const char *key, VSNode *node, int append) VS_NOEXCEPT; /* consumes reference when successful */
+    int (VS_CC *mapConsumeNode)(VSMap *map, const char *key, VSNode *node, int append) VS_NOEXCEPT; /* always consumes the reference, even on error */
 
     const VSFrame *(VS_CC *mapGetFrame)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     int (VS_CC *mapSetFrame)(VSMap *map, const char *key, const VSFrame *f, int append) VS_NOEXCEPT; /* returns 0 on success */
-    int (VS_CC *mapConsumeFrame)(VSMap *map, const char *key, const VSFrame *f, int append) VS_NOEXCEPT; /* consumes reference when successful */
+    int (VS_CC *mapConsumeFrame)(VSMap *map, const char *key, const VSFrame *f, int append) VS_NOEXCEPT; /* always consumes the reference, even on error */
 
     VSFunction *(VS_CC *mapGetFunction)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     int (VS_CC *mapSetFunction)(VSMap *map, const char *key, VSFunction *func, int append) VS_NOEXCEPT; /* returns 0 on success */
-    int (VS_CC *mapConsumeFunction)(VSMap *map, const char *key, VSFunction *func, int append) VS_NOEXCEPT; /* consumes reference when successful */
+    int (VS_CC *mapConsumeFunction)(VSMap *map, const char *key, VSFunction *func, int append) VS_NOEXCEPT; /* always consumes the reference, even on error */
 
     /* Plugin and plugin function related */
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT; /* non-zero return value on success  */

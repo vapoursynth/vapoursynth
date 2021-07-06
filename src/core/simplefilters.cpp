@@ -490,20 +490,20 @@ static const VSFrame *VS_CC shufflePlanesGetframe(int n, int activationReason, v
     ShufflePlanesData *d = reinterpret_cast<ShufflePlanesData *>(instanceData);
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node[0], frameCtx);
+        vsapi->requestFrameFilter(n, d->nodes[0], frameCtx);
 
-        if (d->node[1] && d->node[1] != d->node[0])
-            vsapi->requestFrameFilter(n, d->node[1], frameCtx);
+        if (d->nodes[1] && d->nodes[1] != d->nodes[0])
+            vsapi->requestFrameFilter(n, d->nodes[1], frameCtx);
 
-        if (d->node[2] && d->node[2] != d->node[0] && d->node[2] != d->node[1])
-            vsapi->requestFrameFilter(n, d->node[2], frameCtx);
+        if (d->nodes[2] && d->nodes[2] != d->nodes[0] && d->nodes[2] != d->nodes[1])
+            vsapi->requestFrameFilter(n, d->nodes[2], frameCtx);
     } else if (activationReason == arAllFramesReady) {
         if (d->vi.format.colorFamily != cfGray) {
             const VSFrame *src[3];
             VSFrame *dst;
 
             for (int i = 0; i < 3; i++)
-                src[i] = vsapi->getFrameFilter(n, d->node[i], frameCtx);
+                src[i] = vsapi->getFrameFilter(n, d->nodes[i], frameCtx);
 
             dst = vsapi->newVideoFrame2(&d->vi.format, d->vi.width, d->vi.height, src, d->plane, src[0], core);
 
@@ -513,7 +513,7 @@ static const VSFrame *VS_CC shufflePlanesGetframe(int n, int activationReason, v
             return dst;
         } else {
             VSFrame *dst;
-            const VSFrame *src = vsapi->getFrameFilter(n, d->node[0], frameCtx);
+            const VSFrame *src = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
             const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
             if (d->plane[0] >= fi->numPlanes) {
@@ -545,7 +545,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     int nplanes = vsapi->mapNumElements(in, "planes");
     int err;
 
-    d->node.resize(3);
+    d->nodes.resize(3);
     assert(d->plane[0] == 0);
 
     d->format = vsapi->mapGetIntSaturated(in, "colorfamily", 0, 0);
@@ -573,42 +573,42 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         d->plane[i] = vsapi->mapGetIntSaturated(in, "planes", i, 0);
 
     for (int i = 0; i < 3; i++)
-        d->node[i] = vsapi->mapGetNode(in, "clips", i, &err);
+        d->nodes[i] = vsapi->mapGetNode(in, "clips", i, &err);
 
     for (int i = 0; i < 3; i++) {
-        if (d->node[i] && !isConstantVideoFormat(vsapi->getVideoInfo(d->node[i])))
+        if (d->nodes[i] && !isConstantVideoFormat(vsapi->getVideoInfo(d->nodes[i])))
             RETERROR("ShufflePlanes: only clips with constant format and dimensions supported");
     }
 
     if (d->format != cfGray && nclips == 1) {
-        d->node[1] = vsapi->addNodeRef(d->node[0]);
-        d->node[2] = vsapi->addNodeRef(d->node[0]);
+        d->nodes[1] = vsapi->addNodeRef(d->nodes[0]);
+        d->nodes[2] = vsapi->addNodeRef(d->nodes[0]);
     } else if (d->format != cfGray && nclips == 2) {
-        d->node[2] = vsapi->addNodeRef(d->node[1]);
+        d->nodes[2] = vsapi->addNodeRef(d->nodes[1]);
     }
 
     for (int i = 0; i < outplanes; i++) {
-        if (d->plane[i] < 0 || (vsapi->getVideoInfo(d->node[i])->format.colorFamily != cfUndefined && d->plane[i] >= vsapi->getVideoInfo(d->node[i])->format.numPlanes))
+        if (d->plane[i] < 0 || (vsapi->getVideoInfo(d->nodes[i])->format.colorFamily != cfUndefined && d->plane[i] >= vsapi->getVideoInfo(d->nodes[i])->format.numPlanes))
             RETERROR("ShufflePlanes: invalid plane specified");
     }
 
-    d->vi = *vsapi->getVideoInfo(d->node[0]);
+    d->vi = *vsapi->getVideoInfo(d->nodes[0]);
 
     // compatible format checks
     if (d->format == cfGray) {
         // gray is always compatible and special, it can work with variable input size clips
         if (d->vi.format.colorFamily != cfUndefined)
              vsapi->queryVideoFormat(&d->vi.format, cfGray, d->vi.format.sampleType, d->vi.format.bitsPerSample, 0, 0, core);
-        d->vi.width = planeWidth(vsapi->getVideoInfo(d->node[0]), d->plane[0]);
-        d->vi.height = planeHeight(vsapi->getVideoInfo(d->node[0]), d->plane[0]);
+        d->vi.width = planeWidth(vsapi->getVideoInfo(d->nodes[0]), d->plane[0]);
+        d->vi.height = planeHeight(vsapi->getVideoInfo(d->nodes[0]), d->plane[0]);
     } else {
         // no variable size video with more than one plane, it's just crazy
-        int c0height = planeHeight(vsapi->getVideoInfo(d->node[0]), d->plane[0]);
-        int c0width = planeWidth(vsapi->getVideoInfo(d->node[0]), d->plane[0]);
-        int c1height = planeHeight(vsapi->getVideoInfo(d->node[1]), d->plane[1]);
-        int c1width = planeWidth(vsapi->getVideoInfo(d->node[1]), d->plane[1]);
-        int c2height = planeHeight(vsapi->getVideoInfo(d->node[2]), d->plane[2]);
-        int c2width = planeWidth(vsapi->getVideoInfo(d->node[2]), d->plane[2]);
+        int c0height = planeHeight(vsapi->getVideoInfo(d->nodes[0]), d->plane[0]);
+        int c0width = planeWidth(vsapi->getVideoInfo(d->nodes[0]), d->plane[0]);
+        int c1height = planeHeight(vsapi->getVideoInfo(d->nodes[1]), d->plane[1]);
+        int c1width = planeWidth(vsapi->getVideoInfo(d->nodes[1]), d->plane[1]);
+        int c2height = planeHeight(vsapi->getVideoInfo(d->nodes[2]), d->plane[2]);
+        int c2width = planeWidth(vsapi->getVideoInfo(d->nodes[2]), d->plane[2]);
 
         d->vi.width = c0width;
         d->vi.height = c0height;
@@ -623,7 +623,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
             RETERROR("ShufflePlanes: plane 1 and 2 are not subsampled multiples of first plane");
 
         for (int i = 1; i < 3; i++) {
-            const VSVideoInfo *pvi = vsapi->getVideoInfo(d->node[i]);
+            const VSVideoInfo *pvi = vsapi->getVideoInfo(d->nodes[i]);
 
             if (d->vi.numFrames < pvi->numFrames)
                 d->vi.numFrames = pvi->numFrames;
@@ -660,26 +660,22 @@ static void VS_CC splitPlanesCreate(const VSMap *in, VSMap *out, void *userData,
 
     // Pass through when nothing to do
     if (numPlanes == 1) {
-        vsapi->mapSetNode(out, "clip", node, paAppend);
-        vsapi->freeNode(node);
+        vsapi->mapConsumeNode(out, "clip", node, paAppend);
         return;
     }
 
     VSMap *map = vsapi->createMap();
-    vsapi->mapSetNode(map, "clips", node, paAppend);
+    vsapi->mapConsumeNode(map, "clips", node, paAppend);
     vsapi->mapSetInt(map, "colorfamily", cfGray, paAppend);
 
     for (int i = 0; i < numPlanes; i++) {
         vsapi->mapSetInt(map, "plane", i, paReplace);
         VSMap *tmp = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShufflePlanes", map);
-        VSNode *tmpnode = vsapi->mapGetNode(tmp, "clip", 0, nullptr);
-        vsapi->mapSetNode(out, "clip", tmpnode, paAppend);
-        vsapi->freeNode(tmpnode);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(tmp, "clip", 0, nullptr), paAppend);
         vsapi->freeMap(tmp);
     }
 
     vsapi->freeMap(map);
-    vsapi->freeNode(node);
 }
 
 //////////////////////////////////////////
@@ -1039,10 +1035,10 @@ static const VSFrame *VS_CC stackGetframe(int n, int activationReason, void *ins
     StackData *d = reinterpret_cast<StackData *>(instanceData);
 
     if (activationReason == arInitial) {
-        for (auto iter: d->node)
+        for (auto iter: d->nodes)
             vsapi->requestFrameFilter(n, iter, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n, d->node[0], frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
         VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
         vsapi->freeFrame(src);
 
@@ -1050,7 +1046,7 @@ static const VSFrame *VS_CC stackGetframe(int n, int activationReason, void *ins
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
 
-            for (auto iter : d->node) {
+            for (auto iter : d->nodes) {
                 src = vsapi->getFrameFilter(n, iter, frameCtx);
 
                 if (d->vertical) {
@@ -1086,19 +1082,17 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     int numclips = vsapi->mapNumElements(in, "clips");
 
     if (numclips == 1) { // passthrough for the special case with only one clip
-        VSNode *node = vsapi->mapGetNode(in, "clips", 0, 0);
-        vsapi->mapSetNode(out, "clip", node, paReplace);
-        vsapi->freeNode(node);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, 0), paReplace);
     } else {
-        d->node.resize(numclips);
+        d->nodes.resize(numclips);
 
         for (int i = 0; i < numclips; i++)
-            d->node[i] = vsapi->mapGetNode(in, "clips", i, 0);
+            d->nodes[i] = vsapi->mapGetNode(in, "clips", i, 0);
 
-        d->vi = *vsapi->getVideoInfo(d->node[0]);
+        d->vi = *vsapi->getVideoInfo(d->nodes[0]);
 
         for (int i = 1; i < numclips; i++) {
-            const VSVideoInfo *vi = vsapi->getVideoInfo(d->node[i]);
+            const VSVideoInfo *vi = vsapi->getVideoInfo(d->nodes[i]);
 
             if (d->vi.numFrames < vi->numFrames)
                 d->vi.numFrames = vi->numFrames;
