@@ -2527,9 +2527,9 @@ cdef class Function(object):
         cname = tname
         if self.plugin.core.add_cache:
             with nogil:
-                outm = self.funcs.invoke2(self.plugin.plugin, cname, inm)
+                outm = self.funcs.invoke(self.plugin.plugin, cname, inm, ifAddCaches)
         else:
-                outm = self.funcs.invoke(self.plugin.plugin, cname, inm)
+                outm = self.funcs.invoke(self.plugin.plugin, cname, inm, 0)
         self.funcs.freeMap(inm)
         cdef const char *err = self.funcs.mapGetError(outm)
         cdef bytes emsg

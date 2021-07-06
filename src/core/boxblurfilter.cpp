@@ -297,14 +297,14 @@ static VSNode *applyBoxBlurPlaneFiltering(VSPlugin *stdplugin, VSNode *node, int
     if (vblur) {
         VSMap *vtmp1 = vsapi->createMap();
         vsapi->mapConsumeNode(vtmp1, "clip", node, paAppend);
-        VSMap *vtmp2 = vsapi->invoke(stdplugin, "Transpose", vtmp1);
+        VSMap *vtmp2 = vsapi->invoke(stdplugin, "Transpose", vtmp1, 0);
         vsapi->clearMap(vtmp1);
         node = vsapi->mapGetNode(vtmp2, "clip", 0, nullptr);
         vsapi->clearMap(vtmp2);
         vsapi->createVideoFilter(vtmp2, "BoxBlur", vsapi->getVideoInfo(node), boxBlurGetframe, boxBlurFree, fmParallel, 0, new BoxBlurData{ node, vradius, vpasses }, core);
         vsapi->setInternalFilterRelation(vtmp2, &node, 1);
         vsapi->freeMap(vtmp1);
-        vtmp1 = vsapi->invoke(stdplugin, "Transpose", vtmp2);
+        vtmp1 = vsapi->invoke(stdplugin, "Transpose", vtmp2, 0);
         vsapi->freeMap(vtmp2);
         node = vsapi->mapGetNode(vtmp1, "clip", 0, nullptr);
         vsapi->freeMap(vtmp1);
@@ -373,7 +373,7 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
                     vsapi->mapSetNode(vtmp1, "clips", node, paAppend);
                     vsapi->mapSetInt(vtmp1, "planes", plane, paAppend);
                     vsapi->mapSetInt(vtmp1, "colorfamily", cfGray, paAppend);
-                    VSMap *vtmp2 = vsapi->invoke(stdplugin, "ShufflePlanes", vtmp1);
+                    VSMap *vtmp2 = vsapi->invoke(stdplugin, "ShufflePlanes", vtmp1, 0);
                     vsapi->freeMap(vtmp1);
                     VSNode *tmpnode = vsapi->mapGetNode(vtmp2, "clip", 0, nullptr);
                     vsapi->freeMap(vtmp2);
@@ -387,7 +387,7 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
             vsapi->freeNode(node);
             node = nullptr;
 
-            VSMap *retmap = vsapi->invoke(stdplugin, "ShufflePlanes", mergeargs);
+            VSMap *retmap = vsapi->invoke(stdplugin, "ShufflePlanes", mergeargs, 0);
             vsapi->freeMap(mergeargs);
             vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(retmap, "clip", 0, nullptr), paAppend);
             vsapi->freeMap(retmap);

@@ -173,7 +173,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         vsapi->mapSetNode(min, "clip", d->nodes[1], paAppend);
         vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
         vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
-        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min);
+        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min, 0);
         d->nodes[2] = vsapi->mapGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
         vsapi->freeMap(min);
@@ -484,7 +484,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
             vsapi->mapSetNode(min, "clips", d->nodes[2], paAppend);
             vsapi->mapSetInt(min, "planes", 0, paAppend);
             vsapi->mapSetInt(min, "colorfamily", cfGray, paAppend);
-            VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShufflePlanes", min);
+            VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShufflePlanes", min, 0);
             VSNode *mask_first_plane = vsapi->mapGetNode(mout, "clip", 0, 0);
             vsapi->freeMap(mout);
             vsapi->clearMap(min);
@@ -495,7 +495,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
         vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
         vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
-        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min);
+        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min, 0);
         d->nodes[3] = vsapi->mapGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
         vsapi->freeMap(min);

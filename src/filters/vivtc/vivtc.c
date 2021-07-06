@@ -803,7 +803,7 @@ static VSMap *invokePlaneDifference(VSNode *node, VSCore *core, const VSAPI *vsa
     args = vsapi->createMap();
     vsapi->mapSetNode(args, "clip", node, paAppend);
     vsapi->mapSetInt(args, "frames", 0, paAppend);
-    ret = vsapi->invoke(stdplugin, "DuplicateFrames", args);
+    ret = vsapi->invoke(stdplugin, "DuplicateFrames", args, 0);
     if (vsapi->mapGetError(ret)) {
         vsapi->freeMap(args);
         return ret;
@@ -815,16 +815,7 @@ static VSMap *invokePlaneDifference(VSNode *node, VSCore *core, const VSAPI *vsa
     vsapi->mapSetInt(args, "plane", 0, paAppend);
     vsapi->mapSetData(args, "prop", prop, -1, dtUtf8, paAppend);
     vsapi->freeMap(ret);
-    ret = vsapi->invoke(stdplugin, "PlaneStats", args);
-    if (vsapi->mapGetError(ret)) {
-        vsapi->freeMap(args);
-        return ret;
-    }
-
-    vsapi->clearMap(args);
-    vsapi->mapConsumeNode(args, "clip", vsapi->mapGetNode(ret, "clip", 0, 0), paAppend);
-    vsapi->freeMap(ret);
-    ret = vsapi->invoke(stdplugin, "Cache", args);
+    ret = vsapi->invoke(stdplugin, "PlaneStats", args, ifAddCaches);
     vsapi->freeMap(args);
     return ret;
 }

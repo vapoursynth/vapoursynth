@@ -102,19 +102,17 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         VSMap *invmap2 = nullptr;
         vsapi->mapSetNode(invmap, "clip", d->node1, paAppend);
         vsapi->mapSetInt(invmap, "first", 1, paAppend);
-        invmap2 = vsapi->invoke(stdplugin, "Trim", invmap);
+        invmap2 = vsapi->invoke(stdplugin, "Trim", invmap, 0);
         vsapi->clearMap(invmap);
         vsapi->mapSetNode(invmap, "clipa", d->node1, paAppend);
         vsapi->mapConsumeNode(invmap, "clipb", vsapi->mapGetNode(invmap2, "clip", 0, nullptr), paAppend);
         vsapi->mapSetData(invmap, "prop", "SCPlaneStats", -1, dtUtf8, paAppend);
         vsapi->mapSetInt(invmap, "plane", 0, paAppend);
         vsapi->freeMap(invmap2);
-        invmap2 = vsapi->invoke(stdplugin, "PlaneStats", invmap);
+        invmap2 = vsapi->invoke(stdplugin, "PlaneStats", invmap, ifAddCaches);
         vsapi->freeMap(invmap);
-        invmap = vsapi->invoke(stdplugin, "Cache", invmap2);
+        d->node2 = vsapi->mapGetNode(invmap2, "clip", 0, nullptr);
         vsapi->freeMap(invmap2);
-        d->node2 = vsapi->mapGetNode(invmap, "clip", 0, nullptr);
-        vsapi->freeMap(invmap);
     } catch (const std::runtime_error &e) {
         vsapi->mapSetError(out, ("SCDetect: "_s + e.what()).c_str());
         return;

@@ -278,6 +278,10 @@ typedef enum VSCoreCreationFlags {
     ccfDisableLibraryUnloading = 4
 } VSCoreCreationFlags;
 
+typedef enum VSInvokeFlags {
+    ifAddCaches = 1
+} VSInvokeFlags;
+
 typedef enum VSPluginConfigFlags {
     pcModifiable = 1
 } VSPluginConfigFlags;
@@ -424,8 +428,7 @@ struct VSAPI {
     const char *(VS_CC *getPluginFunctionReturnType)(VSPluginFunction *func) VS_NOEXCEPT; /* returns an argument format string */
     const char *(VS_CC *getPluginPath)(const VSPlugin *plugin) VS_NOEXCEPT; /* the full path to the loaded library file containing the plugin entry point */
     int (VS_CC *getPluginVersion)(const VSPlugin *plugin) VS_NOEXCEPT;
-    VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT; /* user must free the returned VSMap */
-    VSMap *(VS_CC *invoke2)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT; /* same as invoke but automatically inserts caches on all returned nodes without nfNoCache set, useful for general graph building */
+    VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args, int flags) VS_NOEXCEPT; /* user must free the returned VSMap */
 
     /* Core and information */
     VSCore *(VS_CC *createCore)(int flags) VS_NOEXCEPT; /* flags uses the VSCoreFlags enum */

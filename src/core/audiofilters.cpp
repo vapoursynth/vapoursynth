@@ -793,7 +793,7 @@ static void VS_CC splitChannelsCreate(const VSMap *in, VSMap *out, void *userDat
             index++;
         vsapi->mapSetInt(map, "channels_in", i, paReplace);
         vsapi->mapSetInt(map, "channels_out", i, paReplace);
-        VSMap *tmp = vsapi->invoke2(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShuffleChannels", map);
+        VSMap *tmp = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShuffleChannels", map, ifAddCaches);
         vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(tmp, "clip", 0, nullptr), paAppend);
         vsapi->freeMap(tmp);
     }

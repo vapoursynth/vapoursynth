@@ -233,7 +233,7 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     if (userData)
         vsapi->createAudioFilter(out, ("AudioCache" + std::to_string(cacheId++)).c_str(), vsapi->getAudioInfo(node), cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache, c, core);
     else
-        vsapi->createVideoFilter(out, ("Cache" + std::to_string(cacheId++)).c_str(), vsapi->getVideoInfo(node), cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache, c, core);
+        vsapi->createVideoFilter(out, ("VideoCache" + std::to_string(cacheId++)).c_str(), vsapi->getVideoInfo(node), cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache, c, core);
 
     VSNode *self = vsapi->mapGetNode(out, "clip", 0, nullptr);
     c->addCache(self);
@@ -242,5 +242,6 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
 
 void VS_CC cacheInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Cache", "clip:vnode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:vnode;", createCacheFilter, nullptr, plugin);
+    vspapi->registerFunction("VideoCache", "clip:vnode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:vnode;", createCacheFilter, nullptr, plugin);
     vspapi->registerFunction("AudioCache", "clip:anode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:anode;", createCacheFilter, (void *)1, plugin);
 }

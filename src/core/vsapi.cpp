@@ -614,14 +614,14 @@ static int VS_CC mapConsumeFrame(VSMap *map, const char *key, const VSFrame *fra
         return !propSetShared<PVSFrameRef, ptAudioFrame>(map, key, {const_cast<VSFrame *>(frame), false}, append);
 }
 
-static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
+static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args, int flags) VS_NOEXCEPT {
     assert(plugin && name && args);
-    return plugin->invoke(name, *args, false);
+    return plugin->invoke(name, *args, !!(flags & ifAddCaches));
 }
 
-static VSMap *VS_CC invoke2(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
+static VSMap *VS_CC invoke3(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
     assert(plugin && name && args);
-    return plugin->invoke(name, *args, true);
+    return plugin->invoke(name, *args, false);
 }
 
 static VSMap *VS_CC createMap() VS_NOEXCEPT {
@@ -1136,7 +1136,6 @@ const VSAPI vs_internal_vsapi = {
     &getPluginPath,
     &getPluginVersion,
     &invoke,
-    &invoke2,
 
     &createCore,
     &freeCore,
@@ -1183,7 +1182,7 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &mapSetError,
     &mapGetError,
     &setFilterError,
-    &invoke,
+    &invoke3,
     &getFormatPreset3,
     &registerFormat3,
     &getFrame,
