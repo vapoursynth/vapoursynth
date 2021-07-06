@@ -593,11 +593,25 @@ static int VS_CC mapSetNode(VSMap *map, const char *key, VSNode *node, int appen
         return !propSetShared<PVSNodeRef, ptAudioNode>(map, key, { node, true }, append);
 }
 
+static int VS_CC mapConsumeNode(VSMap *map, const char *key, VSNode *node, int append) VS_NOEXCEPT {
+    if (node == nullptr || node->getNodeType() == mtVideo)
+        return !propSetShared<PVSNodeRef, ptVideoNode>(map, key, {node, false}, append);
+    else
+        return !propSetShared<PVSNodeRef, ptAudioNode>(map, key, {node, false}, append);
+}
+
 static int VS_CC mapSetFrame(VSMap *map, const char *key, const VSFrame *frame, int append) VS_NOEXCEPT {
     if (frame == nullptr || frame->getFrameType() == mtVideo)
         return !propSetShared<PVSFrameRef, ptVideoFrame>(map, key, { const_cast<VSFrame *>(frame), true }, append);
     else
         return !propSetShared<PVSFrameRef, ptAudioFrame>(map, key, { const_cast<VSFrame *>(frame), true }, append);
+}
+
+static int VS_CC mapConsumeFrame(VSMap *map, const char *key, const VSFrame *frame, int append) VS_NOEXCEPT {
+    if (frame == nullptr || frame->getFrameType() == mtVideo)
+        return !propSetShared<PVSFrameRef, ptVideoFrame>(map, key, {const_cast<VSFrame *>(frame), false}, append);
+    else
+        return !propSetShared<PVSFrameRef, ptAudioFrame>(map, key, {const_cast<VSFrame *>(frame), false}, append);
 }
 
 static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
@@ -729,6 +743,10 @@ static VSFunction *VS_CC mapGetFunction(const VSMap *map, const char *key, int i
 
 static int VS_CC mapSetFunction(VSMap *map, const char *key, VSFunction *func, int append) VS_NOEXCEPT {
     return !propSetShared<PVSFunctionRef, ptFunction>(map, key, { func, true }, append);
+}
+
+static int VS_CC mapConsumeFunction(VSMap *map, const char *key, VSFunction *func, int append) VS_NOEXCEPT {
+    return !propSetShared<PVSFunctionRef, ptFunction>(map, key, {func, false}, append);
 }
 
 static void VS_CC callFunction(VSFunction *func, const VSMap *in, VSMap *out) VS_NOEXCEPT {
@@ -1093,12 +1111,15 @@ const VSAPI vs_internal_vsapi = {
 
     &mapGetNode,
     &mapSetNode,
+    &mapConsumeNode,
 
     &mapGetFrame,
     &mapSetFrame,
+    &mapConsumeFrame,
 
     &mapGetFunction,
     &mapSetFunction,
+    &mapConsumeFunction,
 
     &registerFunction,
     &getPluginByID,
