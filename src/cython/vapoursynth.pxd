@@ -334,12 +334,15 @@ cdef extern from "include/VapourSynth4.h" nogil:
         
         VSNode *mapGetNode(const VSMap *map, const char *key, int index, int *error) nogil
         bint mapSetNode(VSMap *map, const char *key, VSNode *node, int append) nogil
+        bint mapConsumeNode(VSMap *map, const char *key, VSNode *node, int append) nogil
         
         const VSFrame *mapGetFrame(const VSMap *map, const char *key, int index, int *error) nogil
         bint mapSetFrame(VSMap *map, const char *key, const VSFrame *f, int append) nogil
+        bint mapConsumeFrame(VSMap *map, const char *key, const VSFrame *f, int append) nogil
         
         VSFunction *mapGetFunction(const VSMap *map, const char *key, int index, int *error) nogil
         bint mapSetFunction(VSMap *map, const char *key, VSFunction *func, int append) nogil
+        bint mapConsumeFunction(VSMap *map, const char *key, VSFunction *func, int append) nogil
 
         # Plugin and function related
         bint registerFunction(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
