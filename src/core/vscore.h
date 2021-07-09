@@ -64,9 +64,6 @@ static const uint32_t VS_FRAME_GUARD_PATTERN = 0xDEADBEEF;
 #define VS_FATAL_ERROR(msg) do { fprintf(stderr, "%s\n", (msg)); std::terminate(); } while (false);
 
 
-// Internal only filter mode for use by caches to make requests more linear
-const int fmUnorderedLinear = fmFrameState + 1;
-
 struct VSFrame;
 struct VSCore;
 class VSCache;
@@ -77,10 +74,9 @@ struct VSFrameContext;
 struct VSFunction;
 class VSMapData;
 
-typedef vs_intrusive_ptr<VSFrame> PVSFrameRef;
+typedef vs_intrusive_ptr<VSFrame> PVSFrame;
 typedef vs_intrusive_ptr<VSNode> PVSNode;
-typedef vs_intrusive_ptr<VSNode> PVSNodeRef;
-typedef vs_intrusive_ptr<VSFunction> PVSFunctionRef;
+typedef vs_intrusive_ptr<VSFunction> PVSFunction;
 typedef vs_intrusive_ptr<VSFrameContext> PVSFrameContext;
 
 extern const VSPLUGINAPI vs_internal_vspapi;
@@ -231,11 +227,11 @@ public:
 typedef VSArray<int64_t, ptInt> VSIntArray;
 typedef VSArray<double, ptFloat> VSFloatArray;
 typedef VSArray<VSMapData, ptData> VSDataArray;
-typedef VSArray<PVSNodeRef, ptVideoNode> VSVideoNodeArray;
-typedef VSArray<PVSNodeRef, ptAudioNode> VSAudioNodeArray;
-typedef VSArray<PVSFrameRef, ptVideoFrame> VSVideoFrameArray;
-typedef VSArray<PVSFrameRef, ptAudioFrame> VSAudioFrameArray;
-typedef VSArray<PVSFunctionRef, ptFunction> VSFunctionArray;
+typedef VSArray<PVSNode, ptVideoNode> VSVideoNodeArray;
+typedef VSArray<PVSNode, ptAudioNode> VSAudioNodeArray;
+typedef VSArray<PVSFrame, ptVideoFrame> VSVideoFrameArray;
+typedef VSArray<PVSFrame, ptAudioFrame> VSAudioFrameArray;
+typedef VSArray<PVSFunction, ptFunction> VSFunctionArray;
 
 class VSMapStorage {
 private:
@@ -581,7 +577,7 @@ private:
     size_t reqOrder;
     size_t numFrameRequests = 0;
     int n;
-    PVSFrameRef returnedFrame;
+    PVSFrame returnedFrame;
     PVSFrameContext upstreamContext;
     PVSFrameContext notificationChain;
     void *userData;
@@ -591,15 +587,10 @@ private:
     bool lockOnOutput;
 public:
     SemiStaticVector<PVSFrameContext, NUM_FRAMECONTEXT_FAST_REQS> reqList;
-    SemiStaticVector<std::pair<NodeOutputKey, PVSFrameRef>, NUM_FRAMECONTEXT_FAST_REQS> availableFrames;
+    SemiStaticVector<std::pair<NodeOutputKey, PVSFrame>, NUM_FRAMECONTEXT_FAST_REQS> availableFrames;
 
     VSNode *node;
     void *frameContext[4];
-
-    // only used for queryCompletedFrame
-    int lastCompletedN = -1;
-    VSNode *lastCompletedNode = nullptr;
-    //
 
     void add_ref() noexcept {
         ++refcount;
@@ -641,9 +632,175 @@ struct VSNode {
     friend class VSThreadPool;
     friend struct VSCore;
 private:
+    class VSCache {
+    private:
+        struct Node {
+            inline Node() : key(-1) {}
+            inline Node(int key, const PVSFrame &frame) : key(key), frame(frame) {}
+            int key;
+            PVSFrame frame;
+            Node *prevNode = nullptr;
+            Node *nextNode = nullptr;
+        };
+
+        Node *first;
+        Node *weakpoint;
+        Node *last;
+
+        std::unordered_map<int, Node> hash;
+
+        int maxSize;
+        int currentSize;
+        int maxHistorySize;
+        int historySize;
+
+        bool fixedSize;
+
+        int hits;
+        int nearMiss;
+        int farMiss;
+
+        inline void unlink(Node &n) {
+            if (&n == weakpoint)
+                weakpoint = weakpoint->nextNode;
+
+            if (n.prevNode)
+                n.prevNode->nextNode = n.nextNode;
+
+            if (n.nextNode)
+                n.nextNode->prevNode = n.prevNode;
+
+            if (last == &n)
+                last = n.prevNode;
+
+            if (first == &n)
+                first = n.nextNode;
+
+            if (n.frame)
+                currentSize--;
+            else
+                historySize--;
+
+            hash.erase(n.key);
+        }
+
+        inline PVSFrame relink(const int key) {
+            auto i = hash.find(key);
+
+            if (i == hash.end()) {
+                farMiss++;
+                return nullptr;
+            }
+
+            Node &n = i->second;
+
+            if (!n.frame) {
+                nearMiss++;
+                return nullptr;
+            }
+
+            hits++;
+            Node *origWeakPoint = weakpoint;
+
+            if (&n == origWeakPoint)
+                weakpoint = weakpoint->nextNode;
+
+            if (first != &n) {
+                if (n.prevNode)
+                    n.prevNode->nextNode = n.nextNode;
+
+                if (n.nextNode)
+                    n.nextNode->prevNode = n.prevNode;
+
+                if (last == &n)
+                    last = n.prevNode;
+
+                n.prevNode = 0;
+                n.nextNode = first;
+                first->prevNode = &n;
+                first = &n;
+            }
+
+            if (!weakpoint) {
+                if (currentSize > maxSize) {
+                    weakpoint = last;
+                    weakpoint->frame.reset();
+                }
+            } else if (&n == origWeakPoint || historySize > maxHistorySize) {
+                weakpoint = weakpoint->prevNode;
+                weakpoint->frame.reset();
+            }
+
+            assert(historySize <= maxHistorySize);
+
+            return n.frame;
+        }
+
+        void trim(int max, int maxHistory);
+    public:
+        enum class CacheAction {
+            Grow,
+            NoChange,
+            Shrink,
+            Clear
+        };
+
+        VSCache(int maxSize = 20, int maxHistorySize = 20, bool fixedSize = false);
+        ~VSCache() {
+            clear();
+        }
+
+        inline int getMaxFrames() const {
+            return maxSize;
+        }
+        inline void setMaxFrames(int m) {
+            maxSize = m;
+            trim(maxSize, maxHistorySize);
+        }
+        inline int getMaxHistory() const {
+            return maxHistorySize;
+        }
+        inline void setMaxHistory(int m) {
+            maxHistorySize = m;
+            trim(maxSize, maxHistorySize);
+        }
+
+        inline size_t size() const {
+            return hash.size();
+        }
+
+        inline void clear() {
+            hash.clear();
+            first = nullptr;
+            last = nullptr;
+            weakpoint = nullptr;
+            currentSize = 0;
+            historySize = 0;
+            clearStats();
+        }
+
+        inline void clearStats() {
+            hits = 0;
+            nearMiss = 0;
+            farMiss = 0;
+        }
+
+        bool insert(const int key, const PVSFrame &object);
+        PVSFrame object(const int key);
+        inline bool contains(const int key) const {
+            return hash.count(key) > 0;
+        }
+
+        bool remove(const int key);
+
+        CacheAction recommendSize();
+
+        void adjustSize(bool needMemory);
+    };
+
     std::atomic<long> refcount;
     VSMediaType nodeType;
-    bool frameReadyNotify = false;
+
     void *instanceData;
     std::string name;
     VSFilterGetFrame filterGetFrame;
@@ -653,28 +810,39 @@ private:
     int apiMajor;
     VSCore *core;
     PVSFunctionFrame functionFrame;
-    int flags;
     VSVideoInfo vi;
-    vs3::VSVideoInfo v3vi;
     VSAudioInfo ai;
 
     // for keeping track of when a filter is busy in the exclusive section and with which frame
     // used for fmFrameState and fmParallel (mutex only)
     std::mutex serialMutex;
     int serialFrame;
-    // to prevent multiple calls at the same time for the same frame
-    // this is only used by fmParallel and fmParallelRequests when frameReadyNotify is set
-    std::mutex concurrentFramesMutex;
-    std::set<int> concurrentFrames;
+
+    std::vector<VSFilterDependency> dependencies;
+    std::vector<VSFilterDependency> consumers;
+    size_t maxConsumers = 0;
 
     std::atomic<int64_t> processingTime;
 
-    PVSFrameRef getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
+    std::mutex cacheMutex;
+    bool cacheOverride = false;
+    bool cacheEnabled = false; // FIXME, needs to be atomic?
+    bool cacheMakeLinear = false;
+    VSCache cache;
+
+    // api3
+    vs3::VSVideoInfo v3vi;
+
+    PVSFrame getCachedFrameInternal(int n);
+    PVSFrame getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
 public:
     VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
-    VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
-    VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
+    VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core);
+    VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core);
     ~VSNode();
+
+    void addConsumer(VSNode *consumer, int strictSpatial);
+    void removeConsumer(VSNode *consumer, int strictSpatial);
 
     void add_ref() noexcept {
         ++refcount;
@@ -702,10 +870,6 @@ public:
         return processingTime;
     }
 
-    int getNodeFlags() const {
-        return flags;
-    }
-
     bool isRightCore(const VSCore *core2) const {
         return core == core2;
     }
@@ -724,7 +888,8 @@ public:
 
     const char *getCreationFunctionName(int level) const;
     const VSMap *getCreationFunctionArguments(int level) const;
-    void setFilterRelation(VSNode **dependencies, int numDeps);
+
+    void setCacheMode(int mode);
 
     // to get around encapsulation a bit, more elegant than making everything friends in this case
     void reserveThread();
@@ -759,7 +924,7 @@ private:
 public:
     VSThreadPool(VSCore *core);
     ~VSThreadPool();
-    void returnFrame(const PVSFrameContext &rCtx, const PVSFrameRef &f);
+    void returnFrame(const PVSFrameContext &rCtx, const PVSFrame &f);
     void returnFrame(const PVSFrameContext &rCtx, const std::string &errMsg);
     size_t threadCount();
     size_t setThreadCount(size_t threads);
@@ -783,7 +948,7 @@ private:
     static void parseArgString(const std::string &argString, std::vector<FilterArgument> &argsOut, int apiMajor);
 public:
     VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, VSPlugin *plugin);
-    VSMap *invoke(const VSMap &args, bool addCache);
+    VSMap *invoke(const VSMap &args);
     const std::string &getName() const;
     const std::string &getArguments() const;
     const std::string &getReturnType() const;
@@ -821,7 +986,7 @@ public:
     void lock() { readOnly = true; }
     bool configPlugin(const std::string &identifier, const std::string &pluginsNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags);
     bool registerFunction(const std::string &name, const std::string &args, const std::string &returnType, VSPublicFunction argsFunc, void *functionData);
-    VSMap *invoke(const std::string &funcName, const VSMap &args, bool addCache);
+    VSMap *invoke(const std::string &funcName, const VSMap &args);
     VSPluginFunction *getNextFunction(VSPluginFunction *func);
     VSPluginFunction *getFunctionByName(const std::string name);
     const std::string &getName() const { return fullname; }
@@ -920,8 +1085,10 @@ public:
 #endif
 
     void createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
-    void createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
-    void createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
+    void createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);
+    VSNode *createVideoFilter(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);
+    void createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);
+    VSNode *createAudioFilter(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);
 
     int getCpuLevel() const;
     int setCpuLevel(int cpu);

@@ -45,7 +45,8 @@ static void VS_CC filterCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     data = (FilterData *)malloc(sizeof(d));
     *data = d;
 
-    vsapi->createVideoFilter(out, "Filter", data->vi, filterGetFrame, filterFree, fmParallel, 0, data, core);
+    VSFilterDependency deps[] = {d.node, 1};
+    vsapi->createVideoFilter(out, "Filter", data->vi, filterGetFrame, filterFree, fmParallel, deps, 1, data, core);
 }
 
 //////////////////////////////////////////

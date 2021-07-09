@@ -631,6 +631,10 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         if (!AVSPixelTypeToVSFormat(vi.format, viAvs, core, vsapi))
             vsapi->mapSetError(out, "Avisynth Compat: bad format!");
 
+        std::vector<VSFilterDependency> deps;
+        for (int i = 0; i < preFetchClips.size(); i++)
+            deps.push_back({preFetchClips[i], 0});
+
         vsapi->createVideoFilter(
                                     out,
                                     wf->name.c_str(),
@@ -638,7 +642,8 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                                     avisynthFilterGetFrame,
                                     avisynthFilterFree,
                                     (preFetchClips.empty() || prefetchInfo.from > prefetchInfo.to) ? fmFrameState : fmParallelRequests,
-                                    0,
+                                    deps.data(),
+                                    preFetchClips.size(),
                                     filterData,
                                     core);
     } else if (ret.IsBool()) {

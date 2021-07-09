@@ -431,8 +431,7 @@ stacked = core.std.StackHorizontal([red, green, blue])\n\
 msg = core.text.Text(stacked, r\"\"\"";
 
 static const char *ErrorScript2 = "\"\"\")\n\
-final = core.resize.Bilinear(msg, format=vs.COMPATBGR32)\n\
-final.set_output()\n";
+msg.set_output()\n";
 
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {

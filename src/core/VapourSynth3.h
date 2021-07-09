@@ -31,6 +31,7 @@ namespace vs3 {
 
     typedef struct VSAPI3 VSAPI3;
 
+    static const int nfNoCache = 1;
     static const int nfIsCache = 2;
     static const int nfMakeLinear = 4;
 

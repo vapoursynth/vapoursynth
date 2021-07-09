@@ -645,7 +645,8 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
-    vsapi->createVideoFilter(out, d->filter_name, d->vi, genericGetframe<op>, filterFree<GenericData>, fmParallel, 0, d.get(), core);
+    VSFilterDependency deps[] = {d->node, 1};
+    vsapi->createVideoFilter(out, d->filter_name, d->vi, genericGetframe<op>, filterFree<GenericData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
 
@@ -697,7 +698,8 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         return;
     }
 
-    vsapi->createVideoFilter(out, d->name, d->vi, singlePixelGetFrame<InvertData, InvertOp>, filterFree<InvertData>, fmParallel, 0, d.get(), core);
+    VSFilterDependency deps[] = {d->node, 1};
+    vsapi->createVideoFilter(out, d->name, d->vi, singlePixelGetFrame<InvertData, InvertOp>, filterFree<InvertData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
 
@@ -752,7 +754,8 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         return;
     }
 
-    vsapi->createVideoFilter(out, d->name, d->vi, singlePixelGetFrame<LimitData, LimitOp>, filterFree<LimitData>, fmParallel, 0, d.get(), core);
+    VSFilterDependency deps[] = { d->node, 1 };
+    vsapi->createVideoFilter(out, d->name, d->vi, singlePixelGetFrame<LimitData, LimitOp>, filterFree<LimitData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
 
@@ -813,7 +816,8 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    vsapi->createVideoFilter(out, d->name, d->vi, singlePixelGetFrame<BinarizeData, BinarizeOp>, filterFree<BinarizeData>, fmParallel, 0, d.get(), core);
+    VSFilterDependency deps[] = {d->node, 1};
+    vsapi->createVideoFilter(out, d->name, d->vi, singlePixelGetFrame<BinarizeData, BinarizeOp>, filterFree<BinarizeData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
 
@@ -979,12 +983,13 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         }
     }
 
+    VSFilterDependency deps[] = {d->node, 1};
     if (d->vi->format.bytesPerSample == 1)
-        vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframe<uint8_t>, filterFree<LevelsData>, fmParallel, 0, d.get(), core);
+        vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframe<uint8_t>, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
     else if (d->vi->format.bytesPerSample == 2)
-        vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframe<uint16_t>, filterFree<LevelsData>, fmParallel, 0, d.get(), core);
+        vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframe<uint16_t>, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
     else
-        vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframeF<float>, filterFree<LevelsData>, fmParallel, 0, d.get(), core);
+        vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframeF<float>, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
 

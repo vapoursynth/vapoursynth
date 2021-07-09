@@ -87,7 +87,8 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createVideoFilter(out, FilterNames[d.filter], &data->vi, MorphoGetFrame, MorphoFree, fmParallel, 0, data, core);
+    VSFilterDependency deps[] = {d.node, 1};
+    vsapi->createVideoFilter(out, FilterNames[d.filter], &data->vi, MorphoGetFrame, MorphoFree, fmParallel, deps, 1, data, core);
 
     return;
 

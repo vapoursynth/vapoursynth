@@ -588,40 +588,35 @@ static int VS_CC propSetData3(VSMap *map, const char *key, const char *d, int le
 
 static int VS_CC mapSetNode(VSMap *map, const char *key, VSNode *node, int append) VS_NOEXCEPT {
     if (node == nullptr || node->getNodeType() == mtVideo)
-        return !propSetShared<PVSNodeRef, ptVideoNode>(map, key, { node, true }, append);
+        return !propSetShared<PVSNode, ptVideoNode>(map, key, { node, true }, append);
     else
-        return !propSetShared<PVSNodeRef, ptAudioNode>(map, key, { node, true }, append);
+        return !propSetShared<PVSNode, ptAudioNode>(map, key, { node, true }, append);
 }
 
 static int VS_CC mapConsumeNode(VSMap *map, const char *key, VSNode *node, int append) VS_NOEXCEPT {
     if (node == nullptr || node->getNodeType() == mtVideo)
-        return !propSetShared<PVSNodeRef, ptVideoNode>(map, key, {node, false}, append);
+        return !propSetShared<PVSNode, ptVideoNode>(map, key, {node, false}, append);
     else
-        return !propSetShared<PVSNodeRef, ptAudioNode>(map, key, {node, false}, append);
+        return !propSetShared<PVSNode, ptAudioNode>(map, key, {node, false}, append);
 }
 
 static int VS_CC mapSetFrame(VSMap *map, const char *key, const VSFrame *frame, int append) VS_NOEXCEPT {
     if (frame == nullptr || frame->getFrameType() == mtVideo)
-        return !propSetShared<PVSFrameRef, ptVideoFrame>(map, key, { const_cast<VSFrame *>(frame), true }, append);
+        return !propSetShared<PVSFrame, ptVideoFrame>(map, key, { const_cast<VSFrame *>(frame), true }, append);
     else
-        return !propSetShared<PVSFrameRef, ptAudioFrame>(map, key, { const_cast<VSFrame *>(frame), true }, append);
+        return !propSetShared<PVSFrame, ptAudioFrame>(map, key, { const_cast<VSFrame *>(frame), true }, append);
 }
 
 static int VS_CC mapConsumeFrame(VSMap *map, const char *key, const VSFrame *frame, int append) VS_NOEXCEPT {
     if (frame == nullptr || frame->getFrameType() == mtVideo)
-        return !propSetShared<PVSFrameRef, ptVideoFrame>(map, key, {const_cast<VSFrame *>(frame), false}, append);
+        return !propSetShared<PVSFrame, ptVideoFrame>(map, key, {const_cast<VSFrame *>(frame), false}, append);
     else
-        return !propSetShared<PVSFrameRef, ptAudioFrame>(map, key, {const_cast<VSFrame *>(frame), false}, append);
+        return !propSetShared<PVSFrame, ptAudioFrame>(map, key, {const_cast<VSFrame *>(frame), false}, append);
 }
 
-static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args, int flags) VS_NOEXCEPT {
+static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
     assert(plugin && name && args);
-    return plugin->invoke(name, *args, !!(flags & ifAddCaches));
-}
-
-static VSMap *VS_CC invoke3(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
-    assert(plugin && name && args);
-    return plugin->invoke(name, *args, false);
+    return plugin->invoke(name, *args);
 }
 
 static VSMap *VS_CC createMap() VS_NOEXCEPT {
@@ -742,11 +737,11 @@ static VSFunction *VS_CC mapGetFunction(const VSMap *map, const char *key, int i
 }
 
 static int VS_CC mapSetFunction(VSMap *map, const char *key, VSFunction *func, int append) VS_NOEXCEPT {
-    return !propSetShared<PVSFunctionRef, ptFunction>(map, key, { func, true }, append);
+    return !propSetShared<PVSFunction, ptFunction>(map, key, { func, true }, append);
 }
 
 static int VS_CC mapConsumeFunction(VSMap *map, const char *key, VSFunction *func, int append) VS_NOEXCEPT {
-    return !propSetShared<PVSFunctionRef, ptFunction>(map, key, {func, false}, append);
+    return !propSetShared<PVSFunction, ptFunction>(map, key, {func, false}, append);
 }
 
 static void VS_CC callFunction(VSFunction *func, const VSMap *in, VSMap *out) VS_NOEXCEPT {
@@ -776,8 +771,9 @@ static void VS_CC freeFunction(VSFunction *f) VS_NOEXCEPT {
 
 static void VS_CC queryCompletedFrame3(VSNode **node, int *n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && n && frameCtx);
-    *node = frameCtx->lastCompletedNode;
-    *n = frameCtx->lastCompletedN;
+    assert(false);
+    *node = nullptr;
+    *n = -1;
 }
 
 static void VS_CC releaseFrameEarly(VSNode *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
@@ -905,14 +901,30 @@ static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
     core->getCoreInfo(*info);
 }
 
-static void VS_CC createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
+static void VS_CC createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT {
     assert(out && name && vi && getFrame && core);
-    core->createVideoFilter(out, name, vi, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
+    core->createVideoFilter(out, name, vi, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
-static void VS_CC createAudioFilter(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
+static VSNode *VS_CC createVideoFilter2(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT {
+    assert(name && vi && getFrame && core);
+    return core->createVideoFilter(name, vi, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, VAPOURSYNTH_API_MAJOR);
+}
+
+static void VS_CC createVideoFilter3(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
+    assert(out && name && vi && getFrame && core);
+    // fixme, apply makelinear and nocache flags
+    core->createVideoFilter(out, name, vi, getFrame, free, static_cast<VSFilterMode>(filterMode), nullptr, 0, instanceData, VAPOURSYNTH_API_MAJOR);
+}
+
+static void VS_CC createAudioFilter(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT {
     assert(out && name && ai && getFrame && core);
-    core->createAudioFilter(out, name, ai, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
+    core->createAudioFilter(out, name, ai, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, VAPOURSYNTH_API_MAJOR);
+}
+
+static VSNode *VS_CC createAudioFilter2(const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT {
+    assert(name && ai && getFrame && core);
+    return core->createAudioFilter(name, ai, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
 static VSFrame *VS_CC newAudioFrame(const VSAudioFormat *format, int numSamples, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
@@ -969,10 +981,9 @@ static int VS_CC getNodeType(VSNode *node) VS_NOEXCEPT {
     return node->getNodeType();
 }
 
-
-static int VS_CC getNodeFlags(VSNode *node) VS_NOEXCEPT {
-    assert(node);
-    return node->getNodeFlags();
+static void VS_CC setCacheMode(VSNode *node, int mode) VS_NOEXCEPT {
+    assert(node && mode >= -1 && mode <= 1);
+    node->setCacheMode(mode);
 }
 
 static int VS_CC getFrameType(const VSFrame *f) VS_NOEXCEPT {
@@ -1014,13 +1025,6 @@ static int64_t VS_CC getNodeFilterTime(VSNode *node) VS_NOEXCEPT {
     return node->getFilterTime();
 }
 
-static void VS_CC setInternalFilterRelation(const VSMap *nodeMap, VSNode **dependencies, int numDeps) VS_NOEXCEPT {
-    assert(nodeMap && dependencies && dependencies > 0);
-    VSNode *ref = mapGetNode(nodeMap, "clip", 0, nullptr);
-    ref->setFilterRelation(dependencies, numDeps);
-    freeNode(ref);
-}
-
 const VSPLUGINAPI vs_internal_vspapi {
     &getAPIVersion,
     &configPlugin,
@@ -1029,11 +1033,13 @@ const VSPLUGINAPI vs_internal_vspapi {
 
 const VSAPI vs_internal_vsapi = {
     &createVideoFilter,
+    &createVideoFilter2,
     &createAudioFilter,
+    &createAudioFilter2,
     &freeNode,
     &addNodeRef,
     &getNodeType,
-    &getNodeFlags,
+    &setCacheMode,
     &getVideoInfo,
     &getAudioInfo,
 
@@ -1148,8 +1154,6 @@ const VSAPI vs_internal_vsapi = {
     &addLogHandler,
     &removeLogHandler,
 
-    &setInternalFilterRelation,
-
     &getNodeCreationFunctionName,
     &getNodeCreationFunctionArguments,
     &getNodeName,
@@ -1182,7 +1186,7 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &mapSetError,
     &mapGetError,
     &setFilterError,
-    &invoke3,
+    &invoke,
     &getFormatPreset3,
     &registerFormat3,
     &getFrame,

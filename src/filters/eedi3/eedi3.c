@@ -481,7 +481,6 @@ static const VSFrame *VS_CC eedi3GetFrame(int n, int activationReason, void *ins
         else
             scpPF = NULL;
 
-        // fixme,  adjust duration
         VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
         vsapi->freeFrame(src);
 
@@ -850,7 +849,8 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     data = (eedi3Data *)malloc(sizeof(d));
     *data = d;
 
-    vsapi->createVideoFilter(out, "eedi3", &data->vi, eedi3GetFrame, eedi3Free, fmParallel, 0, data, core);
+    VSFilterDependency deps[] = { d.node, 1 };
+    vsapi->createVideoFilter(out, "eedi3", &data->vi, eedi3GetFrame, eedi3Free, fmParallel, deps, 1, data, core);
     return;
 
 error:

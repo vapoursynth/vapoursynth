@@ -1963,7 +1963,6 @@ cdef VideoNode createVideoNode(VSNode *node, const VSAPI *funcs, Core core):
             <int64_t> instance.vi.fpsNum, <int64_t> instance.vi.fpsDen)
     else:
         instance.fps = Fraction(0, 1)
-    instance.flags = funcs.getNodeFlags(node)
 
     return instance
     
@@ -1977,7 +1976,6 @@ cdef class AudioNode(RawNode):
     cdef readonly int sample_rate
     cdef readonly int64_t num_samples
     cdef readonly int num_frames
-    cdef readonly int flags
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -2124,7 +2122,6 @@ cdef AudioNode createAudioNode(VSNode *node, const VSAPI *funcs, Core core):
     instance.bytes_per_sample = instance.ai.format.bytesPerSample
     instance.channel_layout = instance.ai.format.channelLayout
     instance.num_channels = instance.ai.format.numChannels
-    instance.flags = funcs.getNodeFlags(node)
     return instance
 
 cdef class LogHandle(object):
@@ -2150,7 +2147,6 @@ cdef void __stdcall log_handler_free(void *userData) nogil:
 cdef class Core(object):
     cdef VSCore *core
     cdef const VSAPI *funcs
-    cdef public bint add_cache
 
     cdef object __weakref__
 
@@ -2299,7 +2295,6 @@ cdef class Core(object):
         cdef str s = 'Core\n'
         s += self.version() + '\n'
         s += '\tNumber of Threads: ' + str(self.num_threads) + '\n'
-        s += '\tAdd Cache: ' + str(self.add_cache) + '\n'
         return s
 
 cdef object createNode(VSNode *node, const VSAPI *funcs, Core core):
@@ -2320,17 +2315,16 @@ cdef Core createCore(EnvironmentData env):
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = instance.funcs.createCore(env.coreCreationFlags)
-    instance.add_cache = True
     return instance
 
-def _get_core(threads = None, add_cache = None):
+def _get_core(threads = None):
     env = _env_current()
     if env is None:
         raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
 
     return vsscript_get_core_internal(env)
     
-def get_core(threads = None, add_cache = None):
+def get_core(threads = None):
     import warnings
     warnings.warn("get_core() is deprecated. Use \"vapoursynth.core\" instead.", DeprecationWarning)
     
@@ -2338,8 +2332,6 @@ def get_core(threads = None, add_cache = None):
     if ret_core is not None:
         if threads is not None:
             ret_core.num_threads = threads
-        if add_cache is not None:
-            ret_core.add_cache = add_cache
     return ret_core
     
 cdef Core vsscript_get_core_internal(EnvironmentData env):
@@ -2525,11 +2517,7 @@ cdef class Function(object):
 
         tname = self.name.encode('utf-8')
         cname = tname
-        if self.plugin.core.add_cache:
-            with nogil:
-                outm = self.funcs.invoke(self.plugin.plugin, cname, inm, ifAddCaches)
-        else:
-                outm = self.funcs.invoke(self.plugin.plugin, cname, inm, 0)
+        outm = self.funcs.invoke(self.plugin.plugin, cname, inm)
         self.funcs.freeMap(inm)
         cdef const char *err = self.funcs.mapGetError(outm)
         cdef bytes emsg

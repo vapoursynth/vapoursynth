@@ -93,12 +93,12 @@ static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *val
 }
 #endif
 
-VSFrameContext::VSFrameContext(int n, VSNode *clip, const PVSFrameContext &upstreamContext) :
-    refcount(1), reqOrder(upstreamContext->reqOrder), n(n), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), lockOnOutput(true), node(nullptr) {
+VSFrameContext::VSFrameContext(int n, VSNode *node, const PVSFrameContext &upstreamContext) :
+    refcount(1), reqOrder(upstreamContext->reqOrder), n(n), node(node), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), lockOnOutput(true) {
 }
 
 VSFrameContext::VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
-    refcount(1), reqOrder(0), n(n), userData(userData), frameDone(frameDone), lockOnOutput(lockOnOutput), node(node) {
+    refcount(1), reqOrder(0), n(n), userData(userData), node(node), frameDone(frameDone), lockOnOutput(lockOnOutput) {
 }
 
 bool VSFrameContext::setError(const std::string &errorMsg) {
@@ -532,82 +532,8 @@ VSPluginFunction::VSPluginFunction(const std::string &name, const std::string &a
         parseArgString(returnType, retArgs, plugin->apiMajor);
 }
 
-VSMap *addCaches(VSMap *s, bool makeLinearOnly, VSCore *core) {
-    VSMap *src = new VSMap(s);
-    VSPlugin *plugin = core->getPluginByID(VS_STD_PLUGIN_ID);
-    int keys = static_cast<int>(src->size());
-
-    if (makeLinearOnly) {
-        for (int k = 0; k < keys; k++) {
-            const char *key = src->key(k);
-            VSArrayBase *arr = src->find(key);
-            if (arr->type() == ptVideoNode && arr->size() > 0) {
-                VSVideoNodeArray *p = reinterpret_cast<VSVideoNodeArray *>(arr);
-                VSVideoNodeArray *r = new VSVideoNodeArray();
-                for (int i = 0; i < p->size(); i++) {
-                    VSNode *node = p->at(i).get();
-                    if (node->getApiMajor() == 3 && !!(node->getNodeFlags() & vs3::nfMakeLinear)) {
-                        VSMap *m = new VSMap();
-                        vs_internal_vsapi.mapSetInt(m, "make_linear", 1, paAppend);
-                        vs_internal_vsapi.mapSetNode(m, "clip", p->at(i).get(), paAppend);
-                        VSMap *n = plugin->invoke("Cache", m, false);
-                        delete m;
-                        r->push_back({ vs_internal_vsapi.mapGetNode(n, "clip", 0, nullptr), true });
-                        delete n;
-                    } else {
-                        r->push_back(p->at(i));
-                    }
-                }
-                src->insert(key, r);
-            }
-        }
-    } else {
-        for (int k = 0; k < keys; k++) {
-            const char *key = src->key(k);
-            VSArrayBase *arr = src->find(key);
-            if (arr->type() == ptVideoNode && arr->size() > 0) {
-                VSVideoNodeArray *p = reinterpret_cast<VSVideoNodeArray *>(arr);
-                VSVideoNodeArray *r = new VSVideoNodeArray();
-                for (int i = 0; i < p->size(); i++) {
-                    VSNode *node = p->at(i).get();
-                    if (!(node->getNodeFlags() & nfNoCache)) {
-                        VSMap *m = new VSMap();
-                        vs_internal_vsapi.mapSetNode(m, "clip", p->at(i).get(), paAppend);
-                        VSMap *n = plugin->invoke("Cache", m, false);
-                        delete m;
-                        r->push_back({ vs_internal_vsapi.mapGetNode(n, "clip", 0, nullptr), true });
-                        delete n;
-                    } else {
-                        r->push_back(p->at(i));
-                    }
-                }
-                src->insert(key, r);
-            } else if (arr->type() == ptAudioNode && arr->size() > 0) {
-                VSAudioNodeArray *p = reinterpret_cast<VSAudioNodeArray *>(arr);
-                VSAudioNodeArray *r = new VSAudioNodeArray();
-                for (int i = 0; i < p->size(); i++) {
-                    VSNode *node = p->at(i).get();
-                    if (!(node->getNodeFlags() & nfNoCache)) {
-                        VSMap *m = new VSMap();
-                        vs_internal_vsapi.mapSetNode(m, "clip", p->at(i).get(), paAppend);
-                        VSMap *n = plugin->invoke("AudioCache", m, false);
-                        delete m;
-                        r->push_back({ vs_internal_vsapi.mapGetNode(n, "clip", 0, nullptr), true });
-                        delete n;
-                    } else {
-                        r->push_back(p->at(i));
-                    }
-                }
-                src->insert(key, r);
-            }
-        }
-    }
-
-    return src;
-}
-
-VSMap *VSPluginFunction::invoke(const VSMap &args, bool addCache) {
-    std::unique_ptr<VSMap> v(new VSMap);
+VSMap *VSPluginFunction::invoke(const VSMap &args) {
+    VSMap *v = new VSMap;
 
     try {
         std::set<std::string> remainingArgs;
@@ -657,7 +583,7 @@ VSMap *VSPluginFunction::invoke(const VSMap &args, bool addCache) {
         if (enableGraphInspection) {
             plugin->core->functionFrame = std::make_shared<VSFunctionFrame>(name, new VSMap(&args), plugin->core->functionFrame);
         }
-        func(&args, v.get(), functionData, plugin->core, getVSAPIInternal(plugin->apiMajor));
+        func(&args, v, functionData, plugin->core, getVSAPIInternal(plugin->apiMajor));
         if (enableGraphInspection) {
             assert(plugin->core->functionFrame);
             plugin->core->functionFrame = plugin->core->functionFrame->next;
@@ -666,18 +592,11 @@ VSMap *VSPluginFunction::invoke(const VSMap &args, bool addCache) {
         if (plugin->apiMajor == VAPOURSYNTH3_API_MAJOR && !args.isV3Compatible())
             plugin->core->logFatal(name + ": filter node returned not yet supported type");
 
-
-        if (!addCache) {
-            // still needs to add caches for vs3::nfMakeLinear
-            return addCaches(v.release(), true, plugin->core);
-        } else {
-            return addCaches(v.release(), false, plugin->core);
-        }
-
     } catch (VSException &e) {
-        vs_internal_vsapi.mapSetError(v.get(), e.what());
-        return v.release();
+        vs_internal_vsapi.mapSetError(v, e.what());
     }
+
+    return v;
 }
 
 bool VSPluginFunction::isV3Compatible() const {
@@ -771,15 +690,13 @@ const std::string &VSPluginFunction::getReturnType() const {
 }
 
 VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+    refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1) {
 
-    if (flags & ~(nfNoCache | vs3::nfIsCache | vs3::nfMakeLinear))
+    if (flags & ~(vs3::nfNoCache | vs3::nfIsCache | vs3::nfMakeLinear))
         throw VSException("Filter " + name  + " specified unknown flags");
 
-    if ((flags & vs3::nfIsCache) && !(flags & nfNoCache))
+    if ((flags & vs3::nfIsCache) && !(flags & vs3::nfNoCache))
         throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
-
-    frameReadyNotify = true;
 
     core->filterInstanceCreated();
     VSMap inval(in);
@@ -790,14 +707,10 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
         throw VSException(vs_internal_vsapi.mapGetError(out));
     }
 
-    /*
-    * FIXME, needs to check this somehow
-    if (vi.empty()) {
+    if (vi.format.colorFamily == 0) {
         core->filterInstanceDestroyed();
         throw VSException("Filter " + name + " didn't set videoinfo");
     }
-    */
-
 
     if (vi.numFrames <= 0) {
         core->filterInstanceDestroyed();
@@ -810,18 +723,14 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
     }
 }
 
-VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
-
-    if (flags & ~nfNoCache)
-        throw VSException("Filter " + name + " specified unknown flags");
+VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core) :
+    refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1) {
 
     if (!core->isValidVideoInfo(*vi))
         throw VSException("The VSVideoInfo structure passed by " + name + " is invalid.");
 
     this->vi = *vi;
     this->v3vi = core->VideoInfoToV3(*vi);
-    this->v3vi.flags = flags;
 
     core->filterInstanceCreated();
 
@@ -830,11 +739,8 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame 
     }
 }
 
-VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(1), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
-
-    if (flags & ~nfNoCache)
-        throw VSException("Filter " + name + " specified unknown flags");
+VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core) :
+    refcount(1), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1) {
 
     core->filterInstanceCreated();
 
@@ -847,14 +753,52 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame 
         throw VSException("Filter " + name + " specified " + std::to_string(this->ai.numSamples) + " output samples but " + std::to_string(maxSamples) + " samples is the upper limit");
     this->ai.numFrames = static_cast<int>((this->ai.numSamples + VS_AUDIO_FRAME_SAMPLES - 1) / VS_AUDIO_FRAME_SAMPLES);
 
+    this->dependencies.reserve(numDeps);
+    for (int i = 0; i < numDeps; i++) {
+        this->dependencies.push_back(dependencies[i]);
+        dependencies[i].source->add_ref();
+        dependencies[i].source->addConsumer(this, dependencies[i].strictSpatial);
+    }
+
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
     }
 }
 
 VSNode::~VSNode() {
+    for (auto &iter : dependencies) {
+        iter.source->removeConsumer(this, iter.strictSpatial);
+        iter.source->release();
+    }
     core->destroyFilterInstance(this);
 }
+
+void VSNode::addConsumer(VSNode *consumer, int strictSpatial) {
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    consumers.push_back({ consumer, strictSpatial });
+    if (consumers.size() > maxConsumers)
+        maxConsumers = consumers.size();
+   
+    if (!cacheOverride)
+        cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].strictSpatial);
+}
+
+void VSNode::removeConsumer(VSNode *consumer, int strictSpatial) {
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    for (auto iter = consumers.begin(); iter != consumers.end(); ++iter) {
+        if (iter->source == consumer && iter->strictSpatial == strictSpatial) {
+            consumers.erase(iter);
+            break;
+        }
+    }
+
+    if (!cacheOverride)
+        cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].strictSpatial);
+
+    if (!cacheEnabled)
+        cache.clear();
+}
+
 
 void VSNode::getFrame(const PVSFrameContext &ct) {
     core->threadPool->start(ct);
@@ -889,7 +833,7 @@ void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
         core->logFatal("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. Instead, it is " + std::to_string(vi->fpsNum) + "/" + std::to_string(vi->fpsDen) + ")");
 
     this->v3vi = *vi;
-    this->v3vi.flags = flags;
+    this->v3vi.flags = 0;
     this->vi = core->VideoInfoFromV3(this->v3vi);
 
 
@@ -924,17 +868,33 @@ const VSMap *VSNode::getCreationFunctionArguments(int level) const {
     return nullptr;
 }
 
-void VSNode::setFilterRelation(VSNode **dependencies, int numDeps) {
-    if (core->enableGraphInspection) {
-        VSMap *tmp = new VSMap();
-        for (int i = 0; i < numDeps; i++)
-            vs_internal_vsapi.mapSetNode(tmp, "clip", dependencies[i], paAppend);
-
-        functionFrame = std::make_shared<VSFunctionFrame>("", tmp, functionFrame);
+void VSNode::setCacheMode(int mode) {
+    if (mode == -1) {
+        cacheOverride = false;
+        cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].strictSpatial);
+        if (!cacheEnabled)
+            cache.clear();
+        cache.setMaxFrames(20);
+    } else if (mode == 0) {
+        cacheOverride = true;
+        cacheEnabled = false;
+        cache.clear();
+    } else if (mode == 1) {
+        cacheOverride = true;
+        cacheEnabled = true;
+        cache.setMaxFrames(20);
     }
 }
 
-PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx) {
+PVSFrame VSNode::getCachedFrameInternal(int n) {
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    if (cacheEnabled)
+        return cache.object(n);
+    else
+        return nullptr;
+}
+
+PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx) {
     std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
     bool enableGraphInspection = core->enableGraphInspection;
     if (enableGraphInspection)
@@ -976,7 +936,16 @@ PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
             vsFatal("Guard memory corrupted in frame %d returned from %s", n, name.c_str());
 #endif
 
-        return const_cast<VSFrame *>(r);
+        PVSFrame ref;
+        ref = const_cast<VSFrame *>(r);
+
+        if (cacheEnabled) {
+            std::lock_guard<std::mutex> lock(cacheMutex);
+            if (cacheEnabled)
+                cache.insert(n, ref);
+        }
+
+        return ref;
     }
 
     return nullptr;
@@ -995,9 +964,8 @@ bool VSNode::isWorkerThread() {
 }
 
 void VSNode::notifyCache(bool needMemory) {
-    std::lock_guard<std::mutex> lock(serialMutex);
-    CacheInstance *cache = reinterpret_cast<CacheInstance *>(instanceData);
-    cache->cache.adjustSize(needMemory);
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    cache.adjustSize(needMemory);
 }
 
 void VSCore::notifyCaches(bool needMemory) {
@@ -1707,7 +1675,6 @@ VSCore::VSCore(int flags) :
     p = new VSPlugin(this);
     vs_internal_vspapi.configPlugin(VS_STD_PLUGIN_ID, "std", "VapourSynth Core Functions", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, p);
     loadPluginInitialize(p, &vs_internal_vspapi);
-    cacheInitialize(p, &vs_internal_vspapi);
     exprInitialize(p, &vs_internal_vspapi);
     genericInitialize(p, &vs_internal_vspapi);
     lutInitialize(p, &vs_internal_vspapi);
@@ -1941,27 +1908,43 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
 void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
         VSNode *node = new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
-        vs_internal_vsapi.mapSetNode(out, "clip", node, paAppend);
+        vs_internal_vsapi.mapConsumeNode(out, "clip", node, paAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }
 }
 
-void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
+void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor) {
     try {
-        VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
-        vs_internal_vsapi.mapSetNode(out, "clip", node, paAppend);
+        VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, apiMajor, this);
+        vs_internal_vsapi.mapConsumeNode(out, "clip", node, paAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }
 }
 
-void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
+VSNode *VSCore::createVideoFilter(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor) {
     try {
-        VSNode *node = new VSNode(name, ai, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
-        vs_internal_vsapi.mapSetNode(out, "clip", node, paAppend);
+        return new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, apiMajor, this);
+    } catch (VSException &) {
+        return nullptr;
+    }
+}
+
+void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor) {
+    try {
+        VSNode *node = new VSNode(name, ai, getFrame, free, filterMode, dependencies, numDeps, instanceData, apiMajor, this);
+        vs_internal_vsapi.mapConsumeNode(out, "clip", node, paAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
+    }
+}
+
+VSNode *VSCore::createAudioFilter(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor) {
+    try {
+        return new VSNode(name, ai, getFrame, free, filterMode, dependencies, numDeps, instanceData, apiMajor, this);
+    } catch (VSException &) {
+        return nullptr;
     }
 }
 
@@ -2147,10 +2130,10 @@ bool VSPlugin::registerFunction(const std::string &name, const std::string &args
     return true;
 }
 
-VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args, bool addCache) {
+VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
     auto it = funcs.find(funcName);
     if (it != funcs.end()) {
-        return it->second.invoke(args, addCache);
+        return it->second.invoke(args);
     } else {
         VSMap *v = new VSMap();
         vs_internal_vsapi.mapSetError(v, ("Function '" + funcName + "' not found in " + id).c_str());
@@ -2183,6 +2166,142 @@ void VSPlugin::getFunctions3(VSMap *out) const {
         if (f.second.isV3Compatible()) {
             std::string b = f.first + ";" + f.second.getV3ArgString();
             vs_internal_vsapi.mapSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
+        }
+    }
+}
+
+VSNode::VSCache::CacheAction VSNode::VSCache::recommendSize() {
+    int total = hits + nearMiss + farMiss;
+
+    if (total == 0) {
+#ifdef VS_CACHE_DEBUG
+        fprintf(stderr, "Cache (%p) stats (clear): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize);
+#endif
+        return CacheAction::Clear;
+    }
+
+    if (total < 30) {
+#ifdef VS_CACHE_DEBUG
+        fprintf(stderr, "Cache (%p) stats (keep low total): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize);
+#endif
+        return CacheAction::NoChange; // not enough requests to know what to do so keep it this way
+    }
+
+    bool shrink = (nearMiss == 0 && hits == 0); // shrink if there were no hits or even close to hittin
+    bool grow = ((nearMiss * 20) >= total); // grow if 5% or more are near misses
+#ifdef VS_CACHE_DEBUG
+    fprintf(stderr, "Cache (%p) stats (%s): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, shrink ? "shrink" : (grow ? "grow" : "keep"), total, farMiss, nearMiss, hits, maxSize);
+#endif
+
+    if (grow) { // growing the cache would be beneficial
+        clearStats();
+        return CacheAction::Grow;
+    } else if (shrink) { // probably a linear scan, no reason to waste space here
+        clearStats();
+        return CacheAction::Shrink;
+    } else {
+        clearStats();
+        return CacheAction::NoChange; // probably fine the way it is
+    }
+}
+
+inline VSNode::VSCache::VSCache(int maxSize, int maxHistorySize, bool fixedSize)
+    : maxSize(maxSize), maxHistorySize(maxHistorySize), fixedSize(fixedSize) {
+    clear();
+}
+
+inline PVSFrame VSNode::VSCache::object(const int key) {
+    return this->relink(key);
+}
+
+inline bool VSNode::VSCache::remove(const int key) {
+    auto i = hash.find(key);
+
+    if (i == hash.end()) {
+        return false;
+    } else {
+        unlink(i->second);
+        return true;
+    }
+}
+
+
+bool VSNode::VSCache::insert(const int akey, const PVSFrame &aobject) {
+    assert(aobject);
+    assert(akey >= 0);
+    remove(akey);
+    auto i = hash.insert(std::make_pair(akey, Node(akey, aobject)));
+    currentSize++;
+    Node *n = &i.first->second;
+
+    if (first)
+        first->prevNode = n;
+
+    n->nextNode = first;
+    first = n;
+
+    if (!last)
+        last = first;
+
+    trim(maxSize, maxHistorySize);
+
+    return true;
+}
+
+
+void VSNode::VSCache::trim(int max, int maxHistory) {
+    // first adjust the number of cached frames and extra history length
+    while (currentSize > max) {
+        if (!weakpoint)
+            weakpoint = last;
+        else
+            weakpoint = weakpoint->prevNode;
+
+        if (weakpoint)
+            weakpoint->frame.reset();
+
+        currentSize--;
+        historySize++;
+    }
+
+    // remove history until the tail is small enough
+    while (last && historySize > maxHistory) {
+        unlink(*last);
+    }
+}
+
+void VSNode::VSCache::adjustSize(bool needMemory) {
+    if (!fixedSize) {
+        if (!needMemory) {
+            switch (recommendSize()) {
+            case VSCache::CacheAction::Clear:
+                clear();
+                setMaxFrames(std::max(getMaxFrames() - 2, 0));
+                break;
+            case VSCache::CacheAction::Grow:
+                setMaxFrames(getMaxFrames() + 2);
+                break;
+            case VSCache::CacheAction::Shrink:
+                setMaxFrames(std::max(getMaxFrames() - 1, 0));
+                break;
+            default:;
+            }
+        } else {
+            switch (recommendSize()) {
+            case VSCache::CacheAction::Clear:
+                clear();
+                setMaxFrames(std::max(getMaxFrames() - 2, 0));
+                break;
+            case VSCache::CacheAction::Shrink:
+                setMaxFrames(std::max(getMaxFrames() - 2, 0));
+                break;
+            case VSCache::CacheAction::NoChange:
+                if (getMaxFrames() <= 1)
+                    clear();
+                setMaxFrames(std::max(getMaxFrames() - 1, 1));
+                break;
+            default:;
+            }
         }
     }
 }

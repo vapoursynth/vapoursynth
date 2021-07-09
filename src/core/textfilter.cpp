@@ -648,14 +648,13 @@ static void VS_CC textFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
 static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<TextData> d(new TextData);
     int err;
-    bool setHint = false;
 
     d->node = vsapi->mapGetNode(in, "clip", 0, &err);
     if (err) {
         // Can only happen for CoreInfo.
         VSMap *args = vsapi->createMap();
         VSPlugin *stdPlugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
-        VSMap *ret = vsapi->invoke(stdPlugin, "BlankClip", args, 0);
+        VSMap *ret = vsapi->invoke(stdPlugin, "BlankClip", args);
         vsapi->freeMap(args);
         const char *error = vsapi->mapGetError(ret);
         if (error) {
@@ -667,7 +666,6 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
         d->node = vsapi->mapGetNode(ret, "clip", 0, nullptr);
         vsapi->freeMap(ret);
-        setHint = true;
     }
     d->vi = vsapi->getVideoInfo(d->node);
 
@@ -723,9 +721,8 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         break;
     }
 
-    vsapi->createVideoFilter(out, d->instanceName.c_str(), d->vi, textGetFrame, textFree, fmParallel, 0, d.get(), core);
-    if (setHint)
-        vsapi->setInternalFilterRelation(out, &d->node, 1);
+    VSFilterDependency deps[] = {d->node, 1};
+    vsapi->createVideoFilter(out, d->instanceName.c_str(), d->vi, textGetFrame, textFree, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
 

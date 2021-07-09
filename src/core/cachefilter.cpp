@@ -22,144 +22,9 @@
 #include <string>
 #include <algorithm>
 #include "VSHelper4.h"
-#include "cachefilter.h"
+#include "vscore.h"
 
-VSCache::CacheAction VSCache::recommendSize() {
-    int total = hits + nearMiss + farMiss;
- 
-    if (total == 0) {
-#ifdef VS_CACHE_DEBUG
-        fprintf(stderr, "Cache (%p) stats (clear): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize);
-#endif
-        return CacheAction::Clear;
-    }
-
-    if (total < 30) {
-#ifdef VS_CACHE_DEBUG
-        fprintf(stderr, "Cache (%p) stats (keep low total): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize);
-#endif
-        return CacheAction::NoChange; // not enough requests to know what to do so keep it this way
-    }
-
-    bool shrink = (nearMiss == 0 && hits == 0); // shrink if there were no hits or even close to hittin
-    bool grow = ((nearMiss * 20) >= total); // grow if 5% or more are near misses
-#ifdef VS_CACHE_DEBUG
-    fprintf(stderr, "Cache (%p) stats (%s): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, shrink ? "shrink" : (grow ? "grow" : "keep"), total, farMiss, nearMiss, hits, maxSize);
-#endif
-
-    if (grow) { // growing the cache would be beneficial
-        clearStats();
-        return CacheAction::Grow;
-    } else if (shrink) { // probably a linear scan, no reason to waste space here
-        clearStats();
-        return CacheAction::Shrink;
-    } else {
-        clearStats();
-        return CacheAction::NoChange; // probably fine the way it is
-    }
-}
-
-inline VSCache::VSCache(int maxSize, int maxHistorySize, bool fixedSize)
-    : maxSize(maxSize), maxHistorySize(maxHistorySize), fixedSize(fixedSize) {
-    clear();
-}
-
-inline PVSFrameRef VSCache::object(const int key) {
-    return this->relink(key);
-}
-
-inline bool VSCache::remove(const int key) {
-    auto i = hash.find(key);
-
-    if (i == hash.end()) {
-        return false;
-    } else {
-        unlink(i->second);
-        return true;
-    }
-}
-
-
-bool VSCache::insert(const int akey, const PVSFrameRef &aobject) {
-    assert(aobject);
-    assert(akey >= 0);
-    remove(akey);
-    auto i = hash.insert(std::make_pair(akey, Node(akey, aobject)));
-    currentSize++;
-    Node *n = &i.first->second;
-
-    if (first)
-        first->prevNode = n;
-
-    n->nextNode = first;
-    first = n;
-
-    if (!last)
-        last = first;
-
-    trim(maxSize, maxHistorySize);
-
-    return true;
-}
-
-
-void VSCache::trim(int max, int maxHistory) {
-    // first adjust the number of cached frames and extra history length
-    while (currentSize > max) {
-        if (!weakpoint)
-            weakpoint = last;
-        else
-            weakpoint = weakpoint->prevNode;
-
-        if (weakpoint)
-            weakpoint->frame.reset();
-
-        currentSize--;
-        historySize++;
-    }
-
-    // remove history until the tail is small enough
-    while (last && historySize > maxHistory) {
-        unlink(*last);
-    }
-}
-
-void VSCache::adjustSize(bool needMemory) {
-    if (!fixedSize) {
-        if (!needMemory) {
-            switch (recommendSize()) {
-            case VSCache::CacheAction::Clear:
-                clear();
-                setMaxFrames(std::max(getMaxFrames() - 2, 0));
-                break;
-            case VSCache::CacheAction::Grow:
-                setMaxFrames(getMaxFrames() + 2);
-                break;
-            case VSCache::CacheAction::Shrink:
-                setMaxFrames(std::max(getMaxFrames() - 1, 0));
-                break;
-            default:;
-            }
-        } else {
-            switch (recommendSize()) {
-            case VSCache::CacheAction::Clear:
-                clear();
-                setMaxFrames(std::max(getMaxFrames() - 2, 0));
-                break;
-            case VSCache::CacheAction::Shrink:
-                setMaxFrames(std::max(getMaxFrames() - 2, 0));
-                break;
-            case VSCache::CacheAction::NoChange:
-                if (getMaxFrames() <= 1)
-                    clear();
-                setMaxFrames(std::max(getMaxFrames() - 1, 1));
-                break;
-            default:;
-            }
-        }
-    }
-}
-
+/*
 // controls how many frames beyond the number of threads is a good margin to catch bigger temporal radius filters that are out of order, just a guess
 static const int extraFrames = 7;
 
@@ -169,7 +34,7 @@ static const VSFrame *VS_CC cacheGetframe(int n, int activationReason, void *ins
     intptr_t *fd = (intptr_t *)frameData;
 
     if (activationReason == arInitial) {
-        PVSFrameRef f = c->cache.object(n);
+        PVSFrame f = c->cache.object(n);
 
         if (f) {
             f->add_ref();
@@ -196,19 +61,13 @@ static const VSFrame *VS_CC cacheGetframe(int n, int activationReason, void *ins
         }
 
         const VSFrame *r = vsapi->getFrameFilter(n, c->clip, frameCtx);
-        c->cache.insert(n, PVSFrameRef(const_cast<VSFrame *>(r), true));
+        c->cache.insert(n, PVSFrame(const_cast<VSFrame *>(r), true));
         return r;
     }
 
     return nullptr;
 }
 
-static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    CacheInstance *c = static_cast<CacheInstance *>(instanceData);
-    c->removeCache();
-    vsapi->freeNode(c->clip);
-    delete c;
-}
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     static std::atomic<size_t> cacheId(1);
@@ -240,8 +99,5 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     vsapi->freeNode(self);
 }
 
-void VS_CC cacheInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->registerFunction("Cache", "clip:vnode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:vnode;", createCacheFilter, nullptr, plugin);
-    vspapi->registerFunction("VideoCache", "clip:vnode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:vnode;", createCacheFilter, nullptr, plugin);
-    vspapi->registerFunction("AudioCache", "clip:anode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:anode;", createCacheFilter, (void *)1, plugin);
-}
+
+*/

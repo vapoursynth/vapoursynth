@@ -22,180 +22,10 @@
 #define CACHEFILTER_H
 
 #include "vscore.h"
-#include <unordered_map>
-#include <cassert>
 
-class VSCache {
-private:
-    struct Node {
-        inline Node() : key(-1) {}
-        inline Node(int key, const PVSFrameRef &frame) : key(key), frame(frame) {}
-        int key;
-        PVSFrameRef frame;
-        Node *prevNode = nullptr;
-        Node *nextNode = nullptr;
-    };
-
-    Node *first;
-    Node *weakpoint;
-    Node *last;
-
-    std::unordered_map<int, Node> hash;
-
-    int maxSize;
-    int currentSize;
-    int maxHistorySize;
-    int historySize;
-
-    bool fixedSize;
-
-    int hits;
-    int nearMiss;
-    int farMiss;
-
-    inline void unlink(Node &n) {
-        if (&n == weakpoint)
-            weakpoint = weakpoint->nextNode;
-
-        if (n.prevNode)
-            n.prevNode->nextNode = n.nextNode;
-
-        if (n.nextNode)
-            n.nextNode->prevNode = n.prevNode;
-
-        if (last == &n)
-            last = n.prevNode;
-
-        if (first == &n)
-            first = n.nextNode;
-
-        if (n.frame)
-            currentSize--;
-        else
-            historySize--;
-
-        hash.erase(n.key);
-    }
-
-    inline PVSFrameRef relink(const int key) {
-        auto i = hash.find(key);
-
-        if (i == hash.end()) {
-            farMiss++;
-            return nullptr;
-        }
-
-        Node &n = i->second;
-
-        if (!n.frame) {
-            nearMiss++;
-            return nullptr;
-        }
-
-        hits++;
-        Node *origWeakPoint = weakpoint;
-
-        if (&n == origWeakPoint)
-            weakpoint = weakpoint->nextNode;
-
-        if (first != &n) {
-            if (n.prevNode)
-                n.prevNode->nextNode = n.nextNode;
-
-            if (n.nextNode)
-                n.nextNode->prevNode = n.prevNode;
-
-            if (last == &n)
-                last = n.prevNode;
-
-            n.prevNode = 0;
-            n.nextNode = first;
-            first->prevNode = &n;
-            first = &n;
-        }
-
-        if (!weakpoint) {
-            if (currentSize > maxSize) {
-                weakpoint = last;
-                weakpoint->frame.reset();
-            }
-        } else if (&n == origWeakPoint || historySize > maxHistorySize) {
-            weakpoint = weakpoint->prevNode;
-            weakpoint->frame.reset();
-        }
-
-        assert(historySize <= maxHistorySize);
-
-        return n.frame;
-    }
-
-public:
-    enum class CacheAction {
-        Grow,
-        NoChange,
-        Shrink,
-        Clear
-    };
-
-    VSCache(int maxSize, int maxHistorySize, bool fixedSize);
-    ~VSCache() {
-        clear();
-    }
-
-    inline int getMaxFrames() const {
-        return maxSize;
-    }
-    inline void setMaxFrames(int m) {
-        maxSize = m;
-        trim(maxSize, maxHistorySize);
-    }
-    inline int getMaxHistory() const {
-        return maxHistorySize;
-    }
-    inline void setMaxHistory(int m) {
-        maxHistorySize = m;
-        trim(maxSize, maxHistorySize);
-    }
-
-    inline size_t size() const {
-        return hash.size();
-    }
-
-    inline void clear() {
-        hash.clear();
-        first = nullptr;
-        last = nullptr;
-        weakpoint = nullptr;
-        currentSize = 0;
-        historySize = 0;
-        clearStats();
-    }
-
-    inline void clearStats() {
-        hits = 0;
-        nearMiss = 0;
-        farMiss = 0;
-    }
-
-    bool insert(const int key, const PVSFrameRef &object);
-    PVSFrameRef object(const int key);
-    inline bool contains(const int key) const {
-        return hash.count(key) > 0;
-    }
-
-    bool remove(const int key);
-
-    CacheAction recommendSize();
-
-    void adjustSize(bool needMemory);
-private:
-    void trim(int max, int maxHistory);
-
-};
-
+/*
 class CacheInstance {
 public:
-    VSCache cache;
     VSNode *clip;
     VSCore *core;
     VSNode *node = nullptr;
@@ -203,7 +33,7 @@ public:
     int numThreads = 0;
     bool makeLinear = false;
 
-    CacheInstance(VSNode *clip, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), core(core) {}
+    CacheInstance(VSNode *clip, VSCore *core, bool fixedSize) {}
 
     void addCache(VSNode *clip) {
         std::lock_guard<std::mutex> lock(core->cacheLock);
@@ -219,5 +49,5 @@ public:
 };
 
 void VS_CC cacheInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
-
+*/
 #endif // CACHEFILTER_H

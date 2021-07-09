@@ -154,9 +154,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int numChannels
         uint64_t channelLayout
 
-    enum VSNodeFlags:
-        nfNoCache
-
     enum VSPropType:
         ptUnset
         ptInt
@@ -216,9 +213,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
         ccfEnableGraphInspection
         ccfDisableAutoLoading
         ccfDisableLibraryUnloading
-        
-    cpdef enum InvokeFlags "VSInvokeFlags":
-        ifAddCaches
 
     enum VSPluginConfigFlags:
         pcModifiable
@@ -254,7 +248,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void freeNode(VSNode *node) nogil
         VSNode *addNodeRef(VSNode *node) nogil
         int getNodeType(VSNode *node) nogil
-        int getNodeFlags(VSNode *node) nogil
+        void setCacheMode(VSNode *node, int mode) nogil
         const VSVideoInfo *getVideoInfo(VSNode *node) nogil
         const VSAudioInfo *getAudioInfo(VSNode *node) nogil
         
@@ -361,7 +355,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         const char *getPluginFunctionArguments(VSPluginFunction *func) nogil
         const char *getPluginFunctionReturnType(VSPluginFunction *func) nogil
         const char *getPluginPath(const VSPlugin *plugin) nogil
-        VSMap *invoke(VSPlugin *plugin, const char *name, const VSMap *args, int flags) nogil
+        VSMap *invoke(VSPlugin *plugin, const char *name, const VSMap *args) nogil
         
         # Core and information
         VSCore *createCore(int flags) nogil

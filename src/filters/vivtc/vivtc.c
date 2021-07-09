@@ -803,7 +803,7 @@ static VSMap *invokePlaneDifference(VSNode *node, VSCore *core, const VSAPI *vsa
     args = vsapi->createMap();
     vsapi->mapSetNode(args, "clip", node, paAppend);
     vsapi->mapSetInt(args, "frames", 0, paAppend);
-    ret = vsapi->invoke(stdplugin, "DuplicateFrames", args, 0);
+    ret = vsapi->invoke(stdplugin, "DuplicateFrames", args);
     if (vsapi->mapGetError(ret)) {
         vsapi->freeMap(args);
         return ret;
@@ -815,7 +815,7 @@ static VSMap *invokePlaneDifference(VSNode *node, VSCore *core, const VSAPI *vsa
     vsapi->mapSetInt(args, "plane", 0, paAppend);
     vsapi->mapSetData(args, "prop", prop, -1, dtUtf8, paAppend);
     vsapi->freeMap(ret);
-    ret = vsapi->invoke(stdplugin, "PlaneStats", args, ifAddCaches);
+    ret = vsapi->invoke(stdplugin, "PlaneStats", args);
     vsapi->freeMap(args);
     return ret;
 }
@@ -976,7 +976,9 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
 
     vfmd = (VFMData *)malloc(sizeof(vfm));
     *vfmd = vfm;
-    vsapi->createVideoFilter(out, "VFM", vfmd->vi, vfmGetFrame, vfmFree, fmParallel, 0, vfmd, core);
+
+    VSFilterDependency deps[] = {{vfm.node, 0}, {vfm.clip2, 0}};
+    vsapi->createVideoFilter(out, "VFM", vfmd->vi, vfmGetFrame, vfmFree, fmParallel, deps, vfm.clip2 ? 2 : 1, vfmd, core);
 }
 
 // VDecimate
@@ -1596,7 +1598,9 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 
     VDecimateData *d = (VDecimateData *)malloc(sizeof(vdm));
     *d = vdm;
-    vsapi->createVideoFilter(out, "VDecimate", &d->vi, vdecimateGetFrame, vdecimateFree, fmUnordered, 0, d, core);
+
+    VSFilterDependency deps[] = {{vdm.node, 0}, {vdm.clip2, 0}};
+    vsapi->createVideoFilter(out, "VDecimate", &d->vi, vdecimateGetFrame, vdecimateFree, fmUnordered, deps, vdm.clip2 ? 2 : 1, d, core);
 }
 
 ///////////////////////////////////////

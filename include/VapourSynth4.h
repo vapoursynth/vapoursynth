@@ -29,7 +29,7 @@
 #define VAPOURSYNTH_API_MINOR 9021
 #define VAPOURSYNTH_API_VERSION VS_MAKE_VERSION(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
-#define VS_AUDIO_FRAME_SAMPLES 3000
+#define VS_AUDIO_FRAME_SAMPLES 3072
 
 #define VS_STD_PLUGIN_ID "com.vapoursynth.std"
 #define VS_RESIZE_PLUGIN_ID "com.vapoursynth.resize"
@@ -204,9 +204,9 @@ typedef struct VSAudioFormat {
     uint64_t channelLayout;
 } VSAudioFormat;
 
-typedef enum VSNodeFlags {
-    nfNoCache = 1
-} VSNodeFlags;
+typedef enum VSFilterFlags {
+    ffStrictSpatial = 1
+} VSFilterFlags;
 
 typedef enum VSPropType {
     ptUnset = 0,
@@ -278,10 +278,6 @@ typedef enum VSCoreCreationFlags {
     ccfDisableLibraryUnloading = 4
 } VSCoreCreationFlags;
 
-typedef enum VSInvokeFlags {
-    ifAddCaches = 1
-} VSInvokeFlags;
-
 typedef enum VSPluginConfigFlags {
     pcModifiable = 1
 } VSPluginConfigFlags;
@@ -313,14 +309,22 @@ struct VSPLUGINAPI {
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT; /* non-zero return value on success  */
 };
 
+typedef struct VSFilterDependency {
+    VSNode *source;
+    int strictSpatial; /* always set to 1 */
+} VSFilterDependency;
+
 struct VSAPI {
     /* Audio and video filter related including nodes */
-    void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
-    void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
+    void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
+    VSNode *(VS_CC *createVideoFilter2)(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createVideoFilter but returns a pointer to the VSNode directly or NULL on failure */
+    void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
+    VSNode *(VS_CC *createAudioFilter2)(const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createAudioFilter but returns a pointer to the VSNode directly or NULL on failure */
+
     void (VS_CC *freeNode)(VSNode *node) VS_NOEXCEPT;
     VSNode *(VS_CC *addNodeRef)(VSNode *node) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNode *node) VS_NOEXCEPT; /* returns VSMediaType */
-    int (VS_CC *getNodeFlags)(VSNode *node) VS_NOEXCEPT; /* returns a mask of VSNodeFlags */
+    void (VS_CC *setCacheMode)(VSNode *node, int mode) VS_NOEXCEPT; /* -1: default (auto), 0: force disable, 1: force enable */
     const VSVideoInfo *(VS_CC *getVideoInfo)(VSNode *node) VS_NOEXCEPT;
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNode *node) VS_NOEXCEPT;
 
@@ -428,7 +432,7 @@ struct VSAPI {
     const char *(VS_CC *getPluginFunctionReturnType)(VSPluginFunction *func) VS_NOEXCEPT; /* returns an argument format string */
     const char *(VS_CC *getPluginPath)(const VSPlugin *plugin) VS_NOEXCEPT; /* the full path to the loaded library file containing the plugin entry point */
     int (VS_CC *getPluginVersion)(const VSPlugin *plugin) VS_NOEXCEPT;
-    VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args, int flags) VS_NOEXCEPT; /* user must free the returned VSMap */
+    VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT; /* user must free the returned VSMap */
 
     /* Core and information */
     VSCore *(VS_CC *createCore)(int flags) VS_NOEXCEPT; /* flags uses the VSCoreFlags enum */
@@ -444,7 +448,6 @@ struct VSAPI {
     int (VS_CC *removeLogHandler)(VSLogHandle *handle, VSCore *core) VS_NOEXCEPT; /* returns non-zero if successfully removed */
     
     /* Graph information */
-    void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNode **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced node dependency information, only needed in filters that call invoke on the input (not output) to create*Filter or chains multiple create*Filter calls, enables proper graph output when cfEnableGraphInspection is used */
 
     /* 
      * NOT PART OF THE STABLE API!

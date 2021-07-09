@@ -181,7 +181,8 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createVideoFilter(out, "Vinverse", &data->vi, VinverseGetFrame, VinverseFree, fmParallel, 0, data, core);
+    VSFilterDependency deps[] = { d.node, 1 };
+    vsapi->createVideoFilter(out, "Vinverse", &data->vi, VinverseGetFrame, VinverseFree, fmParallel, deps, 1, data, core);
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi)

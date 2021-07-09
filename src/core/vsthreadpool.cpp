@@ -105,12 +105,57 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             }
 
             VSNode *node = mainContext->node;
+
+            // Fast exit path for checking cache
+            if (node->cacheEnabled && mainContext->numFrameRequests == 0 && !mainContext->hasError()) {
+                PVSFrame f = node->getCachedFrameInternal(mainContext->n);
+
+                if (f) {
+                    PVSFrameContext mainContextRef;
+                    PVSFrameContext leafContextRef;
+                    if (leafContext) {
+                        leafContextRef = std::move(*iter);
+                        mainContextRef = leafContextRef->upstreamContext;
+                    } else {
+                        mainContextRef = std::move(*iter);
+                    }
+
+                    owner->tasks.erase(iter);
+
+                    PVSFrameContext n;
+                    bool needsSort = false;
+
+                    do {
+                        n = mainContextRef->notificationChain;
+
+                        if (n)
+                            mainContextRef->notificationChain.reset();
+
+                        if (mainContextRef->upstreamContext) {
+                            mainContextRef->returnedFrame = f;
+                            owner->startInternal(mainContextRef);
+                            needsSort = true;
+                        }
+
+                        if (mainContextRef->frameDone)
+                            owner->returnFrame(mainContextRef, f);
+                    } while ((mainContextRef = n));
+
+                    if (needsSort)
+                        owner->tasks.sort(taskCmp);
+
+                    ranTask = true;
+                    break;
+                }
+            }
+
+
             int filterMode = node->filterMode;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Fast path for arFrameReady events that don't need to be notified
 
-            if ((!node->frameReadyNotify && (mainContext->numFrameRequests > 1) && (!leafContext || !leafContext->hasError()))) {
+            if ((mainContext->numFrameRequests > 1) && (!leafContext || !leafContext->hasError())) {
                 mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->node, leafContext->n), leafContext->returnedFrame));
                 --mainContext->numFrameRequests;
                 owner->tasks.erase(iter);
@@ -127,15 +172,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 
             // Does the filter need the per instance mutex? fmFrameState, fmUnordered and fmParallelRequests (when in the arAllFramesReady state) use this
-            bool useSerialLock = (filterMode == fmFrameState || filterMode == fmUnordered || filterMode == fmUnorderedLinear || (filterMode == fmParallelRequests && mainContext->numFrameRequests == 1));
-
-            // Guard against multiple arFrameReady calls into the same instance for the same frame, without this plugin writers would need to hold a mutex to modify the per frame data
-            // Only needed due to the arFrameReady events and nothing else
-            bool useConcurrentCheck = (node->frameReadyNotify && ((filterMode == fmParallel || filterMode == fmParallelRequests) && mainContext->numFrameRequests > 1));
-
-            // Note that technically useSerialLock^useConcurrentCheck has to be true BUT due to the initial request (mainContext->numFrameRequests == 0) case
-            // not starting its requests until after the arInitial call returns no lock or bookkeeping of it is actually needed since it can't call into the filter at the same time as arFrameReady
-            assert(!(useSerialLock && useConcurrentCheck));
+            bool useSerialLock = (filterMode == fmFrameState || filterMode == fmUnordered || (filterMode == fmParallelRequests && mainContext->numFrameRequests == 1));
 
             if (useSerialLock) {
                 if (!node->serialMutex.try_lock())
@@ -149,13 +186,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                         continue;
                     }
                 }
-            }
-
-            if (useConcurrentCheck) {
-                std::lock_guard<std::mutex> lock(node->concurrentFramesMutex);
-                // is the filter already processing another call for this frame? if so move along
-                if (!node->concurrentFrames.insert(mainContext->n).second)
-                    continue;
             }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -182,30 +212,24 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 skipCall = mainContext->setError(leafContext->getErrorMessage());
                 --mainContext->numFrameRequests;
             } else if (leafContext && leafContext->returnedFrame) {
-                if (--mainContext->numFrameRequests > 0)
-                    ar = vs3::arFrameReady;
-                else
-                    ar = (node->apiMajor == 3) ? static_cast<int>(vs3::arAllFramesReady) : static_cast<int>(arAllFramesReady);
+                assert(--mainContext->numFrameRequests == 0);
+                ar = (node->apiMajor == 3) ? static_cast<int>(vs3::arAllFramesReady) : static_cast<int>(arAllFramesReady);
 
                 mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->node, leafContext->n), leafContext->returnedFrame));
-                mainContext->lastCompletedN = leafContext->n;
-                mainContext->lastCompletedNode = leafContext->node;
             }
 
             bool hasExistingRequests = !!mainContext->numFrameRequests;
-            bool isLinear = (filterMode == fmUnorderedLinear);
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Do the actual processing
 
-            if (!isLinear)
-                lock.unlock();
+            lock.unlock();
 
             assert(ar == arError || !mainContext->hasError());
 #ifdef VS_FRAME_REQ_DEBUG
             vsWarning("Entering: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
 #endif
-            PVSFrameRef f;
+            PVSFrame f;
             if (!skipCall)
                 f = node->getFrameInternal(mainContext->n, ar, mainContext);
             ranTask = true;
@@ -224,18 +248,12 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 node->serialMutex.unlock();
             }
 
-            if (useConcurrentCheck) {
-                std::lock_guard<std::mutex> lock(node->concurrentFramesMutex);
-                node->concurrentFrames.erase(mainContext->n);
-            }
-
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
             bool requestedFrames = mainContext->reqList.size() > 0 && !frameProcessingDone;
             bool needsSort = requestedFrames;
 
-            if (!isLinear)
-                lock.lock();
+            lock.lock();
 
             if (requestedFrames) {
                 for (size_t i = 0; i < mainContext->reqList.size(); i++)
@@ -366,7 +384,7 @@ void VSThreadPool::start(const PVSFrameContext &context) {
     startInternal(context);
 }
 
-void VSThreadPool::returnFrame(const PVSFrameContext &rCtx, const PVSFrameRef &f) {
+void VSThreadPool::returnFrame(const PVSFrameContext &rCtx, const PVSFrame &f) {
     assert(rCtx->frameDone);
     bool outputLock = rCtx->lockOnOutput;
     // we need to unlock here so the callback may request more frames without causing a deadlock

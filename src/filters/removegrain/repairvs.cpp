@@ -1997,5 +1997,6 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
     RepairData *data = new RepairData(d);
 
-    vsapi->createVideoFilter(out, "Repair", data->vi, repairGetFrame, repairFree, fmParallel, 0, data, core);
+    VSFilterDependency deps[] = {{d.node1, 1}, {d.node2, 1}};
+    vsapi->createVideoFilter(out, "Repair", data->vi, repairGetFrame, repairFree, fmParallel, deps, 2, data, core);
 }

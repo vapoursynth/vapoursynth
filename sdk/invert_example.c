@@ -135,9 +135,9 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // The others can be considered special cases where fmFrameState is useful to source filters and
     // fmUnordered is useful when a filter's state may change even when deciding which frames to
     // prefetch (such as a cache filter).
-    // If your filter is really fast (such as a filter that only resorts frames) you should set the
-    // nfNoCache flag to make the caching work smoother.
-    vsapi->createVideoFilter(out, "Invert", vi, invertGetFrame, invertFree, fmParallel, 0, data, core);
+
+    VSFilterDependency deps[] = {d.node, 1};
+    vsapi->createVideoFilter(out, "Invert", vi, invertGetFrame, invertFree, fmParallel, deps, 1, data, core);
 }
 
 //////////////////////////////////////////

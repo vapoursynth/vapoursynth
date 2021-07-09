@@ -165,26 +165,22 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     if (!is8to16orFloatFormat(d->vi->format))
         RETERROR("PreMultiply: only 8-16 bit integer and 32 bit float input supported");
 
-    bool setHint = false;
-
     // do we need to resample the first mask plane and use it for all the planes?
     if ((d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0)) {
         VSMap *min = vsapi->createMap();
         vsapi->mapSetNode(min, "clip", d->nodes[1], paAppend);
         vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
         vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
-        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min, 0);
+        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min);
         d->nodes[2] = vsapi->mapGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
         vsapi->freeMap(min);
-        setHint = true;
     } else if (d->vi->format.numPlanes > 1) {
         d->nodes[2] = vsapi->addNodeRef(d->nodes[1]);
     }
 
-    vsapi->createVideoFilter(out, "PreMultiply", d->vi, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, 0, d.get(), core);
-    if (setHint)
-        vsapi->setInternalFilterRelation(out, d->nodes.data(), static_cast<int>(d->nodes.size()));
+    VSFilterDependency deps[] = {{ d->nodes[0], 1 }, { d->nodes[1], 1 }, { d->nodes[2], 1 }};
+    vsapi->createVideoFilter(out, "PreMultiply", d->vi, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, deps, d->nodes[2] ? 3 : 2, d.get(), core);
     d.release();
 }
 
@@ -332,7 +328,8 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     if (nweight > d->vi->format.numPlanes)
         RETERROR("Merge: more weights given than the number of planes to merge");
 
-    vsapi->createVideoFilter(out, "Merge", d->vi, mergeGetFrame, filterFree<MergeData>, fmParallel, 0, d.get(), core);
+    VSFilterDependency deps[] = {{d->node1, 1}, {d->node2, 1}};
+    vsapi->createVideoFilter(out, "Merge", d->vi, mergeGetFrame, filterFree<MergeData>, fmParallel, deps, 2, d.get(), core);
     d.release();
 }
 
@@ -484,7 +481,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
             vsapi->mapSetNode(min, "clips", d->nodes[2], paAppend);
             vsapi->mapSetInt(min, "planes", 0, paAppend);
             vsapi->mapSetInt(min, "colorfamily", cfGray, paAppend);
-            VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShufflePlanes", min, 0);
+            VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShufflePlanes", min);
             VSNode *mask_first_plane = vsapi->mapGetNode(mout, "clip", 0, 0);
             vsapi->freeMap(mout);
             vsapi->clearMap(min);
@@ -495,7 +492,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
         vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
         vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
-        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min, 0);
+        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min);
         d->nodes[3] = vsapi->mapGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
         vsapi->freeMap(min);
@@ -503,8 +500,8 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    vsapi->createVideoFilter(out, "MaskedMerge", d->vi, maskedMergeGetFrame, filterFree<MaskedMergeData>, fmParallel, 0, d.get(), core);
-    vsapi->setInternalFilterRelation(out, d->nodes.data(), static_cast<int>(d->nodes.size()));
+    VSFilterDependency deps[] = {{ d->nodes[0], 1 }, { d->nodes[1], 1 }, { d->nodes[2], 1 }, { d->nodes[3], 1 }};
+    vsapi->createVideoFilter(out, "MaskedMerge", d->vi, maskedMergeGetFrame, filterFree<MaskedMergeData>, fmParallel, deps, d->nodes[3] ? 4 : 3, d.get(), core);
     d.release();
 }
 
@@ -609,7 +606,8 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    vsapi->createVideoFilter(out, "MakeDiff", d->vi, makeDiffGetFrame, filterFree<MakeDiffData>, fmParallel, 0, d.get(), core);
+    VSFilterDependency deps[] = {{d->node1, 1}, {d->node2, 1}};
+    vsapi->createVideoFilter(out, "MakeDiff", d->vi, makeDiffGetFrame, filterFree<MakeDiffData>, fmParallel, deps, 2, d.get(), core);
     d.release();
 }
 
@@ -714,7 +712,8 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    vsapi->createVideoFilter(out, "MergeDiff", d->vi, mergeDiffGetFrame, filterFree<MergeDiffData>, fmParallel, 0, d.get(), core);
+    VSFilterDependency deps[] = {{d->node1, 1}, {d->node2, 1}};
+    vsapi->createVideoFilter(out, "MergeDiff", d->vi, mergeDiffGetFrame, filterFree<MergeDiffData>, fmParallel, deps, 2, d.get(), core);
     d.release();
 }
 
