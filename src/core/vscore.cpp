@@ -698,25 +698,22 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
     if ((flags & vs3::nfIsCache) && !(flags & vs3::nfNoCache))
         throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
 
-    core->filterInstanceCreated();
     VSMap inval(in);
     init(&inval, out, &this->instanceData, this, core, reinterpret_cast<const vs3::VSAPI3 *>(getVSAPIInternal(3)));
 
     if (out->hasError()) {
-        core->filterInstanceDestroyed();
         throw VSException(vs_internal_vsapi.mapGetError(out));
     }
 
     if (vi.format.colorFamily == 0) {
-        core->filterInstanceDestroyed();
         throw VSException("Filter " + name + " didn't set videoinfo");
     }
 
     if (vi.numFrames <= 0) {
-        core->filterInstanceDestroyed();
         throw VSException("Filter " + name + " returned zero or negative frame count");
     }
 
+    core->filterInstanceCreated();
 
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
@@ -742,8 +739,6 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame 
 VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core) :
     refcount(1), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1) {
 
-    core->filterInstanceCreated();
-
     if (!core->isValidAudioInfo(*ai))
         throw VSException("The VSAudioInfo structure passed by " + name + " is invalid.");
 
@@ -760,43 +755,65 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame 
         dependencies[i].source->addConsumer(this, dependencies[i].strictSpatial);
     }
 
+    core->filterInstanceCreated();
+
+
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
     }
 }
 
 VSNode::~VSNode() {
+    registerCache(false);
+
+    cache.clear();
+
     for (auto &iter : dependencies) {
         iter.source->removeConsumer(this, iter.strictSpatial);
         iter.source->release();
     }
+
     core->destroyFilterInstance(this);
 }
 
+void VSNode::registerCache(bool add) {
+    std::lock_guard<std::mutex> lock(core->cacheLock);
+    if (add)
+        core->caches.insert(this);
+    else
+        core->caches.erase(this);
+}
+
 void VSNode::addConsumer(VSNode *consumer, int strictSpatial) {
-    std::lock_guard<std::mutex> lock(cacheMutex);
-    consumers.push_back({ consumer, strictSpatial });
-    if (consumers.size() > maxConsumers)
-        maxConsumers = consumers.size();
-   
-    if (!cacheOverride)
-        cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].strictSpatial);
+    {
+        std::lock_guard<std::mutex> lock(cacheMutex);
+        consumers.push_back({consumer, strictSpatial});
+        if (consumers.size() > maxConsumers)
+            maxConsumers = consumers.size();
+
+        if (!cacheOverride)
+            cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].strictSpatial);
+    }
+    registerCache(cacheEnabled);
 }
 
 void VSNode::removeConsumer(VSNode *consumer, int strictSpatial) {
-    std::lock_guard<std::mutex> lock(cacheMutex);
-    for (auto iter = consumers.begin(); iter != consumers.end(); ++iter) {
-        if (iter->source == consumer && iter->strictSpatial == strictSpatial) {
-            consumers.erase(iter);
-            break;
+    {
+        std::lock_guard<std::mutex> lock(cacheMutex);
+        for (auto iter = consumers.begin(); iter != consumers.end(); ++iter) {
+            if (iter->source == consumer && iter->strictSpatial == strictSpatial) {
+                consumers.erase(iter);
+                break;
+            }
         }
+
+        if (!cacheOverride)
+            cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].strictSpatial);
+
+        if (!cacheEnabled)
+            cache.clear();
     }
-
-    if (!cacheOverride)
-        cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].strictSpatial);
-
-    if (!cacheEnabled)
-        cache.clear();
+    registerCache(cacheEnabled);
 }
 
 
@@ -869,21 +886,23 @@ const VSMap *VSNode::getCreationFunctionArguments(int level) const {
 }
 
 void VSNode::setCacheMode(int mode) {
-    if (mode == -1) {
-        cacheOverride = false;
-        cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].strictSpatial);
-        if (!cacheEnabled)
+    {
+        std::lock_guard<std::mutex> lock(cacheMutex);
+        bool oldCacheEnable = cacheEnabled;
+        if (mode == -1) {
+            cacheOverride = false;
+            cache.setMaxFrames(20);
+        } else if (mode == 0) {
+            cacheOverride = true;
+            cacheEnabled = false;
             cache.clear();
-        cache.setMaxFrames(20);
-    } else if (mode == 0) {
-        cacheOverride = true;
-        cacheEnabled = false;
-        cache.clear();
-    } else if (mode == 1) {
-        cacheOverride = true;
-        cacheEnabled = true;
-        cache.setMaxFrames(20);
+        } else if (mode == 1) {
+            cacheOverride = true;
+            cacheEnabled = true;
+            cache.setMaxFrames(20);
+        }
     }
+    registerCache(cacheEnabled);
 }
 
 PVSFrame VSNode::getCachedFrameInternal(int n) {

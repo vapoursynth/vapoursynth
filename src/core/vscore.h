@@ -827,12 +827,13 @@ private:
     std::mutex cacheMutex;
     bool cacheOverride = false;
     bool cacheEnabled = false; // FIXME, needs to be atomic?
-    bool cacheMakeLinear = false;
+    bool cacheMakeLinear = false; // FIXME, not implemented
     VSCache cache;
 
     // api3
     vs3::VSVideoInfo v3vi;
 
+    void registerCache(bool add);
     PVSFrame getCachedFrameInternal(int n);
     PVSFrame getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
 public:
@@ -1008,7 +1009,7 @@ struct VSLogHandle {
 };
 
 struct VSCore {
-    friend class CacheInstance;
+    friend struct VSNode;
 private:
     //number of filter instances plus one, freeing the core reduces it by one
     // the core will be freed once it reaches 0

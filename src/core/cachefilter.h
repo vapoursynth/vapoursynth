@@ -26,12 +26,8 @@
 /*
 class CacheInstance {
 public:
-    VSNode *clip;
-    VSCore *core;
-    VSNode *node = nullptr;
     int lastN = -1;
     int numThreads = 0;
-    bool makeLinear = false;
 
     CacheInstance(VSNode *clip, VSCore *core, bool fixedSize) {}
 
