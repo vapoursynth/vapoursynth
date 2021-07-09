@@ -1539,6 +1539,14 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
         deps.push_back({d->propsrc[i], 1});
     vsapi->createVideoFilter(out, "FrameEval", &d->vi, (d->propsrc.size() > 0) ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree, (d->propsrc.size() > 0) ? fmParallelRequests : fmUnordered, deps.data(), numpropsrc, d.get(), core);
     d.release();
+
+    // FIXME, review
+    // Alternate solution #1: add an optional list of clip dependencies for the clip selection case
+    // FrameEval can invoke additional filters that will be destroyed after the request making cache addition pointless (can't know the original clip passed into frameeval)
+    // Only allow FrameEval to transform a predefined list of input clips, or at least greatly encourage this?
+    node = vsapi->mapGetNode(out, "clip", 0, nullptr);
+    vsapi->setCacheMode(node, 1);
+    vsapi->freeNode(node);
 }
 
 //////////////////////////////////////////

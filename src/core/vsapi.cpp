@@ -224,7 +224,7 @@ static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, v
             fm = fmFrameState;
             break;
         default:
-            core->logFatal("Invalid filter mode");
+            core->logFatal("Invalid filter mode specified for " + std::string(name));
     }
     core->createFilter3(in, out, name, init, reinterpret_cast<VSFilterGetFrame>(getFrame), free, fm, flags, instanceData, VAPOURSYNTH3_API_MAJOR);
 }
@@ -909,12 +909,6 @@ static void VS_CC createVideoFilter(VSMap *out, const char *name, const VSVideoI
 static VSNode *VS_CC createVideoFilter2(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT {
     assert(name && vi && getFrame && core);
     return core->createVideoFilter(name, vi, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, VAPOURSYNTH_API_MAJOR);
-}
-
-static void VS_CC createVideoFilter3(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
-    assert(out && name && vi && getFrame && core);
-    // fixme, apply makelinear and nocache flags
-    core->createVideoFilter(out, name, vi, getFrame, free, static_cast<VSFilterMode>(filterMode), nullptr, 0, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
 static void VS_CC createAudioFilter(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT {

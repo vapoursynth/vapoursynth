@@ -820,7 +820,6 @@ private:
 
     std::vector<VSFilterDependency> dependencies;
     std::vector<VSFilterDependency> consumers;
-    size_t maxConsumers = 0;
 
     std::atomic<int64_t> processingTime;
 

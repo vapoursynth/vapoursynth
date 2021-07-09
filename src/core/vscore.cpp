@@ -692,11 +692,14 @@ const std::string &VSPluginFunction::getReturnType() const {
 VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1) {
 
+    // fixme, apply makelinear
+
     if (flags & ~(vs3::nfNoCache | vs3::nfIsCache | vs3::nfMakeLinear))
         throw VSException("Filter " + name  + " specified unknown flags");
 
     if ((flags & vs3::nfIsCache) && !(flags & vs3::nfNoCache))
         throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
+
 
     VSMap inval(in);
     init(&inval, out, &this->instanceData, this, core, reinterpret_cast<const vs3::VSAPI3 *>(getVSAPIInternal(3)));
@@ -715,6 +718,25 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
 
     core->filterInstanceCreated();
 
+    // Scan the in map for clips, these are probably the real dependencies
+    // Worst case there are false positives and an extra cache gets activated
+    // NoCache is generally the equivalent strict spatial for filters
+
+    int strictSpatial = !!(flags & vs3::nfNoCache);
+    int numKeys = vs_internal_vsapi.mapNumKeys(in);
+
+    for (int i = 0; i < numKeys; i++) {
+        const char *key = vs_internal_vsapi.mapGetKey(in, i);
+        if (vs_internal_vsapi.mapGetType(in, key) == ptVideoNode) {
+            int numElems = vs_internal_vsapi.mapNumElements(in, key);
+            for (int j = 0; j < numElems; j++) {
+                VSNode *sn = vs_internal_vsapi.mapGetNode(in, key, j, nullptr);
+                this->dependencies.push_back({sn, strictSpatial});
+                sn->addConsumer(this, strictSpatial);
+            }
+        }
+    }
+
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
     }
@@ -730,6 +752,13 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame 
     this->v3vi = core->VideoInfoToV3(*vi);
 
     core->filterInstanceCreated();
+
+    this->dependencies.reserve(numDeps);
+    for (int i = 0; i < numDeps; i++) {
+        this->dependencies.push_back(dependencies[i]);
+        dependencies[i].source->add_ref();
+        dependencies[i].source->addConsumer(this, dependencies[i].strictSpatial);
+    }
 
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
@@ -748,15 +777,14 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame 
         throw VSException("Filter " + name + " specified " + std::to_string(this->ai.numSamples) + " output samples but " + std::to_string(maxSamples) + " samples is the upper limit");
     this->ai.numFrames = static_cast<int>((this->ai.numSamples + VS_AUDIO_FRAME_SAMPLES - 1) / VS_AUDIO_FRAME_SAMPLES);
 
+    core->filterInstanceCreated();
+
     this->dependencies.reserve(numDeps);
     for (int i = 0; i < numDeps; i++) {
         this->dependencies.push_back(dependencies[i]);
         dependencies[i].source->add_ref();
         dependencies[i].source->addConsumer(this, dependencies[i].strictSpatial);
     }
-
-    core->filterInstanceCreated();
-
 
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
@@ -788,8 +816,6 @@ void VSNode::addConsumer(VSNode *consumer, int strictSpatial) {
     {
         std::lock_guard<std::mutex> lock(cacheMutex);
         consumers.push_back({consumer, strictSpatial});
-        if (consumers.size() > maxConsumers)
-            maxConsumers = consumers.size();
 
         if (!cacheOverride)
             cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].strictSpatial);

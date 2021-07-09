@@ -208,6 +208,8 @@ typedef enum VSFilterFlags {
     ffStrictSpatial = 1
 } VSFilterFlags;
 
+// FIXME, should be called VSMapType, MapError, MapAppendMode
+
 typedef enum VSPropType {
     ptUnset = 0,
     ptInt = 1,
