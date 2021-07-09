@@ -124,12 +124,12 @@ public:
 class VSArrayBase {
 protected:
     std::atomic<long> refcount;
-    VSPropType ftype;
+    VSPropertyType ftype;
     size_t fsize = 0;
-    explicit VSArrayBase(VSPropType type) : refcount(1), ftype(type) {}
+    explicit VSArrayBase(VSPropertyType type) : refcount(1), ftype(type) {}
     virtual ~VSArrayBase() {}
 public:
-    VSPropType type() const {
+    VSPropertyType type() const {
         return ftype;
     }
 
@@ -156,7 +156,7 @@ public:
 
 typedef vs_intrusive_ptr<VSArrayBase> PVSArrayBase;
 
-template<typename T, VSPropType propType>
+template<typename T, VSPropertyType propType>
 class VSArray final : public VSArrayBase {
 private:
     T singleData;
@@ -370,12 +370,12 @@ public:
 class FilterArgument {
 public:
     std::string name;
-    VSPropType type;
+    VSPropertyType type;
     
     bool arr;
     bool empty;
     bool opt;
-    FilterArgument(const std::string &name, VSPropType type, bool arr, bool empty, bool opt)
+    FilterArgument(const std::string &name, VSPropertyType type, bool arr, bool empty, bool opt)
         : name(name), type(type), arr(arr), empty(empty), opt(opt) {}
 };
 

@@ -316,7 +316,7 @@ static int VS_CC mapGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
 static char VS_CC propGetType3(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
     VSArrayBase *val = map->find(key);
-    VSPropType pt = val ? val->type() : ptUnset;
+    VSPropertyType pt = val ? val->type() : ptUnset;
     switch (pt) {
         case ptInt:
             return vs3::ptInt;
@@ -335,7 +335,7 @@ static char VS_CC propGetType3(const VSMap *map, const char *key) VS_NOEXCEPT {
     }
 }
 
-static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, int *error, VSPropType propType) noexcept {
+static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, int *error, VSPropertyType propType) noexcept {
     assert(map && key && index >= 0);
 
     if (error)
@@ -536,22 +536,22 @@ static int VS_CC mapSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT 
     return 0;
 }
 
-template<typename T, VSPropType propType>
+template<typename T, VSPropertyType propType>
 bool propSetShared(VSMap *map, const char *key, const T &val, int append) {
     assert(map && key);
-    if (append != paReplace && append != paAppend && append != vs3::paTouch)
+    if (append != maReplace && append != maAppend && append != vs3::paTouch)
         VS_FATAL_ERROR(("Invalid prop append mode given when setting key '" + std::string(key) + "'").c_str());
 
     if (!isValidVSMapKey(key))
         return false;
     std::string skey = key;
 
-    if (append == paReplace) {
+    if (append == maReplace) {
         VSArray<T, propType> *v = new VSArray<T, propType>();
         v->push_back(val);
         map->insert(key, v);
         return true;
-    } else if (append == paAppend) {
+    } else if (append == maAppend) {
         VSArrayBase *arr = map->find(skey);
         if (arr && arr->type() == propType) {
             arr = map->detach(skey);

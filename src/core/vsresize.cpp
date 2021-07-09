@@ -324,20 +324,20 @@ void import_frame_props(const VSMap *props, zimg_image_format *format, bool *int
 void export_frame_props(const zimg_image_format &format, VSMap *props, const VSAPI *vsapi) {
     auto set_int_if_positive = [&](const char *key, int x) {
         if (x >= 0)
-            vsapi->mapSetInt(props, key, x, paReplace);
+            vsapi->mapSetInt(props, key, x, maReplace);
         else
             vsapi->mapDeleteKey(props, key);
     };
 
     if (format.color_family == ZIMG_COLOR_YUV && (format.subsample_w || format.subsample_h))
-        vsapi->mapSetInt(props, "_ChromaLocation", format.chroma_location, paReplace);
+        vsapi->mapSetInt(props, "_ChromaLocation", format.chroma_location, maReplace);
     else
         vsapi->mapDeleteKey(props, "_ChromaLocation");
 
     if (format.pixel_range == ZIMG_RANGE_FULL)
-        vsapi->mapSetInt(props, "_ColorRange", 0, paReplace);
+        vsapi->mapSetInt(props, "_ColorRange", 0, maReplace);
     else if (format.pixel_range == ZIMG_RANGE_LIMITED)
-        vsapi->mapSetInt(props, "_ColorRange", 1, paReplace);
+        vsapi->mapSetInt(props, "_ColorRange", 1, maReplace);
     else
         vsapi->mapDeleteKey(props, "_ColorRange");
 
@@ -362,8 +362,8 @@ void propagate_sar(const VSMap *src_props, VSMap *dst_props, const zimg_image_fo
         muldivRational(&sar_num, &sar_den, src_format.width, dst_format.width);
         muldivRational(&sar_num, &sar_den, dst_format.height, src_format.height);
 
-        vsapi->mapSetInt(dst_props, "_SARNum", sar_num, paReplace);
-        vsapi->mapSetInt(dst_props, "_SARDen", sar_den, paReplace);
+        vsapi->mapSetInt(dst_props, "_SARNum", sar_num, maReplace);
+        vsapi->mapSetInt(dst_props, "_SARDen", sar_den, maReplace);
     }
 }
 

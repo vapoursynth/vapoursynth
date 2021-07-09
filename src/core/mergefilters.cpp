@@ -168,9 +168,9 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     // do we need to resample the first mask plane and use it for all the planes?
     if ((d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0)) {
         VSMap *min = vsapi->createMap();
-        vsapi->mapSetNode(min, "clip", d->nodes[1], paAppend);
-        vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
-        vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
+        vsapi->mapSetNode(min, "clip", d->nodes[1], maAppend);
+        vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, maAppend);
+        vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, maAppend);
         VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min);
         d->nodes[2] = vsapi->mapGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
@@ -478,20 +478,20 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
         if (maskvi->format.numPlanes > 1) {
             // Don't resize the unused second and third planes.
-            vsapi->mapSetNode(min, "clips", d->nodes[2], paAppend);
-            vsapi->mapSetInt(min, "planes", 0, paAppend);
-            vsapi->mapSetInt(min, "colorfamily", cfGray, paAppend);
+            vsapi->mapSetNode(min, "clips", d->nodes[2], maAppend);
+            vsapi->mapSetInt(min, "planes", 0, maAppend);
+            vsapi->mapSetInt(min, "colorfamily", cfGray, maAppend);
             VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShufflePlanes", min);
             VSNode *mask_first_plane = vsapi->mapGetNode(mout, "clip", 0, 0);
             vsapi->freeMap(mout);
             vsapi->clearMap(min);
-            vsapi->mapConsumeNode(min, "clip", mask_first_plane, paAppend);
+            vsapi->mapConsumeNode(min, "clip", mask_first_plane, maAppend);
         } else {
-            vsapi->mapSetNode(min, "clip", d->nodes[2], paAppend);
+            vsapi->mapSetNode(min, "clip", d->nodes[2], maAppend);
         }
 
-        vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
-        vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
+        vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, maAppend);
+        vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, maAppend);
         VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min);
         d->nodes[3] = vsapi->mapGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);

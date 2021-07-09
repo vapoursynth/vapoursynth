@@ -139,7 +139,7 @@ static inline uint16_t doubleToHalfPixelValue(double v, int *err) {
 // Cache compatibility filter, does nothing
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clip", 0, nullptr), paAppend);
+    vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clip", 0, nullptr), maAppend);
 }
 
 //////////////////////////////////////////
@@ -222,7 +222,7 @@ static const VSFrame *VS_CC cropGetframe(int n, int activationReason, void *inst
             int error;
             int64_t fb = vsapi->mapGetInt(props, "_FieldBased", 0, &error);
             if (fb == 1 || fb == 2)
-                vsapi->mapSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
+                vsapi->mapSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, maReplace);
         }
 
         return dst;
@@ -279,7 +279,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     // passthrough for the no cropping case
     if (d->x == 0 && d->y == 0 && d->width == d->vi->width && d->height == d->vi->height) {
-        vsapi->mapSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, maReplace);
         return;
     }
 
@@ -418,7 +418,7 @@ static const VSFrame *VS_CC addBordersGetframe(int n, int activationReason, void
             int error;
             int64_t fb = vsapi->mapGetInt(props, "_FieldBased", 0, &error);
             if (fb == 1 || fb == 2)
-                vsapi->mapSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
+                vsapi->mapSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, maReplace);
         }
 
         return dst;
@@ -440,7 +440,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
 
     // pass through if nothing to be done
     if (d->left == 0 && d->right == 0 && d->top == 0 && d->bottom == 0) {
-        vsapi->mapSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, maReplace);
         return;
     }
 
@@ -671,18 +671,18 @@ static void VS_CC splitPlanesCreate(const VSMap *in, VSMap *out, void *userData,
 
     // Pass through when nothing to do
     if (numPlanes == 1) {
-        vsapi->mapConsumeNode(out, "clip", node, paAppend);
+        vsapi->mapConsumeNode(out, "clip", node, maAppend);
         return;
     }
 
     VSMap *map = vsapi->createMap();
-    vsapi->mapConsumeNode(map, "clips", node, paAppend);
-    vsapi->mapSetInt(map, "colorfamily", cfGray, paAppend);
+    vsapi->mapConsumeNode(map, "clips", node, maAppend);
+    vsapi->mapSetInt(map, "colorfamily", cfGray, maAppend);
 
     for (int i = 0; i < numPlanes; i++) {
-        vsapi->mapSetInt(map, "plane", i, paReplace);
+        vsapi->mapSetInt(map, "plane", i, maReplace);
         VSMap *tmp = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShufflePlanes", map);
-        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(tmp, "clip", 0, nullptr), paAppend);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(tmp, "clip", 0, nullptr), maAppend);
         vsapi->freeMap(tmp);
     }
 
@@ -740,7 +740,7 @@ static const VSFrame *VS_CC separateFieldsGetframe(int n, int activationReason, 
         vsapi->freeFrame(src);
 
         VSMap *dst_props = vsapi->getFramePropertiesRW(dst);
-        vsapi->mapSetInt(dst_props, "_Field", ((n & 1) ^ effectiveTFF), paReplace);
+        vsapi->mapSetInt(dst_props, "_Field", ((n & 1) ^ effectiveTFF), maReplace);
         vsapi->mapDeleteKey(dst_props, "_FieldBased");
 
         if (d->modifyDuration) {
@@ -749,8 +749,8 @@ static const VSFrame *VS_CC separateFieldsGetframe(int n, int activationReason, 
             int64_t durationDen = vsapi->mapGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
                 muldivRational(&durationNum, &durationDen, 1, 2); // Divide duration by 2
-                vsapi->mapSetInt(dst_props, "_DurationNum", durationNum, paReplace);
-                vsapi->mapSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationNum", durationNum, maReplace);
+                vsapi->mapSetInt(dst_props, "_DurationDen", durationDen, maReplace);
             }
         }
 
@@ -850,7 +850,7 @@ static const VSFrame *VS_CC doubleWeaveGetframe(int n, int activationReason, voi
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(dst);
         VSMap *dstprops = vsapi->getFramePropertiesRW(dst);
         vsapi->mapDeleteKey(dstprops, "_Field");
-        vsapi->mapSetInt(dstprops, "_FieldBased", 1 + (srctop == src1), paReplace);
+        vsapi->mapSetInt(dstprops, "_FieldBased", 1 + (srctop == src1), maReplace);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcptop = vsapi->getReadPtr(srctop, plane);
@@ -1097,7 +1097,7 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     int numclips = vsapi->mapNumElements(in, "clips");
 
     if (numclips == 1) { // passthrough for the special case with only one clip
-        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, 0), paReplace);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, 0), maReplace);
     } else {
         d->nodes.resize(numclips);
 
@@ -1169,8 +1169,8 @@ static const VSFrame *VS_CC blankClipGetframe(int n, int activationReason, void 
 
             if (d->vi.fpsNum > 0) {
                 VSMap *frameProps = vsapi->getFramePropertiesRW(frame);
-                vsapi->mapSetInt(frameProps, "_DurationNum", d->vi.fpsDen, paReplace);
-                vsapi->mapSetInt(frameProps, "_DurationDen", d->vi.fpsNum, paReplace);
+                vsapi->mapSetInt(frameProps, "_DurationNum", d->vi.fpsDen, maReplace);
+                vsapi->mapSetInt(frameProps, "_DurationDen", d->vi.fpsNum, maReplace);
             }
         }
 
@@ -1331,8 +1331,8 @@ static const VSFrame *VS_CC assumeFPSGetframe(int n, int activationReason, void 
         VSFrame *dst = vsapi->copyFrame(src, core);
         VSMap *m = vsapi->getFramePropertiesRW(dst);
         vsapi->freeFrame(src);
-        vsapi->mapSetInt(m, "_DurationNum", d->vi.fpsDen, paReplace);
-        vsapi->mapSetInt(m, "_DurationDen", d->vi.fpsNum, paReplace);
+        vsapi->mapSetInt(m, "_DurationNum", d->vi.fpsDen, maReplace);
+        vsapi->mapSetInt(m, "_DurationDen", d->vi.fpsNum, maReplace);
         return dst;
     }
 
@@ -1400,10 +1400,10 @@ static const VSFrame *VS_CC frameEvalGetFrameWithProps(int n, int activationReas
             vsapi->requestFrameFilter(n, iter, frameCtx);
     } else if (activationReason == arAllFramesReady && !*frameData) {
         int err;
-        vsapi->mapSetInt(d->in, "n", n, paAppend);
+        vsapi->mapSetInt(d->in, "n", n, maAppend);
         for (auto iter : d->propsrc) {
             const VSFrame *f = vsapi->getFrameFilter(n, iter, frameCtx);
-            vsapi->mapSetFrame(d->in, "f", f, paAppend);
+            vsapi->mapSetFrame(d->in, "f", f, maAppend);
             vsapi->freeFrame(f);
         }
         vsapi->callFunction(d->func, d->in, d->out);
@@ -1460,7 +1460,7 @@ static const VSFrame *VS_CC frameEvalGetFrameNoProps(int n, int activationReason
     if (activationReason == arInitial) {
 
         int err;
-        vsapi->mapSetInt(d->in, "n", n, paAppend);
+        vsapi->mapSetInt(d->in, "n", n, maAppend);
         vsapi->callFunction(d->func, d->in, d->out);
         vsapi->clearMap(d->in);
         if (vsapi->mapGetError(d->out)) {
@@ -1569,11 +1569,11 @@ static const VSFrame *VS_CC modifyFrameGetFrame(int n, int activationReason, voi
     } else if (activationReason == arAllFramesReady) {
         int err;
 
-        vsapi->mapSetInt(d->in, "n", n, paAppend);
+        vsapi->mapSetInt(d->in, "n", n, maAppend);
 
         for (auto iter : d->node) {
             const VSFrame *f = vsapi->getFrameFilter(n, iter, frameCtx);
-            vsapi->mapSetFrame(d->in, "f", f, paAppend);
+            vsapi->mapSetFrame(d->in, "f", f, maAppend);
             vsapi->freeFrame(f);
         }
 
@@ -1954,11 +1954,11 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
         VSMap *dstProps = vsapi->getFramePropertiesRW(dst);
 
         if (fi->sampleType == stInteger) {
-            vsapi->mapSetInt(dstProps, d->propMin.c_str(), stats.i.min, paReplace);
-            vsapi->mapSetInt(dstProps, d->propMax.c_str(), stats.i.max, paReplace);
+            vsapi->mapSetInt(dstProps, d->propMin.c_str(), stats.i.min, maReplace);
+            vsapi->mapSetInt(dstProps, d->propMax.c_str(), stats.i.max, maReplace);
         } else {
-            vsapi->mapSetFloat(dstProps, d->propMin.c_str(), stats.f.min, paReplace);
-            vsapi->mapSetFloat(dstProps, d->propMax.c_str(), stats.f.max, paReplace);
+            vsapi->mapSetFloat(dstProps, d->propMin.c_str(), stats.f.min, maReplace);
+            vsapi->mapSetFloat(dstProps, d->propMax.c_str(), stats.f.max, maReplace);
         }
 
         double avg = 0.0;
@@ -1973,9 +1973,9 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
                 diff = stats.f.diffacc / (double)((int64_t)width * height);
         }
 
-        vsapi->mapSetFloat(dstProps, d->propAverage.c_str(), avg, paReplace);
+        vsapi->mapSetFloat(dstProps, d->propAverage.c_str(), avg, maReplace);
         if (d->node2)
-            vsapi->mapSetFloat(dstProps, d->propDiff.c_str(), diff, paReplace);
+            vsapi->mapSetFloat(dstProps, d->propDiff.c_str(), diff, maReplace);
 
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
@@ -2036,7 +2036,7 @@ static const VSFrame *VS_CC clipToPropGetFrame(int n, int activationReason, void
         const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrame *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         VSFrame *dst = vsapi->copyFrame(src1, core);
-        vsapi->mapSetFrame(vsapi->getFramePropertiesRW(dst), d->prop.c_str(), src2, paReplace);
+        vsapi->mapSetFrame(vsapi->getFramePropertiesRW(dst), d->prop.c_str(), src2, maReplace);
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
         return dst;
@@ -2172,7 +2172,7 @@ static const VSFrame *VS_CC setFramePropGetFrame(int n, int activationReason, vo
                 vsapi->mapSetFloatArray(props, d->prop.c_str(), d->floats.data(), static_cast<int>(d->floats.size()));
             else if (!d->strings.empty()) {
                 for (size_t i = 0; i < d->strings.size(); i++)
-                    vsapi->mapSetData(props, d->prop.c_str(), d->strings[i].c_str(), static_cast<int>(d->strings[i].length()), d->dataType[i], i > 0 ? paAppend : paReplace);
+                    vsapi->mapSetData(props, d->prop.c_str(), d->strings[i].c_str(), static_cast<int>(d->strings[i].length()), d->dataType[i], i > 0 ? maAppend : maReplace);
             }
         }
 
@@ -2360,7 +2360,7 @@ static const VSFrame *VS_CC setFieldBasedGetFrame(int n, int activationReason, v
 
         VSMap *props = vsapi->getFramePropertiesRW(dst);
         vsapi->mapDeleteKey(props, "_Field");
-        vsapi->mapSetInt(props, "_FieldBased", d->fieldbased, paReplace);
+        vsapi->mapSetInt(props, "_FieldBased", d->fieldbased, maReplace);
 
         return dst;
     }
@@ -2426,7 +2426,7 @@ static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore 
     int level = vs_cpulevel_from_str(str);
     level = vs_set_cpulevel(core, level);
     str = vs_cpulevel_to_str(level);
-    vsapi->mapSetData(out, "cpu", str, -1, dtUtf8, paReplace);
+    vsapi->mapSetData(out, "cpu", str, -1, dtUtf8, maReplace);
 }
 
 //////////////////////////////////////////

@@ -208,9 +208,7 @@ typedef enum VSFilterFlags {
     ffStrictSpatial = 1
 } VSFilterFlags;
 
-// FIXME, should be called VSMapType, MapError, MapAppendMode
-
-typedef enum VSPropType {
+typedef enum VSPropertyType {
     ptUnset = 0,
     ptInt = 1,
     ptFloat = 2,
@@ -220,20 +218,20 @@ typedef enum VSPropType {
     ptAudioNode = 6,
     ptVideoFrame = 7,
     ptAudioFrame = 8
-} VSPropType;
+} VSPropertyType;
 
-typedef enum VSGetPropError {
+typedef enum VSMapPropertyError {
     peSuccess = 0,
     peUnset   = 1, /* no key exists */
     peType    = 2, /* key exists but not of a compatible type */
     peIndex   = 4, /* index out of bounds */
     peError   = 3  /* map has error state set */
-} VSGetPropError;
+} VSMapPropertyError;
 
-typedef enum VSPropAppendMode {
-    paReplace = 0,
-    paAppend  = 1
-} VSPropAppendMode;
+typedef enum VSMapAppendMode {
+    maReplace = 0,
+    maAppend  = 1
+} VSMapAppendMode;
 
 typedef struct VSCoreInfo {
     const char *versionString;
@@ -387,7 +385,7 @@ struct VSAPI {
     const char *(VS_CC *mapGetKey)(const VSMap *map, int index) VS_NOEXCEPT;
     int (VS_CC *mapDeleteKey)(VSMap *map, const char *key) VS_NOEXCEPT;
     int (VS_CC *mapNumElements)(const VSMap *map, const char *key) VS_NOEXCEPT; /* returns -1 if a key doesn't exist */
-    int (VS_CC *mapGetType)(const VSMap *map, const char *key) VS_NOEXCEPT; /* returns VSPropType */
+    int (VS_CC *mapGetType)(const VSMap *map, const char *key) VS_NOEXCEPT; /* returns VSPropertyType */
     int (VS_CC *mapSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
 
     int64_t (VS_CC *mapGetInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;

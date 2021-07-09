@@ -293,7 +293,7 @@ static VSNode *applyBoxBlurPlaneFiltering(VSPlugin *stdplugin, VSNode *node, int
 
     if (vblur) {
         VSMap *vtmp1 = vsapi->createMap();
-        vsapi->mapConsumeNode(vtmp1, "clip", node, paAppend);
+        vsapi->mapConsumeNode(vtmp1, "clip", node, maAppend);
         VSMap *vtmp2 = vsapi->invoke(stdplugin, "Transpose", vtmp1);
         vsapi->clearMap(vtmp1);
         node = vsapi->mapGetNode(vtmp2, "clip", 0, nullptr);
@@ -356,28 +356,28 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         if (vi->format.numPlanes == 1) {
             VSNode *tmpnode = applyBoxBlurPlaneFiltering(stdplugin, node, hradius, hpasses, vradius, vpasses, core, vsapi);
             node = nullptr;
-            vsapi->mapSetNode(out, "clip", tmpnode, paAppend);
+            vsapi->mapSetNode(out, "clip", tmpnode, maAppend);
             vsapi->freeNode(tmpnode);
         } else {
             VSMap *mergeargs = vsapi->createMap();
             int64_t psrc[3] = { 0, process[1] ? 0 : 1, process[2] ? 0 : 2 };
             vsapi->mapSetIntArray(mergeargs, "planes", psrc, 3);
-            vsapi->mapSetInt(mergeargs, "colorfamily", vi->format.colorFamily, paAppend);
+            vsapi->mapSetInt(mergeargs, "colorfamily", vi->format.colorFamily, maAppend);
 
             for (int plane = 0; plane < vi->format.numPlanes; plane++) {
                 if (process[plane]) {
                     VSMap *vtmp1 = vsapi->createMap();
-                    vsapi->mapSetNode(vtmp1, "clips", node, paAppend);
-                    vsapi->mapSetInt(vtmp1, "planes", plane, paAppend);
-                    vsapi->mapSetInt(vtmp1, "colorfamily", cfGray, paAppend);
+                    vsapi->mapSetNode(vtmp1, "clips", node, maAppend);
+                    vsapi->mapSetInt(vtmp1, "planes", plane, maAppend);
+                    vsapi->mapSetInt(vtmp1, "colorfamily", cfGray, maAppend);
                     VSMap *vtmp2 = vsapi->invoke(stdplugin, "ShufflePlanes", vtmp1);
                     vsapi->freeMap(vtmp1);
                     VSNode *tmpnode = vsapi->mapGetNode(vtmp2, "clip", 0, nullptr);
                     vsapi->freeMap(vtmp2);
                     tmpnode = applyBoxBlurPlaneFiltering(stdplugin, tmpnode, hradius, hpasses, vradius, vpasses, core, vsapi);
-                    vsapi->mapConsumeNode(mergeargs, "clips", tmpnode, paAppend);
+                    vsapi->mapConsumeNode(mergeargs, "clips", tmpnode, maAppend);
                 } else {
-                    vsapi->mapSetNode(mergeargs, "clips", node, paAppend);
+                    vsapi->mapSetNode(mergeargs, "clips", node, maAppend);
                 }
             }
 
@@ -386,7 +386,7 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
             VSMap *retmap = vsapi->invoke(stdplugin, "ShufflePlanes", mergeargs);
             vsapi->freeMap(mergeargs);
-            vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(retmap, "clip", 0, nullptr), paAppend);
+            vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(retmap, "clip", 0, nullptr), maAppend);
             vsapi->freeMap(retmap);
         }
 

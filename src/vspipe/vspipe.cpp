@@ -935,7 +935,7 @@ int main(int argc, char **argv) {
     if (!opts.scriptArgs.empty()) {
         VSMap *foldedArgs = vsapi->createMap();
         for (const auto &iter : opts.scriptArgs)
-            vsapi->mapSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, paAppend);
+            vsapi->mapSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, maAppend);
         se = vssapi->evaluateFile(nstringToUtf8(opts.scriptFilename).c_str(), foldedArgs, &scriptOpts);
         vsapi->freeMap(foldedArgs);
     } else {
@@ -978,11 +978,11 @@ int main(int argc, char **argv) {
 
         if (opts.startPos != 0 || opts.endPos != -1) {
             VSMap *args = vsapi->createMap();
-            vsapi->mapSetNode(args, "clip", node, paAppend);
+            vsapi->mapSetNode(args, "clip", node, maAppend);
             if (opts.startPos != 0)
-                vsapi->mapSetInt(args, "first", opts.startPos, paAppend);
+                vsapi->mapSetInt(args, "first", opts.startPos, maAppend);
             if (opts.endPos > -1)
-                vsapi->mapSetInt(args, "last", opts.endPos, paAppend);
+                vsapi->mapSetInt(args, "last", opts.endPos, maAppend);
             VSMap *result = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, vssapi->getCore(se)), (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
             vsapi->freeMap(args);
             if (vsapi->mapGetError(result)) {

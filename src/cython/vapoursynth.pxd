@@ -154,7 +154,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int numChannels
         uint64_t channelLayout
 
-    enum VSPropType:
+    enum VSPropertyType:
         ptUnset
         ptInt
         ptFloat
@@ -165,15 +165,16 @@ cdef extern from "include/VapourSynth4.h" nogil:
         ptVideoFrame
         ptAudioFrame
 
-    enum VSGetPropError:
+    enum VSMapPropertyError:
+        peSuccess
         peUnset
         peType
         peIndex
         peError
 
-    enum VSPropAppendMode:
-        paReplace
-        paAppend
+    enum VSMapAppendMode:
+        maReplace
+        maAppend
 
     struct VSCoreInfo:
         char *versionString

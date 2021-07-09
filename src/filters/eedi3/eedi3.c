@@ -653,8 +653,8 @@ static const VSFrame *VS_CC eedi3GetFrame(int n, int activationReason, void *ins
             int64_t duration_den = vsapi->mapGetInt(dst_props, "_DurationDen", 0, &err_den);
             if (!err_num && !err_den) {
                 vsh_muldivRational(&duration_num, &duration_den, 1, 2); // Divide duration by 2.
-                vsapi->mapSetInt(dst_props, "_DurationNum", duration_num, paReplace);
-                vsapi->mapSetInt(dst_props, "_DurationDen", duration_den, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationNum", duration_num, maReplace);
+                vsapi->mapSetInt(dst_props, "_DurationDen", duration_den, maReplace);
             }
         }
 

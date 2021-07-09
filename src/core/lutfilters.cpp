@@ -100,7 +100,7 @@ static bool funcToLut(int nin, int nout, void *vlut, VSFunction *func, const VSA
     T *lut = reinterpret_cast<T *>(vlut);
 
     for (int i = 0; i < nin; i++) {
-        vsapi->mapSetInt(in, "x", i, paReplace);
+        vsapi->mapSetInt(in, "x", i, maReplace);
         vsapi->callFunction(func, in, out);
 
         const char *ret = vsapi->mapGetError(out);
@@ -335,9 +335,9 @@ static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFunction *fun
     T *lut = reinterpret_cast<T *>(vlut);
 
     for (int i = 0; i < nyin; i++) {
-        vsapi->mapSetInt(in, "y", i, paReplace);
+        vsapi->mapSetInt(in, "y", i, maReplace);
         for (int j = 0; j < nxin; j++) {
-            vsapi->mapSetInt(in, "x", j, paReplace);
+            vsapi->mapSetInt(in, "x", j, maReplace);
             vsapi->callFunction(func, in, out);
 
             const char *ret = vsapi->mapGetError(out);

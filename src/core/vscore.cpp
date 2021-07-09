@@ -470,7 +470,7 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
         bool opt = false;
         bool empty = false;
 
-        VSPropType type = ptUnset;
+        VSPropertyType type = ptUnset;
         const std::string &argName = argParts[0];
         std::string &typeName = argParts[1];
 
@@ -1890,7 +1890,7 @@ VSMap *VSCore::getPlugins3() {
     int num = 0;
     for (const auto &iter : plugins) {
         std::string b = iter.second->getNamespace() + ";" + iter.second->getID() + ";" + iter.second->getName();
-        vs_internal_vsapi.mapSetData(m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
+        vs_internal_vsapi.mapSetData(m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, maReplace);
     }
     return m;
 }
@@ -1953,7 +1953,7 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
 void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
         VSNode *node = new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
-        vs_internal_vsapi.mapConsumeNode(out, "clip", node, paAppend);
+        vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }
@@ -1962,7 +1962,7 @@ void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name,
 void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor) {
     try {
         VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, apiMajor, this);
-        vs_internal_vsapi.mapConsumeNode(out, "clip", node, paAppend);
+        vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }
@@ -1979,7 +1979,7 @@ VSNode *VSCore::createVideoFilter(const std::string &name, const VSVideoInfo *vi
 void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor) {
     try {
         VSNode *node = new VSNode(name, ai, getFrame, free, filterMode, dependencies, numDeps, instanceData, apiMajor, this);
-        vs_internal_vsapi.mapConsumeNode(out, "clip", node, paAppend);
+        vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }
@@ -2210,7 +2210,7 @@ void VSPlugin::getFunctions3(VSMap *out) const {
     for (const auto &f : funcs) {
         if (f.second.isV3Compatible()) {
             std::string b = f.first + ";" + f.second.getV3ArgString();
-            vs_internal_vsapi.mapSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
+            vs_internal_vsapi.mapSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, maReplace);
         }
     }
 }

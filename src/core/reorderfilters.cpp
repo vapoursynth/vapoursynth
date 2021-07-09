@@ -150,7 +150,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     // obvious nop() so just pass through the input clip
     if ((!firstset && !lastset && !lengthset) || (trimlen && trimlen == vi.numFrames)) {
-        vsapi->mapSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, maReplace);
         return;
     }
 
@@ -189,8 +189,8 @@ static const VSFrame *VS_CC interleaveGetframe(int n, int activationReason, void
             int64_t durationDen = vsapi->mapGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
                 muldivRational(&durationNum, &durationDen, 1, d->numclips);
-                vsapi->mapSetInt(dst_props, "_DurationNum", durationNum, paReplace);
-                vsapi->mapSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationNum", durationNum, maReplace);
+                vsapi->mapSetInt(dst_props, "_DurationDen", durationDen, maReplace);
             }
             return dst;
         } else {
@@ -213,7 +213,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
     d->numclips = vsapi->mapNumElements(in, "clips");
 
     if (d->numclips == 1) { // passthrough for the special case with only one clip
-        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, 0), paReplace);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, 0), maReplace);
     } else {
         d->nodes.resize(d->numclips);
 
@@ -313,7 +313,7 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     // early termination for the trivial case
     if (times == 1) {
-        vsapi->mapSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, maReplace);
         return;
     }
 
@@ -359,8 +359,8 @@ static const VSFrame *VS_CC selectEveryGetframe(int n, int activationReason, voi
             int64_t durationDen = vsapi->mapGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
                 muldivRational(&durationNum, &durationDen, d->cycle, d->num);
-                vsapi->mapSetInt(dst_props, "_DurationNum", durationNum, paReplace);
-                vsapi->mapSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationNum", durationNum, maReplace);
+                vsapi->mapSetInt(dst_props, "_DurationDen", durationDen, maReplace);
             }
             vsapi->freeFrame(src);
             return dst;
@@ -464,7 +464,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     bool mismatch = !!vsapi->mapGetInt(in, "mismatch", 0, &err);
 
     if (d->numclips == 1) { // passthrough for the special case with only one clip
-        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, 0), paReplace);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, 0), maReplace);
     } else {
         d->nodes.resize(d->numclips);
 

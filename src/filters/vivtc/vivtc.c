@@ -777,12 +777,12 @@ static const VSFrame *VS_CC vfmGetFrame(int n, int activationReason, void *insta
         dst2 = vsapi->copyFrame(dst1, core);
         vsapi->freeFrame(dst1);
         m = vsapi->getFramePropertiesRW(dst2);      
-        vsapi->mapSetInt(m, "_FieldBased", 0, paReplace);
+        vsapi->mapSetInt(m, "_FieldBased", 0, maReplace);
         for (i = 0; i < 5; i++)
-            vsapi->mapSetInt(m, "VFMMics", mics[i], i ? paAppend : paReplace);
-        vsapi->mapSetInt(m, "_Combed", mics[match] >= vfm->mi, paReplace);
-        vsapi->mapSetInt(m, "VFMMatch", match, paReplace);
-        vsapi->mapSetInt(m, "VFMSceneChange", sc, paReplace);
+            vsapi->mapSetInt(m, "VFMMics", mics[i], i ? maAppend : maReplace);
+        vsapi->mapSetInt(m, "_Combed", mics[match] >= vfm->mi, maReplace);
+        vsapi->mapSetInt(m, "VFMMatch", match, maReplace);
+        vsapi->mapSetInt(m, "VFMSceneChange", sc, maReplace);
         return dst2;
     }
     return NULL;
@@ -801,8 +801,8 @@ static VSMap *invokePlaneDifference(VSNode *node, VSCore *core, const VSAPI *vsa
     VSPlugin *stdplugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
 
     args = vsapi->createMap();
-    vsapi->mapSetNode(args, "clip", node, paAppend);
-    vsapi->mapSetInt(args, "frames", 0, paAppend);
+    vsapi->mapSetNode(args, "clip", node, maAppend);
+    vsapi->mapSetInt(args, "frames", 0, maAppend);
     ret = vsapi->invoke(stdplugin, "DuplicateFrames", args);
     if (vsapi->mapGetError(ret)) {
         vsapi->freeMap(args);
@@ -810,10 +810,10 @@ static VSMap *invokePlaneDifference(VSNode *node, VSCore *core, const VSAPI *vsa
     }
 
     vsapi->clearMap(args);
-    vsapi->mapSetNode(args, "clipa", node, paAppend);
-    vsapi->mapConsumeNode(args, "clipb", vsapi->mapGetNode(ret, "clip", 0, 0), paAppend);
-    vsapi->mapSetInt(args, "plane", 0, paAppend);
-    vsapi->mapSetData(args, "prop", prop, -1, dtUtf8, paAppend);
+    vsapi->mapSetNode(args, "clipa", node, maAppend);
+    vsapi->mapConsumeNode(args, "clipb", vsapi->mapGetNode(ret, "clip", 0, 0), maAppend);
+    vsapi->mapSetInt(args, "plane", 0, maAppend);
+    vsapi->mapSetData(args, "prop", prop, -1, dtUtf8, maAppend);
     vsapi->freeMap(ret);
     ret = vsapi->invoke(stdplugin, "PlaneStats", args);
     vsapi->freeMap(args);
@@ -1445,13 +1445,13 @@ static const VSFrame *VS_CC vdecimateGetFrame(int n, int activationReason, void 
         VSMap *dstProps = vsapi->getFramePropertiesRW(dst);
 
         if (vdm->dryrun) {
-            vsapi->mapSetInt(dstProps, "VDecimateDrop", outputFrame % vdm->inCycle == cycle->drop, paReplace);
-            vsapi->mapSetInt(dstProps, "VDecimateTotalDiff", cycle->metrics[outputFrame % vdm->inCycle].totdiff, paReplace);
-            vsapi->mapSetInt(dstProps, "VDecimateMaxBlockDiff", cycle->metrics[outputFrame % vdm->inCycle].maxbdiff, paReplace);
+            vsapi->mapSetInt(dstProps, "VDecimateDrop", outputFrame % vdm->inCycle == cycle->drop, maReplace);
+            vsapi->mapSetInt(dstProps, "VDecimateTotalDiff", cycle->metrics[outputFrame % vdm->inCycle].totdiff, maReplace);
+            vsapi->mapSetInt(dstProps, "VDecimateMaxBlockDiff", cycle->metrics[outputFrame % vdm->inCycle].maxbdiff, maReplace);
         } else {
             if (cycle->durations[n % vdm->outCycle].den > 0) {
-                vsapi->mapSetInt(dstProps, "_DurationNum", cycle->durations[n % vdm->outCycle].num, paReplace);
-                vsapi->mapSetInt(dstProps, "_DurationDen", cycle->durations[n % vdm->outCycle].den, paReplace);
+                vsapi->mapSetInt(dstProps, "_DurationNum", cycle->durations[n % vdm->outCycle].num, maReplace);
+                vsapi->mapSetInt(dstProps, "_DurationDen", cycle->durations[n % vdm->outCycle].den, maReplace);
             }
         }
 

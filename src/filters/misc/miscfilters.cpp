@@ -68,8 +68,8 @@ static const VSFrame *VS_CC scDetectGetFrame(int n, int activationReason, void *
 
         VSFrame *dst = vsapi->copyFrame(src, core);
         VSMap *rwprops = vsapi->getFramePropertiesRW(dst);
-        vsapi->mapSetInt(rwprops, "_SceneChangePrev", prevdiff > d->threshold, paReplace);
-        vsapi->mapSetInt(rwprops, "_SceneChangeNext", nextdiff > d->threshold, paReplace);
+        vsapi->mapSetInt(rwprops, "_SceneChangePrev", prevdiff > d->threshold, maReplace);
+        vsapi->mapSetInt(rwprops, "_SceneChangeNext", nextdiff > d->threshold, maReplace);
         vsapi->freeFrame(src);
         vsapi->freeFrame(prevframe);
         vsapi->freeFrame(nextframe);
@@ -100,14 +100,14 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         VSPlugin *stdplugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
         VSMap *invmap = vsapi->createMap();
         VSMap *invmap2 = nullptr;
-        vsapi->mapSetNode(invmap, "clip", d->node1, paAppend);
-        vsapi->mapSetInt(invmap, "first", 1, paAppend);
+        vsapi->mapSetNode(invmap, "clip", d->node1, maAppend);
+        vsapi->mapSetInt(invmap, "first", 1, maAppend);
         invmap2 = vsapi->invoke(stdplugin, "Trim", invmap);
         vsapi->clearMap(invmap);
-        vsapi->mapSetNode(invmap, "clipa", d->node1, paAppend);
-        vsapi->mapConsumeNode(invmap, "clipb", vsapi->mapGetNode(invmap2, "clip", 0, nullptr), paAppend);
-        vsapi->mapSetData(invmap, "prop", "SCPlaneStats", -1, dtUtf8, paAppend);
-        vsapi->mapSetInt(invmap, "plane", 0, paAppend);
+        vsapi->mapSetNode(invmap, "clipa", d->node1, maAppend);
+        vsapi->mapConsumeNode(invmap, "clipb", vsapi->mapGetNode(invmap2, "clip", 0, nullptr), maAppend);
+        vsapi->mapSetData(invmap, "prop", "SCPlaneStats", -1, dtUtf8, maAppend);
+        vsapi->mapSetInt(invmap, "plane", 0, maAppend);
         vsapi->freeMap(invmap2);
         invmap2 = vsapi->invoke(stdplugin, "PlaneStats", invmap);
         vsapi->freeMap(invmap);

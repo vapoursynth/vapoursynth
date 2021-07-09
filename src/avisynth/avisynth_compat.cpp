@@ -647,13 +647,13 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                                     filterData,
                                     core);
     } else if (ret.IsBool()) {
-        vsapi->mapSetInt(out, "val", ret.AsBool() ? 1 : 0, paReplace);
+        vsapi->mapSetInt(out, "val", ret.AsBool() ? 1 : 0, maReplace);
     } else if (ret.IsInt()) {
-        vsapi->mapSetInt(out, "val", ret.AsInt(), paReplace);
+        vsapi->mapSetInt(out, "val", ret.AsInt(), maReplace);
     } else if (ret.IsFloat()) {
-        vsapi->mapSetFloat(out, "val", ret.AsFloat(), paReplace);
+        vsapi->mapSetFloat(out, "val", ret.AsFloat(), maReplace);
     } else if (ret.IsString()) {
-        vsapi->mapSetData(out, "val", ret.AsString(), -1, dtUtf8, paReplace);
+        vsapi->mapSetData(out, "val", ret.AsString(), -1, dtUtf8, maReplace);
     }
 }
 

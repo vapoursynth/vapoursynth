@@ -132,7 +132,7 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
 
     // obvious nop() so just pass through the input clip
     if ((!firstset && !lastset && !lengthset) || (trimlen && trimlen == d->ai.numSamples)) {
-        vsapi->mapSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, maReplace);
         return;
     }
 
@@ -224,7 +224,7 @@ static const VSFrame *VS_CC audioSpliceGetframe(int n, int activationReason, voi
 static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     int numNodes = vsapi->mapNumElements(in, "clips");
     if (numNodes == 1) {
-        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, nullptr), paAppend);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clips", 0, nullptr), maAppend);
         return;
     }
   
@@ -339,7 +339,7 @@ static void VS_CC audioLoopCreate(const VSMap *in, VSMap *out, void *userData, V
 
     // early termination for the trivial case
     if (times == 1) {
-        vsapi->mapSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, maReplace);
         return;
     }
 
@@ -794,21 +794,21 @@ static void VS_CC splitChannelsCreate(const VSMap *in, VSMap *out, void *userDat
     
     // Pass through when nothing to do
     if (numChannels == 1) {
-        vsapi->mapConsumeNode(out, "clip", node, paAppend);
+        vsapi->mapConsumeNode(out, "clip", node, maAppend);
         return;
     }
     
     VSMap *map = vsapi->createMap();
-    vsapi->mapConsumeNode(map, "clips", node, paAppend);
+    vsapi->mapConsumeNode(map, "clips", node, maAppend);
 
     size_t index = 0;
     for (int i = 0; i < numChannels; i++) {
         while (!(channelLayout & (static_cast<uint64_t>(1) << index)))
             index++;
-        vsapi->mapSetInt(map, "channels_in", i, paReplace);
-        vsapi->mapSetInt(map, "channels_out", i, paReplace);
+        vsapi->mapSetInt(map, "channels_in", i, maReplace);
+        vsapi->mapSetInt(map, "channels_out", i, maReplace);
         VSMap *tmp = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShuffleChannels", map);
-        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(tmp, "clip", 0, nullptr), paAppend);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(tmp, "clip", 0, nullptr), maAppend);
         vsapi->freeMap(tmp);
     }
 
