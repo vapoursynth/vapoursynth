@@ -909,7 +909,7 @@ const VSMap *VSNode::getCreationFunctionArguments(int level) const {
     return nullptr;
 }
 
-void VSNode::setLinear() {
+int VSNode::setLinear() {
     std::lock_guard<std::mutex> lock(cacheMutex);
     cacheLinear = true;
     cacheOverride = true;
@@ -917,6 +917,7 @@ void VSNode::setLinear() {
     cache.setFixedSize(true);   
     cache.setMaxFrames(core->threadPool->threadCount() * 2 + 20);
     registerCache(cacheEnabled);
+    return cache.getMaxFrames() / 2;
 }
 
 void VSNode::setCacheMode(int mode) {

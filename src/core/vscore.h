@@ -905,7 +905,7 @@ public:
     const char *getCreationFunctionName(int level) const;
     const VSMap *getCreationFunctionArguments(int level) const;
 
-    void setLinear();
+    int setLinear();
     void setCacheMode(int mode);
     void cacheFrame(const VSFrame *frame, int n);
 

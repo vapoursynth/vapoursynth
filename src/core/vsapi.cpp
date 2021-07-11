@@ -926,8 +926,8 @@ static VSNode *VS_CC createAudioFilter2(const char *name, const VSAudioInfo *ai,
     return core->createAudioFilter(name, ai, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
-static void VS_CC setLinearFilter(VSNode *node) VS_NOEXCEPT {
-    node->setLinear();
+static int VS_CC setLinearFilter(VSNode *node) VS_NOEXCEPT {
+    return node->setLinear();
 }
 
 static VSFrame *VS_CC newAudioFrame(const VSAudioFormat *format, int numSamples, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
