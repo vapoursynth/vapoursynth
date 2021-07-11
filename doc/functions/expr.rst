@@ -59,7 +59,7 @@ Expr
 
    The operators taking one argument are::
 
-      exp log sqrt abs not dup dupN
+      exp log sqrt sin cos abs not dup dupN
 
    The operators taking two arguments are::
 
@@ -84,6 +84,10 @@ Expr
       d < e
       
       abs(f)
+
+   The sin/cos operators are approximated to within 2e-6 absolute error for
+   inputs with magnitude up to 1e5, and there is no accuracy guarantees for
+   inputs whose magnitude is larger than 2e5.
 
    How to average the Y planes of 3 YUV clips and pass through the UV planes
    unchanged (assuming same format)::
