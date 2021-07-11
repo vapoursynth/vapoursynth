@@ -965,6 +965,7 @@ int main(int argc, char **argv) {
 
     bool success = true;
 
+    // fixme, there's only one graph mode
     if (opts.mode == VSPipeMode::PrintSimpleGraph) {
         std::string graph = printFullNodeGraph(node, vsapi);
         if (outFile)

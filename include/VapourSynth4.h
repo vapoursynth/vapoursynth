@@ -453,15 +453,19 @@ struct VSAPI {
 
     /* 
      * NOT PART OF THE STABLE API!
-     * These functions only exist to retrieve internal details for debug purposes and graph visualization and
-     * will only only work properly when used on a core created with cfEnableGraphInspection
+     * These functions only exist to retrieve internal details for debug purposes and graph visualization
+     * They will only only work properly when used on a core created with cfEnableGraphInspection and are
+     * not safe to use concurrently with frame requests or other API functions
      * NOT PART OF THE STABLE API!
      */
-    const char *(VS_CC *getNodeCreationFunctionName)(VSNode *node, int level) VS_NOEXCEPT; /* level=0 returns the name of the function that created the filter, if it's a helper level created by setInternalFilterRelation() it'll simply return an empty string (""), specifying a higher level will retrieve the function above that invoked it or NULL if a non-existent level is requested */
+    
+    const char *(VS_CC *getNodeCreationFunctionName)(VSNode *node, int level) VS_NOEXCEPT; /* level=0 returns the name of the function that created the filter, specifying a higher level will retrieve the function above that invoked it or NULL if a non-existent level is requested */
     const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNode *node, int level) VS_NOEXCEPT; /* level=0 returns a copy of the arguments passed to the function that created the filter, returns NULL if a non-existent level is requested */
     const char *(VS_CC *getNodeName)(VSNode *node) VS_NOEXCEPT; /* the name passed to create*Filter */
     int (VS_CC *getNodeFilterMode)(VSNode *node) VS_NOEXCEPT; /* VSFilterMode */
     int64_t (VS_CC *getNodeFilterTime)(VSNode *node) VS_NOEXCEPT; /* time spent processing frames in nanoseconds */
+    const VSFilterDependency *(VS_CC *getNodeDependencies)(VSNode *node) VS_NOEXCEPT;
+    int (VS_CC *getNumNodeDependencies)(VSNode *node) VS_NOEXCEPT;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

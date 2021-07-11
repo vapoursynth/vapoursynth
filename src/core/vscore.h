@@ -878,6 +878,14 @@ public:
         return processingTime;
     }
 
+    const VSFilterDependency *getDependencies() const {
+        return dependencies.data();
+    }
+
+    size_t getNumDependencies() const {
+        return dependencies.size();
+    }
+
     bool isRightCore(const VSCore *core2) const {
         return core == core2;
     }

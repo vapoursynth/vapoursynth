@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2020 Fredrik Mellbin
+* Copyright (c) 2021 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -40,13 +40,6 @@ static int getMaxLevel(VSNode *node, const VSAPI *vsapi) {
             return i - 1;
     }
     return 0;
-}
-
-static int getMinRealLevel(VSNode *node, const VSAPI *vsapi) {
-    int level = 0;
-    while (vsapi->getNodeCreationFunctionArguments(node, level) && vsapi->getNodeCreationFunctionName(node, level) && !strcmp(vsapi->getNodeCreationFunctionName(node, level), ""))
-        level++;
-    return level;
 }
 
 static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI *vsapi) {
@@ -115,6 +108,7 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
         return;
 
     int maxLevel = getMaxLevel(node, vsapi);
+    // how to detect groups of dependencies now? go through the graph and lump them all in by the same vsapi->getNodeCreationFunctionArguments(node, 0) pointer?
     int minRealLevel = getMinRealLevel(node, vsapi);
 
     std::string setArgsStr = printVSMap(vsapi->getNodeCreationFunctionArguments(node, minRealLevel), 5, vsapi);
@@ -133,24 +127,12 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
     nodes[baseFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\", shape=oval]");
     lines.insert(thisFrame + " -> " + thisNode);
 
-    const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, 0);
-    int numKeys = vsapi->mapNumKeys(args);
-    for (int i = 0; i < numKeys; i++) {
-        const char *key = vsapi->mapGetKey(args, i);
-        int numElems = vsapi->mapNumElements(args, key);
-        switch (vsapi->mapGetType(args, key)) {
-            case ptVideoNode:
-            case ptAudioNode:
-                for (int j = 0; j < numElems; j++) {
-                    VSNode *ref = vsapi->mapGetNode(args, key, j, nullptr);
-                    lines.insert(mangleNode(ref, vsapi) +  " -> " + thisFrame);
-                    printNodeGraphHelper(lines, nodes, visited, ref, vsapi);
-                    vsapi->freeNode(ref);
-                }
-                break;
-            default:
-                break;
-        }
+    int numDeps = vsapi->getNumNodeDependencies(node);
+    const VSFilterDependency *deps = vsapi->getNodeDependencies(node);
+
+    for (int i = 0; i < numDeps; i++) {
+        lines.insert(mangleNode(deps[i].source, vsapi) + " -> " + thisFrame);
+        printNodeGraphHelper(lines, nodes, visited, deps[i].source, vsapi);
     }
 }
 
@@ -194,24 +176,11 @@ static void printNodeTimesHelper(std::list<NodeTimeRecord> &lines, std::set<VSNo
 
     lines.push_back(NodeTimeRecord{ vsapi->getNodeName(node), vsapi->getNodeFilterMode(node), vsapi->getNodeFilterTime(node) } );
 
-    const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, 0);
-    int numKeys = vsapi->mapNumKeys(args);
-    for (int i = 0; i < numKeys; i++) {
-        const char *key = vsapi->mapGetKey(args, i);
-        int numElems = vsapi->mapNumElements(args, key);
-        switch (vsapi->mapGetType(args, key)) {
-            case ptVideoNode:
-            case ptAudioNode:
-                for (int j = 0; j < numElems; j++) {
-                    VSNode *ref = vsapi->mapGetNode(args, key, j, nullptr);
-                    printNodeTimesHelper(lines, visited, ref, vsapi);
-                    vsapi->freeNode(ref);
-                }
-                break;
-            default:
-                break;
-        }
-    }
+    int numDeps = vsapi->getNumNodeDependencies(node);
+    const VSFilterDependency *deps = vsapi->getNodeDependencies(node);
+
+    for (int i = 0; i < numDeps; i++)
+        printNodeTimesHelper(lines, visited, deps[i].source, vsapi);
 }
 
 static std::string extendStringRight(const std::string &s, size_t length) {

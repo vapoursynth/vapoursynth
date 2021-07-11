@@ -1028,6 +1028,16 @@ static int64_t VS_CC getNodeFilterTime(VSNode *node) VS_NOEXCEPT {
     return node->getFilterTime();
 }
 
+static const VSFilterDependency *VS_CC getNodeDependencies(VSNode *node) VS_NOEXCEPT {
+    assert(node);
+    return node->getDependencies();
+}
+
+static int VS_CC getNumNodeDependencies(VSNode *node) VS_NOEXCEPT {
+    assert(node);
+    return static_cast<int>(node->getNumDependencies());
+}
+
 const VSPLUGINAPI vs_internal_vspapi {
     &getAPIVersion,
     &configPlugin,
@@ -1164,7 +1174,9 @@ const VSAPI vs_internal_vsapi = {
     &getNodeCreationFunctionArguments,
     &getNodeName,
     &getNodeFilterMode,
-    &getNodeFilterTime
+    &getNodeFilterTime,
+    &getNodeDependencies,
+    &getNumNodeDependencies
 };
 
 const vs3::VSAPI3 vs_internal_vsapi3 = {
