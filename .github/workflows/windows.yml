@@ -69,4 +69,4 @@ jobs:
         popd
 
     - name: Run test
-      run: python -m unittest discover -s test
+      run: python -m unittest discover -s test -p "*test.py"
