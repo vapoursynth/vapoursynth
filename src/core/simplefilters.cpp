@@ -1524,11 +1524,20 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
     d->vi = *vsapi->getVideoInfo(node);
     vsapi->freeNode(node);
     d->func = vsapi->mapGetFunction(in, "eval", 0, 0);
+
     int numpropsrc = vsapi->mapNumElements(in, "prop_src");
     if (numpropsrc > 0) {
         d->propsrc.resize(numpropsrc);
         for (int i = 0; i < numpropsrc; i++)
             d->propsrc[i] = vsapi->mapGetNode(in, "prop_src", i, 0);
+    }
+
+    std::vector<VSNode *> clipsrc;
+    int numclipsrc = vsapi->mapNumElements(in, "clip_src");
+    if (numclipsrc > 0) {
+        clipsrc.resize(numclipsrc);
+        for (int i = 0; i < numclipsrc; i++)
+            clipsrc[i] = vsapi->mapGetNode(in, "clip_src", i, 0);
     }
 
     d->in = vsapi->createMap();
@@ -1537,16 +1546,13 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
     std::vector<VSFilterDependency> deps;
     for (int i = 0; i < numpropsrc; i++)
         deps.push_back({d->propsrc[i], 1});
+    for (int i = 0; i < numclipsrc; i++)
+        deps.push_back({clipsrc[i], 1});
     vsapi->createVideoFilter(out, "FrameEval", &d->vi, (d->propsrc.size() > 0) ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree, (d->propsrc.size() > 0) ? fmParallelRequests : fmUnordered, deps.data(), numpropsrc, d.get(), core);
     d.release();
 
-    // FIXME, review
-    // Alternate solution #1: add an optional list of clip dependencies for the clip selection case
-    // FrameEval can invoke additional filters that will be destroyed after the request making cache addition pointless (can't know the original clip passed into frameeval)
-    // Only allow FrameEval to transform a predefined list of input clips, or at least greatly encourage this?
-    node = vsapi->mapGetNode(out, "clip", 0, nullptr);
-    vsapi->setCacheMode(node, 1);
-    vsapi->freeNode(node);
+    for (auto &iter : clipsrc)
+        vsapi->freeNode(iter);
 }
 
 //////////////////////////////////////////
@@ -2138,11 +2144,8 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
 //////////////////////////////////////////
 // SetFrameProp
 
-// FIXME, remove delete argument later
-
 typedef struct {
     std::string prop;
-    bool del;
     std::vector<int64_t> ints;
     std::vector<double> floats;
     std::vector<std::string> strings;
@@ -2163,17 +2166,13 @@ static const VSFrame *VS_CC setFramePropGetFrame(int n, int activationReason, vo
 
         VSMap *props = vsapi->getFramePropertiesRW(dst);
 
-        if (d->del)
-            vsapi->mapDeleteKey(props, d->prop.c_str());
-        else {
-            if (!d->ints.empty())
-                vsapi->mapSetIntArray(props, d->prop.c_str(), d->ints.data(), static_cast<int>(d->ints.size()));
-            else if (!d->floats.empty())
-                vsapi->mapSetFloatArray(props, d->prop.c_str(), d->floats.data(), static_cast<int>(d->floats.size()));
-            else if (!d->strings.empty()) {
-                for (size_t i = 0; i < d->strings.size(); i++)
-                    vsapi->mapSetData(props, d->prop.c_str(), d->strings[i].c_str(), static_cast<int>(d->strings[i].length()), d->dataType[i], i > 0 ? maAppend : maReplace);
-            }
+        if (!d->ints.empty())
+            vsapi->mapSetIntArray(props, d->prop.c_str(), d->ints.data(), static_cast<int>(d->ints.size()));
+        else if (!d->floats.empty())
+            vsapi->mapSetFloatArray(props, d->prop.c_str(), d->floats.data(), static_cast<int>(d->floats.size()));
+        else if (!d->strings.empty()) {
+            for (size_t i = 0; i < d->strings.size(); i++)
+                vsapi->mapSetData(props, d->prop.c_str(), d->strings[i].c_str(), static_cast<int>(d->strings[i].length()), d->dataType[i], i > 0 ? maAppend : maReplace);
         }
 
         return dst;
@@ -2184,9 +2183,6 @@ static const VSFrame *VS_CC setFramePropGetFrame(int n, int activationReason, vo
 
 static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<SetFramePropData> d(new SetFramePropData(vsapi));
-    int err;
-
-    d->del = !!vsapi->mapGetInt(in, "delete", 0, &err);
 
     int num_ints = vsapi->mapNumElements(in, "intval");
     int num_floats = vsapi->mapNumElements(in, "floatval");
@@ -2195,10 +2191,7 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
     if ((num_ints > -1) + (num_floats > -1) + (num_strings > -1) > 1)
         RETERROR("SetFrameProp: only one of 'intval', 'floatval', and 'data' can be passed->");
 
-    if (d->del && (num_ints + num_floats + num_strings > -3))
-        RETERROR("SetFrameProp: 'delete' can't be True when passing one of 'intval', 'floatval', or 'data'.");
-
-    if (!d->del && (num_ints + num_floats + num_strings == -3))
+    if (num_ints + num_floats + num_strings == -3)
         RETERROR("SetFrameProp: one of 'intval', 'floatval', or 'data' must be passed->");
 
     int prop_len = vsapi->mapGetDataSize(in, "prop", 0, nullptr);
@@ -2228,9 +2221,6 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
             d->dataType[i] = vsapi->mapGetDataTypeHint(in, "data", i, nullptr);
         }
     }
-
-    if (d->del)
-        vsapi->logMessage(mtWarning, "SetFrameProp: 'delete' argument has been deprecated and will be removed in a future release, use RemoveFrameProps instead", core);
 
     VSFilterDependency deps[] = {d->node, 1};
     vsapi->createVideoFilter(out, "SetFrameProp", vsapi->getVideoInfo(d->node), setFramePropGetFrame, filterFree<SetFramePropData>, fmParallel, deps, 1, d.get(), core);
@@ -2449,14 +2439,14 @@ void VS_CC stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("StackHorizontal", "clips:vnode[];", "clip:vnode;", stackCreate, 0, plugin);
     vspapi->registerFunction("BlankClip", "clip:vnode:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;", "clip:vnode;", blankClipCreate, 0, plugin);
     vspapi->registerFunction("AssumeFPS", "clip:vnode;src:vnode:opt;fpsnum:int:opt;fpsden:int:opt;", "clip:vnode;", assumeFPSCreate, 0, plugin);
-    vspapi->registerFunction("FrameEval", "clip:vnode;eval:func;prop_src:vnode[]:opt;", "clip:vnode;", frameEvalCreate, 0, plugin);
+    vspapi->registerFunction("FrameEval", "clip:vnode;eval:func;prop_src:vnode[]:opt;clip_src:vnode[]:opt;", "clip:vnode;", frameEvalCreate, 0, plugin);
     vspapi->registerFunction("ModifyFrame", "clip:vnode;clips:vnode[];selector:func;", "clip:vnode;", modifyFrameCreate, 0, plugin);
     vspapi->registerFunction("Transpose", "clip:vnode;", "clip:vnode;", transposeCreate, 0, plugin);
     vspapi->registerFunction("PEMVerifier", "clip:vnode;upper:float[]:opt;lower:float[]:opt;", "clip:vnode;", pemVerifierCreate, 0, plugin);
     vspapi->registerFunction("PlaneStats", "clipa:vnode;clipb:vnode:opt;plane:int:opt;prop:data:opt;", "clip:vnode;", planeStatsCreate, 0, plugin);
     vspapi->registerFunction("ClipToProp", "clip:vnode;mclip:vnode;prop:data:opt;", "clip:vnode;", clipToPropCreate, 0, plugin);
     vspapi->registerFunction("PropToClip", "clip:vnode;prop:data:opt;", "clip:vnode;", propToClipCreate, 0, plugin);
-    vspapi->registerFunction("SetFrameProp", "clip:vnode;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode;", setFramePropCreate, 0, plugin);
+    vspapi->registerFunction("SetFrameProp", "clip:vnode;prop:data;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode;", setFramePropCreate, 0, plugin);
     vspapi->registerFunction("SetFrameProps", "clip:vnode;any", "clip:vnode;", setFramePropsCreate, 0, plugin);
     vspapi->registerFunction("RemoveFrameProps", "clip:vnode;props:data:opt;", "clip:vnode;", removeFramePropsCreate, 0, plugin);
     vspapi->registerFunction("SetFieldBased", "clip:vnode;value:int;", "clip:vnode;", setFieldBasedCreate, 0, plugin);

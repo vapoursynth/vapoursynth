@@ -692,8 +692,6 @@ const std::string &VSPluginFunction::getReturnType() const {
 VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1) {
 
-    // fixme, apply makelinear
-
     if (flags & ~(vs3::nfNoCache | vs3::nfIsCache | vs3::nfMakeLinear))
         throw VSException("Filter " + name  + " specified unknown flags");
 
