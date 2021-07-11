@@ -1,3 +1,4 @@
+import math
 import unittest
 import vapoursynth as vs
 
@@ -420,6 +421,29 @@ class CoreTestSequence(unittest.TestCase):
         val = clip.get_frame(0).get_read_array(0)[0,0]
         self.assertEqual(val, 35)
 
+    def helper_sincos(self, op='sin', f=lambda x: math.sin(x)):
+        clip = self.core.std.BlankClip(format=vs.GRAYS, color=10, width=1025, height=1024, length=2)
+        def init_frame(n, f):
+            fout = f.copy()
+            arr = fout.get_write_array(0)
+            for i in range(len(arr)):
+                row = arr[i]
+                l = len(row)
+                for j in range(l):
+                    row[j] = (-1 if n == 0 else 1) * (i * l + j) * 1e-3
+            return fout
+        clip = self.core.std.ModifyFrame(clip, clip, init_frame)
+        clip2 = self.core.std.Expr(clip, "x %s" % op)
+        for n in range(clip2.num_frames):
+            f1, f2 = map(lambda c: c.get_frame(n), [clip, clip2])
+            arr1, arr2 = map(lambda f: f.get_read_array(0), [f1, f2])
+            for i in range(clip.height):
+                for j in range(clip.width):
+                    self.assertTrue(abs(arr2[i,j] - f(arr1[i,j])) < 1e-6)
+    def test_expr_sin64(self):
+        self.helper_sincos('sin', lambda x: math.sin(x))
+    def test_expr_cos65(self):
+        self.helper_sincos('cos', lambda x: math.cos(x))
 
         
 if __name__ == '__main__':
