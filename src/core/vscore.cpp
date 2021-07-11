@@ -1737,7 +1737,7 @@ VSCore::VSCore(int flags) :
 
     // Initialize internal plugins
     p = new VSPlugin(this);
-    vs_internal_vspapi.configPlugin(VS_STD_PLUGIN_ID, "std", "VapourSynth Core Functions", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, p);
+    vs_internal_vspapi.configPlugin(VSH_STD_PLUGIN_ID, "std", "VapourSynth Core Functions", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, p);
     loadPluginInitialize(p, &vs_internal_vspapi);
     exprInitialize(p, &vs_internal_vspapi);
     genericInitialize(p, &vs_internal_vspapi);

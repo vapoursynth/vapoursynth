@@ -798,7 +798,7 @@ static void VS_CC vfmFree(void *instanceData, VSCore *core, const VSAPI *vsapi) 
 static VSMap *invokePlaneDifference(VSNode *node, VSCore *core, const VSAPI *vsapi) {
     VSMap *args, *ret;
     const char *prop = "VFMPlaneStats";
-    VSPlugin *stdplugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
+    VSPlugin *stdplugin = vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core);
 
     args = vsapi->createMap();
     vsapi->mapSetNode(args, "clip", node, maAppend);

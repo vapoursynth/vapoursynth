@@ -653,7 +653,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     if (err) {
         // Can only happen for CoreInfo.
         VSMap *args = vsapi->createMap();
-        VSPlugin *stdPlugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
+        VSPlugin *stdPlugin = vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core);
         VSMap *ret = vsapi->invoke(stdPlugin, "BlankClip", args);
         vsapi->freeMap(args);
         const char *error = vsapi->mapGetError(ret);
@@ -728,7 +728,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 
 void VS_CC textInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->configPlugin(VS_TEXT_PLUGIN_ID, "text", "VapourSynth Text", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
+    vspapi->configPlugin(VSH_TEXT_PLUGIN_ID, "text", "VapourSynth Text", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("Text",
         "clip:vnode;"
         "text:data;"

@@ -982,7 +982,7 @@ int main(int argc, char **argv) {
                 vsapi->mapSetInt(args, "first", opts.startPos, maAppend);
             if (opts.endPos > -1)
                 vsapi->mapSetInt(args, "last", opts.endPos, maAppend);
-            VSMap *result = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, vssapi->getCore(se)), (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
+            VSMap *result = vsapi->invoke(vsapi->getPluginByID(VSH_STD_PLUGIN_ID, vssapi->getCore(se)), (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
             vsapi->freeMap(args);
             if (vsapi->mapGetError(result)) {
                 fprintf(stderr, "%s\n", vsapi->mapGetError(result));

@@ -23,6 +23,10 @@
 #endif
 #include "VapourSynth4.h"
 
+#define VSH_STD_PLUGIN_ID "com.vapoursynth.std"
+#define VSH_RESIZE_PLUGIN_ID "com.vapoursynth.resize"
+#define VSH_TEXT_PLUGIN_ID "com.vapoursynth.text"
+
 #ifdef __cplusplus
 namespace vsh {
 #define VSH4_MANGLE_FUNCTION_NAME(name) name

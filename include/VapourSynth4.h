@@ -31,10 +31,6 @@
 
 #define VS_AUDIO_FRAME_SAMPLES 3072
 
-#define VS_STD_PLUGIN_ID "com.vapoursynth.std"
-#define VS_RESIZE_PLUGIN_ID "com.vapoursynth.resize"
-#define VS_TEXT_PLUGIN_ID "com.vapoursynth.text"
-
 /* Convenience for C++ users. */
 #ifdef __cplusplus
 #    define VS_EXTERN_C extern "C"
