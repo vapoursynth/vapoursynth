@@ -911,9 +911,25 @@ const VSMap *VSNode::getCreationFunctionArguments(int level) const {
     return nullptr;
 }
 
+void VSNode::setLinear() {
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    cacheLinear = true;
+    cacheOverride = true;
+    cacheEnabled = true;
+    cache.setFixedSize(true);   
+    cache.setMaxFrames(core->threadPool->threadCount() + 20);
+    registerCache(cacheEnabled);
+}
+
 void VSNode::setCacheMode(int mode) {
     {
         std::lock_guard<std::mutex> lock(cacheMutex);
+
+        if (cacheLinear) {
+            // simply disregard cache mode changes for linear filters
+            return;
+        }
+
         bool oldCacheEnable = cacheEnabled;
         if (mode == -1) {
             cacheOverride = false;
@@ -981,8 +997,7 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
             vsFatal("Guard memory corrupted in frame %d returned from %s", n, name.c_str());
 #endif
 
-        PVSFrame ref;
-        ref = const_cast<VSFrame *>(r);
+        PVSFrame ref(const_cast<VSFrame *>(r));
 
         if (cacheEnabled) {
             std::lock_guard<std::mutex> lock(cacheMutex);
@@ -994,6 +1009,12 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     }
 
     return nullptr;
+}
+
+void VSNode::cacheFrame(const VSFrame *frame, int n) {
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    assert(cacheLinear);
+    cache.insert(n, const_cast<VSFrame *>(frame));
 }
 
 void VSNode::reserveThread() {

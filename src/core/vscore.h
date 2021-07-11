@@ -746,6 +746,7 @@ private:
         };
 
         VSCache(int maxSize = 20, int maxHistorySize = 20, bool fixedSize = false);
+
         ~VSCache() {
             clear();
         }
@@ -753,16 +754,23 @@ private:
         inline int getMaxFrames() const {
             return maxSize;
         }
+
         inline void setMaxFrames(int m) {
             maxSize = m;
             trim(maxSize, maxHistorySize);
         }
+
         inline int getMaxHistory() const {
             return maxHistorySize;
         }
+
         inline void setMaxHistory(int m) {
             maxHistorySize = m;
             trim(maxSize, maxHistorySize);
+        }
+
+        inline void setFixedSize(bool fixed) {
+            fixedSize = fixed;
         }
 
         inline size_t size() const {
@@ -824,9 +832,9 @@ private:
     std::atomic<int64_t> processingTime;
 
     std::mutex cacheMutex;
+    bool cacheLinear = false;
     bool cacheOverride = false;
     bool cacheEnabled = false; // FIXME, needs to be atomic?
-    bool cacheMakeLinear = false; // FIXME, not implemented
     VSCache cache;
 
     // api3
@@ -889,7 +897,9 @@ public:
     const char *getCreationFunctionName(int level) const;
     const VSMap *getCreationFunctionArguments(int level) const;
 
+    void setLinear();
     void setCacheMode(int mode);
+    void cacheFrame(const VSFrame *frame, int n);
 
     // to get around encapsulation a bit, more elegant than making everything friends in this case
     void reserveThread();

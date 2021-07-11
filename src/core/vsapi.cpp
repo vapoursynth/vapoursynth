@@ -788,6 +788,11 @@ static void VS_CC releaseFrameEarly(VSNode *node, int n, VSFrameContext *frameCt
     }
 }
 
+void VS_CC cacheFrame(const VSFrame *frame, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
+    assert(frame && n >= 0 && frameCtx);
+    frameCtx->node->cacheFrame(frame, n);
+}
+
 static VSFunction *VS_CC addFunctionRef(VSFunction *func) VS_NOEXCEPT {
     assert(func);
     func->add_ref();
@@ -921,6 +926,10 @@ static VSNode *VS_CC createAudioFilter2(const char *name, const VSAudioInfo *ai,
     return core->createAudioFilter(name, ai, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
+static void VS_CC setLinearFilter(VSNode *node) VS_NOEXCEPT {
+    node->setLinear();
+}
+
 static VSFrame *VS_CC newAudioFrame(const VSAudioFormat *format, int numSamples, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core && numSamples > 0);
     return new VSFrame(*format, numSamples, propSrc, core);
@@ -1030,6 +1039,8 @@ const VSAPI vs_internal_vsapi = {
     &createVideoFilter2,
     &createAudioFilter,
     &createAudioFilter2,
+    &setLinearFilter,
+
     &freeNode,
     &addNodeRef,
     &getNodeType,
@@ -1070,6 +1081,7 @@ const VSAPI vs_internal_vsapi = {
     &getFrameFilter,
     &requestFrameFilter,
     &releaseFrameEarly,
+    &cacheFrame,
     &setFilterError,
 
     &createFunction,

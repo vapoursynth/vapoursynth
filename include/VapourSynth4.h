@@ -320,6 +320,7 @@ struct VSAPI {
     VSNode *(VS_CC *createVideoFilter2)(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createVideoFilter but returns a pointer to the VSNode directly or NULL on failure */
     void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
     VSNode *(VS_CC *createAudioFilter2)(const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createAudioFilter but returns a pointer to the VSNode directly or NULL on failure */
+    void (VS_CC *setLinearFilter)(VSNode *node) VS_NOEXCEPT;
 
     void (VS_CC *freeNode)(VSNode *node) VS_NOEXCEPT;
     VSNode *(VS_CC *addNodeRef)(VSNode *node) VS_NOEXCEPT;
@@ -364,6 +365,7 @@ struct VSAPI {
     const VSFrame *(VS_CC *getFrameFilter)(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
     void (VS_CC *requestFrameFilter)(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
     void (VS_CC *releaseFrameEarly)(VSNode *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function, unless this function is called a requested frame is kept in memory until the end of processing the current frame */
+    void (VS_CC *cacheFrame)(const VSFrame *frame, int n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to store intermediate frames in cache, useful for filters where random access is slow, must call setLinearFilter on the node before using or the result is undefined  */
     void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to signal errors in the filter getframe function */
 
     /* External functions */

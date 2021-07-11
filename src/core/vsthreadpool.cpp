@@ -106,6 +106,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
             VSNode *node = mainContext->node;
 
+            // FIXME, very ugly code duplication
             // Fast exit path for checking cache
             if (node->cacheEnabled && mainContext->numFrameRequests == 0 && !mainContext->hasError()) {
                 PVSFrame f = node->getCachedFrameInternal(mainContext->n);
