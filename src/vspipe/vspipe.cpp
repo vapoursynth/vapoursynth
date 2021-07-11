@@ -965,13 +965,12 @@ int main(int argc, char **argv) {
 
     bool success = true;
 
-    // fixme, there's only one graph mode
     if (opts.mode == VSPipeMode::PrintSimpleGraph) {
-        std::string graph = printFullNodeGraph(node, vsapi);
+        std::string graph = printNodeGraph(true, node, vsapi);
         if (outFile)
             fprintf(outFile, "%s\n", graph.c_str());
     } else if (opts.mode == VSPipeMode::PrintFullGraph) {
-        std::string graph = printFullNodeGraph(node, vsapi);
+        std::string graph = printNodeGraph(false, node, vsapi);
         if (outFile)
             fprintf(outFile, "%s\n", graph.c_str());
     } else {

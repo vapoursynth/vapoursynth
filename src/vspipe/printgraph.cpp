@@ -103,52 +103,44 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
     return setArgsStr;
 }
 
-static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, std::set<VSNode *> &visited, VSNode *node, const VSAPI *vsapi) {
+static void printNodeGraphHelper(bool simple, std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, std::set<VSNode *> &visited, VSNode *node, const VSAPI *vsapi) {
     if (!visited.insert(node).second)
         return;
 
     int maxLevel = getMaxLevel(node, vsapi);
     // how to detect groups of dependencies now? go through the graph and lump them all in by the same vsapi->getNodeCreationFunctionArguments(node, 0) pointer?
-    int minRealLevel = getMinRealLevel(node, vsapi);
 
-    std::string setArgsStr = printVSMap(vsapi->getNodeCreationFunctionArguments(node, minRealLevel), 5, vsapi);
+    std::string setArgsStr = printVSMap(vsapi->getNodeCreationFunctionArguments(node, 0), 5, vsapi);
 
     std::string thisNode = mangleNode(node, vsapi);
     std::string thisFrame = mangleFrame(node, 0, vsapi);
     std::string baseFrame = mangleFrame(node, maxLevel, vsapi);
 
-    if (minRealLevel != 0) {
-        nodes[baseFrame].insert("label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, minRealLevel)) + setArgsStr + "\"");
-        nodes[baseFrame].insert(thisFrame + " [label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, minRealLevel)) + "\", shape=octagon]");
-    } else {
-        nodes[baseFrame].insert(thisFrame + " [label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, minRealLevel)) + setArgsStr + "\", shape=box]");
-    }
-
-    nodes[baseFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\", shape=oval]");
-    lines.insert(thisFrame + " -> " + thisNode);
+    nodes[simple ? baseFrame: thisFrame].insert("label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, simple ? maxLevel : 0)) + setArgsStr + "\"");
+    nodes[simple ? baseFrame : thisFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\", shape=oval]");
 
     int numDeps = vsapi->getNumNodeDependencies(node);
     const VSFilterDependency *deps = vsapi->getNodeDependencies(node);
 
     for (int i = 0; i < numDeps; i++) {
-        lines.insert(mangleNode(deps[i].source, vsapi) + " -> " + thisFrame);
-        printNodeGraphHelper(lines, nodes, visited, deps[i].source, vsapi);
+        lines.insert(mangleNode(deps[i].source, vsapi) + " -> " + thisNode);
+        printNodeGraphHelper(simple, lines, nodes, visited, deps[i].source, vsapi);
     }
 }
 
-std::string printFullNodeGraph(VSNode *node, const VSAPI *vsapi) {
+std::string printNodeGraph(bool simple, VSNode *node, const VSAPI *vsapi) {
     std::map<std::string, std::set<std::string>> nodes;
     std::set<std::string> lines;
     std::set<VSNode *> visited;
     std::string s = "digraph {\n";
-    printNodeGraphHelper(lines, nodes, visited, node, vsapi);
+    printNodeGraphHelper(simple, lines, nodes, visited, node, vsapi);
     for (const auto &iter : nodes) {
         if (iter.second.size() > 1) {
-            s += "  subgraph cluster_" +iter.first  + " {\n";
+            s += "  subgraph cluster_" + iter.first  + " {\n";
             for (const auto &iter2 : iter.second)
                 s += "    " + iter2 + "\n";
             s += "  }\n";
-        } else if (iter.second.size() <= 2) {
+        } else if (iter.second.size() <= 1) {
             for (const auto &iter2 : iter.second)
                 s += "  " + iter2 + "\n";
         }
