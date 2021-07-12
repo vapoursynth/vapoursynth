@@ -24,13 +24,16 @@
 #include <stdexcept>
 #include "stdafx.h"
 
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 #include "AVIReadHandler.h"
+#include "../../core/version.h"
 #include "../../common/p2p_api.h"
 #include "../../common/fourcc.h"
 #include "../../common/vsutf16.h"
 #include <vd2/system/error.h>
+
+using namespace vsh;
 
 static int ImageSize(const VSVideoInfo *vi, DWORD fourcc, int bitcount = 0) {
     int image_size;
@@ -45,10 +48,10 @@ static int ImageSize(const VSVideoInfo *vi, DWORD fourcc, int bitcount = 0) {
         image_size = BMPSizeHelper(vi->height, vi->width * bitcount / 8);
         break;
     case VS_FCC('b48r'):
-        image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample * 3);
+        image_size = BMPSizeHelper(vi->height, vi->width * vi->format.bytesPerSample * 3);
         break;
     case VS_FCC('b64a'):
-        image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample * 4);
+        image_size = BMPSizeHelper(vi->height, vi->width * vi->format.bytesPerSample * 4);
         break;
     case VS_FCC('YUY2'):
         image_size = BMPSizeHelper(vi->height, vi->width * 2);
@@ -56,26 +59,26 @@ static int ImageSize(const VSVideoInfo *vi, DWORD fourcc, int bitcount = 0) {
     case VS_FCC('GREY'):
     case VS_FCC('Y800'):
     case VS_FCC('Y8  '):
-        image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample);
+        image_size = BMPSizeHelper(vi->height, vi->width * vi->format.bytesPerSample);
         break;
         // general planar
     default:
-        image_size = (vi->width * vi->format->bytesPerSample) >> vi->format->subSamplingW;
+        image_size = (vi->width * vi->format.bytesPerSample) >> vi->format.subSamplingW;
         if (image_size) {
             image_size  *= vi->height;
-            image_size >>= vi->format->subSamplingH;
+            image_size >>= vi->format.subSamplingH;
             image_size  *= 2;
         }
-        image_size += vi->width * vi->format->bytesPerSample * vi->height;
+        image_size += vi->width * vi->format.bytesPerSample * vi->height;
         image_size = (image_size + 3) & ~3;
     }
     return image_size;
 }
 
-static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_alpha, const uint8_t *srcp, int src_size, DWORD fourcc, int bitcount, bool flip, const VSAPI *vsapi) {
+static void unpackframe(const VSVideoInfo *vi, VSFrame *dst, VSFrame *dst_alpha, const uint8_t *srcp, int src_size, DWORD fourcc, int bitcount, bool flip, const VSAPI *vsapi) {
     bool padrows = false;
 
-    const VSFormat *fi = vsapi->getFrameFormat(dst);
+    const VSVideoFormat *fi = vsapi->getVideoFrameFormat(dst);
     p2p_buffer_param p = {};
     p.width = vi->width;
     p.height = vi->height;
@@ -121,7 +124,7 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
             p.packing = p2p_rgb48_be;
         else if (fourcc == VS_FCC('b64a'))
             p.packing = p2p_argb64_be;
-        p.src_stride[0] = ((vi->width*vi->format->bytesPerSample*(p.packing == p2p_rgb48_be ? 3 : 4) + 3) & ~3);
+        p.src_stride[0] = ((vi->width*vi->format.bytesPerSample*(p.packing == p2p_rgb48_be ? 3 : 4) + 3) & ~3);
         if (flip) {
             p.src[0] = srcp + p.src_stride[0] * (p.height - 1);
             p.src_stride[0] = -p.src_stride[0];
@@ -140,13 +143,13 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
         // general planar
     default:
         if (!padrows && src_size) {
-            int packed_size = vi->height * vi->width * vi->format->bytesPerSample;
-            if (vi->format->numPlanes == 3)
-                packed_size += 2*(packed_size >> (vi->format->subSamplingH + vi->format->subSamplingW));
+            int packed_size = vi->height * vi->width * vi->format.bytesPerSample;
+            if (vi->format.numPlanes == 3)
+                packed_size += 2*(packed_size >> (vi->format.subSamplingH + vi->format.subSamplingW));
             if (((src_size + 3) & ~3) != ((packed_size + 3) & ~3))
                 padrows = true;
         }
-        for (int i = 0; i < vi->format->numPlanes; i++) {
+        for (int i = 0; i < vi->format.numPlanes; i++) {
             bool switchuv =  (fourcc != VS_FCC('I420') && fourcc != VS_FCC('Y41B'));
             int plane = i;
             if (switchuv) {
@@ -156,11 +159,11 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
                     plane = 1;
             }
 
-            int rowsize = vsapi->getFrameWidth(dst, plane) * vi->format->bytesPerSample;
+            int rowsize = vsapi->getFrameWidth(dst, plane) * vi->format.bytesPerSample;
             if (padrows)
                 rowsize = (rowsize + 3) & ~3;
 
-            vs_bitblt(vsapi->getWritePtr(dst, plane), vsapi->getStride(dst, plane), srcp, rowsize, rowsize, vsapi->getFrameHeight(dst, plane));
+            vsh::bitblt(vsapi->getWritePtr(dst, plane), vsapi->getStride(dst, plane), srcp, rowsize, rowsize, vsapi->getFrameHeight(dst, plane));
             srcp += vsapi->getFrameHeight(dst, plane) * rowsize;
         }
         break;
@@ -172,7 +175,6 @@ class AVISource {
     IAVIReadStream *pvideo;
     HIC hic;
     VSVideoInfo vi[2];
-    int numOutputs;
     BYTE* srcbuffer;
     int srcbuffer_size;
     BITMAPINFOHEADER* pbiSrc;
@@ -184,17 +186,17 @@ class AVISource {
     BYTE* decbuf;
     bool output_alpha;
 
-    const VSFrameRef *last_frame;
-    const VSFrameRef *last_alpha_frame;
+    const VSFrame *last_frame;
+    const VSFrame *last_alpha_frame;
     int last_frame_no;
 
     LRESULT DecompressBegin(LPBITMAPINFOHEADER lpbiSrc, LPBITMAPINFOHEADER lpbiDst);
-    LRESULT DecompressFrame(int n, bool preroll, bool &dropped_frame, VSFrameRef *frame, VSFrameRef *alpha, VSCore *core, const VSAPI *vsapi);
+    LRESULT DecompressFrame(int n, bool preroll, bool &dropped_frame, VSFrame *frame, VSFrame *alpha, VSCore *core, const VSAPI *vsapi);
 
     void CheckHresult(HRESULT hr, const char* msg, VSCore *core, const VSAPI *vsapi);
     bool AttemptCodecNegotiation(DWORD fccHandler, BITMAPINFOHEADER* bmih);
     void LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI *vsapi);
-    bool DecompressQuery(const VSFormat *format, bool forcedType, int bitcount, const int fourccs[], int nfourcc = 1) ;
+    bool DecompressQuery(uint32_t format, VSCore *core, const VSAPI *vsapi, bool forcedType, int bitcount, const int fourccs[], int nfourcc = 1) ;
 public:
 
     enum {
@@ -207,36 +209,32 @@ public:
     AVISource(const char filename[], const char pixel_type[],
         const char fourCC[], bool output_alpha, int mode, VSCore *core, const VSAPI *vsapi);  // mode: 0=detect, 1=avifile, 2=opendml
     void CleanUp(const VSAPI *vsapi);
-    const VSFrameRef *GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+    const VSFrame *GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 
     static void VS_CC create_AVISource(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
         try {
             const intptr_t mode = reinterpret_cast<intptr_t>(userData);
             int err;
-            const char* path = vsapi->propGetData(in, "path", 0, nullptr);
-            const char* pixel_type = vsapi->propGetData(in, "pixel_type", 0, &err);
+            const char* path = vsapi->mapGetData(in, "path", 0, nullptr);
+            const char* pixel_type = vsapi->mapGetData(in, "pixel_type", 0, &err);
             if (!pixel_type)
                 pixel_type = "";
-            const char* fourCC = vsapi->propGetData(in, "fourcc", 0, &err);
+            const char* fourCC = vsapi->mapGetData(in, "fourcc", 0, &err);
             if (!fourCC)
                 fourCC = "";
-            bool output_alpha = !!vsapi->propGetInt(in, "alpha", 0, &err);
+            bool output_alpha = !!vsapi->mapGetInt(in, "alpha", 0, &err);
 
             AVISource *avs = new AVISource(path, pixel_type, fourCC, output_alpha, static_cast<int>(mode), core, vsapi);
-            vsapi->createFilter(in, out, "AVISource", filterInit, filterGetFrame, filterFree, fmUnordered, nfMakeLinear, static_cast<void *>(avs), core);
-
+            VSNode *node = vsapi->createVideoFilter2("AVISource", avs->vi, filterGetFrame, filterFree, fmUnordered, nullptr, 0, static_cast<void *>(avs), core);
+            vsapi->setLinearFilter(node);
+            vsapi->mapConsumeNode(out, "clip", node, maAppend);
         } catch (std::runtime_error &e) {
-            vsapi->setError(out, e.what());
+            vsapi->mapSetError(out, e.what());
         }
     }
 
-    static void VS_CC filterInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-        AVISource *d = static_cast<AVISource *>(*instanceData);
-        vsapi->setVideoInfo(d->vi, d->numOutputs, node);
-    }
-
-    static const VSFrameRef *VS_CC filterGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-        AVISource *d = static_cast<AVISource *>(*instanceData);
+    static const VSFrame *VS_CC filterGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+        AVISource *d = static_cast<AVISource *>(instanceData);
 
         if (activationReason == arInitial) {
             try {
@@ -255,13 +253,14 @@ public:
     }
 };
 
-bool AVISource::DecompressQuery(const VSFormat *format, bool forcedType, int bitcount, const int fourccs[], int nfourcc) {
+bool AVISource::DecompressQuery(uint32_t format, VSCore *core, const VSAPI *vsapi, bool forcedType, int bitcount, const int fourccs[], int nfourcc) {
     char fcc[5];
     fcc[4] = 0;
     for (int i = 0; i < nfourcc; i++) {
         *reinterpret_cast<int *>(fcc) = fourccs[i];
         biDst.biCompression = fourccs[0];
-        vi[0].format = format;
+        
+        vsapi->getVideoFormatByID(&vi[0].format, format, core);
         biDst.biSizeImage = ImageSize(vi, biDst.biCompression, bitcount);
         biDst.biBitCount = bitcount;
 
@@ -274,8 +273,7 @@ bool AVISource::DecompressQuery(const VSFormat *format, bool forcedType, int bit
 
     if (forcedType) {
         *reinterpret_cast<int *>(fcc) = fourccs[0];
-        sprintf(buf, "AVISource: the video decompressor couldn't produce %s output", fcc);
-        throw std::runtime_error(buf);
+        throw std::runtime_error("AVISource: the video decompressor couldn't produce " + std::string(fcc) + " output");
     }
     return true;
 }
@@ -295,7 +293,7 @@ LRESULT AVISource::DecompressBegin(LPBITMAPINFOHEADER lpbiSrc, LPBITMAPINFOHEADE
         lpbiDst, 0, 0, 0, lpbiDst->biWidth, lpbiDst->biHeight);
 }
 
-LRESULT AVISource::DecompressFrame(int n, bool preroll, bool &dropped_frame, VSFrameRef *frame, VSFrameRef *alpha, VSCore *core, const VSAPI *vsapi) {
+LRESULT AVISource::DecompressFrame(int n, bool preroll, bool &dropped_frame, VSFrame *frame, VSFrame *alpha, VSCore *core, const VSAPI *vsapi) {
     _RPT2(0,"AVISource: Decompressing frame %d%s\n", n, preroll ? " (preroll)" : "");
     long bytes_read;
     if (!hic) {
@@ -334,15 +332,7 @@ LRESULT AVISource::DecompressFrame(int n, bool preroll, bool &dropped_frame, VSF
 
     unpackframe(vi, frame, alpha, decbuf, 0, biDst.biCompression, biDst.biBitCount, bInvertFrames, vsapi);
 
-    if (pvideo->IsKeyFrame(n)) {
-        vsapi->propSetData(vsapi->getFramePropsRW(frame), "_PictType", "I", 1, paAppend);
-        if (alpha)
-            vsapi->propSetData(vsapi->getFramePropsRW(alpha), "_PictType", "I", 1, paAppend);
-    } else {
-        vsapi->propSetData(vsapi->getFramePropsRW(frame), "_PictType", "P", 1, paAppend);
-        if (alpha)
-            vsapi->propSetData(vsapi->getFramePropsRW(alpha), "_PictType", "P", 1, paAppend);
-    }
+    vsapi->mapSetData(vsapi->getFramePropertiesRW(frame), "_PictType", pvideo->IsKeyFrame(n) ? "I" : "P", 1, dtUtf8, maAppend);
 
     return ICERR_OK;
 }
@@ -429,7 +419,7 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
     vi[0].height = abs(pbiSrc->biHeight);
     vi[0].fpsNum = asi.dwRate;
     vi[0].fpsDen = asi.dwScale;
-    vs_normalizeRational(&vi[0].fpsNum, &vi[0].fpsDen);
+    vsh::reduceRational(&vi[0].fpsNum, &vi[0].fpsDen);
     vi[0].numFrames = asi.dwLength;
 
     // try the requested decoder, if specified
@@ -440,44 +430,43 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
 
     // see if we can handle the video format directly
     if (pbiSrc->biCompression == VS_FCC('YUY2')) {
-        vi[0].format = vsapi->getFormatPreset(pfYUV422P8, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfYUV422P8, core);
     } else if (pbiSrc->biCompression == VS_FCC('YV12') || pbiSrc->biCompression == VS_FCC('I420')) {
-        vi[0].format = vsapi->getFormatPreset(pfYUV420P8, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfYUV420P8, core);
     } else if (pbiSrc->biCompression == BI_RGB && pbiSrc->biBitCount == 32) {
-        vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
-        numOutputs = output_alpha ? 2 : 1;
+        vsapi->getVideoFormatByID(&vi[0].format, pfRGB24, core);
         vi[1] = vi[0];
-        vi[1].format = vsapi->getFormatPreset(pfGray8, core);
+        vsapi->getVideoFormatByID(&vi[1].format, pfGray8, core);
         if (pbiSrc->biHeight > 0)
             bInvertFrames = true;
     } else if (pbiSrc->biCompression == BI_RGB && pbiSrc->biBitCount == 24) {
-        vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfRGB24, core);
         if (pbiSrc->biHeight > 0)
             bInvertFrames = true;
     } else if (pbiSrc->biCompression == VS_FCC('b48r')) {
-        vi[0].format = vsapi->getFormatPreset(pfRGB48, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfRGB48, core);
     } else if (pbiSrc->biCompression == VS_FCC('b64a')) {
-        vi[0].format = vsapi->getFormatPreset(pfRGB48, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfRGB48, core);
     } else if (pbiSrc->biCompression == VS_FCC('GREY') || pbiSrc->biCompression == VS_FCC('Y800') || pbiSrc->biCompression == VS_FCC('Y8  ')) {
-        vi[0].format = vsapi->getFormatPreset(pfGray8, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfGray8, core);
     } else if (pbiSrc->biCompression == VS_FCC('YV24')) {
-        vi[0].format = vsapi->getFormatPreset(pfYUV444P8, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfYUV444P8, core);
     } else if (pbiSrc->biCompression == VS_FCC('YV16')) {
-        vi[0].format = vsapi->getFormatPreset(pfYUV422P8, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfYUV422P8, core);
     } else if (pbiSrc->biCompression == VS_FCC('Y41B')) {
-        vi[0].format = vsapi->getFormatPreset(pfYUV411P8, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfYUV411P8, core);
     } else if (pbiSrc->biCompression == VS_FCC('P010')) {
-        vi[0].format = vsapi->getFormatPreset(pfYUV420P10, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfYUV420P10, core);
     } else if (pbiSrc->biCompression == VS_FCC('P016')) {
-        vi[0].format = vsapi->getFormatPreset(pfYUV420P16, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfYUV420P16, core);
     } else if (pbiSrc->biCompression == VS_FCC('P210')) {
-        vi[0].format = vsapi->getFormatPreset(pfYUV422P10, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfYUV422P10, core);
     } else if (pbiSrc->biCompression == VS_FCC('P216')) {
-        vi[0].format = vsapi->getFormatPreset(pfYUV422P16, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfYUV422P16, core);
     } else if (pbiSrc->biCompression == VS_FCC('v210')) {
-        vi[0].format = vsapi->getFormatPreset(pfYUV422P10, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfYUV422P10, core);
     } else if (pbiSrc->biCompression == VS_FCC('Y416')) {
-        vi[0].format = vsapi->getFormatPreset(pfYUV444P16, core);
+        vsapi->getVideoFormatByID(&vi[0].format, pfYUV444P16, core);
 
         // otherwise, find someone who will decompress it
     } else {
@@ -505,7 +494,7 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
 
 
 AVISource::AVISource(const char filename[], const char pixel_type[], const char fourCC[], bool output_alpha, int mode, VSCore *core, const VSAPI *vsapi)
-    : output_alpha(output_alpha), numOutputs(1), last_frame_no(-1), last_frame(nullptr), last_alpha_frame(nullptr), srcbuffer(nullptr), srcbuffer_size(0), ex(false), pbiSrc(nullptr),
+    : output_alpha(output_alpha), last_frame_no(-1), last_frame(nullptr), last_alpha_frame(nullptr), srcbuffer(nullptr), srcbuffer_size(0), ex(false), pbiSrc(nullptr),
     pvideo(nullptr), pfile(nullptr), bIsType1(false), hic(0), bInvertFrames(false), decbuf(nullptr)  {
     vi[0] = {};
     vi[1] = {};
@@ -601,43 +590,42 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                     const int fccv210[]  = { VS_FCC('v210') };
 
                     if (fYV24 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV444P8, core), forcedType, 24, fccyv24);
+                        bOpen = DecompressQuery(pfYUV444P8, core, vsapi, forcedType, 24, fccyv24);
                     if (fYV16 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV422P8, core), forcedType, 16, fccyv16);
+                        bOpen = DecompressQuery(pfYUV422P8, core, vsapi, forcedType, 16, fccyv16);
                     if (fYV12 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV420P8, core), forcedType, 12, fccyv12, sizeof(fccyv12)/sizeof(fccyv12[0]));
+                        bOpen = DecompressQuery(pfYUV420P8, core, vsapi, forcedType, 12, fccyv12, sizeof(fccyv12)/sizeof(fccyv12[0]));
                     if (fYV411 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV411P8, core), forcedType, 16, fccyv411);
+                        bOpen = DecompressQuery(pfYUV411P8, core, vsapi, forcedType, 16, fccyv411);
                     if (fYUY2 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV422P8, core), forcedType, 16, fccyuy2);
+                        bOpen = DecompressQuery(pfYUV422P8, core, vsapi, forcedType, 16, fccyuy2);
                     if (fRGB32 && bOpen) {
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfRGB24, core), forcedType, 32, fccrgb);
+                        bOpen = DecompressQuery(pfRGB24, core, vsapi, forcedType, 32, fccrgb);
                         if (!bOpen) {
-                            numOutputs = output_alpha ? 2 : 1;
                             vi[1] = vi[0];
-                            vi[1].format = vsapi->getFormatPreset(pfGray8, core);
+                            vsapi->getVideoFormatByID(&vi[1].format, pfGray8, core);
                         }
                     }
                     if (fRGB24 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfRGB24, core), forcedType, 24, fccrgb);
+                        bOpen = DecompressQuery(pfRGB24, core, vsapi, forcedType, 24, fccrgb);
                     if (fRGB48 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfRGB48, core), forcedType, 48, fccb48r);
+                        bOpen = DecompressQuery(pfRGB48, core, vsapi, forcedType, 48, fccb48r);
                     if (fRGB64 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfRGB48, core), forcedType, 64, fccb64a);
+                        bOpen = DecompressQuery(pfRGB48, core, vsapi, forcedType, 64, fccb64a);
                     if (fY8 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfGray8, core), forcedType, 8, fccy8, sizeof(fccy8)/sizeof(fccy8[0]));
+                        bOpen = DecompressQuery(pfGray8, core, vsapi, forcedType, 8, fccy8, sizeof(fccy8)/sizeof(fccy8[0]));
                     if (fP010 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV420P10, core), forcedType, 24, fccp010);
+                        bOpen = DecompressQuery(pfYUV420P10, core, vsapi, forcedType, 24, fccp010);
                     if (fP016 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV420P16, core), forcedType, 24, fccp016);
+                        bOpen = DecompressQuery(pfYUV420P16, core, vsapi, forcedType, 24, fccp016);
                     if (fP210 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV422P10, core), forcedType, 24, fccp210);
+                        bOpen = DecompressQuery(pfYUV422P10, core, vsapi, forcedType, 24, fccp210);
                     if (fP216 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV422P16, core), forcedType, 24, fccp216);
+                        bOpen = DecompressQuery(pfYUV422P16, core, vsapi, forcedType, 24, fccp216);
                     if (fY416 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV444P16, core), forcedType, 32, fccy416);
+                        bOpen = DecompressQuery(pfYUV444P16, core, vsapi, forcedType, 32, fccy416);
                     if (fv210 && bOpen)
-                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV422P10, core), forcedType, 20, fccv210);
+                        bOpen = DecompressQuery(pfYUV422P10, core, vsapi, forcedType, 20, fccv210);
 
                     // No takers!
                     if (bOpen)
@@ -657,12 +645,12 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
         bool dropped_frame = false;
 
         if (mode != MODE_WAV) {
-            decbuf = vs_aligned_malloc<BYTE>(hic ? biDst.biSizeImage : pbiSrc->biSizeImage, 32);
+            decbuf = vsh_aligned_malloc<BYTE>(hic ? biDst.biSizeImage : pbiSrc->biSizeImage, 32);
             int keyframe = pvideo->NearestKeyFrame(0);
-            VSFrameRef *frame = vsapi->newVideoFrame(vi[0].format, vi[0].width, vi[0].height, nullptr, core);
-            VSFrameRef *alpha_frame = nullptr;
-            if (numOutputs == 2)
-                alpha_frame = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, nullptr, core);
+            VSFrame *frame = vsapi->newVideoFrame(&vi[0].format, vi[0].width, vi[0].height, nullptr, core);
+            VSFrame *alpha_frame = nullptr;
+            if (output_alpha)
+                alpha_frame = vsapi->newVideoFrame(&vi[1].format, vi[1].width, vi[1].height, nullptr, core);
             LRESULT error = DecompressFrame(keyframe, false, dropped_frame, frame, alpha_frame, core, vsapi);
             if (error != ICERR_OK)   // shutdown, if init not succesful.
                 throw std::runtime_error("AviSource: Could not decompress frame 0");
@@ -702,13 +690,13 @@ void AVISource::CleanUp(const VSAPI *vsapi) {
     AVIFileExit();
     free(pbiSrc);
     delete[] srcbuffer;
-    vs_aligned_free(decbuf);
+    vsh_aligned_free(decbuf);
 
     vsapi->freeFrame(last_frame);
     vsapi->freeFrame(last_alpha_frame);
 }
 
-const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+const VSFrame *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     n = min(max(n, 0), vi[0].numFrames - 1);
     bool dropped_frame = false;
     if (n != last_frame_no || !last_frame) {
@@ -720,10 +708,10 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
         if (keyframe < 0) keyframe = 0;
 
         bool frameok = false;
-        VSFrameRef *frame = vsapi->newVideoFrame(vi[0].format, vi[0].width, vi[0].height, nullptr, core);
-        VSFrameRef *alpha_frame = nullptr;
-        if (numOutputs == 2)
-            alpha_frame = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, nullptr, core);
+        VSFrame *frame = vsapi->newVideoFrame(&vi[0].format, vi[0].width, vi[0].height, nullptr, core);
+        VSFrame *alpha_frame = nullptr;
+        if (output_alpha)
+            alpha_frame = vsapi->newVideoFrame(&vi[1].format, vi[1].width, vi[1].height, nullptr, core);
         bool not_found_yet;
         do {
             not_found_yet = false;
@@ -738,10 +726,8 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
                 const VDPosition key_pre = keyframe;
                 keyframe = pvideo->NearestKeyFrame(keyframe - 1);
                 if (keyframe < 0) keyframe = 0;
-                if (keyframe == key_pre) {
-                    sprintf(buf, "AVISource: could not find valid keyframe for frame %d.", n);
-                    throw std::runtime_error(buf);
-                }
+                if (keyframe == key_pre)
+                    throw std::runtime_error("AVISource: could not find valid keyframe for frame " + std::to_string(n));
 
                 not_found_yet = true;
             }
@@ -756,12 +742,11 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
     }
 
     if (!last_frame) {
-        sprintf(buf, "AVISource: failed to decode frame %d.", n);
-        throw std::runtime_error(buf);
+        throw std::runtime_error("AVISource: failed to decode frame " + std::to_string(n));
     }
 
     if (vsapi->getOutputIndex(frameCtx) == 0)
-        return vsapi->cloneFrameRef(last_frame);
+        return vsapi->addFrameRef(last_frame);
     else
         return vsapi->cloneFrameRef(last_alpha_frame);
 }
@@ -769,10 +754,11 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
 //////////////////////////////////////////
 // Init
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    configFunc("com.vapoursynth.avisource", "avisource", "VapourSynth AVISource Port", VAPOURSYNTH_API_VERSION, 1, plugin);
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->configPlugin("com.vapoursynth.avisource", "avisource", "VapourSynth AVISource Port", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
     const char *args = "path:data[];pixel_type:data:opt;fourcc:data:opt;alpha:int:opt;";
-    registerFunc("AVISource", args, AVISource::create_AVISource, reinterpret_cast<void *>(AVISource::MODE_NORMAL), plugin);
-    registerFunc("AVIFileSource", args, AVISource::create_AVISource, reinterpret_cast<void *>(AVISource::MODE_AVIFILE), plugin);
-    registerFunc("OpenDMLSource", args, AVISource::create_AVISource, reinterpret_cast<void *>(AVISource::MODE_OPENDML), plugin);
+    const char *retArgs = "clip:vnode;";
+    vspapi->registerFunction("AVISource", args, retArgs, AVISource::create_AVISource, reinterpret_cast<void *>(AVISource::MODE_NORMAL), plugin);
+    vspapi->registerFunction("AVIFileSource", args, retArgs, AVISource::create_AVISource, reinterpret_cast<void *>(AVISource::MODE_AVIFILE), plugin);
+    vspapi->registerFunction("OpenDMLSource", args, retArgs, AVISource::create_AVISource, reinterpret_cast<void *>(AVISource::MODE_OPENDML), plugin);
 }
