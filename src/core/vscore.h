@@ -1030,16 +1030,16 @@ struct VSCore {
 private:
     //number of filter instances plus one, freeing the core reduces it by one
     // the core will be freed once it reaches 0
-    bool coreFreed;
     std::atomic<long> numFilterInstances;
     std::atomic<long> numFunctionInstances;
+    bool coreFreed;
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
     std::map<int, vs3::VSVideoFormat> videoFormats;
     std::mutex videoFormatLock;
     int videoFormatIdOffset = 1000;
-    VSCoreInfo coreInfo;
+    VSCoreInfo coreInfo; // API3 compatibility
     std::set<VSNode *> caches;
     std::mutex cacheLock;
 

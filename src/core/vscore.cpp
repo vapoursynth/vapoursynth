@@ -993,7 +993,7 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
 
 #ifdef VS_FRAME_GUARD
         if (!r->verifyGuardPattern())
-            vsFatal("Guard memory corrupted in frame %d returned from %s", n, name.c_str());
+            core->logFatal("Guard memory corrupted in frame " + std::to_string(n) + " returned from " + name);
 #endif
 
         PVSFrame ref(const_cast<VSFrame *>(r));
@@ -1945,7 +1945,7 @@ VSPlugin *VSCore::getNextPlugin(VSPlugin *plugin) {
 }
 
 void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath) {
-    VSPlugin *p = new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, this);
+    std::unique_ptr<VSPlugin> p(new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, this));
 
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
 
@@ -1954,7 +1954,6 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
         std::string error = "Plugin " + filename + " already loaded (" + p->getID() + ")";
         if (already_loaded_plugin->getFilename().size())
             error += " from " + already_loaded_plugin->getFilename();
-        delete p;
         throw VSException(error);
     }
 
@@ -1963,11 +1962,10 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
         std::string error = "Plugin load of " + filename + " failed, namespace " + p->getNamespace() + " already populated";
         if (already_loaded_plugin->getFilename().size())
             error += " by " + already_loaded_plugin->getFilename();
-        delete p;
         throw VSException(error);
     }
 
-    plugins.insert(std::make_pair(p->getID(), p));
+    plugins.insert(std::make_pair(p->getID(), p.release()));
 }
 
 void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
