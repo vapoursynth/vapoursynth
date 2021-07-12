@@ -44,7 +44,6 @@
 
 // Internal filter headers
 #include "internalfilters.h"
-#include "cachefilter.h"
 
 #ifdef VS_USE_MIMALLOC
 #   include <mimalloc-new-delete.h>

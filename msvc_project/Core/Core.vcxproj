@@ -189,7 +189,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\core\audiofilters.cpp" />
     <ClCompile Include="..\..\src\core\boxblurfilter.cpp" />
-    <ClCompile Include="..\..\src\core\cachefilter.cpp" />
     <ClCompile Include="..\..\src\core\cpufeatures.cpp" />
     <ClCompile Include="..\..\src\core\exprfilter.cpp" />
     <ClCompile Include="..\..\src\core\genericfilters.cpp" />
@@ -242,7 +241,6 @@
     <ClInclude Include="..\..\include\VSHelper.h" />
     <ClInclude Include="..\..\include\VSHelper4.h" />
     <ClInclude Include="..\..\src\common\vsutf16.h" />
-    <ClInclude Include="..\..\src\core\cachefilter.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
     <ClInclude Include="..\..\src\core\filtershared.h" />
     <ClInclude Include="..\..\src\core\internalfilters.h" />
