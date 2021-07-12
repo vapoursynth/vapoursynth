@@ -200,7 +200,7 @@ class ExprCompiler {
     virtual void sin(const ExprInstruction &insn) = 0;
     virtual void cos(const ExprInstruction &insn) = 0;
 public:
-    void addInstruction(const ExprInstruction &insn)
+    void addInstruction(const ExprInstruction &insn, VSCore *core, const VSAPI *vsapi)
     {
         switch (insn.op.type) {
         case ExprOpType::MEM_LOAD_U8: load8(insn); break;
@@ -233,7 +233,7 @@ public:
         case ExprOpType::POW: pow(insn); break;
         case ExprOpType::SIN: sin(insn); break;
         case ExprOpType::COS: cos(insn); break;
-        default: vsFatal("illegal opcode"); break;
+        default: vsapi->logMessage(mtFatal, "illegal opcode", core); break;
         }
     }
 
@@ -3572,7 +3572,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 #ifdef VS_TARGET_CPU_X86
                 std::unique_ptr<ExprCompiler> compiler = make_compiler(d->numInputs, cpulevel);
                 for (auto op : d->bytecode[i]) {
-                    compiler->addInstruction(op);
+                    compiler->addInstruction(op, core, vsapi);
                 }
 
                 std::tie(d->proc[i], d->procSize[i]) = compiler->getCode();
