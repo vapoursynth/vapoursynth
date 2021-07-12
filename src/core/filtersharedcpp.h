@@ -51,13 +51,13 @@ static inline void getPlanesArg(const VSMap *in, bool *process, const VSAPI *vsa
     }
 }
 
-static inline void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, RangeArgumentHandling mode, const VSAPI *vsapi) {
+static inline void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, RangeArgumentHandling mode, bool mask, const VSAPI *vsapi) {
     if (vsapi->propNumElements(in, propName) > fi->numPlanes)
         throw std::runtime_error(std::string(propName) + " has more values specified than there are planes");
     bool prevValid = false;
     for (int plane = 0; plane < 3; plane++) {
         int err;
-        bool uv = (plane > 0 && (fi->colorFamily == cmYUV || fi->colorFamily == cmYCoCg));
+        bool uv = (!mask && plane > 0 && (fi->colorFamily == cmYUV || fi->colorFamily == cmYCoCg));
         double temp = vsapi->propGetFloat(in, propName, plane, &err);
         if (err) {
             if (prevValid) {

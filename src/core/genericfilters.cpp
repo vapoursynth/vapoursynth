@@ -607,6 +607,7 @@ struct InvertData {
     const VSVideoInfo *vi;
     const char *name;
     bool process[3];
+    bool mask;
 };
 
 struct InvertOp {
@@ -614,7 +615,7 @@ struct InvertOp {
     bool uv;
 
     InvertOp(InvertData *d, const VSFormat *fi, int plane) {
-        uv = ((fi->colorFamily == cmYUV) || (fi->colorFamily == cmYCoCg)) && (plane > 0);
+        uv = (!d->mask) && ((fi->colorFamily == cmYUV) || (fi->colorFamily == cmYCoCg)) && (plane > 0);
         max = (1LL << fi->bitsPerSample) - 1;
     }
 
@@ -640,7 +641,8 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     std::unique_ptr<InvertData> d(new InvertData);
 
     try {
-        templateInit(d, "Invert", true, in, out, vsapi);
+        templateInit(d, userData ? "InvertMask" : "Invert", true, in, out, vsapi);
+        d->mask = !!userData;
     } catch (const std::runtime_error &error) {
         vsapi->freeNode(d->node);
         vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
@@ -691,8 +693,8 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
     try {
         templateInit(d, "Limiter", false, in, out, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "min", d->min, d->minf, RangeLower, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "max", d->max, d->maxf, RangeUpper, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "min", d->min, d->minf, RangeLower, false, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "max", d->max, d->maxf, RangeUpper, false, vsapi);
         for (int i = 0; i < 3; i++)
             if (((d->vi->format->sampleType == stInteger) && (d->min[i] > d->max[i])) || ((d->vi->format->sampleType == stFloat) && (d->minf[i] > d->maxf[i])))
                 throw std::runtime_error("min bigger than max");
@@ -753,10 +755,10 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
     std::unique_ptr<BinarizeData> d(new BinarizeData);
 
     try {
-        templateInit(d, "Binarize", false, in, out, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "v0", d->v0, d->v0f, RangeLower, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "v1", d->v1, d->v1f, RangeUpper, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, RangeMiddle, vsapi);
+        templateInit(d, userData ? "BinarizeMask" : "Binarize", false, in, out, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "v0", d->v0, d->v0f, RangeLower, !!userData, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "v1", d->v1, d->v1f, RangeUpper, !!userData, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, RangeMiddle, !!userData, vsapi);
     } catch (const std::runtime_error &error) {
         vsapi->freeNode(d->node);
         vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
@@ -1000,6 +1002,11 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
         "planes:int[]:opt;"
         , invertCreate, nullptr, plugin);
 
+    registerFunc("InvertMask",
+        "clip:clip;"
+        "planes:int[]:opt;"
+        , invertCreate, (void *)1, plugin);
+
     registerFunc("Limiter",
         "clip:clip;"
         "min:float[]:opt;"
@@ -1014,6 +1021,14 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
         "v1:float[]:opt;"
         "planes:int[]:opt;"
         , binarizeCreate, nullptr, plugin);
+
+    registerFunc("BinarizeMask",
+        "clip:clip;"
+        "threshold:float[]:opt;"
+        "v0:float[]:opt;"
+        "v1:float[]:opt;"
+        "planes:int[]:opt;"
+        , binarizeCreate, (void *)1, plugin);
 
     registerFunc("Levels",
         "clip:clip;"
