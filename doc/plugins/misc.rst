@@ -28,6 +28,8 @@ Miscellaneous Filters is a random collection of filters that mostly are useful f
    :module: misc
    
    Grows the mask in *clipa* into the mask in *clipb*. This is an equivalent of the Avisynth function *mt_hysteresis*.
+   Note that both clips are are expected to be in the typical mask range which means that all
+   planes have to be in the 0-1 range for floating point formats.
    
    Specifically, Hysteresis takes two bi-level masks *clipa* and *clipb* and generates another
    bi-level mask clip. Both *clipa* and *clipb* must have the same dimensions and format, and the

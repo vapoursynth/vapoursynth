@@ -6,6 +6,8 @@ MaskedMerge
 
    MaskedMerge merges *clipa* with *clipb* using the per pixel weights in the *mask*,
    where 0 means that *clipa* is returned unchanged.
+   The *mask* clip is assumed to  be full range for all planes and in the 
+   0-1 interval for float formats regardless of the colorspace.
    If *mask* is a grayscale clip or if *first_plane* is true, the mask's first
    plane will be used as the mask for merging all planes. The mask will be
    bilinearly resized if necessary.

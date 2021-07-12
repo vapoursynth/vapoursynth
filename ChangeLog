@@ -1,6 +1,8 @@
 r54:
+updated visual studio 2019 runtime version
+updated zimg to 3.0.2
 added sin and cos operator to the expr filter (AkarinVS)
-fixed misc.Hysteresis handling of floating point U/V planes (AkarinVS)
+made handling of floating point masks consistent (AkarinVS and more)
 fixed memory leak on free in expr filter on linux (AkarinVS)
 
 r53:
