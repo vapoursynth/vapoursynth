@@ -186,8 +186,8 @@ class AVISource {
     BYTE* decbuf;
     bool output_alpha;
 
-    const VSFrame *last_frame;
-    const VSFrame *last_alpha_frame;
+    VSFrame *last_frame;
+    VSFrame *last_alpha_frame;
     int last_frame_no;
 
     LRESULT DecompressBegin(LPBITMAPINFOHEADER lpbiSrc, LPBITMAPINFOHEADER lpbiDst);
@@ -708,17 +708,33 @@ const VSFrame *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *core
         if (keyframe < 0) keyframe = 0;
 
         bool frameok = false;
-        VSFrame *frame = vsapi->newVideoFrame(&vi[0].format, vi[0].width, vi[0].height, nullptr, core);
+        VSFrame *frame = nullptr;
         VSFrame *alpha_frame = nullptr;
-        if (output_alpha)
-            alpha_frame = vsapi->newVideoFrame(&vi[1].format, vi[1].width, vi[1].height, nullptr, core);
         bool not_found_yet;
         do {
             not_found_yet = false;
             for (VDPosition i = keyframe; i <= n; ++i) {
+                if (!frame)
+                    frame = vsapi->newVideoFrame(&vi[0].format, vi[0].width, vi[0].height, nullptr, core);
+                if (output_alpha && !alpha_frame)
+                    alpha_frame = vsapi->newVideoFrame(&vi[1].format, vi[1].width, vi[1].height, nullptr, core);
                 LRESULT error = DecompressFrame(i, i != n, dropped_frame, frame, alpha_frame, core, vsapi);
                 if ((!dropped_frame) && (error == ICERR_OK))
                     frameok = true;   // Better safe than sorry
+                if (frameok) {
+                    vsapi->freeFrame(last_frame);
+                    last_frame = frame;
+                    frame = nullptr;
+                    vsapi->freeFrame(last_alpha_frame);
+                    last_alpha_frame = alpha_frame;
+                    alpha_frame = nullptr;
+                    if (output_alpha)
+                        vsapi->mapSetFrame(vsapi->getFramePropertiesRW(last_frame), "_Alpha", last_alpha_frame, maAppend);
+                }
+
+                if (last_frame && i != n) {
+                    vsapi->cacheFrame(last_frame, i, frameCtx);
+                }
             }
             last_frame_no = n;
 
@@ -732,23 +748,13 @@ const VSFrame *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *core
                 not_found_yet = true;
             }
         } while (not_found_yet);
-
-        if (frameok) {
-            vsapi->freeFrame(last_frame);
-            vsapi->freeFrame(last_alpha_frame);
-            last_frame = frame;
-            last_alpha_frame = alpha_frame;
-        }
     }
 
     if (!last_frame) {
         throw std::runtime_error("AVISource: failed to decode frame " + std::to_string(n));
     }
 
-    if (vsapi->getOutputIndex(frameCtx) == 0)
-        return vsapi->addFrameRef(last_frame);
-    else
-        return vsapi->cloneFrameRef(last_alpha_frame);
+    return vsapi->addFrameRef(last_frame);
 }
 
 //////////////////////////////////////////
