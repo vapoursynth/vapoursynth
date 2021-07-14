@@ -50,18 +50,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VIDEO "mtVideo"
         AUDIO "mtAudio"
 
-    cpdef enum ColorRange "VSColorRange":
-        FULL_RANGE "crFullRange"
-        LIMITED_RANGE "crLimitedRange"
-        
-    cpdef enum ChromaLocation "VSChromaLocation":
-        LEFT "clLeft"
-        CENTER "clCenter"
-        TOP_LEFT "clTopLeft"
-        TOP "clTop"
-        BOTTOM_LEFT "clBottomLeft"
-        BOTTOM "clBottom"
-
     cpdef enum ColorFamily "VSColorFamily":
         UNDEFINED "cfUndefined"
         GRAY "cfGray"
