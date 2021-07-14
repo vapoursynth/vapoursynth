@@ -164,20 +164,6 @@ typedef struct VSVideoFormat {
     int numPlanes; /* implicit from colorFamily */
 } VSVideoFormat;
 
-typedef enum VSColorRange {
-    crFullRange = 0,
-    crLimitedRange = 1
-} VSColorRange;
-
-typedef enum VSChromaLocation {
-    clLeft = 0,
-    clCenter = 1,
-    clTopLeft = 2,
-    clTop = 3,
-    clBottomLeft = 4,
-    clBottom = 5
-} VSChromaLocation;
-
 typedef enum VSAudioChannels {
     acFrontLeft           = 0,
     acFrontRight          = 1,
