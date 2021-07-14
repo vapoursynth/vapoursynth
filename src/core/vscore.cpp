@@ -1964,7 +1964,8 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
         throw VSException(error);
     }
 
-    plugins.insert(std::make_pair(p->getID(), p.release()));
+    plugins.insert(std::make_pair(p->getID(), p.get()));
+    p.release();
 }
 
 void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
