@@ -244,8 +244,12 @@ cdef extern from "include/VapourSynth4.h" nogil:
         
     ctypedef struct VSAPI:
         # Audio and video filter
-        void createVideoFilter(const VSMap *input, VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
-        void createAudioFilter(const VSMap *input, VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        void createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        VSNode *createVideoFilter2(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        void createAudioFilter(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        VSNode *void createAudioFilter2(const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        int setLinearFilter(VSNode *node) nogil
+
         void freeNode(VSNode *node) nogil
         VSNode *addNodeRef(VSNode *node) nogil
         int getNodeType(VSNode *node) nogil
@@ -289,6 +293,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         const VSFrame *getFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx) nogil
         void requestFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx) nogil
         void releaseFrameEarly(VSNode *node, int n, VSFrameContext *frameCtx) nogil
+        void cacheFrame(const VSFrame *frame, int n, VSFrameContext *frameCtx) nogil
         void setFilterError(const char *errorMessage, VSFrameContext *frameCtx) nogil
         
         # External functions
