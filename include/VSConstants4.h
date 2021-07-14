@@ -22,8 +22,8 @@
 #define VSCONSTANTS4_H
 
 typedef enum VSColorRange {
-	VSC_RANGE_LIMITED = 0,
-	VSC_RANGE_FULL = 1
+	VSC_RANGE_FULL = 0,
+	VSC_RANGE_LIMITED = 1
 } VSColorRange;
 
 typedef enum VSChromaLocation {
