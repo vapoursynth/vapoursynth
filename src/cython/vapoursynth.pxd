@@ -50,6 +50,18 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VIDEO "mtVideo"
         AUDIO "mtAudio"
 
+    cpdef enum ColorRange "VSColorRange":
+        FULL_RANGE "crFullRange"
+        LIMITED_RANGE "crLimitedRange"
+        
+    cpdef enum ChromaLocation "VSChromaLocation":
+        LEFT "clLeft"
+        CENTER "clCenter"
+        TOP_LEFT "clTopLeft"
+        TOP "clTop"
+        BOTTOM_LEFT "clBottomLeft"
+        BOTTOM "clBottom"
+
     cpdef enum ColorFamily "VSColorFamily":
         UNDEFINED "cfUndefined"
         GRAY "cfGray"
@@ -247,7 +259,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
         VSNode *createVideoFilter2(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
         void createAudioFilter(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
-        VSNode *void createAudioFilter2(const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        VSNode *createAudioFilter2(const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
         int setLinearFilter(VSNode *node) nogil
 
         void freeNode(VSNode *node) nogil
