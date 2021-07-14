@@ -407,7 +407,7 @@ uint8_t *VSFrame::getWritePtr(int plane) {
 }
 
 #ifdef VS_FRAME_GUARD
-bool VSFrame::verifyGuardPattern() {
+bool VSFrame::verifyGuardPattern() const {
     for (int p = 0; p < ((contentType == mtVideo) ? numPlanes : 1); p++) {
         for (size_t i = 0; i < guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
             uint32_t p1 = reinterpret_cast<uint32_t *>(data[p]->data)[i];

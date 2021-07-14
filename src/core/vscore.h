@@ -495,7 +495,7 @@ public:
     uint8_t *getWritePtr(int plane);
 
 #ifdef VS_FRAME_GUARD
-    bool verifyGuardPattern();
+    bool verifyGuardPattern() const;
 #endif
 };
 
