@@ -73,7 +73,7 @@ The VapourSynth packages are provided by `deb-multimedia repository <https://www
 You need to add the repository first following the guide on the official website.
 
 Fedora, CentOS and RHEL
-******
+***********************
 For Fedora, the VapourSynth packages can be downloaded from official repository directly.
 For CentOS and RHEL, you should install EPEL (Extra Packages for Enterprise Linux) repository first.
 
