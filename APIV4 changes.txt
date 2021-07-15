@@ -37,19 +37,23 @@ single key in a VSMap can only hold audio or video nodes but not a mix of both. 
 frames (but they're rarely used as arguments).
 The data type now has a hint for whether the data should be treated as utf8 or binary which can be
 useful for filters that print values. Data set by R3 filters will always be reported as unknown.
-Two new convenience functions were added. propGetSaturatedInt and propGetSaturatedFloat which are
+Two new convenience functions were added. mapGetSaturatedInt and mapGetSaturatedFloat which are
 equivalent to int64ToIntS(propGetInt) and the same operation for float.
 
 Filter changes:
 createFilter has been replaced by createVideoFilter. The init callback has been deprecated and instead
-an array of VSVideoInfo is passed directly to createVideoFilter.
+VSVideoInfo is passed directly to createVideoFilter. Flags have been reworked and nfNoCache has been
+replaced by the dependency listing. This is simply an array of the nodes used as input and whether
+or not requests from them are strictly spatial. Note that if you take two different length clips as
+input you may request the final frame of the shorter clip very many times and violate the strictly
+spatial flag.
 The getFrame callback has also been changed in two important ways, the void **instanceData pointer
 has been changed to void * to remove the pointless additional indirection. The void **frameData
 pointer now points to a scratch space of size void *[4] instead of only being a single pointer.
 This can be used to not have to allocate and free memory on every frame processed. See the Splice
 filter for an example of this.
-The arFrameReady events have been removed
-Filters will also no longer receive arFrameReady events unless the nfFrameReady flag is set.
+The arFrameReady event has been completely removed since nobody used it.
+
 
 Audio filter support:
 Audio filters are created with createAudioFilter and work very similarly to video filters. Note that

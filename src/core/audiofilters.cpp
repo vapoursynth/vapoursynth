@@ -636,7 +636,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     std::vector<VSFilterDependency> deps;
     for (const auto &iter : d->reqNodes)
-        deps.push_back({iter, 0});
+        deps.push_back({iter, 1});
     if (d->ai.format.sampleType == stFloat)
         vsapi->createAudioFilter(out, "AudioMix", &d->ai, audioMixGetFrame<float>, audioMixFree, fmParallel, deps.data(), deps.size(), d.get(), core);
     else if (d->ai.format.bytesPerSample == 2)
@@ -777,7 +777,7 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
 
     std::vector<VSFilterDependency> deps;
     for (const auto &iter : d->reqNodes)
-        deps.push_back({iter, 0});
+        deps.push_back({iter, 1});
 
     vsapi->createAudioFilter(out, "ShuffleChannels", &d->ai, shuffleChannelsGetFrame, shuffleChannelsFree, fmParallel, deps.data(), deps.size(), d.get(), core);
     d.release();

@@ -550,7 +550,7 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
 
     vi.numFrames += d->num_dups;
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, 0};
     vsapi->createVideoFilter(out, "DuplicateFrames", &vi, duplicateFramesGetFrame, filterFree<DuplicateFramesData>, fmParallel, deps, 1, d.release(), core);
 }
 

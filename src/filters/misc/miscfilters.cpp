@@ -118,7 +118,7 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    VSFilterDependency deps[] = {{ d->node1, 1 }, { d->node2, 1 }};
+    VSFilterDependency deps[] = {{ d->node1, 1 }, { d->node2, 0 }};
     vsapi->createVideoFilter(out, "SCDetect", vi, scDetectGetFrame, filterFree<SCDetectData>, fmParallel, deps, 2, d.release(), core);
 }
 

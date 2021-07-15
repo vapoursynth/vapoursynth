@@ -21,7 +21,7 @@ static const VSFrame *VS_CC filterGetFrame(int n, int activationReason, void *in
     } else if (activationReason == arAllFramesReady) {
         const VSFrame *frame = vsapi->getFrameFilter(n, d->node, frameCtx);
 
-        // your code here...
+        /* your code here... */
 
         return frame;
     }
@@ -45,7 +45,7 @@ static void VS_CC filterCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     data = (FilterData *)malloc(sizeof(d));
     *data = d;
 
-    VSFilterDependency deps[] = {d.node, 1};
+    VSFilterDependency deps[] = {d.node, 1}; /* you may need to change the strictSpatial field to 0 depending on the filter you write */
     vsapi->createVideoFilter(out, "Filter", data->vi, filterGetFrame, filterFree, fmParallel, deps, 1, data, core);
 }
 
