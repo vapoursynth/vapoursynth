@@ -619,7 +619,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
     if (!vsapi->queryAudioFormat(&d->ai.format, d->ai.format.sampleType, d->ai.format.bitsPerSample, channelLayout, core))
         err = "AudioMix: invalid output channnel configuration";
     else if (d->ai.format.numChannels != numDstChannels)
-        err = "ShuffleChannels: output channel specified twice";
+        err = "AudioMix: output channel specified twice";
 
     if (err) {
         vsapi->mapSetError(out, err);
