@@ -1547,7 +1547,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
     for (int i = 0; i < numpropsrc; i++)
         deps.push_back({d->propsrc[i], 1});
     for (int i = 0; i < numclipsrc; i++)
-        deps.push_back({clipsrc[i], 1});
+        deps.push_back({clipsrc[i], 0});
     vsapi->createVideoFilter(out, "FrameEval", &d->vi, (d->propsrc.size() > 0) ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree, (d->propsrc.size() > 0) ? fmParallelRequests : fmUnordered, deps.data(), numpropsrc, d.get(), core);
     d.release();
 
@@ -2403,7 +2403,7 @@ static void VS_CC copyFramePropsCreate(const VSMap *in, VSMap *out, void *userDa
     d->node1 = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->node2 = vsapi->mapGetNode(in, "prop_src", 0, nullptr);
 
-    VSFilterDependency deps[] = {{d->node1, 1}, {d->node1, 1}};
+    VSFilterDependency deps[] = {{d->node1, 1}, {d->node2, 1}};
     vsapi->createVideoFilter(out, "CopyFrameProps", vsapi->getVideoInfo(d->node1), copyFramePropsGetFrame, filterFree<CopyFramePropsData>, fmParallel, deps, 2, d.get(), core);
     d.release();
 }

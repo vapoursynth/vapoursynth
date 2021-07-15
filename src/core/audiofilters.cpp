@@ -259,7 +259,7 @@ static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData,
 
     std::vector<VSFilterDependency> deps;
     for (int i = 0; i < numNodes; i++)
-        deps.push_back({d->nodes[i], 0});
+        deps.push_back({d->nodes[i], (i == 0) ? 1 : 0});
     vsapi->createAudioFilter(out, "AudioSplice", &d->ai, audioSpliceGetframe, filterFree<AudioSpliceData>, fmParallel, deps.data(), numNodes, d.get(), core);
     d.release();
 }
