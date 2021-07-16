@@ -2056,17 +2056,18 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
     int err;
 
     d->node1 = vsapi->mapGetNode(in, "clip", 0, 0);
-    const VSVideoInfo *vi = vsapi->getVideoInfo(d->node1);
+    VSVideoInfo vi = *vsapi->getVideoInfo(d->node1);
     d->node2 = vsapi->mapGetNode(in, "mclip", 0, 0);
+    vi.numFrames = vsapi->getVideoInfo(d->node2)->numFrames;
 
-    if (!isConstantVideoFormat(vi) || !isConstantVideoFormat(vsapi->getVideoInfo(d->node2)))
+    if (!isConstantVideoFormat(&vi) || !isConstantVideoFormat(vsapi->getVideoInfo(d->node2)))
         RETERROR("ClipToProp: clips must have constant format and dimensions");
 
     const char *tmpprop = vsapi->mapGetData(in, "prop", 0, &err);
     d->prop = tmpprop ? tmpprop : "_Alpha";
 
     VSFilterDependency deps[] = {{d->node1, 1}, {d->node2, 1}};
-    vsapi->createVideoFilter(out, "ClipToProp", vi, clipToPropGetFrame, filterFree<ClipToPropData>, fmParallel, deps, 2, d.release(), core);
+    vsapi->createVideoFilter(out, "ClipToProp", &vi, clipToPropGetFrame, filterFree<ClipToPropData>, fmParallel, deps, 2, d.release(), core);
 }
 
 //////////////////////////////////////////
