@@ -5,11 +5,23 @@ All header files have had 4 appended to their name. The R4 files are called:
 VapourSynth4.h
 VSHelper4.h
 VSScript4.h
+VSConstants4.h
+Where the constants one is new and has all the constants used for frame properties but aren't needed
+to use the basic api.
+
+Constant names:
+A lot of the enums have changed prefixed. For example cm => cf, pa => ma and so on.
+
+Video format:
+Video formats are no longer pointers that can be compared for equivalence. Instead the full struct
+is passed around. Format ids have also been converted to a uin32_t that stores all the same information.
+Note that you still have to use the api to unpack it since otherwise v3 format ids won't be correctly
+interpreted.
 
 Core creation:
 createCore() now takes a set of flags instead of a thread number since it can be set directly after
 construction with setThreadCount() anyway. The flags control the few options that have to be set at
-creation time and can't be changed at a later time.
+creation time and can't be changed later.
 
 Plugin and function registration:
 There's a completely new entry point called VapourSynthPluginInit2 with a different definition.
@@ -47,6 +59,9 @@ replaced by the dependency listing. This is simply an array of the nodes used as
 or not requests from them are strictly spatial. Note that if you take two different length clips as
 input you may request the final frame of the shorter clip very many times and violate the strictly
 spatial flag.
+The nfMakeLinear flag has been replaced by the two api functions setLinearFilter and cacheFrame
+which allows filters to push not requested frames into the cache. See FFMS2 and AVISource for
+examples of this.
 The getFrame callback has also been changed in two important ways, the void **instanceData pointer
 has been changed to void * to remove the pointless additional indirection. The void **frameData
 pointer now points to a scratch space of size void *[4] instead of only being a single pointer.
@@ -85,5 +100,3 @@ script variables to reduce the risk of name collisions and more clearly show the
 themselves have the same names (enable_v210, ).
 VSScript also no longer changes the working directory by default when evaluating scripts. This option
 has been removed due to it involving global state.
-
-TODO
