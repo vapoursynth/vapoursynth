@@ -2169,13 +2169,13 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
 typedef struct {
     VSNodeRef *node1;
     VSNodeRef *node2;
-    const VSVideoInfo *vi;
+    VSVideoInfo vi;
     char *prop;
 } ClipToPropData;
 
 static void VS_CC clipToPropInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     ClipToPropData *d = (ClipToPropData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, 1, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC clipToPropGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2211,10 +2211,11 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
     int err;
 
     d.node1 = vsapi->propGetNode(in, "clip", 0, 0);
-    d.vi = vsapi->getVideoInfo(d.node1);
+    d.vi = *vsapi->getVideoInfo(d.node1);
     d.node2 = vsapi->propGetNode(in, "mclip", 0, 0);
+    d.vi.numFrames = vsapi->getVideoInfo(d.node2)->numFrames;
 
-    if (!isConstantFormat(d.vi) || !isConstantFormat(vsapi->getVideoInfo(d.node2))) {
+    if (!isConstantFormat(&d.vi) || !isConstantFormat(vsapi->getVideoInfo(d.node2))) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         RETERROR("ClipToProp: clips must have constant format and dimensions");
