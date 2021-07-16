@@ -226,12 +226,13 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
             RETERROR(("Interleave: " + mismatchToText(mismatchCause)).c_str());
 
         bool overflow = false;
+        int maxNumFrames = d->numclips;
 
         if (extend) {
             if (d->vi.numFrames > INT_MAX / d->numclips)
                 overflow = true;
             d->vi.numFrames *= d->numclips;
-        } else if (d->vi.numFrames) {
+        } else {
             // this is exactly how avisynth does it
             d->vi.numFrames = (vsapi->getVideoInfo(d->nodes[0])->numFrames - 1) * d->numclips + 1;
             for (int i = 0; i < d->numclips; i++) {
@@ -249,7 +250,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < d->numclips; i++)
-            deps.push_back({d->nodes[i], 1});
+            deps.push_back({d->nodes[i], maxNumFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames});
         vsapi->createVideoFilter(out, "Interleave", &d->vi, interleaveGetframe, filterFree<InterleaveData>, fmParallel, deps.data(), d->numclips, d.get(), core);
         d.release();
     }
