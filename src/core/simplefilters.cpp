@@ -650,8 +650,9 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         vsapi->queryVideoFormat(&d->vi.format, d->format, d->vi.format.sampleType, d->vi.format.bitsPerSample, ssW, ssH, core);
     }
 
-    VSFilterDependency deps[] = {{ d->nodes[0], 1 }, { d->nodes[1], 1 }, { d->nodes[2], 1 }};
-    vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, deps, nclips, d.get(), core);
+    VSFilterDependency deps1[] = {{ d->nodes[0], 1 }};
+    VSFilterDependency deps3[] = {{ d->nodes[0], d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[0])->numFrames }, { d->nodes[1], d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames }, { d->nodes[2], d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames }};
+    vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, (d->format == cfGray) ? deps1 : deps3 , nclips, d.get(), core);
     d.release();
 }
 
@@ -1128,7 +1129,7 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < numclips; i++)
-            deps.push_back({d->nodes[i], 1});
+            deps.push_back({d->nodes[i], d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames});
         vsapi->createVideoFilter(out, d->vertical ? "StackVertical" : "StackHorizontal", &d->vi, stackGetframe, filterFree<StackData>, fmParallel, deps.data(), numclips, d.get(), core);
         d.release();
     }
@@ -2058,15 +2059,17 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
     d->node1 = vsapi->mapGetNode(in, "clip", 0, 0);
     VSVideoInfo vi = *vsapi->getVideoInfo(d->node1);
     d->node2 = vsapi->mapGetNode(in, "mclip", 0, 0);
-    vi.numFrames = vsapi->getVideoInfo(d->node2)->numFrames;
+    const VSVideoInfo *vi2 = vsapi->getVideoInfo(d->node2);
 
-    if (!isConstantVideoFormat(&vi) || !isConstantVideoFormat(vsapi->getVideoInfo(d->node2)))
+    if (!isConstantVideoFormat(&vi) || !isConstantVideoFormat(vi2))
         RETERROR("ClipToProp: clips must have constant format and dimensions");
 
     const char *tmpprop = vsapi->mapGetData(in, "prop", 0, &err);
     d->prop = tmpprop ? tmpprop : "_Alpha";
 
-    VSFilterDependency deps[] = {{d->node1, 1}, {d->node2, 1}};
+
+    VSFilterDependency deps[] = {{d->node1, vi.numFrames >= vi2->numFrames}, {d->node2, 1}};
+    vi.numFrames = vi2->numFrames;
     vsapi->createVideoFilter(out, "ClipToProp", &vi, clipToPropGetFrame, filterFree<ClipToPropData>, fmParallel, deps, 2, d.release(), core);
 }
 
@@ -2404,7 +2407,7 @@ static void VS_CC copyFramePropsCreate(const VSMap *in, VSMap *out, void *userDa
     d->node1 = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->node2 = vsapi->mapGetNode(in, "prop_src", 0, nullptr);
 
-    VSFilterDependency deps[] = {{d->node1, 1}, {d->node2, 1}};
+    VSFilterDependency deps[] = {{d->node1, 1}, {d->node2, vsapi->getVideoInfo(d->node1)->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames}};
     vsapi->createVideoFilter(out, "CopyFrameProps", vsapi->getVideoInfo(d->node1), copyFramePropsGetFrame, filterFree<CopyFramePropsData>, fmParallel, deps, 2, d.get(), core);
     d.release();
 }

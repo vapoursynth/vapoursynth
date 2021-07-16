@@ -769,6 +769,7 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
         return;
     }
 
+    // This is to reduce the total number of requests to save some scheduling time later
     std::set<VSNode *> nodeSet;
     for (const auto &iter : d->sourceNodes)
         nodeSet.insert(iter.node);
@@ -777,7 +778,7 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
 
     std::vector<VSFilterDependency> deps;
     for (const auto &iter : d->reqNodes)
-        deps.push_back({iter, 1});
+        deps.push_back({iter, d->ai.numFrames <= vsapi->getVideoInfo(iter)->numFrames});
 
     vsapi->createAudioFilter(out, "ShuffleChannels", &d->ai, shuffleChannelsGetFrame, shuffleChannelsFree, fmParallel, deps.data(), deps.size(), d.get(), core);
     d.release();
