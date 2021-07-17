@@ -977,7 +977,7 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     vfmd = (VFMData *)malloc(sizeof(vfm));
     *vfmd = vfm;
 
-    VSFilterDependency deps[] = {{vfm.node, 0}, {vfm.clip2, 0}};
+    VSFilterDependency deps[] = {{vfm.node, rpGeneral}, {vfm.clip2, rpGeneral}};
     vsapi->createVideoFilter(out, "VFM", vfmd->vi, vfmGetFrame, vfmFree, fmParallel, deps, vfm.clip2 ? 2 : 1, vfmd, core);
 }
 
@@ -1599,7 +1599,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     VDecimateData *d = (VDecimateData *)malloc(sizeof(vdm));
     *d = vdm;
 
-    VSFilterDependency deps[] = {{vdm.node, 0}, {vdm.clip2, 0}};
+    VSFilterDependency deps[] = {{vdm.node, rpGeneral}, {vdm.clip2, rpGeneral}};
     vsapi->createVideoFilter(out, "VDecimate", &d->vi, vdecimateGetFrame, vdecimateFree, fmUnordered, deps, vdm.clip2 ? 2 : 1, d, core);
 }
 

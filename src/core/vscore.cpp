@@ -754,7 +754,7 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame 
     for (int i = 0; i < numDeps; i++) {
         this->dependencies.push_back(dependencies[i]);
         dependencies[i].source->add_ref();
-        dependencies[i].source->addConsumer(this, dependencies[i].strictSpatial);
+        dependencies[i].source->addConsumer(this, dependencies[i].requestPattern);
     }
 
     if (core->enableGraphInspection) {
@@ -780,7 +780,7 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame 
     for (int i = 0; i < numDeps; i++) {
         this->dependencies.push_back(dependencies[i]);
         dependencies[i].source->add_ref();
-        dependencies[i].source->addConsumer(this, dependencies[i].strictSpatial);
+        dependencies[i].source->addConsumer(this, dependencies[i].requestPattern);
     }
 
     if (core->enableGraphInspection) {
@@ -794,7 +794,7 @@ VSNode::~VSNode() {
     cache.clear();
 
     for (auto &iter : dependencies) {
-        iter.source->removeConsumer(this, iter.strictSpatial);
+        iter.source->removeConsumer(this, iter.requestPattern);
         iter.source->release();
     }
 
@@ -815,7 +815,7 @@ void VSNode::addConsumer(VSNode *consumer, int strictSpatial) {
         consumers.push_back({consumer, strictSpatial});
 
         if (!cacheOverride)
-            cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].strictSpatial);
+            cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].requestPattern);
     }
     registerCache(cacheEnabled);
 }
@@ -824,14 +824,14 @@ void VSNode::removeConsumer(VSNode *consumer, int strictSpatial) {
     {
         std::lock_guard<std::mutex> lock(cacheMutex);
         for (auto iter = consumers.begin(); iter != consumers.end(); ++iter) {
-            if (iter->source == consumer && iter->strictSpatial == strictSpatial) {
+            if (iter->source == consumer && iter->requestPattern == strictSpatial) {
                 consumers.erase(iter);
                 break;
             }
         }
 
         if (!cacheOverride)
-            cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].strictSpatial);
+            cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].requestPattern);
 
         if (!cacheEnabled)
             cache.clear();

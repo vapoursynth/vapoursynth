@@ -138,7 +138,7 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->ai.numSamples = trimlen;
 
-    VSFilterDependency deps[] = {d->node, 0};
+    VSFilterDependency deps[] = {d->node, rpGeneral};
     vsapi->createAudioFilter(out, "AudioTrim", &d->ai, audioTrimGetframe, filterFree<AudioTrimData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -259,7 +259,7 @@ static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData,
 
     std::vector<VSFilterDependency> deps;
     for (int i = 0; i < numNodes; i++)
-        deps.push_back({d->nodes[i], (i == 0) ? 1 : 0});
+        deps.push_back({d->nodes[i], (i == 0) ? rpNoFrameReuse : rpGeneral});
     vsapi->createAudioFilter(out, "AudioSplice", &d->ai, audioSpliceGetframe, filterFree<AudioSpliceData>, fmParallel, deps.data(), numNodes, d.get(), core);
     d.release();
 }
@@ -351,7 +351,7 @@ static void VS_CC audioLoopCreate(const VSMap *in, VSMap *out, void *userData, V
         d->ai.numSamples = std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
     }
 
-    VSFilterDependency deps[] = {d->node, 0};
+    VSFilterDependency deps[] = {d->node, rpGeneral};
     vsapi->createAudioFilter(out, "AudioLoop", &d->ai, audioLoopGetFrame, filterFree<AudioLoopData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -419,7 +419,7 @@ static void VS_CC audioReverseCreate(const VSMap *in, VSMap *out, void *userData
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->ai = vsapi->getAudioInfo(d->node);
 
-    VSFilterDependency deps[] = {d->node, 0};
+    VSFilterDependency deps[] = {d->node, rpGeneral};
     if (d->ai->format.bytesPerSample == 2)
         vsapi->createAudioFilter(out, "AudioReverse", d->ai, audioReverseGetFrame<int16_t>, filterFree<AudioReverseData>, fmParallel, deps, 1, d.get(), core);
     else
@@ -475,7 +475,7 @@ static void VS_CC audioGainCreate(const VSMap *in, VSMap *out, void *userData, V
     if (numGainValues != 1 && numGainValues != d->ai->format.numChannels)
         RETERROR("AudioGain: must provide one gain value per channel or a single value used for all channels");
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     if (d->ai->format.bytesPerSample == 4 && d->ai->format.sampleType == stFloat)
         vsapi->createAudioFilter(out, "AudioGain", d->ai, audioGainGetFrame<float>, filterFree<AudioGainData>, fmParallel, deps, 1, d.get(), core);
     else if (d->ai->format.bytesPerSample == 2)
@@ -636,7 +636,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     std::vector<VSFilterDependency> deps;
     for (const auto &iter : d->reqNodes)
-        deps.push_back({iter, 1});
+        deps.push_back({iter, rpStrictSpatial});
     if (d->ai.format.sampleType == stFloat)
         vsapi->createAudioFilter(out, "AudioMix", &d->ai, audioMixGetFrame<float>, audioMixFree, fmParallel, deps.data(), deps.size(), d.get(), core);
     else if (d->ai.format.bytesPerSample == 2)
@@ -708,7 +708,7 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
     int numSrcChannels = vsapi->mapNumElements(in, "channels_in");
     int numDstChannels = vsapi->mapNumElements(in, "channels_out");
 
-    if (numSrcChannels != numDstChannels) 
+    if (numSrcChannels != numDstChannels)
         RETERROR("ShuffleChannels: must have the same number of channels_in and channels_out");
 
     if (numSrcNodes > numSrcChannels)
@@ -721,7 +721,7 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
         int dstChannel = vsapi->mapGetIntSaturated(in, "channels_out", i, nullptr);
         channelLayout |= (static_cast<uint64_t>(1) << dstChannel);
         VSNode *node = vsapi->mapGetNode(in, "clip", std::min(numSrcNodes - 1, i), nullptr);
-        d->sourceNodes.push_back({ node, channel, dstChannel, -1 });
+        d->sourceNodes.push_back({node, channel, dstChannel, -1});
     }
 
     std::sort(d->sourceNodes.begin(), d->sourceNodes.end());
@@ -778,7 +778,7 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
 
     std::vector<VSFilterDependency> deps;
     for (const auto &iter : d->reqNodes)
-        deps.push_back({iter, d->ai.numFrames <= vsapi->getVideoInfo(iter)->numFrames});
+        deps.push_back({iter, (d->ai.numFrames <= vsapi->getVideoInfo(iter)->numFrames) ? rpStrictSpatial : rpGeneral});
 
     vsapi->createAudioFilter(out, "ShuffleChannels", &d->ai, shuffleChannelsGetFrame, shuffleChannelsFree, fmParallel, deps.data(), deps.size(), d.get(), core);
     d.release();
@@ -860,7 +860,7 @@ static void VS_CC assumeSampleRateCreate(const VSMap *in, VSMap *out, void *user
     if (ai.sampleRate < 1)
         RETERROR("AssumeSampleRate: invalid samplerate specified");
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createAudioFilter(out, "AssumeSampleRate", &ai, assumeSampleRateGetframe, filterFree<AssumeSampleRateData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }

@@ -181,7 +181,7 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    VSFilterDependency deps[] = { d.node, 1 };
+    VSFilterDependency deps[] = { d.node, rpStrictSpatial };
     vsapi->createVideoFilter(out, "Vinverse", &data->vi, VinverseGetFrame, VinverseFree, fmParallel, deps, 1, data, core);
 }
 

@@ -228,7 +228,7 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
     data = new ClenseData(d);
 
-    VSFilterDependency deps3[] = {{d.cnode, 1}, {d.nnode, 1}, {d.pnode, 1}};
-    VSFilterDependency deps1[] = {d.cnode, 0};
+    VSFilterDependency deps3[] = {{d.cnode, rpStrictSpatial}, {d.nnode, rpNoFrameReuse}, {d.pnode, rpNoFrameReuse}};
+    VSFilterDependency deps1[] = {d.cnode, rpGeneral};
     vsapi->createVideoFilter(out, "Clense", data->vi, getFrameFunc, clenseFree, fmParallel, (d.mode == cmNormal) ? deps3 : deps1, (d.mode == cmNormal) ? 3 : 1, data, core);
 }

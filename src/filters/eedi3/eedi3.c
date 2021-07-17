@@ -849,7 +849,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     data = (eedi3Data *)malloc(sizeof(d));
     *data = d;
 
-    VSFilterDependency deps[] = { d.node, 1 };
+    VSFilterDependency deps[] = { d.node, rpStrictSpatial };
     vsapi->createVideoFilter(out, "eedi3", &data->vi, eedi3GetFrame, eedi3Free, fmParallel, deps, 1, data, core);
     return;
 

@@ -284,6 +284,12 @@ typedef enum VSDataTypeHint {
     dtUtf8 = 1
 } VSDataTypeHint;
 
+typedef enum VSRequestPattern {
+    rpGeneral = 0, /* General pattern */
+    rpNoFrameReuse = 1, /* When requesting all output frames from the filter no frame will be requested more than once from this input clip, never requests frames beyond the end of the clip */
+    rpStrictSpatial = 2 /* Always (and only) requests frame n from input clip when generating output frame n, never requests frames beyond the end of the clip */
+} VSRequestPattern;
+
 /* Core entry point */
 typedef const VSAPI *(VS_CC *VSGetVapourSynthAPI)(int version);
 
@@ -307,7 +313,7 @@ struct VSPLUGINAPI {
 
 typedef struct VSFilterDependency {
     VSNode *source;
-    int strictSpatial; /* always set to 1 */
+    int requestPattern; /* VSRequestPattern */
 } VSFilterDependency;
 
 struct VSAPI {

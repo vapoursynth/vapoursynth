@@ -645,7 +645,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, d->filter_name, d->vi, genericGetframe<op>, filterFree<GenericData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -700,7 +700,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         return;
     }
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, d->name, d->vi, singlePixelGetFrame<InvertData, InvertOp>, filterFree<InvertData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -756,7 +756,7 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         return;
     }
 
-    VSFilterDependency deps[] = { d->node, 1 };
+    VSFilterDependency deps[] = { d->node, rpStrictSpatial };
     vsapi->createVideoFilter(out, d->name, d->vi, singlePixelGetFrame<LimitData, LimitOp>, filterFree<LimitData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -818,7 +818,7 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, d->name, d->vi, singlePixelGetFrame<BinarizeData, BinarizeOp>, filterFree<BinarizeData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -985,7 +985,7 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         }
     }
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     if (d->vi->format.bytesPerSample == 1)
         vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframe<uint8_t>, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
     else if (d->vi->format.bytesPerSample == 2)

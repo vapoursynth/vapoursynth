@@ -256,7 +256,7 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     vi.height = d->height;
     vi.width = d->width;
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "Crop", &vi, cropGetframe, filterFree<CropData>, fmParallel, deps, 1, d.release(), core);
 }
 
@@ -290,7 +290,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
     vi.height = d->height;
     vi.width = d->width;
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "Crop", &vi, cropGetframe, filterFree<CropData>, fmParallel, deps, 1, d.release(), core);
 }
 
@@ -481,7 +481,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
     vi.height += vi.height ? (d->top + d->bottom) : 0;
     vi.width += vi.width ? (d->left + d->right) : 0;
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "AddBorders", &vi, addBordersGetframe, filterFree<AddBordersData>, fmParallel, deps, 1, d.release(), core);
 }
 
@@ -650,8 +650,8 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         vsapi->queryVideoFormat(&d->vi.format, d->format, d->vi.format.sampleType, d->vi.format.bitsPerSample, ssW, ssH, core);
     }
 
-    VSFilterDependency deps1[] = {{ d->nodes[0], 1 }};
-    VSFilterDependency deps3[] = {{ d->nodes[0], d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[0])->numFrames }, { d->nodes[1], d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames }, { d->nodes[2], d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames }};
+    VSFilterDependency deps1[] = {{ d->nodes[0], rpStrictSpatial }};
+    VSFilterDependency deps3[] = {{ d->nodes[0], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[0])->numFrames) ? rpStrictSpatial : rpGeneral }, { d->nodes[1], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpGeneral }, { d->nodes[2], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpGeneral }};
     vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, (d->format == cfGray) ? deps1 : deps3 , nclips, d.get(), core);
     d.release();
 }
@@ -789,7 +789,7 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     if (d->modifyDuration)
         muldivRational(&d->vi.fpsNum, &d->vi.fpsDen, 2, 1);
 
-    VSFilterDependency deps[] = {d->node, 0};
+    VSFilterDependency deps[] = {d->node, rpGeneral};
     vsapi->createVideoFilter(out, "SeparateFields", &d->vi, separateFieldsGetframe, filterFree<SeparateFieldsData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -894,7 +894,7 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
     if (!isConstantVideoFormat(&d->vi))
         RETERROR("DoubleWeave: clip must have constant format and dimensions");
 
-    VSFilterDependency deps[] = {d->node, 0};
+    VSFilterDependency deps[] = {d->node, rpGeneral};
     vsapi->createVideoFilter(out, "DoubleWeave", &d->vi, doubleWeaveGetframe, filterFree<DoubleWeaveData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -934,7 +934,7 @@ static const VSFrame *VS_CC flipVerticalGetframe(int n, int activationReason, vo
 static void VS_CC flipVerticalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<FlipVeritcalData> d(new FlipVeritcalData(vsapi));
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "FlipVertical", vsapi->getVideoInfo(d->node), flipVerticalGetframe, filterFree<FlipVeritcalData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -1032,7 +1032,7 @@ static void VS_CC flipHorizontalCreate(const VSMap *in, VSMap *out, void *userDa
     std::unique_ptr<FlipHorizontalData> d(new FlipHorizontalData(vsapi));
     d->flip = !!userData;
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, d->flip ? "Turn180" : "FlipHorizontal", vsapi->getVideoInfo(d->node), flipHorizontalGetframe, filterFree<FlipHorizontalData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -1129,7 +1129,7 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < numclips; i++)
-            deps.push_back({d->nodes[i], d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames});
+            deps.push_back({d->nodes[i], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames) ? rpStrictSpatial : rpGeneral});
         vsapi->createVideoFilter(out, d->vertical ? "StackVertical" : "StackHorizontal", &d->vi, stackGetframe, filterFree<StackData>, fmParallel, deps.data(), numclips, d.get(), core);
         d.release();
     }
@@ -1377,7 +1377,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 
     reduceRational(&d->vi.fpsNum, &d->vi.fpsDen);
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "AssumeFPS", &d->vi, assumeFPSGetframe, filterFree<AssumeFPSData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -1546,9 +1546,9 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
 
     std::vector<VSFilterDependency> deps;
     for (int i = 0; i < numpropsrc; i++)
-        deps.push_back({d->propsrc[i], 1});
+        deps.push_back({d->propsrc[i], rpGeneral}); // FIXME, propsrc could be strict spatial
     for (int i = 0; i < numclipsrc; i++)
-        deps.push_back({clipsrc[i], 0});
+        deps.push_back({clipsrc[i], rpGeneral});
     vsapi->createVideoFilter(out, "FrameEval", &d->vi, (d->propsrc.size() > 0) ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree, (d->propsrc.size() > 0) ? fmParallelRequests : fmUnordered, deps.data(), numpropsrc, d.get(), core);
     d.release();
 
@@ -1646,7 +1646,7 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
 
     std::vector<VSFilterDependency> deps;
     for (int i = 0; i < numnode; i++)
-        deps.push_back({d->node[i], 1});
+        deps.push_back({d->node[i], rpStrictSpatial});
     vsapi->createVideoFilter(out, "ModifyFrame", d->vi, modifyFrameGetFrame, modifyFrameFree, fmParallelRequests, deps.data(), numnode, d.get(), core);
     d.release();
 }
@@ -1731,7 +1731,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     vsapi->queryVideoFormat(&d->vi.format, d->vi.format.colorFamily, d->vi.format.sampleType, d->vi.format.bitsPerSample, d->vi.format.subSamplingH, d->vi.format.subSamplingW, core);
     d->cpulevel = vs_get_cpulevel(core);
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "Transpose", &d->vi, transposeGetFrame, filterFree<TransposeData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -1860,7 +1860,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
         RETERROR("PEMVerifier: number of upper plane limits does not match the number of planes");
     }
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "PEMVerifier", vi, pemVerifierGetFrame, filterFree<PEMVerifierData>, fmParallel, deps, 1, d.release(), core);
 }
 
@@ -2007,8 +2007,9 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
 
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, &err);
     if (d->node2) {
-        if (!isSameVideoInfo(vi, vsapi->getVideoInfo(d->node2)) || !isConstantVideoFormat(vsapi->getVideoInfo(d->node2)))
-            RETERROR("PlaneStats: both input clips must have the same format when second clip is used");
+        const VSVideoInfo *vi2 = vsapi->getVideoInfo(d->node2);
+        if (!isSameVideoInfo(vi, vi2) || !isConstantVideoFormat(vi2) || vi->numFrames != vi2->numFrames)
+            RETERROR("PlaneStats: both input clips must have the same format and length when second clip is used");
     }
 
     const char *tmpprop = vsapi->mapGetData(in, "prop", 0, &err);
@@ -2019,7 +2020,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     d->propDiff = tempprop + "Diff";
     d->cpulevel = vs_get_cpulevel(core);
 
-    VSFilterDependency deps[] = {{d->node1, 1}, {d->node2, 1}};
+    VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, rpStrictSpatial}};
     vsapi->createVideoFilter(out, "PlaneStats", vi, planeStatsGetFrame, filterFree<PlaneStatsData>, fmParallel, deps, d->node2 ? 2 : 1, d.get(), core);
     d.release();
 }
@@ -2068,7 +2069,7 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
     d->prop = tmpprop ? tmpprop : "_Alpha";
 
 
-    VSFilterDependency deps[] = {{d->node1, vi.numFrames >= vi2->numFrames}, {d->node2, 1}};
+    VSFilterDependency deps[] = {{d->node1, (vi.numFrames >= vi2->numFrames) ? rpStrictSpatial : rpGeneral}, {d->node2, 1}};
     vi.numFrames = vi2->numFrames;
     vsapi->createVideoFilter(out, "ClipToProp", &vi, clipToPropGetFrame, filterFree<ClipToPropData>, fmParallel, deps, 2, d.release(), core);
 }
@@ -2140,7 +2141,7 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     vsapi->freeFrame(msrc);
     vsapi->freeFrame(src);
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "PropToClip", &d->vi, propToClipGetFrame, filterFree<PropToClipData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -2226,7 +2227,7 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
         }
     }
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "SetFrameProp", vsapi->getVideoInfo(d->node), setFramePropGetFrame, filterFree<SetFramePropData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -2275,7 +2276,7 @@ static void VS_CC setFramePropsCreate(const VSMap *in, VSMap *out, void *userDat
     vsapi->copyMap(in, d->props);
     vsapi->mapDeleteKey(d->props, "clip");
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "SetFrameProps", vsapi->getVideoInfo(d->node), setFramePropsGetFrame, filterFree<SetFramePropsData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -2328,7 +2329,7 @@ static void VS_CC removeFramePropsCreate(const VSMap *in, VSMap *out, void *user
 
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "RemoveFrameProps", vsapi->getVideoInfo(d->node), removeFramePropsGetFrame, filterFree<RemoveFramePropsData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -2370,7 +2371,7 @@ static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userDat
         RETERROR("SetFieldBased: value must be 0, 1 or 2");
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
-    VSFilterDependency deps[] = {d->node, 1};
+    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
     vsapi->createVideoFilter(out, "SetFieldBased", vsapi->getVideoInfo(d->node), setFieldBasedGetFrame, filterFree<SetFieldBasedData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -2407,7 +2408,7 @@ static void VS_CC copyFramePropsCreate(const VSMap *in, VSMap *out, void *userDa
     d->node1 = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->node2 = vsapi->mapGetNode(in, "prop_src", 0, nullptr);
 
-    VSFilterDependency deps[] = {{d->node1, 1}, {d->node2, vsapi->getVideoInfo(d->node1)->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames}};
+    VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (vsapi->getVideoInfo(d->node1)->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral}};
     vsapi->createVideoFilter(out, "CopyFrameProps", vsapi->getVideoInfo(d->node1), copyFramePropsGetFrame, filterFree<CopyFramePropsData>, fmParallel, deps, 2, d.get(), core);
     d.release();
 }

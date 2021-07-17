@@ -633,7 +633,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < preFetchClips.size(); i++)
-            deps.push_back({preFetchClips[i], 0});
+            deps.push_back({preFetchClips[i], rpGeneral});
 
         vsapi->createVideoFilter(
                                     out,

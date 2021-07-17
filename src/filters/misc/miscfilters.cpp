@@ -118,7 +118,7 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    VSFilterDependency deps[] = {{ d->node1, 1 }, { d->node2, 0 }};
+    VSFilterDependency deps[] = {{ d->node1, rpStrictSpatial }, { d->node2, rpGeneral }};
     vsapi->createVideoFilter(out, "SCDetect", vi, scDetectGetFrame, filterFree<SCDetectData>, fmParallel, deps, 2, d.release(), core);
 }
 
@@ -700,8 +700,12 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
     }
 
     std::vector<VSFilterDependency> deps;
-    for (int i = 0; i < numNodes; i++)
-        deps.push_back({d->nodes[i], (numNodes > 1) ? 1 : 0 });
+    if (numNodes == 1) {
+        deps.push_back({d->nodes[0], rpGeneral});
+    } else {
+        for (int i = 0; i < numNodes; i++)
+            deps.push_back({d->nodes[i], (vsapi->getVideoInfo(d->nodes[i])->numFrames >= d->vi.numFrames) ? rpStrictSpatial : rpGeneral});
+    }
     vsapi->createVideoFilter(out, "AverageFrames", &d->vi, averageFramesGetFrame, filterFree<AverageFrameData>, fmParallel, deps.data(), numNodes, d.get(), core);
     d.release();
 }
@@ -834,7 +838,7 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
         return;
     }
 
-    VSFilterDependency deps[] = {{d->node1, 1}, {d->node2, 1}};
+    VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral}};
     vsapi->createVideoFilter(out, "Hysteresis", vi, hysteresisGetFrame, filterFree<HysteresisData>, fmParallel, deps, 2, d.release(), core);
 }
 
