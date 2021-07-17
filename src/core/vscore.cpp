@@ -719,7 +719,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
     // Worst case there are false positives and an extra cache gets activated
     // NoCache is generally the equivalent strict spatial for filters
 
-    int strictSpatial = !!(flags & vs3::nfNoCache);
+    int requestPattern = !!(flags & vs3::nfNoCache) ? rpNoFrameReuse : rpGeneral;
     int numKeys = vs_internal_vsapi.mapNumKeys(in);
 
     for (int i = 0; i < numKeys; i++) {
@@ -728,8 +728,8 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
             int numElems = vs_internal_vsapi.mapNumElements(in, key);
             for (int j = 0; j < numElems; j++) {
                 VSNode *sn = vs_internal_vsapi.mapGetNode(in, key, j, nullptr);
-                this->dependencies.push_back({sn, strictSpatial});
-                sn->addConsumer(this, strictSpatial);
+                this->dependencies.push_back({sn, requestPattern});
+                sn->addConsumer(this, requestPattern);
             }
         }
     }
