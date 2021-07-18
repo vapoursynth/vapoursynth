@@ -923,26 +923,40 @@ void VSNode::setCacheMode(int mode) {
     {
         std::lock_guard<std::mutex> lock(cacheMutex);
 
-        if (cacheLinear) {
+        if (cacheLinear || mode < -1 || mode > 1) {
             // simply disregard cache mode changes for linear filters
             return;
         }
 
-        bool oldCacheEnable = cacheEnabled;
         if (mode == -1) {
             cacheOverride = false;
-            cache.setMaxFrames(20);
+            cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].requestPattern);
         } else if (mode == 0) {
             cacheOverride = true;
             cacheEnabled = false;
-            cache.clear();
         } else if (mode == 1) {
             cacheOverride = true;
             cacheEnabled = true;
-            cache.setMaxFrames(20);
         }
+
+        // always reset to defaults on mode change
+        cache.setFixedSize(false);
+        cache.setMaxFrames(20);
+        cache.setMaxHistory(20);
+        if (!cacheEnabled)
+            cache.clear();
     }
     registerCache(cacheEnabled);
+}
+
+void VSNode::setCacheOptions(int fixedSize, int maxSize, int maxHistorySize) {
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    if (fixedSize >= 0)
+        cache.setFixedSize(!!fixedSize);
+    if (maxSize >= 0)
+        cache.setMaxFrames(maxSize);
+    if (maxHistorySize >= 0)
+        cache.setMaxHistory(maxHistorySize);
 }
 
 PVSFrame VSNode::getCachedFrameInternal(int n) {

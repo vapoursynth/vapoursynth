@@ -989,6 +989,11 @@ static void VS_CC setCacheMode(VSNode *node, int mode) VS_NOEXCEPT {
     node->setCacheMode(mode);
 }
 
+static void VS_CC setCacheOptions(VSNode *node, int fixedSize, int maxSize, int maxHistorySize) VS_NOEXCEPT {
+    assert(node && mode >= -1 && mode <= 1);
+    node->setCacheOptions(fixedSize, maxSize, maxHistorySize);
+}
+
 static int VS_CC getFrameType(const VSFrame *f) VS_NOEXCEPT {
     assert(f);
     return f->getFrameType();
@@ -1050,11 +1055,12 @@ const VSAPI vs_internal_vsapi = {
     &createAudioFilter,
     &createAudioFilter2,
     &setLinearFilter,
+    &setCacheMode,
+    &setCacheOptions,
 
     &freeNode,
     &addNodeRef,
     &getNodeType,
-    &setCacheMode,
     &getVideoInfo,
     &getAudioInfo,
 

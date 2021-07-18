@@ -907,6 +907,7 @@ public:
 
     int setLinear();
     void setCacheMode(int mode);
+    void setCacheOptions(int fixedSize, int maxSize, int maxHistorySize);
     void cacheFrame(const VSFrame *frame, int n);
 
     // to get around encapsulation a bit, more elegant than making everything friends in this case

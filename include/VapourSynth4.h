@@ -323,11 +323,12 @@ struct VSAPI {
     void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
     VSNode *(VS_CC *createAudioFilter2)(const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createAudioFilter but returns a pointer to the VSNode directly or NULL on failure */
     int (VS_CC *setLinearFilter)(VSNode *node) VS_NOEXCEPT; /* Use right after create*Filter*, sets the correct cache mode for using the cacheFrame API and returns the recommended upper number of additional frames to cache per request */
+    void (VS_CC *setCacheMode)(VSNode *node, int mode) VS_NOEXCEPT; /* -1: default (auto), 0: force disable, 1: force enable, changing the cache mode also resets all options to their default */
+    void (VS_CC *setCacheOptions)(VSNode *node, int fixedSize, int maxSize, int maxHistorySize) VS_NOEXCEPT; /* passing -1 means no change */
 
     void (VS_CC *freeNode)(VSNode *node) VS_NOEXCEPT;
     VSNode *(VS_CC *addNodeRef)(VSNode *node) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNode *node) VS_NOEXCEPT; /* returns VSMediaType */
-    void (VS_CC *setCacheMode)(VSNode *node, int mode) VS_NOEXCEPT; /* -1: default (auto), 0: force disable, 1: force enable */
     const VSVideoInfo *(VS_CC *getVideoInfo)(VSNode *node) VS_NOEXCEPT;
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNode *node) VS_NOEXCEPT;
 

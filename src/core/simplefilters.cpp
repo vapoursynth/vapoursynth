@@ -2414,6 +2414,27 @@ static void VS_CC copyFramePropsCreate(const VSMap *in, VSMap *out, void *userDa
 }
 
 //////////////////////////////////////////
+// SetAudio/VideoCache
+
+static void VS_CC setCache(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    int err;
+    VSNode *node = vsapi->mapGetNode(in, "clip", 0, nullptr);
+    int mode = vsapi->mapGetIntSaturated(in, "mode", 0, &err);
+    if (!err)
+        vsapi->setCacheMode(node, mode);
+    int fixedsize = vsapi->mapGetIntSaturated(in, "fixedsize", 0, &err);
+    if (err)
+        fixedsize = -1;
+    int maxsize = vsapi->mapGetIntSaturated(in, "maxsize", 0, &err);
+    if (err)
+        maxsize = -1;
+    int maxhistory = vsapi->mapGetIntSaturated(in, "maxhistory", 0, &err);
+    if (err)
+        maxhistory = -1;
+    vsapi->setCacheOptions(node, fixedsize, maxsize, maxhistory);
+}
+
+//////////////////////////////////////////
 // SetMaxCpu
 
 static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -2456,5 +2477,7 @@ void VS_CC stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("RemoveFrameProps", "clip:vnode;props:data:opt;", "clip:vnode;", removeFramePropsCreate, 0, plugin);
     vspapi->registerFunction("SetFieldBased", "clip:vnode;value:int;", "clip:vnode;", setFieldBasedCreate, 0, plugin);
     vspapi->registerFunction("CopyFrameProps", "clip:vnode;prop_src:vnode;", "clip:vnode;", copyFramePropsCreate, 0, plugin);
+    vspapi->registerFunction("SetAudioCache", "clip:anode;mode:int;fixedsize:int;maxsize:int;maxhistory:int;", "", setCache, 0, plugin);
+    vspapi->registerFunction("SetVideoCache", "clip:vnode;mode:int;fixedsize:int;maxsize:int;maxhistory:int;", "", setCache, 0, plugin);
     vspapi->registerFunction("SetMaxCPU", "cpu:data;", "cpu:data;", setMaxCpu, 0, plugin);
 }
