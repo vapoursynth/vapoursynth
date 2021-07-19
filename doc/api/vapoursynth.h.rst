@@ -926,7 +926,7 @@ struct VSAPI
 
    .. _getCoreInfo2:
 
-   void getCoreInfo(VSCore_ \*core, VSCoreInfo_ \*info)
+   void getCoreInfo2(VSCore_ \*core, VSCoreInfo_ \*info)
 
       Returns information about the VapourSynth core.
       
