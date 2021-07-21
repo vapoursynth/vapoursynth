@@ -30,8 +30,8 @@ cdef extern from "include/VSConstants4.h" nogil:
         CHROMA_TOP "VSC_CHROMA_TOP"
         CHROMA_BOTTOM_LEFT "VSC_CHROMA_BOTTOM_LEFT"
         CHROMA_BOTTOM "VSC_CHROMA_BOTTOM"
-		
-	cpdef enum FieldBased "VSFieldBased":
+        
+    cpdef enum FieldBased "VSFieldBased":
         FIELD_PROGRESSIVE "VSC_FIELD_PROGRESSIVE"
         FIELD_TOP "VSC_FIELD_TOP"
         FIELD_BOTTOM "VSC_FIELD_BOTTOM"
