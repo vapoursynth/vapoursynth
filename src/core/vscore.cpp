@@ -1028,7 +1028,7 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
 void VSNode::cacheFrame(const VSFrame *frame, int n) {
     std::lock_guard<std::mutex> lock(cacheMutex);
     assert(cacheLinear);
-    cache.insert(n, const_cast<VSFrame *>(frame));
+    cache.insert(n, {const_cast<VSFrame *>(frame), true});
 }
 
 void VSNode::reserveThread() {
