@@ -2008,8 +2008,8 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, &err);
     if (d->node2) {
         const VSVideoInfo *vi2 = vsapi->getVideoInfo(d->node2);
-        if (!isSameVideoInfo(vi, vi2) || !isConstantVideoFormat(vi2) || vi->numFrames != vi2->numFrames)
-            RETERROR("PlaneStats: both input clips must have the same format and length when second clip is used");
+        if (!isSameVideoInfo(vi, vi2) || !isConstantVideoFormat(vi2))
+            RETERROR("PlaneStats: both input clips must have the same format when second clip is used");
     }
 
     const char *tmpprop = vsapi->mapGetData(in, "prop", 0, &err);
@@ -2020,7 +2020,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     d->propDiff = tempprop + "Diff";
     d->cpulevel = vs_get_cpulevel(core);
 
-    VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, rpStrictSpatial}};
+    VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral}};
     vsapi->createVideoFilter(out, "PlaneStats", vi, planeStatsGetFrame, filterFree<PlaneStatsData>, fmParallel, deps, d->node2 ? 2 : 1, d.get(), core);
     d.release();
 }
