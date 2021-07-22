@@ -447,6 +447,7 @@ public:
     }
 
     void release() noexcept {
+        assert(refcount > 0);
         if (--refcount == 0)
             delete this;
     }

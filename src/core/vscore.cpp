@@ -689,7 +689,7 @@ const std::string &VSPluginFunction::getReturnType() const {
 }
 
 VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1) {
+    refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1) {
 
     if (flags & ~(vs3::nfNoCache | vs3::nfIsCache | vs3::nfMakeLinear))
         throw VSException("Filter " + name  + " specified unknown flags");
@@ -984,7 +984,9 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
         core->logFatal("Bad SSE state detected after return from "+ name);
 #endif
 
-    if (r) {     
+    if (r) {
+        assert(r->getFrameType());
+
         if (r->getFrameType() == mtVideo) {
             const VSVideoFormat *fi = r->getVideoFormat();
 
