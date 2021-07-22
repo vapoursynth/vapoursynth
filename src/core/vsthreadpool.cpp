@@ -213,7 +213,8 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 skipCall = mainContext->setError(leafContext->getErrorMessage());
                 --mainContext->numFrameRequests;
             } else if (leafContext && leafContext->returnedFrame) {
-                assert(--mainContext->numFrameRequests == 0);
+                --mainContext->numFrameRequests;
+                assert(mainContext->numFrameRequests == 0);
                 ar = (node->apiMajor == 3) ? static_cast<int>(vs3::arAllFramesReady) : static_cast<int>(arAllFramesReady);
 
                 mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->node, leafContext->n), leafContext->returnedFrame));
