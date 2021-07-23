@@ -30,10 +30,6 @@
 #define ZIMGXX_NAMESPACE vszimgxx
 #include <zimg++.hpp>
 
-#if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 3)
-#error zAPI v2.3 or greater required
-#endif
-
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
 #include "internalfilters.h"
@@ -41,32 +37,6 @@
 
 #define P2P_USER_NAMESPACE vsp2p
 #include "../common/p2p.h"
-
-#if defined(__GNUC__) && (__GNUC__ < 5)
-#include <mutex>
-namespace {
-
-std::mutex g_shared_ptr_mutex;
-
-template <class T>
-std::shared_ptr<T> sp_atomic_load(const std::shared_ptr<T> *p)
-{
-    std::lock_guard<std::mutex> lock{ g_shared_ptr_mutex };
-    return *p;
-}
-
-template <class T>
-void sp_atomic_store(std::shared_ptr<T> *p, std::shared_ptr<T> r)
-{
-    std::lock_guard<std::mutex> lock{ g_shared_ptr_mutex };
-    *p = r;
-}
-
-} // namespace
-#else
-#define sp_atomic_load std::atomic_load
-#define sp_atomic_store std::atomic_store
-#endif
 
 using namespace vsh;
 
@@ -663,9 +633,7 @@ class vszimg {
             lookup_enum(in, "range_in", g_range_table, &m_frame_params_in.range, vsapi);
             lookup_enum(in, "chromaloc_in", g_chromaloc_table, &m_frame_params_in.chromaloc, vsapi);
 
-        #if ZIMG_API_VERSION >= ZIMG_MAKE_API_VERSION(2, 3)
             m_params.cpu_type = ZIMG_CPU_AUTO_64B;
-        #endif
             m_params.allow_approximate_gamma = 1;
             m_params.resample_filter = static_cast<zimg_resample_filter_e>(reinterpret_cast<intptr_t>(userData));
             m_params.filter_param_a = propGetScalarDef<double>(in, "filter_param_a", m_params.filter_param_a, vsapi);
@@ -726,10 +694,10 @@ class vszimg {
         else
             data_ptr = &m_graph_data_p;
 
-        std::shared_ptr<graph_data> data = sp_atomic_load(data_ptr);
+        std::shared_ptr<graph_data> data = std::atomic_load(data_ptr);
         if (!data || data->src_format != src_format || data->dst_format != dst_format) {
             data = std::make_shared<graph_data>(src_format, dst_format, m_params);
-            sp_atomic_store(data_ptr, data);
+            std::atomic_store(data_ptr, data);
         }
 
         return data;
