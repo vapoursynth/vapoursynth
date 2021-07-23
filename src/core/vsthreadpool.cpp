@@ -296,7 +296,7 @@ size_t VSThreadPool::setThreadCount(size_t threads) {
 }
 
 void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
-    tasks.push_back(ctx);
+    tasks.push_front(ctx);
     wakeThread();
 }
 
@@ -359,7 +359,7 @@ void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutpu
     if (core->memory->isOverLimit()) {
         ticks = 0;
         core->notifyCaches(true);
-    } else if (/*!context->upstreamContext && */++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
+    } else if (++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
         ticks = 0;
         core->notifyCaches(false);
     }
@@ -374,10 +374,8 @@ void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutpu
         PVSFrameContext ctx = new VSFrameContext(key, notify);
         // create a new context and append it to the tasks
         allContexts.insert(std::make_pair(key, ctx));
-        tasks.push_back(ctx);
-    }
-
-    wakeThread();
+        queueTask(ctx);
+    } 
 }
 
 bool VSThreadPool::isWorkerThread() {
