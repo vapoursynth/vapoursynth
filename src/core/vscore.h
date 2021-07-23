@@ -577,7 +577,11 @@ private:
     std::atomic<long> refcount;
     size_t reqOrder;
     size_t numFrameRequests = 0;
-    PVSFrame producedFrame;
+
+    bool error = false;
+    bool first = true;
+    bool external;
+    bool lockOnOutput;
 
     /// internal return only
     SemiStaticVector<PVSFrameContext, NUM_FRAMECONTEXT_FAST_REQS> notifyCtxList;
@@ -586,10 +590,6 @@ private:
     VSFrameDoneCallback frameDone;
     void *userData;
     std::string errorMessage;
-    bool first = true;
-    bool error = false;
-    bool external;
-    bool lockOnOutput;
 public:
     SemiStaticVector<NodeOutputKey, NUM_FRAMECONTEXT_FAST_REQS> reqList;
     SemiStaticVector<std::pair<NodeOutputKey, PVSFrame>, NUM_FRAMECONTEXT_FAST_REQS> availableFrames;
