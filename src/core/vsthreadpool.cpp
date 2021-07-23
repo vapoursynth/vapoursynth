@@ -59,7 +59,7 @@ size_t VSThreadPool::getNumAvailableThreads() {
 }
 
 bool VSThreadPool::taskCmp(const PVSFrameContext &a, const PVSFrameContext &b) {
-    return (a->reqOrder < b->reqOrder) || (a->reqOrder == b->reqOrder && a->n < b->n);
+    return (a->reqOrder < b->reqOrder) || (a->reqOrder == b->reqOrder && a->key.second < b->key.second);
 }
 
 void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
@@ -78,69 +78,38 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
         std::set<VSNode *> seenNodes;
 
         for (auto iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
-            VSFrameContext *mainContext = iter->get();
-            VSFrameContext *leafContext = nullptr;
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle the output tasks
-            if (mainContext->frameDone && mainContext->returnedFrame) {
-                PVSFrameContext mainContextRef(std::move(*iter));
-                owner->tasks.erase(iter);
-                owner->returnFrame(mainContextRef, mainContext->returnedFrame);
-                ranTask = true;
-                break;
-            }
+            VSFrameContext *frameContext = iter->get();
+            VSNode *node = frameContext->key.first;
 
-            if (mainContext->frameDone && mainContext->hasError()) {
-                PVSFrameContext mainContextRef(std::move(*iter));
-                owner->tasks.erase(iter);
-                owner->returnFrame(mainContextRef, mainContext->getErrorMessage());
-                ranTask = true;
-                break;
-            }
-
-            if (mainContext->returnedFrame || mainContext->hasError()) {
-                leafContext = mainContext;
-                mainContext = mainContext->upstreamContext.get();
-            }
-
-            VSNode *node = mainContext->node;
-
-            // FIXME, very ugly code duplication
+            // FIXME, somewhat ugly code duplication and is effectively a success only version of the notification at the end
             // Fast exit path for checking cache
-            if (node->cacheEnabled && mainContext->numFrameRequests == 0 && !mainContext->hasError()) {
-                PVSFrame f = node->getCachedFrameInternal(mainContext->n);
+            if (node->cacheEnabled) {
+                PVSFrame f = node->getCachedFrameInternal(frameContext->key.second);
 
                 if (f) {
-                    PVSFrameContext mainContextRef;
-                    PVSFrameContext leafContextRef;
-                    if (leafContext) {
-                        leafContextRef = std::move(*iter);
-                        mainContextRef = leafContextRef->upstreamContext;
-                    } else {
-                        mainContextRef = std::move(*iter);
-                    }
-
-                    owner->tasks.erase(iter);
-
-                    PVSFrameContext n;
+                    OutputDebugStringA(("hit: " + std::to_string(frameContext->key.second) + "\n").c_str());
+                    
                     bool needsSort = false;
 
-                    do {
-                        n = mainContextRef->notificationChain;
-
-                        if (n)
-                            mainContextRef->notificationChain.reset();
-
-                        if (mainContextRef->upstreamContext) {
-                            mainContextRef->returnedFrame = f;
-                            owner->startInternal(mainContextRef);
+                    for (size_t i = 0; i < frameContext->notifyCtxList.size(); i++) {
+                        PVSFrameContext &notify = frameContext->notifyCtxList[i];
+                        notify->availableFrames.push_back({frameContext->key, f});
+                        if (--notify->numFrameRequests == 0) { 
+                            owner->tasks.push_back(notify);
                             needsSort = true;
                         }
+                    }
 
-                        if (mainContextRef->frameDone)
-                            owner->returnFrame(mainContextRef, f);
-                    } while ((mainContextRef = n));
+                    PVSFrameContext mainContextRef = std::move(*iter);
+
+                    if (frameContext->external)
+                        owner->returnFrame(frameContext, f);
+
+                    owner->tasks.erase(iter);
 
                     if (needsSort)
                         owner->tasks.sort(taskCmp);
@@ -150,19 +119,10 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 }
             }
 
-
             int filterMode = node->filterMode;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-// Fast path for arFrameReady events that don't need to be notified
-
-            if ((mainContext->numFrameRequests > 1) && (!leafContext || !leafContext->hasError())) {
-                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->node, leafContext->n), leafContext->returnedFrame));
-                --mainContext->numFrameRequests;
-                owner->tasks.erase(iter);
-                ranTask = true;
-                break;
-            }
+//
 
             // Don't try to lock the same node twice since it's likely to fail and will produce more out of order requests as well
             if (filterMode != fmFrameState && !seenNodes.insert(node).second)
@@ -173,16 +133,16 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 
             // Does the filter need the per instance mutex? fmFrameState, fmUnordered and fmParallelRequests (when in the arAllFramesReady state) use this
-            bool useSerialLock = (filterMode == fmFrameState || filterMode == fmUnordered || (filterMode == fmParallelRequests && mainContext->numFrameRequests == 1));
+            bool useSerialLock = (filterMode == fmFrameState || filterMode == fmUnordered || (filterMode == fmParallelRequests && !frameContext->first));
 
             if (useSerialLock) {
                 if (!node->serialMutex.try_lock())
                     continue;
                 if (filterMode == fmFrameState) {
                     if (node->serialFrame == -1) {
-                        node->serialFrame = mainContext->n;
+                        node->serialFrame = frameContext->key.second;
                         // another frame already in progress?
-                    } else if (node->serialFrame != mainContext->n) {
+                    } else if (node->serialFrame != frameContext->key.second) {
                         node->serialMutex.unlock();
                         continue;
                     }
@@ -192,54 +152,37 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Remove the context from the task list and keep references around until processing is done
 
-            PVSFrameContext mainContextRef;
-            PVSFrameContext leafContextRef;
-            if (leafContext) {
-                leafContextRef = std::move(*iter);
-                mainContextRef = leafContextRef->upstreamContext;
-            } else {
-                mainContextRef = std::move(*iter);
-            }
-
+            PVSFrameContext frameContextRef = std::move(*iter);
             owner->tasks.erase(iter);
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Figure out the activation reason
 
+            assert(frameContext->numFrameRequests == 0);
             int ar = arInitial;
-            bool skipCall = false; // Used to avoid multiple error calls for the same frame request going into a filter
-            if ((leafContext && leafContext->hasError()) || mainContext->hasError()) {
+            if (frameContext->hasError()) {
                 ar = arError;
-                skipCall = mainContext->setError(leafContext->getErrorMessage());
-                --mainContext->numFrameRequests;
-            } else if (leafContext && leafContext->returnedFrame) {
-                --mainContext->numFrameRequests;
-                assert(mainContext->numFrameRequests == 0);
+            } else if (!frameContext->first) {
                 ar = (node->apiMajor == 3) ? static_cast<int>(vs3::arAllFramesReady) : static_cast<int>(arAllFramesReady);
-
-                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->node, leafContext->n), leafContext->returnedFrame));
+            } else if (frameContext->first) {
+                frameContext->first = false;
             }
-
-            bool hasExistingRequests = !!mainContext->numFrameRequests;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Do the actual processing
 
             lock.unlock();
 
-            assert(ar == arError || !mainContext->hasError());
 #ifdef VS_FRAME_REQ_DEBUG
             vsWarning("Entering: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
 #endif
-            PVSFrame f;
-            if (!skipCall)
-                f = node->getFrameInternal(mainContext->n, ar, mainContext);
+            PVSFrame f = node->getFrameInternal(frameContext->key.second, ar, frameContext);
             ranTask = true;
 #ifdef VS_FRAME_REQ_DEBUG
             vsWarning("Exiting: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
 #endif
-            bool frameProcessingDone = f || mainContext->hasError();
-            if (mainContext->hasError() && f)
+            bool frameProcessingDone = f || frameContext->hasError();
+            if (frameContext->hasError() && f)
                 owner->core->logFatal("A frame was returned by " + node->name + " but an error was also set, this is not allowed");
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -252,64 +195,49 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
-            bool requestedFrames = mainContext->reqList.size() > 0 && !frameProcessingDone;
+            bool requestedFrames = frameContext->reqList.size() > 0 && !frameProcessingDone;
             bool needsSort = requestedFrames;
 
             lock.lock();
 
             if (requestedFrames) {
-                for (size_t i = 0; i < mainContext->reqList.size(); i++)
-                    owner->startInternal(mainContext->reqList[i]);
-                mainContext->reqList.clear();
+                assert(frameContext->numFrameRequests == 0);
+                for (size_t i = 0; i < frameContext->reqList.size(); i++)
+                    owner->startInternalRequest(frameContextRef, frameContext->reqList[i]);
+                frameContext->numFrameRequests = frameContext->reqList.size();
+                frameContext->reqList.clear();
             }
 
             if (frameProcessingDone)
-                owner->allContexts.erase(NodeOutputKey(mainContext->node, mainContext->n));
+                owner->allContexts.erase(frameContext->key);
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-// Propagate status to other linked contexts
-// CHANGES mainContextRef!!!
+// Notify all dependent contexts
 
-            if (mainContext->hasError() && !hasExistingRequests && !requestedFrames) {
-                PVSFrameContext n;
-                do {
-                    n = mainContextRef->notificationChain;
+            if (frameContext->hasError()) {
+                for (size_t i = 0; i < frameContextRef->notifyCtxList.size(); i++) {
+                    PVSFrameContext &notify = frameContextRef->notifyCtxList[i];
+                    notify->setError(frameContextRef->getErrorMessage());
+                    if (--notify->numFrameRequests == 0)
+                        owner->tasks.push_back(notify);
+                }
 
-                    if (n) {
-                        mainContextRef->notificationChain.reset();
-                        n->setError(mainContextRef->getErrorMessage());
-                    }
-
-                    if (mainContextRef->upstreamContext) {
-                        owner->startInternal(mainContextRef);
-                        needsSort = true;
-                    }
-
-                    if (mainContextRef->frameDone) {
-                        owner->returnFrame(mainContextRef, mainContextRef->getErrorMessage());
-                    }
-                } while ((mainContextRef = n));
+                if (frameContext->external)
+                    owner->returnFrame(frameContext, nullptr);
             } else if (f) {
-                if (hasExistingRequests || requestedFrames)
+                if (requestedFrames)
                     owner->core->logFatal("A frame was returned at the end of processing by " + node->name + " but there are still outstanding requests");
-                PVSFrameContext n;
 
-                do {
-                    n = mainContextRef->notificationChain;
+                for (size_t i = 0; i < frameContextRef->notifyCtxList.size(); i++) {
+                    PVSFrameContext &notify = frameContextRef->notifyCtxList[i];
+                    notify->availableFrames.push_back({frameContextRef->key, f});
+                    if (--notify->numFrameRequests == 0)
+                        owner->tasks.push_back(notify);
+                }
 
-                    if (n)
-                        mainContextRef->notificationChain.reset();
-
-                    if (mainContextRef->upstreamContext) {
-                        mainContextRef->returnedFrame = f;
-                        owner->startInternal(mainContextRef);
-                        needsSort = true;
-                    }
-
-                    if (mainContextRef->frameDone)
-                        owner->returnFrame(mainContextRef, f);
-                } while ((mainContextRef = n));
-            } else if (hasExistingRequests || requestedFrames) {
+                if (frameContext->external)
+                    owner->returnFrame(frameContext, f);
+            } else if (requestedFrames) {
                 // already scheduled, do nothing
             } else {
                 owner->core->logFatal("No frame returned at the end of processing by " + node->name);
@@ -379,89 +307,66 @@ void VSThreadPool::reserveThread() {
     ++activeThreads;
 }
 
-void VSThreadPool::start(const PVSFrameContext &context) {
+void VSThreadPool::startExternal(const PVSFrameContext &context) {
     assert(context);
     std::lock_guard<std::mutex> l(lock);
     context->reqOrder = ++reqCounter;
-    startInternal(context);
+    tasks.push_back(context); // external requests can't be combined so just add to queue
+    wakeThread();
 }
 
-void VSThreadPool::returnFrame(const PVSFrameContext &rCtx, const PVSFrame &f) {
+void VSThreadPool::returnFrame(const VSFrameContext *rCtx, const PVSFrame &f) {
     assert(rCtx->frameDone);
     bool outputLock = rCtx->lockOnOutput;
     // we need to unlock here so the callback may request more frames without causing a deadlock
     // AND so that slow callbacks will only block operations in this thread, not all the others
     lock.unlock();
-    f->add_ref();
-    if (outputLock)
-        callbackLock.lock();
-    rCtx->frameDone(rCtx->userData, f.get(), rCtx->n, rCtx->node, nullptr);
-    if (outputLock)
-        callbackLock.unlock();
+    if (rCtx->hasError()) {
+        if (outputLock)
+            callbackLock.lock();
+        rCtx->frameDone(rCtx->userData, nullptr, rCtx->key.second, rCtx->key.first, rCtx->errorMessage.c_str());
+        if (outputLock)
+            callbackLock.unlock();
+    } else {
+        f->add_ref();
+        if (outputLock)
+            callbackLock.lock();
+        rCtx->frameDone(rCtx->userData, f.get(), rCtx->key.second, rCtx->key.first, nullptr);
+        if (outputLock)
+            callbackLock.unlock();
+    }
     lock.lock();
 }
 
-void VSThreadPool::returnFrame(const PVSFrameContext &rCtx, const std::string &errMsg) {
-    assert(rCtx->frameDone);
-    bool outputLock = rCtx->lockOnOutput;
-    // we need to unlock here so the callback may request more frames without causing a deadlock
-    // AND so that slow callbacks will only block operations in this thread, not all the others
-    lock.unlock();
-    if (outputLock)
-        callbackLock.lock();
-    rCtx->frameDone(rCtx->userData, nullptr, rCtx->n, rCtx->node, errMsg.c_str());
-    if (outputLock)
-        callbackLock.unlock();
-    lock.lock();
-}
-
-void VSThreadPool::startInternal(const PVSFrameContext &context) {
+void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutputKey key) {
     //technically this could be done by walking up the context chain and add a new notification to the correct one
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
-    if (context->n < 0)
-        core->logFatal("Negative frame request by: " + context->upstreamContext->node->getName());
+    if (key.second < 0)
+        core->logFatal("Negative frame request by: " + notify->key.first->getName());
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
         ticks = 0;
         core->notifyCaches(true);
-    } else if (!context->upstreamContext && ++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
+    } else if (/*!context->upstreamContext && */++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
         ticks = 0;
         core->notifyCaches(false);
     }
 
-    // add it immediately if the task is to return a completed frame or report an error since it never has an existing context
-    // also add immediately with no possibility to add references if it's an external frame request
-    if (context->frameDone || context->returnedFrame || context->hasError()) {
-        tasks.push_back(context);
-    } else {
-        if (context->upstreamContext)
-            ++context->upstreamContext->numFrameRequests;
-
-        NodeOutputKey p(context->node, context->n);
         
-        auto it = allContexts.find(p);
-        if (it != allContexts.end()) {
-            PVSFrameContext &ctx = it->second;
-            assert(context->node == ctx->node && context->n == ctx->n);
-
-            if (ctx->returnedFrame) {
-                // special case where the requested frame is encountered "by accident"
-                context->returnedFrame = ctx->returnedFrame;
-                tasks.push_back(context);
-            } else {
-                // add it to the list of contexts to notify when it's available
-                context->notificationChain = ctx->notificationChain;
-                ctx->notificationChain = context;
-                ctx->reqOrder = std::min(ctx->reqOrder, context->reqOrder);
-            }
-        } else {
-            // create a new context and append it to the tasks
-            allContexts.insert(std::make_pair(p, context));
-            tasks.push_back(context);
-        }
+    auto it = allContexts.find(key);
+    if (it != allContexts.end()) {
+        PVSFrameContext &ctx = it->second;
+        ctx->notifyCtxList.push_back(notify);
+        ctx->reqOrder = std::min(ctx->reqOrder, notify->reqOrder);
+    } else {
+        PVSFrameContext ctx = new VSFrameContext(key, notify);
+        // create a new context and append it to the tasks
+        allContexts.insert(std::make_pair(key, ctx));
+        tasks.push_back(ctx);
     }
+
     wakeThread();
 }
 

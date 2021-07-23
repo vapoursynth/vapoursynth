@@ -92,12 +92,13 @@ static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *val
 }
 #endif
 
-VSFrameContext::VSFrameContext(int n, VSNode *node, const PVSFrameContext &upstreamContext) :
-    refcount(1), reqOrder(upstreamContext->reqOrder), n(n), node(node), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), lockOnOutput(true) {
+VSFrameContext::VSFrameContext(NodeOutputKey key, const PVSFrameContext &notify) :
+    refcount(1), reqOrder(notify->reqOrder), key(key), userData(nullptr), frameDone(nullptr), lockOnOutput(true), external(false) {
+    notifyCtxList.push_back(notify);
 }
 
 VSFrameContext::VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
-    refcount(1), reqOrder(0), n(n), userData(userData), node(node), frameDone(frameDone), lockOnOutput(lockOnOutput) {
+    refcount(1), reqOrder(0), userData(userData), key(node, n), frameDone(frameDone), lockOnOutput(lockOnOutput), external(true) {
 }
 
 bool VSFrameContext::setError(const std::string &errorMsg) {
@@ -841,7 +842,7 @@ void VSNode::removeConsumer(VSNode *consumer, int strictSpatial) {
 
 
 void VSNode::getFrame(const PVSFrameContext &ct) {
-    core->threadPool->start(ct);
+    core->threadPool->startExternal(ct);
 }
 
 const VSVideoInfo &VSNode::getVideoInfo() const {

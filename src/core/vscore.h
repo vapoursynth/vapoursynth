@@ -88,7 +88,7 @@ class VSException : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-typedef std::tuple<VSNode *, int> NodeOutputKey;
+typedef std::pair<VSNode *, int> NodeOutputKey;
 
 template<>
 struct std::hash<NodeOutputKey> {
@@ -577,20 +577,24 @@ private:
     std::atomic<long> refcount;
     size_t reqOrder;
     size_t numFrameRequests = 0;
-    int n;
-    PVSFrame returnedFrame;
-    PVSFrameContext upstreamContext;
-    PVSFrameContext notificationChain;
-    void *userData;
+    PVSFrame producedFrame;
+
+    /// internal return only
+    SemiStaticVector<PVSFrameContext, NUM_FRAMECONTEXT_FAST_REQS> notifyCtxList;
+
+    /// external return only
     VSFrameDoneCallback frameDone;
+    void *userData;
     std::string errorMessage;
+    bool first = true;
     bool error = false;
+    bool external;
     bool lockOnOutput;
 public:
-    SemiStaticVector<PVSFrameContext, NUM_FRAMECONTEXT_FAST_REQS> reqList;
+    SemiStaticVector<NodeOutputKey, NUM_FRAMECONTEXT_FAST_REQS> reqList;
     SemiStaticVector<std::pair<NodeOutputKey, PVSFrame>, NUM_FRAMECONTEXT_FAST_REQS> availableFrames;
 
-    VSNode *node;
+    NodeOutputKey key;
     void *frameContext[4];
 
     void add_ref() noexcept {
@@ -612,8 +616,8 @@ public:
     }
 
     bool setError(const std::string &errorMsg);
-    VSFrameContext(int n, VSNode *clip, const PVSFrameContext &upstreamContext);
-    VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput = true);
+    VSFrameContext(NodeOutputKey key, const PVSFrameContext &notify);
+    VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput);
 };
 
 struct VSFunctionFrame;
@@ -937,18 +941,17 @@ private:
     std::atomic<size_t> ticks;
     size_t getNumAvailableThreads();
     void wakeThread();
-    void startInternal(const PVSFrameContext &context);
+    void startInternalRequest(const PVSFrameContext &notify, NodeOutputKey key);
     void spawnThread();
     static void runTasks(VSThreadPool *owner, std::atomic<bool> &stop);
     static bool taskCmp(const PVSFrameContext &a, const PVSFrameContext &b);
 public:
     VSThreadPool(VSCore *core);
     ~VSThreadPool();
-    void returnFrame(const PVSFrameContext &rCtx, const PVSFrame &f);
-    void returnFrame(const PVSFrameContext &rCtx, const std::string &errMsg);
+    void returnFrame(const VSFrameContext *rCtx, const PVSFrame &f);
     size_t threadCount();
     size_t setThreadCount(size_t threads);
-    void start(const PVSFrameContext &context);
+    void startExternal(const PVSFrameContext &context);
     void releaseThread();
     void reserveThread();
     bool isWorkerThread();

@@ -88,7 +88,7 @@ static uint8_t *VS_CC getWritePtr(VSFrame *frame, int plane) VS_NOEXCEPT {
 static void VS_CC getFrameAsync(int n, VSNode *clip, VSFrameDoneCallback fdc, void *userData) VS_NOEXCEPT {
     assert(clip && fdc);
     int numFrames = (clip->getNodeType() == mtVideo) ? clip->getVideoInfo().numFrames : clip->getAudioInfo().numFrames;
-    VSFrameContext *ctx = new VSFrameContext(n, clip, fdc, userData);
+    VSFrameContext *ctx = new VSFrameContext(n, clip, fdc, userData, true);
 
     if (n < 0 || (numFrames && n >= numFrames))
         ctx->setError("Invalid frame number " + std::to_string(n) + " requested, clip only has " + std::to_string(numFrames) + " frames");
@@ -138,7 +138,7 @@ static void VS_CC requestFrameFilter(int n, VSNode *node, VSFrameContext *frameC
     int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
     if (n >= numFrames)
         n = numFrames - 1;
-    frameCtx->reqList.emplace_back(new VSFrameContext(n, node, PVSFrameContext(frameCtx, true)));
+    frameCtx->reqList.emplace_back(NodeOutputKey(node, n));
 }
 
 static const VSFrame *VS_CC getFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT {
@@ -790,7 +790,7 @@ static void VS_CC releaseFrameEarly(VSNode *node, int n, VSFrameContext *frameCt
 
 void VS_CC cacheFrame(const VSFrame *frame, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(frame && n >= 0 && frameCtx);
-    frameCtx->node->cacheFrame(frame, n);
+    frameCtx->key.first->cacheFrame(frame, n);
 }
 
 static VSFunction *VS_CC addFunctionRef(VSFunction *func) VS_NOEXCEPT {
