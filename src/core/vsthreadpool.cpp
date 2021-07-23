@@ -90,10 +90,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             if (node->cacheEnabled) {
                 PVSFrame f = node->getCachedFrameInternal(frameContext->key.second);
 
-                if (f) {
-
-                    //OutputDebugStringA((frameContext->key.first->getName() + " hit: " + std::to_string(frameContext->key.second) + "\n").c_str());
-                    
+                if (f) {                    
                     bool needsSort = false;
 
                     for (size_t i = 0; i < frameContext->notifyCtxList.size(); i++) {
@@ -179,14 +176,9 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
             lock.unlock();
 
-#ifdef VS_FRAME_REQ_DEBUG
-            vsWarning("Entering: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
-#endif
             PVSFrame f = node->getFrameInternal(frameContext->key.second, ar, frameContext);
             ranTask = true;
-#ifdef VS_FRAME_REQ_DEBUG
-            vsWarning("Exiting: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
-#endif
+
             bool frameProcessingDone = f || frameContext->hasError();
             if (frameContext->hasError() && f)
                 owner->core->logFatal("A frame was returned by " + node->name + " but an error was also set, this is not allowed");
@@ -203,6 +195,8 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // Handle frames that were requested
             bool requestedFrames = frameContext->reqList.size() > 0 && !frameProcessingDone;
             bool needsSort = requestedFrames;
+            if (f && requestedFrames)
+                owner->core->logFatal("A frame was returned at the end of processing by " + node->name + " but there are still outstanding requests");
 
             lock.lock();
 
@@ -239,8 +233,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 if (frameContext->external)
                     owner->returnFrame(frameContext, nullptr);
             } else if (f) {
-                if (requestedFrames)
-                    owner->core->logFatal("A frame was returned at the end of processing by " + node->name + " but there are still outstanding requests");
+
 
                 for (size_t i = 0; i < frameContextRef->notifyCtxList.size(); i++) {
                     PVSFrameContext &notify = frameContextRef->notifyCtxList[i];
@@ -253,8 +246,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                         owner->wakeThread();
                     }
                 }
-
-                //OutputDebugStringA((frameContextRef->key.first->getName() + "\n").c_str());
 
                 if (frameContext->external)
                     owner->returnFrame(frameContext, f);
