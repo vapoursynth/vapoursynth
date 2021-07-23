@@ -62,13 +62,17 @@ bool VSThreadPool::taskCmp(const PVSFrameContext &a, const PVSFrameContext &b) {
     return (a->reqOrder < b->reqOrder) || (a->reqOrder == b->reqOrder && a->key.second < b->key.second);
 }
 
-void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
+void VSThreadPool::runTasksWrapper(VSThreadPool *owner, std::atomic<bool> &stop) {
+    owner->runTasks(stop);
+}
+
+void VSThreadPool::runTasks(std::atomic<bool> &stop) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
-        owner->core->logFatal("Bad SSE state detected after creating new thread");
+        core->logFatal("Bad SSE state detected after creating new thread");
 #endif
 
-    std::unique_lock<std::mutex> lock(owner->lock);
+    std::unique_lock<std::mutex> lock(taskLock);
 
     while (true) {
         bool ranTask = false;
@@ -77,7 +81,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // Go through all tasks from the top (oldest) and process the first one possible
         std::set<VSNode *> seenNodes;
 
-        for (auto iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
+        for (auto iter = tasks.begin(); iter != tasks.end(); ++iter) {
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -100,8 +104,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
                         assert(notify->numFrameRequests > 0);
                         if (--notify->numFrameRequests == 0) {
-                            owner->tasks.push_back(notify);
-                            owner->wakeThread();
+                            queueTask(notify);
                             needsSort = true;
                         }
                     }
@@ -109,13 +112,13 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                     PVSFrameContext mainContextRef = std::move(*iter);
 
                     if (frameContext->external)
-                        owner->returnFrame(frameContext, f);
+                        returnFrame(frameContext, f);
 
-                    owner->allContexts.erase(frameContext->key);
-                    owner->tasks.erase(iter);
+                    allContexts.erase(frameContext->key);
+                    tasks.erase(iter);
 
                     if (needsSort)
-                        owner->tasks.sort(taskCmp);
+                        tasks.sort(taskCmp);
 
                     ranTask = true;
                     break;
@@ -156,7 +159,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // Remove the context from the task list and keep references around until processing is done
 
             PVSFrameContext frameContextRef = std::move(*iter);
-            owner->tasks.erase(iter);
+            tasks.erase(iter);
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Figure out the activation reason
@@ -181,7 +184,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
             bool frameProcessingDone = f || frameContext->hasError();
             if (frameContext->hasError() && f)
-                owner->core->logFatal("A frame was returned by " + node->name + " but an error was also set, this is not allowed");
+                core->logFatal("A frame was returned by " + node->name + " but an error was also set, this is not allowed");
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
@@ -196,7 +199,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             bool requestedFrames = frameContext->reqList.size() > 0 && !frameProcessingDone;
             bool needsSort = requestedFrames;
             if (f && requestedFrames)
-                owner->core->logFatal("A frame was returned at the end of processing by " + node->name + " but there are still outstanding requests");
+                core->logFatal("A frame was returned at the end of processing by " + node->name + " but there are still outstanding requests");
 
             lock.lock();
 
@@ -205,14 +208,14 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 for (size_t i = 0; i < frameContext->reqList.size(); i++) {
                     OutputDebugStringA((frameContextRef->key.first->getName() + "#" + std::to_string(frameContextRef->key.second) + " requested " + frameContextRef->reqList[i].first->getName() + " frame " + std::to_string(frameContextRef->reqList[i].second) + "\n").c_str());
 
-                    owner->startInternalRequest(frameContextRef, frameContext->reqList[i]);
+                    startInternalRequest(frameContextRef, frameContext->reqList[i]);
                 }
                 frameContext->numFrameRequests = frameContext->reqList.size();
                 frameContext->reqList.clear();
             }
 
             if (frameProcessingDone)
-                owner->allContexts.erase(frameContext->key);
+                allContexts.erase(frameContext->key);
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Notify all dependent contexts
@@ -221,58 +224,51 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 for (size_t i = 0; i < frameContextRef->notifyCtxList.size(); i++) {
                     PVSFrameContext &notify = frameContextRef->notifyCtxList[i];
                     notify->setError(frameContextRef->getErrorMessage());
-                    OutputDebugStringA((notify->key.first->getName() + "#" + std::to_string(notify->key.second) + " received " + frameContextRef->key.first->getName() + " frame " + std::to_string(frameContextRef->key.second) + "(error) \n").c_str());
 
                     assert(notify->numFrameRequests > 0);
-                    if (--notify->numFrameRequests == 0) {
-                        owner->tasks.push_back(notify);
-                        owner->wakeThread();
-                    }
+                    if (--notify->numFrameRequests == 0)
+                        queueTask(notify);
                 }
 
                 if (frameContext->external)
-                    owner->returnFrame(frameContext, nullptr);
+                    returnFrame(frameContext, f);
             } else if (f) {
-
-
                 for (size_t i = 0; i < frameContextRef->notifyCtxList.size(); i++) {
                     PVSFrameContext &notify = frameContextRef->notifyCtxList[i];
                     notify->availableFrames.push_back({frameContextRef->key, f});
                     OutputDebugStringA((notify->key.first->getName() + "#" + std::to_string(notify->key.second) + " received " + frameContextRef->key.first->getName() + " frame " + std::to_string(frameContextRef->key.second) + " (normal)\n").c_str());
 
                     assert(notify->numFrameRequests > 0);
-                    if (--notify->numFrameRequests == 0) {
-                        owner->tasks.push_back(notify);
-                        owner->wakeThread();
-                    }
+                    if (--notify->numFrameRequests == 0)
+                        queueTask(notify);
                 }
 
                 if (frameContext->external)
-                    owner->returnFrame(frameContext, f);
+                    returnFrame(frameContext, f);
             } else if (requestedFrames) {
                 // already scheduled, do nothing
             } else {
-                owner->core->logFatal("No frame returned at the end of processing by " + node->name);
+                core->logFatal("No frame returned at the end of processing by " + node->name);
             }
 
             if (needsSort)
-                owner->tasks.sort(taskCmp);
+                tasks.sort(taskCmp);
             break;
         }
 
 
-        if (!ranTask || owner->activeThreads > owner->maxThreads) {
-            --owner->activeThreads;
+        if (!ranTask || activeThreads > maxThreads) {
+            --activeThreads;
             if (stop) {
                 lock.unlock();
                 break;
             }
-            if (++owner->idleThreads == owner->allThreads.size())
-                owner->allIdle.notify_one();
+            if (++idleThreads == allThreads.size())
+                allIdle.notify_one();
 
-            owner->newWork.wait(lock);
-            --owner->idleThreads;
-            ++owner->activeThreads;
+            newWork.wait(lock);
+            --idleThreads;
+            ++activeThreads;
         }
     }
 }
@@ -282,24 +278,29 @@ VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThr
 }
 
 size_t VSThreadPool::threadCount() {
-    std::lock_guard<std::mutex> l(lock);
+    std::lock_guard<std::mutex> l(taskLock);
     return maxThreads;
 }
 
 void VSThreadPool::spawnThread() {
-    std::thread *thread = new std::thread(runTasks, this, std::ref(stopThreads));
+    std::thread *thread = new std::thread(runTasksWrapper, this, std::ref(stopThreads));
     allThreads.insert(std::make_pair(thread->get_id(), thread));
     ++activeThreads;
 }
 
 size_t VSThreadPool::setThreadCount(size_t threads) {
-    std::lock_guard<std::mutex> l(lock);
+    std::lock_guard<std::mutex> l(taskLock);
     maxThreads = threads > 0 ? threads : getNumAvailableThreads();
     if (maxThreads == 0) {
         maxThreads = 1;
         core->logMessage(mtWarning, "Couldn't detect optimal number of threads. Thread count set to 1.");
     }
     return maxThreads;
+}
+
+void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
+    tasks.push_back(ctx);
+    wakeThread();
 }
 
 void VSThreadPool::wakeThread() {
@@ -321,7 +322,7 @@ void VSThreadPool::reserveThread() {
 
 void VSThreadPool::startExternal(const PVSFrameContext &context) {
     assert(context);
-    std::lock_guard<std::mutex> l(lock);
+    std::lock_guard<std::mutex> l(taskLock);
     context->reqOrder = ++reqCounter;
     tasks.push_back(context); // external requests can't be combined so just add to queue
     wakeThread();
@@ -332,7 +333,7 @@ void VSThreadPool::returnFrame(const VSFrameContext *rCtx, const PVSFrame &f) {
     bool outputLock = rCtx->lockOnOutput;
     // we need to unlock here so the callback may request more frames without causing a deadlock
     // AND so that slow callbacks will only block operations in this thread, not all the others
-    lock.unlock();
+    taskLock.unlock();
     if (rCtx->hasError()) {
         if (outputLock)
             callbackLock.lock();
@@ -347,7 +348,7 @@ void VSThreadPool::returnFrame(const VSFrameContext *rCtx, const PVSFrame &f) {
         if (outputLock)
             callbackLock.unlock();
     }
-    lock.lock();
+    taskLock.lock();
 }
 
 void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutputKey key) {
@@ -383,18 +384,18 @@ void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutpu
 }
 
 bool VSThreadPool::isWorkerThread() {
-    std::lock_guard<std::mutex> m(lock);
+    std::lock_guard<std::mutex> m(taskLock);
     return allThreads.count(std::this_thread::get_id()) > 0;
 }
 
 void VSThreadPool::waitForDone() {
-    std::unique_lock<std::mutex> m(lock);
+    std::unique_lock<std::mutex> m(taskLock);
     if (idleThreads < allThreads.size())
         allIdle.wait(m);
 }
 
 VSThreadPool::~VSThreadPool() {
-    std::unique_lock<std::mutex> m(lock);
+    std::unique_lock<std::mutex> m(taskLock);
     stopThreads = true;
 
     while (!allThreads.empty()) {

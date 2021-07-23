@@ -926,7 +926,7 @@ public:
 class VSThreadPool {
 private:
     VSCore *core;
-    std::mutex lock;
+    std::mutex taskLock;
     std::mutex callbackLock;
     std::map<std::thread::id, std::thread *> allThreads;
     std::list<PVSFrameContext> tasks;
@@ -940,10 +940,12 @@ private:
     std::atomic<bool> stopThreads;
     std::atomic<size_t> ticks;
     size_t getNumAvailableThreads();
+    void queueTask(const PVSFrameContext &ctx);
     void wakeThread();
     void startInternalRequest(const PVSFrameContext &notify, NodeOutputKey key);
     void spawnThread();
-    static void runTasks(VSThreadPool *owner, std::atomic<bool> &stop);
+    static void runTasksWrapper(VSThreadPool *owner, std::atomic<bool> &stop);
+    void runTasks(std::atomic<bool> &stop);
     static bool taskCmp(const PVSFrameContext &a, const PVSFrameContext &b);
 public:
     VSThreadPool(VSCore *core);
