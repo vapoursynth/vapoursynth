@@ -93,12 +93,12 @@ static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *val
 #endif
 
 VSFrameContext::VSFrameContext(NodeOutputKey key, const PVSFrameContext &notify) :
-    refcount(1), reqOrder(notify->reqOrder), key(key), userData(nullptr), frameDone(nullptr), lockOnOutput(true), external(false) {
+    refcount(1), reqOrder(notify->reqOrder), external(false), lockOnOutput(true), frameDone(nullptr),  userData(nullptr), key(key), frameContext() {
     notifyCtxList.push_back(notify);
 }
 
 VSFrameContext::VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
-    refcount(1), reqOrder(0), userData(userData), key(node, n), frameDone(frameDone), lockOnOutput(lockOnOutput), external(true) {
+    refcount(1), reqOrder(0), external(true), lockOnOutput(lockOnOutput), frameDone(frameDone), userData(userData), key(node, n), frameContext() {
 }
 
 bool VSFrameContext::setError(const std::string &errorMsg) {
@@ -524,7 +524,7 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
 }
 
 VSPluginFunction::VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, VSPlugin *plugin)
-    : name(name), argString(argString), returnType(returnType), func(func), functionData(functionData), plugin(plugin) {
+    : func(func), functionData(functionData), plugin(plugin), name(name), argString(argString), returnType(returnType) {
     parseArgString(argString, inArgs, plugin->apiMajor);
     if (plugin->apiMajor == 3)
         this->argString = getV4ArgString(); // construct to V4 equivalent arg string
@@ -1731,13 +1731,13 @@ void VSCore::destroyFilterInstance(VSNode *node) {
 }
 
 VSCore::VSCore(int flags) :
-    coreFreed(false),
-    enableGraphInspection(flags & ccfEnableGraphInspection),
     numFilterInstances(1),
     numFunctionInstances(0),
+    coreFreed(false),
     videoFormatIdOffset(1000),
     cpuLevel(INT_MAX),
-    memory(new MemoryUse()) {
+    memory(new MemoryUse()),
+    enableGraphInspection(flags & ccfEnableGraphInspection) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
         logFatal("Bad SSE state detected when creating new core");
@@ -2046,7 +2046,7 @@ static void VS_CC configPlugin3(const char *identifier, const char *defaultNames
 }
 
 VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core)
-    : core(core), fnamespace(forcedNamespace), id(forcedId) {
+    : fnamespace(forcedNamespace), id(forcedId), core(core) {
 #ifdef VS_TARGET_OS_WINDOWS
     std::wstring wPath = utf16_from_utf8(relFilename);
     std::vector<wchar_t> fullPathBuffer(32767 + 1); // add 1 since msdn sucks at mentioning whether or not it includes the final null
