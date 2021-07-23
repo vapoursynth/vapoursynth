@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2020 Fredrik Mellbin
+* Copyright (c) 2012-2021 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -79,18 +79,19 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Go through all tasks from the top (oldest) and process the first one possible
+
         std::set<VSNode *> seenNodes;
 
         for (auto iter = tasks.begin(); iter != tasks.end(); ++iter) {
 
 
-/////////////////////////////////////////////////////////////////////////////////////////////
-// Handle the output tasks
+
             VSFrameContext *frameContext = iter->get();
             VSNode *node = frameContext->key.first;
 
-            // FIXME, somewhat ugly code duplication and is effectively a success only version of the notification at the end
-            // Fast exit path for checking cache
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Fast path if a frame is cached
+
             if (node->cacheEnabled) {
                 PVSFrame f = node->getCachedFrameInternal(frameContext->key.second);
 
@@ -124,18 +125,14 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                 }
             }
 
-            int filterMode = node->filterMode;
-
 /////////////////////////////////////////////////////////////////////////////////////////////
-//
+// This part handles the locking for the different filter modes
+
+            int filterMode = node->filterMode;
 
             // Don't try to lock the same node twice since it's likely to fail and will produce more out of order requests as well
             if (filterMode != fmFrameState && !seenNodes.insert(node).second)
                 continue;
-
-/////////////////////////////////////////////////////////////////////////////////////////////
-// This part handles the locking for the different filter modes
-
 
             // Does the filter need the per instance mutex? fmFrameState, fmUnordered and fmParallelRequests (when in the arAllFramesReady state) use this
             bool useSerialLock = (filterMode == fmFrameState || filterMode == fmUnordered || (filterMode == fmParallelRequests && !frameContext->first));
@@ -256,7 +253,6 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                 tasks.sort(taskCmp);
             break;
         }
-
 
         if (!ranTask || activeThreads > maxThreads) {
             --activeThreads;
