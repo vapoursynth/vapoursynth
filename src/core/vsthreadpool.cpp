@@ -100,7 +100,6 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                     for (size_t i = 0; i < frameContext->notifyCtxList.size(); i++) {
                         PVSFrameContext &notify = frameContext->notifyCtxList[i];
                         notify->availableFrames.push_back({frameContext->key, f});
-                        OutputDebugStringA((notify->key.first->getName() + "#" + std::to_string(notify->key.second) + " received " + frameContext->key.first->getName() + " frame " + std::to_string(frameContext->key.second) + " (cached)\n").c_str());
 
                         assert(notify->numFrameRequests > 0);
                         if (--notify->numFrameRequests == 0) {
@@ -205,11 +204,10 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
 
             if (requestedFrames) {
                 assert(frameContext->numFrameRequests == 0);
-                for (size_t i = 0; i < frameContext->reqList.size(); i++) {
-                    OutputDebugStringA((frameContextRef->key.first->getName() + "#" + std::to_string(frameContextRef->key.second) + " requested " + frameContextRef->reqList[i].first->getName() + " frame " + std::to_string(frameContextRef->reqList[i].second) + "\n").c_str());
 
+                for (size_t i = 0; i < frameContext->reqList.size(); i++)
                     startInternalRequest(frameContextRef, frameContext->reqList[i]);
-                }
+
                 frameContext->numFrameRequests = frameContext->reqList.size();
                 frameContext->reqList.clear();
             }
@@ -238,7 +236,6 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                 for (size_t i = 0; i < frameContextRef->notifyCtxList.size(); i++) {
                     PVSFrameContext &notify = frameContextRef->notifyCtxList[i];
                     notify->availableFrames.push_back({frameContextRef->key, f});
-                    OutputDebugStringA((notify->key.first->getName() + "#" + std::to_string(notify->key.second) + " received " + frameContextRef->key.first->getName() + " frame " + std::to_string(frameContextRef->key.second) + " (normal)\n").c_str());
 
                     assert(notify->numFrameRequests > 0);
                     if (--notify->numFrameRequests == 0) {
