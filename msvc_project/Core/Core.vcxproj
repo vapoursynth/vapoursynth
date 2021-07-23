@@ -73,7 +73,6 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>../../include;../../zimg/src/zimg/api;../../mimalloc/include;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration);$(LibraryPath);../../mimalloc/out/msvc-x64/Release</LibraryPath>
-    <OutDir>..\..\..\Program Files\Python39\Lib\site-packages</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>../../include;../../zimg/src/zimg/api;../../mimalloc/include;$(IncludePath)</IncludePath>
@@ -82,7 +81,6 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>../../include;../../zimg/src/zimg/api;../../mimalloc/include;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration);$(LibraryPath);../../mimalloc/out/msvc-x64/Release</LibraryPath>
-    <OutDir>..\..\..\Program Files\Python39\Lib\site-packages</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
