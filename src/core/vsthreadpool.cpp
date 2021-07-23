@@ -197,7 +197,7 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
             bool requestedFrames = frameContext->reqList.size() > 0 && !frameProcessingDone;
-            bool needsSort = requestedFrames;
+            bool needsSort = false;
             if (f && requestedFrames)
                 core->logFatal("A frame was returned at the end of processing by " + node->name + " but there are still outstanding requests");
 
@@ -226,8 +226,10 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                     notify->setError(frameContextRef->getErrorMessage());
 
                     assert(notify->numFrameRequests > 0);
-                    if (--notify->numFrameRequests == 0)
+                    if (--notify->numFrameRequests == 0) {
                         queueTask(notify);
+                        needsSort = true;
+                    }
                 }
 
                 if (frameContext->external)
@@ -239,8 +241,10 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                     OutputDebugStringA((notify->key.first->getName() + "#" + std::to_string(notify->key.second) + " received " + frameContextRef->key.first->getName() + " frame " + std::to_string(frameContextRef->key.second) + " (normal)\n").c_str());
 
                     assert(notify->numFrameRequests > 0);
-                    if (--notify->numFrameRequests == 0)
+                    if (--notify->numFrameRequests == 0) {
                         queueTask(notify);
+                        needsSort = true;
+                    }
                 }
 
                 if (frameContext->external)
