@@ -228,7 +228,7 @@ void VSPlaneData::release() noexcept {
 
 ///////////////
 
-VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (width <= 0 || height <= 0)
         core->logFatal("Error in frame creation: dimensions are negative (" + std::to_string(width) + "x" + std::to_string(height) + ")");
 
@@ -254,7 +254,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
     }
 }
 
-VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (width <= 0 || height <= 0)
         core->logFatal("Error in frame creation: dimensions are negative " + std::to_string(width) + "x" + std::to_string(height));
 
@@ -291,7 +291,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
 }
 
 VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc, VSCore *core) noexcept
-    : refcount(1), contentType(mtAudio), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+    : refcount(1), contentType(mtAudio), v3format(nullptr), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (numSamples <= 0)
         core->logFatal("Error in frame creation: bad number of samples (" + std::to_string(numSamples) + ")");
     
@@ -306,7 +306,7 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc,
 }
 
 VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *channelSrc, const int *channel, const VSFrame *propSrc, VSCore *core) noexcept
-    : refcount(1), contentType(mtAudio), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+    : refcount(1), contentType(mtAudio), v3format(nullptr), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (numSamples <= 0)
         core->logFatal("Error in frame creation: bad number of samples (" + std::to_string(numSamples) + ")");
 
@@ -330,7 +330,7 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *
     }
 }
 
-VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1) {
+VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), v3format(nullptr) {
     contentType = f.contentType;
     data[0] = f.data[0];
     data[1] = f.data[1];
