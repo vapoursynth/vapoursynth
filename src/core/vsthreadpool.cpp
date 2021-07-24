@@ -83,9 +83,6 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
         std::set<VSNode *> seenNodes;
 
         for (auto iter = tasks.begin(); iter != tasks.end(); ++iter) {
-
-
-
             VSFrameContext *frameContext = iter->get();
             VSNode *node = frameContext->key.first;
 
@@ -185,7 +182,7 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
             if (useSerialLock) {
-                if (filterMode == fmFrameState && frameProcessingDone)
+                if (frameProcessingDone && filterMode == fmFrameState)
                     node->serialFrame = -1;
                 node->serialMutex.unlock();
             }
