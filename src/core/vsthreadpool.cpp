@@ -107,12 +107,11 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                     }
 
                     PVSFrameContext mainContextRef = std::move(*iter);
+                    tasks.erase(iter);
+                    allContexts.erase(frameContext->key);
 
                     if (frameContext->external)
                         returnFrame(frameContext, f);
-
-                    allContexts.erase(frameContext->key);
-                    tasks.erase(iter);
 
                     if (needsSort)
                         tasks.sort(taskCmp);
@@ -293,6 +292,7 @@ size_t VSThreadPool::setThreadCount(size_t threads) {
 }
 
 void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
+    assert(ctx);
     tasks.push_front(ctx);
     wakeThread();
 }
@@ -318,6 +318,7 @@ void VSThreadPool::startExternal(const PVSFrameContext &context) {
     assert(context);
     std::lock_guard<std::mutex> l(taskLock);
     context->reqOrder = ++reqCounter;
+    assert(context);
     tasks.push_back(context); // external requests can't be combined so just add to queue
     wakeThread();
 }
