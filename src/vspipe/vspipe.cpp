@@ -1096,10 +1096,12 @@ int main(int argc, char **argv) {
             fflush(timecodesFile);
 
         std::chrono::duration<double> elapsedSeconds = std::chrono::steady_clock::now() - data->startTime;
-        if (vsapi->getNodeType(node) == mtVideo)
-            fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", data->totalFrames, elapsedSeconds.count(), data->totalFrames / elapsedSeconds.count());
-        else
-            fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", data->totalSamples, elapsedSeconds.count(), (data->totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
+        if (opts.mode == VSPipeMode::Ouput) {
+            if (vsapi->getNodeType(node) == mtVideo)
+                fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", data->totalFrames, elapsedSeconds.count(), data->totalFrames / elapsedSeconds.count());
+            else
+                fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", data->totalSamples, elapsedSeconds.count(), (data->totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
+        }
 
         if (opts.calculateMD5 && outFile) {
             fprintf(stderr, "MD5: ");
