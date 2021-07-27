@@ -88,7 +88,7 @@ using namespace vsh;
 /////////////////////////////////////////////
 
 enum class VSPipeMode {
-    Ouput,
+    Output,
     PrintVersion,
     PrintHelp,
     PrintInfo,
@@ -105,7 +105,7 @@ enum class VSPipeHeaders {
 
 // Struct used to return the parsed command line options
 struct VSPipeOptions {
-    VSPipeMode mode = VSPipeMode::Ouput;
+    VSPipeMode mode = VSPipeMode::Output;
     VSPipeHeaders outputHeaders = VSPipeHeaders::None;
     int64_t startPos = 0;
     int64_t endPos = -1;
@@ -844,10 +844,10 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
     if (argc <= 1)
         opts.mode = VSPipeMode::PrintHelp;
 
-    if ((opts.mode == VSPipeMode::Ouput || opts.mode == VSPipeMode::PrintInfo || opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph) && opts.scriptFilename.empty()) {
+    if ((opts.mode == VSPipeMode::Output || opts.mode == VSPipeMode::PrintInfo || opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph) && opts.scriptFilename.empty()) {
         fprintf(stderr, "No script file specified\n");
         return 1;
-    } else if (opts.mode == VSPipeMode::Ouput && opts.outputFilename.empty()) {
+    } else if (opts.mode == VSPipeMode::Output && opts.outputFilename.empty()) {
         fprintf(stderr, "No output file specified\n");
         return 1;
     }
@@ -908,7 +908,7 @@ int main(int argc, char **argv) {
     }
 
     FILE *timecodesFile = nullptr;
-    if (opts.mode == VSPipeMode::Ouput && !opts.timecodesFilename.empty()) {
+    if (opts.mode == VSPipeMode::Output && !opts.timecodesFilename.empty()) {
 #ifdef VS_TARGET_OS_WINDOWS
         timecodesFile = _wfopen(opts.timecodesFilename.c_str(), L"wb");
 #else
@@ -1096,10 +1096,12 @@ int main(int argc, char **argv) {
             fflush(timecodesFile);
 
         std::chrono::duration<double> elapsedSeconds = std::chrono::steady_clock::now() - data->startTime;
-        if (vsapi->getNodeType(node) == mtVideo)
-            fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", data->totalFrames, elapsedSeconds.count(), data->totalFrames / elapsedSeconds.count());
-        else
-            fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", data->totalSamples, elapsedSeconds.count(), (data->totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
+        if (opts.mode == VSPipeMode::Output) {
+            if (vsapi->getNodeType(node) == mtVideo)
+                fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", data->totalFrames, elapsedSeconds.count(), data->totalFrames / elapsedSeconds.count());
+            else
+                fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", data->totalSamples, elapsedSeconds.count(), (data->totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
+        }
 
         if (opts.calculateMD5 && outFile) {
             fprintf(stderr, "MD5: ");
