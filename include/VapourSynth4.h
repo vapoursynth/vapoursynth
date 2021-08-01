@@ -452,6 +452,7 @@ struct VSAPI {
     VSLogHandle *(VS_CC *addLogHandler)(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT; /* free and userData can be NULL, returns a handle that can be passed to removeLogHandler */
     int (VS_CC *removeLogHandler)(VSLogHandle *handle, VSCore *core) VS_NOEXCEPT; /* returns non-zero if successfully removed */
     
+#ifdef VS_GRAPH_API
     /* Graph information */
 
     /* 
@@ -469,6 +470,7 @@ struct VSAPI {
     int64_t (VS_CC *getNodeFilterTime)(VSNode *node) VS_NOEXCEPT; /* time spent processing frames in nanoseconds */
     const VSFilterDependency *(VS_CC *getNodeDependencies)(VSNode *node) VS_NOEXCEPT;
     int (VS_CC *getNumNodeDependencies)(VSNode *node) VS_NOEXCEPT;
+#endif
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

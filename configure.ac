@@ -131,6 +131,7 @@ AS_IF(
       [test "x$enable_core" != "xno"],
       [
        AC_DEFINE([VS_CORE_EXPORTS])
+       AC_DEFINE([VS_GRAPH_API])
 
        PKG_CHECK_MODULES([ZIMG], [zimg])
 
@@ -257,6 +258,7 @@ AC_ARG_ENABLE([vspipe], AS_HELP_STRING([--enable-vspipe], [Build vspipe. Require
 AS_IF(
       [test "x$enable_vsscript" = "xno"],
       [
+       AC_DEFINE([VS_GRAPH_API])
        AS_IF(
              [test "x$enable_vspipe" = "xyes"],
              [AC_MSG_ERROR([Cannot build vspipe when VSScript is disabled.])],
