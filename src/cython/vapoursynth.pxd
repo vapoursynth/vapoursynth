@@ -77,6 +77,10 @@ cdef extern from "include/VapourSynth4.h" nogil:
         YUV422P8 "pfYUV422P8"
         YUV444P8 "pfYUV444P8"
 
+        YUV420P9 "pfYUV420P9"
+        YUV422P9 "pfYUV422P9"
+        YUV444P9 "pfYUV444P9"
+
         YUV420P10 "pfYUV420P10"
         YUV422P10 "pfYUV422P10"
         YUV444P10 "pfYUV444P10"
