@@ -2025,7 +2025,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     d->propDiff = tempprop + "Diff";
     d->cpulevel = vs_get_cpulevel(core);
 
-    VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral}};
+    VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, !d->node2 ? 0 : (vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral}};
     vsapi->createVideoFilter(out, "PlaneStats", vi, planeStatsGetFrame, filterFree<PlaneStatsData>, fmParallel, deps, d->node2 ? 2 : 1, d.get(), core);
     d.release();
 }
