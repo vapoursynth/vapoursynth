@@ -65,6 +65,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
 
         GRAY8 "pfGray8"
         GRAY16 "pfGray16"
+        GRAY32 "pfGray32"
 
         GRAYH "pfGrayH"
         GRAYS "pfGrayS"

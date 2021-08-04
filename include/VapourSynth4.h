@@ -96,6 +96,7 @@ typedef enum VSPresetFormat {
 
     pfGray8 = VS_MAKE_VIDEO_ID(cfGray, stInteger, 8, 0, 0),
     pfGray16 = VS_MAKE_VIDEO_ID(cfGray, stInteger, 16, 0, 0),
+    pfGray32 = VS_MAKE_VIDEO_ID(cfGray, stInteger, 32, 0, 0),
 
     pfGrayH = VS_MAKE_VIDEO_ID(cfGray, stFloat, 16, 0, 0),
     pfGrayS = VS_MAKE_VIDEO_ID(cfGray, stFloat, 32, 0, 0),
