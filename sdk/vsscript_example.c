@@ -45,18 +45,19 @@ int main(int argc, char **argv) {
 
     // Get a pointer to the normal api struct, exists so you don't have to link with the VapourSynth core library
     // Failure only happens on very rare API version mismatches and usually doesn't need to be checked
-    vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
+    vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
     assert(vsapi);
 
     // This line does the actual script evaluation. If se = NULL it will create a new environment
-    if (vssapi->evaluateFile(&se, argv[1], 0)) {
+    se = vssapi->evaluateFile(argv[1], NULL, NULL);   
+    if (vssapi->getError(se)) {
         fprintf(stderr, "Script evaluation failed:\n%s", vssapi->getError(se));
         vssapi->freeScript(se);
         return 1;
     }
 
     // Get the clip set as output. It is valid until the out index is re-set/cleared/the script is freed
-    VSNode *node = vssapi->getOutput(se, 0, nullptr);
+    VSNode *node = vssapi->getOutputNode(se, 0);
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node\n");
        vssapi->freeScript(se);
@@ -66,7 +67,7 @@ int main(int argc, char **argv) {
     // Reject hard to handle formats
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-    if (!isConstantVideoFormat(vi)) {
+    if (!vsh_isConstantVideoFormat(vi)) {
         fprintf(stderr, "Cannot output clips with varying dimensions or format\n");
         vsapi->freeNode(node);
         vssapi->freeScript(se);
@@ -86,7 +87,7 @@ int main(int argc, char **argv) {
 
         // Loop over every row of every plane write to the file
         for (int p = 0; p < vi->format.numPlanes; p++) {
-            int stride = vsapi->getStride(frame, p);
+            ptrdiff_t stride = vsapi->getStride(frame, p);
             const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
             int rowSize = vsapi->getFrameWidth(frame, p) * vi->format.bytesPerSample;
             int height = vsapi->getFrameHeight(frame, p);
