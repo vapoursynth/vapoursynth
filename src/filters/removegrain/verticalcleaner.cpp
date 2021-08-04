@@ -148,6 +148,6 @@ void VS_CC verticalCleanerCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     VerticalCleanerData * data = new VerticalCleanerData(d);
 
-    VSFilterDependency deps[] = {d.node, rpStrictSpatial};
+    VSFilterDependency deps[] = {{d.node, rpStrictSpatial}};
     vsapi->createVideoFilter(out, "VerticalCleaner", data->vi, verticalCleanerGetFrame, verticalCleanerFree, fmParallel, deps, 1, data, core);
 }

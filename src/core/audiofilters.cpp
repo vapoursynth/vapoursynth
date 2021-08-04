@@ -138,7 +138,7 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->ai.numSamples = trimlen;
 
-    VSFilterDependency deps[] = {d->node, rpGeneral};
+    VSFilterDependency deps[] = {{d->node, rpGeneral}};
     vsapi->createAudioFilter(out, "AudioTrim", &d->ai, audioTrimGetframe, filterFree<AudioTrimData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -351,7 +351,7 @@ static void VS_CC audioLoopCreate(const VSMap *in, VSMap *out, void *userData, V
         d->ai.numSamples = std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
     }
 
-    VSFilterDependency deps[] = {d->node, rpGeneral};
+    VSFilterDependency deps[] = {{d->node, rpGeneral}};
     vsapi->createAudioFilter(out, "AudioLoop", &d->ai, audioLoopGetFrame, filterFree<AudioLoopData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
@@ -419,7 +419,7 @@ static void VS_CC audioReverseCreate(const VSMap *in, VSMap *out, void *userData
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->ai = vsapi->getAudioInfo(d->node);
 
-    VSFilterDependency deps[] = {d->node, rpGeneral};
+    VSFilterDependency deps[] = {{d->node, rpGeneral}};
     if (d->ai->format.bytesPerSample == 2)
         vsapi->createAudioFilter(out, "AudioReverse", d->ai, audioReverseGetFrame<int16_t>, filterFree<AudioReverseData>, fmParallel, deps, 1, d.get(), core);
     else
@@ -475,7 +475,7 @@ static void VS_CC audioGainCreate(const VSMap *in, VSMap *out, void *userData, V
     if (numGainValues != 1 && numGainValues != d->ai->format.numChannels)
         RETERROR("AudioGain: must provide one gain value per channel or a single value used for all channels");
 
-    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
+    VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     if (d->ai->format.bytesPerSample == 4 && d->ai->format.sampleType == stFloat)
         vsapi->createAudioFilter(out, "AudioGain", d->ai, audioGainGetFrame<float>, filterFree<AudioGainData>, fmParallel, deps, 1, d.get(), core);
     else if (d->ai->format.bytesPerSample == 2)
@@ -860,7 +860,7 @@ static void VS_CC assumeSampleRateCreate(const VSMap *in, VSMap *out, void *user
     if (ai.sampleRate < 1)
         RETERROR("AssumeSampleRate: invalid samplerate specified");
 
-    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
+    VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     vsapi->createAudioFilter(out, "AssumeSampleRate", &ai, assumeSampleRateGetframe, filterFree<AssumeSampleRateData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }

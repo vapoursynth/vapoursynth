@@ -176,7 +176,7 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std::
         }
     }
 
-    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
+    VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     vsapi->createVideoFilter(out, "Lut", &d->vi_out, lutGetframe<T, U>, filterFree<LutData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }

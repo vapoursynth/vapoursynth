@@ -287,7 +287,7 @@ static VSNode *applyBoxBlurPlaneFiltering(VSPlugin *stdplugin, VSNode *node, int
     bool vblur = (vradius > 0) && (vpasses > 0);
 
     if (hblur) {
-        VSFilterDependency deps[] = {node, rpStrictSpatial};
+        VSFilterDependency deps[] = {{node, rpStrictSpatial}};
         node = vsapi->createVideoFilter2("BoxBlur", vsapi->getVideoInfo(node), boxBlurGetframe, boxBlurFree, fmParallel, deps, 1, new BoxBlurData{node, hradius, hpasses}, core);
     }
 
@@ -298,7 +298,7 @@ static VSNode *applyBoxBlurPlaneFiltering(VSPlugin *stdplugin, VSNode *node, int
         vsapi->clearMap(vtmp1);
         node = vsapi->mapGetNode(vtmp2, "clip", 0, nullptr);
         vsapi->clearMap(vtmp2);
-        VSFilterDependency deps[] = {node, rpStrictSpatial};
+        VSFilterDependency deps[] = {{node, rpStrictSpatial}};
         vsapi->createVideoFilter(vtmp2, "BoxBlur", vsapi->getVideoInfo(node), boxBlurGetframe, boxBlurFree, fmParallel, deps, 1, new BoxBlurData{ node, vradius, vpasses }, core);
         vsapi->freeMap(vtmp1);
         vtmp1 = vsapi->invoke(stdplugin, "Transpose", vtmp2);

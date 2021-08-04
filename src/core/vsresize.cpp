@@ -828,7 +828,7 @@ public:
                     resizeType = "Lanczos";
                     break;
             }
-            VSFilterDependency deps[] = {x->m_node, rpStrictSpatial};
+            VSFilterDependency deps[] = {{x->m_node, rpStrictSpatial}};
             vsapi->createVideoFilter(out, resizeType, &x->m_vi, &vszimg_get_frame, vszimg_free, fmParallel, deps, 1, x, core);
         } catch (const vszimgxx::zerror &e) {
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;

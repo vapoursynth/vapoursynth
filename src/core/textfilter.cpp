@@ -721,7 +721,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         break;
     }
 
-    VSFilterDependency deps[] = {d->node, rpStrictSpatial};
+    VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     vsapi->createVideoFilter(out, d->instanceName.c_str(), d->vi, textGetFrame, textFree, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
