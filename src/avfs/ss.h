@@ -2,7 +2,6 @@
 // Null ptr and buffer overflow safe C string primitives.
 
 inline const wchar_t* ssfix(const wchar_t* s) { return s?s:L""; }
-inline const char* ssfix(const char* s) { return s?s:""; }
 inline size_t sslen(const wchar_t* s) { return s?wcslen(s):0; }
 inline size_t sslen(const char* s) { return s?strlen(s):0; }
 wchar_t* ssalloc(size_t count);
