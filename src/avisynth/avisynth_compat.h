@@ -167,7 +167,7 @@ private:
     int numSlowWarnings;
     VideoInfo vi;
 public:
-    VSClip(VSNode *clip, FakeAvisynth *fakeEnv, const VSAPI *vsapi);
+    VSClip(VSNode *inclip, FakeAvisynth *fakeEnv, bool pack, const VSAPI *vsapi);
     PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env);
     bool __stdcall GetParity(int n) {
         return true;

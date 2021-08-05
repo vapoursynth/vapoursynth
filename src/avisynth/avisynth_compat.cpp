@@ -112,12 +112,16 @@ static int VSFormatToAVSPixelType(const VSVideoFormat &fi) {
         return 0;
 }
 
-static bool AVSPixelTypeToVSFormat(VSVideoFormat &f, const VideoInfo &vi, VSCore *core, const VSAPI *vsapi) {
-    // fixme with packing and such?
-    if (vi.IsYUY2())
-        return false;
-    else if (vi.IsRGB32())
-        return false;
+static bool AVSPixelTypeToVSFormat(VSVideoFormat &f, bool &unpack, const VideoInfo &vi, VSCore *core, const VSAPI *vsapi) {
+    unpack = false;
+
+    if (vi.IsYUY2()) {
+        unpack = true;
+        return vsapi->getVideoFormatByID(&f, pfGray16, core);
+    } else if (vi.IsRGB32()) {
+        unpack = true;
+        return vsapi->getVideoFormatByID(&f, pfGray32, core);
+    }
 
     if (vi.IsPlanar()) {
         bool hasSubSampling = vi.IsYUV();
@@ -153,7 +157,7 @@ static const VSFrame *VS_CC packYUY2GetFrame(int n, int activationReason, void *
         p.dst[0] = vsapi->getWritePtr(dst, 0);
         p.dst_stride[0] = vsapi->getStride(dst, 0);
 
-        for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
+        for (int plane = 0; plane < 3; plane++) {
             p.src[plane] = vsapi->getReadPtr(src, plane);
             p.src_stride[plane] = vsapi->getStride(src, plane);
         }
@@ -166,20 +170,21 @@ static const VSFrame *VS_CC packYUY2GetFrame(int n, int activationReason, void *
     return nullptr;
 }
 
-static VSNode *VS_CC packYUY2Create(VSNode *node, void *userData, VSCore *core, const VSAPI *vsapi) {
+static VSNode *VS_CC packYUY2Create(VSNode *node, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<PackYUY2Data> d(new PackYUY2Data(vsapi));
 
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
     if (vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core) != pfYUV422P8)
         return nullptr;
 
-    d->node = vsapi->addNodeRef(node);
+    d->node = node;
     d->vi = *vi;
     vsapi->getVideoFormatByID(&d->vi.format, pfGray16, core);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter2("PackYUY2", &d->vi, packYUY2GetFrame, filterFree<PackYUY2Data>, fmParallel, deps, 1, d.get(), core);
+    VSNode *ret = vsapi->createVideoFilter2("PackYUY2", &d->vi, packYUY2GetFrame, filterFree<PackYUY2Data>, fmParallel, deps, 1, d.get(), core);
     d.release();
+    return ret;
 }
 
 //////////////////////////////////////////
@@ -207,7 +212,7 @@ static const VSFrame *VS_CC unpackYUY2GetFrame(int n, int activationReason, void
         p.src[0] = vsapi->getReadPtr(dst, 0);
         p.src_stride[0] = vsapi->getStride(src, 0);
 
-        for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
+        for (int plane = 0; plane < 3; plane++) {
             p.dst[plane] = vsapi->getWritePtr(dst, plane);
             p.dst_stride[plane] = vsapi->getStride(dst, plane);
         }
@@ -220,20 +225,21 @@ static const VSFrame *VS_CC unpackYUY2GetFrame(int n, int activationReason, void
     return nullptr;
 }
 
-static VSNode *VS_CC unpackYUY2Create(VSNode *node, void *userData, VSCore *core, const VSAPI *vsapi) {
+static VSNode *VS_CC unpackYUY2Create(VSNode *node, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<UnpackYUY2Data> d(new UnpackYUY2Data(vsapi));
 
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
     if (vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core) != pfGray16)
         return nullptr;
 
-    d->node = vsapi->addNodeRef(node);
+    d->node = node;
     d->vi = *vi;
     vsapi->getVideoFormatByID(&d->vi.format, pfYUV422P8, core);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter2("UnpackRGB32", &d->vi, unpackYUY2GetFrame, filterFree<UnpackYUY2Data>, fmParallel, deps, 1, d.get(), core);
+    VSNode *ret = vsapi->createVideoFilter2("UnpackRGB32", &d->vi, unpackYUY2GetFrame, filterFree<UnpackYUY2Data>, fmParallel, deps, 1, d.get(), core);
     d.release();
+    return ret;
 }
 
 //////////////////////////////////////////
@@ -261,7 +267,7 @@ static const VSFrame *VS_CC packRGB32GetFrame(int n, int activationReason, void 
         p.dst[0] = vsapi->getWritePtr(dst, 0);
         p.dst_stride[0] = vsapi->getStride(dst, 0);
 
-        for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
+        for (int plane = 0; plane < 3; plane++) {
             p.src[plane] = vsapi->getReadPtr(src, plane);
             p.src_stride[plane] = vsapi->getStride(src, plane);
         }
@@ -274,20 +280,21 @@ static const VSFrame *VS_CC packRGB32GetFrame(int n, int activationReason, void 
     return nullptr;
 }
 
-static VSNode *VS_CC packRGB32Create(VSNode *node, void *userData, VSCore *core, const VSAPI *vsapi) {
+static VSNode *VS_CC packRGB32Create(VSNode *node, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<PackRGB32Data> d(new PackRGB32Data(vsapi));
 
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
     if (vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core) != pfRGB24)
         return nullptr;
 
-    d->node = vsapi->addNodeRef(node);
+    d->node = node;
     d->vi = *vi;
     vsapi->getVideoFormatByID(&d->vi.format, pfGray32, core);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter2("PackRGB32", &d->vi, packRGB32GetFrame, filterFree<PackRGB32Data>, fmParallel, deps, 1, d.get(), core);
+    VSNode *ret = vsapi->createVideoFilter2("PackRGB32", &d->vi, packRGB32GetFrame, filterFree<PackRGB32Data>, fmParallel, deps, 1, d.get(), core);
     d.release();
+    return ret;
 }
 
 //////////////////////////////////////////
@@ -315,7 +322,7 @@ static const VSFrame *VS_CC unpackRGB32GetFrame(int n, int activationReason, voi
         p.src[0] = vsapi->getReadPtr(dst, 0);
         p.src_stride[0] = vsapi->getStride(src, 0);
 
-        for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
+        for (int plane = 0; plane < 3; plane++) {
             p.dst[plane] = vsapi->getWritePtr(dst, plane);
             p.dst_stride[plane] = vsapi->getStride(dst, plane);
         }
@@ -328,20 +335,21 @@ static const VSFrame *VS_CC unpackRGB32GetFrame(int n, int activationReason, voi
     return nullptr;
 }
 
-static VSNode *VS_CC unpackRGB32Create(VSNode *node, void *userData, VSCore *core, const VSAPI *vsapi) {
+static VSNode *VS_CC unpackRGB32Create(VSNode *node, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<UnpackRGB32Data> d(new UnpackRGB32Data(vsapi));
 
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
     if (vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core) != pfGray32)
         return nullptr;
 
-    d->node = vsapi->addNodeRef(node);
+    d->node = node;
     d->vi = *vi;
     vsapi->getVideoFormatByID(&d->vi.format, pfRGB24, core);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter2("UnpackRGB32", &d->vi, unpackRGB32GetFrame, filterFree<UnpackRGB32Data>, fmParallel, deps, 1, d.get(), core);
+    VSNode *ret = vsapi->createVideoFilter2("UnpackRGB32", &d->vi, unpackRGB32GetFrame, filterFree<UnpackRGB32Data>, fmParallel, deps, 1, d.get(), core);
     d.release();
+    return ret;
 }
 
 //////////////////////////////////////////
@@ -452,16 +460,27 @@ std::string FakeAvisynth::charToFilterArgumentString(char c) {
     case 's':
         return "data";
     case 'c':
-        return "clip";
+        return "vnode";
     default:
         vsapi->logMessage(mtFatal, "Avisynth Compat: invalid argument type character, I quit", core);
         return "";
     }
 }
 
-VSClip::VSClip(VSNode *clip, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
-    : clip(clip), fakeEnv(fakeEnv), vsapi(vsapi), numSlowWarnings(0) {
-    const ::VSVideoInfo *srcVi = vsapi->getVideoInfo(clip);
+VSClip::VSClip(VSNode *inclip, FakeAvisynth *fakeEnv, bool pack, const VSAPI *vsapi)
+    : clip(inclip), fakeEnv(fakeEnv), vsapi(vsapi), numSlowWarnings(0) {
+    const VSVideoInfo *srcVi = vsapi->getVideoInfo(clip);
+
+    if (pack) {
+        if (IsSameVideoFormat(srcVi->format, cfRGB, stInteger, 8, 0, 0)) {
+            clip = packRGB32Create(clip, fakeEnv->core, vsapi);
+            assert(clip);
+        } else if (IsSameVideoFormat(srcVi->format, cfYUV, stInteger, 8, 1, 0)) {
+            clip = packYUY2Create(clip, fakeEnv->core, vsapi);
+            assert(clip);
+        }
+    }
+
     vi = {};
     vi.width = srcVi->width;
     vi.height = srcVi->height;
@@ -812,7 +831,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                 }
 
                 preFetchClips.push_back(cr);
-                inArgs[i] = new VSClip(cr, fakeEnv, vsapi);
+                inArgs[i] = new VSClip(cr, fakeEnv, true, vsapi);
                 break;
             }
         }
@@ -833,8 +852,10 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     fakeEnv->initializing = false;
 
     if (ret.IsClip()) {
+        PClip clip = ret.AsClip();
+
         PrefetchInfo prefetchInfo = getPrefetchInfo(wf->name, in, core, vsapi);
-        WrappedClip *filterData = new WrappedClip(wf->name, ret.AsClip(), preFetchClips, prefetchInfo, fakeEnv);
+        WrappedClip *filterData = new WrappedClip(wf->name, clip, preFetchClips, prefetchInfo, fakeEnv);
 
         if (!filterData->preFetchClips.empty())
             filterData->fakeEnv->uglyNode = filterData->preFetchClips.front();
@@ -848,15 +869,15 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         vi.fpsDen = viAvs.fps_denominator;
         reduceRational(&vi.fpsNum, &vi.fpsDen);
 
-        if (!AVSPixelTypeToVSFormat(vi.format, viAvs, core, vsapi))
+        bool unpack;
+        if (!AVSPixelTypeToVSFormat(vi.format, unpack, viAvs, core, vsapi))
             vsapi->mapSetError(out, "Avisynth Compat: bad format!");
 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < preFetchClips.size(); i++)
             deps.push_back({preFetchClips[i], rpGeneral});
 
-        vsapi->createVideoFilter(
-                                    out,
+        VSNode *node = vsapi->createVideoFilter2(
                                     wf->name.c_str(),
                                     &vi,
                                     avisynthFilterGetFrame,
@@ -866,6 +887,17 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                                     preFetchClips.size(),
                                     filterData,
                                     core);
+
+        if (unpack) {
+            const VideoInfo &vi = clip->GetVideoInfo();
+            if (vi.IsRGB32()) {
+                node = unpackRGB32Create(node, core, vsapi);
+            } else if (vi.IsYUY2()) {
+                node = unpackYUY2Create(node, core, vsapi);
+            }
+        }
+
+        vsapi->mapConsumeNode(out, "clip", node, maReplace);
     } else if (ret.IsBool()) {
         vsapi->mapSetInt(out, "val", ret.AsBool() ? 1 : 0, maReplace);
     } else if (ret.IsInt()) {
@@ -1002,7 +1034,8 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
 
     VSVideoFormat f;
 
-    if (!AVSPixelTypeToVSFormat(f, vi, core, vsapi))
+    bool unpack;
+    if (!AVSPixelTypeToVSFormat(f, unpack, vi, core, vsapi))
         vsapi->logMessage(mtFatal, "Unsupported frame format in newvideoframe (alpha and/or packed RGB not supported)", core);
 
     ref = vsapi->newVideoFrame(&f, vi.width, vi.height, propSrc, core);
@@ -1016,12 +1049,12 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
         true,
         0,
         static_cast<int>(vsapi->getStride(ref, 0)),
-        vi.width * vsapi->getVideoFrameFormat(ref)->bytesPerSample,
+        vi.width * f.bytesPerSample,
         vi.height,
         isMultiplePlanes ? vsapi->getWritePtr(ref, 1) - firstPlanePtr : 0,
         isMultiplePlanes ? vsapi->getWritePtr(ref, 2) - firstPlanePtr : 0,
         isMultiplePlanes ? static_cast<int>(vsapi->getStride(ref, 1)) : 0,
-        vsapi->getFrameWidth(ref, 1) * vsapi->getVideoFrameFormat(ref)->bytesPerSample,
+        vsapi->getFrameWidth(ref, 1) * f.bytesPerSample,
         vsapi->getFrameHeight(ref, 1));
 
     PVideoFrame pvf(vfb);
@@ -1260,7 +1293,7 @@ PVideoFrame FakeAvisynth::SubframePlanarA(PVideoFrame src, int rel_offset, int n
 }
 
 static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    const char *rawPath = vsapi->mapGetData(in, "path", 0, nullptr);
+    std::string rawPath = vsapi->mapGetData(in, "path", 0, nullptr);
     std::wstring wPath = utf16_from_utf8(rawPath);
 
     HMODULE plugin = LoadLibraryW(wPath.c_str());
@@ -1269,7 +1302,13 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
     typedef const char *(__stdcall *AvisynthPluginInit3Func)(IScriptEnvironment *env, const AVS_Linkage *const vectors);
 
     if (!plugin) {
-        vsapi->mapSetError(out, "Avisynth Loader: failed to load module");
+        DWORD lastError = GetLastError();
+
+        if (lastError == 126)
+            vsapi->mapSetError(out, ("Failed to load " + rawPath + ". GetLastError() returned " + std::to_string(lastError) + ". The file you tried to load or one of its dependencies is probably missing.").c_str());
+        else
+            vsapi->mapSetError(out, ("Failed to load " + rawPath + ". GetLastError() returned " + std::to_string(lastError) + ".").c_str());
+
         return;
     }
 
@@ -1319,7 +1358,7 @@ WrappedFunction::WrappedFunction(const std::string &name, FakeAvisynth::ApplyFun
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("com.vapoursynth.avisynth", "avs", "VapourSynth Avisynth Compatibility", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, pcModifiable, plugin);
-    vspapi->registerFunction("LoadPlugin", "path:data;", "", &avsLoadPlugin, plugin, plugin);
+    vspapi->registerFunction("LoadPlugin", "path:data;", "", avsLoadPlugin, plugin, plugin);
 }
 
 }
