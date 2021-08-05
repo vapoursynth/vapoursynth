@@ -213,7 +213,7 @@ static const VSFrame *VS_CC unpackYUY2GetFrame(int n, int activationReason, void
         p.packing = p2p_yuy2;
         p.width = d->vi.width;
         p.height = d->vi.height;
-        p.src[0] = vsapi->getReadPtr(dst, 0);
+        p.src[0] = vsapi->getReadPtr(src, 0);
         p.src_stride[0] = vsapi->getStride(src, 0);
 
         for (int plane = 0; plane < 3; plane++) {
@@ -323,7 +323,7 @@ static const VSFrame *VS_CC unpackRGB32GetFrame(int n, int activationReason, voi
         p.packing = p2p_argb32;
         p.width = d->vi.width;
         p.height = d->vi.height;
-        p.src[0] = vsapi->getReadPtr(dst, 0);
+        p.src[0] = vsapi->getReadPtr(src, 0);
         p.src_stride[0] = vsapi->getStride(src, 0);
 
         for (int plane = 0; plane < 3; plane++) {
