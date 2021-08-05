@@ -45,9 +45,11 @@ static inline bool IsSameVideoFormat(const VSVideoFormat &f, unsigned colorFamil
     return f.colorFamily == colorFamily && f.sampleType == sampleType && f.bitsPerSample == bitsPerSample && f.subSamplingW == subSamplingW && f.subSamplingH == subSamplingH;
 }
 
-static int VSFormatToAVSPixelType(const VSVideoFormat &fi) {
+static int VSFormatToAVSPixelType(const VSVideoFormat &fi, bool pack) {
     if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 0, 0))
         return VideoInfo::CS_YV24;
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 1, 0) && pack)
+        return VideoInfo::CS_YUY2;
     else if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 1, 0))
         return VideoInfo::CS_YV16;
     else if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 1, 1))
@@ -98,6 +100,8 @@ static int VSFormatToAVSPixelType(const VSVideoFormat &fi) {
         return VideoInfo::CS_YUV420PS;
     else if (IsSameVideoFormat(fi, cfGray, stFloat, 32))
         return VideoInfo::CS_Y32;
+    else if (IsSameVideoFormat(fi, cfRGB, stInteger, 8) && pack)
+        return VideoInfo::CS_BGR32;
     else if (IsSameVideoFormat(fi, cfRGB, stInteger, 8))
         return VideoInfo::CS_RGBP;
     else if (IsSameVideoFormat(fi, cfRGB, stInteger, 10))
@@ -485,7 +489,7 @@ VSClip::VSClip(VSNode *inclip, FakeAvisynth *fakeEnv, bool pack, const VSAPI *vs
     vi.width = srcVi->width;
     vi.height = srcVi->height;
 
-    vi.pixel_type = VSFormatToAVSPixelType(srcVi->format);
+    vi.pixel_type = VSFormatToAVSPixelType(srcVi->format, true);
     if (!vi.pixel_type)
         vsapi->logMessage(mtFatal, "Bad colorspace", fakeEnv->core);
 
@@ -792,7 +796,7 @@ static bool isSupportedPF(const VSVideoFormat &f, int interfaceVersion) {
     if (interfaceVersion == 2) {
         return IsSameVideoFormat(f, cfYUV, stInteger, 8, 1, 1);
     } else {
-        return !!VSFormatToAVSPixelType(f);
+        return !!VSFormatToAVSPixelType(f, true);
     }
 }
 
@@ -1147,27 +1151,7 @@ bool FakeAvisynth::PlanarChromaAlignment(PlanarChromaAlignmentMode key) {
 
 PVideoFrame FakeAvisynth::SubframePlanar(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height, int rel_offsetU, int rel_offsetV, int new_pitchUV) {
     vsapi->logMessage(mtFatal, "SubframePlanar not implemented", core);
-    if (src->row_size != new_row_size)
-        vsapi->logMessage(mtFatal, "SubframePlanar only partially implemented", core);
-    // not pretty at all, but the underlying frame has to be fished out to have any idea what the input really is
-    const VSFrame *f = avsToVSFrame((VideoFrame *)(void *)src);
-    const VSVideoFormat *fi = vsapi->getVideoFrameFormat(f);
-    VideoInfo vi;
-    vi.height = new_height;
-    vi.width = vsapi->getFrameWidth(f, 0);
-
-    vi.pixel_type = VSFormatToAVSPixelType(*fi);
-
-    if (!vi.pixel_type)
-        vsapi->logMessage(mtFatal, "Bad colorspace, bad!", core);
-
-    PVideoFrame dst = NewVideoFrame(vi);
-
-    vsapi->logMessage(mtWarning, "Subframeplanar only partially implemented, report if it crashed or not (especially if not using YV12)", core);
-    BitBlt(dst->GetWritePtr(PLANAR_Y), dst->GetPitch(PLANAR_Y), src->GetReadPtr(PLANAR_Y) + rel_offset, new_pitch, new_row_size, new_height);
-    BitBlt(dst->GetWritePtr(PLANAR_U), dst->GetPitch(PLANAR_U), src->GetReadPtr(PLANAR_U) + rel_offsetU, new_pitchUV, new_row_size/2, new_height/2);
-    BitBlt(dst->GetWritePtr(PLANAR_V), dst->GetPitch(PLANAR_V), src->GetReadPtr(PLANAR_V) + rel_offsetV, new_pitchUV, new_row_size/2, new_height/2);
-    return dst;
+    return nullptr;
 }
 
 void FakeAvisynth::DeleteScriptEnvironment() {
