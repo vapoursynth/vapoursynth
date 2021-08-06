@@ -489,7 +489,7 @@ VSClip::VSClip(VSNode *inclip, FakeAvisynth *fakeEnv, bool pack, const VSAPI *vs
     vi.width = srcVi->width;
     vi.height = srcVi->height;
 
-    vi.pixel_type = VSFormatToAVSPixelType(srcVi->format, true);
+    vi.pixel_type = VSFormatToAVSPixelType(srcVi->format, pack);
     if (!vi.pixel_type)
         vsapi->logMessage(mtFatal, "Bad colorspace", fakeEnv->core);
 
@@ -796,7 +796,7 @@ static bool isSupportedPF(const VSVideoFormat &f, int interfaceVersion) {
     if (interfaceVersion == 2) {
         return IsSameVideoFormat(f, cfYUV, stInteger, 8, 1, 1);
     } else {
-        return !!VSFormatToAVSPixelType(f, true);
+        return !!VSFormatToAVSPixelType(f, false);
     }
 }
 
@@ -806,6 +806,9 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     std::unique_ptr<FakeAvisynth> fakeEnv(new FakeAvisynth(wf->interfaceVersion, core, vsapi));
     std::vector<AVSValue> inArgs(wf->parsedArgs.size());
     std::vector<VSNode *> preFetchClips;
+
+    int err;
+    bool pack = !!vsapi->mapGetInt(in, "compatpack", 0, &err);
 
     for (size_t i = 0; i < inArgs.size(); i++) {
         const AvisynthArgs &parsedArg = wf->parsedArgs.at(i);
@@ -833,7 +836,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                     return;
                 }
 
-                VSClip *tmpclip = new VSClip(cr, fakeEnv.get(), true, vsapi);
+                VSClip *tmpclip = new VSClip(cr, fakeEnv.get(), pack, vsapi);
                 preFetchClips.push_back(tmpclip->GetVSNode());
                 inArgs[i] = tmpclip;
                 break;
@@ -964,6 +967,8 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
 
         numArgs++;
     }
+
+    newArgs += "compatpack:int:opt;";
 
     std::lock_guard<std::mutex> lock(registerFunctionLock);
 
