@@ -803,7 +803,7 @@ static bool isSupportedPF(const VSVideoFormat &f, int interfaceVersion) {
 static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void *userData,
         VSCore *core, const VSAPI *vsapi) {
     WrappedFunction *wf = (WrappedFunction *)userData;
-    FakeAvisynth *fakeEnv = new FakeAvisynth(wf->interfaceVersion, core, vsapi);
+    std::unique_ptr<FakeAvisynth> fakeEnv(new FakeAvisynth(wf->interfaceVersion, core, vsapi));
     std::vector<AVSValue> inArgs(wf->parsedArgs.size());
     std::vector<VSNode *> preFetchClips;
 
@@ -830,12 +830,11 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                 if (!isConstantVideoFormat(vi) || !isSupportedPF(vi->format, wf->interfaceVersion)) {
                     vsapi->mapSetError(out, "Invalid avisynth colorspace in one of the input clips");
                     vsapi->freeNode(cr);
-                    delete fakeEnv;
                     return;
                 }
 
                 preFetchClips.push_back(cr);
-                inArgs[i] = new VSClip(cr, fakeEnv, true, vsapi);
+                inArgs[i] = new VSClip(cr, fakeEnv.get(), true, vsapi);
                 break;
             }
         }
@@ -845,7 +844,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     AVSValue ret;
 
     try {
-        ret = wf->apply(inArgAVSValue, wf->avsUserData, fakeEnv);
+        ret = wf->apply(inArgAVSValue, wf->avsUserData, fakeEnv.get());
     } catch (const AvisynthError &e) {
         vsapi->mapSetError(out, e.msg);
         return;
@@ -859,7 +858,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         PClip clip = ret.AsClip();
 
         PrefetchInfo prefetchInfo = getPrefetchInfo(wf->name, in, core, vsapi);
-        WrappedClip *filterData = new WrappedClip(wf->name, clip, preFetchClips, prefetchInfo, fakeEnv);
+        std::unique_ptr<WrappedClip> filterData(new WrappedClip(wf->name, clip, preFetchClips, prefetchInfo, fakeEnv.get()));
 
         if (!filterData->preFetchClips.empty())
             filterData->fakeEnv->uglyNode = filterData->preFetchClips.front();
@@ -874,8 +873,10 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         reduceRational(&vi.fpsNum, &vi.fpsDen);
 
         bool unpack;
-        if (!AVSPixelTypeToVSFormat(vi.format, unpack, viAvs, core, vsapi))
+        if (!AVSPixelTypeToVSFormat(vi.format, unpack, viAvs, core, vsapi)) {
             vsapi->mapSetError(out, "Avisynth Compat: bad format!");
+            return;
+        }
 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < preFetchClips.size(); i++)
@@ -889,7 +890,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                                     (preFetchClips.empty() || prefetchInfo.from > prefetchInfo.to) ? fmFrameState : fmParallelRequests,
                                     deps.data(),
                                     preFetchClips.size(),
-                                    filterData,
+                                    filterData.release(),
                                     core);
 
         if (unpack) {
@@ -911,6 +912,8 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     } else if (ret.IsString()) {
         vsapi->mapSetData(out, "val", ret.AsString(), -1, dtUtf8, maReplace);
     }
+
+    fakeEnv.release();
 }
 
 void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc apply, void *user_data) {
