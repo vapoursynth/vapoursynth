@@ -162,12 +162,15 @@
   <ItemGroup>
     <ClInclude Include="..\..\src\avisynth\avisynth.h" />
     <ClInclude Include="..\..\src\avisynth\avisynth_compat.h" />
+    <ClInclude Include="..\..\src\common\p2p_api.h" />
     <ClInclude Include="..\..\src\common\vsutf16.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\avisynth\avisynth_compat.cpp" />
     <ClCompile Include="..\..\src\avisynth\interface.cpp" />
+    <ClCompile Include="..\..\src\common\p2p_api.cpp" />
+    <ClCompile Include="..\..\src\common\v210.cpp" />
     <ClCompile Include="..\..\src\core\cpufeatures.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
