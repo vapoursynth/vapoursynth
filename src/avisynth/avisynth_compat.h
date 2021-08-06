@@ -177,10 +177,13 @@ public:
         // intentionally ignore
         return 0;
     }
+    VSNode *GetVSNode() const {
+        return clip;
+    }
     const VideoInfo &__stdcall GetVideoInfo() {
         return vi;
     }
-    ~VSClip() {
+    virtual AVSC_CC ~VSClip() {
         vsapi->freeNode(clip);
     }
 };

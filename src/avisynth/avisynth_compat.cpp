@@ -833,8 +833,9 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                     return;
                 }
 
-                preFetchClips.push_back(cr);
-                inArgs[i] = new VSClip(cr, fakeEnv.get(), true, vsapi);
+                VSClip *tmpclip = new VSClip(cr, fakeEnv.get(), true, vsapi);
+                preFetchClips.push_back(tmpclip->GetVSNode());
+                inArgs[i] = tmpclip;
                 break;
             }
         }
