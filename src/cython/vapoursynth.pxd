@@ -102,6 +102,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         YUV444PS "pfYUV444PS"
 
         RGB24 "pfRGB24"
+        RGB27 "pfRGB27"
         RGB30 "pfRGB30"
         RGB36 "pfRGB36"
         RGB42 "pfRGB42"
