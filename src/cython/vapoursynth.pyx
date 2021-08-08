@@ -23,6 +23,9 @@ from cython cimport view, final
 from libc.stdint cimport intptr_t, uint16_t, uint32_t
 from cpython.buffer cimport (PyBUF_WRITABLE, PyBUF_FORMAT, PyBUF_STRIDES,
                              PyBUF_F_CONTIGUOUS)
+from cpython.buffer cimport PyBUF_SIMPLE
+from cpython.buffer cimport PyBuffer_FillInfo
+from cpython.buffer cimport PyBuffer_Release
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
 import ctypes
@@ -1323,6 +1326,82 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core
     instance.height = funcs.getFrameHeight(f, 0)
     instance.props = createVideoProps(instance)
     return instance
+
+
+@cython.final
+@cython.internal
+@cython.freelist(16)
+cdef class _2dview:
+    cdef:
+        Py_buffer base
+        ssize_t smalltable[4]  # shape, strides
+
+    def __cinit__(self):
+        # need Py_buffer.obj to be non-NULL
+        PyBuffer_FillInfo(&self.base, None, NULL, 0, True, PyBUF_SIMPLE)
+
+        self.base.ndim = 2
+        self.base.shape = &self.smalltable[0]
+        self.base.strides = &self.smalltable[2]
+
+    def __dealloc__(self):
+        PyBuffer_Release(&self.base)  # not handled by Cython
+
+    def __getbuffer__(self, Py_buffer* view, int flags):
+        # provide full info right away,
+        # PEP-3118 compliance is left to memoryview
+        view.obj = self.base.obj  # XXX: _2dview instances are temporary
+                                  #      (requires Python>=3.3)
+        view.buf = self.base.buf
+        view.len = self.base.len
+        view.readonly = self.base.readonly
+        view.itemsize = self.base.itemsize
+        view.format = self.base.format
+        view.ndim = self.base.ndim
+        view.shape = self.base.shape
+        view.strides = self.base.strides
+        view.suboffsets = self.base.suboffsets
+        view.internal = self.base.internal
+
+
+cdef _2dview allocinfo(const VSFormat* format):
+    cdef:
+        _2dview self
+
+    self = _2dview.__new__(_2dview)
+    self.base.itemsize = format.bytesPerSample
+    self.base.strides[1] = format.bytesPerSample
+
+    if format.sampleType == INTEGER:
+        if format.bytesPerSample == 1:
+            self.base.format = 'B'
+        elif format.bytesPerSample == 2:
+            self.base.format = 'H'
+        elif format.bytesPerSample == 4:
+            self.base.format = 'I'
+    elif format.sampleType == FLOAT:
+        if format.bytesPerSample == 2:
+            self.base.format = 'e'
+        elif format.bytesPerSample == 4:
+            self.base.format = 'f'
+
+    return self
+
+
+cdef void fillinfo(Py_buffer* view, VSFrameRef* frame, int plane, unsigned* flags, const VSAPI* lib) nogil:
+    view.shape[1] = lib.getFrameWidth(frame, plane)
+    view.shape[0] = lib.getFrameHeight(frame, plane)
+    view.strides[0] = lib.getStride(frame, plane)
+    view.len = view.shape[0] * view.shape[1] * view.itemsize
+
+    cdef:
+        unsigned mask = 1 << plane+1
+
+    if flags[0] & mask:  # trigger copy-on-write
+        flags[0] &= ~mask  # only do so once, see GH-724
+        view.buf = <void*> lib.getWritePtr(frame, plane)
+    else:
+        view.buf = <void*> lib.getReadPtr(frame, plane)
 
 
 cdef class VideoPlane:
