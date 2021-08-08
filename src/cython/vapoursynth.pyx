@@ -3054,8 +3054,13 @@ cdef public api void vpy_clearEnvironment(VSScript *se) nogil:
         pyenvdict.clear()
         vpy4_clearLogHandler(se)
         try:
-             _get_vsscript_policy().get_environment(se.id).outputs.clear()
-             _get_vsscript_policy().get_environment(se.id).core = None
+            # Environment is lazily created at the time of exec'ing a script,
+            # if the process errors out before that (e.g. fails compiling),
+            # the environment might be None.
+            env = _get_vsscript_policy().get_environment(se.id)
+            if env is not None:
+                env.outputs.clear()
+                env.core = None
         except:
             pass
         gc.collect()
