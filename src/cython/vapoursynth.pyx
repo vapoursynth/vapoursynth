@@ -26,6 +26,9 @@ from cpython.buffer cimport (PyBUF_WRITABLE, PyBUF_FORMAT, PyBUF_STRIDES,
 from cpython.buffer cimport PyBUF_SIMPLE
 from cpython.buffer cimport PyBuffer_FillInfo
 from cpython.buffer cimport PyBuffer_Release
+from cpython.memoryview cimport PyMemoryView_FromObject
+from cpython.number cimport PyIndex_Check
+from cpython.number cimport PyNumber_Index
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
 import ctypes
@@ -793,7 +796,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
         ckey = key.encode('utf-8')
         val = ndict[key]
 
-        if isinstance(val, (str, bytes, bytearray, VideoNode)):
+        if isinstance(val, (str, bytes, bytearray, VideoNode, VideoFrame)):
             val = [val]
         else:
             try:
@@ -841,7 +844,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
         if val is None:
             continue
 
-        if isinstance(val, (str, bytes, bytearray, VideoNode)) or not isinstance(val, Iterable):
+        if isinstance(val, (str, bytes, bytearray, VideoNode, VideoFrame)) or not isinstance(val, Iterable):
             val = [val]
 
         for v in val:
@@ -1022,7 +1025,7 @@ cdef class VideoProps(object):
         cdef bytes b = name.encode('utf-8')
         cdef const VSAPI *funcs = self.funcs
         val = value
-        if isinstance(val, (str, bytes, bytearray, VideoNode)):
+        if isinstance(val, (str, bytes, bytearray, VideoNode, VideoFrame)):
             val = [val]
         else:
             try:
@@ -1291,6 +1294,34 @@ cdef class VideoFrame(object):
         cdef int x
         for x in range(self.format.num_planes):
             yield VideoPlane.__new__(VideoPlane, self, x)
+
+    def __getitem__(self, index):
+        if PyIndex_Check(index):
+            index = PyNumber_Index(index)
+        else:
+            raise TypeError("frame indices must be integers, not %s"
+                            % (type(index).__name__,))
+
+        lib = self.funcs
+        frame = <VSFrameRef*> self.constf
+        format = lib.getFrameFormat(frame)
+
+        if index < 0:
+            index += format.numPlanes
+        if not 0 <= index < format.numPlanes:
+            raise IndexError("index out of range")
+
+        data = allocinfo(format)
+        data.base.obj = self
+        data.base.readonly = not self.flags & 1
+
+        fillinfo(&data.base, frame, index, &self.flags, lib)
+
+        return PyMemoryView_FromObject(data)
+
+    def __len__(self):
+        lib = self.funcs
+        return lib.getFrameFormat(self.constf).numPlanes
 
     def __str__(self):
         cdef str s = 'VideoFrame\n'
