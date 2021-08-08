@@ -21,12 +21,12 @@ cimport vapoursynth
 cimport cython.parallel
 from cython cimport view, final
 from libc.stdint cimport intptr_t, uint16_t, uint32_t
-from cpython.buffer cimport (PyBUF_WRITABLE, PyBUF_FORMAT, PyBUF_STRIDES,
-                             PyBUF_F_CONTIGUOUS)
 from cpython.buffer cimport PyBUF_SIMPLE
 from cpython.buffer cimport PyBuffer_FillInfo
 from cpython.buffer cimport PyBuffer_Release
+from cpython.buffer cimport PyObject_GetBuffer
 from cpython.memoryview cimport PyMemoryView_FromObject
+from cpython.memoryview cimport PyMemoryView_GET_BUFFER
 from cpython.number cimport PyIndex_Check
 from cpython.number cimport PyNumber_Index
 from cpython.ref cimport Py_INCREF, Py_DECREF
@@ -1435,93 +1435,27 @@ cdef void fillinfo(Py_buffer* view, VSFrameRef* frame, int plane, unsigned* flag
         view.buf = <void*> lib.getReadPtr(frame, plane)
 
 
+# TODO: deprecate this
 cdef class VideoPlane:
-    cdef VideoFrame frame
-    cdef int plane
-    cdef Py_ssize_t shape[2]
-    cdef Py_ssize_t strides[2]
-    cdef char* format
+    cdef:
+        object data
 
-    def __cinit__(self, VideoFrame frame, int plane):
-        cdef Py_ssize_t itemsize
-
-        if not (0 <= plane < frame.format.num_planes):
-            raise IndexError("specified plane index out of range")
-
-        self.shape[1] = <Py_ssize_t> frame.width
-        self.shape[0] = <Py_ssize_t> frame.height
-        if plane:
-            self.shape[1] >>= <Py_ssize_t> frame.format.subsampling_w
-            self.shape[0] >>= <Py_ssize_t> frame.format.subsampling_h
-
-        self.strides[1] = itemsize = <Py_ssize_t> frame.format.bytes_per_sample
-        self.strides[0] = <Py_ssize_t> frame.funcs.getStride(frame.constf, plane)
-
-        if frame.format.sample_type == INTEGER:
-            if itemsize == 1:
-                self.format = b'B'
-            elif itemsize == 2:
-                self.format = b'H'
-            elif itemsize == 4:
-                self.format = b'I'
-        elif frame.format.sample_type == FLOAT:
-            if itemsize == 2:
-                self.format = b'e'
-            elif itemsize == 4:
-                self.format = b'f'
-
-        self.frame = frame
-        self.plane = plane
+    def __cinit__(self, *args, **kwargs):
+        self.data = VideoFrame.__getitem__(*args, **kwargs)
 
     @property
     def width(self):
         """Plane's pixel width."""
-        if self.plane:
-            return self.frame.width >> self.frame.format.subsampling_w
-        return self.frame.width
+        return PyMemoryView_GET_BUFFER(self.data).shape[1]
 
     @property
     def height(self):
         """Plane's pixel height."""
-        if self.plane:
-            return self.frame.height >> self.frame.format.subsampling_h
-        return self.frame.height
+        return PyMemoryView_GET_BUFFER(self.data).shape[0]
 
     def __getbuffer__(self, Py_buffer* view, int flags):
-        if (flags & PyBUF_F_CONTIGUOUS) == PyBUF_F_CONTIGUOUS:
-            raise BufferError("C-contiguous buffer only.")
-
-        if not self.frame.flags & 1 and flags & PyBUF_WRITABLE:
-            raise BufferError("Object is not writable.")
-
-        cdef:
-            unsigned mask = 1 << self.plane+1
-
-        if self.frame.flags & mask:  # trigger copy-on-write
-            self.frame.flags &= ~mask  # only do so once, see GH-724
-            view.buf = (<void*> self.frame.funcs.getWritePtr(self.frame.f, self.plane))
-        else:
-            view.buf = (<void*> self.frame.funcs.getReadPtr(self.frame.constf, self.plane))
-
-        if flags & PyBUF_STRIDES:
-            view.shape = self.shape
-            view.strides = self.strides
-        else:
-            view.shape = NULL
-            view.strides = NULL
-
-        if flags & PyBUF_FORMAT:
-            view.format = self.format
-        else:
-            view.format = NULL
-
-        view.obj = self
-        view.len = self.shape[0] * self.shape[1] * self.strides[1]
-        view.readonly = not self.frame.flags & 1
-        view.itemsize = self.strides[1]
-        view.ndim = 2
-        view.suboffsets = NULL
-        view.internal = NULL
+        # forward the request to the memoryview instance
+        PyObject_GetBuffer(self.data, view, flags)
 
 
 cdef class VideoNode(object):
