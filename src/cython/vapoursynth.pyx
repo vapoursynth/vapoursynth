@@ -1196,7 +1196,7 @@ cdef class VideoFrame(object):
     cdef readonly Format format
     cdef readonly int width
     cdef readonly int height
-    cdef readonly bint readonly
+    cdef unsigned flags
     cdef readonly VideoProps props
 
     cdef object __weakref__
@@ -1207,6 +1207,10 @@ cdef class VideoFrame(object):
     def __dealloc__(self):
         if self.funcs:
             self.funcs.freeFrame(self.constf)
+
+    @property
+    def readonly(self):
+        return not self.flags & 1
 
     def copy(self):
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
@@ -1299,7 +1303,7 @@ cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *fun
     instance.f = NULL
     instance.funcs = funcs
     instance.core = core
-    instance.readonly = True
+    instance.flags = 0
     instance.format = createFormat(funcs.getFrameFormat(constf))
     instance.width = funcs.getFrameWidth(constf, 0)
     instance.height = funcs.getFrameHeight(constf, 0)
@@ -1313,7 +1317,7 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core
     instance.f = f
     instance.funcs = funcs
     instance.core = core
-    instance.readonly = False
+    instance.flags = -1
     instance.format = createFormat(funcs.getFrameFormat(f))
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
@@ -1377,12 +1381,17 @@ cdef class VideoPlane:
         if (flags & PyBUF_F_CONTIGUOUS) == PyBUF_F_CONTIGUOUS:
             raise BufferError("C-contiguous buffer only.")
 
-        if self.frame.readonly:
-            if flags & PyBUF_WRITABLE:
-                raise BufferError("Object is not writable.")
-            view.buf = (<void*> self.frame.funcs.getReadPtr(self.frame.constf, self.plane))
-        else:
+        if not self.frame.flags & 1 and flags & PyBUF_WRITABLE:
+            raise BufferError("Object is not writable.")
+
+        cdef:
+            unsigned mask = 1 << self.plane+1
+
+        if self.frame.flags & mask:  # trigger copy-on-write
+            self.frame.flags &= ~mask  # only do so once, see GH-724
             view.buf = (<void*> self.frame.funcs.getWritePtr(self.frame.f, self.plane))
+        else:
+            view.buf = (<void*> self.frame.funcs.getReadPtr(self.frame.constf, self.plane))
 
         if flags & PyBUF_STRIDES:
             view.shape = self.shape
@@ -1398,7 +1407,7 @@ cdef class VideoPlane:
 
         view.obj = self
         view.len = self.shape[0] * self.shape[1] * self.strides[1]
-        view.readonly = self.frame.readonly
+        view.readonly = not self.frame.flags & 1
         view.itemsize = self.strides[1]
         view.ndim = 2
         view.suboffsets = NULL
