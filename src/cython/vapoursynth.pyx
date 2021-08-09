@@ -23,6 +23,7 @@ from cython cimport view, final
 from libc.stdint cimport intptr_t, uint16_t, uint32_t
 from cpython.buffer cimport PyBUF_SIMPLE
 from cpython.buffer cimport PyBuffer_FillInfo
+from cpython.buffer cimport PyBuffer_IsContiguous
 from cpython.buffer cimport PyBuffer_Release
 from cpython.buffer cimport PyObject_GetBuffer
 from cpython.memoryview cimport PyMemoryView_FromObject
@@ -1294,6 +1295,47 @@ cdef class VideoFrame(object):
         cdef int x
         for x in range(self.format.num_planes):
             yield VideoPlane.__new__(VideoPlane, self, x)
+
+    def _writelines(self, write):
+        cdef:
+            char* ptr
+            ssize_t stride  # no clue why cython turns this into a py object
+
+        assert callable(write), "'write' is not callable"
+
+        lib = self.funcs
+        frame = <VSFrameRef*> self.constf
+        format = lib.getFrameFormat(frame)
+
+        # reuse the same _2dview for each plane
+        view = allocinfo(format)
+        view.base.obj = self
+        view.base.readonly = not self.flags & 1
+
+        for x in range(format.numPlanes):
+            fillinfo(&view.base, frame, x, &self.flags, lib)
+
+            data = PyMemoryView_FromObject(view)
+
+            if not PyBuffer_IsContiguous(&view.base, b'C'):
+                # write data line by line
+                tmp = PyMemoryView_GET_BUFFER(data)
+                tmp.ndim = 1
+                tmp.shape += 1
+                tmp.strides += 1
+                tmp.len = tmp.shape[0] * tmp.itemsize
+
+                ptr = <char*> tmp.buf
+                lines = view.base.shape[0]
+                stride = view.base.strides[0]
+
+                for _ in range(lines):
+                    line = PyMemoryView_FromObject(data)
+                    write(line)
+                    ptr += stride
+                    tmp.buf = ptr
+            else:
+                write(data)
 
     def __getitem__(self, index):
         if PyIndex_Check(index):
