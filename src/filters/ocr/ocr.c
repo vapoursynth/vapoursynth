@@ -23,11 +23,13 @@
 
 #include <tesseract/capi.h>
 
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
+
+#include "../../core/version.h"
 
 typedef struct OCRData {
-    VSNodeRef *node;
+    VSNode *node;
     VSVideoInfo vi;
 
     VSMap *options;
@@ -35,16 +37,8 @@ typedef struct OCRData {
     char *language;
 } OCRData;
 
-static void VS_CC OCRInit(VSMap *in, VSMap *out, void **instanceData,
-                             VSNode *node, VSCore *core, const VSAPI *vsapi)
-{
-    OCRData *d = (OCRData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, 1, node);
-}
-
 static void VS_CC OCRFree(void *instanceData, VSCore *core,
-                             const VSAPI *vsapi)
-{
+    const VSAPI *vsapi) {
     OCRData *d = (OCRData *)instanceData;
 
     vsapi->freeNode(d->node);
@@ -54,26 +48,25 @@ static void VS_CC OCRFree(void *instanceData, VSCore *core,
     free(d);
 }
 
-static const VSFrameRef *VS_CC OCRGetFrame(int n, int activationReason,
-                                           void **instanceData,
-                                           void **frameData,
-                                           VSFrameContext *frameCtx,
-                                           VSCore *core,
-                                           const VSAPI *vsapi)
-{
-    OCRData *d = (OCRData *) * instanceData;
+static const VSFrame *VS_CC OCRGetFrame(int n, int activationReason,
+    void *instanceData,
+    void **frameData,
+    VSFrameContext *frameCtx,
+    VSCore *core,
+    const VSAPI *vsapi) {
+    OCRData *d = (OCRData *)instanceData;
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
-        VSMap *m = vsapi->getFramePropsRW(dst);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrame *dst = vsapi->copyFrame(src, core);
+        VSMap *m = vsapi->getFramePropertiesRW(dst);
 
         const uint8_t *srcp = vsapi->getReadPtr(src, 0);
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
-        int stride = vsapi->getStride(src, 0);
+        ptrdiff_t stride = vsapi->getStride(src, 0);
 
         TessBaseAPI *api = TessBaseAPICreate();
         if (TessBaseAPIInit3(api, d->datapath, d->language) == -1) {
@@ -88,19 +81,19 @@ static const VSFrameRef *VS_CC OCRGetFrame(int n, int activationReason,
 
         if (d->options) {
             int i, err;
-            int nopts = vsapi->propNumElements(d->options, "options");
+            int nopts = vsapi->mapNumElements(d->options, "options");
 
             for (i = 0; i < nopts; i += 2) {
-                const char *key = vsapi->propGetData(d->options, "options",
-                                                     i, &err);
-                const char *value = vsapi->propGetData(d->options, "options",
-                                                       i + 1, &err);
+                const char *key = vsapi->mapGetData(d->options, "options",
+                    i, &err);
+                const char *value = vsapi->mapGetData(d->options, "options",
+                    i + 1, &err);
 
                 if (!TessBaseAPISetVariable(api, key, value)) {
                     char msg[200];
 
                     snprintf(msg, 200,
-                             "Failed to set Tesseract option '%s'", key);
+                        "Failed to set Tesseract option '%s'", key);
 
                     vsapi->setFilterError(msg, frameCtx);
 
@@ -118,15 +111,15 @@ static const VSFrameRef *VS_CC OCRGetFrame(int n, int activationReason,
             unsigned i;
 
             char *result = TessBaseAPIRect(api, srcp, 1,
-                                           stride, 0, 0, width, height);
+                stride, 0, 0, width, height);
             int *confs = TessBaseAPIAllWordConfidences(api);
             int length = strlen(result);
 
             for (; length > 0 && isspace(result[length - 1]); length--);
-            vsapi->propSetData(m, "OCRString", result, length, paReplace);
+            vsapi->mapSetData(m, "OCRString", result, length, dtUtf8, maReplace);
 
             for (i = 0; confs[i] != -1; i++) {
-                vsapi->propSetInt(m, "OCRConfidence", confs[i], paAppend);
+                vsapi->mapSetInt(m, "OCRConfidence", confs[i], maAppend);
             }
 
             free(confs);
@@ -162,8 +155,7 @@ static char *szterm(const char *data, int size) {
 }
 
 static void VS_CC OCRCreate(const VSMap *in, VSMap *out, void *userData,
-                               VSCore *core, const VSAPI *vsapi)
-{
+    VSCore *core, const VSAPI *vsapi) {
     OCRData d, *data;
     const char *msg;
     int err, nopts;
@@ -171,7 +163,7 @@ static void VS_CC OCRCreate(const VSMap *in, VSMap *out, void *userData,
     int size;
     const char *opt;
 
-    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.node = vsapi->mapGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
     d.options = NULL;
     d.datapath = NULL;
@@ -190,7 +182,7 @@ static void VS_CC OCRCreate(const VSMap *in, VSMap *out, void *userData,
         goto error;
     }
 
-    if ((nopts = vsapi->propNumElements(in, "options")) > 0) {
+    if ((nopts = vsapi->mapNumElements(in, "options")) > 0) {
         if (nopts % 2) {
             msg = "Options must be key,value pairs";
             goto error;
@@ -202,8 +194,8 @@ static void VS_CC OCRCreate(const VSMap *in, VSMap *out, void *userData,
             for (i = 0; i < nopts; i++) {
                 char *tmp;
 
-                opt = vsapi->propGetData(in, "options", i, &err);
-                size = vsapi->propGetDataSize(in, "options", i, &err);
+                opt = vsapi->mapGetData(in, "options", i, &err);
+                size = vsapi->mapGetDataSize(in, "options", i, &err);
 
                 if (err) {
                     msg = "Failed to read an option";
@@ -222,29 +214,29 @@ static void VS_CC OCRCreate(const VSMap *in, VSMap *out, void *userData,
                     goto error;
                 }
 
-                vsapi->propSetData(d.options, "options",
-                                   tmp, size + 1, paAppend);
+                vsapi->mapSetData(d.options, "options",
+                    tmp, size + 1, maAppend);
 
                 free(tmp);
             }
         }
     }
 
-    opt = vsapi->propGetData(in, "datapath", 0, &err);
-    size = vsapi->propGetDataSize(in, "datapath", 0, &err);
+    opt = vsapi->mapGetData(in, "datapath", 0, &err);
+    size = vsapi->mapGetDataSize(in, "datapath", 0, &err);
 
     if (!err) {
         d.datapath = szterm(opt, size);
     }
 
-    opt = vsapi->propGetData(in, "language", 0, &err);
-    size = vsapi->propGetDataSize(in, "language", 0, &err);
+    opt = vsapi->mapGetData(in, "language", 0, &err);
+    size = vsapi->mapGetDataSize(in, "language", 0, &err);
 
     if (!err) {
         d.language = szterm(opt, size);
 #ifdef _WIN32
     } else {
-        VSPlugin *ocr_plugin = vsapi->getPluginById("biz.srsfckn.ocr", core);
+        VSPlugin *ocr_plugin = vsapi->getPluginByID("biz.srsfckn.ocr", core);
         const char *plugin_path = vsapi->getPluginPath(ocr_plugin);
         char *last_slash = strrchr(plugin_path, '/');
         d.datapath = szterm(plugin_path, last_slash - plugin_path + 1);
@@ -254,8 +246,9 @@ static void VS_CC OCRCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "OCR", OCRInit,
-                        OCRGetFrame, OCRFree, fmParallel, 0, data, core);
+    VSFilterDependency deps[] = {{ d.node, rpStrictSpatial }};
+    vsapi->createVideoFilter(out, "OCR", &d.vi,
+        OCRGetFrame, OCRFree, fmParallel, deps, 1, data, core);
 
     return;
 
@@ -264,21 +257,12 @@ error:
     vsapi->freeMap(d.options);
     free(d.datapath);
     free(d.language);
-    vsapi->setError(out, msg);
+    vsapi->mapSetError(out, msg);
 }
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
-                                            VSRegisterFunction registerFunc,
-                                            VSPlugin *plugin);
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
-                                            VSRegisterFunction registerFunc,
-                                            VSPlugin *plugin)
-{
-    configFunc("biz.srsfckn.ocr", "ocr", "Tesseract OCR Filter",
-               VAPOURSYNTH_API_VERSION, 1, plugin);
-
-    registerFunc("Recognize",
-                 "clip:clip;datapath:data:opt;language:data:opt;options:data[]:opt",
-                 OCRCreate, 0, plugin);
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->configPlugin("biz.srsfckn.ocr", "ocr", "Tesseract OCR Filter", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
+    vspapi->registerFunction("Recognize", "clip:clip;datapath:data:opt;language:data:opt;options:data[]:opt", "clip:vnode;", OCRCreate, 0, plugin);
 }
