@@ -21,8 +21,8 @@
 #include <time.h>
 #include <inttypes.h>
 
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 
 #include "common.h"
 
@@ -45,12 +45,12 @@ struct AssTime {
 typedef struct AssTime AssTime;
 
 struct AssData {
-    VSNodeRef *node;
+    VSNode *node;
     VSVideoInfo vi[2];
 
     int lastn;
-    VSFrameRef *lastframe;
-    VSFrameRef *lastalpha;
+    VSFrame *lastframe;
+    VSFrame *lastalpha;
 
     const char *file;
     const char *text;
@@ -123,21 +123,14 @@ static void assDebugCallback(int level, const char *fmt, va_list va, void *data)
     }
 }
 
-static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
-                          VSNode *node, VSCore *core, const VSAPI *vsapi)
-{
-    AssData *d = (AssData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, 2, node);
-}
-
-static void assRender(VSFrameRef *dst, VSFrameRef *alpha, const VSAPI *vsapi,
+static void assRender(VSFrame *dst, VSFrame *alpha, const VSAPI *vsapi,
                       ASS_Image *img)
 {
     uint8_t *planes[4];
     int strides[4], p;
 
     for(p = 0; p < 4; p++) {
-        VSFrameRef *fr = p == 3 ? alpha : dst;
+        VSFrame *fr = p == 3 ? alpha : dst;
 
         planes[p] = vsapi->getWritePtr(fr, p % 3);
         strides[p] = vsapi->getStride(fr, p % 3);
@@ -191,12 +184,12 @@ static void assRender(VSFrameRef *dst, VSFrameRef *alpha, const VSAPI *vsapi,
     }
 }
 
-static const VSFrameRef *VS_CC assGetFrame(int n, int activationReason,
-        void **instanceData, void **frameData,
+static const VSFrame *VS_CC assGetFrame(int n, int activationReason,
+        void *instanceData, void **frameData,
         VSFrameContext *frameCtx, VSCore *core,
         const VSAPI *vsapi)
 {
-    AssData *d = (AssData *) * instanceData;
+    AssData *d = (AssData *) instanceData;
 
     if(n != d->lastn) {
         ASS_Image *img;
@@ -208,12 +201,12 @@ static const VSFrameRef *VS_CC assGetFrame(int n, int activationReason,
         img = ass_render_frame(d->ass_renderer, d->ass, ts, &changed);
 
         if (changed) {
-            VSFrameRef *dst = vsapi->newVideoFrame(d->vi[0].format,
+            VSFrame *dst = vsapi->newVideoFrame(&d->vi[0].format,
                                                    d->vi[0].width,
                                                    d->vi[0].height,
                                                    NULL, core);
 
-            VSFrameRef *a = vsapi->newVideoFrame(d->vi[1].format,
+            VSFrame *a = vsapi->newVideoFrame(&d->vi[1].format,
                                                  d->vi[1].width,
                                                  d->vi[1].height,
                                                  NULL, core);
@@ -228,10 +221,7 @@ static const VSFrameRef *VS_CC assGetFrame(int n, int activationReason,
         d->lastn = n;
     }
 
-    if(vsapi->getOutputIndex(frameCtx) == 0)
-        return vsapi->cloneFrameRef(d->lastframe);
-    else
-        return vsapi->cloneFrameRef(d->lastalpha);
+    return vsapi->addFrameRef(d->lastframe);
 }
 
 static void VS_CC assFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
@@ -239,7 +229,6 @@ static void VS_CC assFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
     AssData *d = (AssData *)instanceData;
     vsapi->freeNode(d->node);
     vsapi->freeFrame(d->lastframe);
-    vsapi->freeFrame(d->lastalpha);
     ass_renderer_done(d->ass_renderer);
     ass_library_done(d->ass_library);
     ass_free_track(d->ass);
@@ -284,26 +273,25 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     char error[ERROR_SIZE] = { 0 };
 
     d.lastn = -1;
-    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.node = vsapi->mapGetNode(in, "clip", 0, 0);
     d.vi[0] = *vsapi->getVideoInfo(d.node);
 
-    if (!d.vi[0].format || !d.vi[0].width || !d.vi[0].height)
+    if (d.vi[0].format.colorFamily == cfUndefined || !d.vi[0].width || !d.vi[0].height)
         snprintf(error, ERROR_SIZE, "%s: clip must have known format and dimensions.", filter_name);
 
-    d.vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
+    vsapi->getVideoFormatByID(&d.vi[0].format, pfRGB24, core);
     d.vi[1] = d.vi[0];
-    d.vi[1].format = vsapi->getFormatPreset(pfGray8, core);
+    vsapi->getVideoFormatByID(&d.vi[1].format, pfGray8, core);
 
-    d.lastalpha = NULL;
     d.lastframe = NULL;
 
-    d.file = vsapi->propGetData(in, "file", 0, &err);
+    d.file = vsapi->mapGetData(in, "file", 0, &err);
 
     if(err) {
         d.file = NULL;
-        d.text = vsapi->propGetData(in, "text", 0, &err);
+        d.text = vsapi->mapGetData(in, "text", 0, &err);
 
-        d.startframe = int64ToIntS(vsapi->propGetInt(in, "start", 0, &err));
+        d.startframe = vsapi->mapGetIntSaturated(in, "start", 0, &err);
         if (err) {
             d.startframe = 0;
         }
@@ -312,7 +300,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         }
         
         
-        d.endframe = int64ToIntS(vsapi->propGetInt(in, "end", 0, &err));
+        d.endframe = vsapi->mapGetIntSaturated(in, "end", 0, &err);
         if(err) {
             d.endframe = d.vi[0].numFrames;
         }
@@ -324,23 +312,23 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         }
     }
 
-    d.style = vsapi->propGetData(in, "style", 0, &err);
+    d.style = vsapi->mapGetData(in, "style", 0, &err);
 
     if(err && !d.file) {
         d.style = "sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1";
     }
 
-    d.charset = vsapi->propGetData(in, "charset", 0, &err);
+    d.charset = vsapi->mapGetData(in, "charset", 0, &err);
 
     if(err)
         d.charset = "UTF-8";
 
-    d.fontdir = vsapi->propGetData(in, "fontdir", 0, &err);
+    d.fontdir = vsapi->mapGetData(in, "fontdir", 0, &err);
 
     if(err)
         d.fontdir = 0;
 
-    d.scale = vsapi->propGetFloat(in, "scale", 0, &err);
+    d.scale = vsapi->mapGetFloat(in, "scale", 0, &err);
 
     if(err)
         d.scale = 1;
@@ -348,18 +336,18 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     if(d.scale <= 0)
         snprintf(error, ERROR_SIZE, "%s: scale must be greater than 0", filter_name);
 
-    d.linespacing = vsapi->propGetFloat(in, "linespacing", 0, &err);
+    d.linespacing = vsapi->mapGetFloat(in, "linespacing", 0, &err);
 
     if(d.linespacing < 0)
         snprintf(error, ERROR_SIZE, "%s: linespacing must be positive", filter_name);
 
-    d.sar = vsapi->propGetFloat(in, "sar", 0, &err);
+    d.sar = vsapi->mapGetFloat(in, "sar", 0, &err);
 
     if(d.sar < 0)
         snprintf(error, ERROR_SIZE, "%s: sar must be positive", filter_name);
 
     for(i = 0; i < 4; i++) {
-        d.margins[i] = vsapi->propGetInt(in, "margins", i, &err);
+        d.margins[i] = vsapi->mapGetIntSaturated(in, "margins", i, &err);
 
         if(d.margins[i] < 0) {
             snprintf(error, ERROR_SIZE, "%s: margins must be positive", filter_name);
@@ -367,10 +355,10 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         }
     }
 
-    d.debuglevel = vsapi->propGetInt(in, "debuglevel", 0, &err);
+    d.debuglevel = vsapi->mapGetInt(in, "debuglevel", 0, &err);
 
     if(error[0]) {
-        vsapi->setError(out, error);
+        vsapi->mapSetError(out, error);
         vsapi->freeNode(d.node);
         return;
     }
@@ -379,7 +367,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
 
     if(!d.ass_library) {
         snprintf(error, ERROR_SIZE, "%s: failed to initialize ASS library", filter_name);
-        vsapi->setError(out, error);
+        vsapi->mapSetError(out, error);
         vsapi->freeNode(d.node);
         return;
     }
@@ -392,7 +380,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
 
     if(!d.ass_renderer) {
         snprintf(error, ERROR_SIZE, "%s: failed to initialize ASS renderer", filter_name);
-        vsapi->setError(out, error);
+        vsapi->mapSetError(out, error);
         vsapi->freeNode(d.node);
         ass_library_done(d.ass_library);
         return;
@@ -439,7 +427,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         if (!frameToTime(d.startframe, d.vi[0].fpsNum, d.vi[0].fpsDen, start, BUFFER_SIZE) ||
             !frameToTime(d.endframe, d.vi[0].fpsNum, d.vi[0].fpsDen, end, BUFFER_SIZE)) {
             snprintf(error, ERROR_SIZE, "%s: Unable to calculate %s time", filter_name, start[0] ? "end" : "start");
-            vsapi->setError(out, error);
+            vsapi->mapSetError(out, error);
             vsapi->freeNode(d.node);
             ass_renderer_done(d.ass_renderer);
             ass_library_done(d.ass_library);
@@ -476,7 +464,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         }
 
         if (!contents || !d.ass) {
-            vsapi->setError(out, error);
+            vsapi->mapSetError(out, error);
             vsapi->freeNode(d.node);
             ass_renderer_done(d.ass_renderer);
             ass_library_done(d.ass_library);
@@ -484,18 +472,18 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         }
     }
 
-    d.lastframe = vsapi->newVideoFrame(d.vi[0].format,
+    d.lastframe = vsapi->newVideoFrame(&d.vi[0].format,
                                        d.vi[0].width,
                                        d.vi[0].height,
                                        NULL, core);
 
-    d.lastalpha = vsapi->newVideoFrame(d.vi[1].format,
+    d.lastalpha = vsapi->newVideoFrame(&d.vi[1].format,
                                        d.vi[1].width,
                                        d.vi[1].height,
                                        NULL, core);
 
     for (int p = 0; p < 4; p++) {
-        VSFrameRef *frame = p == 3 ? d.lastalpha : d.lastframe;
+        VSFrame *frame = p == 3 ? d.lastalpha : d.lastframe;
         int plane = p % 3;
 
         memset(vsapi->getWritePtr(frame, plane),
@@ -506,36 +494,32 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, filter_name, assInit, assGetFrame, assFree,
-                        fmUnordered, 0, data, core);
+    VSFilterDependency deps[] = {{ d.node, rpStrictSpatial }};
+    vsapi->createVideoFilter(out, filter_name, d.vi, assGetFrame, assFree,
+                        fmUnordered, deps, 1, data, core);
 
-    int blend = !!vsapi->propGetInt(in, "blend", 0, &err);
+    int blend = !!vsapi->mapGetInt(in, "blend", 0, &err);
     if (err)
         blend = 1;
 
     if (blend) {
-        VSNodeRef *subs = vsapi->propGetNode(out, "clip", 0, NULL);
-        VSNodeRef *alpha = vsapi->propGetNode(out, "clip", 1, NULL);
+        VSNode *subs = vsapi->mapGetNode(out, "clip", 0, NULL);
 
-        blendSubtitles(d.node, subs, alpha, in, out, filter_name, error, ERROR_SIZE, core, vsapi);
+        blendSubtitles(d.node, subs, in, out, filter_name, error, ERROR_SIZE, core, vsapi);
 
         vsapi->freeNode(subs);
-        vsapi->freeNode(alpha);
 
-        if (vsapi->getError(out))
+        if (vsapi->mapGetError(out))
             return;
     }
 }
 
 void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
-                                 VSRegisterFunction registerFunc,
-                                 VSPlugin *plugin)
-{
-    configFunc("biz.srsfckn.subtext", "sub",
-               "A subtitling filter based on libass and ffmpeg.",
-               VAPOURSYNTH_API_VERSION, 1, plugin);
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->configPlugin("biz.srsfckn.subtext", "sub",
+        "A subtitling filter based on libass and FFmpeg.",
+        VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
 
 #define COMMON_TEXTFILE_PARAMS \
     "debuglevel:int:opt;" \
@@ -554,24 +538,24 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
     "primaries:int:opt;" \
     "primaries_s:data:opt;"
 
-    registerFunc("TextFile",
-                 "clip:clip;"
+    vspapi->registerFunction("TextFile",
+                 "clip:vnode;"
                  "file:data;"
                  "charset:data:opt;"
                  "scale:float:opt;"
                  COMMON_TEXTFILE_PARAMS
                  COMMON_PARAMS
-                 , assRenderCreate, (void *)"TextFile", plugin);
-    registerFunc("Subtitle",
-                 "clip:clip;"
+                 , "clip:vnode;", assRenderCreate, (void *)"TextFile", plugin);
+    vspapi->registerFunction("Subtitle",
+                 "clip:vnode;"
                  "text:data;"
                  "start:int:opt;"
                  "end:int:opt;"
                  COMMON_TEXTFILE_PARAMS
                  COMMON_PARAMS
-                 , assRenderCreate, (void *)"Subtitle", plugin);
-    registerFunc("ImageFile",
-                 "clip:clip;"
+                 , "clip:vnode;", assRenderCreate, (void *)"Subtitle", plugin);
+    vspapi->registerFunction("ImageFile",
+                 "clip:vnode;"
                  "file:data;"
                  "id:int:opt;"
                  "palette:int[]:opt;"
@@ -579,7 +563,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                  "info:int:opt;"
                  "flatten:int:opt;"
                  COMMON_PARAMS
-                 , imageFileCreate, 0, plugin);
+                 , "clip:vnode;", imageFileCreate, 0, plugin);
 
 #undef COMMON_PARAMS
 #undef COMMON_TEXTFILE_PARAMS
