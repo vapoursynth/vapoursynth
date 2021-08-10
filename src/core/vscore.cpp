@@ -1497,18 +1497,20 @@ bool VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexc
     if (!isValidVideoFormat(format.colorFamily, format.sampleType, format.bitsPerSample, format.subSamplingW, format.subSamplingH))
         return false;
 
-    const char *sampleTypeStr = "";
+    char suffix[16];
     if (format.sampleType == stFloat)
-        sampleTypeStr = (format.bitsPerSample == 32) ? "S" : "H";
+        strcpy(suffix, (format.bitsPerSample == 32) ? "S" : "H");
+    else
+        sprintf(suffix, "%d", (format.colorFamily == cfRGB ? 3:1) * format.bitsPerSample);
 
     const char *yuvName = nullptr;
 
     switch (format.colorFamily) {
         case cfGray:
-            snprintf(buffer, 32, "Gray%s%d", sampleTypeStr, format.bitsPerSample);
+            snprintf(buffer, 32, "Gray%s", suffix);
             break;
         case cfRGB:
-            snprintf(buffer, 32, "RGB%s%d", sampleTypeStr, format.bitsPerSample * 3);
+            snprintf(buffer, 32, "RGB%s", suffix);
             break;
         case cfYUV:
             if (format.subSamplingW == 1 && format.subSamplingH == 1)
@@ -1524,9 +1526,9 @@ bool VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexc
             else if (format.subSamplingW == 0 && format.subSamplingH == 1)
                 yuvName = "440";
             if (yuvName)
-                snprintf(buffer, 32, "YUV%sP%s%d", yuvName, sampleTypeStr, format.bitsPerSample);
+                snprintf(buffer, 32, "YUV%sP%s", yuvName, suffix);
             else
-                snprintf(buffer, 32, "YUVssw%dssh%dP%s%d", format.subSamplingW, format.subSamplingH, sampleTypeStr, format.bitsPerSample);
+                snprintf(buffer, 32, "YUVssw%dssh%dP%s", format.subSamplingW, format.subSamplingH, suffix);
             break;
         case cfUndefined:
             snprintf(buffer, 32, "Undefined");
