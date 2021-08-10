@@ -26,8 +26,6 @@
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
 
-#include "../../core/version.h"
-
 typedef struct OCRData {
     VSNode *node;
     VSVideoInfo vi;
@@ -169,14 +167,14 @@ static void VS_CC OCRCreate(const VSMap *in, VSMap *out, void *userData,
     d.datapath = NULL;
     d.language = NULL;
 
-    if (!d.vi.format) {
+    if (d.vi.format.colorFamily == cfUndefined) {
         msg = "Only constant format input supported";
         goto error;
     }
 
-    if (d.vi.format->sampleType != stInteger ||
-        d.vi.format->bytesPerSample != 1 ||
-        d.vi.format->colorFamily != cfGray) {
+    if (d.vi.format.sampleType != stInteger ||
+        d.vi.format.bytesPerSample != 1 ||
+        d.vi.format.colorFamily != cfGray) {
 
         msg = "Only grayscale 8-bit int formats supported";
         goto error;
@@ -263,6 +261,6 @@ error:
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->configPlugin("biz.srsfckn.ocr", "ocr", "Tesseract OCR Filter", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
+    vspapi->configPlugin("biz.srsfckn.ocr", "ocr", "Tesseract OCR Filter", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("Recognize", "clip:vnode;datapath:data:opt;language:data:opt;options:data[]:opt", "clip:vnode;", OCRCreate, 0, plugin);
 }
