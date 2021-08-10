@@ -1145,18 +1145,20 @@ const vs3::VSVideoFormat *VSCore::queryVideoFormat3(vs3::VSColorFamily colorFami
     if (name) {
         strcpy(f.name, name);
     } else {
-        const char *sampleTypeStr = "";
+        char suffix[16];
         if (sampleType == stFloat)
-            sampleTypeStr = (bitsPerSample == 32) ? "S" : "H";
+            strcpy(suffix, (bitsPerSample == 32) ? "S" : "H");
+        else
+            sprintf(suffix, "%d", (colorFamily == vs3::cmRGB ? 3:1) * bitsPerSample);
 
         const char *yuvName = nullptr;
 
         switch (colorFamily) {
         case vs3::cmGray:
-            snprintf(f.name, sizeof(f.name), "Gray%s%d", sampleTypeStr, bitsPerSample);
+            snprintf(f.name, sizeof(f.name), "Gray%s", suffix);
             break;
         case vs3::cmRGB:
-            snprintf(f.name, sizeof(f.name), "RGB%s%d", sampleTypeStr, bitsPerSample * 3);
+            snprintf(f.name, sizeof(f.name), "RGB%s", suffix);
             break;
         case vs3::cmYUV:
             if (subSamplingW == 1 && subSamplingH == 1)
@@ -1172,12 +1174,12 @@ const vs3::VSVideoFormat *VSCore::queryVideoFormat3(vs3::VSColorFamily colorFami
             else if (subSamplingW == 0 && subSamplingH == 1)
                 yuvName = "440";
             if (yuvName)
-                snprintf(f.name, sizeof(f.name), "YUV%sP%s%d", yuvName, sampleTypeStr, bitsPerSample);
+                snprintf(f.name, sizeof(f.name), "YUV%sP%s", yuvName, suffix);
             else
-                snprintf(f.name, sizeof(f.name), "YUVssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
+                snprintf(f.name, sizeof(f.name), "YUVssw%dssh%dP%s", subSamplingW, subSamplingH, suffix);
             break;
         case vs3::cmYCoCg:
-            snprintf(f.name, sizeof(f.name), "YCoCgssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
+            snprintf(f.name, sizeof(f.name), "YCoCgssw%dssh%dP%s", subSamplingW, subSamplingH, suffix);
             break;
         default:;
         }
