@@ -1,7 +1,7 @@
 FrameEval
 =========
 
-.. function:: FrameEval(clip clip, func eval[, clip[] prop_src])
+.. function:: FrameEval(clip clip, func eval[, clip[] prop_src, clip[] clip_src])
    :module: std
 
    Allows an arbitrary function to be evaluated every frame. The function gets
@@ -19,6 +19,9 @@ FrameEval
    This function can be used to accomplish the same things as Animate,
    ScriptClip and all the other conditional filters in Avisynth. Note that to
    modify per frame properties you should use *ModifyFrame*.
+  
+   Note that the *clip_src* argument is ignored and only exists for compatibility
+   with future versions.
 
    How to animate a BlankClip to fade from white to black. This is the simplest
    use case without using the *prop_src* argument::
