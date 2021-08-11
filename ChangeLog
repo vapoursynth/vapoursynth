@@ -1,4 +1,5 @@
 r55:
+updated visual studio 2019 runtime version
 fixed multiple python bugs related to output, copy on write and memory views (Kamekameha)
 
 r54:
