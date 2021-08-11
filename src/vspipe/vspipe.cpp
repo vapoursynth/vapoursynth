@@ -280,7 +280,7 @@ static void outputFrame(const VSFrame *frame, VSPipeOutputData *data) {
                 PackChannels32to32le(srcPtrs.data(), data->buffer.data(), numSamples, numChannels);
 
             if (data->calculateMD5)
-                MD5_Update(&data->md5Ctx, data->buffer.data(), toOutput);
+                MD5_Update(&data->md5Ctx, data->buffer.data(), static_cast<unsigned long>(toOutput));
 
             if (fwrite(data->buffer.data(), 1, toOutput, data->outFile) != toOutput) {
                 if (data->errorMessage.empty())
