@@ -39,10 +39,10 @@
 #include <windows.h>
 #include "../../common/vsutf16.h"
 #include "../../core/filtershared.h"
-#include "../../core/version.h"
 #else
 #include <unistd.h>
 #endif
+#include "../../core/version.h"
 
 // Handle both with and without hdri
 #if MAGICKCORE_HDRI_ENABLE
