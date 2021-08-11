@@ -1,3 +1,6 @@
+r55:
+fixed multiple python bugs related to output, copy on write and memory views (Kamekameha)
+
 r54:
 updated visual studio 2019 runtime version
 updated zimg to 3.0.2
