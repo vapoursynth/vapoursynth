@@ -5,7 +5,7 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 ## Required languages and applications
 
 * Needs [Visual Studio 2019](https://visualstudio.microsoft.com/de/vs/)
-* It also needs both [32bit](https://www.python.org/) and [64bit](https://www.python.org/) Python 3.9 series (the msvc project assumes that you installed python for all users.)
+* It also needs both [32bit](https://www.python.org/) and [64bit](https://www.python.org/) Python 3.8.x and 3.9.x (the msvc project assumes that you installed python for all users.)
 * [InnoSetup 6.x](http://www.jrsoftware.org/isdl.php) is needed to create the installer (default installation path assumed)
 * [7-zip](https://www.7-zip.org/) is needed to compress the portable version (default installation path assumed)
 
@@ -23,6 +23,8 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 
 * Run `py -3.9 -m pip install -r python-requirements.txt` for 64bit.
 * Run `py -3.9-32 -m pip install -r python-requirements.txt` for 32bit.
+* Run `py -3.8 -m pip install -r python-requirements.txt` for 64bit.
+* Run `py -3.8-32 -m pip install -r python-requirements.txt` for 32bit.
 * Run `cython_build.bat` to compile the Python modules
 * Run `docs_build.bat` to compile the documentation
 
