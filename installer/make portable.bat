@@ -42,7 +42,7 @@ copy ..\sdk\invert_example.c buildp64\sdk\examples
 copy ..\sdk\vsscript_example.c buildp64\sdk\examples
 copy ..\mimalloc\out\msvc-x64\Release\mimalloc-override.dll buildp64
 copy ..\mimalloc\out\msvc-x64\Release\mimalloc-redirect.dll buildp64
-copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.29.30036\x64\Microsoft.VC142.CRT\*" buildp64
+copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.29.30133\x64\Microsoft.VC142.CRT\*" buildp64
 copy pfm-192-vapoursynth-win.exe buildp64
 copy .\setup.py buildp64
 copy .\MANIFEST.in buildp64
@@ -96,7 +96,7 @@ copy ..\sdk\invert_example.c buildp32\sdk\examples
 copy ..\sdk\vsscript_example.c buildp32\sdk\examples
 copy ..\mimalloc\out\msvc-Win32\Release\mimalloc-override.dll buildp32
 copy ..\mimalloc\out\msvc-Win32\Release\mimalloc-redirect32.dll buildp32
-copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.29.30036\x86\Microsoft.VC142.CRT\*" buildp32
+copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.29.30133\x86\Microsoft.VC142.CRT\*" buildp32
 copy pfm-192-vapoursynth-win.exe buildp32
 copy .\setup.py buildp32
 copy .\MANIFEST.in buildp32

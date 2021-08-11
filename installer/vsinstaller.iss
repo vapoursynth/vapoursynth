@@ -1,4 +1,4 @@
-#define Version '54'
+#define Version '55'
 #define VersionExtra '-API4-test3'
 #define PythonVersion '3.9'
 #define PythonCompactVersion '39'
@@ -48,7 +48,7 @@ DefaultGroupName={#= AppName}
 AllowCancelDuringInstall=no
 AllowNoIcons=yes
 AllowUNCPath=no
-MinVersion=6.0
+MinVersion=6.1
 UsePreviousPrivileges=yes
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
@@ -191,7 +191,7 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; Value
 
 [Code]
 
-const VSRuntimeVersion = '14.29.30037';
+const VSRuntimeVersion = '14.29.30133';
 
 type
   TPythonPath = record
