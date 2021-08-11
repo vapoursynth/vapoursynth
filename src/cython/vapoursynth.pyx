@@ -1313,10 +1313,6 @@ cdef class VideoFrame(RawFrame):
             yield VideoPlane.__new__(VideoPlane, self, x)
 
     def _writelines(self, write):
-        cdef:
-            char* ptr
-            ssize_t stride  # no clue why cython turns this into a py object
-
         assert callable(write), "'write' is not callable"
 
         lib = self.funcs
@@ -1341,15 +1337,13 @@ cdef class VideoFrame(RawFrame):
                 tmp.strides += 1
                 tmp.len = tmp.shape[0] * tmp.itemsize
 
-                ptr = <char*> tmp.buf
                 lines = view.base.shape[0]
                 stride = view.base.strides[0]
 
                 for _ in range(lines):
                     line = PyMemoryView_FromObject(data)
                     write(line)
-                    ptr += stride
-                    tmp.buf = ptr
+                    tmp.buf = &(<char*> tmp.buf)[stride]
             else:
                 write(data)
 
