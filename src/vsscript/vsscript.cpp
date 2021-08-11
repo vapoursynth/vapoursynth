@@ -48,8 +48,13 @@ static void real_init(void) VS_NOEXCEPT {
     #define VS_INSTALL_REGKEY L"Software\\VapourSynth-32"
 #endif
 
-    // portable
+#ifdef VSSCRIPT_PYTHON38
+    const std::wstring pythonDllName = L"python38.dll";
+#else
     const std::wstring pythonDllName = L"python39.dll";
+#endif
+
+    // portable
     HMODULE module;
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&real_init, &module);
     std::vector<wchar_t> pathBuf(65536);

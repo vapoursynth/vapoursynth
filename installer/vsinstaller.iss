@@ -1,5 +1,5 @@
 #define Version '54'
-#define VersionExtra '-API4-test2'
+#define VersionExtra '-API4-test3'
 #define PythonVersion '3.9'
 #define PythonCompactVersion '39'
 
@@ -16,6 +16,7 @@
   #define MimallocSourceBinaryPath '..\mimalloc\out\msvc-x64\Release'
   #define MimallocRedirectName 'mimalloc-redirect.dll'
   #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win_amd64.whl'
+  #define WheelFilenamePython38(Version) 'VapourSynth-' + Version + '-cp38-cp38-win_amd64.whl'
 #else
   #define AppName 'VapourSynth (32-bits)'
   #define AppId 'VapourSynth-32'
@@ -24,6 +25,7 @@
   #define MimallocSourceBinaryPath '..\mimalloc\out\msvc-Win32\Release'
   #define MimallocRedirectName 'mimalloc-redirect32.dll'
   #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win32.whl'
+  #define WheelFilenamePython38(Version) 'VapourSynth-' + Version + '-cp38-cp38-win32.whl'
 #endif
 
 [Setup]
@@ -65,7 +67,7 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 Name: Full; Description: Full installation; Flags: iscustom
 
 [Components]
-Name: "vscore"; Description: "VapourSynth {#= InstallerBits}-bit R{#= Version}{#= VersionExtra}"; Types: Full; Check: HasPython; Flags: fixed disablenouninstallwarning
+Name: "vscore"; Description: "VapourSynth {#= InstallerBits}-bit R{#= Version}{#= VersionExtra}"; Types: Full; Flags: fixed disablenouninstallwarning
 Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disablenouninstallwarning
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
@@ -79,7 +81,8 @@ Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription:
 Name: vsrepopath; Description: "Add VSRepo to PATH"; GroupDescription: "VSRepo:"; Components: vsrepo
 
 [Run]
-Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename(Version)}"""; Flags: runhidden; Components: vscore
+Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename(Version)}"""; Check: IsPython3; Flags: runhidden; Components: vscore
+Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilenamePython38(Version)}"""; Check: IsPython38; Flags: runhidden; Components: vscore
 Filename: "{app}\pismo\pfm-192-vapoursynth-win.exe"; Parameters: "install"; Check: IsAdminInstallMode; Flags: runhidden; Components: pismo
 Filename: {code:GetPythonExecutable}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden runasoriginaluser; Components: vsrepo
 
@@ -90,13 +93,16 @@ Filename: {code:GetPythonExecutable}; Parameters: "-m pip uninstall -y VapourSyn
 ;core binaries
 Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: ..\dist\{#= WheelFilename(Version)}; DestDir: {app}\python; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: ..\dist\{#= WheelFilenamePython38(Version)}; DestDir: {app}\python; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
 Source: {#= SourceBinaryPath}\vapoursynth.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vapoursynth.pdb; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\avfs.exe; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vspipe.exe; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vsvfw.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
-Source: {#= SourceBinaryPath}\vsscript.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\vsscript.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore; Check: IsPython3
+Source: {#= SourceBinaryPath}\vsscriptpython38.dll; DestName: "vsscript.dll"; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore; Check: IsPython38
+
 Source: {#= MimallocSourceBinaryPath}\mimalloc-override.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= MimallocSourceBinaryPath}\{#= MimallocRedirectName}; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
@@ -158,17 +164,6 @@ Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VSPipeEXE";
 Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VSRepoPY"; ValueData: "{app}\vsrepo\vsrepo.py"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vsrepo
 Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
 
-; Write compatibility values, deprecated since R46 when the installers were split
-#if InstallerBitsInt == 32
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "CorePlugins"; ValueData: "{app}\core\plugins"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "VapourSynthDLL"; ValueData: "{app}\core\vapoursynth.dll"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "VSScriptDLL"; ValueData: "{app}\core\vsscript.dll"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath}"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-#endif
-
 ; new vpy file shortcut task
 Root: HKA; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName: "FileName"; ValueData: "{app}\template.vpy"; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: newvpyfile
 
@@ -203,6 +198,7 @@ type
     DisplayName: string;
     InstallPath: string;
     ExecutablePath: string;
+    Version: string;
     Bitness: Integer;
   end;
 
@@ -215,18 +211,20 @@ var
   PythonList: TNewCheckListBox;
   PythonPath: string;
   PythonExecutable: string;
+  PythonVersion: string;
+
     
-function HasPython: Boolean;
-var
-  Counter: Integer;
+function IsPython3: Boolean;
 begin
-  Result := False;
-  for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
-    if PythonInstallations[Counter].Bitness = {#InstallerBitsInt} then
-      Result := True;
+  Result := PythonVersion = '{#PythonVersion}';
 end;
 
-procedure GetPythonInstallations2(var DestArray: array of TPythonPath; RegRoot: Integer; RegPath: string; AssumeBitness: Integer);
+function IsPython38: Boolean;
+begin
+  Result := PythonVersion = '3.8';
+end;
+
+procedure GetPythonInstallations2(var DestArray: array of TPythonPath; RegRoot: Integer; RegPath: string; PythonVer: string; AssumeBitness: Integer);
 var
   Names, Tags: TArrayOfString;
   Nc, Tc: Integer;
@@ -245,7 +243,7 @@ begin
         begin
           RegPathTemp := RegPath + '\' + Names[Nc] + '\' + Tags[Tc];
           Bitness := AssumeBitness;
-          if (not RegQueryStringValue(RegRoot, RegPathTemp, 'SysVersion', Temp)) or (Temp <> '{#PythonVersion}') then
+          if (not RegQueryStringValue(RegRoot, RegPathTemp, 'SysVersion', Temp)) or (Temp <> PythonVer) then
             continue;
           if RegQueryStringValue(RegRoot, RegPathTemp, 'SysArchitecture', Temp) then
           begin
@@ -266,6 +264,7 @@ begin
                DestArray[GetArrayLength(DestArray) - 1].DisplayName := DisplayName;
                DestArray[GetArrayLength(DestArray) - 1].InstallPath := InstallPath;
                DestArray[GetArrayLength(DestArray) - 1].ExecutablePath := ExecutablePath;
+               DestArray[GetArrayLength(DestArray) - 1].Version := PythonVer;
                DestArray[GetArrayLength(DestArray) - 1].Bitness := Bitness;
             end;
           end;
@@ -277,8 +276,10 @@ end;
 
 procedure GetPythonInstallations;
 begin
-  GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', 0);
-  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', {#InstallerBitsInt}); 
+  GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '{#PythonVersion}', 0);
+  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '{#PythonVersion}', {#InstallerBitsInt}); 
+  GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '3.8', 0);
+  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '3.8', {#InstallerBitsInt}); 
 end;
 
 procedure PopulatePythonInstallations(List: TNewCheckListBox);
@@ -365,11 +366,11 @@ begin
   Result := GetArrayLength(PythonInstallations) > 0; 
 
   if not Result and not HasOtherPython then
-      MsgBox('No suitable Python {#PythonVersion} ({#InstallerBits}-bit) installation found. The installer will now exit.', mbCriticalError, MB_OK)
+      MsgBox('No suitable Python {#PythonVersion} or 3.8 ({#InstallerBits}-bit) installation found. The installer will now exit.', mbCriticalError, MB_OK)
   else if not Result and IsAdminInstallMode then
-      MsgBox('Python {#PythonVersion} ({#InstallerBits}-bit) is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
+      MsgBox('Python {#PythonVersion} or 3.8 ({#InstallerBits}-bit) is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
   else if not Result and not IsAdminInstallMode then
-      MsgBox('Python {#PythonVersion} ({#InstallerBits}-bit) is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
+      MsgBox('Python {#PythonVersion} or 3.8 ({#InstallerBits}-bit) is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
       
   if not IsAdminInstallMode and not vcredist2017installed(VSRuntimeVersion) then
       if MsgBox('No recent Visual Studio 2019 Runtime installed.If you proceed with the install it is very likely the installation won''t work.'#13#10#13#10'Go to the download website now?', mbError, MB_YESNO) = IDYES then
@@ -490,6 +491,7 @@ begin
         begin
           PythonPath := InstallPath;
           PythonExecutable := ExecutablePath;
+          PythonVersion := Version;
         end;
       end;
     end;

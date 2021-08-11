@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31605.320
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VapourSynth", "Core\Core.vcxproj", "{8C2696F2-47FC-425A-989E-9C02AE4E76D2}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -45,6 +45,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MiscFilters", "MiscFilters\MiscFilters.vcxproj", "{A4161FA6-56F1-4A99-B291-3318458AB703}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Morpho", "Morpho\Morpho.vcxproj", "{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VSScriptPython38", "VSScriptPython38\VSScriptPython38.vcxproj", "{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -158,11 +160,22 @@ Global
 		{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}.Release|Win32.Build.0 = Release|Win32
 		{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}.Release|x64.ActiveCfg = Release|x64
 		{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}.Release|x64.Build.0 = Release|x64
+		{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}.Debug|Win32.ActiveCfg = Debug|Win32
+		{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}.Debug|Win32.Build.0 = Debug|Win32
+		{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}.Debug|x64.ActiveCfg = Debug|x64
+		{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}.Debug|x64.Build.0 = Debug|x64
+		{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}.Release|Win32.ActiveCfg = Release|Win32
+		{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}.Release|Win32.Build.0 = Release|Win32
+		{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}.Release|x64.ActiveCfg = Release|x64
+		{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{C8629E57-4D6F-40FA-82FC-B39824195932} = {F525D60C-7AA0-4CE8-A959-237CEF39CC5E}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {DEF0183B-6D56-488A-AE87-84C8D823101E}
 	EndGlobalSection
 EndGlobal
