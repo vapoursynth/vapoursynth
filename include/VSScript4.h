@@ -37,14 +37,14 @@ typedef struct VSScriptOptions {
     /* Passed to createCore(), set to 0 to use the default options */
     int coreCreationFlags; 
 
-    /* Passed to addLogHandler() right after a core is created if messageHandler is not NULL */
+    /* Passed to addLogHandler() right after a core is created if logHandler is not NULL */
     VSLogHandler logHandler;
     VSLogHandlerFree logHandlerFree;
     void *logHandlerData;
 } VSScriptOptions;
 
 struct VSSCRIPTAPI {
-    /* Returns the higest supported VSSCRIPT_API_VERSION */
+    /* Returns the highest supported VSSCRIPT_API_VERSION */
     int (VS_CC *getAPIVersion)(void) VS_NOEXCEPT;
 
     /* Convenience function for retrieving a VSAPI pointer without having to use the VapourSynth library. Always pass VAPOURSYNTH_API_VERSION */
