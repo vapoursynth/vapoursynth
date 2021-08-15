@@ -450,7 +450,7 @@ struct VSAPI {
     VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT; /* user must free the returned VSMap */
 
     /* Core and information */
-    VSCore *(VS_CC *createCore)(int flags) VS_NOEXCEPT; /* flags uses the VSCoreFlags enum */
+    VSCore *(VS_CC *createCore)(int flags) VS_NOEXCEPT; /* flags uses the VSCoreCreationFlags enum */
     void (VS_CC *freeCore)(VSCore *core) VS_NOEXCEPT; /* only call this function after all node, frame and function references belonging to the core have been freed */
     int64_t(VS_CC *setMaxCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT; /* the total cache size at which vapoursynth more aggressively tries to reclaim memory, it is not a hard limit */
     int (VS_CC *setThreadCount)(int threads, VSCore *core) VS_NOEXCEPT; /* setting threads to 0 means automatic detection */
@@ -468,7 +468,7 @@ struct VSAPI {
     /* 
      * NOT PART OF THE STABLE API!
      * These functions only exist to retrieve internal details for debug purposes and graph visualization
-     * They will only only work properly when used on a core created with cfEnableGraphInspection and are
+     * They will only only work properly when used on a core created with ccfEnableGraphInspection and are
      * not safe to use concurrently with frame requests or other API functions
      * NOT PART OF THE STABLE API!
      */
