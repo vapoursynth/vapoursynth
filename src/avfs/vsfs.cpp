@@ -357,7 +357,7 @@ const VSFrame *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
                     } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 0, 0)) {
                         p.packing = p2p_y416_le;
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-                    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && alt_output) {
+                    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && alt_output == 1) {
                         p.packing = p2p_v210_le;
                         p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
