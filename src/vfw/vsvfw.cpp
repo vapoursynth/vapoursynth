@@ -63,7 +63,7 @@ private:
     const VSAPI *vsapi = nullptr;
     const VSSCRIPTAPI *vssapi = nullptr;
     VSScript *se = nullptr;
-    bool enable_v210 = false;
+    int alt_output = 0;
     VSNode *videoNode = nullptr;
     VSNode *audioNode = nullptr;
     std::atomic<long> m_refs;
@@ -472,7 +472,7 @@ bool VapourSynthFile::DelayInit2() {
             int error;
             VSMap *options = vsapi->createMap();
             vssapi->getOptions(se, options);
-            enable_v210 = !!vsapi->mapGetInt(options, "enable_v210", 0, &error);
+            alt_output = vsapi->mapGetIntSaturated(options, "alt_output", 0, &error);
             vsapi->freeMap(options);
 
             ////////// audio
@@ -705,9 +705,9 @@ STDMETHODIMP VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) noexcept {
         wcscpy(asi.szName, L"VapourSynth Audio #1");
     } else {
         const VSVideoInfo* const vi = parent->vi;
-        int image_size = BMPSize(vi, IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0) && parent->enable_v210);
+        int image_size = BMPSize(vi, parent->alt_output);
 
-        if (!GetFourCC(vi->format, IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0) && parent->enable_v210, asi.fccHandler))
+        if (!GetFourCC(vi->format, parent->alt_output, asi.fccHandler))
             return E_FAIL;
 
         asi.fccType = streamtypeVIDEO;
@@ -818,7 +818,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 0, 0)) {
         p.packing = p2p_y416_le;
         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && parent->enable_v210) {
+    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && parent->alt_output) {
         p.packing = p2p_v210_le;
         p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
@@ -957,7 +957,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
             return S_OK;
         }
 
-        int image_size = BMPSize(vi, IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0) && parent->enable_v210);
+        int image_size = BMPSize(vi, parent->alt_output);
         if (plSamples)
             *plSamples = 1;
         if (plBytes)
@@ -1000,11 +1000,11 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
         bi.biWidth = vi->width;
         bi.biHeight = vi->height;
         bi.biPlanes = 1;
-        bi.biBitCount = BitsPerPixel(vi->format, IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0) && parent->enable_v210);
-        if (!GetBiCompression(vi->format, IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0) && parent->enable_v210, bi.biCompression))
+        bi.biBitCount = BitsPerPixel(vi->format, parent->alt_output);
+        if (!GetBiCompression(vi->format, parent->alt_output, bi.biCompression))
             return E_FAIL;
 
-        bi.biSizeImage = BMPSize(vi, IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0) && parent->enable_v210);
+        bi.biSizeImage = BMPSize(vi, parent->alt_output);
         *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(bi));
         memcpy(lpFormat, &bi, static_cast<size_t>(*lpcbFormat));
     }

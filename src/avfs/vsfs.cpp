@@ -48,7 +48,7 @@ class VapourSynther final :
     const VSAPI *vsapi;
     const VSSCRIPTAPI *vssapi;
     VSScript *se = nullptr;
-    bool enable_v210 = false;
+    int alt_output = 0;
     VSNode *videoNode = nullptr;
     VSNode *audioNode = nullptr;
 
@@ -189,14 +189,9 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
 
             // set the special options hidden in global variables
             int error;
-            int64_t val;
             VSMap *options = vsapi->createMap();
             vssapi->getOptions(se, options);
-            val = vsapi->mapGetInt(options, "enable_v210", 0, &error);
-            if (!error)
-                enable_v210 = !!val && IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0);
-            else
-                enable_v210 = false;
+            alt_output = vsapi->mapGetIntSaturated(options, "alt_output", 0, &error);
             vsapi->freeMap(options);
 
             VSCoreInfo info;
@@ -362,7 +357,7 @@ const VSFrame *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
                     } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 0, 0)) {
                         p.packing = p2p_y416_le;
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-                    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && enable_v210) {
+                    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && alt_output) {
                         p.packing = p2p_v210_le;
                         p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
@@ -432,7 +427,7 @@ const VSFrame *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 
 // Readonly reference to VideoInfo
 VideoInfoAdapter VapourSynther::GetVideoInfo() {
-    return { vi, ai, this, enable_v210 };
+    return { vi, ai, this, alt_output };
 }
 
 /*---------------------------------------------------------
@@ -599,14 +594,14 @@ void VapourSynther::Release(void) {
 ---------------------------------------------------------*/
 
 int VapourSynther::BitsPerPixel() {
-    return ::BitsPerPixel(vi->format, enable_v210);
+    return ::BitsPerPixel(vi->format, alt_output);
 }
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
 int VapourSynther::BMPSize() {
-    return ::BMPSize(vi, enable_v210);
+    return ::BMPSize(vi, alt_output);
 }
 
 /*---------------------------------------------------------

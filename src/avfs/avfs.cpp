@@ -62,7 +62,7 @@ class Avisynther final:
 
   avs::IScriptEnvironment* env = nullptr;
 
-  bool enable_v210 = false;
+  int alt_output = 0;
 
   avs::PClip *clip = nullptr;
 
@@ -181,9 +181,9 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
             vi = (*clip)->GetVideoInfo();
           }
 
-          enable_v210 = GetVarAsBool("enable_v210", false) && (vi.IsColorSpace(avs::VideoInfo::CS_YUV422P10) || vi.IsColorSpace(avs::VideoInfo::CS_YUVA422P10));
+          alt_output = GetVarAsInt("alt_output", 0);
 
-          if (!HasSupportedFourCC(VideoInfoAdapter(&vi, this, enable_v210).vf)) {
+          if (!HasSupportedFourCC(VideoInfoAdapter(&vi, this, alt_output).vf)) {
               setError("AVFS module doesn't support output of the current format");
               error = ERROR_ACCESS_DENIED;
           }
@@ -508,7 +508,7 @@ avs::PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
               } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 0, 0)) {
                   p.packing = p2p_y416_le;
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && enable_v210) {
+              } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && alt_output) {
                   p.packing = p2p_v210_le;
                   p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
@@ -588,7 +588,7 @@ avs::PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 // Readonly reference to VideoInfo
 VideoInfoAdapter Avisynther::GetVideoInfo() {
 
-    return VideoInfoAdapter(&vi, this, enable_v210);
+    return VideoInfoAdapter(&vi, this, alt_output);
 
 }
 
@@ -600,7 +600,7 @@ int Avisynther::BMPSize() {
     vi.format = via.vf;
     vi.width = via.width;
     vi.height = via.height;
-    return ::BMPSize(&vi, enable_v210);
+    return ::BMPSize(&vi, alt_output);
 }
 
 int Avisynther::BitsPerPixel() {
