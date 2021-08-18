@@ -723,16 +723,28 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
     int requestPattern = !!(flags & vs3::nfNoCache) ? rpNoFrameReuse : rpGeneral;
     int numKeys = vs_internal_vsapi.mapNumKeys(in);
 
+    bool makeLinear = (flags & vs3::nfMakeLinear);
+    bool hasVideoNodes = false;
     for (int i = 0; i < numKeys; i++) {
         const char *key = vs_internal_vsapi.mapGetKey(in, i);
         if (vs_internal_vsapi.mapGetType(in, key) == ptVideoNode) {
             int numElems = vs_internal_vsapi.mapNumElements(in, key);
             for (int j = 0; j < numElems; j++) {
+                hasVideoNodes = true;
                 VSNode *sn = vs_internal_vsapi.mapGetNode(in, key, j, nullptr);
                 this->dependencies.push_back({sn, requestPattern});
                 sn->addConsumer(this, requestPattern);
             }
         }
+    }
+
+    if (makeLinear && !hasVideoNodes) {
+        this->apiMajor = 4;
+        makeLinearThreshold = setLinear();
+        makeLinearFilterGetFrame = reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame);
+        filterGetFrame = makeLinearGetFrameWrapper;
+        makeLinearinstanceData = this->instanceData;
+        this->instanceData = this;
     }
 
     if (core->enableGraphInspection) {
@@ -1021,6 +1033,30 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
         }
 
         return ref;
+    }
+
+    return nullptr;
+}
+
+const VSFrame *VS_CC VSNode::makeLinearGetFrameWrapper(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    VSNode *node = reinterpret_cast<VSNode *>(instanceData);
+
+    if (activationReason == arInitial) {
+        const vs3::VSAPI3 *vsapi3 = reinterpret_cast<const vs3::VSAPI3 *>(getVSAPIInternal(3));
+        if (node->makeLinearLastFrame < n && node->makeLinearLastFrame > n - node->makeLinearThreshold) {
+            for (int i = node->makeLinearLastFrame + 1; i < n; i++) {                
+                const VSFrame *frame = node->makeLinearFilterGetFrame(i, activationReason, &node->makeLinearinstanceData, frameData, frameCtx, core, vsapi3);
+                // exit if an error was set (or later trigger a fatal error if we accidentally wrapped a filter that requests frames)
+                if (!frame)
+                    return nullptr;
+                vsapi->cacheFrame(frame, i, frameCtx);
+                vsapi->freeFrame(frame);
+            }
+        }
+
+        const VSFrame *frame = node->makeLinearFilterGetFrame(n, activationReason, &node->makeLinearinstanceData, frameData, frameCtx, core, vsapi3);
+        node->makeLinearLastFrame = n;
+        return frame;
     }
 
     return nullptr;
