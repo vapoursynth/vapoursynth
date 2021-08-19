@@ -689,6 +689,21 @@ const std::string &VSPluginFunction::getReturnType() const {
     return returnType;
 }
 
+struct MakeLinearWrapper {
+    vs3::VSFilterGetFrame getFrameFunc;
+    VSFilterFree freeFunc;
+    void *instanceData;
+    int threshold;
+    int lastFrame = -1;
+
+    MakeLinearWrapper(VSFilterGetFrame g, VSFilterFree f, void *instanceData, int threshold) :
+        getFrameFunc(reinterpret_cast<vs3::VSFilterGetFrame>(g)),
+        freeFunc(f), instanceData(instanceData), threshold(threshold) {}
+
+    static const VSFrame *VS_CC getFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+    static void VS_CC freeFilter(void *instanceData, VSCore *core, const VSAPI *vsapi);
+};
+
 VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1) {
 
@@ -740,11 +755,10 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
 
     if (makeLinear && !hasVideoNodes) {
         this->apiMajor = 4;
-        makeLinearThreshold = setLinear();
-        makeLinearFilterGetFrame = reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame);
-        filterGetFrame = makeLinearGetFrameWrapper;
-        makeLinearinstanceData = this->instanceData;
-        this->instanceData = this;
+        MakeLinearWrapper *wrapper = new MakeLinearWrapper(filterGetFrame, freeFunc, instanceData, setLinear());
+        filterGetFrame = MakeLinearWrapper::getFrame;
+        this->freeFunc = MakeLinearWrapper::freeFilter;
+        this->instanceData = reinterpret_cast<void *>(wrapper);
     }
 
     if (core->enableGraphInspection) {
@@ -1038,14 +1052,14 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     return nullptr;
 }
 
-const VSFrame *VS_CC VSNode::makeLinearGetFrameWrapper(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    VSNode *node = reinterpret_cast<VSNode *>(instanceData);
+const VSFrame *VS_CC MakeLinearWrapper::getFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    MakeLinearWrapper *node = reinterpret_cast<MakeLinearWrapper *>(instanceData);
 
     if (activationReason == arInitial) {
         const vs3::VSAPI3 *vsapi3 = reinterpret_cast<const vs3::VSAPI3 *>(getVSAPIInternal(3));
-        if (node->makeLinearLastFrame < n && node->makeLinearLastFrame > n - node->makeLinearThreshold) {
-            for (int i = node->makeLinearLastFrame + 1; i < n; i++) {                
-                const VSFrame *frame = node->makeLinearFilterGetFrame(i, activationReason, &node->makeLinearinstanceData, frameData, frameCtx, core, vsapi3);
+        if (node->lastFrame < n && node->lastFrame > n - node->threshold) {
+            for (int i = node->lastFrame + 1; i < n; i++) {
+                const VSFrame *frame = node->getFrameFunc(i, activationReason, &node->instanceData, frameData, frameCtx, core, vsapi3);
                 // exit if an error was set (or later trigger a fatal error if we accidentally wrapped a filter that requests frames)
                 if (!frame)
                     return nullptr;
@@ -1054,12 +1068,19 @@ const VSFrame *VS_CC VSNode::makeLinearGetFrameWrapper(int n, int activationReas
             }
         }
 
-        const VSFrame *frame = node->makeLinearFilterGetFrame(n, activationReason, &node->makeLinearinstanceData, frameData, frameCtx, core, vsapi3);
-        node->makeLinearLastFrame = n;
+        const VSFrame *frame = node->getFrameFunc(n, activationReason, &node->instanceData, frameData, frameCtx, core, vsapi3);
+        node->lastFrame = n;
         return frame;
     }
 
     return nullptr;
+}
+
+void VS_CC MakeLinearWrapper::freeFilter(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    MakeLinearWrapper *node = reinterpret_cast<MakeLinearWrapper *>(instanceData);
+    if (node->freeFunc)
+        node->freeFunc(node->instanceData, core, getVSAPIInternal(3));
+    delete node;
 }
 
 void VSNode::cacheFrame(const VSFrame *frame, int n) {

@@ -844,15 +844,10 @@ private:
 
     // api3
     vs3::VSVideoInfo v3vi;
-    vs3::VSFilterGetFrame makeLinearFilterGetFrame = nullptr;
-    void *makeLinearinstanceData;
-    int makeLinearThreshold = 0;
-    int makeLinearLastFrame = -1;
 
     void registerCache(bool add);
     PVSFrame getCachedFrameInternal(int n);
     PVSFrame getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
-    static const VSFrame *VS_CC makeLinearGetFrameWrapper(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 public:
     VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
     VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core);
