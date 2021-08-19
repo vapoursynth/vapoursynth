@@ -34,12 +34,27 @@ jobs:
         msbuild ide/vs2019/mimalloc.sln /p:Configuration=Release /p:Platform=${{ matrix.arch }}
         cd ..
 
-    - name: Setup Python
+    - name: Setup Python 3.8
       uses: actions/setup-python@v2
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
-        python-version: 3.9
+        python-version: 3.8
         # The target architecture (x86, x64) of the Python interpreter.
+        architecture: ${{ matrix.arch }}
+
+    - name: Patch Python 3.8 Include Paths
+      run: |
+        $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
+        $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
+        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\libs",$py_binary_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
+        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\include",$py_include_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
+        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\libs",$py_binary_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
+        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\include",$py_include_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
+
+    - name: Setup Python 3.9
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
         architecture: ${{ matrix.arch }}
 
     - name: Install cython
@@ -47,7 +62,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install cython
         
-    - name: Patch Python Include Paths
+    - name: Patch Python 3.9 Include Paths
       run: |
         $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
         $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
