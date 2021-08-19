@@ -26,6 +26,13 @@ jobs:
         git clone https://github.com/vapoursynth/vsrepo --depth 1
         git clone https://github.com/sekrit-twc/zimg --branch v3.0 --depth 1
         git clone https://github.com/AviSynth/AviSynthPlus.git --depth 1
+        git clone https://github.com/microsoft/mimalloc --depth 1
+
+    - name: Build mimalloc
+      run: |
+        cd mimalloc
+        msbuild ide/vs2019/mimalloc.sln /p:Configuration=Release /p:Platform=${{ matrix.arch }}
+        cd ..
 
     - name: Setup Python
       uses: actions/setup-python@v2
