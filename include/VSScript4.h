@@ -84,7 +84,7 @@ struct VSSCRIPTAPI {
     VSNode *(VS_CC *getOutputAlphaNode)(VSScript *handle, int index) VS_NOEXCEPT;
 
     /*
-    * Fetches the options set in scripts. In Python this means the set_options() function. Only simple types like int, float
+    * Fetches the options set in scripts. In Python this means the set_option() function. Only simple types like int, float
     * and data are allowed as output. Returns zero on success.
     */
     int (VS_CC *getOptions)(VSScript *handle, VSMap *dst);
