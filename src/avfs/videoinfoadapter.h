@@ -50,13 +50,13 @@ public:
     int width;
     int height;
     int64_t num_audio_samples;
-    int output_format;
+    int alt_output;
 
 
     Avisynther_ *avssynther = nullptr;
     VapourSynther_ *vssynther = nullptr;
 
-    VideoInfoAdapter(const VSVideoInfo *vi, const VSAudioInfo *ai, VapourSynther_ *vssynther, int outputFormat) : vsvi(vi), vsai(ai), output_format(outputFormat), vssynther(vssynther) {
+    VideoInfoAdapter(const VSVideoInfo *vi, const VSAudioInfo *ai, VapourSynther_ *vssynther, int alt_output) : vsvi(vi), vsai(ai), alt_output(alt_output), vssynther(vssynther) {
         num_frames = vi ? vi->numFrames : 0;
         fps_numerator = static_cast<uint32_t>(vi ? vi->fpsNum : 0);
         fps_denominator = static_cast<uint32_t>(vi ? vi->fpsDen : 0);
@@ -66,7 +66,7 @@ public:
         vf = vi->format;
     };
 
-    VideoInfoAdapter(const avs::VideoInfo *vi, Avisynther_ *avssynther, int outputFormat) : avsvi(vi), output_format(outputFormat), avssynther(avssynther) {
+    VideoInfoAdapter(const avs::VideoInfo *vi, Avisynther_ *avssynther, int alt_output) : avsvi(vi), alt_output(alt_output), avssynther(avssynther) {
         num_frames = vi->num_frames;
         fps_numerator = vi->fps_numerator;
         fps_denominator = vi->fps_denominator;
@@ -87,8 +87,15 @@ public:
         if (vf.colorFamily != cfUndefined) {
             vf.sampleType = vi->BitsPerComponent() == 32 ? stFloat : stInteger;
             vf.bitsPerSample = vi->BitsPerComponent();
+            if (vf.bitsPerSample <= 8)
+                vf.bytesPerSample = 1;
+            else if (vf.bitsPerSample <= 16)
+                vf.bytesPerSample = 2;
+            else
+                vf.bytesPerSample = 4;
             vf.subSamplingW = hasSubSampling ? vi->GetPlaneWidthSubsampling(avs::PLANAR_U) : 0;
             vf.subSamplingH = hasSubSampling ? vi->GetPlaneHeightSubsampling(avs::PLANAR_U) : 0;
+            vf.numPlanes = (vi->IsPlanar() && (vi->IsYUV() || vi->IsRGB())) ? 3 : 1;
         }
     };
 

@@ -389,13 +389,6 @@ bool/*success*/ Avisynther::GetAudio(AvfsLog_* log, void* buf, __int64 start, un
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-static int NumPlanes(const avs::VideoInfo &vi) {
-    if (vi.IsPlanar() && (vi.IsYUV() || vi.IsRGB()))
-        return 3;
-    else
-        return 1;
-}
-
 static const BYTE *GetReadPtr(avs::PVideoFrame &f, const avs::VideoInfo &vi, int plane) {
     if (!vi.IsPlanar())
         return f->GetReadPtr();
@@ -416,37 +409,6 @@ static int GetStride(avs::PVideoFrame &f, const avs::VideoInfo &vi, int plane) {
         return f->GetPitch(plane == 0 ? avs::PLANAR_R : (plane == 1 ? avs::PLANAR_G : avs::PLANAR_B));
     else
         return 0;
-}
-
-static int BytesPerSample(const avs::VideoInfo &vi) {
-    if (vi.IsRGB32())
-        return 4;
-    else if (vi.IsYUY2())
-        return 2;
-    else
-        return std::max(1, vi.ComponentSize());
-}
-
-static int GetSubSamplingH(const avs::VideoInfo &vi, int plane) {
-    if (vi.IsYUV() && vi.IsPlanar() && plane > 0)
-        return vi.GetPlaneHeightSubsampling(plane == 1 ? avs::PLANAR_U : avs::PLANAR_V);
-    else
-        return 0;
-}
-
-static int GetSubSamplingW(const avs::VideoInfo &vi, int plane) {
-    if (vi.IsYUV() && vi.IsPlanar() && plane > 0)
-        return vi.GetPlaneWidthSubsampling(plane == 1 ? avs::PLANAR_U : avs::PLANAR_V);
-    else
-        return 0;
-}
-
-static int GetFrameHeight(const avs::VideoInfo &vi, int plane) {
-    return vi.height >> GetSubSamplingH(vi, plane);
-}
-
-static int GetFrameWidth(const avs::VideoInfo &vi, int plane) {
-    return vi.width >> GetSubSamplingW(vi, plane);
 }
 
 // Exception protected PVideoFrame->GetFrame()
@@ -472,82 +434,17 @@ avs::PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
           f = (*clip)->GetFrame(n, env);
           success = true;
           VideoInfoAdapter via = GetVideoInfo();
-          const VSVideoFormat &fi = via.vf;
 
-          if (NeedsPacking(fi)) {
-              p2p_buffer_param p = {};
-              p.width = vi.width;
-              p.height = vi.height;
-              p.dst[0] = packedFrame.data();
-              // Used by most
-              p.dst_stride[0] = p.width * 4 * BytesPerSample(vi);
+          if (NeedsPacking(via.vf, via.alt_output)) {
+              const uint8_t *src[3] = {};
+              ptrdiff_t src_stride[3] = {};
 
-              for (int plane = 0; plane < NumPlanes(vi); plane++) {
-                  p.src[plane] = GetReadPtr(f, vi, plane);
-                  p.src_stride[plane] = GetStride(f, vi, plane);
+              for (int plane = 0; plane < via.vf.numPlanes; plane++) {
+                  src[plane] = GetReadPtr(f, vi, plane);
+                  src_stride[plane] = GetStride(f, vi, plane);
               }
 
-              if (IsSameVideoFormat(fi, cfRGB, stInteger, 8)) {
-                  p.packing = p2p_argb32_le;
-                  for (int plane = 0; plane < 3; plane++) {
-                      p.src[plane] = GetReadPtr(f, vi, plane) + GetStride(f, vi, plane) * (GetFrameHeight(vi, plane) - 1);
-                      p.src_stride[plane] = -GetStride(f, vi, plane);
-                  }
-                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (IsSameVideoFormat(fi, cfRGB, stInteger, 10)) {
-                  p.packing = p2p_rgb30_be;
-                  p.dst_stride[0] = ((p.width + 63) / 64) * 256;
-                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (IsSameVideoFormat(fi, cfRGB, stInteger, 16)) {
-                  p.packing = p2p_argb64_be;
-                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 0, 0)) {
-                  p.packing = p2p_y410_le;
-                  p.dst_stride[0] = p.width * 2 * BytesPerSample(vi);
-                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 0, 0)) {
-                  p.packing = p2p_y416_le;
-                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && alt_output == 1) {
-                  p.packing = p2p_v210_le;
-                  p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
-                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 1) || IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 0) || IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 1) || IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0)) {
-                  if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 1))
-                      p.packing = p2p_p016_le;
-                  else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 0))
-                      p.packing = p2p_p216_le;
-                  else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 1))
-                      p.packing = p2p_p010_le;
-                  else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0))
-                      p.packing = p2p_p210_le;
-                  p.dst_stride[0] = p.width * BytesPerSample(vi);
-                  p.dst_stride[1] = p.width * BytesPerSample(vi);
-                  p.dst[1] = (uint8_t *)packedFrame.data() + p.dst_stride[0] * p.height;
-                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else {
-                  const int stride = GetStride(f, vi, 0);
-                  const int height = GetFrameHeight(vi, 0);
-                  int row_size = GetFrameWidth(vi, 0) * BytesPerSample(vi);
-                  if (NumPlanes(vi) == 1) {
-                      bitblt(packedFrame.data(), (row_size + 3) & ~3, GetReadPtr(f, vi, 0), stride, row_size, height);
-                  } else if (NumPlanes(vi) == 3) {
-                      int row_size23 = GetFrameWidth(vi, 1) * BytesPerSample(vi);
-
-                      bitblt(packedFrame.data(), row_size, GetReadPtr(f, vi, 0), stride, row_size, height);
-
-                      bitblt((uint8_t *)packedFrame.data() + (row_size*height),
-                          row_size23, GetReadPtr(f, vi, 2),
-                          GetStride(f, vi, 2), GetFrameWidth(vi, 2),
-                          GetFrameHeight(vi, 2));
-
-                      bitblt((uint8_t *)packedFrame.data() + (row_size*height + GetFrameHeight(vi, 1)*row_size23),
-                          row_size23, GetReadPtr(f, vi, 1),
-                          GetStride(f, vi, 1), GetFrameWidth(vi, 1),
-                          GetFrameHeight(vi, 1));
-                  }
-              }
-
+              PackOutputFrame(src, src_stride, packedFrame.data(), via.width, via.height, via.vf, alt_output);
           }
         }
         catch(avs::AvisynthError &err) {

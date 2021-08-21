@@ -783,84 +783,15 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         }
     }
 
-    const VSVideoFormat &fi = *vsapi->getVideoFrameFormat(f);
+    const uint8_t *src[3] = {};
+    ptrdiff_t src_stride[3] = {};
 
-    p2p_buffer_param p = {};
-    p.width = vsapi->getFrameWidth(f, 0);
-    p.height = vsapi->getFrameHeight(f, 0);
-    p.dst[0] = lpBuffer;
-    // Used by most
-    p.dst_stride[0] = p.width * 4 * fi.bytesPerSample;
-
-    for (int plane = 0; plane < fi.numPlanes; plane++) {
-        p.src[plane] = vsapi->getReadPtr(f, plane);
-        p.src_stride[plane] = vsapi->getStride(f, plane);
+    for (int plane = 0; plane < parent->vi->format.numPlanes; plane++) {
+        src[plane] = vsapi->getReadPtr(f, plane);
+        src_stride[plane] = vsapi->getStride(f, plane);
     }
 
-    if (IsSameVideoFormat(fi, cfRGB, stInteger, 8)) {
-        p.packing = p2p_argb32_le;
-        for (int plane = 0; plane < 3; plane++) {
-            p.src[plane] = vsapi->getReadPtr(f, plane) + vsapi->getStride(f, plane) * (vsapi->getFrameHeight(f, plane) - 1);
-            p.src_stride[plane] = -vsapi->getStride(f, plane);
-        }
-        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-    } else if (IsSameVideoFormat(fi, cfRGB, stInteger, 10)) {
-        p.packing = p2p_rgb30_be;
-        p.dst_stride[0] = ((p.width + 63) / 64) * 256;
-        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-    } else if (IsSameVideoFormat(fi, cfRGB, stInteger, 16)) {
-        p.packing = p2p_argb64_be;
-        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 0, 0)) {
-        p.packing = p2p_y410_le;
-        p.dst_stride[0] = p.width * 2 * fi.bytesPerSample;
-        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 0, 0)) {
-        p.packing = p2p_y416_le;
-        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && parent->alt_output == 1) {
-        p.packing = p2p_v210_le;
-        p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
-        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 1) || IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 0) || IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 1) || IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0)) {
-        if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 1))
-            p.packing = p2p_p016_le;
-        else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 0))
-            p.packing = p2p_p216_le;
-        else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 1))
-            p.packing = p2p_p010_le;
-        else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0))
-            p.packing = p2p_p210_le;
-        p.dst_stride[0] = p.width * fi.bytesPerSample;
-        p.dst_stride[1] = p.width * fi.bytesPerSample;
-        p.dst[1] = (uint8_t *)lpBuffer + p.dst_stride[0] * p.height;
-        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-    } else {
-        const ptrdiff_t stride = vsapi->getStride(f, 0);
-        const int height = vsapi->getFrameHeight(f, 0);
-        int row_size = vsapi->getFrameWidth(f, 0) * fi.bytesPerSample;
-        if (fi.numPlanes == 1) {
-            bitblt(lpBuffer, (row_size + 3) & ~3, vsapi->getReadPtr(f, 0), stride, row_size, height);
-        } else if (fi.numPlanes == 3) {
-            int row_size23 = vsapi->getFrameWidth(f, 1) * fi.bytesPerSample;
-
-            bool switchPlanes = !IsSameVideoFormat(fi, cfYUV, stInteger, 8, 2, 0);
-            int plane2 = (switchPlanes ? 2 : 1);
-            int plane3 = (switchPlanes ? 1 : 2);
-
-            bitblt(lpBuffer, row_size, vsapi->getReadPtr(f, 0), stride, row_size, height);
-
-            bitblt((uint8_t *)lpBuffer + (row_size*height),
-                row_size23, vsapi->getReadPtr(f, plane2),
-                vsapi->getStride(f, plane2), vsapi->getFrameWidth(f, plane2),
-                vsapi->getFrameHeight(f, plane2));
-
-            bitblt((uint8_t *)lpBuffer + (row_size*height + vsapi->getFrameHeight(f, plane2)*row_size23),
-                row_size23, vsapi->getReadPtr(f, plane3),
-                vsapi->getStride(f, plane3), vsapi->getFrameWidth(f, plane3),
-                vsapi->getFrameHeight(f, plane3));
-        }
-    }
+    PackOutputFrame(src, src_stride, reinterpret_cast<uint8_t *>(lpBuffer), vsapi->getFrameWidth(f, 0), vsapi->getFrameHeight(f, 0), parent->vi->format, parent->alt_output);
 
     vsapi->freeFrame(f);
     vssapi->freeScript(errSe);

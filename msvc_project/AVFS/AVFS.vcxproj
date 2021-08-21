@@ -199,6 +199,7 @@
     <ClCompile Include="..\..\src\avfs\files.cpp" />
     <ClCompile Include="..\..\src\avfs\ss.cpp" />
     <ClCompile Include="..\..\src\avfs\vsfs.cpp" />
+    <ClCompile Include="..\..\src\common\fourcc.cpp" />
     <ClCompile Include="..\..\src\common\p2p_api.cpp" />
     <ClCompile Include="..\..\src\common\v210.cpp" />
     <ClCompile Include="..\..\src\common\wave.cpp" />
