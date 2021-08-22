@@ -1519,9 +1519,6 @@ cdef class AudioFrame(RawFrame):
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
-        
-    def __len__(self):
-        return self.funcs.getFrameLength(self.constf)
 
     def copy(self):
         return createAudioFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
@@ -1536,16 +1533,17 @@ cdef class AudioFrame(RawFrame):
         if channel < 0 or channel >= self.num_channels:
             raise IndexError('Specified channel index out of range')
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, channel)
+        length = self.funcs.getFrameLength(self.constf)
         array = None
         if self.sample_type == INTEGER:
             if self.bytes_per_sample == 2:
-                array = <int16_t[:len(self)]> (<int16_t*>d)
+                array = <int16_t[:length]> (<int16_t*>d)
             elif self.bytes_per_sample == 4:
-                array = <int32_t[:len(self)]> (<int32_t*>d)
+                array = <int32_t[:length]> (<int32_t*>d)
         elif self.sample_type == FLOAT:
-            array = <float[:len(self)]> (<float*>d)
+            array = <float[:length]> (<float*>d)
         if array is not None:
-            return array[:len(self)]
+            return array[:length]
         return None
 
     def get_write_ptr(self, int channel):
@@ -1562,22 +1560,27 @@ cdef class AudioFrame(RawFrame):
         if channel < 0 or channel >= self.num_channels:
             raise IndexError('Specified channel index out of range')
         cdef uint8_t *d = self.funcs.getWritePtr(self.f, channel)
+        length = self.funcs.getFrameLength(self.constf)
         array = None
         if self.sample_type == INTEGER:
             if self.bytes_per_sample == 2:
-                array = <int16_t[:len(self)]> (<int16_t*>d)
+                array = <int16_t[:length]> (<int16_t*>d)
             elif self.bytes_per_sample == 4:
-                array = <int32_t[:len(self)]> (<int32_t*>d)
+                array = <int32_t[:length]> (<int32_t*>d)
         elif self.sample_type == FLOAT:
-            array = <float[:len(self)]> (<float*>d)
+            array = <float[:length]> (<float*>d)
         if array is not None:
-            return array[:len(self)]
+            return array[:length]
         return None
 
     def channels(self):
         cdef int x
         for x in range(self.num_channels):
             yield AudioChannel.__new__(AudioChannel, self, x)
+
+    def __len__(self):
+        lib = self.funcs
+        return lib.getAudioFrameFormat(self.constf).numChannels
 
     def __str__(self):
         return 'AudioFrame\n'
