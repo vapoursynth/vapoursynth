@@ -1720,67 +1720,20 @@ cdef class _audio:
         view.buf = _frame.getdata(frame, channel, flags, lib)
 
 
+# TODO: deprecate this
 cdef class AudioChannel:
-    cdef AudioFrame frame
-    cdef int channel
-    cdef Py_ssize_t shape[1]
-    cdef Py_ssize_t strides[1]
-    cdef char* format
+    cdef:
+        object data
 
-    def __cinit__(self, AudioFrame frame, int channel):
-        cdef Py_ssize_t itemsize
+    def __cinit__(self, *args, **kwargs):
+        self.data = AudioFrame.__getitem__(*args, **kwargs)
 
-        if not (0 <= channel < frame.num_channels):
-            raise IndexError("specified channel index out of range")
-
-        self.shape[0] = <Py_ssize_t> len(frame)
-
-        self.strides[0] = itemsize = <Py_ssize_t> frame.bytes_per_sample
-
-        if frame.sample_type == INTEGER:
-            if itemsize == 2:
-                self.format = b'H'
-            elif itemsize == 4:
-                self.format = b'I'
-        elif frame.sample_type == FLOAT:
-            self.format = b'f'
-
-        self.frame = frame
-        self.channel = channel
-        
     def __len__(self):
-        return len(self.frame)
+        return len(self.data)
 
     def __getbuffer__(self, Py_buffer* view, int flags):
-        if (flags & PyBUF_F_CONTIGUOUS) == PyBUF_F_CONTIGUOUS:
-            raise BufferError("C-contiguous buffer only.")
-
-        if self.frame.readonly:
-            if flags & PyBUF_WRITABLE:
-                raise BufferError("Object is not writable.")
-            view.buf = (<void*> self.frame.funcs.getReadPtr(self.frame.constf, self.channel))
-        else:
-            view.buf = (<void*> self.frame.funcs.getWritePtr(self.frame.f, self.channel))
-
-        if flags & PyBUF_STRIDES:
-            view.shape = self.shape
-            view.strides = self.strides
-        else:
-            view.shape = NULL
-            view.strides = NULL
-
-        if flags & PyBUF_FORMAT:
-            view.format = self.format
-        else:
-            view.format = NULL
-
-        view.obj = self
-        view.len = self.shape[0]
-        view.readonly = self.frame.readonly
-        view.itemsize = self.strides[0]
-        view.ndim = 1
-        view.suboffsets = NULL
-        view.internal = NULL
+        # forward the request to the memoryview instance
+        PyObject_GetBuffer(self.data, view, flags)
 
 
 cdef class RawNode(object):
