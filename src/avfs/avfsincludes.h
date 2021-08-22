@@ -26,7 +26,6 @@ namespace avs {
 #include "avfs.h"
 #include "vsfs.h"
 #include "videoinfoadapter.h"
-#include "../common/p2p_api.h"
 #include "../common/fourcc.h"
 #include "../common/wave.h"
 #include "../common/vsutf16.h"
