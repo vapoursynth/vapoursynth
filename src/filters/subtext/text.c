@@ -536,7 +536,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
     "transfer:int:opt;" \
     "transfer_s:data:opt;" \
     "primaries:int:opt;" \
-    "primaries_s:data:opt;"
+    "primaries_s:data:opt;" \
+    "range:int:opt;"
 
     vspapi->registerFunction("TextFile",
                  "clip:vnode;"

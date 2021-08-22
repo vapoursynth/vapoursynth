@@ -75,6 +75,10 @@ void blendSubtitles(VSNode *clip, VSNode *subs, const VSMap *in, VSMap *out, con
             if (!err)
                 vsapi->mapSetData(args, "primaries_s", primaries_s, -1, dtUtf8, maReplace);
 
+            int range = vsapi->mapGetIntSaturated(in, "range", 0, &err);
+            if (!err)
+                vsapi->mapSetInt(args, "range", range, maReplace);
+
             if (clip_vi->format.colorFamily != cfRGB &&
                 vsapi->mapGetType(in, "matrix") == ptUnset &&
                 vsapi->mapGetType(in, "matrix_s") == ptUnset)

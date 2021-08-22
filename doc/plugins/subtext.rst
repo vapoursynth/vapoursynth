@@ -5,7 +5,7 @@ Subtext
 
 Subtext is a subtitle renderer that uses libass and ffmpeg.
 
-.. function::   TextFile(clip clip, string file[, string charset="UTF-8", float scale=1, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="", bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
+.. function::   TextFile(clip clip, string file[, string charset="UTF-8", float scale=1, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="", bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s, int range])
    :module: sub
 
    TextFile renders text subtitles. Supported formats include ASS,
@@ -69,12 +69,14 @@ Subtext is a subtitle renderer that uses libass and ffmpeg.
       primaries
 
       primaries_s
+
+      range
          If blend=True, these will be passed to resize.Bicubic when
          converting the RGB24 subtitles to YUV. The default matrix is
          "709".
 
 
-.. function::   Subtitle(clip clip, string text[, int start=0, int end=clip.numFrames, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1", bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
+.. function::   Subtitle(clip clip, string text[, int start=0, int end=clip.numFrames, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1", bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s, int range])
    :module: sub
 
    Instead of rendering a subtitle file, Subtitle renders the string *text*.
@@ -93,7 +95,7 @@ Subtext is a subtitle renderer that uses libass and ffmpeg.
    The other parameters have the same meanings as with TextFile.
 
 
-.. function::   ImageFile(clip clip, string file[, int id=-1, int[] palette, bint gray=False, bint info=False, bint flatten=False, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
+.. function::   ImageFile(clip clip, string file[, int id=-1, int[] palette, bint gray=False, bint info=False, bint flatten=False, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s, int range])
    :module: sub
 
    ImageFile renders image-based subtitles such as VOBSUB and PGS.
