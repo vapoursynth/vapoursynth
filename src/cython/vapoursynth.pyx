@@ -851,7 +851,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
         if val is None:
             continue
 
-        if isinstance(val, (str, bytes, bytearray, VideoNode, VideoFrame)) or not isinstance(val, Iterable):
+        if isinstance(val, (str, bytes, bytearray, VideoNode, RawFrame)) or not isinstance(val, Iterable):
             val = [val]
 
         for v in val:
@@ -1038,7 +1038,7 @@ cdef class FrameProps(object):
         cdef bytes b = name.encode('utf-8')
         cdef const VSAPI *funcs = self.funcs
         val = value
-        if isinstance(val, (str, bytes, bytearray, VideoNode, VideoFrame)):
+        if isinstance(val, (str, bytes, bytearray, VideoNode, RawFrame)):
             val = [val]
         else:
             try:
@@ -1590,6 +1590,30 @@ cdef class AudioFrame(RawFrame):
         cdef int x
         for x in range(self.num_channels):
             yield AudioChannel.__new__(AudioChannel, self, x)
+
+    def __getitem__(self, index):
+        if PyIndex_Check(index):
+            index = PyNumber_Index(index)
+
+            lib = self.funcs
+            frame = <VSFrame*> self.constf
+            format = lib.getAudioFrameFormat(frame)
+
+            if index < 0:
+                index += format.numChannels
+            if not 0 <= index < format.numChannels:
+                raise IndexError("index out of range")
+
+            data = _audio.allocinfo(format)
+            data.base.obj = self
+            data.base.readonly = not self.flags & 1
+
+            _audio.fillinfo(&data.base, frame, index, &self.flags, lib)
+
+            return PyMemoryView_FromObject(data)
+        else:
+            raise TypeError("frame indices must be integers, not %s"
+                            % (type(index).__name__,))
 
     def __len__(self):
         lib = self.funcs
