@@ -1320,12 +1320,12 @@ cdef class VideoFrame(RawFrame):
         format = lib.getVideoFrameFormat(frame)
 
         # reuse the same _2dview for each plane
-        view = allocinfo(format)
+        view = _video.allocinfo(format)
         view.base.obj = self
         view.base.readonly = not self.flags & 1
 
         for x in range(format.numPlanes):
-            fillinfo(&view.base, frame, x, &self.flags, lib)
+            _video.fillinfo(&view.base, frame, x, &self.flags, lib)
 
             data = PyMemoryView_FromObject(view)
 
@@ -1363,11 +1363,11 @@ cdef class VideoFrame(RawFrame):
         if not 0 <= index < format.numPlanes:
             raise IndexError("index out of range")
 
-        data = allocinfo(format)
+        data = _video.allocinfo(format)
         data.base.obj = self
         data.base.readonly = not self.flags & 1
 
-        fillinfo(&data.base, frame, index, &self.flags, lib)
+        _video.fillinfo(&data.base, frame, index, &self.flags, lib)
 
         return PyMemoryView_FromObject(data)
 
@@ -1447,44 +1447,49 @@ cdef class _2dview:
         view.internal = self.base.internal
 
 
-cdef _2dview allocinfo(const VSVideoFormat* format):
-    cdef:
-        _2dview self
+@cython.final
+@cython.internal
+cdef class _video:
 
-    self = _2dview.__new__(_2dview)
-    self.base.itemsize = format.bytesPerSample
-    self.base.strides[1] = format.bytesPerSample
+    @staticmethod
+    cdef _2dview allocinfo(const VSVideoFormat* format):
+        cdef:
+            _2dview self
 
-    if format.sampleType == INTEGER:
-        if format.bytesPerSample == 1:
-            self.base.format = 'B'
-        elif format.bytesPerSample == 2:
-            self.base.format = 'H'
-        elif format.bytesPerSample == 4:
-            self.base.format = 'I'
-    elif format.sampleType == FLOAT:
-        if format.bytesPerSample == 2:
-            self.base.format = 'e'
-        elif format.bytesPerSample == 4:
-            self.base.format = 'f'
+        self = _2dview.__new__(_2dview)
+        self.base.itemsize = format.bytesPerSample
+        self.base.strides[1] = format.bytesPerSample
 
-    return self
+        if format.sampleType == INTEGER:
+            if format.bytesPerSample == 1:
+                self.base.format = 'B'
+            elif format.bytesPerSample == 2:
+                self.base.format = 'H'
+            elif format.bytesPerSample == 4:
+                self.base.format = 'I'
+        elif format.sampleType == FLOAT:
+            if format.bytesPerSample == 2:
+                self.base.format = 'e'
+            elif format.bytesPerSample == 4:
+                self.base.format = 'f'
 
+        return self
 
-cdef void fillinfo(Py_buffer* view, VSFrame* frame, int plane, unsigned* flags, const VSAPI* lib) nogil:
-    view.shape[1] = lib.getFrameWidth(frame, plane)
-    view.shape[0] = lib.getFrameHeight(frame, plane)
-    view.strides[0] = lib.getStride(frame, plane)
-    view.len = view.shape[0] * view.shape[1] * view.itemsize
+    @staticmethod
+    cdef void fillinfo(Py_buffer* view, VSFrame* frame, int plane, unsigned* flags, const VSAPI* lib) nogil:
+        view.shape[1] = lib.getFrameWidth(frame, plane)
+        view.shape[0] = lib.getFrameHeight(frame, plane)
+        view.strides[0] = lib.getStride(frame, plane)
+        view.len = view.shape[0] * view.shape[1] * view.itemsize
 
-    cdef:
-        unsigned mask = 1 << plane+1
+        cdef:
+            unsigned mask = 1 << plane+1
 
-    if flags[0] & mask:  # trigger copy-on-write
-        flags[0] &= ~mask  # only do so once, see GH-724
-        view.buf = <void*> lib.getWritePtr(frame, plane)
-    else:
-        view.buf = <void*> lib.getReadPtr(frame, plane)
+        if flags[0] & mask:  # trigger copy-on-write
+            flags[0] &= ~mask  # only do so once, see GH-724
+            view.buf = <void*> lib.getWritePtr(frame, plane)
+        else:
+            view.buf = <void*> lib.getReadPtr(frame, plane)
 
 
 # TODO: deprecate this
