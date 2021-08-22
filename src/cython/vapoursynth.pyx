@@ -1633,6 +1633,69 @@ cdef AudioFrame createAudioFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     return instance
 
 
+@cython.final
+@cython.internal
+@cython.freelist(16)
+cdef class _1dview_contig:
+    cdef:
+        Py_buffer base
+        ssize_t smalltable[1]  # shape
+
+    def __cinit__(self):
+        # need Py_buffer.obj to be non-NULL
+        PyBuffer_FillInfo(&self.base, None, NULL, 0, True, PyBUF_SIMPLE)
+
+        self.base.ndim = 1
+        self.base.shape = &self.smalltable[0]
+        self.base.strides = &self.base.itemsize
+
+    def __dealloc__(self):
+        PyBuffer_Release(&self.base)  # not handled by Cython
+
+    def __getbuffer__(self, Py_buffer* view, int flags):
+        view.obj = self.base.obj
+        view.buf = self.base.buf
+        view.len = self.base.len
+        view.readonly = self.base.readonly
+        view.itemsize = self.base.itemsize
+        view.format = self.base.format
+        view.ndim = self.base.ndim
+        view.shape = self.base.shape
+        view.strides = self.base.strides
+        view.suboffsets = self.base.suboffsets
+        view.internal = self.base.internal
+
+
+@cython.final
+@cython.internal
+cdef class _audio:
+
+    @staticmethod
+    cdef _1dview_contig allocinfo(const VSAudioFormat* format):
+        cdef:
+            _1dview_contig self
+
+        self = _1dview_contig.__new__(_1dview_contig)
+        self.base.itemsize = format.bytesPerSample
+
+        if format.sampleType == INTEGER:
+            if format.bytesPerSample == 2:
+                self.base.format = 'H'
+            elif format.bytesPerSample == 4:
+                self.base.format = 'I'
+        elif format.sampleType == FLOAT:
+            if format.bytesPerSample == 4:
+                self.base.format = 'f'
+
+        return self
+
+    @staticmethod
+    cdef void fillinfo(Py_buffer* view, VSFrame* frame, int channel, unsigned* flags, const VSAPI* lib) nogil:
+        view.shape[0] = lib.getFrameLength(frame)
+        view.len = view.shape[0] * view.itemsize
+        view.buf = _frame.getdata(frame, channel, flags, lib)
+
+
 cdef class AudioChannel:
     cdef AudioFrame frame
     cdef int channel
