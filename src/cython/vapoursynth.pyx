@@ -1605,7 +1605,7 @@ cdef AudioFrame createConstAudioFrame(const VSFrame *constf, const VSAPI *funcs,
     instance.f = NULL
     instance.funcs = funcs
     instance.core = core
-    instance.readonly = True
+    instance.flags = 0
     cdef const VSAudioFormat *format = funcs.getAudioFrameFormat(constf)
     instance.sample_type = SampleType(format.sampleType);
     instance.bits_per_sample = format.bitsPerSample
@@ -1622,7 +1622,7 @@ cdef AudioFrame createAudioFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     instance.f = f
     instance.funcs = funcs
     instance.core = core
-    instance.readonly = False
+    instance.flags = -1
     cdef const VSAudioFormat *format = funcs.getAudioFrameFormat(f)
     instance.sample_type = SampleType(format.sampleType);
     instance.bits_per_sample = format.bitsPerSample
