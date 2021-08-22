@@ -1413,6 +1413,22 @@ cdef VideoFrame createVideoFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
 
 @cython.final
 @cython.internal
+cdef class _frame:
+
+    @staticmethod
+    cdef void* getdata(VSFrame* frame, int index, unsigned* flags, const VSAPI* lib) nogil:
+        cdef:
+            unsigned mask = 1 << index+1
+
+        if flags[0] & mask:  # trigger copy-on-write
+            flags[0] &= ~mask  # only do so once, see GH-724
+            return <void*> lib.getWritePtr(frame, index)
+        else:
+            return <void*> lib.getReadPtr(frame, index)
+
+
+@cython.final
+@cython.internal
 @cython.freelist(16)
 cdef class _2dview:
     cdef:
@@ -1481,15 +1497,7 @@ cdef class _video:
         view.shape[0] = lib.getFrameHeight(frame, plane)
         view.strides[0] = lib.getStride(frame, plane)
         view.len = view.shape[0] * view.shape[1] * view.itemsize
-
-        cdef:
-            unsigned mask = 1 << plane+1
-
-        if flags[0] & mask:  # trigger copy-on-write
-            flags[0] &= ~mask  # only do so once, see GH-724
-            view.buf = <void*> lib.getWritePtr(frame, plane)
-        else:
-            view.buf = <void*> lib.getReadPtr(frame, plane)
+        view.buf = _frame.getdata(frame, plane, flags, lib)
 
 
 # TODO: deprecate this
