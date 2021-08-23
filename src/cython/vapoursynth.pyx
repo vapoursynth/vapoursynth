@@ -28,7 +28,6 @@ from cpython.buffer cimport PyBUF_SIMPLE
 from cpython.buffer cimport PyBuffer_FillInfo
 from cpython.buffer cimport PyBuffer_IsContiguous
 from cpython.buffer cimport PyBuffer_Release
-from cpython.buffer cimport PyObject_GetBuffer
 from cpython.memoryview cimport PyMemoryView_FromObject
 from cpython.memoryview cimport PyMemoryView_GET_BUFFER
 from cpython.number cimport PyIndex_Check
@@ -1238,80 +1237,6 @@ cdef class VideoFrame(RawFrame):
     def copy(self):
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
-    def get_read_ptr(self, int plane):
-        if plane < 0 or plane >= self.format.num_planes:
-            raise IndexError('Specified plane index out of range')
-        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
-        return ctypes.c_void_p(<uintptr_t>d)
-
-    def get_read_array(self, int plane):
-        if plane < 0 or plane >= self.format.num_planes:
-            raise IndexError('Specified plane index out of range')
-        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
-        stride = self.get_stride(plane) // self.format.bytes_per_sample
-        width = self.width
-        height = self.height
-        if plane is not 0:
-            height >>= self.format.subsampling_h
-            width >>= self.format.subsampling_w
-        array = None
-        if self.format.sample_type == INTEGER:
-            if self.format.bytes_per_sample == 1:
-                array = <uint8_t[:height, :stride]> d
-            elif self.format.bytes_per_sample == 2:
-                array = <uint16_t[:height, :stride]> (<uint16_t*>d)
-            elif self.format.bytes_per_sample == 4:
-                array = <uint32_t[:height, :stride]> (<uint32_t*>d)
-        elif self.format.sample_type == FLOAT:
-            array = <float[:height, :stride]> (<float*>d)
-        if array is not None:
-            return array[:height, :width]
-        return None
-
-    def get_write_ptr(self, int plane):
-        if self.readonly:
-            raise Error('Cannot obtain write pointer to read only frame')
-        if plane < 0 or plane >= self.format.num_planes:
-            raise IndexError('Specified plane index out of range')
-        cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
-        return ctypes.c_void_p(<uintptr_t>d)
-
-    def get_write_array(self, int plane):
-        if self.readonly:
-            raise Error('Cannot obtain write pointer to read only frame')
-        if plane < 0 or plane >= self.format.num_planes:
-            raise IndexError('Specified plane index out of range')
-        cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
-        stride = self.get_stride(plane) // self.format.bytes_per_sample
-        width = self.width
-        height = self.height
-        if plane is not 0:
-            height >>= self.format.subsampling_h
-            width >>= self.format.subsampling_w
-        array = None
-        if self.format.sample_type == INTEGER:
-            if self.format.bytes_per_sample == 1:
-                array = <uint8_t[:height, :stride]> d
-            elif self.format.bytes_per_sample == 2:
-                array = <uint16_t[:height, :stride]> (<uint16_t*>d)
-            elif self.format.bytes_per_sample == 4:
-                array = <uint32_t[:height, :stride]> (<uint32_t*>d)
-        elif self.format.sample_type == FLOAT:
-            array = <float[:height, :stride]> (<float*>d)
-        if array is not None:
-            return array[:height, :width]
-        return None
-
-    def get_stride(self, int plane):
-        if plane < 0 or plane >= self.format.num_planes:
-            raise IndexError('Specified plane index out of range')
-        return self.funcs.getStride(self.constf, plane)
-
-    def planes(self):
-        cdef int x
-        for x in range(self.format.num_planes):
-            yield VideoPlane.__new__(VideoPlane, self, x)
-
     def _writelines(self, write):
         assert callable(write), "'write' is not callable"
 
@@ -1500,29 +1425,6 @@ cdef class _video:
         view.buf = _frame.getdata(frame, plane, flags, lib)
 
 
-# TODO: deprecate this
-cdef class VideoPlane:
-    cdef:
-        object data
-
-    def __cinit__(self, *args, **kwargs):
-        self.data = VideoFrame.__getitem__(*args, **kwargs)
-
-    @property
-    def width(self):
-        """Plane's pixel width."""
-        return PyMemoryView_GET_BUFFER(self.data).shape[1]
-
-    @property
-    def height(self):
-        """Plane's pixel height."""
-        return PyMemoryView_GET_BUFFER(self.data).shape[0]
-
-    def __getbuffer__(self, Py_buffer* view, int flags):
-        # forward the request to the memoryview instance
-        PyObject_GetBuffer(self.data, view, flags)
-
-
 cdef class AudioFrame(RawFrame):
     cdef readonly object sample_type
     cdef readonly int bits_per_sample
@@ -1535,61 +1437,6 @@ cdef class AudioFrame(RawFrame):
 
     def copy(self):
         return createAudioFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
-
-    def get_read_ptr(self, int channel):
-        if channel < 0 or channel >= self.num_channels:
-            raise IndexError('Specified channel index out of range')
-        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, channel)
-        return ctypes.c_void_p(<uintptr_t>d)
-
-    def get_read_array(self, int channel):
-        if channel < 0 or channel >= self.num_channels:
-            raise IndexError('Specified channel index out of range')
-        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, channel)
-        length = self.funcs.getFrameLength(self.constf)
-        array = None
-        if self.sample_type == INTEGER:
-            if self.bytes_per_sample == 2:
-                array = <int16_t[:length]> (<int16_t*>d)
-            elif self.bytes_per_sample == 4:
-                array = <int32_t[:length]> (<int32_t*>d)
-        elif self.sample_type == FLOAT:
-            array = <float[:length]> (<float*>d)
-        if array is not None:
-            return array[:length]
-        return None
-
-    def get_write_ptr(self, int channel):
-        if self.readonly:
-            raise Error('Cannot obtain write pointer to read only frame')
-        if channel < 0 or channel >= self.num_channels:
-            raise IndexError('Specified channel index out of range')
-        cdef uint8_t *d = self.funcs.getWritePtr(self.f, channel)
-        return ctypes.c_void_p(<uintptr_t>d)
-
-    def get_write_array(self, int channel):
-        if self.readonly:
-            raise Error('Cannot obtain write pointer to read only frame')
-        if channel < 0 or channel >= self.num_channels:
-            raise IndexError('Specified channel index out of range')
-        cdef uint8_t *d = self.funcs.getWritePtr(self.f, channel)
-        length = self.funcs.getFrameLength(self.constf)
-        array = None
-        if self.sample_type == INTEGER:
-            if self.bytes_per_sample == 2:
-                array = <int16_t[:length]> (<int16_t*>d)
-            elif self.bytes_per_sample == 4:
-                array = <int32_t[:length]> (<int32_t*>d)
-        elif self.sample_type == FLOAT:
-            array = <float[:length]> (<float*>d)
-        if array is not None:
-            return array[:length]
-        return None
-
-    def channels(self):
-        cdef int x
-        for x in range(self.num_channels):
-            yield AudioChannel.__new__(AudioChannel, self, x)
 
     def __getitem__(self, index):
         if PyIndex_Check(index):
@@ -1718,22 +1565,6 @@ cdef class _audio:
         view.shape[0] = lib.getFrameLength(frame)
         view.len = view.shape[0] * view.itemsize
         view.buf = _frame.getdata(frame, channel, flags, lib)
-
-
-# TODO: deprecate this
-cdef class AudioChannel:
-    cdef:
-        object data
-
-    def __cinit__(self, *args, **kwargs):
-        self.data = AudioFrame.__getitem__(*args, **kwargs)
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getbuffer__(self, Py_buffer* view, int flags):
-        # forward the request to the memoryview instance
-        PyObject_GetBuffer(self.data, view, flags)
 
 
 cdef class RawNode(object):
