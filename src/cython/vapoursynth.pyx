@@ -1226,6 +1226,10 @@ cdef class RawFrame(object):
         if d == NULL:
             raise IndexError('Specified plane index out of range')
         return ctypes.c_void_p(<uintptr_t>d)
+    def get_write_ptr(self, int plane):
+        if self.readonly:
+            raise Error('Cannot obtain write pointer to read only frame')
+        return self.get_read_ptr(plane) # it takes care of dealing with CoW
 
     def get_stride(self, int plane):
         cdef ptrdiff_t stride = self.funcs.getStride(self.constf, plane)
