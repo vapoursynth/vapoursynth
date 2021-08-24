@@ -1323,6 +1323,12 @@ cdef class VideoFrame(RawFrame):
         s += '\tHeight: ' + str(self.height) + '\n'
         return s
 
+    def get_read_array(self, int index):
+        return self.__getitem__(index)
+    def get_write_array(self, int index):
+        if self.readonly:
+            raise Error('Cannot obtain write array to read only frame')
+        return self.__getitem__(index)
 
 cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
