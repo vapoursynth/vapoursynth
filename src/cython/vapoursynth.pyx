@@ -27,6 +27,7 @@ from cpython.buffer cimport PyBUF_SIMPLE
 from cpython.buffer cimport PyBuffer_FillInfo
 from cpython.buffer cimport PyBuffer_IsContiguous
 from cpython.buffer cimport PyBuffer_Release
+from cpython.buffer cimport PyBUF_RECORDS_RO, PyBUF_RECORDS
 from cpython.memoryview cimport PyMemoryView_FromObject
 from cpython.memoryview cimport PyMemoryView_GET_BUFFER
 from cpython.number cimport PyIndex_Check
@@ -1281,6 +1282,12 @@ cdef class VideoFrame(RawFrame):
         s += '\tHeight: ' + str(self.height) + '\n'
         return s
 
+    def get_read_array(self, int index):
+        return view.memoryview(self.__getitem__(index), PyBUF_RECORDS_RO)
+    def get_write_array(self, int index):
+        if self.readonly:
+            raise Error('Cannot obtain write array to read only frame')
+        return view.memoryview(self.__getitem__(index), PyBUF_RECORDS)
 
 cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
