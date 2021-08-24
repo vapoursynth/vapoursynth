@@ -2161,6 +2161,7 @@ typedef struct {
     std::vector<double> floats;
     std::vector<std::string> strings;
     std::vector<int> dataType;
+    bool remove;
 } SetFramePropDataExtra;
 
 typedef SingleNodeData<SetFramePropDataExtra> SetFramePropData;
@@ -2177,13 +2178,17 @@ static const VSFrame *VS_CC setFramePropGetFrame(int n, int activationReason, vo
 
         VSMap *props = vsapi->getFramePropertiesRW(dst);
 
-        if (!d->ints.empty())
-            vsapi->mapSetIntArray(props, d->prop.c_str(), d->ints.data(), static_cast<int>(d->ints.size()));
-        else if (!d->floats.empty())
-            vsapi->mapSetFloatArray(props, d->prop.c_str(), d->floats.data(), static_cast<int>(d->floats.size()));
-        else if (!d->strings.empty()) {
-            for (size_t i = 0; i < d->strings.size(); i++)
-                vsapi->mapSetData(props, d->prop.c_str(), d->strings[i].c_str(), static_cast<int>(d->strings[i].length()), d->dataType[i], i > 0 ? maAppend : maReplace);
+        if (d->remove)
+            vsapi->mapDeleteKey(props, d->prop.c_str());
+        else {
+            if (!d->ints.empty())
+                vsapi->mapSetIntArray(props, d->prop.c_str(), d->ints.data(), static_cast<int>(d->ints.size()));
+            else if (!d->floats.empty())
+                vsapi->mapSetFloatArray(props, d->prop.c_str(), d->floats.data(), static_cast<int>(d->floats.size()));
+            else if (!d->strings.empty()) {
+                for (size_t i = 0; i < d->strings.size(); i++)
+                    vsapi->mapSetData(props, d->prop.c_str(), d->strings[i].c_str(), static_cast<int>(d->strings[i].length()), d->dataType[i], i > 0 ? maAppend : maReplace);
+            }
         }
 
         return dst;
@@ -2194,6 +2199,9 @@ static const VSFrame *VS_CC setFramePropGetFrame(int n, int activationReason, vo
 
 static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<SetFramePropData> d(new SetFramePropData(vsapi));
+
+    int err = 0;
+    d->remove = !!vsapi->mapGetInt(in, "delete", 0, &err);
 
     int num_ints = vsapi->mapNumElements(in, "intval");
     int num_floats = vsapi->mapNumElements(in, "floatval");
@@ -2478,7 +2486,7 @@ void VS_CC stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("PlaneStats", "clipa:vnode;clipb:vnode:opt;plane:int:opt;prop:data:opt;", "clip:vnode;", planeStatsCreate, 0, plugin);
     vspapi->registerFunction("ClipToProp", "clip:vnode;mclip:vnode;prop:data:opt;", "clip:vnode;", clipToPropCreate, 0, plugin);
     vspapi->registerFunction("PropToClip", "clip:vnode;prop:data:opt;", "clip:vnode;", propToClipCreate, 0, plugin);
-    vspapi->registerFunction("SetFrameProp", "clip:vnode;prop:data;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode;", setFramePropCreate, 0, plugin);
+    vspapi->registerFunction("SetFrameProp", "clip:vnode;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode;", setFramePropCreate, 0, plugin);
     vspapi->registerFunction("SetFrameProps", "clip:vnode;any", "clip:vnode;", setFramePropsCreate, 0, plugin);
     vspapi->registerFunction("RemoveFrameProps", "clip:vnode;props:data:opt;", "clip:vnode;", removeFramePropsCreate, 0, plugin);
     vspapi->registerFunction("SetFieldBased", "clip:vnode;value:int;", "clip:vnode;", setFieldBasedCreate, 0, plugin);
