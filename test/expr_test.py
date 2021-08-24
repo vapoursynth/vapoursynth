@@ -4,7 +4,7 @@ import vapoursynth as vs
 
 def get_pixel_value(clip):
     frame = clip.get_frame(0)
-    arr = frame.get_read_array(0)
+    arr = frame[0]
     return arr[0,0]
 
 class CoreTestSequence(unittest.TestCase):
@@ -367,18 +367,17 @@ class CoreTestSequence(unittest.TestCase):
         clip = self.core.std.BlankClip(format=vs.GRAYS, color=10, width=1025, height=1024, length=2)
         def init_frame(n, f):
             fout = f.copy()
-            arr = fout.get_write_array(0)
-            for i in range(len(arr)):
-                row = arr[i]
-                l = len(row)
-                for j in range(l):
-                    row[j] = (-1 if n == 0 else 1) * (i * l + j) * 1e-3
+            arr = fout[0]
+            M, N = arr.shape
+            for i in range(M):
+                for j in range(N):
+                    arr[i, j] = (n != 0 or -1) * (i*N + j) * 1e-3
             return fout
         clip = self.core.std.ModifyFrame(clip, clip, init_frame)
         clip2 = self.core.std.Expr(clip, "x %s" % op)
         for n in range(clip2.num_frames):
             f1, f2 = map(lambda c: c.get_frame(n), [clip, clip2])
-            arr1, arr2 = map(lambda f: f.get_read_array(0), [f1, f2])
+            arr1, arr2 = f1[0], f2[0]
             for i in range(clip.height):
                 for j in range(clip.width):
                     self.assertTrue(abs(arr2[i,j] - f(arr1[i,j])) < 1e-6)
