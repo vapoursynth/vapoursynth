@@ -24,8 +24,14 @@ from vsscript_internal cimport VSScript
 cimport cython.parallel
 from cython cimport view, final
 from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t
-from cpython.buffer cimport (PyBUF_WRITABLE, PyBUF_FORMAT, PyBUF_STRIDES,
-                             PyBUF_F_CONTIGUOUS)
+from cpython.buffer cimport PyBUF_SIMPLE
+from cpython.buffer cimport PyBuffer_FillInfo
+from cpython.buffer cimport PyBuffer_IsContiguous
+from cpython.buffer cimport PyBuffer_Release
+from cpython.memoryview cimport PyMemoryView_FromObject
+from cpython.memoryview cimport PyMemoryView_GET_BUFFER
+from cpython.number cimport PyIndex_Check
+from cpython.number cimport PyNumber_Index
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
 import ctypes
@@ -796,7 +802,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, bint simpleTypesOnly, VSCore *core, 
         ckey = key.encode('utf-8')
         val = ndict[key]
 
-        if isinstance(val, (str, bytes, bytearray, RawNode)):
+        if isinstance(val, (str, bytes, bytearray, RawNode, RawFrame)):
             val = [val]
         else:
             try:
@@ -844,7 +850,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
         if val is None:
             continue
 
-        if isinstance(val, (str, bytes, bytearray, VideoNode)) or not isinstance(val, Iterable):
+        if isinstance(val, (str, bytes, bytearray, VideoNode, RawFrame)) or not isinstance(val, Iterable):
             val = [val]
 
         for v in val:
@@ -1031,7 +1037,7 @@ cdef class FrameProps(object):
         cdef bytes b = name.encode('utf-8')
         cdef const VSAPI *funcs = self.funcs
         val = value
-        if isinstance(val, (str, bytes, bytearray, VideoNode)):
+        if isinstance(val, (str, bytes, bytearray, VideoNode, RawFrame)):
             val = [val]
         else:
             try:
@@ -1203,7 +1209,7 @@ cdef class RawFrame(object):
     cdef VSFrame *f
     cdef VSCore *core
     cdef const VSAPI *funcs
-    cdef readonly bint readonly
+    cdef unsigned flags
     cdef readonly FrameProps props
     
     cdef object __weakref__
@@ -1214,6 +1220,10 @@ cdef class RawFrame(object):
     def __dealloc__(self):
         if self.funcs:
             self.funcs.freeFrame(self.constf)
+
+    @property
+    def readonly(self):
+        return not self.flags & 1
 
 
 cdef class VideoFrame(RawFrame):
@@ -1227,79 +1237,68 @@ cdef class VideoFrame(RawFrame):
     def copy(self):
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
-    def get_read_ptr(self, int plane):
-        if plane < 0 or plane >= self.format.num_planes:
-            raise IndexError('Specified plane index out of range')
-        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
-        return ctypes.c_void_p(<uintptr_t>d)
+    def _writelines(self, write):
+        assert callable(write), "'write' is not callable"
 
-    def get_read_array(self, int plane):
-        if plane < 0 or plane >= self.format.num_planes:
-            raise IndexError('Specified plane index out of range')
-        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
-        stride = self.get_stride(plane) // self.format.bytes_per_sample
-        width = self.width
-        height = self.height
-        if plane is not 0:
-            height >>= self.format.subsampling_h
-            width >>= self.format.subsampling_w
-        array = None
-        if self.format.sample_type == INTEGER:
-            if self.format.bytes_per_sample == 1:
-                array = <uint8_t[:height, :stride]> d
-            elif self.format.bytes_per_sample == 2:
-                array = <uint16_t[:height, :stride]> (<uint16_t*>d)
-            elif self.format.bytes_per_sample == 4:
-                array = <uint32_t[:height, :stride]> (<uint32_t*>d)
-        elif self.format.sample_type == FLOAT:
-            array = <float[:height, :stride]> (<float*>d)
-        if array is not None:
-            return array[:height, :width]
-        return None
+        lib = self.funcs
+        frame = <VSFrame*> self.constf
+        format = lib.getVideoFrameFormat(frame)
 
-    def get_write_ptr(self, int plane):
-        if self.readonly:
-            raise Error('Cannot obtain write pointer to read only frame')
-        if plane < 0 or plane >= self.format.num_planes:
-            raise IndexError('Specified plane index out of range')
-        cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
-        return ctypes.c_void_p(<uintptr_t>d)
+        # reuse the same _2dview for each plane
+        view = _video.allocinfo(format)
+        view.base.obj = self
+        view.base.readonly = not self.flags & 1
 
-    def get_write_array(self, int plane):
-        if self.readonly:
-            raise Error('Cannot obtain write pointer to read only frame')
-        if plane < 0 or plane >= self.format.num_planes:
-            raise IndexError('Specified plane index out of range')
-        cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
-        stride = self.get_stride(plane) // self.format.bytes_per_sample
-        width = self.width
-        height = self.height
-        if plane is not 0:
-            height >>= self.format.subsampling_h
-            width >>= self.format.subsampling_w
-        array = None
-        if self.format.sample_type == INTEGER:
-            if self.format.bytes_per_sample == 1:
-                array = <uint8_t[:height, :stride]> d
-            elif self.format.bytes_per_sample == 2:
-                array = <uint16_t[:height, :stride]> (<uint16_t*>d)
-            elif self.format.bytes_per_sample == 4:
-                array = <uint32_t[:height, :stride]> (<uint32_t*>d)
-        elif self.format.sample_type == FLOAT:
-            array = <float[:height, :stride]> (<float*>d)
-        if array is not None:
-            return array[:height, :width]
-        return None
+        for x in range(format.numPlanes):
+            _video.fillinfo(&view.base, frame, x, &self.flags, lib)
 
-    def get_stride(self, int plane):
-        if plane < 0 or plane >= self.format.num_planes:
-            raise IndexError('Specified plane index out of range')
-        return self.funcs.getStride(self.constf, plane)
+            data = PyMemoryView_FromObject(view)
 
-    def planes(self):
-        cdef int x
-        for x in range(self.format.num_planes):
-            yield VideoPlane.__new__(VideoPlane, self, x)
+            if not PyBuffer_IsContiguous(&view.base, b'C'):
+                # write data line by line
+                tmp = PyMemoryView_GET_BUFFER(data)
+                tmp.ndim = 1
+                tmp.shape += 1
+                tmp.strides += 1
+                tmp.len = tmp.shape[0] * tmp.itemsize
+
+                lines = view.base.shape[0]
+                stride = view.base.strides[0]
+
+                for _ in range(lines):
+                    line = PyMemoryView_FromObject(data)
+                    write(line)
+                    tmp.buf = &(<char*> tmp.buf)[stride]
+            else:
+                write(data)
+
+    def __getitem__(self, index):
+        if PyIndex_Check(index):
+            index = PyNumber_Index(index)
+        else:
+            raise TypeError("frame indices must be integers, not %s"
+                            % (type(index).__name__,))
+
+        lib = self.funcs
+        frame = <VSFrame*> self.constf
+        format = lib.getVideoFrameFormat(frame)
+
+        if index < 0:
+            index += format.numPlanes
+        if not 0 <= index < format.numPlanes:
+            raise IndexError("index out of range")
+
+        data = _video.allocinfo(format)
+        data.base.obj = self
+        data.base.readonly = not self.flags & 1
+
+        _video.fillinfo(&data.base, frame, index, &self.flags, lib)
+
+        return PyMemoryView_FromObject(data)
+
+    def __len__(self):
+        lib = self.funcs
+        return lib.getVideoFrameFormat(self.constf).numPlanes
 
     def __str__(self):
         cdef str s = 'VideoFrame\n'
@@ -1315,7 +1314,7 @@ cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs,
     instance.f = NULL
     instance.funcs = funcs
     instance.core = core
-    instance.readonly = True
+    instance.flags = 0
     instance.format = createVideoFormat(funcs.getVideoFrameFormat(constf), funcs, core)
     instance.width = funcs.getFrameWidth(constf, 0)
     instance.height = funcs.getFrameHeight(constf, 0)
@@ -1329,7 +1328,7 @@ cdef VideoFrame createVideoFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     instance.f = f
     instance.funcs = funcs
     instance.core = core
-    instance.readonly = False
+    instance.flags = -1
     instance.format = createVideoFormat(funcs.getVideoFrameFormat(f), funcs, core)
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
@@ -1337,88 +1336,93 @@ cdef VideoFrame createVideoFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     return instance
 
 
-cdef class VideoPlane:
-    cdef VideoFrame frame
-    cdef int plane
-    cdef Py_ssize_t shape[2]
-    cdef Py_ssize_t strides[2]
-    cdef char* format
+@cython.final
+@cython.internal
+cdef class _frame:
 
-    def __cinit__(self, VideoFrame frame, int plane):
-        cdef Py_ssize_t itemsize
+    @staticmethod
+    cdef void* getdata(VSFrame* frame, int index, unsigned* flags, const VSAPI* lib) nogil:
+        cdef:
+            unsigned mask = 1 << index+1
 
-        if not (0 <= plane < frame.format.num_planes):
-            raise IndexError("specified plane index out of range")
+        if flags[0] & mask:  # trigger copy-on-write
+            flags[0] &= ~mask  # only do so once, see GH-724
+            return <void*> lib.getWritePtr(frame, index)
+        else:
+            return <void*> lib.getReadPtr(frame, index)
 
-        self.shape[1] = <Py_ssize_t> frame.width
-        self.shape[0] = <Py_ssize_t> frame.height
-        if plane:
-            self.shape[1] >>= <Py_ssize_t> frame.format.subsampling_w
-            self.shape[0] >>= <Py_ssize_t> frame.format.subsampling_h
 
-        self.strides[1] = itemsize = <Py_ssize_t> frame.format.bytes_per_sample
-        self.strides[0] = <Py_ssize_t> frame.funcs.getStride(frame.constf, plane)
+@cython.final
+@cython.internal
+@cython.freelist(16)
+cdef class _2dview:
+    cdef:
+        Py_buffer base
+        ssize_t smalltable[4]  # shape, strides
 
-        if frame.format.sample_type == INTEGER:
-            if itemsize == 1:
-                self.format = b'B'
-            elif itemsize == 2:
-                self.format = b'H'
-            elif itemsize == 4:
-                self.format = b'I'
-        elif frame.format.sample_type == FLOAT:
-            if itemsize == 2:
-                self.format = b'e'
-            elif itemsize == 4:
-                self.format = b'f'
+    def __cinit__(self):
+        # need Py_buffer.obj to be non-NULL
+        PyBuffer_FillInfo(&self.base, None, NULL, 0, True, PyBUF_SIMPLE)
 
-        self.frame = frame
-        self.plane = plane
+        self.base.ndim = 2
+        self.base.shape = &self.smalltable[0]
+        self.base.strides = &self.smalltable[2]
 
-    @property
-    def width(self):
-        """Plane's pixel width."""
-        if self.plane:
-            return self.frame.width >> self.frame.format.subsampling_w
-        return self.frame.width
-
-    @property
-    def height(self):
-        """Plane's pixel height."""
-        if self.plane:
-            return self.frame.height >> self.frame.format.subsampling_h
-        return self.frame.height
+    def __dealloc__(self):
+        PyBuffer_Release(&self.base)  # not handled by Cython
 
     def __getbuffer__(self, Py_buffer* view, int flags):
-        if (flags & PyBUF_F_CONTIGUOUS) == PyBUF_F_CONTIGUOUS:
-            raise BufferError("C-contiguous buffer only.")
+        # provide full info right away,
+        # PEP-3118 compliance is left to memoryview
+        view.obj = self.base.obj  # XXX: _2dview instances are temporary
+                                  #      (requires Python>=3.3)
+        view.buf = self.base.buf
+        view.len = self.base.len
+        view.readonly = self.base.readonly
+        view.itemsize = self.base.itemsize
+        view.format = self.base.format
+        view.ndim = self.base.ndim
+        view.shape = self.base.shape
+        view.strides = self.base.strides
+        view.suboffsets = self.base.suboffsets
+        view.internal = self.base.internal
 
-        if self.frame.readonly:
-            if flags & PyBUF_WRITABLE:
-                raise BufferError("Object is not writable.")
-            view.buf = (<void*> self.frame.funcs.getReadPtr(self.frame.constf, self.plane))
-        else:
-            view.buf = (<void*> self.frame.funcs.getWritePtr(self.frame.f, self.plane))
 
-        if flags & PyBUF_STRIDES:
-            view.shape = self.shape
-            view.strides = self.strides
-        else:
-            view.shape = NULL
-            view.strides = NULL
+@cython.final
+@cython.internal
+cdef class _video:
 
-        if flags & PyBUF_FORMAT:
-            view.format = self.format
-        else:
-            view.format = NULL
+    @staticmethod
+    cdef _2dview allocinfo(const VSVideoFormat* format):
+        cdef:
+            _2dview self
 
-        view.obj = self
-        view.len = self.shape[0] * self.shape[1] * self.strides[1]
-        view.readonly = self.frame.readonly
-        view.itemsize = self.strides[1]
-        view.ndim = 2
-        view.suboffsets = NULL
-        view.internal = NULL
+        self = _2dview.__new__(_2dview)
+        self.base.itemsize = format.bytesPerSample
+        self.base.strides[1] = format.bytesPerSample
+
+        if format.sampleType == INTEGER:
+            if format.bytesPerSample == 1:
+                self.base.format = 'B'
+            elif format.bytesPerSample == 2:
+                self.base.format = 'H'
+            elif format.bytesPerSample == 4:
+                self.base.format = 'I'
+        elif format.sampleType == FLOAT:
+            if format.bytesPerSample == 2:
+                self.base.format = 'e'
+            elif format.bytesPerSample == 4:
+                self.base.format = 'f'
+
+        return self
+
+    @staticmethod
+    cdef void fillinfo(Py_buffer* view, VSFrame* frame, int plane, unsigned* flags, const VSAPI* lib) nogil:
+        view.shape[1] = lib.getFrameWidth(frame, plane)
+        view.shape[0] = lib.getFrameHeight(frame, plane)
+        view.strides[0] = lib.getStride(frame, plane)
+        view.len = view.shape[0] * view.shape[1] * view.itemsize
+        view.buf = _frame.getdata(frame, plane, flags, lib)
 
 
 cdef class AudioFrame(RawFrame):
@@ -1430,65 +1434,37 @@ cdef class AudioFrame(RawFrame):
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
-        
-    def __len__(self):
-        return self.funcs.getFrameLength(self.constf)
 
     def copy(self):
         return createAudioFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
-    def get_read_ptr(self, int channel):
-        if channel < 0 or channel >= self.num_channels:
-            raise IndexError('Specified channel index out of range')
-        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, channel)
-        return ctypes.c_void_p(<uintptr_t>d)
+    def __getitem__(self, index):
+        if PyIndex_Check(index):
+            index = PyNumber_Index(index)
 
-    def get_read_array(self, int channel):
-        if channel < 0 or channel >= self.num_channels:
-            raise IndexError('Specified channel index out of range')
-        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, channel)
-        array = None
-        if self.sample_type == INTEGER:
-            if self.bytes_per_sample == 2:
-                array = <int16_t[:len(self)]> (<int16_t*>d)
-            elif self.bytes_per_sample == 4:
-                array = <int32_t[:len(self)]> (<int32_t*>d)
-        elif self.sample_type == FLOAT:
-            array = <float[:len(self)]> (<float*>d)
-        if array is not None:
-            return array[:len(self)]
-        return None
+            lib = self.funcs
+            frame = <VSFrame*> self.constf
+            format = lib.getAudioFrameFormat(frame)
 
-    def get_write_ptr(self, int channel):
-        if self.readonly:
-            raise Error('Cannot obtain write pointer to read only frame')
-        if channel < 0 or channel >= self.num_channels:
-            raise IndexError('Specified channel index out of range')
-        cdef uint8_t *d = self.funcs.getWritePtr(self.f, channel)
-        return ctypes.c_void_p(<uintptr_t>d)
+            if index < 0:
+                index += format.numChannels
+            if not 0 <= index < format.numChannels:
+                raise IndexError("index out of range")
 
-    def get_write_array(self, int channel):
-        if self.readonly:
-            raise Error('Cannot obtain write pointer to read only frame')
-        if channel < 0 or channel >= self.num_channels:
-            raise IndexError('Specified channel index out of range')
-        cdef uint8_t *d = self.funcs.getWritePtr(self.f, channel)
-        array = None
-        if self.sample_type == INTEGER:
-            if self.bytes_per_sample == 2:
-                array = <int16_t[:len(self)]> (<int16_t*>d)
-            elif self.bytes_per_sample == 4:
-                array = <int32_t[:len(self)]> (<int32_t*>d)
-        elif self.sample_type == FLOAT:
-            array = <float[:len(self)]> (<float*>d)
-        if array is not None:
-            return array[:len(self)]
-        return None
+            data = _audio.allocinfo(format)
+            data.base.obj = self
+            data.base.readonly = not self.flags & 1
 
-    def channels(self):
-        cdef int x
-        for x in range(self.num_channels):
-            yield AudioChannel.__new__(AudioChannel, self, x)
+            _audio.fillinfo(&data.base, frame, index, &self.flags, lib)
+
+            return PyMemoryView_FromObject(data)
+        else:
+            raise TypeError("frame indices must be integers, not %s"
+                            % (type(index).__name__,))
+
+    def __len__(self):
+        lib = self.funcs
+        return lib.getAudioFrameFormat(self.constf).numChannels
 
     def __str__(self):
         return 'AudioFrame\n'
@@ -1500,7 +1476,7 @@ cdef AudioFrame createConstAudioFrame(const VSFrame *constf, const VSAPI *funcs,
     instance.f = NULL
     instance.funcs = funcs
     instance.core = core
-    instance.readonly = True
+    instance.flags = 0
     cdef const VSAudioFormat *format = funcs.getAudioFrameFormat(constf)
     instance.sample_type = SampleType(format.sampleType);
     instance.bits_per_sample = format.bitsPerSample
@@ -1517,7 +1493,7 @@ cdef AudioFrame createAudioFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     instance.f = f
     instance.funcs = funcs
     instance.core = core
-    instance.readonly = False
+    instance.flags = -1
     cdef const VSAudioFormat *format = funcs.getAudioFrameFormat(f)
     instance.sample_type = SampleType(format.sampleType);
     instance.bits_per_sample = format.bitsPerSample
@@ -1528,67 +1504,67 @@ cdef AudioFrame createAudioFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     return instance
 
 
-cdef class AudioChannel:
-    cdef AudioFrame frame
-    cdef int channel
-    cdef Py_ssize_t shape[1]
-    cdef Py_ssize_t strides[1]
-    cdef char* format
+@cython.final
+@cython.internal
+@cython.freelist(16)
+cdef class _1dview_contig:
+    cdef:
+        Py_buffer base
+        ssize_t smalltable[1]  # shape
 
-    def __cinit__(self, AudioFrame frame, int channel):
-        cdef Py_ssize_t itemsize
+    def __cinit__(self):
+        # need Py_buffer.obj to be non-NULL
+        PyBuffer_FillInfo(&self.base, None, NULL, 0, True, PyBUF_SIMPLE)
 
-        if not (0 <= channel < frame.num_channels):
-            raise IndexError("specified channel index out of range")
+        self.base.ndim = 1
+        self.base.shape = &self.smalltable[0]
+        self.base.strides = &self.base.itemsize
 
-        self.shape[0] = <Py_ssize_t> len(frame)
-
-        self.strides[0] = itemsize = <Py_ssize_t> frame.bytes_per_sample
-
-        if frame.sample_type == INTEGER:
-            if itemsize == 2:
-                self.format = b'H'
-            elif itemsize == 4:
-                self.format = b'I'
-        elif frame.sample_type == FLOAT:
-            self.format = b'f'
-
-        self.frame = frame
-        self.channel = channel
-        
-    def __len__(self):
-        return len(self.frame)
+    def __dealloc__(self):
+        PyBuffer_Release(&self.base)  # not handled by Cython
 
     def __getbuffer__(self, Py_buffer* view, int flags):
-        if (flags & PyBUF_F_CONTIGUOUS) == PyBUF_F_CONTIGUOUS:
-            raise BufferError("C-contiguous buffer only.")
+        view.obj = self.base.obj
+        view.buf = self.base.buf
+        view.len = self.base.len
+        view.readonly = self.base.readonly
+        view.itemsize = self.base.itemsize
+        view.format = self.base.format
+        view.ndim = self.base.ndim
+        view.shape = self.base.shape
+        view.strides = self.base.strides
+        view.suboffsets = self.base.suboffsets
+        view.internal = self.base.internal
 
-        if self.frame.readonly:
-            if flags & PyBUF_WRITABLE:
-                raise BufferError("Object is not writable.")
-            view.buf = (<void*> self.frame.funcs.getReadPtr(self.frame.constf, self.channel))
-        else:
-            view.buf = (<void*> self.frame.funcs.getWritePtr(self.frame.f, self.channel))
 
-        if flags & PyBUF_STRIDES:
-            view.shape = self.shape
-            view.strides = self.strides
-        else:
-            view.shape = NULL
-            view.strides = NULL
+@cython.final
+@cython.internal
+cdef class _audio:
 
-        if flags & PyBUF_FORMAT:
-            view.format = self.format
-        else:
-            view.format = NULL
+    @staticmethod
+    cdef _1dview_contig allocinfo(const VSAudioFormat* format):
+        cdef:
+            _1dview_contig self
 
-        view.obj = self
-        view.len = self.shape[0]
-        view.readonly = self.frame.readonly
-        view.itemsize = self.strides[0]
-        view.ndim = 1
-        view.suboffsets = NULL
-        view.internal = NULL
+        self = _1dview_contig.__new__(_1dview_contig)
+        self.base.itemsize = format.bytesPerSample
+
+        if format.sampleType == INTEGER:
+            if format.bytesPerSample == 2:
+                self.base.format = 'H'
+            elif format.bytesPerSample == 4:
+                self.base.format = 'I'
+        elif format.sampleType == FLOAT:
+            if format.bytesPerSample == 4:
+                self.base.format = 'f'
+
+        return self
+
+    @staticmethod
+    cdef void fillinfo(Py_buffer* view, VSFrame* frame, int channel, unsigned* flags, const VSAPI* lib) nogil:
+        view.shape[0] = lib.getFrameLength(frame)
+        view.len = view.shape[0] * view.itemsize
+        view.buf = _frame.getdata(frame, channel, flags, lib)
 
 
 cdef class RawNode(object):
@@ -1825,20 +1801,14 @@ cdef class VideoNode(RawNode):
             )
             fileobj.write(data.encode("ascii"))
 
-        frame: vs.VideoFrame
+        write = fileobj.write
+        writelines = VideoFrame._writelines
+
         for idx, frame in enumerate(self.frames(prefetch, backlog)):
             if y4m:
                 fileobj.write(b"FRAME\n")
 
-            for planeno, plane in enumerate(frame.planes()):
-                # This is a quick fix.
-                # Calling bytes(VideoPlane) should make the buffer continuous by
-                # copying the frame to a continous buffer
-                # if the stride does not match the width*bytes_per_sample.
-                if frame.get_stride(planeno) != plane.width*self.format.bytes_per_sample:
-                    fileobj.write(bytes(plane))
-                else:
-                    fileobj.write(plane)
+            writelines(frame, write)
 
             if progress_update is not None:
                 progress_update(idx+1, len(self))
