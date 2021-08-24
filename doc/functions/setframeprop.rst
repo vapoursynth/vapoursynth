@@ -1,10 +1,10 @@
 SetFrameProp
 ============
 
-.. function:: SetFrameProp(vnode clip, string prop[, int[] intval, float[] floatval, string[] data])
+.. function:: SetFrameProp(vnode clip, string prop[, bint delete=False, int[] intval, float[] floatval, string[] data])
    :module: std
 
-   Adds a frame property to every frame in *clip*.
+   Adds/deletes a frame property to every frame in *clip*.
 
    If there is already a property with the name *prop* in the frames,
    it will be overwritten.
@@ -18,3 +18,7 @@ SetFrameProp
    For example, to set the field order to top field first::
 
       clip = c.std.SetFrameProp(clip, prop="_FieldBased", intval=2)
+
+   For users not requiring compatibility with R54 or older VapourSynth releases, it
+   is recommended to use the more intuitive *SetFrameProps* and *RemoveFrameProps*
+   functions instead.
