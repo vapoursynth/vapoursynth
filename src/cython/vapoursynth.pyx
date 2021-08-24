@@ -1222,9 +1222,7 @@ cdef class RawFrame(object):
             self.funcs.freeFrame(self.constf)
 
     def get_read_ptr(self, int plane):
-        if self.f:
-            raise Error('Can only obtain read pointer for read only frames')
-        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
+        cdef const void *d = _frame.getdata(<VSFrame*>self.constf, plane, &self.flags, self.funcs)
         if d == NULL:
             raise IndexError('Specified plane index out of range')
         return ctypes.c_void_p(<uintptr_t>d)
