@@ -850,7 +850,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
         if val is None:
             continue
 
-        if isinstance(val, (str, bytes, bytearray, VideoNode, RawFrame)) or not isinstance(val, Iterable):
+        if isinstance(val, (str, bytes, bytearray, RawNode, RawFrame)) or not isinstance(val, Iterable):
             val = [val]
 
         for v in val:
@@ -1037,7 +1037,7 @@ cdef class FrameProps(object):
         cdef bytes b = name.encode('utf-8')
         cdef const VSAPI *funcs = self.funcs
         val = value
-        if isinstance(val, (str, bytes, bytearray, VideoNode, RawFrame)):
+        if isinstance(val, (str, bytes, bytearray, RawNode, RawFrame)):
             val = [val]
         else:
             try:
