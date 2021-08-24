@@ -1047,11 +1047,11 @@ cdef class FrameProps(object):
         self.__delitem__(name)
         try:
             for v in val:
-                if isinstance(v, VideoNode):
-                    if funcs.mapSetNode(m, b, (<VideoNode>v).node, 1) != 0:
+                if isinstance(v, RawNode):
+                    if funcs.mapSetNode(m, b, (<RawNode>v).node, 1) != 0:
                         raise Error('Not all values are of the same type')
-                elif isinstance(v, VideoFrame):
-                    if funcs.mapSetFrame(m, b, (<VideoFrame>v).constf, 1) != 0:
+                elif isinstance(v, RawFrame):
+                    if funcs.mapSetFrame(m, b, (<RawFrame>v).constf, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, Func):
                     if funcs.mapSetFunction(m, b, (<Func>v).ref, 1) != 0:
@@ -1223,14 +1223,6 @@ cdef class RawFrame(object):
 
     def get_read_ptr(self, int plane):
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
-        if d == NULL:
-            raise IndexError('Specified plane index out of range')
-        return ctypes.c_void_p(<uintptr_t>d)
-
-    def get_write_ptr(self, int plane):
-        if self.f == NULL:
-            raise Error('Cannot obtain write pointer to read only frame')
-        cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
         if d == NULL:
             raise IndexError('Specified plane index out of range')
         return ctypes.c_void_p(<uintptr_t>d)
