@@ -1221,6 +1221,26 @@ cdef class RawFrame(object):
         if self.funcs:
             self.funcs.freeFrame(self.constf)
 
+    def get_read_ptr(self, int plane):
+        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
+        if d == NULL:
+            raise IndexError('Specified plane index out of range')
+        return ctypes.c_void_p(<uintptr_t>d)
+
+    def get_write_ptr(self, int plane):
+        if self.f == NULL:
+            raise Error('Cannot obtain write pointer to read only frame')
+        cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
+        if d == NULL:
+            raise IndexError('Specified plane index out of range')
+        return ctypes.c_void_p(<uintptr_t>d)
+
+    def get_stride(self, int plane):
+        cdef ptrdiff_t stride = self.funcs.getStride(self.constf, plane)
+        if stride == 0:
+            raise IndexError('Specified plane index out of range')
+        return stride
+
     @property
     def readonly(self):
         return not self.flags & 1
