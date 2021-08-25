@@ -686,7 +686,7 @@ static void VS_CC splitPlanesCreate(const VSMap *in, VSMap *out, void *userData,
     vsapi->mapSetInt(map, "colorfamily", cfGray, maAppend);
 
     for (int i = 0; i < numPlanes; i++) {
-        vsapi->mapSetInt(map, "plane", i, maReplace);
+        vsapi->mapSetInt(map, "planes", i, maReplace);
         VSMap *tmp = vsapi->invoke(vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core), "ShufflePlanes", map);
         vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(tmp, "clip", 0, nullptr), maAppend);
         vsapi->freeMap(tmp);
