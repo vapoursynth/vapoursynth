@@ -924,9 +924,9 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
 
     if (err) {
         if (!hasai)
-            d->ai.format.channelLayout = tmp2;
+            d->ai.format.channelLayout = (1 << acFrontLeft) | (1 << acFrontRight);
     } else {
-        d->ai.format.channelLayout = (1 << acFrontLeft) | (1 << acFrontRight);
+        d->ai.format.channelLayout = tmp2;
     }
 
     tmp1 = vsapi->mapGetIntSaturated(in, "bits", 0, &err);
@@ -953,18 +953,18 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
 
     if (err) {
         if (!hasai)
-            d->ai.sampleRate = tmp1;
+            d->ai.sampleRate = 44100;
     } else {
-        d->ai.sampleRate = 44100;
+        d->ai.sampleRate = tmp1;
     }
 
     tmp2 = vsapi->mapGetInt(in, "length", 0, &err);
 
     if (err) {
         if (!hasai)
-            d->ai.numSamples = tmp2;
+            d->ai.numSamples = static_cast<int64_t>(d->ai.sampleRate) * 10;
     } else {
-        d->ai.numSamples = static_cast<int64_t>(d->ai.sampleRate) * 60 * 60;
+        d->ai.numSamples = tmp2;
     }
 
     if (d->ai.sampleRate <= 0)
