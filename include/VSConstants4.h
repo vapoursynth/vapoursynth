@@ -37,8 +37,8 @@ typedef enum VSChromaLocation {
 
 typedef enum VSFieldBased {
 	VSC_FIELD_PROGRESSIVE = 0,
-	VSC_FIELD_TOP = 1,
-	VSC_FIELD_BOTTOM = 2
+	VSC_FIELD_BOTTOM = 1,
+	VSC_FIELD_TOP = 2
 } VSFieldBased;
 
 typedef enum VSMatrixCoefficients {
