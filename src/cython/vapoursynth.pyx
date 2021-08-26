@@ -22,11 +22,13 @@ cimport vsconstants
 from vsscript_internal cimport VSScript
 cimport cython.parallel
 from cython cimport view, final
+from cython.view cimport memoryview
 from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t
 from cpython.buffer cimport PyBUF_SIMPLE
 from cpython.buffer cimport PyBuffer_FillInfo
 from cpython.buffer cimport PyBuffer_IsContiguous
 from cpython.buffer cimport PyBuffer_Release
+from cpython.buffer cimport PyObject_GetBuffer
 from cpython.buffer cimport PyBUF_RECORDS_RO, PyBUF_RECORDS
 from cpython.memoryview cimport PyMemoryView_FromObject
 from cpython.memoryview cimport PyMemoryView_GET_BUFFER
@@ -1200,6 +1202,24 @@ cdef class RawFrame(object):
     def readonly(self):
         return not self.flags & 1
 
+cdef class memoryview2(object):
+    """ This wraps cython's view.memoryview and fixes its PEP-3118 compliance. """
+    cdef memoryview view
+    cdef object obj
+    def __cinit__(memoryview2 self, object obj, bint readonly = False):
+        self.view = memoryview(obj, PyBUF_RECORDS_RO if readonly else PyBUF_RECORDS)
+        self.obj = obj
+    def __getbuffer__(self, Py_buffer *info, int flags):
+        PyObject_GetBuffer(self.obj, info, flags)
+    def __getattr__(memoryview2 self, object attr):
+        return getattr(self.view, attr)
+    def __getitem__(memoryview2 self, object index):
+        return self.view.__getitem__(index)
+    def __setitem__(memoryview2 self, object index, object val):
+        self.view.__setitem__(index, val)
+    def __len__(memoryview2 self): return self.view.__len__()
+    def __str__(memoryview2 self): return self.view.__str__()
+    def __repr__(memoryview2 self): return self.view.__repr__()
 
 cdef class VideoFrame(RawFrame):
     cdef readonly VideoFormat format
@@ -1283,11 +1303,11 @@ cdef class VideoFrame(RawFrame):
         return s
 
     def get_read_array(self, int index):
-        return view.memoryview(self.__getitem__(index), PyBUF_RECORDS_RO)
+        return memoryview2(self.__getitem__(index), True)
     def get_write_array(self, int index):
         if self.readonly:
             raise Error('Cannot obtain write array to read only frame')
-        return view.memoryview(self.__getitem__(index), PyBUF_RECORDS)
+        return memoryview2(self.__getitem__(index))
 
 cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
