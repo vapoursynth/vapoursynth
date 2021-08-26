@@ -19,7 +19,6 @@
 
 cimport vapoursynth
 cimport vsconstants
-from vsscript cimport VSScriptOptions
 from vsscript_internal cimport VSScript
 cimport cython.parallel
 from cython cimport view, final
@@ -158,10 +157,6 @@ cdef class StandaloneEnvironmentPolicy:
         return environment is self._environment
 
 
-# This flag is kept for backwards compatibility
-# I suggest deleting it sometime after R51
-_using_vsscript = False
-
 # Internal holder of the current policy.
 cdef object _policy = None
 
@@ -254,7 +249,7 @@ cdef class EnvironmentPolicyAPI:
 
 
 def register_policy(policy):
-    global _policy, _using_vsscript
+    global _policy
     if _policy is not None:
         raise RuntimeError("There is already a policy registered.")
     _policy = policy
@@ -263,14 +258,6 @@ def register_policy(policy):
     cdef EnvironmentPolicyAPI _api = EnvironmentPolicyAPI.__new__(EnvironmentPolicyAPI)
     _api._target_policy = weakref.ref(_policy)
     _policy.on_policy_registered(_api)
-
-    if not isinstance(policy, StandaloneEnvironmentPolicy):
-        # Older script had to use this flag to determine if it ran in
-        # Multi-VSCore-Environments.
-        #
-        # We will just assume that this is the case if we register a custom
-        # policy.
-        _using_vsscript = True
 
 
 ## DO NOT EXPOSE THIS FUNCTION TO PYTHON-LAND!
@@ -286,12 +273,11 @@ def has_policy():
     return _policy is not None
 
 cdef clear_policy():
-    global _policy, _using_vsscript
+    global _policy
     old_policy = _policy
     _policy = None
     if old_policy is not None:
         old_policy.on_policy_cleared()
-    _using_vsscript = False
     return old_policy
 
 cdef EnvironmentData _env_current():
@@ -2312,6 +2298,14 @@ cdef Core createCore(EnvironmentData env):
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = instance.funcs.createCore(env.coreCreationFlags)
     return instance
+    
+cdef Core createCore2(VSCore *core):
+    cdef Core instance = Core.__new__(Core)
+    instance.funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
+    if instance.funcs == NULL:
+        raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
+    instance.core = core
+    return instance
 
 def _get_core(threads = None):
     env = _env_current()
@@ -2680,17 +2674,12 @@ cdef class VSScriptEnvironmentPolicy:
         self._stack.stack = environment
         return previous
 
-    cdef EnvironmentData _make_environment(self, int script_id, const VSScriptOptions* options):
-        # Get flags from options.
-        flags = 0
-        if options != NULL:
-            flags = options.coreCreationFlags
-
-        env = self._api.create_environment(flags)
-
-        # Apply additional options
-        if options != NULL and options.logHandler != NULL:
-            _set_logger(env, options.logHandler, options.logHandlerFree, options.logHandlerData)
+    cdef EnvironmentData _make_environment(self, int script_id, VSScript *se):
+        env = self._api.create_environment()
+          
+        if se and se.core:
+            env.core = createCore2(se.core)
+            se.core = NULL # unset the core so it's not reused
 
         self._env_map[script_id] = env
         return env
@@ -2719,10 +2708,10 @@ cdef object _vsscript_use_environment(int id):
     return use_environment(_get_vsscript_policy().get_environment(id))
 
 
-cdef object _vsscript_use_or_create_environment2(int id, const VSScriptOptions* options):
+cdef object _vsscript_use_or_create_environment2(int id, VSScript *se):
     cdef VSScriptEnvironmentPolicy policy = _get_vsscript_policy()
     if not policy.has_environment(id):
-        policy._make_environment(id, options)
+        policy._make_environment(id, se)
     return use_environment(policy.get_environment(id))
 
 
@@ -2755,7 +2744,7 @@ cdef void _vpy_replace_pyenvdict(VSScript *se, dict pyenvdict):
         se.pyenvdict = <void*>pyenvdict
 
 
-cdef int _vpy_evaluate(VSScript *se, bytes script, str filename, const VSScriptOptions* options):
+cdef int _vpy_evaluate(VSScript *se, bytes script, str filename):
     try:
         pyenvdict = {}
         if se.pyenvdict:
@@ -2778,7 +2767,7 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename, const VSScriptO
             Py_DECREF(errstr)
             errstr = None
 
-        with _vsscript_use_or_create_environment2(se.id, options).use():
+        with _vsscript_use_or_create_environment2(se.id, se).use():
             exec(code, pyenvdict, pyenvdict)
 
     except SystemExit, e:
@@ -2802,7 +2791,7 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename, const VSScriptO
         return 1
         
 
-cdef public api int vpy_createScript(VSScript *se) nogil:
+cdef public api int vpy4_createScript(VSScript *se) nogil:
     with gil:
         try:
             _vpy_replace_pyenvdict(se, {})
@@ -2820,7 +2809,7 @@ cdef public api int vpy_evaluateScript(VSScript *se, const char *script, const c
     with gil:
         fn = scriptFilename.decode('utf-8')
         with __chdir(fn, flags):
-            return _vpy_evaluate(se, script, fn, NULL)
+            return _vpy_evaluate(se, script, fn)
         return 0
 
 cdef public api int vpy_evaluateFile(VSScript *se, const char *scriptFilename, int flags) nogil:
@@ -2847,7 +2836,7 @@ cdef public api int vpy_evaluateFile(VSScript *se, const char *scriptFilename, i
             se.errstr = <void *>errstr
             return 1
 
-cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) nogil:
+cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const char *scriptFilename, const VSMap *vars) nogil:
     with gil:
         try:
             if not se.pyenvdict:
@@ -2867,7 +2856,7 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
             if scriptFilename:
                 fn = scriptFilename.decode('utf-8')
 
-            return _vpy_evaluate(se, buffer, fn, options)
+            return _vpy_evaluate(se, buffer, fn)
 
         except BaseException, e:
             errstr = 'File reading exception:\n' + str(e)
@@ -2876,7 +2865,7 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
             se.errstr = <void *>errstr
             return 2
 
-cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) nogil:
+cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, const VSMap *vars) nogil:
     with gil:
         try:
             if scriptFilename == NULL:
@@ -2884,7 +2873,7 @@ cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, 
                 
             with open(scriptFilename.decode('utf-8'), 'rb') as f:
                 script = f.read(1024*1024*16)
-            return vpy4_evaluateBuffer(se, script, scriptFilename, vars, options)
+            return vpy4_evaluateBuffer(se, script, scriptFilename, vars)
         except BaseException, e:
             errstr = 'File reading exception:\n' + str(e)
             errstr = errstr.encode('utf-8')
@@ -2897,14 +2886,6 @@ cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, 
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 1
-            
-cdef public api int vpy4_clearLogHandler(VSScript *se) nogil:
-    with gil:
-        if not _get_vsscript_policy().has_environment(se.id):
-            return 1
-
-        _unset_logger(_get_vsscript_policy().get_environment(se.id))
-        return 0
 
 cdef public api void vpy4_freeScript(VSScript *se) nogil:
     with gil:
@@ -3046,7 +3027,6 @@ cdef public api void vpy_clearEnvironment(VSScript *se) nogil:
         for key in pyenvdict:
             pyenvdict[key] = None
         pyenvdict.clear()
-        vpy4_clearLogHandler(se)
         try:
             # Environment is lazily created at the time of exec'ing a script,
             # if the process errors out before that (e.g. fails compiling),

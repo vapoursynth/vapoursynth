@@ -21,11 +21,14 @@
 #ifndef VSSCRIPT_INTERNAL_H
 #define VSSCRIPT_INTERNAL_H
 
-struct VSScript {
+#include "../../include/VapourSynth4.h"
+
+typedef struct VSScript {
     void *pyenvdict;
     void *errstr;
+    VSCore *core;
     int id;
     int exitCode;
-};
+} VSScript;
 
 #endif

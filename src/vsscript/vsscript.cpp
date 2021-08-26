@@ -137,14 +137,16 @@ VS_API(int) vsscript_finalize(void) VS_NOEXCEPT {
 
 // V3 API compatibility
 static int createScriptInternal(VSScript **handle) VS_NOEXCEPT {
-    *handle = new VSScript{};
+    *handle = new VSScript();
     (*handle)->id = ++scriptID;
-    return vpy_createScript(*handle);
+    return vpy4_createScript(*handle);
 }
 
-static VSScript *createScriptInternal() VS_NOEXCEPT {
+static VSScript *VS_CC createScript(VSCore *core) VS_NOEXCEPT {
     VSScript *handle = new VSScript();
+    handle->core = core;
     handle->id = ++scriptID;
+    vpy4_createScript(handle);
     return handle;
 }
 
@@ -172,18 +174,16 @@ VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename,
     return vpy_evaluateFile(*handle, scriptFilename, flags);
 }
 
-static VSScript *VS_CC evaluateBuffer(const char *buffer, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) VS_NOEXCEPT {
+static int VS_CC evaluateBuffer(VSScript *handle, const char *buffer, const char *scriptFilename, const VSMap *inputVars) VS_NOEXCEPT {
+    assert(handle);
     std::lock_guard<std::mutex> lock(vsscriptlock);
-    VSScript *handle = createScriptInternal();
-    vpy4_evaluateBuffer(handle, buffer, scriptFilename, vars, options);
-    return handle;
+    return vpy4_evaluateBuffer(handle, buffer, scriptFilename, inputVars);
 }
 
-static VSScript *VS_CC evaluateFile(const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) VS_NOEXCEPT {
+static int VS_CC evaluateFile(VSScript *handle, const char *scriptFilename, const VSMap *inputVars) VS_NOEXCEPT {
+    assert(handle);
     std::lock_guard<std::mutex> lock(vsscriptlock);
-    VSScript *handle = createScriptInternal();
-    vpy4_evaluateFile(handle, scriptFilename, vars, options);
-    return handle;
+    return vpy4_evaluateFile(handle, scriptFilename, inputVars);
 }
 
 VS_API(void) vsscript_freeScript(VSScript *handle) VS_NOEXCEPT {
@@ -262,11 +262,6 @@ VS_API(VSCore *) vsscript_getCore(VSScript *handle) VS_NOEXCEPT {
     return vpy4_getCore(handle);
 }
 
-static int VS_CC clearLogHandler(VSScript *handle) VS_NOEXCEPT {
-    std::lock_guard<std::mutex> lock(vsscriptlock);
-    return vpy4_clearLogHandler(handle);
-}
-
 // V3 API compatibility
 VS_API(const VSAPI *) vsscript_getVSApi(void) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
@@ -310,16 +305,16 @@ VS_API(void) vsscript_clearEnvironment(VSScript *handle) VS_NOEXCEPT {
 static VSSCRIPTAPI vsscript_api = {
     &getAPIVersion,
     &vsscript_getVSApi2,
+    &createScript,
+    &vsscript_getCore,
     &evaluateBuffer,
     &evaluateFile,
     &vsscript_getError,
     &vsscript_getExitCode,
+    &vsscript_freeScript,
     &getOutputNode,
     &getOutputAlphaNode,
-    &getOptions,
-    &vsscript_getCore,
-    &clearLogHandler,
-    &vsscript_freeScript
+    &getOptions
 };
 
 const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {

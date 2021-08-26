@@ -434,7 +434,9 @@ msg.set_output()\n";
 
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
-        VSScript *se = vssapi->evaluateFile(szScriptName.c_str(), nullptr, 0);
+        VSScript *se = vssapi->createScript(nullptr);
+        vssapi->evaluateFile(se, szScriptName.c_str(), nullptr);
+
         if (!vssapi->getError(se)) {
             error_msg.clear();
 
@@ -511,7 +513,8 @@ bool VapourSynthFile::DelayInit2() {
             std::string error_script = ErrorScript1;
             error_script += error_msg;
             error_script += ErrorScript2;
-            se = vssapi->evaluateBuffer(error_script.c_str(), "vfw_error.message", nullptr, 0);
+            se = vssapi->createScript(nullptr);
+            vssapi->evaluateBuffer(se, error_script.c_str(), "vfw_error.message", nullptr);
             videoNode = vssapi->getOutputNode(se, 0);
             vi = vsapi->getVideoInfo(videoNode);
             return true;
@@ -771,7 +774,8 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         frameErrorScript += "err_script_clip = core.resize.Bilinear(err_script_clip, format=err_script_formatid" + matrix + ")\n";
         frameErrorScript += "err_script_clip.set_output()\n";
 
-        errSe = vssapi->evaluateBuffer(frameErrorScript.c_str(), "vfw_error.message", nullptr, 0);
+        errSe = vssapi->createScript(nullptr);
+        vssapi->evaluateBuffer(errSe, frameErrorScript.c_str(), "vfw_error.message", nullptr);
         VSNode *node = vssapi->getOutputNode(errSe, 0);
         f = vsapi->getFrame(0, node, nullptr, 0);
         vsapi->freeNode(node);

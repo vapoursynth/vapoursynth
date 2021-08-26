@@ -928,17 +928,18 @@ int main(int argc, char **argv) {
 
     std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
     
-    VSScriptOptions scriptOpts = { sizeof(VSScriptOptions), (opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph || opts.printFilterTime) ? ccfEnableGraphInspection : 0, logMessageHandler, nullptr, nullptr };
 
-    VSScript *se = nullptr;
+    VSCore *core = vsapi->createCore((opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph || opts.printFilterTime) ? ccfEnableGraphInspection : 0);
+    vsapi->addLogHandler(logMessageHandler, nullptr, nullptr, core);
+    VSScript *se = vssapi->createScript(core);
     if (!opts.scriptArgs.empty()) {
         VSMap *foldedArgs = vsapi->createMap();
         for (const auto &iter : opts.scriptArgs)
             vsapi->mapSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, maAppend);
-        se = vssapi->evaluateFile(nstringToUtf8(opts.scriptFilename).c_str(), foldedArgs, &scriptOpts);
+        vssapi->evaluateFile(se, nstringToUtf8(opts.scriptFilename).c_str(), foldedArgs);
         vsapi->freeMap(foldedArgs);
     } else {
-        se = vssapi->evaluateFile(nstringToUtf8(opts.scriptFilename).c_str(), nullptr, &scriptOpts);
+        vssapi->evaluateFile(se, nstringToUtf8(opts.scriptFilename).c_str(), nullptr);
     }
 
     if (vssapi->getError(se)) {

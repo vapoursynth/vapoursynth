@@ -30,25 +30,22 @@
 typedef struct VSScript VSScript;
 typedef struct VSSCRIPTAPI VSSCRIPTAPI;
 
-typedef struct VSScriptOptions {
-    /* Must be set to sizeof(VSScriptOptions) */
-    int size; 
-
-    /* Passed to createCore(), set to 0 to use the default options */
-    int coreCreationFlags; 
-
-    /* Passed to addLogHandler() right after a core is created if logHandler is not NULL */
-    VSLogHandler logHandler;
-    VSLogHandlerFree logHandlerFree;
-    void *logHandlerData;
-} VSScriptOptions;
-
 struct VSSCRIPTAPI {
     /* Returns the highest supported VSSCRIPT_API_VERSION */
     int (VS_CC *getAPIVersion)(void) VS_NOEXCEPT;
 
     /* Convenience function for retrieving a VSAPI pointer without having to use the VapourSynth library. Always pass VAPOURSYNTH_API_VERSION */
     const VSAPI *(VS_CC *getVSAPI)(int version) VS_NOEXCEPT;
+
+    /* 
+    * Providing a pre-created core is useful for setting core creation flags, log callbacks, preload specific plugins and many other things.
+    * You must create a VSScript object before evaluating a script. Takes ownership of the core if successful. Returns NULL on failure.
+    * Pass NULL to have a core automatically created with the default options.
+    */
+    VSScript *(VS_CC *createScript)(VSCore *core) VS_NOEXCEPT;
+
+    /* The core is valid as long as the environment exists, return NULL on error */
+    VSCore *(VS_CC *getCore)(VSScript *handle) VS_NOEXCEPT;
 
     /*
     * Evaluates a script passed in the buffer argument. The scriptFilename is only used for display purposes. in Python
@@ -64,16 +61,18 @@ struct VSSCRIPTAPI {
     * Note that calling any function other than getError() and freeScript() on a VSScript object in the error state
     * will result in undefined behavior.
     */
-    VSScript *(VS_CC *evaluateBuffer)(const char *buffer, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) VS_NOEXCEPT;
+    int (VS_CC *evaluateBuffer)(VSScript *handle, const char *buffer, const char *scriptFilename, const VSMap *inputVars) VS_NOEXCEPT;
 
     /* Convenience version of the above function that loads the script from scriptFilename and passes as the buffer to evaluateBuffer */
-    VSScript *(VS_CC *evaluateFile)(const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) VS_NOEXCEPT;
+    int (VS_CC *evaluateFile)(VSScript *handle, const char *scriptFilename, const VSMap *inputVars) VS_NOEXCEPT;
 
     /* Returns NULL on success, otherwise an error message */
     const char *(VS_CC *getError)(VSScript *handle) VS_NOEXCEPT;
 
-    /* Returns 0 on success, otherwise the exit code */
+    /* Returns the script reported exit code */
     int (VS_CC *getExitCode)(VSScript *handle) VS_NOEXCEPT;
+
+    void (VS_CC *freeScript)(VSScript *handle) VS_NOEXCEPT;
 
     /*
     * The returned nodes must be freed using freeNode() before calling freeScript() since they may depend on data in the VSScript
@@ -88,14 +87,6 @@ struct VSSCRIPTAPI {
     * and data are allowed as output. Returns zero on success.
     */
     int (VS_CC *getOptions)(VSScript *handle, VSMap *dst);
-
-    /* The core is valid as long as the environment exists, will trigger core creation if necessary and returns NULL on failures */
-    VSCore *(VS_CC *getCore)(VSScript *handle) VS_NOEXCEPT;
-
-    /* Unsets the logger specified in VSScriptOptions and does nothing if no logger was set, returns non-zero on success */
-    int (VS_CC *clearLogHandler)(VSScript *handle) VS_NOEXCEPT;
-
-    void (VS_CC *freeScript)(VSScript *handle) VS_NOEXCEPT;
 };
 
 VS_API(const VSSCRIPTAPI *) getVSScriptAPI(int version) VS_NOEXCEPT;

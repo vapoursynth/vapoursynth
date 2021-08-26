@@ -18,18 +18,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 #
 
-from vapoursynth cimport VSLogHandler, VSLogHandlerFree
-
 cdef extern from "include/VSScript4.h" nogil:
     enum:
         VSSCRIPT_API_MAJOR
         VSSCRIPT_API_MINOR
         VSSCRIPT_API_VERSION
-
-    ctypedef struct VSScriptOptions:
-        int size
-        int coreCreationFlags
-        VSLogHandler logHandler
-        VSLogHandlerFree logHandlerFree
-        void *logHandlerData
-        
