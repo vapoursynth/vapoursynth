@@ -1343,8 +1343,12 @@ cdef class _frame:
     @staticmethod
     cdef void* getdata(VSFrame* frame, int index, unsigned* flags, const VSAPI* lib) nogil:
         cdef:
-            unsigned mask = 1 << index+1
+            unsigned mask
 
+        if lib.getFrameType(frame) is VIDEO:
+            mask = 1 << index+1
+        else:
+            mask = ~1  # there's only one plane in audio frames
         if flags[0] & mask:  # trigger copy-on-write
             flags[0] &= ~mask  # only do so once, see GH-724
             return <void*> lib.getWritePtr(frame, index)
