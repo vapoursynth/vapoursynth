@@ -2643,7 +2643,7 @@ cdef class VSScriptEnvironmentPolicy:
         return previous
 
     cdef EnvironmentData _make_environment(self, int script_id, VSScript *se):
-        env = self._api.create_environment()
+        cdef EnvironmentData env = self._api.create_environment()
           
         if se and se.core:
             env.core = createCore2(se.core)

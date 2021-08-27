@@ -146,8 +146,14 @@ static VSScript *VS_CC createScript(VSCore *core) VS_NOEXCEPT {
     VSScript *handle = new VSScript();
     handle->core = core;
     handle->id = ++scriptID;
-    vpy4_createScript(handle);
-    return handle;
+    if (vpy4_createScript(handle)) {
+        const VSAPI *vsapi = vpy4_getVSAPI(VAPOURSYNTH_API_VERSION);
+        vsapi->freeCore(core);
+        delete handle;
+        return nullptr;
+    } else {
+        return handle;
+    }
 }
 
 // V3 API compatibility

@@ -39,7 +39,7 @@ struct VSSCRIPTAPI {
 
     /* 
     * Providing a pre-created core is useful for setting core creation flags, log callbacks, preload specific plugins and many other things.
-    * You must create a VSScript object before evaluating a script. Takes ownership of the core if successful. Returns NULL on failure.
+    * You must create a VSScript object before evaluating a script. Always takes ownership of the core even on failure. Returns NULL on failure.
     * Pass NULL to have a core automatically created with the default options.
     */
     VSScript *(VS_CC *createScript)(VSCore *core) VS_NOEXCEPT;
