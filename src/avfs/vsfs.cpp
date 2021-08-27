@@ -188,12 +188,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             if (audioNode)
                 ai = vsapi->getAudioInfo(audioNode);
 
-            // set the special options hidden in global variables
-            int error;
-            VSMap *options = vsapi->createMap();
-            vssapi->getOptions(se, options);
-            alt_output = vsapi->mapGetIntSaturated(options, "alt_output", 0, &error);
-            vsapi->freeMap(options);
+            alt_output = vssapi->getAltOutputMode(se, 0);
 
             VSCoreInfo info;
             vsapi->getCoreInfo(vssapi->getCore(se), &info);
@@ -374,7 +369,7 @@ const char* VapourSynther::GetVarAsString(
     const char* varName, const char* defVal) {
 
     VSMap *map = vsapi->createMap();
-    vssapi->getOptions(se, map);
+    vssapi->getVariable(se, varName, map);
     int err = 0;
     const char *result = vsapi->mapGetData(map, varName, 0, &err);
     if (err)
@@ -398,7 +393,7 @@ bool VapourSynther::GetVarAsBool(const char* varName, bool defVal) {
 
 int VapourSynther::GetVarAsInt(const char* varName, int defVal) {
     VSMap *map = vsapi->createMap();
-    vssapi->getOptions(se, map);
+    vssapi->getVariable(se, varName, map);
     int err = 0;
     int result = vsapi->mapGetIntSaturated(map, varName, 0, &err);
     if (err)

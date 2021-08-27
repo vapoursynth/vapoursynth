@@ -469,12 +469,7 @@ bool VapourSynthFile::DelayInit2() {
                 goto vpyerror;
             }
 
-            // set the special options hidden in global variables
-            int error;
-            VSMap *options = vsapi->createMap();
-            vssapi->getOptions(se, options);
-            alt_output = vsapi->mapGetIntSaturated(options, "alt_output", 0, &error);
-            vsapi->freeMap(options);
+            alt_output = vssapi->getAltOutputMode(se, 0);
 
             ////////// audio
 
