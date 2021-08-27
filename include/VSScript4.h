@@ -72,7 +72,8 @@ struct VSSCRIPTAPI {
     /* Returns the script reported exit code */
     int (VS_CC *getExitCode)(VSScript *handle) VS_NOEXCEPT;
 
-    void (VS_CC *freeScript)(VSScript *handle) VS_NOEXCEPT;
+    /* Fetches a variable of any VSMap storable type set in a script. It is stored in the key with the same name in dst. */
+    int (VS_CC *getVariable)(VSScript *handle, const char *name, VSMap *dst);
 
     /*
     * The returned nodes must be freed using freeNode() before calling freeScript() since they may depend on data in the VSScript
@@ -81,12 +82,9 @@ struct VSSCRIPTAPI {
     */
     VSNode *(VS_CC *getOutputNode)(VSScript *handle, int index) VS_NOEXCEPT;
     VSNode *(VS_CC *getOutputAlphaNode)(VSScript *handle, int index) VS_NOEXCEPT;
+    int (VS_CC *getAltOutputMode)(VSScript *handle, int index) VS_NOEXCEPT;
 
-    /*
-    * Fetches the options set in scripts. In Python this means the set_option() function. Only simple types like int, float
-    * and data are allowed as output. Returns zero on success.
-    */
-    int (VS_CC *getOptions)(VSScript *handle, VSMap *dst);
+    void (VS_CC *freeScript)(VSScript *handle) VS_NOEXCEPT;
 };
 
 VS_API(const VSSCRIPTAPI *) getVSScriptAPI(int version) VS_NOEXCEPT;

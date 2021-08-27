@@ -86,7 +86,6 @@ cdef class EnvironmentData(object):
     cdef bint alive
     cdef Core core
     cdef dict outputs
-    cdef object options
 
     cdef int coreCreationFlags
     cdef VSLogHandle* log
@@ -212,14 +211,10 @@ cdef class EnvironmentPolicyAPI:
         env.core = None
         env.log = NULL
         env.outputs = {}
-        env.options = {}
         env.coreCreationFlags = flags
         env.alive = True
 
         return env
-
-    def set_options(self, EnvironmentData env, options):
-        env.options = options
 
     def set_logger(self, env, logger):
         Py_INCREF(logger)
@@ -231,7 +226,6 @@ cdef class EnvironmentPolicyAPI:
         env.core = None
         env.log = NULL
         env.outputs = {}
-        env.options = {}
         env.alive = False
 
     def unregister_policy(self):
@@ -553,33 +547,6 @@ def get_outputs():
 def get_output(int index = 0):
     return _get_output_dict("get_output")[index]
 
-cdef _get_options_dict(funcname="this function"):
-    cdef EnvironmentData env = _env_current()
-    if env is None:
-        raise Error('Internal environment id not set. %s called from a filter callback?'%funcname)
-    return env.options
-
-def clear_option(str key):
-    cdef object options = _get_options_dict("clear_option")
-    try:
-        del options[key]
-    except KeyError:
-        pass
-
-def clear_options():
-    cdef object options = _get_options_dict("clear_options")
-    options.clear()
-
-def get_options():
-    cdef object options = _get_options_dict("get_options")
-    return MappingProxyType(options)
-    
-def get_option(str key):
-    return _get_options_dict("get_option")[key]
-    
-def set_option(str key, value):
-    _get_options_dict("get_option")[key] = value
-
 cdef class FuncData(object):
     cdef object func
     cdef VSCore *core
@@ -618,7 +585,7 @@ cdef class Func(object):
         outm = self.funcs.createMap()
         inm = self.funcs.createMap()
         try:
-            dictToMap(kwargs, inm, False, NULL, vsapi)
+            dictToMap(kwargs, inm, NULL, vsapi)
             self.funcs.callFunction(self.ref, inm, outm)
             error = self.funcs.mapGetError(outm)
             if error:
@@ -783,7 +750,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, VSCore *core, const VSAPI 
     else:
         return retdict
 
-cdef void dictToMap(dict ndict, VSMap *inm, bint simpleTypesOnly, VSCore *core, const VSAPI *funcs) except *:
+cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) except *:
     for key in ndict:
         ckey = key.encode('utf-8')
         val = ndict[key]
@@ -810,16 +777,16 @@ cdef void dictToMap(dict ndict, VSMap *inm, bint simpleTypesOnly, VSCore *core, 
             elif isinstance(v, (bytes, bytearray)):
                 if funcs.mapSetData(inm, ckey, v, <int>len(v), dtBinary, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif isinstance(v, RawNode) and not simpleTypesOnly:
+            elif isinstance(v, RawNode):
                 if funcs.mapSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif isinstance(v, RawFrame) and not simpleTypesOnly:
+            elif isinstance(v, RawFrame):
                 if funcs.mapSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif isinstance(v, Func) and not simpleTypesOnly:
+            elif isinstance(v, Func):
                 if funcs.mapSetFunction(inm, ckey, (<Func>v).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif callable(v) and not simpleTypesOnly:
+            elif callable(v):
                 tf = createFuncPython(v, core, funcs)
 
                 if funcs.mapSetFunction(inm, ckey, (<Func>v).ref, 1) != 0:
@@ -2496,7 +2463,7 @@ cdef class Function(object):
         try:
             typedDictToMap(processed, atypes, inm, self.plugin.core.core, self.funcs)
             if any:
-                dictToMap(ndict, inm, False, self.plugin.core.core, self.funcs)
+                dictToMap(ndict, inm, self.plugin.core.core, self.funcs)
         except Error as e:
             self.funcs.freeMap(inm)
             dtomsuccess = False
@@ -2601,7 +2568,7 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                     if ret is None:
                         ret = 0
                     ret = {'val':ret}
-                dictToMap(ret, outm, False, core, vsapi)
+                dictToMap(ret, outm, core, vsapi)
         except BaseException, e:
             emsg = str(e).encode('utf-8')
             vsapi.mapSetError(outm, emsg)
@@ -2948,7 +2915,7 @@ cdef public api VSNode *vpy4_getAlphaOutput(VSScript *se, int index) nogil:
                 return (<RawNode>node).funcs.addNodeRef((<RawNode>node).node)
         return NULL
         
-cdef public api int vpy4_getAltOutput(VSScript *se, int index) nogil:
+cdef public api int vpy4_getAltOutputMode(VSScript *se, int index) nogil:
     with gil:
         pyenvdict = <dict>se.pyenvdict
         output = None
@@ -2988,18 +2955,8 @@ cdef const VSAPI *getVSAPIInternal() nogil:
     if _vsapi == NULL:
         _vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     return _vsapi
-    
-cdef public api int vpy4_getOptions(VSScript *se, VSMap *dst) nogil:
-    with gil:
-        with _vsscript_use_environment(se.id).use():   
-            try:
-                core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-                dictToMap(_get_options_dict("vpy4_getOptions"), dst, True, core.core, core.funcs)
-                return 0
-            except:
-                return 1
-                
-cdef public api int vpy_getVariable(VSScript *se, const char *name, VSMap *dst) nogil:
+
+cdef public api int vpy4_getVariable(VSScript *se, const char *name, VSMap *dst) nogil:
     with gil:
         with _vsscript_use_environment(se.id).use():
             pyenvdict = <dict>se.pyenvdict
@@ -3007,7 +2964,7 @@ cdef public api int vpy_getVariable(VSScript *se, const char *name, VSMap *dst) 
                 dname = name.decode('utf-8')
                 read_var = { dname:pyenvdict[dname]}
                 core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-                dictToMap(read_var, dst, False, core.core, core.funcs)
+                dictToMap(read_var, dst, core.core, core.funcs)
                 return 0
             except:
                 return 1

@@ -246,9 +246,9 @@ static VSNode *VS_CC getOutputAlphaNode(VSScript *handle, int index) VS_NOEXCEPT
     return vpy4_getAlphaOutput(handle, index);
 }
 
-static int VS_CC getOptions(VSScript *handle, VSMap *dst) VS_NOEXCEPT {
+static int VS_CC getAltOutputMode(VSScript *handle, int index) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
-    return vpy4_getOptions(handle, dst);
+    return vpy4_getAltOutputMode(handle, index);
 }
 
 // V3 API compatibility
@@ -271,7 +271,7 @@ VS_API(const VSAPI *) vsscript_getVSApi(void) VS_NOEXCEPT {
 // V3 API compatibility
 VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
-    int result = vpy_getVariable(handle, name, dst);
+    int result = vpy4_getVariable(handle, name, dst);
     const VSAPI *vsapi = vpy4_getVSAPI(VAPOURSYNTH_API_VERSION);
     int numKeys = vsapi->mapNumKeys(dst);
     for (int i = 0; i < numKeys; i++) {
@@ -284,7 +284,6 @@ VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst)
     return result;
 }
 
-// V3 API compatibility
 VS_API(int) vsscript_setVariable(VSScript *handle, const VSMap *vars) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     return vpy_setVariable(handle, vars);
@@ -311,10 +310,11 @@ static VSSCRIPTAPI vsscript_api = {
     &evaluateFile,
     &vsscript_getError,
     &vsscript_getExitCode,
-    &vsscript_freeScript,
+    &vsscript_getVariable,
     &getOutputNode,
     &getOutputAlphaNode,
-    &getOptions
+    &getAltOutputMode,
+    &vsscript_freeScript
 };
 
 const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {

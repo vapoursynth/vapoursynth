@@ -1,5 +1,5 @@
 #define Version '55'
-#define VersionExtra '-API4-test3'
+#define VersionExtra '-API4-RC1'
 #define PythonVersion '3.9'
 #define PythonCompactVersion '39'
 
