@@ -180,16 +180,16 @@ VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename,
     return vpy_evaluateFile(*handle, scriptFilename, flags);
 }
 
-static int VS_CC evaluateBuffer(VSScript *handle, const char *buffer, const char *scriptFilename, const VSMap *inputVars) VS_NOEXCEPT {
+static int VS_CC evaluateBuffer(VSScript *handle, const char *buffer, const char *scriptFilename) VS_NOEXCEPT {
     assert(handle);
     std::lock_guard<std::mutex> lock(vsscriptlock);
-    return vpy4_evaluateBuffer(handle, buffer, scriptFilename, inputVars);
+    return vpy4_evaluateBuffer(handle, buffer, scriptFilename);
 }
 
-static int VS_CC evaluateFile(VSScript *handle, const char *scriptFilename, const VSMap *inputVars) VS_NOEXCEPT {
+static int VS_CC evaluateFile(VSScript *handle, const char *scriptFilename) VS_NOEXCEPT {
     assert(handle);
     std::lock_guard<std::mutex> lock(vsscriptlock);
-    return vpy4_evaluateFile(handle, scriptFilename, inputVars);
+    return vpy4_evaluateFile(handle, scriptFilename);
 }
 
 VS_API(void) vsscript_freeScript(VSScript *handle) VS_NOEXCEPT {
@@ -290,9 +290,14 @@ VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst)
     return result;
 }
 
+static int VS_CC getVariable(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT {
+    std::lock_guard<std::mutex> lock(vsscriptlock);
+    return vpy4_getVariable(handle, name, dst);
+}
+
 VS_API(int) vsscript_setVariable(VSScript *handle, const VSMap *vars) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
-    return vpy_setVariable(handle, vars);
+    return vpy4_setVariables(handle, vars);
 }
 
 // V3 API compatibility
@@ -316,7 +321,8 @@ static VSSCRIPTAPI vsscript_api = {
     &evaluateFile,
     &vsscript_getError,
     &vsscript_getExitCode,
-    &vsscript_getVariable,
+    &getVariable,
+    &vsscript_setVariable,
     &getOutputNode,
     &getOutputAlphaNode,
     &getAltOutputMode,

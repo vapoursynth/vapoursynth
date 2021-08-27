@@ -936,11 +936,10 @@ int main(int argc, char **argv) {
         VSMap *foldedArgs = vsapi->createMap();
         for (const auto &iter : opts.scriptArgs)
             vsapi->mapSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, maAppend);
-        vssapi->evaluateFile(se, nstringToUtf8(opts.scriptFilename).c_str(), foldedArgs);
+        vssapi->setVariables(se, foldedArgs);
         vsapi->freeMap(foldedArgs);
-    } else {
-        vssapi->evaluateFile(se, nstringToUtf8(opts.scriptFilename).c_str(), nullptr);
     }
+    vssapi->evaluateFile(se, nstringToUtf8(opts.scriptFilename).c_str());
 
     if (vssapi->getError(se)) {
         int code = vssapi->getExitCode(se);

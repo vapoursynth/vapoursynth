@@ -2804,7 +2804,7 @@ cdef public api int vpy_evaluateFile(VSScript *se, const char *scriptFilename, i
             se.errstr = <void *>errstr
             return 1
 
-cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const char *scriptFilename, const VSMap *vars) nogil:
+cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const char *scriptFilename) nogil:
     with gil:
         try:
             if not se.pyenvdict:
@@ -2813,9 +2813,6 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
             
             if buffer == NULL:
                 raise RuntimeError("NULL buffer passed.")
-
-            if vars:
-                pyenvdict.update(mapToDict(vars, False))
 
             fn = None
             if scriptFilename:
@@ -2830,7 +2827,7 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
             se.errstr = <void *>errstr
             return 2
 
-cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, const VSMap *vars) nogil:
+cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename) nogil:
     with gil:
         try:
             if scriptFilename == NULL:
@@ -2838,7 +2835,7 @@ cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, 
                 
             with open(scriptFilename.decode('utf-8'), 'rb') as f:
                 script = f.read(1024*1024*16)
-            return vpy4_evaluateBuffer(se, script, scriptFilename, vars)
+            return vpy4_evaluateBuffer(se, script, scriptFilename)
         except BaseException, e:
             errstr = 'File reading exception:\n' + str(e)
             errstr = errstr.encode('utf-8')
@@ -2967,14 +2964,12 @@ cdef public api int vpy4_getVariable(VSScript *se, const char *name, VSMap *dst)
             except:
                 return 1
 
-cdef public api int vpy_setVariable(VSScript *se, const VSMap *vars) nogil:
+cdef public api int vpy4_setVariables(VSScript *se, const VSMap *vars) nogil:
     with gil:
         with _vsscript_use_environment(se.id).use():
             pyenvdict = <dict>se.pyenvdict
             try:     
-                new_vars = mapToDict(vars, False)
-                for key in new_vars:
-                    pyenvdict[key] = new_vars[key]
+                pyenvdict.update(mapToDict(vars, False))
                 return 0
             except:
                 return 1

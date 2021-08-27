@@ -153,7 +153,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             goto vpyerror;
 
         se = vssapi->createScript(nullptr);
-        vssapi->evaluateBuffer(se, script.c_str(), scriptName.c_str(), nullptr);
+        vssapi->evaluateBuffer(se, script.c_str(), scriptName.c_str());
 
         if (!vssapi->getError(se)) {
             videoNode = vssapi->getOutputNode(se, 0);

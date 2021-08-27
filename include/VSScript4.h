@@ -50,21 +50,16 @@ struct VSSCRIPTAPI {
     /*
     * Evaluates a script passed in the buffer argument. The scriptFilename is only used for display purposes. in Python
     * it means that the main module won't be unnamed in error messages.
-    *
-    * It is possible to set variables in the script context before evaluation by passing a VSMap. This is useful in order
-    * to pass on command-line arguments to scripts or handle batch scripting. Only simple types like int, float and data are
-    * allowed. Note that the datatype hint may affect how data is handled. Pass NULL to not set any variables.
-    *
-    * The coreCreationFlags are simply passed on to the createCore() call. This should in most cases be set to 0 to use the defaults.
-    *
-    * Returns a VSScript pointer both on success and error. Call getError() to see if the script evaluation succeeded.
+    * 
+    * Returns 0 on success.
+    * 
     * Note that calling any function other than getError() and freeScript() on a VSScript object in the error state
     * will result in undefined behavior.
     */
-    int (VS_CC *evaluateBuffer)(VSScript *handle, const char *buffer, const char *scriptFilename, const VSMap *inputVars) VS_NOEXCEPT;
+    int (VS_CC *evaluateBuffer)(VSScript *handle, const char *buffer, const char *scriptFilename) VS_NOEXCEPT;
 
     /* Convenience version of the above function that loads the script from scriptFilename and passes as the buffer to evaluateBuffer */
-    int (VS_CC *evaluateFile)(VSScript *handle, const char *scriptFilename, const VSMap *inputVars) VS_NOEXCEPT;
+    int (VS_CC *evaluateFile)(VSScript *handle, const char *scriptFilename) VS_NOEXCEPT;
 
     /* Returns NULL on success, otherwise an error message */
     const char *(VS_CC *getError)(VSScript *handle) VS_NOEXCEPT;
@@ -72,8 +67,11 @@ struct VSSCRIPTAPI {
     /* Returns the script reported exit code */
     int (VS_CC *getExitCode)(VSScript *handle) VS_NOEXCEPT;
 
-    /* Fetches a variable of any VSMap storable type set in a script. It is stored in the key with the same name in dst. */
+    /* Fetches a variable of any VSMap storable type set in a script. It is stored in the key with the same name in dst. Returns 0 on success. */
     int (VS_CC *getVariable)(VSScript *handle, const char *name, VSMap *dst);
+
+    /* Sets all keys in the provided VSMap as variables in the script. Returns 0 on success. */
+    int (VS_CC *setVariables)(VSScript *handle, const VSMap *vars) VS_NOEXCEPT;
 
     /*
     * The returned nodes must be freed using freeNode() before calling freeScript() since they may depend on data in the VSScript
