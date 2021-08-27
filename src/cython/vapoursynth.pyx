@@ -443,7 +443,7 @@ def get_current_environment():
 # Create an empty list whose instance will represent a not passed value.
 _EMPTY = []
 
-AlphaOutputTuple = namedtuple("AlphaOutputTuple", "clip alpha")
+VideoOutputTuple = namedtuple("VideoOutputTuple", "clip alpha alt_output")
 
 def _construct_type(signature):
     type,*opt = signature.split(":")
@@ -1744,7 +1744,7 @@ cdef class VideoNode(RawNode):
         else:
             return createConstVideoFrame(f, self.funcs, self.core.core)
 
-    def set_output(self, int index = 0, VideoNode alpha = None):
+    def set_output(self, int index = 0, VideoNode alpha = None, int alt_output = 0):
         cdef const VSVideoFormat *aformat = NULL
         clip = self
         if alpha is not None:
@@ -1758,9 +1758,9 @@ cdef class VideoNode(RawNode):
             elif (self.vi.format.colorFamily != UNDEFINED) or (alpha.vi.format.colorFamily != UNDEFINED):
                 raise Error('Format must be either known or unknown for both alpha and main clip')
             
-            clip = AlphaOutputTuple(self, alpha)
-
-        _get_output_dict("set_output")[index] = clip
+            _get_output_dict("set_output")[index] = VideoOutputTuple(self, alpha, alt_output)
+        else:
+            _get_output_dict("set_output")[index] = VideoOutputTuple(self, None, alt_output)
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0, int backlog = -1):
         if (fileobj is sys.stdout or fileobj is sys.stderr):
@@ -2925,7 +2925,7 @@ cdef public api VSNode *vpy4_getOutput(VSScript *se, int index) nogil:
         except:
             return NULL
 
-        if isinstance(node, AlphaOutputTuple):
+        if isinstance(node, VideoOutputTuple):
             node = node[0]
             
         if isinstance(node, RawNode):
@@ -2942,11 +2942,24 @@ cdef public api VSNode *vpy4_getAlphaOutput(VSScript *se, int index) nogil:
         except:
             return NULL
 
-        if isinstance(node, AlphaOutputTuple):
+        if isinstance(node, VideoOutputTuple):
             node = node[1]   
             if isinstance(node, RawNode):
                 return (<RawNode>node).funcs.addNodeRef((<RawNode>node).node)
         return NULL
+        
+cdef public api int vpy4_getAltOutput(VSScript *se, int index) nogil:
+    with gil:
+        pyenvdict = <dict>se.pyenvdict
+        output = None
+        try:
+            output = _get_vsscript_policy().get_environment(se.id).outputs[index]
+        except:
+            return 0
+
+        if isinstance(output, VideoOutputTuple):
+            return output[2]   
+        return 0
         
 cdef public api int vpy_clearOutput(VSScript *se, int index) nogil:
     with gil:
