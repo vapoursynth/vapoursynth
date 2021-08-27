@@ -590,7 +590,7 @@ cdef class Func(object):
             error = self.funcs.mapGetError(outm)
             if error:
                 raise Error(error.decode('utf-8'))
-            return mapToDict(outm, True, NULL, vsapi)
+            return mapToDict(outm, True)
         finally:
             vsapi.freeMap(outm)
             vsapi.freeMap(inm)
@@ -706,7 +706,8 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNod
         finally:
             Py_DECREF(d)
 
-cdef object mapToDict(const VSMap *map, bint flatten, VSCore *core, const VSAPI *funcs):
+cdef object mapToDict(const VSMap *map, bint flatten):
+    cdef const VSAPI *funcs = getVSAPIInternal()
     cdef int numKeys = funcs.mapNumKeys(map)
     retdict = {}
     cdef const char *retkey
@@ -728,7 +729,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, VSCore *core, const VSAPI 
             elif proptype == ptVideoNode or proptype == ptAudioNode:
                 newval = createNode(funcs.mapGetNode(map, retkey, y, NULL), funcs, _get_core())
             elif proptype == ptVideoFrame or proptype == ptAudioFrame:
-                newval = createConstFrame(funcs.mapGetFrame(map, retkey, y, NULL), funcs, core)
+                newval = createConstFrame(funcs.mapGetFrame(map, retkey, y, NULL), funcs, _get_core().core)
             elif proptype == ptFunction:
                 newval = createFuncRef(funcs.mapGetFunction(map, retkey, y, NULL), funcs)
 
@@ -2274,7 +2275,7 @@ cdef Core createCore2(VSCore *core):
     instance.core = core
     return instance
 
-def _get_core(threads = None):
+cdef Core _get_core(threads = None):
     env = _env_current()
     if env is None:
         raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
@@ -2484,7 +2485,7 @@ cdef class Function(object):
             self.funcs.freeMap(outm)
             raise Error(emsg.decode('utf-8'))
 
-        retdict = mapToDict(outm, True, self.plugin.core.core, self.funcs)
+        retdict = mapToDict(outm, True)
         self.funcs.freeMap(outm)
         return retdict
 
@@ -2562,7 +2563,7 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
         d = <FuncData>userData
         try:
             with use_environment(d.env).use():
-                m = mapToDict(inm, False, core, vsapi)
+                m = mapToDict(inm, False)
                 ret = d(**m)
                 if not isinstance(ret, dict):
                     if ret is None:
@@ -2646,7 +2647,7 @@ cdef class VSScriptEnvironmentPolicy:
           
         if se and se.core:
             env.core = createCore2(se.core)
-            se.core = NULL # unset the core so it's not reused
+            se.core = NULL # unset the core to indicate it's been used
 
         self._env_map[script_id] = env
         return env
@@ -2762,7 +2763,7 @@ cdef public api int vpy4_createScript(VSScript *se) nogil:
     with gil:
         try:
             _vpy_replace_pyenvdict(se, {})
-            _get_vsscript_policy()._make_environment(<int>se.id, NULL)
+            _get_vsscript_policy()._make_environment(<int>se.id, se)
 
         except:
             errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
@@ -2814,10 +2815,7 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
                 raise RuntimeError("NULL buffer passed.")
 
             if vars:
-                if getVSAPIInternal() == NULL:
-                    raise RuntimeError("Failed to retrieve VSAPI pointer.")
-                # FIXME, verify there are only int, float and data values in the map before this
-                pyenvdict.update(mapToDict(vars, False, NULL, getVSAPIInternal()))
+                pyenvdict.update(mapToDict(vars, False))
 
             fn = None
             if scriptFilename:
@@ -2974,8 +2972,7 @@ cdef public api int vpy_setVariable(VSScript *se, const VSMap *vars) nogil:
         with _vsscript_use_environment(se.id).use():
             pyenvdict = <dict>se.pyenvdict
             try:     
-                core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-                new_vars = mapToDict(vars, False, core.core, core.funcs)
+                new_vars = mapToDict(vars, False)
                 for key in new_vars:
                     pyenvdict[key] = new_vars[key]
                 return 0
