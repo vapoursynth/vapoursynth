@@ -27,7 +27,7 @@
 #include <cstdarg>
 #include <limits>
 #include "../common/vsutf16.h"
-#include "../common/p2p_api.h"
+#include "p2p_api.h"
 
 #include <Windows.h>
 
@@ -40,7 +40,7 @@ std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
 using namespace vsh;
 
 namespace AvisynthCompat {
- 
+
 static inline bool IsSameVideoFormat(const VSVideoFormat &f, unsigned colorFamily, unsigned sampleType, unsigned bitsPerSample, unsigned subSamplingW = 0, unsigned subSamplingH = 0) noexcept {
     return f.colorFamily == colorFamily && f.sampleType == sampleType && f.bitsPerSample == bitsPerSample && f.subSamplingW == subSamplingW && f.subSamplingH == subSamplingH;
 }
