@@ -40,3 +40,10 @@ dist/
 
 zimg/
 AviSynthPlus
+
+*.log
+*.user
+x64
+Debug
+Release
+msvc_project/.vs
