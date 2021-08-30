@@ -55,7 +55,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VSScriptPython38", "VSScrip
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "libp2p", "libp2p", "{D18C9279-354A-4562-A07B-E58E19A7DE98}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libp2p_simd", "..\..\libp2p\_msvc\libp2p_simd\libp2p_simd.vcxproj", "{0955E601-DABB-442D-AFFF-EB4B2BF331FD}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libp2p_simd", "..\libp2p\_msvc\libp2p_simd\libp2p_simd.vcxproj", "{0955E601-DABB-442D-AFFF-EB4B2BF331FD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
