@@ -10,6 +10,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VapourSynth", "Core\Core.vc
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VSVFW", "VSVFW\VSVFW.vcxproj", "{2B4C263D-1EF9-4656-8E15-FBF7C1B91BE0}"
 	ProjectSection(ProjectDependencies) = postProject
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD} = {0955E601-DABB-442D-AFFF-EB4B2BF331FD}
 		{4E14AA50-4E33-4815-B2F1-94AA86365CEB} = {4E14AA50-4E33-4815-B2F1-94AA86365CEB}
 	EndProjectSection
 EndProject
@@ -36,9 +37,13 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zimg", "..\zimg\_msvc\zimg\zimg.vcxproj", "{C8629E57-4D6F-40FA-82FC-B39824195932}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AvsCompat", "AvsCompat\AvsCompat.vcxproj", "{4965ED05-2B79-427D-A8AB-38CD9B23EBF7}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD} = {0955E601-DABB-442D-AFFF-EB4B2BF331FD}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AVFS", "AVFS\AVFS.vcxproj", "{58FE3116-5843-4C7A-90DA-21A13C8181CC}"
 	ProjectSection(ProjectDependencies) = postProject
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD} = {0955E601-DABB-442D-AFFF-EB4B2BF331FD}
 		{4E14AA50-4E33-4815-B2F1-94AA86365CEB} = {4E14AA50-4E33-4815-B2F1-94AA86365CEB}
 	EndProjectSection
 EndProject
@@ -47,6 +52,10 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Morpho", "Morpho\Morpho.vcxproj", "{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VSScriptPython38", "VSScriptPython38\VSScriptPython38.vcxproj", "{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "libp2p", "libp2p", "{D18C9279-354A-4562-A07B-E58E19A7DE98}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libp2p_simd", "..\..\libp2p\_msvc\libp2p_simd\libp2p_simd.vcxproj", "{0955E601-DABB-442D-AFFF-EB4B2BF331FD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -168,12 +177,21 @@ Global
 		{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}.Release|Win32.Build.0 = Release|Win32
 		{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}.Release|x64.ActiveCfg = Release|x64
 		{F5D873AB-FA93-4F20-9643-5A291FDB4EE9}.Release|x64.Build.0 = Release|x64
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD}.Debug|Win32.ActiveCfg = Debug|Win32
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD}.Debug|Win32.Build.0 = Debug|Win32
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD}.Debug|x64.ActiveCfg = Debug|x64
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD}.Debug|x64.Build.0 = Debug|x64
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD}.Release|Win32.ActiveCfg = Release|Win32
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD}.Release|Win32.Build.0 = Release|Win32
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD}.Release|x64.ActiveCfg = Release|x64
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{C8629E57-4D6F-40FA-82FC-B39824195932} = {F525D60C-7AA0-4CE8-A959-237CEF39CC5E}
+		{0955E601-DABB-442D-AFFF-EB4B2BF331FD} = {D18C9279-354A-4562-A07B-E58E19A7DE98}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {DEF0183B-6D56-488A-AE87-84C8D823101E}

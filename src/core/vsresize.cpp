@@ -35,9 +35,6 @@
 #include "internalfilters.h"
 #include "version.h"
 
-#define P2P_USER_NAMESPACE vsp2p
-#include "../common/p2p.h"
-
 using namespace vsh;
 
 namespace {
