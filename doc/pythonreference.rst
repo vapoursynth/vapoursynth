@@ -16,14 +16,14 @@ special things unique to Python scripting, such as slicing and output.
 VapourSynth Structure
 #####################
 
-Most operations in the VapourSynth library are performed through the core object.
-This core may load plugins, which all end up in their own unit,
+Most operations in the VapourSynth library are performed through the singleton 
+core object. This core may load plugins, which all end up in their own unit,
 or namespace, so to say, to avoid naming conflicts in the contained functions.
 For this reason you call a plugin function with *core.unit.Function()*.
 
 All arguments to functions have names that are lowercase and all function names
 are CamelCase. Unit names are also lowercase and usually short. This is good to
-remember.
+remember as a general rule.
 
 Slicing and Other Syntactic Sugar
 #################################
@@ -134,30 +134,30 @@ The normal way of specifying the clip(s) to output is to call
 *clip.set_output()*. All standard VapourSynth components only use output
 index 0, except for vspipe where it's configurable but defaults to 0.
 There are also other variables that can be set to control how a format is
-output. For example, setting *enable_v210=True* changes the packing of the
+output. For example, setting *alt_output=1* changes the packing of the
 YUV422P10 format to one that is common in professional software (like Adobe
-products).
+products). Note that currently *alt_output* modes only has an effect with
+YUV420P8 (I420, IYUV), YUV422P8 (YUY2, UYVY) and YUV422P10 (v210).
+
 An example on how to get v210 output::
 
    some_clip = core.resize.Bicubic(clip, format=vs.YUV422P10)
-   some_clip.set_output()
-   enable_v210 = True
+   some_clip.set_output(alt_output=1)
+   
+An example on how to get UYVY output::
+
+   some_clip = core.resize.Bicubic(clip, format=vs.YUV422P8)
+   some_clip.set_output(alt_output=2)
 
 Raw Access to Frame Data
 ########################
 
-The VideoFrame class simply contains one picture and all the metadata
+The VideoFrame and AudioFrame classes contains one picture/audio chunk and all the metadata
 associated with it. It is possible to access the raw data using either
-*get_write_array(plane)* or *get_write_ptr* with ctypes.
+*get_read_ptr(plane)* or *get_write_ptr(plane)* and *get_stride(plane)* with ctypes.
 
-The relevant functions are *get_read_array(plane)*, *get_read_ptr(plane)*,
-*get_write_ptr(plane)*, and *get_stride(plane)*, all of which take the plane
-to access as an argument. The recommended way is to use *get_read_array(plane)*
-(*get_write_array(plane)*) to get a read-only (writable) memory view that
-can be accessed directly via *view[row,col]* or *view[row][col]*. The returned
-view is valid as long as its VideoFrame exists.
-The raw access functions are a bit trickier as *get_read_ptr()* and *get_write_ptr()*
-only return a pointer.
+A more Python friendly wrapping is also available where each plane/channel can be accessed
+as a Python array using *frame[plane/channel]*.
 
 To get a frame simply call *get_frame(n)* on a clip. Should you desire to get
 all frames in a clip, use this code::
@@ -174,15 +174,6 @@ Classes and Functions
    the Core will be instantiated with the default options. This is the preferred
    way to reference the core.
 
-.. py:function:: get_core([threads = 0, add_cache = True])
-
-   Deprecated, use the *core* attribute instead.
-
-   Get the singleton Core object. If it is the first time the function is called,
-   the Core will be instantiated with the given options. If the Core has already
-   been instantiated, all options are ignored. Setting *threads* to a value
-   greater than zero overrides the autodetection.
-
 .. py:function:: set_message_handler(handler_func)
 
    Sets a function to handle all debug output and fatal errors. The function should have the form *handler(level, message)*,
@@ -197,7 +188,7 @@ Classes and Functions
 .. py:function:: get_output([index = 0])
 
    Get a previously set output node. Throws an error if the index hasn't been
-   set. Will return an AlphaOutputTuple when *alpha* was passed to *VideoNode.set_output*.
+   set. Will return a VideoOutputTuple containing *alpha* and the *alt_output* setting for video output and an AudioNode for audio.
 
 .. py:function:: clear_output([index = 0])
 
@@ -225,36 +216,31 @@ Classes and Functions
    .. py:attribute:: num_threads
       
       The number of concurrent threads used by the core. Can be set to change the number. Setting to a value less than one makes it default to the number of hardware threads.
-      
-   .. py:attribute:: add_cache
-   
-      For debugging purposes only. When set to *False* no caches will be automatically inserted between filters.
-      
+            
    .. py:attribute:: max_cache_size
    
       Set the upper framebuffer cache size after which memory is aggressively
       freed. The value is in megabytes.
 
-   .. py:method:: set_max_cache_size(mb)
-   
-      Deprecated, use *max_cache_size* instead.
-
    .. py:method:: get_plugins()
-
-      Returns a dict containing all loaded plugins and their functions.
+   
+      Deprecated, use *plugins()* instead.
 
    .. py:method:: list_functions()
 
-      Works similar to *get_plugins()* but returns a human-readable string.
+      Deprecated, use *plugins()* instead.
 
-   .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
+   .. py:method:: get_video_format(id)
 
-      Register a new Format object or obtain a reference to an existing one if
-      it has already been registered. Invalid formats throw an exception.
+      Retrieve a Format object corresponding to the specified id. Returns None if the *id* is invalid.
 
    .. py:method:: get_format(id)
 
-      Retrieve a Format object corresponding to the specified id. Returns None if there is no format with that *id*.
+      Deprecated, use *get_video_format()* instead.
+      
+   .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
+   
+      Deprecated, use *query_video_format()* instead.
 
    .. py:method:: version()
 
@@ -354,13 +340,15 @@ Classes and Functions
       :param wrapper: A wrapper-callback which is responsible for moving the result across thread boundaries. If not
                       given, the result of the future will be set in a random thread.
 
-   .. py:method:: set_output(index = 0, alpha = None)
+   .. py:method:: set_output(index = 0, alpha = None, alt_output = 0)
 
       Set the clip to be accessible for output. This is the standard way to
       specify which clip(s) to output. All VapourSynth tools (vsvfw, vsfs,
       vspipe) use the clip in *index* 0. It's possible to specify an additional
       containing the *alpha* to output at the same time. Currently only vspipe
       takes *alpha* into consideration when outputting.
+      The *alt_output* argument is for optional alternate output modes. Currently
+      it controls the FOURCCs used for VFW-style output with certain formats.
 
    .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None, backlog=-1])
  
@@ -377,9 +365,9 @@ Classes and Functions
       The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
 
-.. py:class:: AlphaOutputTuple
+.. py:class:: VideoOutputTuple
 
-      This class is returned by get_output. If a *alpha* was passed to set_output, *get_output* will return an object of this type.
+      This class is returned by get_output if the output is video.
       
       .. py:attribute:: clip
       
@@ -388,6 +376,10 @@ Classes and Functions
       .. py:attribute:: alpha
       
          A VideoNode-instance containing the alpha planes.
+         
+      .. py:attribute:: alt_output
+      
+         An integer with the alternate output mode to be used. May be ignored if no meaningful mapping exists.
       
 .. py:class:: VideoFrame
 
@@ -425,19 +417,11 @@ Classes and Functions
 
       Returns a pointer to the raw frame data. The data may not be modified.
       
-   .. py:method:: get_read_array(plane)
-
-      Returns a memoryview of the frame data that's only valid as long as the VideoFrame object exists. The data may not be modified.
-
    .. py:method:: get_write_ptr(plane)
 
       Returns a pointer to the raw frame data. It may be modified using ctypes
       or some other similar python package.
       
-   .. py:method:: get_write_array(plane)
-
-      Returns a memoryview of the frame data that's only valid as long as the VideoFrame object exists.
-
    .. py:method:: get_stride(plane)
 
       Returns the stride between lines in a *plane*.
@@ -507,13 +491,11 @@ Classes and Functions
 
    .. py:method:: get_functions()
 
-      Returns a dict containing all the functions in the plugin. You can access
-      it by calling *core.std.get_functions()*. Replace *std* with the namespace
-      of the plugin you want to query.
+      Deprecated, use *functions()* instead.
 
    .. py:method:: list_functions()
 
-      Works similar to *get_functions()* but returns a human-readable string.
+      Deprecated, use *functions()* instead.
       
 .. py:class:: Function
 
@@ -531,6 +513,10 @@ Classes and Functions
    .. py:attribute:: signature
 
       Raw function signature string. Identical to the string used to register the function.
+      
+   .. py:attribute:: return_signature
+
+      Raw function signature string. Identical to the return type string used register the function.
    
 .. py:class:: Environment
 
@@ -552,7 +538,7 @@ Classes and Functions
    .. warning::
 
       Environment-objects obtained using the :func:`vpy_current_environment` can directly be used as
-      as a context manager. This can cuase undefined behaviour when used in combination with generators and/or
+      as a context manager. This can cause undefined behaviour when used in combination with generators and/or
       coroutines.
 
       This context-manager maintains a thread-local environment-stack that is used to restore the previous environment.
@@ -747,12 +733,6 @@ Classes and Functions
 
    Added: R50
 
-.. py:attribute:: _using_vsscript
-
-   INTERNAL ATTRIBUTE. Deprecated (will be removed soon). This was the only way to find out if VSScript.h was calling this script.
-   It now stores true if a custom policy is installed or VSScript.h is used. Use :func:`has_policy` instead.
-
-
 .. py:class:: EnvironmentData
 
    Internal class that stores the context sensitive data that VapourSynth needs. It is an opaque object whose attributes you cannot access directly.
@@ -782,11 +762,10 @@ color information is stored. You should be familiar with all of them apart from
 maybe *YCOCG* and *COMPAT*. The latter is a special junk category for non-planar
 formats. These are the declared constants in the module::
 
+   UNDEFINED
    RGB
    YUV
    GRAY
-   YCOCG
-   COMPAT
 
 Format Constants
 ################
@@ -800,7 +779,12 @@ bits per sample in one plane. The exception to this rule is RGB, which has the
 bits for all 3 planes added together. The long list of values::
 
    GRAY8
+   GRAY9
+   GRAY10
+   GRAY12
+   GRAY14
    GRAY16
+   GRAY32
    GRAYH
    GRAYS
 
@@ -837,13 +821,12 @@ bits for all 3 planes added together. The long list of values::
    RGB24
    RGB27
    RGB30
+   RGB36
+   RGB42
    RGB48
 
    RGBH
    RGBS
-
-   COMPATBGR32
-   COMPATYUY2
 
 Sample Type Constants
 #####################

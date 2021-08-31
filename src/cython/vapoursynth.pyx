@@ -2146,12 +2146,6 @@ cdef class Core(object):
             return createPlugin(plugin, self.funcs, self)
         else:
             raise AttributeError('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace?')
-
-    def set_max_cache_size(self, int mb):
-        import warnings
-        warnings.warn("set_max_cache_size() is deprecated. Use \"max_cache_size()\" property instead.", DeprecationWarning)
-        self.max_cache_size = mb
-        return self.max_cache_size
         
     def plugins(self):
         cdef VSPlugin *plugin = self.funcs.getNextPlugin(NULL, self.core)
@@ -2285,16 +2279,6 @@ cdef Core _get_core(threads = None):
         raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
 
     return vsscript_get_core_internal(env)
-    
-def get_core(threads = None):
-    import warnings
-    warnings.warn("get_core() is deprecated. Use \"vapoursynth.core\" instead.", DeprecationWarning)
-    
-    ret_core = _get_core()
-    if ret_core is not None:
-        if threads is not None:
-            ret_core.num_threads = threads
-    return ret_core
     
 cdef Core vsscript_get_core_internal(EnvironmentData env):
     if env.core is None:
