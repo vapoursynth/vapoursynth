@@ -1675,7 +1675,6 @@ cdef class VideoNode(RawNode):
     cdef readonly int64_t fps_num
     cdef readonly int64_t fps_den
     cdef readonly object fps
-    cdef readonly int flags
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')

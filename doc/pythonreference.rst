@@ -426,7 +426,7 @@ Classes and Functions
 
       Returns the stride between lines in a *plane*.
 
-.. py:class:: Format
+.. py:class:: VideoFormat
 
    This class represents all information needed to describe a frame format. It
    holds the general color type, subsampling, number of planes and so on.
@@ -480,6 +480,139 @@ Classes and Functions
       The optional `core`-parameter defines on which core the new format
       should be registered. This is usually not needed and defaults
       to the core of the current environment.
+
+.. py:class:: AudioNode
+
+   Represents a video clip. The class itself supports indexing and slicing to
+   perform trim, reverse and selectevery operations. Several operators are also
+   defined for the VideoNode class: addition appends clips and multiplication
+   repeats them. Note that slicing and indexing always return a new VideoNode
+   object and not a VideoFrame.
+
+   .. py:attribute:: sample_type
+
+      If the format is integer or floating point based.
+
+   .. py:attribute:: bits_per_sample
+
+      How many bits are used to store one sample in one plane.
+
+   .. py:attribute:: bytes_per_sample
+
+      The actual storage is padded up to 2^n bytes for efficiency.
+      
+   .. py:attribute:: channel_layout
+
+      A mask of used channels.
+
+   .. py:attribute:: num_channels
+
+      The number of channels the format has.
+      
+   .. py:attribute:: sample_rate
+
+      Playback sample rate.
+
+   .. py:method:: get_frame(n)
+
+      Returns an AudioFrame from position *n*.
+
+   .. py:method:: get_frame_async(n)
+
+      Returns a concurrent.futures.Future-object which result will be an AudioFrame instance or sets the
+      exception thrown when rendering the frame.
+
+      *The future will always be in the running or completed state*
+
+   .. py:method:: get_frame_async_raw(n, cb: callable)
+
+      First form of this method. It will call the callback from another thread as soon as the frame is rendered.
+
+      The `result`-value passed to the callback will either be a AudioFrame-instance on success or a Error-instance
+      on failure.
+
+      *This method is intended for glue code. For normal use, use get_frame_async instead.*
+
+      :param n: The frame number
+      :param cb: A callback in the form `cb(node, n, result)`
+
+   .. py:method:: get_frame_async_raw(n, cb: Future[, wrapper: callable = None])
+      :noindex:
+
+      Second form of this method. It will take a Future-like object (including asyncio.Future or similar)
+      and set its result or exception according to the result of the function.
+
+      The optional `wrapper`-parameter is intended for calls like asyncio.EventLoop.call_soon_threadsafe in which
+      all calls to its future-object must be wrapped.
+
+      *This method is intended for glue code. For normal use, use get_frame_async instead.*
+
+      :param n: The frame number
+      :param cb: The future-object whose result will be set.
+      :param wrapper: A wrapper-callback which is responsible for moving the result across thread boundaries. If not
+                      given, the result of the future will be set in a random thread.
+
+   .. py:method:: set_output(index = 0)
+
+      Set the clip to be accessible for output.
+
+   .. py:method:: frames([prefetch=None, backlog=None])
+
+      Returns a generator iterator of all VideoFrames in the clip. It will render multiple frames concurrently.
+      
+      The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
+      The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
+
+      
+.. py:class:: AudioFrame
+
+      This class represents an audio frame and all metadata attached to it.
+
+   .. py:attribute:: sample_type
+
+      If the format is integer or floating point based.
+
+   .. py:attribute:: bits_per_sample
+
+      How many bits are used to store one sample in one plane.
+
+   .. py:attribute:: bytes_per_sample
+
+      The actual storage is padded up to 2^n bytes for efficiency.
+      
+   .. py:attribute:: channel_layout
+
+      A mask of used channels.
+
+   .. py:attribute:: num_channels
+
+      The number of channels the format has.
+      
+   .. py:attribute:: readonly
+
+      If *readonly* is True, the frame data and properties cannot be modified.
+
+   .. py:attribute:: props
+
+      This attribute holds all the frame's properties as a dict. Note that frame properties are fairly
+      non-sensical as a concept for audio due to an arbitrary number of samples being lumped together.
+
+   .. py:method:: copy()
+
+      Returns a writable copy of the frame.
+
+   .. py:method:: get_read_ptr(plane)
+
+      Returns a pointer to the raw frame data. The data may not be modified.
+      
+   .. py:method:: get_write_ptr(plane)
+
+      Returns a pointer to the raw frame data. It may be modified using ctypes
+      or some other similar python package.
+      
+   .. py:method:: get_stride(plane)
+
+      Returns the stride between lines in a *plane*.
 
 .. py:class:: Plugin
 
