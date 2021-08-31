@@ -68,7 +68,7 @@ pointer now points to a scratch space of size void *[4] instead of only being a 
 This can be used to not have to allocate and free memory on every frame processed. See the Splice
 filter for an example of this.
 The arFrameReady event has been completely removed since nobody used it.
-
+Likewise YCoCg has been removed as a separate color family and is now simply considered to be YUV matrix.
 
 Audio filter support:
 Audio filters are created with createAudioFilter and work very similarly to video filters. Note that
@@ -95,8 +95,16 @@ VS_ALIGNED_FREE => VSH_ALIGNED_FREE
 vs_normalizeRational => reduceRational
 
 VSScript:
-Options that impact the output are now set through set_option() in python. They're no longer global
-script variables to reduce the risk of name collisions and more clearly show their prupose. The options
-themselves have the same names (enable_v210, ).
+The api is mostly the same with the exception that createScript() has to be manually called in all cases and the API
+now uses a struct of function pointers. It's also possible to pass a pre-created core to createScript() in order to set
+options such as logging output before script evaluation.
 VSScript also no longer changes the working directory by default when evaluating scripts. This option
 has been removed due to it involving global state.
+
+Python changes:
+Multiple constants such as YCOCG have been dropped since they no longer exist in the C API.
+Many deprecated functions like get_core() have been removed. Note that these functions have been deprecated since at
+least R51 and usually much longer ago and therefore shouldn't cause problems.
+Frame data access has been reworked and the broken get_read_array and get_write_array functions have been dropped.
+They're replaced by frame[plane/channel] which will return a python array to access the underlying data directly without
+a risk of access violations.
