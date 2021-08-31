@@ -41,9 +41,15 @@ Options
 
 ``-p, --progress``
     Print progress to stderr
+    
+``    --filter-time``
+    Records the time spent in each filter and prints it out at the end of processing.
 
 ``-i, --info``
     Show video info and exit
+
+``-g, --graph <simple/full>``
+    Print output node filter graph in dot format to outfile and exit
 
 ``-v, --version``
     Show version info and exit

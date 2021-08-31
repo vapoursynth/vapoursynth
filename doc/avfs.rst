@@ -10,6 +10,9 @@ plain file can always be read.
 To use it simply run ``avfs`` in the ``core32`` or ``core64`` directories with the script name as argument.
 This will create a virtual file in ``C:\\Volumes``.
 
+The *alt_output* argument of *set_output* is respected and can be used to get additional compatibility
+with professional applications.
+
 Avisynth Support
 ################
 Note that this AVFS version is also compatible with Avisynth 2.6 and Avisynth+. When using Avisynth+
