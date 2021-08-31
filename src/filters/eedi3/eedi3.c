@@ -32,6 +32,7 @@
 
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
+#include "VSConstants4.h"
 
 typedef struct {
     VSNode *node;
@@ -457,9 +458,9 @@ static const VSFrame *VS_CC eedi3GetFrame(int n, int activationReason, void *ins
         if (effective_field > 1)
             effective_field -= 2;
 
-        if (fieldbased == 1)
+        if (fieldbased == VSC_FIELD_BOTTOM)
             effective_field = 0;
-        else if (fieldbased == 2)
+        else if (fieldbased == VSC_FIELD_TOP)
             effective_field = 1;
 
         if(d->field > 1) {

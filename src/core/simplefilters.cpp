@@ -26,6 +26,7 @@
 #include <memory>
 #include <algorithm>
 #include "VSHelper4.h"
+#include "VSConstants4.h"
 #include "cpufeatures.h"
 #include "internalfilters.h"
 #include "filtershared.h"
@@ -221,8 +222,8 @@ static const VSFrame *VS_CC cropGetframe(int n, int activationReason, void *inst
             VSMap *props = vsapi->getFramePropertiesRW(dst);
             int error;
             int64_t fb = vsapi->mapGetInt(props, "_FieldBased", 0, &error);
-            if (fb == 1 || fb == 2)
-                vsapi->mapSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, maReplace);
+            if (fb == VSC_FIELD_BOTTOM || fb == VSC_FIELD_TOP)
+                vsapi->mapSetInt(props, "_FieldBased", (fb == VSC_FIELD_BOTTOM) ? VSC_FIELD_TOP : VSC_FIELD_BOTTOM, maReplace);
         }
 
         return dst;
@@ -417,8 +418,8 @@ static const VSFrame *VS_CC addBordersGetframe(int n, int activationReason, void
             VSMap *props = vsapi->getFramePropertiesRW(dst);
             int error;
             int64_t fb = vsapi->mapGetInt(props, "_FieldBased", 0, &error);
-            if (fb == 1 || fb == 2)
-                vsapi->mapSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, maReplace);
+            if (fb == VSC_FIELD_BOTTOM || fb == VSC_FIELD_TOP)
+                vsapi->mapSetInt(props, "_FieldBased", (fb == VSC_FIELD_BOTTOM) ? VSC_FIELD_TOP : VSC_FIELD_BOTTOM, maReplace);
         }
 
         return dst;
@@ -717,9 +718,9 @@ static const VSFrame *VS_CC separateFieldsGetframe(int n, int activationReason, 
         int err = 0;
         int fieldBased = vsapi->mapGetIntSaturated(props, "_FieldBased", 0, &err);
         int effectiveTFF = d->tff;
-        if (fieldBased == 1)
+        if (fieldBased == VSC_FIELD_BOTTOM)
             effectiveTFF = 0;
-        else if (fieldBased == 2)
+        else if (fieldBased == VSC_FIELD_TOP)
             effectiveTFF = 1;
         if (effectiveTFF == -1) {
             vsapi->setFilterError("SeparateFields: no field order provided", frameCtx);

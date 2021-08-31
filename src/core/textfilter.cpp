@@ -25,6 +25,7 @@
 #include <memory>
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
+#include "VSConstants4.h"
 #include "version.h"
 #include "filtershared.h"
 #include "ter-116n.h"
@@ -348,11 +349,11 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
 
 static std::string fieldBasedToString(int field) {
     std::string s = "Unknown";
-    if (field == 0)
+    if (field == VSC_FIELD_PROGRESSIVE)
         s = "Frame based";
-    else if (field == 1)
+    else if (field == VSC_FIELD_BOTTOM)
         s = "Bottom field first";
-    else if (field == 2)
+    else if (field == VSC_FIELD_TOP)
         s = "Top field first";
     return s;
 }
@@ -370,119 +371,119 @@ static std::string colorFamilyToString(int cf) {
 
 static std::string chromaLocationToString(int location) {
     std::string s = "Unknown";
-    if (location == 0)
+    if (location == VSC_CHROMA_LEFT)
         s = "Left";
-    else if (location == 1)
+    else if (location == VSC_CHROMA_CENTER)
         s = "Center";
-    else if (location == 2)
+    else if (location == VSC_CHROMA_TOP_LEFT)
         s = "Top left";
-    else if (location == 3)
+    else if (location == VSC_CHROMA_TOP)
         s = "Top";
-    else if (location == 4)
+    else if (location == VSC_CHROMA_BOTTOM_LEFT)
         s = "Bottom left";
-    else if (location == 5)
+    else if (location == VSC_CHROMA_BOTTOM)
         s = "Bottom";
     return s;
 }
 
 static std::string rangeToString(int range) {
     std::string s = "Unknown";
-    if (range == 0)
+    if (range == VSC_RANGE_FULL)
         s = "Full range";
-    else if (range == 1)
+    else if (range == VSC_RANGE_LIMITED)
         s = "Limited range";
     return s;
 }
 
 static std::string matrixToString(int matrix) {
     std::string s = "Unknown";
-    if (matrix == 0)
+    if (matrix == VSC_MATRIX_RGB)
         s = "sRGB";
-    else if (matrix == 1)
+    else if (matrix == VSC_MATRIX_BT709)
         s = "BT.709";
-    else if (matrix == 4)
+    else if (matrix == VSC_MATRIX_FCC)
         s = "FCC";
-    else if (matrix == 5 || matrix  == 6)
+    else if (matrix == VSC_MATRIX_BT470_BG || matrix  == VSC_MATRIX_ST170_M)
         s = "BT.601";
-    else if (matrix == 7)
+    else if (matrix == VSC_MATRIX_ST240_M)
         s = "SMPTE 240M";
-    else if (matrix == 8)
+    else if (matrix == VSC_MATRIX_YCGCO)
         s = "YCoCg";
-    else if (matrix == 9)
+    else if (matrix == VSC_MATRIX_BT2020_NCL)
         s = "BT.2020 NCL";
-    else if (matrix == 10)
+    else if (matrix == VSC_MATRIX_BT2020_CL)
         s = "BT.2020 CL";
     else if (matrix == 11)
         s = "SMPTE 2085";
-    else if (matrix == 12)
-        s = "Cromaticity dervived cl";
-    else if (matrix == 13)
-        s = "Cromaticity dervived ncl";
-    else if (matrix == 14)
+    else if (matrix == VSC_MATRIX_CHROMATICITY_DERIVED_NCL)
+        s = "Cromaticity derived cl";
+    else if (matrix == VSC_MATRIX_CHROMATICITY_DERIVED_CL)
+        s = "Cromaticity derived ncl";
+    else if (matrix == VSC_MATRIX_ICTCP)
         s = "ICtCp";
     return s;
 }
 
 static std::string primariesToString(int primaries) {
     std::string s = "Unknown";
-    if (primaries == 1)
+    if (primaries == VSC_PRIMARIES_BT709)
         s = "BT.709";
-    else if (primaries == 4)
+    else if (primaries == VSC_PRIMARIES_BT470_M)
         s = "BT.470M";
-    else if (primaries == 5)
+    else if (primaries == VSC_PRIMARIES_BT470_BG)
         s = "BT.470BG";
-    else if (primaries == 6)
+    else if (primaries == VSC_PRIMARIES_ST170_M)
         s = "SMPTE 170M";
-    else if (primaries == 7)
+    else if (primaries == VSC_PRIMARIES_ST240_M)
         s = "SMPTE 240M";
-    else if (primaries == 8)
+    else if (primaries == VSC_PRIMARIES_FILM)
         s = "FILM";
-    else if (primaries == 9)
+    else if (primaries == VSC_PRIMARIES_BT2020)
         s = "BT.2020";
-    else if (primaries == 10)
+    else if (primaries == VSC_PRIMARIES_ST428)
         s = "SMPTE 428";
-    else if (primaries == 11)
+    else if (primaries == VSC_PRIMARIES_ST431_2)
         s = "SMPTE 431";
-    else if (primaries == 12)
+    else if (primaries == VSC_PRIMARIES_ST432_1)
         s = "SMPTE 432";
-    else if (primaries == 22)
+    else if (primaries == VSC_PRIMARIES_EBU3213_E)
         s = "JEDEC P22";
     return s;
 }
 
 static std::string transferToString(int transfer) {
         std::string s = "Unknown";
-        if (transfer == 1)
+        if (transfer == VSC_TRANSFER_BT709)
             s = "BT.709";
-        else if (transfer == 4)
+        else if (transfer == VSC_TRANSFER_BT470_M)
             s = "Gamma 2.2";
-        else if (transfer == 5)
+        else if (transfer == VSC_TRANSFER_BT470_BG)
             s = "Gamma 2.8";
-        else if (transfer == 6)
+        else if (transfer == VSC_TRANSFER_BT601)
             s = "SMPTE 170M";
-        else if (transfer == 7)
+        else if (transfer == VSC_TRANSFER_ST240_M)
             s = "SMPTE 240M";
-        else if (transfer == 8)
+        else if (transfer == VSC_TRANSFER_LINEAR)
             s = "Linear";
-        else if (transfer == 9)
+        else if (transfer == VSC_TRANSFER_LOG_100)
             s = "Logaritmic (100:1 range)";
-        else if (transfer == 10)
+        else if (transfer == VSC_TRANSFER_LOG_316)
             s = "Logaritmic (100 * Sqrt(10) : 1 range)";
-        else if (transfer == 11)
+        else if (transfer == VSC_TRANSFER_IEC_61966_2_4)
             s = "IEC 61966-2-4";
         else if (transfer == 12)
             s = "BT.1361 Extended Colour Gamut";
-        else if (transfer == 13)
+        else if (transfer == VSC_TRANSFER_IEC_61966_2_1)
             s = "IEC 61966-2-1";
-        else if (transfer == 14)
+        else if (transfer == VSC_TRANSFER_BT2020_10)
             s = "BT.2020 for 10 bit system";
-        else if (transfer == 15)
+        else if (transfer == VSC_TRANSFER_BT2020_12)
             s = "BT.2020 for 12 bit system";
-        else if (transfer == 16)
+        else if (transfer == VSC_TRANSFER_ST2084)
             s = "SMPTE 2084";
         else if (transfer == 17)
             s = "SMPTE 428";
-        else if (transfer == 18)
+        else if (transfer == VSC_TRANSFER_ARIB_B67)
             s = "ARIB STD-B67";
         return s;
 }

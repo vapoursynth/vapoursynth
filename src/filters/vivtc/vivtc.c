@@ -31,6 +31,7 @@
 #endif
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
+#include "VSConstants4.h"
 
 // Shared
 
@@ -611,12 +612,6 @@ typedef enum {
 } FMP;
 
 typedef enum {
-    VSFieldBasedProgressive = 0,
-    VSFieldBasedBFF,
-    VSFieldBasedTFF
-} VSFieldBased;
-
-typedef enum {
     VFMOrderBFF = 0,
     VFMOrderTFF = 1
 } VFMOrder;
@@ -655,7 +650,7 @@ static const VSFrame *VS_CC vfmGetFrame(int n, int activationReason, void *insta
         int missing;
         const VSMap *props = vsapi->getFramePropertiesRO(src);
         int fieldBased = vsapi->mapGetIntSaturated(props, "_FieldBased", 0, &missing);
-        if (missing || (fieldBased != VSFieldBasedBFF && fieldBased != VSFieldBasedTFF))
+        if (missing || (fieldBased != VSC_FIELD_BOTTOM && fieldBased != VSC_FIELD_TOP))
             order = vfm->order;
         else
             order = fieldBased - 1;

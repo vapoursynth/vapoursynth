@@ -32,6 +32,7 @@
 
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
+#include "VSConstants4.h"
 #include "internalfilters.h"
 #include "version.h"
 
@@ -276,7 +277,7 @@ void import_frame_props(const VSMap *props, zimg_image_format *format, bool *int
     } else if (vsapi->mapNumElements(props, "_FieldBased") > 0) {
         int64_t x = vsapi->mapGetInt(props, "_FieldBased", 0, nullptr);
 
-        if (x != 0 && x != 1 && x != 2)
+        if (x != VSC_FIELD_PROGRESSIVE && x != VSC_FIELD_BOTTOM && x != VSC_FIELD_TOP)
             throw std::runtime_error{ "bad _FieldBased value: " + std::to_string(x) };
 
         is_interlaced = x == 1 || x == 2;
