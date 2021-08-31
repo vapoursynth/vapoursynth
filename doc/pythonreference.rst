@@ -416,11 +416,18 @@ Classes and Functions
    .. py:method:: get_read_ptr(plane)
 
       Returns a pointer to the raw frame data. The data may not be modified.
+      Note that this is a thin wrapper for the underlying
+      C-api and as such calls to *get_write_ptr*, including the ones made internally by other functions in the Python bindings,
+      may invalidate any pointers previously gotten to the frame with
+      *get_read_ptr* when called.
       
    .. py:method:: get_write_ptr(plane)
 
       Returns a pointer to the raw frame data. It may be modified using ctypes
-      or some other similar python package.
+      or some other similar python package.  Note that this is a thin wrapper for the underlying
+      C-api and as such calls to *get_write_ptr*, including the ones made internally by other functions in the Python bindings,
+      may invalidate any pointers previously gotten to the frame with
+      *get_read_ptr* when called.
       
    .. py:method:: get_stride(plane)
 
@@ -594,8 +601,8 @@ Classes and Functions
 
    .. py:attribute:: props
 
-      This attribute holds all the frame's properties as a dict. Note that frame properties are fairly
-      non-sensical as a concept for audio due to an arbitrary number of samples being lumped together.
+      This attribute holds all the frame's properties as a dict. Note that audio frame properties are fairly
+      non-sensical as a concept for audio due to an arbitrary number of samples being lumped together and rarely used.
 
    .. py:method:: copy()
 
