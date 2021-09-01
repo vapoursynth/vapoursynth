@@ -164,7 +164,7 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
     if(!error)
     {
       // Do we have utf8 filename support?
-        avs::AVSValue invUtf8[2]{ szScriptName.c_str(), true };
+      avs::AVSValue invUtf8[2]{ szScriptName.c_str(), true };
       const char *arg_names[] = { nullptr, "utf8" };
       avs::AVSValue var = Invoke("Import", avs::AVSValue(invUtf8, 2), arg_names);
       if (!var.Defined())
@@ -172,6 +172,16 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
 
       if (var.Defined()) {
         if (var.IsClip()) {
+          // Silently remap formats.
+          avs::VideoInfo script_vi = var.AsClip()->GetVideoInfo();
+
+          if (script_vi.IsRGB24())
+            var = Invoke("ConvertToRGB32", var);
+          else if (script_vi.IsYUY2())
+            var = Invoke("ConvertToYV16", var);
+          else if (script_vi.IsRGB48() || script_vi.IsRGB64())
+            var = Invoke("ConvertToPlanarRGB", var); // Drop alpha channel
+
           // Add a Cache to the graph
           var = Invoke("Cache", var);
 
@@ -215,7 +225,7 @@ void Avisynther::reportFormat(AvfsLog_* log)
 
     int msLen = (int)(1000.0 * vi.num_frames * vi.fps_denominator / vi.fps_numerator);
     log->Printf(L"  Duration: %8d frames, %02d:%02d:%02d.%03d\n", vi.num_frames,
-                          (msLen/(60*60*1000)), (msLen/(60*1000))%60 ,(msLen/1000)%60, msLen%1000); 
+                          (msLen/(60*60*1000)), (msLen/(60*1000))%60 ,(msLen/1000)%60, msLen%1000);
     const char* c_space = "";
     if      (vi.IsYV12())  c_space = "YV12";
     else if (vi.IsYV16())  c_space = "YV16";
@@ -435,7 +445,9 @@ avs::PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
           success = true;
           VideoInfoAdapter via = GetVideoInfo();
 
-          if (NeedsPacking(via.vf, via.alt_output)) {
+          if (vi.IsRGB32()) {
+              vsh::bitblt(packedFrame.data(), f->GetRowSize(), f->GetReadPtr(), f->GetPitch(), f->GetRowSize(), f->GetHeight());
+          } else if (NeedsPacking(via.vf, via.alt_output)) {
               const uint8_t *src[3] = {};
               ptrdiff_t src_stride[3] = {};
 
