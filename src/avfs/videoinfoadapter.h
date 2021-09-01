@@ -74,6 +74,12 @@ public:
         height = vi->height;
         num_audio_samples = vi->num_audio_samples;
 
+        // Minimum supported version is AVS 2.6. Only required interleaved format is BGR32.
+        if (!vi->IsPlanar() && !vi->IsRGB32()) {
+            vf.colorFamily = ::cfUndefined;
+            return;
+        }
+
         int subsampling_w = 0;
         int subsampling_h = 0;
 
