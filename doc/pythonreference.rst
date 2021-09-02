@@ -159,6 +159,9 @@ associated with it. It is possible to access the raw data using either
 A more Python friendly wrapping is also available where each plane/channel can be accessed
 as a Python array using *frame[plane/channel]*.
 
+For backward compatibility reasons, the VideoFrame class also provides *get_read_array(plane)*
+and *get_write_array(plane)*, which return *numpy.ndarray* for full PEP-3118 compliance.
+
 To get a frame simply call *get_frame(n)* on a clip. Should you desire to get
 all frames in a clip, use this code::
 
