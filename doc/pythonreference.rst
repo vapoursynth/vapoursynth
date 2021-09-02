@@ -490,11 +490,11 @@ Classes and Functions
 
 .. py:class:: AudioNode
 
-   Represents a video clip. The class itself supports indexing and slicing to
+   Represents an audio clip. The class itself supports indexing and slicing to
    perform trim, reverse and selectevery operations. Several operators are also
-   defined for the VideoNode class: addition appends clips and multiplication
-   repeats them. Note that slicing and indexing always return a new VideoNode
-   object and not a VideoFrame.
+   defined for the AudioNode class: addition appends clips and multiplication
+   repeats them. Note that slicing and indexing always return a new AudioNode
+   object and not a AudioFrame.
 
    .. py:attribute:: sample_type
 
