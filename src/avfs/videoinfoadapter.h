@@ -74,34 +74,38 @@ public:
         height = vi->height;
         num_audio_samples = vi->num_audio_samples;
 
-        // Minimum supported version is AVS 2.6. Only required interleaved format is BGR32.
-        if (!vi->IsPlanar() && !vi->IsRGB32()) {
-            vf.colorFamily = ::cfUndefined;
-            return;
-        }
-
-        int subsampling_w = 0;
-        int subsampling_h = 0;
-
-        if (vi->IsYUV() && vi->IsPlanar()) {
-            subsampling_w = vi->GetPlaneWidthSubsampling(avs::PLANAR_U);
-            subsampling_h = vi->GetPlaneHeightSubsampling(avs::PLANAR_U);
-        }
-
-        bool hasSubSampling = vi->IsYUV();
-        vf.colorFamily = vi->IsYUV() ? cfYUV : (vi->IsRGB() ? cfRGB : (vi->IsY() ? cfGray : cfUndefined));
-        if (vf.colorFamily != cfUndefined) {
-            vf.sampleType = vi->BitsPerComponent() == 32 ? stFloat : stInteger;
-            vf.bitsPerSample = vi->BitsPerComponent();
-            if (vf.bitsPerSample <= 8)
-                vf.bytesPerSample = 1;
-            else if (vf.bitsPerSample <= 16)
-                vf.bytesPerSample = 2;
-            else
-                vf.bytesPerSample = 4;
-            vf.subSamplingW = hasSubSampling ? vi->GetPlaneWidthSubsampling(avs::PLANAR_U) : 0;
-            vf.subSamplingH = hasSubSampling ? vi->GetPlaneHeightSubsampling(avs::PLANAR_U) : 0;
-            vf.numPlanes = (vi->IsPlanar() && (vi->IsYUV() || vi->IsRGB())) ? 3 : 1;
+        if (vi->IsPlanar()) {
+            bool hasSubSampling = vi->IsYUV();
+            vf.colorFamily = vi->IsYUV() ? cfYUV : (vi->IsRGB() ? cfRGB : (vi->IsY() ? cfGray : cfUndefined));
+            if (vf.colorFamily != cfUndefined) {
+                vf.sampleType = vi->BitsPerComponent() == 32 ? stFloat : stInteger;
+                vf.bitsPerSample = vi->BitsPerComponent();
+                if (vf.bitsPerSample <= 8)
+                    vf.bytesPerSample = 1;
+                else if (vf.bitsPerSample <= 16)
+                    vf.bytesPerSample = 2;
+                else
+                    vf.bytesPerSample = 4;
+                vf.subSamplingW = hasSubSampling ? vi->GetPlaneWidthSubsampling(avs::PLANAR_U) : 0;
+                vf.subSamplingH = hasSubSampling ? vi->GetPlaneHeightSubsampling(avs::PLANAR_U) : 0;
+                vf.numPlanes = (vi->IsYUV() || vi->IsRGB()) ? 3 : 1;
+            }
+        } else if (vi->IsRGB24()) {
+            vf.colorFamily = static_cast<VSColorFamily>(-static_cast<int>(cfRGB));
+            vf.bitsPerSample = 24;
+            vf.bytesPerSample = 3;
+            vf.numPlanes = 1;
+        } else if (vi->IsRGB32()) {
+            vf.colorFamily = static_cast<VSColorFamily>(-static_cast<int>(cfRGB));
+            vf.bitsPerSample = 32;
+            vf.bytesPerSample = 4;
+            vf.numPlanes = 1;
+        } else if (vi->IsYUY2()) {
+            vf.colorFamily = static_cast<VSColorFamily>(-static_cast<int>(cfYUV));
+            vf.bitsPerSample = 16;
+            vf.bytesPerSample = 2;
+            vf.subSamplingW = 1;
+            vf.numPlanes = 1;
         }
     };
 

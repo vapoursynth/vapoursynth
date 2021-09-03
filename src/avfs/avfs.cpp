@@ -172,15 +172,9 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
 
       if (var.Defined()) {
         if (var.IsClip()) {
-          // Silently remap formats.
-          avs::VideoInfo script_vi = var.AsClip()->GetVideoInfo();
-
-          if (script_vi.IsRGB24())
-            var = Invoke("ConvertToRGB32", var);
-          else if (script_vi.IsYUY2())
-            var = Invoke("ConvertToYV16", var);
-          else if (script_vi.IsRGB48() || script_vi.IsRGB64())
-            var = Invoke("ConvertToPlanarRGB", var); // Drop alpha channel
+          // AVS+ interleaved RGB has the wrong channel order and can't be passed-through!
+          if (var.AsClip()->GetVideoInfo().IsRGB48() || var.AsClip()->GetVideoInfo().IsRGB64())
+            var = Invoke("ConvertToPlanarRGB", var);
 
           // Add a Cache to the graph
           var = Invoke("Cache", var);
@@ -196,10 +190,10 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
           if (!HasSupportedFourCC(VideoInfoAdapter(&vi, this, alt_output).vf)) {
               setError("AVFS module doesn't support output of the current format");
               error = ERROR_ACCESS_DENIED;
+          } else {
+              packedFrame.clear();
+              packedFrame.resize(BMPSize());
           }
-
-          packedFrame.clear();
-          packedFrame.resize(BMPSize());
         }
         else {
           setError("The script's return value was not a video clip.");
@@ -445,9 +439,7 @@ avs::PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
           success = true;
           VideoInfoAdapter via = GetVideoInfo();
 
-          if (vi.IsRGB32()) {
-              vsh::bitblt(packedFrame.data(), f->GetRowSize(), f->GetReadPtr(), f->GetPitch(), f->GetRowSize(), f->GetHeight());
-          } else if (NeedsPacking(via.vf, via.alt_output)) {
+          if (NeedsPacking(via.vf, via.alt_output)) {
               const uint8_t *src[3] = {};
               ptrdiff_t src_stride[3] = {};
 
