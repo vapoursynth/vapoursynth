@@ -196,10 +196,10 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
           if (!HasSupportedFourCC(VideoInfoAdapter(&vi, this, alt_output).vf)) {
               setError("AVFS module doesn't support output of the current format");
               error = ERROR_ACCESS_DENIED;
+          } else {
+              packedFrame.clear();
+              packedFrame.resize(BMPSize());
           }
-
-          packedFrame.clear();
-          packedFrame.resize(BMPSize());
         }
         else {
           setError("The script's return value was not a video clip.");
