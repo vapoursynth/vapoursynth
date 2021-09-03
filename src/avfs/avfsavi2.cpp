@@ -1160,7 +1160,7 @@ static void copyPlaneAvs(
     if (NeedsUVSwap(fi, alt_output)) {
       if (plane == avs::PLANAR_V)
         plane = avs::PLANAR_U;
-      else if (plane = avs::PLANAR_U)
+      else if (plane == avs::PLANAR_U)
         plane = avs::PLANAR_V;
     }
 
@@ -1205,7 +1205,7 @@ static void copyPlaneVS(
         if (NeedsUVSwap(fi, alt_output)) {
             if (plane == 2)
                 plane = 1;
-            else if (plane = 1)
+            else if (plane == 1)
                 plane = 2;
         }
 
