@@ -28,6 +28,9 @@
 
 namespace {
 
+constexpr VSColorFamily cfPackedRGB = static_cast<VSColorFamily>(-static_cast<int>(cfRGB));
+constexpr VSColorFamily cfPackedYUV = static_cast<VSColorFamily>(-static_cast<int>(cfYUV));
+
 constexpr unsigned UPSIDE_DOWN = 1;
 constexpr unsigned SWAP_UV = 2;
 constexpr unsigned NV_PACKED = 4;
@@ -71,6 +74,11 @@ constexpr Traits fourcc_traits[] = {
     { cfYUV,  stInteger, 16, 1, 0, 0, VS_FCC('P216'), p2p_p216_le,    2, 1,  0, NV_PACKED },
     { cfYUV,  stInteger, 10, 0, 0, 0, VS_FCC('Y410'), p2p_y410_le,    4, 1, 32 },
     { cfYUV,  stInteger, 16, 0, 0, 0, VS_FCC('Y416'), p2p_y416_le,    8, 1, 64 },
+
+    // AVS commpatibility formats.
+    { cfPackedRGB, stInteger, 24, 0, 0, 0, VS_FCC('DIB '), PLANAR, 3, 1, 24, 0, 4 }, // AVS is already upside down!
+    { cfPackedRGB, stInteger, 32, 0, 0, 0, VS_FCC('DIB '), PLANAR, 4, 1, 32, 0, 4 },
+    { cfPackedYUV, stInteger, 16, 1, 0, 0, VS_FCC('YUY2'), PLANAR, 2, 1, 16 },
 };
 
 const Traits *find_traits(const VSVideoFormat &fi, int alt_output) {
@@ -128,7 +136,7 @@ int BMPSize(const VSVideoInfo *vi, int alt_output) {
         int lumarowsize = RowSizePlanar(vi->width, vi->format.bytesPerSample, traits);
         int lumasize = lumarowsize * vi->height;
 
-        if (vi->format.colorFamily == cfGray)
+        if (vi->format.colorFamily == cfGray || vi->format.colorFamily == cfPackedRGB || vi->format.colorFamily == cfPackedYUV)
             return lumasize;
 
         assert(vi->format.numPlanes == 3);
