@@ -50,7 +50,6 @@ struct AssData {
 
     int lastn;
     VSFrame *lastframe;
-    VSFrame *lastalpha;
 
     const char *file;
     const char *text;
@@ -212,10 +211,9 @@ static const VSFrame *VS_CC assGetFrame(int n, int activationReason,
                                                  NULL, core);
 
             assRender(dst, a, vsapi, img);
+            vsapi->mapConsumeFrame(vsapi->getFramePropertiesRW(dst), "_Alpha", a, maAppend);
             vsapi->freeFrame(d->lastframe);
-            vsapi->freeFrame(d->lastalpha);
             d->lastframe = dst;
-            d->lastalpha = a;
         }
 
         d->lastn = n;
@@ -472,24 +470,23 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         }
     }
 
-    d.lastframe = vsapi->newVideoFrame(&d.vi[0].format,
+    VSFrame *frame = vsapi->newVideoFrame(&d.vi[0].format,
                                        d.vi[0].width,
                                        d.vi[0].height,
                                        NULL, core);
 
-    d.lastalpha = vsapi->newVideoFrame(&d.vi[1].format,
+    VSFrame *alpha = vsapi->newVideoFrame(&d.vi[1].format,
                                        d.vi[1].width,
                                        d.vi[1].height,
                                        NULL, core);
 
-    for (int p = 0; p < 4; p++) {
-        VSFrame *frame = p == 3 ? d.lastalpha : d.lastframe;
-        int plane = p % 3;
+    for (int p = 0; p < d.vi[0].format.numPlanes; p++)
+        memset(vsapi->getWritePtr(frame, plane), 0, vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
+    memset(vsapi->getWritePtr(alpha, 0), 0, vsapi->getStride(alpha, 0) *vsapi->getFrameHeight(alpha, 0));
 
-        memset(vsapi->getWritePtr(frame, plane),
-               0,
-               vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
-    }
+    vsapi->mapConsumeFrame(vsapi->getFramePropertiesRW(frame), "_Alpha", alpha, maAppend);
+
+    d->lastframe = frame;
 
     data = malloc(sizeof(d));
     *data = d;
