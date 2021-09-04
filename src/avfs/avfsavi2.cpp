@@ -1249,13 +1249,13 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
       const VSAPI *vsapi = vssynther->GetVSApi();
       const VSFrame *frame = vssynther->GetFrame(log, n, &success);
       if (success) {
-          VideoInfoAdapter via = avssynther->GetVideoInfo();
+          VideoInfoAdapter via = vssynther->GetVideoInfo();
           if (NeedsPacking(via.vf, via.alt_output)) {
               memcpy(buffer, vssynther->GetPackedFrame() + offset, size);
           } else {
               copyPlaneVS(via.vf, buffer, offset, size, frame, 0, (via.vf.numPlanes == 1) ? 3 : 0, via.alt_output, vsapi);
-              copyPlaneVS(via.vf, buffer, offset, size, frame, 1, 0, via.alt_output, vsapi);
               copyPlaneVS(via.vf, buffer, offset, size, frame, 2, 0, via.alt_output, vsapi);
+              copyPlaneVS(via.vf, buffer, offset, size, frame, 1, 0, via.alt_output, vsapi);
               ASSERT(size == 0);
           }
       }
