@@ -480,7 +480,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
                                        d.vi[1].height,
                                        NULL, core);
 
-    for (int p = 0; p < d.vi[0].format.numPlanes; p++)
+    for (int plane = 0; plane < d.vi[0].format.numPlanes; plane++)
         memset(vsapi->getWritePtr(frame, plane), 0, vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
     memset(vsapi->getWritePtr(alpha, 0), 0, vsapi->getStride(alpha, 0) *vsapi->getFrameHeight(alpha, 0));
 
