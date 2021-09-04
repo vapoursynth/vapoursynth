@@ -766,7 +766,7 @@ void Volume::ProcessScript(void)
             // errors through error log file.
         scriptFile = file;
         static HMODULE lib = LoadLibrary(L"VSScript.dll");
-        if (!sscmpi(ssrchr(scriptFile->name, '.'), L".vpy") && lib && getVSScriptAPI(VSSCRIPT_API_VERSION))
+        if ((!sscmpi(ssrchr(scriptFile->name, '.'), L".vpy") || !sscmpi(ssrchr(scriptFile->name, '.'), L".py")) && lib && getVSScriptAPI(VSSCRIPT_API_VERSION))
             VsfsProcessScript(this, this);
         else
             AvfsProcessScript(this, this);
