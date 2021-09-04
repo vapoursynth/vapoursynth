@@ -2458,7 +2458,8 @@ cdef class Function(object):
 
         tname = self.name.encode('utf-8')
         cname = tname
-        outm = self.funcs.invoke(self.plugin.plugin, cname, inm)
+        with nogil:
+            outm = self.funcs.invoke(self.plugin.plugin, cname, inm)
         self.funcs.freeMap(inm)
         cdef const char *err = self.funcs.mapGetError(outm)
         cdef bytes emsg
