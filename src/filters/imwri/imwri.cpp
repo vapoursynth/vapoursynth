@@ -53,6 +53,10 @@
 #error ImageMagick must be compiled with HDRI enabled
 #endif
 
+#if defined(MAGICKCORE_LCMS_DELEGATE)
+#define IMWRI_HAS_LCMS2
+#endif
+
 // Because proper namespace handling is too hard for ImageMagick shitvelopers
 using MagickCore::Quantum;
 
@@ -521,6 +525,10 @@ struct ReadData {
     bool mismatch;
     bool fileListMode;
     bool floatOutput;
+    int cachedFrameNum;
+    bool cachedAlpha;
+    bool embedICC;
+    const VSFrameRef *cachedFrame;
 
     ReadData() : fileListMode(true) {};
 };
@@ -723,6 +731,14 @@ static const VSFrame *VS_CC readGetFrame(int n, int activationReason, void *inst
             } else if (fi->bytesPerSample == 1) {
                 readImageHelper<uint8_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
             }
+#if defined(IMWRI_HAS_LCMS2)
+            if (d->embedICC) {
+                const MagickCore::StringInfo *icc_profile = MagickCore::GetImageProfile(image.constImage(), "icc");
+                if (icc_profile) {
+                    vsapi->propSetData(vsapi->getFramePropsRW(frame), "_ICCProfile", reinterpret_cast<const char *>(icc_profile->datum), icc_profile->length, paReplace);
+                }
+            }
+#endif
         } catch (Magick::Exception &e) {
             vsapi->setFilterError((std::string("Read: ImageMagick error: ") + e.what()).c_str(), frameCtx);
             vsapi->freeFrame(frame);
@@ -758,7 +774,11 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     d->alpha = !!vsapi->mapGetInt(in, "alpha", 0, &err);
     d->mismatch = !!vsapi->mapGetInt(in, "mismatch", 0, &err);
     d->floatOutput = !!vsapi->mapGetInt(in, "float_output", 0, &err);
-
+#if defined(IMWRI_HAS_LCMS2)
+    d->embedICC = !!vsapi->propGetInt(in, "embed_icc", 0, &err);
+#else
+    d->embedICC = false;
+#endif
     int numElem = vsapi->mapNumElements(in, "filename");
     d->filenames.resize(numElem);
     for (int i = 0; i < numElem; i++)
@@ -822,5 +842,5 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin(IMWRI_ID, IMWRI_NAMESPACE, IMWRI_PLUGIN_NAME, VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;compression_type:data:opt;overwrite:int:opt;alpha:clip:opt;", "clip:vnode;", writeCreate, nullptr, plugin);
-    vspapi->registerFunction("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;float_output:int:opt;", "clip:vnode;", readCreate, nullptr, plugin);
+    vspapi->registerFunction("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;float_output:int:opt;embed_icc:int:opt;", "clip:vnode;", readCreate, nullptr, plugin);
 }

@@ -43,7 +43,7 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
          A grayscale clip containing the alpha channel for the image to write. Apart from being grayscale, its properties must be identical to the main *clip*.
         
 
-.. function:: Read(string[] filename[, int firstnum=0, bint mismatch=False, bint alpha=False, bint float_output = False])
+.. function:: Read(string[] filename[, int firstnum=0, bint mismatch=False, bint alpha=False, bint float_output = False, bint embed_icc = False])
    :module: imwri
 
    Possible output formats when reading: 8-16 bit integer and 32 bit float
@@ -67,3 +67,6 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
 
       float_output
          Always return the read image in a float format. Due to the output format guessing this option can be useful when reading half precision float images.
+
+      embed_icc
+         For each read image, if an embedded ICC profile is found, it will be attached via the frame property ``_ICCProfile``. If IMWRI is not built with Little CMS support, this option is forced disabled.
