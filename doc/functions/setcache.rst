@@ -2,7 +2,7 @@ SetAudioCache/SetVideoCache
 ===========================
 
 .. function:: SetAudioCache(anode clip[, int mode, int fixedsize, int maxsize, int historysize])
-.. function:: SetVideoCache(vnode clip[, int mode, int fixedsize, int maxsize, int historysize])
+              SetVideoCache(vnode clip[, int mode, int fixedsize, int maxsize, int historysize])
    :module: std
 
    Every filter node has a cache associated with it that
