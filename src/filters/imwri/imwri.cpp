@@ -528,7 +528,7 @@ struct ReadData {
     int cachedFrameNum;
     bool cachedAlpha;
     bool embedICC;
-    const VSFrameRef *cachedFrame;
+    const VSFrame *cachedFrame;
 
     ReadData() : fileListMode(true) {};
 };
@@ -735,7 +735,7 @@ static const VSFrame *VS_CC readGetFrame(int n, int activationReason, void *inst
             if (d->embedICC) {
                 const MagickCore::StringInfo *icc_profile = MagickCore::GetImageProfile(image.constImage(), "icc");
                 if (icc_profile) {
-                    vsapi->propSetData(vsapi->getFramePropsRW(frame), "_ICCProfile", reinterpret_cast<const char *>(icc_profile->datum), icc_profile->length, paReplace);
+                    vsapi->mapSetData(vsapi->getFramePropertiesRW(frame), "_ICCProfile", reinterpret_cast<const char *>(icc_profile->datum), icc_profile->length, dtBinary, maReplace);
                 }
             }
 #endif
@@ -775,7 +775,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     d->mismatch = !!vsapi->mapGetInt(in, "mismatch", 0, &err);
     d->floatOutput = !!vsapi->mapGetInt(in, "float_output", 0, &err);
 #if defined(IMWRI_HAS_LCMS2)
-    d->embedICC = !!vsapi->propGetInt(in, "embed_icc", 0, &err);
+    d->embedICC = !!vsapi->mapGetInt(in, "embed_icc", 0, &err);
 #else
     d->embedICC = false;
 #endif
