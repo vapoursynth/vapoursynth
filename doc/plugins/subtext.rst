@@ -168,7 +168,7 @@ Example with manual blending::
 
    subs = core.sub.TextFile(clip=YUV420P10_video, file="asdf.ass", blend=False)
 
-   gray10 = core.register_format(subs[1].format.color_family,
+   gray10 = core.query_video_format(subs[1].format.color_family,
                                  YUV420P10_video.format.sample_type,
                                  YUV420P10_video.format.bits_per_sample,
                                  subs[1].format.subsampling_w,
