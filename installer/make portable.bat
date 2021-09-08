@@ -33,6 +33,10 @@ copy plugins64\* buildp64\vapoursynth64\coreplugins
 copy ..\include\VapourSynth.h buildp64\sdk\include
 copy ..\include\VSHelper.h buildp64\sdk\include
 copy ..\include\VSScript.h buildp64\sdk\include
+copy ..\include\VapourSynth4.h buildp64\sdk\include
+copy ..\include\VSHelper4.h buildp64\sdk\include
+copy ..\include\VSScript4.h buildp64\sdk\include
+copy ..\include\VSConstants4.h buildp64\sdk\include
 copy ..\msvc_project\Release\vapoursynth.lib buildp64\sdk\lib32
 copy ..\msvc_project\Release\vsscript.lib buildp64\sdk\lib32
 copy ..\msvc_project\x64\Release\vapoursynth.lib buildp64\sdk\lib64
@@ -87,6 +91,10 @@ copy plugins32\* buildp32\vapoursynth32\coreplugins
 copy ..\include\VapourSynth.h buildp32\sdk\include
 copy ..\include\VSHelper.h buildp32\sdk\include
 copy ..\include\VSScript.h buildp32\sdk\include
+copy ..\include\VapourSynth4.h buildp32\sdk\include
+copy ..\include\VSHelper4.h buildp32\sdk\include
+copy ..\include\VSScript4.h buildp32\sdk\include
+copy ..\include\VSConstants4.h buildp32\sdk\include
 copy ..\msvc_project\Release\vapoursynth.lib buildp32\sdk\lib32
 copy ..\msvc_project\Release\vsscript.lib buildp32\sdk\lib32
 copy ..\msvc_project\x64\Release\vapoursynth.lib buildp32\sdk\lib64
