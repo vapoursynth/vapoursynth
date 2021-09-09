@@ -52,4 +52,3 @@ Run `make_portable.bat` and `make_installers.bat` to package things.
 
 ## Additional notes
 Note that the Avisynth side of AVFS won't work properly in debug builds (memory allocation and exceptions across module boundaries trolololol)
-Likewise AviSource can only be compiled as a release build (or debug versions of functions that aren't present are referenced)

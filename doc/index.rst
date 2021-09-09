@@ -11,7 +11,6 @@ Contents:
    pythonreference  
    avfs
    applications
-   avisynthcomp
    includedplugins
    functions
    vspipe
