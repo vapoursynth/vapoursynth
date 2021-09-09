@@ -45,7 +45,7 @@ int vs_cpulevel_from_str(const char *name);
 const char *vs_cpulevel_to_str(int level);
 
 #ifdef __cplusplus
-}
+} // extern "C"
 #endif
 
 #endif

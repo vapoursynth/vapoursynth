@@ -688,6 +688,7 @@ void vs_generic_1d_conv_v_byte_c(const void *src, ptrdiff_t src_stride, void *ds
 {
     conv_plane_v<uint8_t>(src, src_stride, dst, dst_stride, *params, width, height);
 }
+
 void vs_generic_1d_conv_v_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
     conv_plane_v<uint16_t>(src, src_stride, dst, dst_stride, *params, width, height);

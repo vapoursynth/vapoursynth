@@ -18,8 +18,6 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#ifdef VS_TARGET_CPU_X86
-
 #include <stddef.h>
 #include <stdint.h>
 #include <emmintrin.h>
@@ -182,5 +180,3 @@ void vs_transpose_plane_dword_sse2(const void * VS_RESTRICT src, ptrdiff_t src_s
 {
     transpose_plane_dword(src, src_stride, dst, dst_stride, width, height);
 }
-
-#endif

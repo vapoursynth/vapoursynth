@@ -172,7 +172,7 @@ static void transpose_plane_dword(const void * VS_RESTRICT src, ptrdiff_t src_st
         }
     }
 }
-#endif
+#endif /* VS_TRANSPOSE_IMPL */
 
 #ifdef __cplusplus
 }

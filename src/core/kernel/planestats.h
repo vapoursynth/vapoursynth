@@ -71,13 +71,13 @@ DECL_1(float, avx2)
 DECL_2(byte, avx2)
 DECL_2(word, avx2)
 DECL_2(float, avx2)
-#endif
+#endif /* VS_TARGET_CPU_X86 */
 
 #undef DECL_2
 #undef DECL_1
 
 #ifdef __cplusplus
-}
+} // extern "C"
 #endif
 
 #endif

@@ -99,7 +99,7 @@ DECL_MAKEDIFF(float, avx2)
 DECL_MERGEDIFF(byte, avx2)
 DECL_MERGEDIFF(word, avx2)
 DECL_MERGEDIFF(float, avx2)
-#endif
+#endif /* VS_TARGET_CPU_X86 */
 
 #undef DECL_MERGEDIFF
 #undef DECL_MAKEDIFF
@@ -108,15 +108,17 @@ DECL_MERGEDIFF(float, avx2)
 #undef DECL_MERGE
 
 #ifdef VS_MERGE_IMPL
-// Magic divisors from: https://www.hackersdelight.org/magic.htm
-// Signed coefficients used for up to 15-bit, unsigned for 16-bit.
-// Only 16-bit data can occupy all 32 intermediate bits.
+/*
+* Magic divisors from : https://www.hackersdelight.org/magic.htm
+* Signed coefficients used for up to 15-bit, unsigned for 16-bit.
+* Only 16-bit data can occupy all 32 intermediate bits.
+*/
 static const uint32_t div_table[8] = { 0x80402011, 0x80200803, 0x80100201, 0x80080081, 0x80040021, 0x80020009, 0x80010003, 0x80008001 };
 static const uint8_t shift_table[8] = { 8, 9, 10, 11, 12, 13, 14, 15 };
 #endif
 
 #ifdef __cplusplus
-}
+} // extern "C"
 #endif
 
 #endif // MERGE_H

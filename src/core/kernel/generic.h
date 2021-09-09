@@ -161,13 +161,13 @@ DECL_3x3(inflate, float, avx2)
 DECL_3x3(conv, byte, avx2)
 DECL_3x3(conv, word, avx2)
 DECL_3x3(conv, float, avx2)
-#endif
+#endif /* VS_TARGET_CPU_X86 */
 
 #undef DECL_3x3
 #undef DECL
 
 #ifdef __cplusplus
-}
+} // extern "C"
 #endif
 
 #endif
