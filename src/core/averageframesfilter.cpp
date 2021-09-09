@@ -642,6 +642,6 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
 ///////////////////////////////////////
 // Init
 
-void VS_CC averageFramesInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+void averageFramesInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("AverageFrames", "clips:vnode[];weights:float[];scale:float:opt;scenechange:int:opt;planes:int[]:opt;", "clip:vnode;", averageFramesCreate, 0, plugin);
 }
