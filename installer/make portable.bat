@@ -23,13 +23,6 @@ copy ..\msvc_project\x64\Release\avfs.exe buildp64
 copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
 copy ..\msvc_project\x64\Release\vspipe.exe buildp64
 copy ..\msvc_project\x64\Release\AvsCompat.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\EEDI3.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\MiscFilters.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\Morpho.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\RemoveGrainVS.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\Vinverse.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\VIVTC.dll buildp64\vapoursynth64\coreplugins
-copy plugins64\* buildp64\vapoursynth64\coreplugins
 copy ..\include\VapourSynth.h buildp64\sdk\include
 copy ..\include\VSHelper.h buildp64\sdk\include
 copy ..\include\VSScript.h buildp64\sdk\include
@@ -81,13 +74,6 @@ copy ..\msvc_project\Release\avfs.exe buildp32
 copy ..\msvc_project\Release\vsvfw.dll buildp32
 copy ..\msvc_project\Release\vspipe.exe buildp32
 copy ..\msvc_project\Release\AvsCompat.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\EEDI3.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\MiscFilters.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\Morpho.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\RemoveGrainVS.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\Vinverse.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\VIVTC.dll buildp32\vapoursynth32\coreplugins
-copy plugins32\* buildp32\vapoursynth32\coreplugins
 copy ..\include\VapourSynth.h buildp32\sdk\include
 copy ..\include\VSHelper.h buildp32\sdk\include
 copy ..\include\VSScript.h buildp32\sdk\include
