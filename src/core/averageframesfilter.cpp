@@ -29,8 +29,8 @@
 #include <vector>
 #include <VapourSynth4.h>
 #include <VSHelper4.h>
-#include "../src/core/filtershared.h"
-#include "../src/core/version.h"
+#include "filtershared.h"
+#include "version.h"
 
 #ifdef VS_TARGET_CPU_X86
 #include <emmintrin.h>
@@ -38,7 +38,6 @@
 
 namespace {
 std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
-} // namespace
 
 using namespace vsh;
 
@@ -629,6 +628,8 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
     vsapi->createVideoFilter(out, "AverageFrames", &d->vi, averageFramesGetFrame, filterFree<AverageFrameData>, fmParallel, deps.data(), numNodes, d.get(), core);
     d.release();
 }
+
+} // namespace
 
 ///////////////////////////////////////
 // Init
