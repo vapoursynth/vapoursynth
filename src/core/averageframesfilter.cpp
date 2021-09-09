@@ -92,7 +92,7 @@ static void averageFramesI(const AverageFrameData *d, const VSFrame * const *src
                 acc += static_cast<int>(val) * d->weights[i];
             }
 
-            acc = (acc + round) / scale;
+            acc = (acc + round) / scale + bias;
             acc = std::min(std::max(acc, 0), static_cast<int>(maxVal));
             dstp[w] = static_cast<T>(acc);
         }
