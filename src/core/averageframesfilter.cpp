@@ -31,6 +31,7 @@
 #include <VSHelper4.h>
 #include "filtershared.h"
 #include "version.h"
+#include "kernel/cpulevel.h"
 
 #ifdef VS_TARGET_CPU_X86
 #include <emmintrin.h>
@@ -508,23 +509,30 @@ static const VSFrame *VS_CC averageFramesGetFrame(int n, int activationReason, v
             }
         }
 
+        decltype(&averageFramesI<uint8_t>) func = nullptr;
+
+#ifdef VS_TARGET_CPU_X86
+        if (vs_get_cpulevel(core) >= VS_CPU_LEVEL_SSE2) {
+            if (fi->bytesPerSample == 1)
+                func = averageFramesByteSSE2;
+            else if (fi->bytesPerSample == 2)
+                func = averageFramesWordSSE2;
+            else
+                func = averageFramesFloatSSE2;
+        }
+#endif
+        if (!func) {
+            if (fi->bytesPerSample == 1)
+                func = averageFramesI<uint8_t>;
+            else if (fi->bytesPerSample == 2)
+                func = averageFramesI<uint16_t>;
+            else
+                func = averageFramesF;
+        }
+
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             if (d->process[plane]) {
-#ifdef VS_TARGET_CPU_X86
-                if (fi->bytesPerSample == 1)
-                    averageFramesByteSSE2(d, frames.data(), dst, plane, vsapi);
-                else if (fi->bytesPerSample == 2)
-                    averageFramesWordSSE2(d, frames.data(), dst, plane, vsapi);
-                else
-                    averageFramesFloatSSE2(d, frames.data(), dst, plane, vsapi);
-#else
-                if (fi->bytesPerSample == 1)
-                    averageFramesI<uint8_t>(d, frames.data(), dst, plane, vsapi);
-                else if (fi->bytesPerSample == 2)
-                    averageFramesI<uint16_t>(d, frames.data(), dst, plane, vsapi);
-                else
-                    averageFramesF(d, frames.data(), dst, plane, vsapi);
-#endif
+                func(d, frames.data(), dst, plane, vsapi);
             }
         }
 
