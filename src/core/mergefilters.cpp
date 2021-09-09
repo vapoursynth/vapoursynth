@@ -720,7 +720,7 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
 //////////////////////////////////////////
 // Init
 
-void VS_CC mergeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+void mergeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("PreMultiply", "clip:vnode;alpha:vnode;", "clip:vnode;", preMultiplyCreate, 0, plugin);
     vspapi->registerFunction("Merge", "clipa:vnode;clipb:vnode;weight:float[]:opt;", "clip:vnode;", mergeCreate, 0, plugin);
     vspapi->registerFunction("MaskedMerge", "clipa:vnode;clipb:vnode;mask:vnode;planes:int[]:opt;first_plane:int:opt;premultiplied:int:opt;", "clip:vnode;", maskedMergeCreate, 0, plugin);

@@ -399,6 +399,6 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
 //////////////////////////////////////////
 // Init
 
-void VS_CC boxBlurInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+void boxBlurInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("BoxBlur", "clip:vnode;planes:int[]:opt;hradius:int:opt;hpasses:int:opt;vradius:int:opt;vpasses:int:opt;", "clip:vnode;", boxBlurCreate, 0, plugin);
 }

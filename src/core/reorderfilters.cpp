@@ -697,7 +697,7 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
 //////////////////////////////////////////
 // Init
 
-void VS_CC reorderInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+void reorderInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Trim", "clip:vnode;first:int:opt;last:int:opt;length:int:opt;", "clip:vnode;", trimCreate, 0, plugin);
     vspapi->registerFunction("Reverse", "clip:vnode;", "clip:vnode;", reverseCreate, 0, plugin);
     vspapi->registerFunction("Loop", "clip:vnode;times:int:opt;", "clip:vnode;", loopCreate, 0, plugin);

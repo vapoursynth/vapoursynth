@@ -532,7 +532,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 //////////////////////////////////////////
 // Init
 
-void VS_CC lutInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+void lutInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Lut", "clip:vnode;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", "clip:vnode;", lutCreate, 0, plugin);
     vspapi->registerFunction("Lut2", "clipa:vnode;clipb:vnode;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", "clip:vnode;", lut2Create, 0, plugin);
 }

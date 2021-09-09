@@ -3603,6 +3603,6 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 //////////////////////////////////////////
 // Init
 
-void VS_CC exprInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+void exprInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Expr", "clips:vnode[];expr:data[];format:int:opt;", "clip:vnode;", exprCreate, nullptr, plugin);
 }

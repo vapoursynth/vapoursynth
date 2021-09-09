@@ -1047,7 +1047,7 @@ static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, V
 //////////////////////////////////////////
 // Init
 
-void VS_CC audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+void audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("AudioTrim", "clip:anode;first:int:opt;last:int:opt;length:int:opt;", "clip:anode;", audioTrimCreate, 0, plugin);
     vspapi->registerFunction("AudioSplice", "clips:anode[];", "clip:anode;", audioSpliceCreate, 0, plugin);
     vspapi->registerFunction("AudioLoop", "clip:anode;times:int:opt;", "clip:anode;", audioLoopCreate, 0, plugin);

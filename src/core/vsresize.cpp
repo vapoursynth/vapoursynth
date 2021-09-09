@@ -854,7 +854,7 @@ const VSFrame * VS_CC vszimg_get_frame(int n, int activationReason, void *instan
 } // namespace
 
 
-void VS_CC resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
 #define INT_OPT(x) #x ":int:opt;"
 #define FLOAT_OPT(x) #x ":float:opt;"
 #define DATA_OPT(x) #x ":data:opt;"

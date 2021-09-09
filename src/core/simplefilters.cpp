@@ -2457,7 +2457,7 @@ static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore 
 //////////////////////////////////////////
 // Init
 
-void VS_CC stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Cache", "clip:vnode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:vnode;", createCacheFilter, nullptr, plugin); 
     vspapi->registerFunction("CropAbs", "clip:vnode;width:int;height:int;left:int:opt;top:int:opt;x:int:opt;y:int:opt;", "clip:vnode;", cropAbsCreate, 0, plugin);
     vspapi->registerFunction("CropRel", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode;", cropRelCreate, 0, plugin);

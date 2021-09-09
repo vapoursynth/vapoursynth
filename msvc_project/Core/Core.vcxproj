@@ -187,6 +187,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\core\audiofilters.cpp" />
+    <ClCompile Include="..\..\src\core\averageframesfilter.cpp" />
     <ClCompile Include="..\..\src\core\boxblurfilter.cpp" />
     <ClCompile Include="..\..\src\core\cpufeatures.cpp" />
     <ClCompile Include="..\..\src\core\exprfilter.cpp" />

@@ -1821,6 +1821,7 @@ VSCore::VSCore(int flags) :
     genericInitialize(p, &vs_internal_vspapi);
     lutInitialize(p, &vs_internal_vspapi);
     boxBlurInitialize(p, &vs_internal_vspapi);
+    averageFramesInitialize(p, &vs_internal_vspapi);
     mergeInitialize(p, &vs_internal_vspapi);
     reorderInitialize(p, &vs_internal_vspapi);
     audioInitialize(p, &vs_internal_vspapi);

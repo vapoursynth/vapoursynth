@@ -38,6 +38,7 @@ libexprfilter_la_CPPFLAGS = $(AM_CXXFLAGS) -fno-strict-aliasing
 lib_LTLIBRARIES += libvapoursynth.la
 
 libvapoursynth_la_SOURCES = src/core/audiofilters.cpp \
+							src/core/averageframesfilter.cpp \
 							src/core/boxblurfilter.cpp \
 							src/core/cpufeatures.cpp \
 							src/core/cpufeatures.h \

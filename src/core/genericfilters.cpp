@@ -997,7 +997,7 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
 //////////////////////////
 
-void VS_CC genericInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+void genericInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Minimum",
             "clip:vnode;"
             "planes:int[]:opt;"

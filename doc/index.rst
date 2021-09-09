@@ -8,7 +8,6 @@ Contents:
 
    installation
    gettingstarted
-   plugins
    pythonreference  
    avfs
    applications
