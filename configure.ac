@@ -338,59 +338,29 @@ AM_CONDITIONAL([PYTHONMODULE], [test "x$enable_python_module" != "xno"])
 AC_ARG_ENABLE([plugins], AS_HELP_STRING([--enable-plugins], [Enable all included plugins. Each individual plugin has a switch which overrides this. (default=)]))
 
 AC_ARG_ENABLE([subtext],        AS_HELP_STRING([--enable-subtext],      [Enable the subtitle rendering plugin. Requires libass and ffmpeg. (default=auto)]))
-AC_ARG_ENABLE([eedi3],          AS_HELP_STRING([--enable-eedi3],        [Enable the eedi3 plugin. (default=yes)]))
-AC_ARG_ENABLE([imwri],          AS_HELP_STRING([--enable-imwri],        [Enable the image reader/writer plugin. Requires ImageMagick. (default=auto)]))
 AC_ARG_ENABLE([miscfilters],    AS_HELP_STRING([--enable-miscfilters],  [Enable the miscellaneous filters plugin. (default=yes)]))
-AC_ARG_ENABLE([morpho],         AS_HELP_STRING([--enable-morpho],       [Enable the morpho plugin. (default=yes)]))
-AC_ARG_ENABLE([ocr],            AS_HELP_STRING([--enable-ocr],          [Enable the ocr plugin. Requires tesseract. (default=auto)]))
-AC_ARG_ENABLE([removegrain],    AS_HELP_STRING([--enable-removegrain],  [Enable the removegrain plugin. (default=yes)]))
 AC_ARG_ENABLE([vinverse],       AS_HELP_STRING([--enable-vinverse],     [Enable the vinverse plugin. (default=yes)]))
-AC_ARG_ENABLE([vivtc],          AS_HELP_STRING([--enable-vivtc],        [Enable the vivtc plugin. (default=yes)]))
 
 subtext=""
-eedi3=""
-imwri=""
 miscfilters=""
-morpho=""
-ocr=""
-removegrain=""
 vinverse=""
-vivtc=""
 
 AS_CASE(
         [$enable_plugins],
         [yes], [
                 AS_IF([test "x$enable_subtext"      != "xno"], [subtext="yes"])
-                AS_IF([test "x$enable_eedi3"        != "xno"], [eedi3="yes"])
-                AS_IF([test "x$enable_imwri"        != "xno"], [imwri="yes"])
                 AS_IF([test "x$enable_miscfilters"  != "xno"], [miscfilters="yes"])
-                AS_IF([test "x$enable_morpho"       != "xno"], [morpho="yes"])
-                AS_IF([test "x$enable_ocr"          != "xno"], [ocr="yes"])
-                AS_IF([test "x$enable_removegrain"  != "xno"], [removegrain="yes"])
                 AS_IF([test "x$enable_vinverse"     != "xno"], [vinverse="yes"])
-                AS_IF([test "x$enable_vivtc"        != "xno"], [vivtc="yes"])
                ],
         [no], [
                 AS_IF([test "x$enable_subtext"      = "xyes"], [subtext="yes"])
-                AS_IF([test "x$enable_eedi3"        = "xyes"], [eedi3="yes"])
-                AS_IF([test "x$enable_imwri"        = "xyes"], [imwri="yes"])
                 AS_IF([test "x$enable_miscfilters"  = "xyes"], [miscfilters="yes"])
-                AS_IF([test "x$enable_morpho"       = "xyes"], [morpho="yes"])
-                AS_IF([test "x$enable_ocr"          = "xyes"], [ocr="yes"])
-                AS_IF([test "x$enable_removegrain"  = "xyes"], [removegrain="yes"])
                 AS_IF([test "x$enable_vinverse"     = "xyes"], [vinverse="yes"])
-                AS_IF([test "x$enable_vivtc"        = "xyes"], [vivtc="yes"])
               ],
         [
          AS_IF([test "x$enable_subtext"     != "xno"], [AS_IF([test "x$enable_subtext" = "xyes"], [subtext="yes"], [subtext="auto"])])
-         AS_IF([test "x$enable_eedi3"       != "xno"], [eedi3="yes"])
-         AS_IF([test "x$enable_imwri"       != "xno"], [AS_IF([test "x$enable_imwri" = "xyes"], [imwri="yes"], [imwri="auto"])])
          AS_IF([test "x$enable_miscfilters" != "xno"], [miscfilters="yes"])
-         AS_IF([test "x$enable_morpho"      != "xno"], [morpho="yes"])
-         AS_IF([test "x$enable_ocr"         != "xno"], [AS_IF([test "x$enable_ocr" = "xyes"], [ocr="yes"], [ocr="auto"])])
-         AS_IF([test "x$enable_removegrain" != "xno"], [removegrain="yes"])
          AS_IF([test "x$enable_vinverse"    != "xno"], [vinverse="yes"])
-         AS_IF([test "x$enable_vivtc"       != "xno"], [vivtc="yes"])
         ]
 )
 
@@ -474,81 +444,9 @@ PKG_CHECK_MODULES(
                   ]
                  )
 
-PKG_CHECK_MODULES(
-                  [IMAGEMAGICK],
-                  [Magick++ >= 7],
-                  [
-                   AC_MSG_CHECKING([whether imagemagick is usable])
-
-                   saved_cppflags="$CPPFLAGS"
-                   CPPFLAGS="$IMAGEMAGICK_CFLAGS $CPPFLAGS"
-                   AC_COMPILE_IFELSE(
-                                     [
-                                      AC_LANG_SOURCE(
-                                                     [[
-#if !defined(MAGICKCORE_QUANTUM_DEPTH) || (MAGICKCORE_QUANTUM_DEPTH != 16 && MAGICKCORE_QUANTUM_DEPTH != 32)
-#error imwri plugin requires ImageMagick with quantum depth of 16 or 32.
-#endif
-
-#if !defined(MAGICKCORE_HDRI_ENABLE) || MAGICKCORE_HDRI_ENABLE == 0
-#error imwri plugin requires ImageMagick with HDRI enabled.
-#endif
-                                                     ]]
-                                                    )
-                                     ],
-                                     [usable_imagemagick="yes"],
-                                     [usable_imagemagick="no"]
-                                    )
-                   CPPFLAGS="$saved_cppflags"
-
-                   AC_MSG_RESULT([$usable_imagemagick])
-
-                   AS_CASE([$imwri],
-                           [yes], [
-                                    AS_IF(
-                                          [test "x$usable_imagemagick" = "xno"],
-                                          [AC_MSG_ERROR([the imwri plugin was explicitly enabled, but imagemagick is not usable.])]
-                                         )
-                                  ],
-                           [auto], [
-                                    AS_IF(
-                                          [test "x$usable_imagemagick" = "xno"],
-                                          [imwri=""]
-                                         )
-                                   ]
-                          )
-                  ],
-                  [
-                   AS_IF(
-                         [test "x$imwri" = "xyes"],
-                         [AC_MSG_ERROR([the imwri plugin was explicitly enabled, but imagemagick cannot be found.])],
-                         [imwri=""]
-                        )
-                  ]
-                 )
-
-PKG_CHECK_MODULES(
-                  [TESSERACT],
-                  [tesseract],
-                  [],
-                  [
-                   AS_IF(
-                         [test "x$ocr" = "xyes"],
-                         [AC_MSG_ERROR([the ocr plugin was explicitly enabled, but tesseract cannot be found.])],
-                         [ocr=""]
-                        )
-                  ]
-                 )
-
 AM_CONDITIONAL([SUBTEXT],       [test "$subtext"])
-AM_CONDITIONAL([EEDI3],         [test "$eedi3"])
-AM_CONDITIONAL([IMWRI],         [test "$imwri"])
 AM_CONDITIONAL([MISCFILTERS],   [test "$miscfilters"])
-AM_CONDITIONAL([MORPHO],        [test "$morpho"])
-AM_CONDITIONAL([OCR],           [test "$ocr"])
-AM_CONDITIONAL([REMOVEGRAIN],   [test "$removegrain"])
 AM_CONDITIONAL([VINVERSE],      [test "$vinverse"])
-AM_CONDITIONAL([VIVTC],         [test "$vivtc"])
 
 
 
