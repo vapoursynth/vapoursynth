@@ -154,39 +154,3 @@ endif # VSSCRIPT
 pkglib_LTLIBRARIES =
 
 commonpluginldflags = -no-undefined -avoid-version $(PLUGINLDFLAGS) $(UNDEFINEDLDFLAGS)
-
-if SUBTEXT
-pkglib_LTLIBRARIES += libsubtext.la
-
-libsubtext_la_SOURCES = src/filters/subtext/text.c \
-						src/filters/subtext/common.c \
-						src/filters/subtext/common.h \
-						src/filters/subtext/image.cpp \
-						src/filters/subtext/toass.cpp \
-						src/filters/subtext/toutf8.c
-
-libsubtext_la_LDFLAGS = $(commonpluginldflags)
-libsubtext_la_LIBTOOLFLAGS = $(commonlibtoolflags)
-libsubtext_la_CPPFLAGS = $(LIBASS_CFLAGS) $(FFMPEG_CFLAGS)
-libsubtext_la_LIBADD = $(LIBASS_LIBS) $(FFMPEG_LIBS)
-endif
-
-
-
-if MISCFILTERS
-pkglib_LTLIBRARIES += libmiscfilters.la
-
-libmiscfilters_la_SOURCES = src/filters/misc/miscfilters.cpp
-libmiscfilters_la_LDFLAGS = $(commonpluginldflags)
-libmiscfilters_la_LIBTOOLFLAGS = $(commonlibtoolflags)
-endif
-
-
-
-if VINVERSE
-pkglib_LTLIBRARIES += libvinverse.la
-
-libvinverse_la_SOURCES = src/filters/vinverse/vinverse.c
-libvinverse_la_LDFLAGS = $(commonpluginldflags)
-libvinverse_la_LIBTOOLFLAGS = $(commonlibtoolflags)
-endif
