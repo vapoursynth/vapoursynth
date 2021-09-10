@@ -199,7 +199,7 @@ void PackOutputFrame(const uint8_t *src[3], const ptrdiff_t src_stride[3], uint8
 
     if (!traits || traits->packing_mode == PLANAR) {
         // Generic plane copy.
-        int planeOrder[] = { 0, 1, 2 };
+        int planeOrder[] = { 0, 2, 1 };
         if (traits && (traits->flags & SWAP_UV))
             std::swap(planeOrder[1], planeOrder[2]);
 
