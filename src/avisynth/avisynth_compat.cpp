@@ -168,6 +168,8 @@ static const VSFrame *VS_CC packYUY2GetFrame(int n, int activationReason, void *
 
         p2p_pack_frame(&p, 0);
 
+        vsapi->freeFrame(src);
+
         return dst;
     }
 
@@ -222,6 +224,8 @@ static const VSFrame *VS_CC unpackYUY2GetFrame(int n, int activationReason, void
         }
 
         p2p_unpack_frame(&p, 0);
+
+        vsapi->freeFrame(src);
 
         return dst;
     }
@@ -278,6 +282,8 @@ static const VSFrame *VS_CC packRGB32GetFrame(int n, int activationReason, void 
 
         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
 
+        vsapi->freeFrame(src);
+
         return dst;
     }
 
@@ -332,6 +338,8 @@ static const VSFrame *VS_CC unpackRGB32GetFrame(int n, int activationReason, voi
         }
 
         p2p_unpack_frame(&p, 0);
+
+        vsapi->freeFrame(src);
 
         return dst;
     }
