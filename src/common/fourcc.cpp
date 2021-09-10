@@ -208,7 +208,7 @@ void PackOutputFrame(const uint8_t *src[3], const ptrdiff_t src_stride[3], uint8
 
             int subSamplingW = (inputPlane == 1 || inputPlane == 2) ? fi.subSamplingW : 0;
             int subSamplingH = (inputPlane == 1 || inputPlane == 2) ? fi.subSamplingH : 0;
-            int row_size = RowSizePlanar(width, fi.bytesPerSample, traits);
+            int row_size = RowSizePlanar((width >> subSamplingW), fi.bytesPerSample, traits);
 
             uint8_t *dst_ptr = dst;
             int dst_stride = row_size;
