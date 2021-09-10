@@ -123,6 +123,12 @@
     <ClCompile Include="..\..\src\core\averageframesfilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\average.cpp">
+      <Filter>Source Files\kernel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\x86\average_sse2.c">
+      <Filter>Source Files\kernel\x86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\core\cpufeatures.h">
@@ -187,6 +193,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\core\settings.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\kernel\average.h">
+      <Filter>Header Files\kernel</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
