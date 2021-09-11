@@ -2052,11 +2052,6 @@ public:
     }
 };
 
-std::unique_ptr<ExpressionTreeNode> makeTreeNode(ExprOp data)
-{
-    return std::unique_ptr<ExpressionTreeNode>(new ExpressionTreeNode(data));
-}
-
 bool equalSubTree(const ExpressionTreeNode *lhs, const ExpressionTreeNode *rhs)
 {
     if (lhs->valueNum >= 0 && rhs->valueNum >= 0)
@@ -3054,7 +3049,6 @@ bool applyAlgebraicCleanup(ExpressionTree &tree)
 
     return changed;
 }
-
 
 bool applyStrengthReduction(ExpressionTree &tree)
 {
