@@ -3165,8 +3165,8 @@ bool applyStrengthReduction(ExpressionTree &tree)
             changed = true;
         }
 
-        // x ** (n / 2) = sqrt(x ** n)
-        if (node.op == ExprOpType::POW && isConstant(*node.right) && !isInteger(node.right->op.imm.f) && isInteger(node.right->op.imm.f * 2.0f)) {
+        // x ** (n / 2) = sqrt(x ** n)    x ** (n / 4) = sqrt(sqrt(x ** n))
+        if (node.op == ExprOpType::POW && isConstant(*node.right) && !isInteger(node.right->op.imm.f) && isInteger(node.right->op.imm.f * 4.0f)) {
             ExpressionTreeNode *dup = tree.clone(&node);
             replaceNode(node, ExpressionTreeNode{ ExprOpType::SQRT });
             node.setLeft(dup);
