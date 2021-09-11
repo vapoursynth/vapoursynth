@@ -111,12 +111,12 @@ public:
     //////////// IAVIFile
 
     STDMETHODIMP CreateStream(PAVISTREAM *ppStream, AVISTREAMINFOW *psi) noexcept;
-    STDMETHODIMP EndRecord() noexcept;      
-    STDMETHODIMP GetStream(PAVISTREAM *ppStream, DWORD fccType, LONG lParam) noexcept; 
-    STDMETHODIMP Info(AVIFILEINFOW *psi, LONG lSize) noexcept; 
+    STDMETHODIMP EndRecord() noexcept;
+    STDMETHODIMP GetStream(PAVISTREAM *ppStream, DWORD fccType, LONG lParam) noexcept;
+    STDMETHODIMP Info(AVIFILEINFOW *psi, LONG lSize) noexcept;
 
-    STDMETHODIMP Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName);    
-    STDMETHODIMP Save(LPCSTR szFile, AVICOMPRESSOPTIONS FAR *lpOptions,  
+    STDMETHODIMP Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName);
+    STDMETHODIMP Save(LPCSTR szFile, AVICOMPRESSOPTIONS FAR *lpOptions,
         AVISAVECALLBACK lpfnCallback);
 
     STDMETHODIMP ReadData(DWORD fcc, LPVOID lp, LONG *lpcb) noexcept;
@@ -420,7 +420,7 @@ bool VapourSynthFile::DelayInit() {
 static const char *ErrorScript1 = "\
 import vapoursynth as vs\n\
 import sys\n\
-core = vs.get_core()\n\
+core = vs.core\n\
 w = 340\n\
 h = 600\n\
 red = core.std.BlankClip(width=w, height=h, format=vs.RGB24, color=[255, 0, 0])\n\
@@ -758,7 +758,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         char nameBuffer[32];
         vsapi->getVideoFormatName(&parent->vi->format, nameBuffer);
 
-        std::string frameErrorScript = "import vapoursynth as vs\nimport sys\ncore = vs.get_core()\n";
+        std::string frameErrorScript = "import vapoursynth as vs\nimport sys\ncore = vs.core\n";
         frameErrorScript += "err_script_formatid = " + std::string(nameBuffer) + "\n";
         frameErrorScript += "err_script_width = " + std::to_string(parent->vi->width) + "\n";
         frameErrorScript += "err_script_height = " + std::to_string(parent->vi->height) + "\n";
