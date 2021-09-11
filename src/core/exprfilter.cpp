@@ -2971,7 +2971,9 @@ bool applyLocalOptimizations(ExpressionTree &tree)
         }
 
         // (a ** b) ** c = a ** (b * c)
-        if (node.op == ExprOpType::POW && node.left->op == ExprOpType::POW) {
+        if (node.op == ExprOpType::POW && node.left->op == ExprOpType::POW &&
+            isConstant(*node.left->right) && isInteger(node.left->right->op.imm.f) && isConstant(*node.right) && isInteger(node.right->op.imm.f))
+        {
             ExpressionTreeNode *a = node.left->left;
             ExpressionTreeNode *b = node.left->right;
             ExpressionTreeNode *c = node.right;
