@@ -3318,7 +3318,7 @@ void renameRegisters(std::vector<ExprInstruction> &code)
     }
 }
 
-std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoFormat &format)
+std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoFormat &format, bool optimize=true)
 {
     std::vector<ExprInstruction> code;
     std::unordered_set<int> found;
@@ -3326,12 +3326,19 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoFormat &
     if (!tree.getRoot())
         return code;
 
-    while (applyLocalOptimizations(tree) || applyAlgebraicOptimizations(tree) || applyComparisonOptimizations(tree)) {
-        // ...
-    }
+    if (optimize) {
+        constexpr unsigned max_passes = 1000;
+        unsigned num_passes = 0;
 
-    while (applyAlgebraicCleanup(tree) || applyStrengthReduction(tree) || applyOpFusion(tree)) {
-        // ...
+        while (applyLocalOptimizations(tree) || applyAlgebraicOptimizations(tree) || applyComparisonOptimizations(tree)) {
+            if (++num_passes > max_passes)
+                throw std::runtime_error{ "expression compilation did not complete" };
+        }
+
+        while (applyAlgebraicCleanup(tree) || applyStrengthReduction(tree) || applyOpFusion(tree)) {
+            if (++num_passes > max_passes)
+                throw std::runtime_error{ "expression compilation did not commplete" };
+        }
     }
 
     applyValueNumbering(tree);
