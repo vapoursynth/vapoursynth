@@ -1,8 +1,7 @@
-Trim/AudioTrim
+Trim
 ==============
 
 .. function::   Trim(vnode clip[, int first=0, int last, int length])
-                AudioTrim(anode clip[, int first=0, int last, int length])
    :module: std
 
    Trim returns a clip with only the frames between the arguments *first* and
@@ -14,8 +13,5 @@ Trim/AudioTrim
    Specifying both *last* and *length* is considered to be an error.
    Likewise is calling Trim in a way that returns no frames, as 0 frame clips are
    not allowed in VapourSynth.
-   
-   AudioTrim performs exactly the same operation on audio clips but the unit is
-   obviously samples instead of frames.
 
-   In Python, std.Trim and std.AudioTrim can also be invoked by :ref:`slicing a clip <pythonreference>`.
+   In Python, std.Trim can also be invoked by :ref:`slicing a clip <pythonreference>`.
