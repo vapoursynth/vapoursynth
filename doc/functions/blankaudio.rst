@@ -1,10 +1,10 @@
 BlankAudio
 ==========
 
-.. function:: BlankAudio([vnode clip, int channels=<stereo>, int bits=16, int sampletype=INTEGER, int samplerate=44100, int length=(10*samplerate), bint keep=0])
+.. function:: BlankAudio([anode clip, int channels=<stereo>, int bits=16, int sampletype=INTEGER, int samplerate=44100, int length=(10*samplerate), bint keep=0])
    :module: std
 
-   Generates a new empty clip. This can be useful to have when editing video
+   Generates a new empty clip. This can be useful to have when editing audio
    or for testing. The default is a 10 second long 44.1kHz 16 bit stereo clip.
    Instead of specifying every property individually, BlankAudio can also copy
    the properties from *clip*. If both an argument such as *sampletype*, and *clip*

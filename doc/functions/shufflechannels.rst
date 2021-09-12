@@ -33,16 +33,16 @@ ShuffleChannels
 
    Swap left and right audio channels in a stereo clip::
 
-      ShuffleChannels(clips=clip, channels_in=[vs.FRONT_RIGHT, vs.FRONT_LEFT], channels_out=[FRONT_LEFT, vs.FRONT_RIGHT])
+      ShuffleChannels(clips=clip, channels_in=[vs.FRONT_RIGHT, vs.FRONT_LEFT], channels_out=[vs.FRONT_LEFT, vs.FRONT_RIGHT])
       
    Swap left and right audio channels in a stereo clip (alternate ordering of arguments)::
 
-      ShuffleChannels(clips=clip, channels_in=[vs.FRONT_LEFT, vs.FRONT_RIGHT], channels_out=[vs.FRONT_RIGHT, FRONT_LEFT])
+      ShuffleChannels(clips=clip, channels_in=[vs.FRONT_LEFT, vs.FRONT_RIGHT], channels_out=[vs.FRONT_RIGHT, vs.FRONT_LEFT])
       
    Swap left and right audio channels in a stereo clip (alternate indexing)::
 
-      ShuffleChannels(clips=clip, channels_in=[-2, -1], channels_out=[FRONT_LEFT, vs.FRONT_RIGHT])
+      ShuffleChannels(clips=clip, channels_in=[-2, -1], channels_out=[vs.FRONT_LEFT, vs.FRONT_RIGHT])
 
    Merge 2 mono audio clips into a single stereo clip::
 
-      ShuffleChannels(clips=[clipa, clipb], channels_in=[vs.FRONT_LEFT, vs.FRONT_LEFT], channels_out=[FRONT_LEFT, vs.FRONT_RIGHT])
+      ShuffleChannels(clips=[clipa, clipb], channels_in=[vs.FRONT_LEFT, vs.FRONT_LEFT], channels_out=[vs.FRONT_LEFT, vs.FRONT_RIGHT])
