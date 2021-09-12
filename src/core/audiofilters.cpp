@@ -1054,7 +1054,7 @@ void audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("AudioReverse", "clip:anode;", "clip:anode;", audioReverseCreate, 0, plugin);
     vspapi->registerFunction("AudioGain", "clip:anode;gain:float[]:opt;", "clip:anode;", audioGainCreate, 0, plugin);
     vspapi->registerFunction("AudioMix", "clips:anode[];matrix:float[];channels_out:int[];", "clip:anode;", audioMixCreate, 0, plugin);
-    vspapi->registerFunction("ShuffleChannels", "clip:anode[];channels_in:int[];channels_out:int[];", "clip:anode;", shuffleChannelsCreate, 0, plugin);
+    vspapi->registerFunction("ShuffleChannels", "clips:anode[];channels_in:int[];channels_out:int[];", "clip:anode;", shuffleChannelsCreate, 0, plugin);
     vspapi->registerFunction("SplitChannels", "clip:anode;", "clip:anode[];", splitChannelsCreate, 0, plugin);
     vspapi->registerFunction("AssumeSampleRate", "clip:anode;src:anode:opt;samplerate:int:opt;", "clip:anode;", assumeSampleRateCreate, 0, plugin);
     vspapi->registerFunction("BlankAudio", "clip:anode:opt;channels:int:opt;bits:int:opt;sampletype:int:opt;samplerate:int:opt;length:int:opt;keep:int:opt;", "clip:anode;", blankAudioCreate, 0, plugin);

@@ -35,7 +35,7 @@ Minimum/Maximum
          6 7 8
 
 
-.. function:: Maximum(clip clip[, int[] planes=[0, 1, 2], float threshold, bint[] coordinates=[1, 1, 1, 1, 1, 1, 1, 1]])
+.. function:: Maximum(vnode clip[, int[] planes=[0, 1, 2], float threshold, bint[] coordinates=[1, 1, 1, 1, 1, 1, 1, 1]])
    :module: std
 
    Replaces each pixel with the largest value in its 3x3 neighbourhood.
