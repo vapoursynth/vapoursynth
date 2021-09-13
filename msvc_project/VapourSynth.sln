@@ -45,6 +45,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "libp2p", "libp2p", "{D18C92
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libp2p_simd", "..\libp2p\_msvc\libp2p_simd\libp2p_simd.vcxproj", "{0955E601-DABB-442D-AFFF-EB4B2BF331FD}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ExprDebugger", "ExprDebugger\ExprDebugger.vcxproj", "{39EE1521-66A9-42A3-8258-3FD594DFD0A7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -125,6 +127,14 @@ Global
 		{0955E601-DABB-442D-AFFF-EB4B2BF331FD}.Release|Win32.Build.0 = Release|Win32
 		{0955E601-DABB-442D-AFFF-EB4B2BF331FD}.Release|x64.ActiveCfg = Release|x64
 		{0955E601-DABB-442D-AFFF-EB4B2BF331FD}.Release|x64.Build.0 = Release|x64
+		{39EE1521-66A9-42A3-8258-3FD594DFD0A7}.Debug|Win32.ActiveCfg = Debug|Win32
+		{39EE1521-66A9-42A3-8258-3FD594DFD0A7}.Debug|Win32.Build.0 = Debug|Win32
+		{39EE1521-66A9-42A3-8258-3FD594DFD0A7}.Debug|x64.ActiveCfg = Debug|x64
+		{39EE1521-66A9-42A3-8258-3FD594DFD0A7}.Debug|x64.Build.0 = Debug|x64
+		{39EE1521-66A9-42A3-8258-3FD594DFD0A7}.Release|Win32.ActiveCfg = Release|Win32
+		{39EE1521-66A9-42A3-8258-3FD594DFD0A7}.Release|Win32.Build.0 = Release|Win32
+		{39EE1521-66A9-42A3-8258-3FD594DFD0A7}.Release|x64.ActiveCfg = Release|x64
+		{39EE1521-66A9-42A3-8258-3FD594DFD0A7}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
