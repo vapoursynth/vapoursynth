@@ -1,0 +1,40 @@
+255 1 x 0.0001 + y 0.0001 + / 1.0 pow + /
+y 0.0001 + x 0.0001 + dup * y 0.0001 + dup * + sqrt / 255 *
+y x - abs 1 + 1.5 pow 1 -
+y x - 20.17 * 32768 +
+x 0.9999 - 1.0001 0.9999 - / 255 *
+x 0 < 16 x ? 255 > 235 x ?
+x x * y y * + z z * + a a * + sqrt
+x y max z max a max
+x y + z + a + b + 4 /
+x y max z max a max b max c max d max e max
+x y + z + a + b + c + d + e + 8 /
+x x * y y * + z z * + a a * + b b * + c c * + d d * + e e * + 8 / sqrt
+x y max 128 / 0.86 pow 255 *
+x 128 - abs y 128 - abs < x y ?
+x x * y y * + 1 / sqrt 65535 > 255 x x * y y * + 1 / sqrt 0 < 0 x x * y y * + 1 / sqrt ? ?
+x 128 - y 128 - * 0 < x 128 - 0.24 * 128 + x 128 - abs y 128 - abs > x 0.24 * y 0.76 * + x ? ?
+x y and 255 y 128 0 ? ?
+x 2 + y < x 2 + x 2 - y > x 2 - y ? ?
+x -1 + y < x 3 + x -1 - y > x 3 - x 1 * y 99 * + 100 / ? ?
+y 128 2 + > x 2 - y 128 2 - < x 2 + x y 128 - - ? ?
+y 128 = x x y 128 - abs 1 / 1 4 / pow 1 * y 128 - y 128 - abs / * - ?
+x 128 < y 128 < xor x 128 - 100 / 100 * 128 + x 128 - abs y 128 - abs > x 100 * y 0 * + 100 / x ? ?
+x 128 < y 128 < xor x 128 - 100 / 75 * 128 + x 128 - abs y 128 - abs > x 75 * y 25 * + 100 / x ? ?
+x 8 + y < x 8 + x 24 - y > x 24 - y ? ? x y - abs * x 32 x y - abs - * + 32 /
+x y - abs 1 < 128 x y - 3.2 / abs 128 x y - 3.2 / abs - x y - 3.2 / abs 128 / * + x y - 3.2 / x y - 3.2 / abs 0 + / * 128 x y - 3.2 / abs - 20 / dup * 128 x y - 3.2 / abs - 20 / dup * 0 + / * 128 + ?
+x 0.001 1 1 1 0.03 y 0.5 - * exp + / - * z / + a 0.001 z / + /
+2 x y * sqrt * 0.0026 + x y + 0.0026 + /
+2 x * 0.01 + 2 y x - * 0.03 + * z a + 0.01 + b c - d e - + 0.03 + * /
+x y * 0 > 2 z * 0.01 + 3 a z - * 0.03 + * x y * / x 0 = not y 0 = and 2 z * 0.01 + x / 1 ? ?
+x z - 0.000001 < 0 y z - x z - / sqrt ?
+x y - z sqrt 0.0000001 + / b sqrt * a +
+x y = 0 255 ?
+x y - x z - xor x x y - abs x z - abs < y z ? ?
+y z - abs 2 <= y x <= and y x ?
+1 x 0.00001 + 100 * 1 + /
+x y / 1 z y / - a * +
+x y * 2 * 0.00215 + x dup * y dup * + 0.00215 + /
+x y * z a * + 2 * 0.00846 + x dup * y dup * + z dup * + a dup * + 0.00846 + /
+x 0.6 * y 0.4 * + 0 max 1 min 0.25 pow
+x 128 - abs y 128 - abs < x 128 - abs x y + 256 - abs < and x 128 - abs dup sqrt - dup * y 128 - abs x y + 256 - abs < y 128 - abs dup sqrt - dup * x y + 256 - abs dup sqrt - dup * ? ? x 128 - y 128 - * 0 > -1 1 ? * 128 +
