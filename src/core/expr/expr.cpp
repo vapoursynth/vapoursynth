@@ -622,7 +622,7 @@ public:
 
     bool isScalar() const { return map.empty(); }
 
-    size_t numTerms() const { return map.size() + 1; }
+    size_t numTerms() const { return map.size() + (coeff != 1.0f ? 1 : 0); }
 
     bool isSameTerm(const ExponentMap &other) const
     {
@@ -669,9 +669,15 @@ public:
         ExpressionTreeNode *node = nullptr;
 
         for (auto &term : flat) {
-            ExpressionTreeNode *powNode = tree.makeNode(ExprOpType::POW);
-            powNode->setLeft(tree.clone(index.at(term.first)));
-            powNode->setRight(tree.makeNode({ ExprOpType::CONSTANT, term.second }));
+            ExpressionTreeNode *powNode;
+
+            if (term.second != 1.0f) {
+                powNode = tree.makeNode(ExprOpType::POW);
+                powNode->setLeft(tree.clone(index.at(term.first)));
+                powNode->setRight(tree.makeNode({ ExprOpType::CONSTANT, term.second }));
+            } else {
+                powNode = tree.clone(index.at(term.first));
+            }
 
             if (node) {
                 ExpressionTreeNode *mulNode = tree.makeNode(ExprOpType::MUL);
@@ -684,10 +690,12 @@ public:
         }
 
         if (node) {
-            ExpressionTreeNode *mulNode = tree.makeNode(ExprOpType::MUL);
-            mulNode->setLeft(node);
-            mulNode->setRight(tree.makeNode({ ExprOpType::CONSTANT, coeff }));
-            node = mulNode;
+            if (coeff != 1.0f) {
+                ExpressionTreeNode *mulNode = tree.makeNode(ExprOpType::MUL);
+                mulNode->setLeft(node);
+                mulNode->setRight(tree.makeNode({ ExprOpType::CONSTANT, coeff }));
+                node = mulNode;
+            }
         } else {
             node = tree.makeNode({ ExprOpType::CONSTANT, coeff });
         }
@@ -722,7 +730,7 @@ public:
         terms.push_back(std::move(map));
     }
 
-    size_t numTerms() const { return terms.size() + 1; }
+    size_t numTerms() const { return terms.size() + (scalarTerm != 0.0f ? 1 : 0); }
 
     void expand(ValueIndex &index)
     {
@@ -789,10 +797,12 @@ public:
         }
 
         if (head) {
-            ExpressionTreeNode *addNode = tree.makeNode(scalarTerm < 0 ? ExprOpType::SUB : ExprOpType::ADD);
-            addNode->setLeft(head);
-            addNode->setRight(tree.makeNode({ ExprOpType::CONSTANT, std::fabs(scalarTerm) }));
-            head = addNode;
+            if (scalarTerm != 0.0f) {
+                ExpressionTreeNode *addNode = tree.makeNode(scalarTerm < 0 ? ExprOpType::SUB : ExprOpType::ADD);
+                addNode->setLeft(head);
+                addNode->setRight(tree.makeNode({ ExprOpType::CONSTANT, std::fabs(scalarTerm) }));
+                head = addNode;
+            }
         } else {
             head = tree.makeNode({ ExprOpType::CONSTANT, 0.0f });
         }
