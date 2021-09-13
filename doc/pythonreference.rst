@@ -25,8 +25,11 @@ All arguments to functions have names that are lowercase and all function names
 are CamelCase. Unit names are also lowercase and usually short. This is good to
 remember as a general rule.
 
+Grammar
+#######
+
 Slicing and Other Syntactic Sugar
-#################################
+*********************************
 
 The VideoNode class (always called "clip" in practice) supports the full
 range of indexing and slicing operations in Python. If you do perform a slicing
@@ -82,7 +85,7 @@ Which is equivalent to::
 Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count.
 
 Python Keywords as Filter Arguments
-###################################
+***********************************
 
 If a filter's argument happens to be a Python keyword, you may prepend
 an underscore to the argument's name when invoking the filter. The Python
@@ -102,7 +105,7 @@ VapourSynth will also support the PEP8 convention of using a single trailing
 underscore to prevent collisions with python keywords.
 
 Windows File Paths (Strings With Backslashes)
-#############################################
+*********************************************
 
 If you have a string containing backslashes, you must either prefix the
 string with "r", or duplicate every single backslash. The reason is
@@ -128,7 +131,7 @@ written with forward slashes instead of backslashes::
    core.avs.LoadPlugin("B:/Avisynth plugins/GuavaComb.dll")
 
 Output
-######
+******
 
 The normal way of specifying the clip(s) to output is to call
 *clip.set_output()*. All standard VapourSynth components only use output
@@ -150,7 +153,7 @@ An example on how to get UYVY output::
    some_clip.set_output(alt_output=2)
 
 Raw Access to Frame Data
-########################
+************************
 
 The VideoFrame and AudioFrame classes contains one picture/audio chunk and all the metadata
 associated with it. It is possible to access the raw data using either
@@ -894,8 +897,11 @@ Classes and Functions
    The standard exception class. This exception is thrown on most errors
    encountered in VapourSynth.
 
-Color Family Constants
-######################
+Constants
+#########
+
+Video Color Family Constants
+****************************
 
 The color family constants describe groups of formats and the basic way their
 color information is stored. You should be familiar with all of them apart from
@@ -907,8 +913,8 @@ formats. These are the declared constants in the module::
    YUV
    GRAY
 
-Format Constants
-################
+Video Format Constants
+**********************
 
 Format constants exactly describe a format. All common and even more uncommon
 formats have handy constants predefined so in practice no one should really
@@ -917,6 +923,8 @@ to specify which format to convert to. The naming system is quite simple. First
 the color family, then the subsampling (only YUV has it) and after that how many
 bits per sample in one plane. The exception to this rule is RGB, which has the
 bits for all 3 planes added together. The long list of values::
+
+   NONE
 
    GRAY8
    GRAY9
@@ -946,11 +954,11 @@ bits for all 3 planes added together. The long list of values::
    YUV420P12
    YUV422P12
    YUV444P12
-   
+
    YUV420P14
    YUV422P14
    YUV444P14
-   
+
    YUV420P16
    YUV422P16
    YUV444P16
@@ -964,12 +972,42 @@ bits for all 3 planes added together. The long list of values::
    RGB36
    RGB42
    RGB48
-
    RGBH
    RGBS
 
+Audio Channel Constants
+***********************
+
+::
+
+   FRONT_LEFT
+   FRONT_RIGHT
+   FRONT_CENTER
+   LOW_FREQUENCY
+   BACK_LEFT
+   BACK_RIGHT
+   FRONT_LEFT_OF_CENTER
+   FRONT_RIGHT_OF_CENTER
+   BACK_CENTER
+   SIDE_LEFT
+   SIDE_RIGHT
+   TOP_CENTER
+   TOP_FRONT_LEFT
+   TOP_FRONT_CENTER
+   TOP_FRONT_RIGHT
+   TOP_BACK_LEFT
+   TOP_BACK_CENTER
+   TOP_BACK_RIGHT
+   STEREO_LEFT
+   STEREO_RIGHT
+   WIDE_LEFT
+   WIDE_RIGHT
+   SURROUND_DIRECT_LEFT
+   SURROUND_DIRECT_RIGHT
+   LOW_FREQUENCY2
+
 Sample Type Constants
-#####################
+*********************
 
 ::
 
