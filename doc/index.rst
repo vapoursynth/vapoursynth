@@ -6,16 +6,16 @@ Contents:
 .. toctree::
    :maxdepth: 3
 
+   about
    installation
+   plugins
    gettingstarted
    pythonreference  
-   avfs
-   applications
-   includedplugins
    functions
    vspipe
+   avfs
+   applications
    apireference
-   about
 
 
 Indices and tables
