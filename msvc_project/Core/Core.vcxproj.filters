@@ -138,6 +138,12 @@
     <ClCompile Include="..\..\src\core\expr\expr.cpp">
       <Filter>Source Files\expr</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\expr\jitcompiler.cpp">
+      <Filter>Source Files\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\expr\jitcompiler_x86.cpp">
+      <Filter>Source Files\expr</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\core\cpufeatures.h">
@@ -207,6 +213,9 @@
       <Filter>Header Files\expr</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core\expr\expr.h">
+      <Filter>Header Files\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\expr\jitcompiler.h">
       <Filter>Header Files\expr</Filter>
     </ClInclude>
   </ItemGroup>
