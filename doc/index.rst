@@ -12,8 +12,7 @@ Contents:
    gettingstarted
    pythonreference  
    functions
-   vspipe
-   avfs
+   output
    applications
    apireference
 
