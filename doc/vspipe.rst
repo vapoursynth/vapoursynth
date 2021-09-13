@@ -33,8 +33,8 @@ Options
 ``-r, --requests N``
     Set number of concurrent frame requests
 
-``-y, --y4m``
-    Add YUV4MPEG headers to output
+``-c, --container <y4m/wav/w64>``
+    Add headers for the specified format to the output
 
 ``-t, --timecodes FILE``
     Write timecodes v2 file
@@ -42,7 +42,7 @@ Options
 ``-p, --progress``
     Print progress to stderr
     
-``    --filter-time``
+``--filter-time``
     Records the time spent in each filter and prints it out at the end of processing.
 
 ``-i, --info``

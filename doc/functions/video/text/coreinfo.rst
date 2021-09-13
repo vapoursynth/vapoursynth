@@ -1,5 +1,5 @@
-CoreInfo (Text)
-===============
+CoreInfo
+========
 
 .. function:: CoreInfo([vnode clip=std.BlankClip(), int alignment=7, int scale=1])
    :module: text

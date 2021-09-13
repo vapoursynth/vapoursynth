@@ -1,7 +1,8 @@
 Function Reference
 ==================
 
-General Functions:
+General Functions
+#################
 
 .. toctree::
    :maxdepth: 2
@@ -9,7 +10,8 @@ General Functions:
 
    functions/general/*
 
-Video Functions:
+Video Functions
+###############
 
 .. toctree::
    :maxdepth: 2
@@ -17,7 +19,17 @@ Video Functions:
 
    functions/video/*
 
-Audio Functions:
+Text
+****
+
+.. toctree::
+   :maxdepth: 2
+   :glob:
+
+   functions/video/text/*
+
+Audio Functions
+###############
 
 .. toctree::
    :maxdepth: 2

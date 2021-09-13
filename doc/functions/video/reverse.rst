@@ -1,5 +1,5 @@
 Reverse
-====================
+=======
 
 .. function::   Reverse(vnode clip)
    :module: std

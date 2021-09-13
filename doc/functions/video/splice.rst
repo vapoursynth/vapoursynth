@@ -1,5 +1,5 @@
 Splice
-==================
+======
 
 .. function::   Splice(vnode[] clips[, bint mismatch=0])
    :module: std

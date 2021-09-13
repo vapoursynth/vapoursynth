@@ -59,10 +59,9 @@ Expr
    INF) and that no operator will produce a non-finite value. Such expressions
    are invalid. This is especially important for the transcendental operators:
    
-       exp - expression must not overflow (i.e. x <= 88)
-       log - input must be finite and non-negative (i.e. x >= 0 && x <= 3e+38)
-       pow - base must be finite and non-negative. Result must not overflow
-             (i.e. x >= 0 && x <= 3e+38; 1e-38 <= result <= 3e+38)
+   * exp - expression must not overflow (i.e. x <= 88)
+   * log - input must be finite and non-negative (i.e. x >= 0 && x <= 3e+38)
+   * pow - base must be finite and non-negative. Result must not overflow (i.e. x >= 0 && x <= 3e+38; 1e-38 <= result <= 3e+38)
 
    Clip load operators::
 

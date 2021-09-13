@@ -1,5 +1,5 @@
 Loop
-==============
+====
 
 .. function::   Loop(vnode clip[, int times=0])
    :module: std
