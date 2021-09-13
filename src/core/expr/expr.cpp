@@ -1062,9 +1062,21 @@ bool applyLocalOptimizations(ExpressionTree &tree)
             changed = true;
         }
 
+        // x + 0 = x    x - 0 = x
+        if (isOpCode(node, { ExprOpType::ADD, ExprOpType::SUB }) && isConstant(*node.right, 0.0f)) {
+            replaceNode(node, *node.left);
+            changed = true;
+        }
+
         // x * 0 = 0    0 / x = 0
         if ((node.op == ExprOpType::MUL && isConstant(*node.right, 0.0f)) || (node.op == ExprOpType::DIV && isConstant(*node.left, 0.0f))) {
             replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, 0.0f } });
+            changed = true;
+        }
+
+        // x * 1 = x    x / 1 = x
+        if (isOpCode(node, { ExprOpType::MUL, ExprOpType::DIV }) && isConstant(*node.right, 1.0f)) {
+            replaceNode(node, *node.left);
             changed = true;
         }
 
@@ -1077,6 +1089,24 @@ bool applyLocalOptimizations(ExpressionTree &tree)
         // x ** 0 = 1
         if (node.op == ExprOpType::POW && isConstant(*node.right, 0.0f)) {
             replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, 1.0f } });
+            changed = true;
+        }
+
+        // x ** 1 = x
+        if (node.op == ExprOpType::POW && isConstant(*node.right, 1.0f)) {
+            replaceNode(node, *node.left);
+            changed = true;
+        }
+
+        // 0 ** x == 0
+        if (node.op == ExprOpType::POW && isConstant(*node.left, 0.0f)) {
+            replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, 0.0f} });
+            changed = true;
+        }
+
+        // 1 ** x == 1
+        if (node.op == ExprOpType::POW && isConstant(*node.left, 1.0f)) {
+            replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, 1.0f} });
             changed = true;
         }
 
@@ -1140,45 +1170,6 @@ bool applyLocalOptimizations(ExpressionTree &tree)
             case ComparisonType::NLT: node.left->op.imm.u = static_cast<unsigned>(ComparisonType::LT); break;
             case ComparisonType::NLE: node.left->op.imm.u = static_cast<unsigned>(ComparisonType::LE); break;
             }
-            replaceNode(node, *node.left);
-            changed = true;
-        }
-    });
-
-    return changed;
-}
-
-bool applyAlgebraicCleanup(ExpressionTree &tree)
-{
-    bool changed = false;
-
-    // Prune extra terms introduced by the algebraic analysis. These need to run in a later pass to prevent cycles.
-    tree.getRoot()->postorder([&](ExpressionTreeNode &node)
-    {
-        if (node.op == ExprOpType::MUX)
-            return;
-
-        // Constant folding.
-        if (node.op.type != ExprOpType::CONSTANT && isConstantExpr(node)) {
-            float val = evalConstantExpr(node);
-            replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, val } });
-            changed = true;
-        }
-
-        // x + 0 = x    x - 0 = x
-        if (isOpCode(node, { ExprOpType::ADD, ExprOpType::SUB }) && isConstant(*node.right, 0.0f)) {
-            replaceNode(node, *node.left);
-            changed = true;
-        }
-
-        // x * 1 = x    x / 1 = x
-        if (isOpCode(node, { ExprOpType::MUL, ExprOpType::DIV }) && isConstant(*node.right, 1.0f)) {
-            replaceNode(node, *node.left);
-            changed = true;
-        }
-
-        // x ** 1 = x
-        if (node.op == ExprOpType::POW && isConstant(*node.right, 1.0f)) {
             replaceNode(node, *node.left);
             changed = true;
         }
@@ -1471,7 +1462,7 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoInfo &vi
                 throw std::runtime_error{ "expression compilation did not complete" };
         }
 
-        while (applyAlgebraicCleanup(tree) || applyStrengthReduction(tree) || applyOpFusion(tree)) {
+        while (applyLocalOptimizations(tree) || applyStrengthReduction(tree) || applyOpFusion(tree)) {
             if (++num_passes > max_passes)
                 throw std::runtime_error{ "expression compilation did not commplete" };
         }
