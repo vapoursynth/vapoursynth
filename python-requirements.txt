@@ -3,3 +3,4 @@ wheel
 cython
 sphinx
 sphinx-intl
+sphinx-rtd-theme
