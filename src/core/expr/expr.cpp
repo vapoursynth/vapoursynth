@@ -1047,6 +1047,12 @@ bool applyLocalOptimizations(ExpressionTree &tree)
             changed = true;
         }
 
+        // abs(abs(x)) = abs(x)
+        if (node.op == ExprOpType::ABS && node.left->op == ExprOpType::ABS) {
+            replaceNode(node, *node.left);
+            changed = true;
+        }
+
         // 0 ? x : y = y    1 ? x : y = x
         if (node.op == ExprOpType::TERNARY && isConstant(*node.left)) {
             ExpressionTreeNode *replacement = node.left->op.imm.f > 0.0f ? node.right->left : node.right->right;
