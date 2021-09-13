@@ -1,8 +1,11 @@
+Output
+======
+
 VSPipe
 ######
 
 Synopsis
-========
+********
 
 **vspipe** <script> <outfile> [options]
 
@@ -16,7 +19,7 @@ will not write the video frames anywhere.
 
 
 Options
-=======
+*******
 
 ``-a, --arg key=value``
     Argument to pass to the script environment, it a key with this name and value (bytes typed) will be set in the globals dict
@@ -56,7 +59,7 @@ Options
 
 
 Examples
-========
+********
 
 Show script info:
     ``vspipe --info script.vpy -``
@@ -76,3 +79,24 @@ Pipe to x264 and write timecodes file:
 Pass values to a script:
     ``vspipe --arg deinterlace=yes --arg "message=fluffy kittens" script.vpy output.raw``
 
+AVFS
+####
+
+AV FileSystem is based on `AVFS <https://turtlewar.org/avfs/>`_ and shares most of its
+source code and functionality. This package has several uses. It can easily make
+a script file openable by any application, as it appears like a real,
+uncompressed avi file. It can also be used to bridge the 32/64 bit gap, since a
+plain file can always be read.
+
+To use it simply run ``avfs`` in the ``core32`` or ``core64`` directories with the script name as argument.
+This will create a virtual file in ``C:\\Volumes``.
+
+The *alt_output* argument of *set_output* is respected and can be used to get additional compatibility
+with professional applications.
+
+Avisynth Support
+****************
+
+Note that this AVFS version is also compatible with Avisynth 2.6 and Avisynth+. When using Avisynth+
+higher bitdepth output is also supported. The easiest way to obtain a recent version is to extract
+``avfs.exe`` from the portable VapourSynth archives.
