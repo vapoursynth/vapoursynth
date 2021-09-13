@@ -1,5 +1,5 @@
 AudioReverse
-====================
+============
 
 .. function::   AudioReverse(anode clip)
    :module: std

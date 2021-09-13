@@ -1,5 +1,5 @@
 AudioLoop
-==============
+=========
 
 .. function::   AudioLoop(anode clip[, int times=0])
    :module: std

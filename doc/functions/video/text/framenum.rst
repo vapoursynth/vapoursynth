@@ -1,5 +1,5 @@
-FrameNum (Text)
-===============
+FrameNum
+========
 
 .. function:: FrameNum(vnode clip[, int alignment=7, int scale=1])
    :module: text

@@ -1,5 +1,5 @@
 Trim
-==============
+====
 
 .. function::   Trim(vnode clip[, int first=0, int last, int length])
    :module: std

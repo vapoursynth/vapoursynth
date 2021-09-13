@@ -1,5 +1,5 @@
 AudioSplice
-==================
+===========
 
 .. function::   AudioSplice(anode[] clips)
    :module: std

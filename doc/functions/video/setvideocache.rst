@@ -1,5 +1,5 @@
 SetVideoCache
-===========================
+=============
 
 .. function:: SetVideoCache(vnode clip[, int mode, int fixedsize, int maxsize, int historysize])
    :module: std
