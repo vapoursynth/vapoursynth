@@ -116,10 +116,3 @@ frame _Alpha
 
    A clip's alpha channel can be attached to the clip one frame at a
    time using this property.
-
-Deprecated Frame Properties
----------------------------
-
-int _ColorSpace
-
-   Superseded by _Matrix, _Transfer, and _Primaries.
