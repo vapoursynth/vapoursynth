@@ -704,7 +704,7 @@ static void VS_CC shuffleChannelsFree(void *instanceData, VSCore *core, const VS
 
 static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<ShuffleChannelsData> d(new ShuffleChannelsData());
-    int numSrcNodes = vsapi->mapNumElements(in, "clip");
+    int numSrcNodes = vsapi->mapNumElements(in, "clips");
     int numSrcChannels = vsapi->mapNumElements(in, "channels_in");
     int numDstChannels = vsapi->mapNumElements(in, "channels_out");
 
@@ -720,7 +720,7 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
         int channel = vsapi->mapGetIntSaturated(in, "channels_in", i, nullptr);
         int dstChannel = vsapi->mapGetIntSaturated(in, "channels_out", i, nullptr);
         channelLayout |= (static_cast<uint64_t>(1) << dstChannel);
-        VSNode *node = vsapi->mapGetNode(in, "clip", std::min(numSrcNodes - 1, i), nullptr);
+        VSNode *node = vsapi->mapGetNode(in, "clips", std::min(numSrcNodes - 1, i), nullptr);
         d->sourceNodes.push_back({node, channel, dstChannel, -1});
     }
 
