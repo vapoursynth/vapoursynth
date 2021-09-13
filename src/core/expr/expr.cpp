@@ -1034,16 +1034,21 @@ bool applyLocalOptimizations(ExpressionTree &tree)
         }
 
         // (a ** b) ** c = a ** (b * c)
-        if (node.op == ExprOpType::POW && node.left->op == ExprOpType::POW &&
-            isConstant(*node.left->right) && isInteger(node.left->right->op.imm.f) && isConstant(*node.right) && isInteger(node.right->op.imm.f))
+        if (node.op == ExprOpType::POW && node.left->op == ExprOpType::POW && isConstant(*node.left->right) && isConstant(*node.right))
         {
-            ExpressionTreeNode *a = node.left->left;
-            ExpressionTreeNode *b = node.left->right;
-            ExpressionTreeNode *c = node.right;
-            replaceNode(*node.left, *a);
-            node.setRight(tree.makeNode(ExprOpType::MUL));
-            node.right->setLeft(b);
-            node.right->setRight(c);
+            float exp_first = node.left->right->op.imm.f;
+            float exp_second = node.right->op.imm.f;
+
+            // Exponentiation to even power eliminates sign. Exponential by non-integer implies non-negative base.
+            if (isInteger(exp_first) && static_cast<int>(exp_first) % 2 == 0 && !isInteger(exp_second)) {
+                ExpressionTreeNode *base = node.left->left;
+                node.setLeft(tree.makeNode(ExprOpType::ABS));
+                node.left->setLeft(base);
+                node.setRight(tree.makeNode({ ExprOpType::CONSTANT, exp_first * exp_second }));
+            } else {
+                replaceNode(node, *node.left);
+                node.setRight(tree.makeNode({ ExprOpType::CONSTANT, exp_first * exp_second }));
+            }
             changed = true;
         }
 
