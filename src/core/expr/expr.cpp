@@ -1225,7 +1225,9 @@ bool applyStrengthReduction(ExpressionTree &tree)
         }
 
         // x * 2 = x + x
-        if (node.op == ExprOpType::MUL && isConstant(*node.right, 2.0f) && (!node.parent || node.parent->op != ExprOpType::ADD)) {
+        if (node.op == ExprOpType::MUL && isConstant(*node.right, 2.0f) &&
+            (!node.parent || !isOpCode(*node.parent, { ExprOpType::ADD, ExprOpType::SUB })))
+        {
             ExpressionTreeNode *replacement = tree.clone(node.left);
             node.op = ExprOpType::ADD;
             replaceNode(*node.right, *replacement);
