@@ -1,3 +1,6 @@
+AverageFrames
+=============
+
 .. function:: AverageFrames(clip[] clips, float[] weights[, float scale, bint scenechange, int[] planes])
    :module: std
    
