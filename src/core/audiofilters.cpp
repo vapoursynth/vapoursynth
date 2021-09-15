@@ -431,7 +431,7 @@ static void VS_CC audioReverseCreate(const VSMap *in, VSMap *out, void *userData
 // AudioGain
 
 struct AudioGainDataExtra {
-    std::vector<double> gain;
+    std::vector<float> gain;
     const VSAudioInfo *ai;
 };
 
@@ -449,7 +449,7 @@ static const VSFrame *VS_CC audioGainGetFrame(int n, int activationReason, void 
         VSFrame *dst = vsapi->newAudioFrame(&d->ai->format, length, src, core);
 
         for (int p = 0; p < d->ai->format.numChannels; p++) {
-            double gain = d->gain[(d->gain.size() > 1) ? p : 0];
+            float gain = d->gain[(d->gain.size() > 1) ? p : 0];
             const T *srcPtr = reinterpret_cast<const T *>(vsapi->getReadPtr(src, p));
             T *dstPtr = reinterpret_cast<T *>(vsapi->getWritePtr(dst, p));
             for (int i = 0; i < length; i++)
