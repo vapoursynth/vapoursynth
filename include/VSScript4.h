@@ -68,7 +68,7 @@ struct VSSCRIPTAPI {
     int (VS_CC *getExitCode)(VSScript *handle) VS_NOEXCEPT;
 
     /* Fetches a variable of any VSMap storable type set in a script. It is stored in the key with the same name in dst. Returns 0 on success. */
-    int (VS_CC *getVariable)(VSScript *handle, const char *name, VSMap *dst);
+    int (VS_CC *getVariable)(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT;
 
     /* Sets all keys in the provided VSMap as variables in the script. Returns 0 on success. */
     int (VS_CC *setVariables)(VSScript *handle, const VSMap *vars) VS_NOEXCEPT;
