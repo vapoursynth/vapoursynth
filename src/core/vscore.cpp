@@ -735,7 +735,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
     // Worst case there are false positives and an extra cache gets activated
     // NoCache is generally the equivalent strict spatial for filters
 
-    int requestPattern = !!(flags & vs3::nfNoCache) ? rpNoFrameReuse : rpGeneral;
+    int requestPattern = !!(flags & vs3::nfNoCache) ? rpNoFrameReuse : rpAutoFallback;
     int numKeys = vs_internal_vsapi.mapNumKeys(in);
 
     bool makeLinear = (flags & vs3::nfMakeLinear);

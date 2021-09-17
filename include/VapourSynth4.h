@@ -297,7 +297,8 @@ typedef enum VSDataTypeHint {
 typedef enum VSRequestPattern {
     rpGeneral = 0, /* General pattern */
     rpNoFrameReuse = 1, /* When requesting all output frames from the filter no frame will be requested more than once from this input clip, never requests frames beyond the end of the clip */
-    rpStrictSpatial = 2 /* Always (and only) requests frame n from input clip when generating output frame n, never requests frames beyond the end of the clip */
+    rpStrictSpatial = 2, /* Always (and only) requests frame n from input clip when generating output frame n, never requests frames beyond the end of the clip */
+    rpAutoFallback = 3 /* Strict spatial by default. Fallback to general once non-spatial request occur. */
 } VSRequestPattern;
 
 /* Core entry point */

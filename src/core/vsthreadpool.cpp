@@ -353,6 +353,21 @@ void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutpu
     if (key.second < 0)
         core->logFatal("Negative frame request by: " + notify->key.first->getName());
 
+    // fallback for rpAutoFallback
+    if (notify->key.second != key.second) {
+        auto node = notify->key.first;
+        auto source = key.first;
+        for (auto dependency : node->dependencies) {
+            if (dependency.source == source) {
+                if (dependency.requestPattern == rpAutoFallback) {
+                    dependency.requestPattern = rpGeneral;
+                    source->registerCache(true);
+                }
+                break;
+            }
+        }
+    }
+
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
         ticks = 0;
