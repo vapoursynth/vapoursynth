@@ -357,7 +357,7 @@ void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutpu
     if (notify->key.second != key.second) {
         auto node = notify->key.first;
         auto source = key.first;
-        for (auto dependency : node->dependencies) {
+        for (auto& dependency : node->dependencies) {
             if (dependency.source == source) {
                 if (dependency.requestPattern == rpAutoFallback) {
                     dependency.requestPattern = rpGeneral;
