@@ -129,7 +129,7 @@ static __m128i divX_epu32(__m128i x, unsigned depth)
     lo = _mm_mul_epu32(lo, div);
     hi = _mm_mul_epu32(hi, div);
     x = _mm_castps_si128(_mm_shuffle_ps(_mm_castsi128_ps(lo), _mm_castsi128_ps(hi), _MM_SHUFFLE(3, 1, 3, 1)));
-    x = _mm_srli_epi32(x, shift_table[depth - 9]);
+    x = _mm_srl_epi32(x, _mm_cvtsi32_si128(shift_table[depth - 9]));
     return x;
 }
 

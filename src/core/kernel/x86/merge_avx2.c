@@ -120,7 +120,7 @@ static __m256i divX_epu32(__m256i x, unsigned depth)
     lo = _mm256_mul_epu32(lo, div);
     hi = _mm256_mul_epu32(hi, div);
     x = _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(lo), _mm256_castsi256_ps(hi), _MM_SHUFFLE(3, 1, 3, 1)));
-    x = _mm256_srli_epi32(x, shift_table[depth - 9]);
+    x = _mm256_srl_epi32(x, _mm_cvtsi32_si128(shift_table[depth - 9]));
     return x;
 }
 
