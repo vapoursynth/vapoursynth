@@ -129,7 +129,7 @@ static __m128i divX_epu32(__m128i x, unsigned depth)
     lo = _mm_mul_epu32(lo, div);
     hi = _mm_mul_epu32(hi, div);
     x = _mm_castps_si128(_mm_shuffle_ps(_mm_castsi128_ps(lo), _mm_castsi128_ps(hi), _MM_SHUFFLE(3, 1, 3, 1)));
-    x = _mm_srli_epi32(x, shift_table[depth - 9]);
+    x = _mm_srl_epi32(x, _mm_cvtsi32_si128(shift_table[depth - 9]));
     return x;
 }
 
@@ -240,6 +240,7 @@ void vs_mask_merge_premul_byte_sse2(const void *src1, const void *src2, const vo
         __m128i w1 = _mm_sub_epi16(_mm_set1_epi16(UINT8_MAX), w2);
         __m128i neg, sign, tmp;
 
+        // Premultiply v1.
         tmp = _mm_sub_epi16(v1, _mm_set1_epi16(offset));
         sign = _mm_cmplt_epi16(tmp, _mm_setzero_si128());
         neg = _mm_sub_epi16(_mm_setzero_si128(), tmp);
@@ -251,6 +252,7 @@ void vs_mask_merge_premul_byte_sse2(const void *src1, const void *src2, const vo
         neg = _mm_sub_epi16(_mm_setzero_si128(), tmp);
         tmp = _mm_or_si128(_mm_andnot_si128(sign, tmp), _mm_and_si128(sign, neg));
 
+        // Saturated add v1 (-128...255) to v2 (0...255)
         tmp = _mm_add_epi16(tmp, v2);
         tmp = _mm_packus_epi16(tmp, tmp);
         _mm_storel_epi64((__m128i *)(dstp + i), tmp);
@@ -272,8 +274,9 @@ void vs_mask_merge_premul_word_sse2(const void *src1, const void *src2, const vo
         __m128i v2 = _mm_load_si128((const __m128i *)(srcp2 + i));
         __m128i w2 = _mm_load_si128((const __m128i *)(maskp + i));
         __m128i w1 = _mm_sub_epi16(_mm_set1_epi16(maxval), w2);
-        __m128i neg, sign, tmp, tmp_lo, tmp_hi, tmpd_lo, tmpd_hi;
+        __m128i neg, sign, tmp, tmp_lo, tmp_hi, tmpd_lo, tmpd_hi, negd, signd;
 
+        // Premultiply v1.
         tmp = _mm_sub_epi16(v1, _mm_set1_epi16(offset));
         sign = _mm_cmplt_epi16(_mm_add_epi16(v1, _mm_set1_epi16(INT16_MIN)), _mm_set1_epi16(offset + INT16_MIN));
         neg = _mm_sub_epi16(_mm_setzero_si128(), tmp);
@@ -285,20 +288,26 @@ void vs_mask_merge_premul_word_sse2(const void *src1, const void *src2, const vo
         tmpd_lo = _mm_unpacklo_epi16(tmp_lo, tmp_hi);
         tmpd_lo = _mm_add_epi32(tmpd_lo, _mm_set1_epi32(maxval / 2));
         tmpd_lo = divX_epu32(tmpd_lo, depth);
-        tmpd_lo = _mm_add_epi32(tmpd_lo, _mm_set1_epi32(INT16_MIN));
+        signd = _mm_unpacklo_epi16(sign, sign);
+        negd = _mm_sub_epi32(_mm_setzero_si128(), tmpd_lo);
+        tmpd_lo = _mm_or_si128(_mm_andnot_si128(signd, tmpd_lo), _mm_and_si128(signd, negd));
 
         tmpd_hi = _mm_unpackhi_epi16(tmp_lo, tmp_hi);
         tmpd_hi = _mm_add_epi32(tmpd_hi, _mm_set1_epi32(maxval / 2));
         tmpd_hi = divX_epu32(tmpd_hi, depth);
+        signd = _mm_unpackhi_epi16(sign, sign);
+        negd = _mm_sub_epi32(_mm_setzero_si128(), tmpd_hi);
+        tmpd_hi = _mm_or_si128(_mm_andnot_si128(signd, tmpd_hi), _mm_and_si128(signd, negd));
+
+        // Saturated add v1 (-32768...65535) to v2 (0...65535)
+        tmpd_lo = _mm_add_epi32(tmpd_lo, _mm_unpacklo_epi16(v2, _mm_setzero_si128()));
+        tmpd_lo = _mm_add_epi32(tmpd_lo, _mm_set1_epi32(INT16_MIN));
+        tmpd_hi = _mm_add_epi32(tmpd_hi, _mm_unpackhi_epi16(v2, _mm_setzero_si128()));
         tmpd_hi = _mm_add_epi32(tmpd_hi, _mm_set1_epi32(INT16_MIN));
-
         tmp = _mm_packs_epi32(tmpd_lo, tmpd_hi);
+
+        tmp = _mm_min_epi16(tmp, _mm_set1_epi16(maxval + INT16_MIN));
         tmp = _mm_sub_epi16(tmp, _mm_set1_epi16(INT16_MIN));
-
-        neg = _mm_sub_epi16(_mm_setzero_si128(), tmp);
-        tmp = _mm_or_si128(_mm_andnot_si128(sign, tmp), _mm_and_si128(sign, neg));
-
-        tmp = _mm_add_epi16(tmp, v2);
         _mm_store_si128((__m128i *)(dstp + i), tmp);
     }
 }

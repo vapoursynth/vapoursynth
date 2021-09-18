@@ -33,11 +33,16 @@ union vs_merge_weight {
     float f;
 };
 
+#define DECL_PREMUL(pixel, isa) void vs_premultiply_##pixel##_##isa(const void *src1, const void *src2, void *dst, unsigned depth, unsigned offset, unsigned n);
 #define DECL_MERGE(pixel, isa) void vs_merge_##pixel##_##isa(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
 #define DECL_MASK_MERGE(pixel, isa) void vs_mask_merge_##pixel##_##isa(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
 #define DECL_MASK_MERGE_PREMUL(pixel, isa) void vs_mask_merge_premul_##pixel##_##isa(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
 #define DECL_MAKEDIFF(pixel, isa) void vs_makediff_##pixel##_##isa(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
 #define DECL_MERGEDIFF(pixel, isa) void vs_mergediff_##pixel##_##isa(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
+
+DECL_PREMUL(byte, c)
+DECL_PREMUL(word, c)
+DECL_PREMUL(float, c)
 
 DECL_MERGE(byte, c)
 DECL_MERGE(word, c)

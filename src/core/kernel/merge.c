@@ -25,6 +25,85 @@
 #define MERGESHIFT 15
 #define ROUND (1U << (MERGESHIFT - 1))
 
+#ifdef _MSC_VER
+#    pragma warning(push)
+#    pragma warning(disable:4146)
+#endif
+static uint16_t premul_u8(uint8_t x, uint8_t a, unsigned offset)
+{
+    uint16_t tmp = (uint16_t)x - (uint16_t)offset;
+    int sign = (int16_t)tmp < 0;
+    tmp = sign ? -tmp : tmp;
+    tmp = (tmp * a + UINT8_MAX / 2) / 255;
+    tmp = sign ? -tmp : tmp;
+
+    return tmp;
+}
+
+static uint32_t premul_u16(uint16_t x, uint16_t a, unsigned offset, unsigned depth)
+{
+    unsigned maxval = (1U << depth) - 1;
+    unsigned div = div_table[depth - 9];
+    unsigned shift = shift_table[depth - 9];
+
+    uint32_t tmp = (uint32_t)x - (uint32_t)offset;
+    int sign = (int32_t)tmp < 0;
+    tmp = sign ? -tmp : tmp;
+    tmp = (((uint64_t)tmp * a + maxval / 2) * div) >> (32 + shift);
+    tmp = sign ? -tmp : tmp;
+
+    return tmp;
+}
+#ifdef _MSC_VER
+#    pragma warning(pop)
+#endif
+
+void vs_premultiply_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned offset, unsigned n)
+{
+    const uint8_t *srcp1 = src1;
+    const uint8_t *srcp2 = src2;
+    uint8_t *dstp = dst;
+    unsigned i;
+
+    (void)depth;
+
+    for (i = 0; i < n; i++) {
+        uint8_t v1 = srcp1[i];
+        uint8_t v2 = srcp2[i];
+        dstp[i] = (uint8_t)premul_u8(v1, v2, offset) + offset;
+    }
+}
+
+void vs_premultiply_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned offset, unsigned n)
+{
+    const uint16_t *srcp1 = src1;
+    const uint16_t *srcp2 = src2;
+    uint16_t *dstp = dst;
+    unsigned i;
+
+    for (i = 0; i < n; i++) {
+        uint16_t v1 = srcp1[i];
+        uint16_t v2 = srcp2[i];
+        dstp[i] = (uint16_t)premul_u16(v1, v2, offset, depth) + offset;
+    }
+}
+
+void vs_premultiply_float_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned offset, unsigned n)
+{
+    const float *srcp1 = src1;
+    const float *srcp2 = src2;
+    float *dstp = dst;
+    unsigned i;
+
+    (void)depth;
+    (void)offset;
+
+    for (i = 0; i < n; i++) {
+        dstp[i] = srcp1[i] * srcp2[i];
+    }
+
+}
+
 void vs_merge_byte_c(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n)
 {
     const uint8_t *srcp1 = src1;
@@ -149,13 +228,8 @@ void vs_mask_merge_premul_byte_c(const void *src1, const void *src2, const void 
         uint8_t v2 = srcp2[i];
         uint8_t invmask = UINT8_MAX - maskp[i];
 
-        uint16_t tmp = v1 - offset;
-        int sign = (int16_t)tmp < 0;
-        tmp = sign ? -tmp : tmp;
-        tmp = (tmp * invmask + UINT8_MAX / 2) / 255;
-        tmp = sign ? -tmp : tmp;
-
-        dstp[i] = tmp + v2;
+        int16_t x = (int16_t)premul_u8(v1, invmask, offset) + (int16_t)v2;
+        dstp[i] = VSMIN(VSMAX(x, 0), 255);
     }
 }
 
@@ -175,19 +249,9 @@ void vs_mask_merge_premul_word_c(const void *src1, const void *src2, const void 
         uint16_t v1 = srcp1[i];
         uint16_t v2 = srcp2[i];
         uint16_t invmask = maxval - maskp[i];
-#ifdef _MSC_VER
-#    pragma warning(push)
-#    pragma warning(disable:4146)
-#endif
-        uint32_t tmp = v1 - offset;
-        int sign = (int32_t)tmp < 0;
-        tmp = sign ? -tmp : tmp;
-        tmp = (((uint64_t)tmp * invmask + maxval / 2) * div) >> (32 + shift);
-        tmp = sign ? -tmp : tmp;
-#ifdef _MSC_VER
-#    pragma warning(pop)
-#endif
-        dstp[i] = tmp + v2;
+
+        int32_t x = (int32_t)premul_u16(v1, invmask, offset, depth) + (int32_t)v2;
+        dstp[i] = VSMIN(VSMAX(x, 0), (int32_t)maxval);
     }
 }
 

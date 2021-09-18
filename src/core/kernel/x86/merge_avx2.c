@@ -120,7 +120,7 @@ static __m256i divX_epu32(__m256i x, unsigned depth)
     lo = _mm256_mul_epu32(lo, div);
     hi = _mm256_mul_epu32(hi, div);
     x = _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(lo), _mm256_castsi256_ps(hi), _MM_SHUFFLE(3, 1, 3, 1)));
-    x = _mm256_srli_epi32(x, shift_table[depth - 9]);
+    x = _mm256_srl_epi32(x, _mm_cvtsi32_si128(shift_table[depth - 9]));
     return x;
 }
 
@@ -231,6 +231,7 @@ void vs_mask_merge_premul_byte_avx2(const void *src1, const void *src2, const vo
         __m256i w1 = _mm256_sub_epi16(_mm256_set1_epi16(UINT8_MAX), w2);
         __m256i neg, sign, tmp;
 
+        // Premultiply v1.
         tmp = _mm256_sub_epi16(v1, _mm256_set1_epi16(offset));
         sign = _mm256_cmpgt_epi16(_mm256_setzero_si256(), tmp);
         neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
@@ -242,6 +243,7 @@ void vs_mask_merge_premul_byte_avx2(const void *src1, const void *src2, const vo
         neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
         tmp = _mm256_blendv_epi8(tmp, neg, sign);
 
+        // Saturated add v1 (-128...255) to v2 (0...255).
         tmp = _mm256_add_epi16(tmp, v2);
         tmp = _mm256_packus_epi16(tmp, tmp);
         tmp = _mm256_permute4x64_epi64(tmp, _MM_SHUFFLE(3, 1, 2, 0));
@@ -265,8 +267,9 @@ void vs_mask_merge_premul_word_avx2(const void *src1, const void *src2, const vo
         __m256i v2 = _mm256_load_si256((const __m256i *)(srcp2 + i));
         __m256i w2 = _mm256_load_si256((const __m256i *)(maskp + i));
         __m256i w1 = _mm256_sub_epi16(_mm256_set1_epi16(maxval), w2);
-        __m256i neg, sign, tmp, tmp_lo, tmp_hi, tmpd_lo, tmpd_hi;
+        __m256i neg, sign, tmp, tmp_lo, tmp_hi, tmpd_lo, tmpd_hi, negd, signd;
 
+        // Premultiply v1.
         tmp = _mm256_sub_epi16(v1, _mm256_set1_epi16(offset));
         sign = _mm256_cmpgt_epi16(_mm256_set1_epi16(offset + INT16_MIN), _mm256_add_epi16(v1, _mm256_set1_epi16(INT16_MIN)));
         neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
@@ -278,16 +281,22 @@ void vs_mask_merge_premul_word_avx2(const void *src1, const void *src2, const vo
         tmpd_lo = _mm256_unpacklo_epi16(tmp_lo, tmp_hi);
         tmpd_lo = _mm256_add_epi32(tmpd_lo, _mm256_set1_epi32(maxval / 2));
         tmpd_lo = divX_epu32(tmpd_lo, depth);
+        signd = _mm256_unpacklo_epi16(sign, sign);
+        negd = _mm256_sub_epi32(_mm256_setzero_si256(), tmpd_lo);
+        tmpd_lo = _mm256_blendv_epi8(tmpd_lo, negd, signd);
 
         tmpd_hi = _mm256_unpackhi_epi16(tmp_lo, tmp_hi);
         tmpd_hi = _mm256_add_epi32(tmpd_hi, _mm256_set1_epi32(maxval / 2));
         tmpd_hi = divX_epu32(tmpd_hi, depth);
+        signd = _mm256_unpackhi_epi16(sign, sign);
+        negd = _mm256_sub_epi32(_mm256_setzero_si256(), tmpd_hi);
+        tmpd_hi = _mm256_blendv_epi8(tmpd_hi, negd, signd);
 
+        // Saturated add v1 (-32768...65535) to v2 (0...65535)
+        tmpd_lo = _mm256_add_epi32(tmpd_lo, _mm256_unpacklo_epi16(v2, _mm256_setzero_si256()));
+        tmpd_hi = _mm256_add_epi32(tmpd_hi, _mm256_unpackhi_epi16(v2, _mm256_setzero_si256()));
         tmp = _mm256_packus_epi32(tmpd_lo, tmpd_hi);
-        neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
-        tmp = _mm256_blendv_epi8(tmp, neg, sign);
-
-        tmp = _mm256_add_epi16(tmp, v2);
+        tmp = _mm256_min_epu16(tmp, _mm256_set1_epi16(maxval));
         _mm256_store_si256((__m256i *)(dstp + i), tmp);
     }
 }
