@@ -577,7 +577,7 @@ static bool outputNode(const VSPipeOptions &opts, VSPipeOutputData *data, VSCore
             data->vsapi->getFrameAsync(n, data->alphaNode, frameDoneCallback, data);
     }
 
-    data->condition.wait(lock);
+    data->condition.wait(lock, [&]() { return data->totalFrames == data->completedFrames && data->totalFrames == data->completedAlphaFrames; });
 
     if (data->outputError) {
         for (auto &iter : data->reorderMap) {
