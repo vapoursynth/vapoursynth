@@ -1,6 +1,9 @@
 r55:
 updated visual studio 2019 runtime version
+updated zimg to 3.0.3
 fixed multiple python bugs related to output, copy on write and memory views (Kamekameha)
+fixed expr pow behavior and more clearly documented what values are allowed (sekrit-twc)
+fixed premultiplied behavior of maskedmerge (sekrit-twc)
 
 r54:
 updated visual studio 2019 runtime version
