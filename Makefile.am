@@ -96,12 +96,12 @@ noinst_LTLIBRARIES += libvapoursynth_avx2.la
 
 libvapoursynth_avx2_la_SOURCES = src/core/kernel/x86/generic_avx2.cpp \
 								 src/core/kernel/x86/merge_avx2.c \
-								 src/core/kernel/x86/planestats_avx2.c 
+								 src/core/kernel/x86/planestats_avx2.c
 libvapoursynth_avx2_la_CFLAGS = $(AM_CFLAGS) $(AVX2FLAGS)
 libvapoursynth_avx2_la_CXXFLAGS = $(AM_CXXFLAGS) $(AVX2FLAGS)
 
 libvapoursynth_la_SOURCES += src/core/jitasm.h \
-							 src/core/kernel/x86/average_sse2.cpp \
+							 src/core/kernel/x86/average_sse2.c \
 							 src/core/kernel/x86/generic_sse2.cpp \
 							 src/core/kernel/x86/merge_sse2.c \
 							 src/core/kernel/x86/planestats_sse2.c \
