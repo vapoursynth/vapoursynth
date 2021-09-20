@@ -71,6 +71,12 @@ __all__ = [
   'NONE',
   'FLOAT', 'INTEGER',
   
+  'RANGE_FULL', 'RANGE_LIMITED',
+  
+  'CHROMA_LEFT', 'CHROMA_CENTER', 'CHROMA_TOP_LEFT', 'CHROMA_TOP', 'CHROMA_BOTTOM_LEFT', 'CHROMA_BOTTOM',
+  
+  'FIELD_PROGRESSIVE', 'FIELD_TOP', 'FIELD_BOTTOM',
+  
   'get_output', 'get_outputs',
   'clear_output', 'clear_outputs',
   
