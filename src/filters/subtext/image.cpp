@@ -569,6 +569,7 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
 
     d.blank_rgb = vsapi->newVideoFrame(d.vi.format, d.vi.width, d.vi.height, nullptr, core);
     d.blank_alpha = vsapi->newVideoFrame(vsapi->getFormatPreset(pfGray8, core), d.vi.width, d.vi.height, nullptr, core);
+    vsapi->propSetInt(vsapi->getFramePropsRW(d.blank_alpha), "_ColorRange", 0, paReplace);
 
     for (int i = 0; i < 4; i++) {
         uint8_t *ptr = vsapi->getWritePtr(i < 3 ? d.blank_rgb : d.blank_alpha, i % 3);
