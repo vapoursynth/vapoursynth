@@ -6,9 +6,8 @@ Contents:
 .. toctree::
    :maxdepth: 3
 
-   about
+   introduction
    installation
-   plugins
    gettingstarted
    pythonreference  
    functions

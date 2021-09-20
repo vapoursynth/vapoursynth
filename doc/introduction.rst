@@ -1,5 +1,5 @@
-About
-=====
+Introduction
+============
 
 VapourSynth is an application for video manipulation. Or a plugin. Or a library.
 It's hard to tell because it has a core library written in C++ and a Python
