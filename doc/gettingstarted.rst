@@ -12,7 +12,7 @@ most video scripts are created.
 Example Script
 ##############
 
-Here's a sample script to be inspired by, it assumes that ffms2 is installed and :doc:`auto-loaded <plugins>`::
+Here's a sample script to be inspired by, it assumes that ffms2 is installed and :doc:`auto-loaded <installation>`::
 
    from vapoursynth import core
    video = core.ffms2.Source(source='Rule6.mkv')
