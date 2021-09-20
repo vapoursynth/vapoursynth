@@ -9,13 +9,13 @@
 #define InstallerBitsInt = Int(InstallerBits)
 
 #if InstallerBitsInt == 64
-  #define AppName 'VapourSynth (64-bits)'
+  #define AppName 'VapourSynth API3 (64-bits)'
   #define AppId 'VapourSynth'
   #define RegistryPath 'SOFTWARE\VapourSynth'
   #define SourceBinaryPath '..\msvc_project\x64\Release'
   #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win_amd64.whl'
 #else
-  #define AppName 'VapourSynth (32-bits)'
+  #define AppName 'VapourSynth API3 (32-bits)'
   #define AppId 'VapourSynth-32'
   #define RegistryPath 'SOFTWARE\VapourSynth-32'
   #define SourceBinaryPath '..\msvc_project\Release'
@@ -24,7 +24,7 @@
 
 [Setup]
 OutputDir=Compiled
-OutputBaseFilename=VapourSynth{#= InstallerBits}-R{#= Version}{#= VersionExtra}
+OutputBaseFilename=VapourSynth{#= InstallerBits}-API3-R{#= Version}{#= VersionExtra}
 Compression=lzma2/max
 SolidCompression=yes
 VersionInfoDescription={#= AppName} R{#= Version}{#= VersionExtra} Installer
