@@ -242,8 +242,6 @@ void vs_mask_merge_premul_word_c(const void *src1, const void *src2, const void 
     unsigned i;
 
     uint16_t maxval = (1U << depth) - 1;
-    uint32_t div = div_table[depth - 9];
-    uint8_t shift = shift_table[depth - 9];
 
     for (i = 0; i < n; i++) {
         uint16_t v1 = srcp1[i];
