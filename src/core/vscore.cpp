@@ -936,7 +936,7 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     if (sampleType < 0 || sampleType > 1)
         return nullptr;
 
-    if (colorFamily == cmRGB && (subSamplingH != 0 || subSamplingW != 0))
+    if ((colorFamily == cmRGB || colorFamily == cmGray) && (subSamplingH != 0 || subSamplingW != 0))
         return nullptr;
 
     if (sampleType == stFloat && (bitsPerSample != 16 && bitsPerSample != 32))
