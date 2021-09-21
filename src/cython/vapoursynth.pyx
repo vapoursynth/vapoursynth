@@ -1869,7 +1869,8 @@ cdef class VideoNode(RawNode):
     def __dir__(self):
         plugins = []
         for plugin in self.core.plugins():
-            plugins.append(plugin.namespace)
+            if (<Plugin>plugin).is_video_injectable():
+                plugins.append(plugin.namespace)
         return super(VideoNode, self).__dir__() + plugins
 
     def __len__(self):
@@ -2043,7 +2044,8 @@ cdef class AudioNode(RawNode):
     def __dir__(self):
         plugins = []
         for plugin in self.core.plugins():
-            plugins.append(plugin.namespace)
+            if (<Plugin>plugin).is_audio_injectable():
+                plugins.append(plugin.namespace)
         return super(AudioNode, self).__dir__() + plugins
 
     def __len__(self):
@@ -2362,9 +2364,30 @@ cdef class Plugin(object):
 
     def __dir__(self):
         attrs = []
-        for func in self.functions():
-            attrs.append(func.name)
+        if isinstance(self.injected_arg, VideoNode):
+            for func in self.functions():
+                if (<Function>func).is_video_injectable():
+                    attrs.append(func.name)
+        elif isinstance(self.injected_arg, AudioNode):
+            for func in self.functions():
+                if (<Function>func).is_audio_injectable():
+                    attrs.append(func.name)
+        else:
+            for func in self.functions():
+                attrs.append(func.name)
         return attrs
+        
+    cdef is_video_injectable(self):
+        for func in self.functions():
+            if (<Function>func).is_video_injectable():
+                return True
+        return False
+        
+    cdef is_audio_injectable(self):
+        for func in self.functions():
+            if (<Function>func).is_audio_injectable():
+                return True
+        return False
 
 cdef Plugin createPlugin(VSPlugin *plugin, const VSAPI *funcs, Core core):
     cdef Plugin instance = Plugin.__new__(Plugin)
@@ -2393,6 +2416,12 @@ cdef class Function(object):
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
+
+    cdef is_video_injectable(self):
+        return self.signature.find(':vnode') > 0
+        
+    cdef is_audio_injectable(self):
+        return self.signature.find(':anode') > 0
 
     def __call__(self, *args, **kwargs):
         cdef VSMap *inm
