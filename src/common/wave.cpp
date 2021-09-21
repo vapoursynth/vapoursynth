@@ -68,9 +68,9 @@ void PackChannels32to24le(const uint8_t *const *const Src, uint8_t *Dst, size_t 
 #ifdef WAVE_LITTLE_ENDIAN
             memcpy(Dst + c * 3, Src[c] + i * 4 + 1, 3);
 #else
-            Dst[c * 3 + 0] = Src[c] + i * 4 + 2;
-            Dst[c * 3 + 1] = Src[c] + i * 4 + 1;
-            Dst[c * 3 + 2] = Src[c] + i * 4 + 0;
+            Dst[c * 3 + 0] = Src[c][i * 4 + 2];
+            Dst[c * 3 + 1] = Src[c][i * 4 + 1];
+            Dst[c * 3 + 2] = Src[c][i * 4 + 0];
 #endif
         }
         Dst += Channels * 3;
