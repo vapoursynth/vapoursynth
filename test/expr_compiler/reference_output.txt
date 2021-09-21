@@ -1,0 +1,1062 @@
+y x - y y 0 = + / 255 * 50 - y 256 + 512 / 0.5 + *
+
+loadu8       r0,y
+loadu8       r1,x
+sub          r1,r0,r1
+constant     r2,255
+mul          r1,r1,r2
+constant     r2,0
+cmp          r2,r0,r2,EQ
+add          r2,r2,r0
+div          r1,r1,r2
+constant     r2,50
+sub          r1,r1,r2
+constant     r2,0.5
+constant     r3,0.00195313
+fma          r0,r2,r0,r3,0
+add          r0,r0,r2
+mul          r0,r1,r0
+storeu8      r0
+x 128 - y 128 - * 0 < 128 x 128 - abs y 128 - abs < x y ? ?
+
+loadu8       r0,x
+constant     r1,128
+sub          r2,r0,r1
+loadu8       r3,y
+sub          r4,r3,r1
+mul          r5,r2,r4
+neg          r5,r5
+abs          r4,r4
+abs          r2,r2
+sub          r2,r4,r2
+ternary      r0,r2,r0,r3
+ternary      r0,r5,r1,r0
+storeu8      r0
+x y < x x y - 1.0 * - x x y - 1.0 * - ?
+
+loadu8       r0,y
+storeu8      r0
+x 7 + y < x 2 + x 7 - y > x 2 - x 51 * y 49 * + 100 / ? ?
+
+loadu8       r0,y
+loadu8       r1,x
+sub          r2,r0,r1
+constant     r3,7
+sub          r2,r2,r3
+constant     r4,2
+add          r5,r1,r4
+sub          r3,r1,r3
+sub          r3,r3,r0
+sub          r4,r1,r4
+constant     r6,51
+mul          r1,r1,r6
+constant     r6,49
+fma          r0,r1,r0,r6,0
+constant     r1,0.01
+mul          r0,r0,r1
+ternary      r0,r3,r4,r0
+ternary      r0,r2,r5,r0
+storeu8      r0
+x 128 - abs y 128 - abs > x y ? 0.6 * x y + 0.2 * +
+
+loadu8       r0,x
+constant     r1,128
+sub          r2,r0,r1
+abs          r2,r2
+loadu8       r3,y
+sub          r1,r3,r1
+abs          r1,r1
+sub          r1,r2,r1
+ternary      r1,r1,r0,r3
+constant     r2,0.6
+mul          r1,r1,r2
+add          r0,r0,r3
+constant     r2,0.2
+fma          r0,r1,r0,r2,0
+storeu8      r0
+x y < x 1 + x y > x 1 - x ? ?
+
+loadu8       r0,y
+loadu8       r1,x
+sub          r2,r0,r1
+constant     r3,1
+add          r4,r1,r3
+sub          r0,r1,r0
+sub          r3,r1,r3
+ternary      r0,r0,r3,r1
+ternary      r0,r2,r4,r0
+storeu8      r0
+x 128 - y 128 - * 0 > x 128 - abs y 128 - abs < x 128 - 128 x - * y 128 - 128 y - * ? x y + 256 - dup * ? 0.25 * 128 +
+
+constant     r0,128
+loadu8       r1,x
+sub          r2,r1,r0
+loadu8       r3,y
+sub          r4,r3,r0
+mul          r5,r2,r4
+abs          r6,r4
+abs          r7,r2
+sub          r6,r6,r7
+sub          r7,r0,r1
+mul          r2,r2,r7
+sub          r7,r0,r3
+mul          r4,r4,r7
+ternary      r2,r6,r2,r4
+add          r1,r1,r3
+constant     r3,256
+sub          r1,r1,r3
+mul          r1,r1,r1
+ternary      r1,r5,r2,r1
+constant     r2,0.25
+fma          r0,r0,r1,r2,0
+storeu8      r0
+x y - dup * 3 * x y + 256 - dup * - 128 +
+
+loadu8       r0,x
+loadu8       r1,y
+sub          r2,r0,r1
+mul          r2,r2,r2
+constant     r3,3
+mul          r2,r2,r3
+add          r0,r0,r1
+constant     r1,256
+sub          r0,r0,r1
+fma          r0,r2,r0,r0,2
+constant     r1,128
+add          r0,r0,r1
+storeu8      r0
+x 2 * y -1 * +
+
+loadu8       r0,y
+loadu8       r1,x
+constant     r2,2
+fma          r0,r0,r1,r2,1
+storeu8      r0
+y 0 > y 255 < and x 0 = x 255 = or and x y ?
+
+loadu8       r0,y
+constant     r1,255
+sub          r2,r1,r0
+and          r2,r0,r2
+loadu8       r3,x
+constant     r4,0
+cmp          r4,r3,r4,EQ
+cmp          r1,r3,r1,EQ
+or           r1,r4,r1
+and          r1,r2,r1
+ternary      r0,r1,r3,r0
+storeu8      r0
+x x y - 2.7 * +
+
+loadu8       r0,x
+loadu8       r1,y
+sub          r1,r0,r1
+constant     r2,2.7
+fma          r0,r0,r1,r2,0
+storeu8      r0
+x 128 - y 128 - * 0 < x 128 - abs y 128 - abs < x y ? 128 - 0.25 * 128 + x 128 - abs y 128 - abs < x y ? ?
+
+loadu8       r0,x
+constant     r1,128
+sub          r2,r0,r1
+loadu8       r3,y
+sub          r4,r3,r1
+mul          r5,r2,r4
+neg          r5,r5
+constant     r6,32
+abs          r4,r4
+abs          r2,r2
+sub          r2,r4,r2
+ternary      r0,r2,r0,r3
+constant     r2,0.25
+fma          r2,r6,r0,r2,1
+add          r1,r2,r1
+ternary      r0,r5,r1,r0
+storeu8      r0
+x y - abs 10 < x y + 2 / 0 ?
+
+constant     r0,10
+loadu8       r1,x
+loadu8       r2,y
+sub          r3,r1,r2
+abs          r3,r3
+sub          r0,r0,r3
+add          r1,r1,r2
+constant     r2,0.5
+mul          r1,r1,r2
+constant     r2,0
+ternary      r0,r0,r1,r2
+storeu8      r0
+x -1 - abs 255 * -1 128 - abs 128 + /
+
+loadu8       r0,x
+constant     r1,-1
+sub          r0,r0,r1
+abs          r0,r0
+constant     r1,0.992218
+mul          r0,r0,r1
+storeu8      r0
+x y - abs 2 <= x x y - 0 < y 2 - y 2 + ? ?
+
+loadu8       r0,x
+loadu8       r1,y
+sub          r2,r0,r1
+abs          r2,r2
+constant     r3,2
+sub          r2,r2,r3
+sub          r4,r1,r0
+sub          r5,r1,r3
+add          r1,r1,r3
+ternary      r1,r4,r5,r1
+ternary      r0,r2,r1,r0
+storeu8      r0
+x 16 < 255 x 75 > 0 255 x 16 - 255 75 16 - / * - ? ?
+
+constant     r0,16
+loadu8       r1,x
+sub          r0,r0,r1
+constant     r2,255
+constant     r3,75
+sub          r3,r1,r3
+constant     r4,0
+constant     r5,69.1525
+constant     r6,4.32203
+fma          r1,r5,r1,r6,1
+sub          r1,r2,r1
+ternary      r1,r3,r4,r1
+ternary      r0,r0,r2,r1
+storeu8      r0
+x y - abs 1 < x x 5.122 + y < x 3 + x 5.122 - y > x 3 - x 51 * y 49 * + 100 / ? ? ?
+
+constant     r0,1
+loadu8       r1,x
+loadu8       r2,y
+sub          r3,r1,r2
+abs          r3,r3
+sub          r0,r0,r3
+sub          r3,r2,r1
+constant     r4,5.122
+sub          r3,r3,r4
+constant     r5,3
+add          r6,r1,r5
+sub          r4,r1,r4
+sub          r4,r4,r2
+sub          r5,r1,r5
+constant     r7,51
+mul          r7,r1,r7
+constant     r8,49
+fma          r2,r7,r2,r8,0
+constant     r7,0.01
+mul          r2,r2,r7
+ternary      r2,r4,r5,r2
+ternary      r2,r3,r6,r2
+ternary      r0,r0,r1,r2
+storeu8      r0
+x 128 - abs 2 *
+
+loadu8       r0,x
+constant     r1,128
+sub          r0,r0,r1
+abs          r0,r0
+add          r0,r0,r0
+storeu8      r0
+z 16 - y 16 - / 8 min 0.4 max x 16 - * 16 +
+
+constant     r0,16
+loadu8       r1,z
+sub          r1,r1,r0
+loadu8       r2,y
+sub          r2,r2,r0
+div          r1,r1,r2
+constant     r2,8
+min          r1,r1,r2
+constant     r2,0.4
+max          r1,r1,r2
+loadu8       r2,x
+sub          r2,r2,r0
+fma          r0,r0,r1,r2,0
+storeu8      r0
+0.5 1 x 65536 / 0.925 * 0.0373 + 0.00001 max / 1 - 0.00001 max log 6.5 / - 65536 *
+
+constant     r0,0.5
+constant     r1,1
+constant     r2,0.0373
+loadu8       r3,x
+constant     r4,1.41144e-05
+fma          r2,r2,r3,r4,0
+constant     r3,1e-05
+max          r2,r2,r3
+div          r2,r1,r2
+sub          r1,r2,r1
+max          r1,r1,r3
+log          r1,r1
+constant     r2,0.153846
+fma          r0,r0,r1,r2,2
+constant     r1,65536
+mul          r0,r0,r1
+storeu8      r0
+x 16 - 95 / 100 * 16 + x 239 - -10 / 0 max 1 min * x x 229 - 10 / 0 max 1 min * +
+
+constant     r0,16.8421
+loadu8       r1,x
+constant     r2,1.05263
+fma          r0,r0,r1,r2,1
+constant     r2,16
+add          r0,r0,r2
+constant     r2,-23.9
+constant     r3,-0.1
+fma          r2,r2,r1,r3,1
+constant     r3,0
+max          r2,r2,r3
+constant     r4,1
+min          r2,r2,r4
+mul          r0,r0,r2
+constant     r2,22.9
+constant     r5,0.1
+fma          r2,r2,r1,r5,1
+max          r2,r2,r3
+min          r2,r2,r4
+fma          r0,r0,r2,r1,0
+storeu8      r0
+x 128 < -3.5988432352121e-06 x 128 / * x 128 / * 0.00016044118478736 + x 128 / * x 128 / * -0.0046817541353187 + x 128 / * x 128 / * 0.079692626246167 + x 128 / * x 128 / * -0.64596409750625 + x 128 / * x 128 / * 1.5707963267949 + x 128 / * 1.0 pow x 128 > -3.5988432352121e-06 255 x - 255 128 - / * 255 x - 255 128 - / * 0.00016044118478736 + 255 x - 255 128 - / * 255 x - 255 128 - / * -0.0046817541353187 + 255 x - 255 128 - / * 255 x - 255 128 - / * 0.079692626246167 + 255 x - 255 128 - / * 255 x - 255 128 - / * -0.64596409750625 + 255 x - 255 128 - / * 255 x - 255 128 - / * 1.5707963267949 + 255 x - 255 128 - / * 1.0 pow 1 ? ? x 2 <= 0 x 18 >= 1 -3.5988432352121e-06 x 2 - 16 / * x 2 - 16 / * 0.00016044118478736 + x 2 - 16 / * x 2 - 16 / * -0.0046817541353187 + x 2 - 16 / * x 2 - 16 / * 0.079692626246167 + x 2 - 16 / * x 2 - 16 / * -0.64596409750625 + x 2 - 16 / * x 2 - 16 / * 1.5707963267949 + x 2 - 16 / * ? ? * x 0 - 255 / 1.0 pow 255 * 0 + x - * x +
+
+loadu8       r0,x
+storeu8      r0
+y 0.749 < y 0.749 ? x 4 + > x y 0.749 < y 0.749 ? - 0 ? 0.375 * x +
+
+loadu8       r0,x
+loadu8       r1,y
+constant     r2,0.749
+min          r1,r1,r2
+constant     r2,4
+add          r2,r0,r2
+sub          r2,r1,r2
+sub          r1,r0,r1
+constant     r3,0
+ternary      r1,r2,r1,r3
+constant     r2,0.375
+fma          r0,r0,r1,r2,0
+storeu8      r0
+y 130 <= 128 y 140  >= x 140 y 1 / - 128 * x 1 / y 1 / 130 - * + 10 / 1 * ? 128 - 1 * 128 + ?
+
+loadu8       r0,y
+constant     r1,130
+sub          r1,r0,r1
+constant     r2,140
+sub          r0,r2,r0
+loadu8       r2,x
+mul          r3,r1,r2
+constant     r4,128
+fma          r3,r3,r0,r4,0
+constant     r5,0.1
+mul          r3,r3,r5
+ternary      r0,r0,r3,r2
+ternary      r0,r1,r0,r4
+storeu8      r0
+x y < x 1 + x y > x 1 - x ? ?
+
+loadu8       r0,y
+loadu8       r1,x
+sub          r2,r0,r1
+constant     r3,1
+add          r4,r1,r3
+sub          r0,r1,r0
+sub          r3,r1,r3
+ternary      r0,r0,r3,r1
+ternary      r0,r2,r4,r0
+storeu8      r0
+x 128 - y 128 - * 0 < x 128 - 100 / 25 * 128 + x 128 - abs y 128 - abs > x 25 * y 75 * + 100 / x ? ?
+
+loadu8       r0,x
+constant     r1,128
+sub          r2,r0,r1
+loadu8       r3,y
+sub          r4,r3,r1
+mul          r5,r2,r4
+neg          r5,r5
+constant     r6,0.25
+fma          r1,r1,r2,r6,0
+abs          r2,r2
+abs          r4,r4
+sub          r2,r2,r4
+constant     r4,25
+mul          r4,r0,r4
+constant     r6,75
+fma          r3,r4,r3,r6,0
+constant     r4,0.01
+mul          r3,r3,r4
+ternary      r0,r2,r3,r0
+ternary      r0,r5,r1,r0
+storeu8      r0
+x y 0 + > y 0 + x ? z 0 - < z 0 - x y 0 + > y 0 + x ? ?
+
+loadu8       r0,x
+loadu8       r1,y
+min          r0,r0,r1
+loadu8       r1,z
+max          r0,r0,r1
+storeu8      r0
+x 128 > y 255 y - x 128 - * 128 / 0.5 y 128 - abs 255 / - * + y y 128 x - 128 / * 0.5 y 128 - abs 255 / - * - ?
+
+loadu8       r0,x
+constant     r1,128
+sub          r2,r0,r1
+loadu8       r3,y
+constant     r4,255
+sub          r4,r4,r3
+mul          r4,r2,r4
+constant     r5,0.5
+sub          r6,r3,r1
+abs          r6,r6
+constant     r7,0.00392157
+fma          r5,r5,r6,r7,2
+mul          r4,r4,r5
+constant     r6,0.0078125
+fma          r4,r3,r4,r6,0
+sub          r0,r1,r0
+mul          r0,r5,r0
+mul          r0,r0,r3
+constant     r1,-0.0078125
+fma          r0,r3,r0,r1,0
+ternary      r0,r2,r4,r0
+storeu8      r0
+x y - x z - * 0 < x x y - abs x z - abs < y z ? ?
+
+loadu8       r0,x
+loadu8       r1,y
+sub          r2,r0,r1
+loadu8       r3,z
+sub          r4,r0,r3
+mul          r5,r2,r4
+neg          r5,r5
+abs          r4,r4
+abs          r2,r2
+sub          r2,r4,r2
+ternary      r1,r2,r1,r3
+ternary      r0,r5,r0,r1
+storeu8      r0
+255 1 x 0.0001 + y 0.0001 + / 1.0 pow + /
+
+constant     r0,255
+loadu8       r1,x
+constant     r2,0.0001
+add          r1,r1,r2
+loadu8       r3,y
+add          r2,r3,r2
+div          r1,r1,r2
+constant     r2,1
+add          r1,r1,r2
+div          r0,r0,r1
+storeu8      r0
+y 0.0001 + x 0.0001 + dup * y 0.0001 + dup * + sqrt / 255 *
+
+loadu8       r0,y
+constant     r1,0.0001
+add          r0,r0,r1
+constant     r2,1
+mul          r3,r0,r0
+loadu8       r4,x
+add          r1,r4,r1
+fma          r1,r3,r1,r1,0
+div          r1,r2,r1
+sqrt         r1,r1
+mul          r0,r0,r1
+constant     r1,255
+mul          r0,r0,r1
+storeu8      r0
+y x - abs 1 + 1.5 pow 1 -
+
+loadu8       r0,y
+loadu8       r1,x
+sub          r0,r0,r1
+abs          r0,r0
+constant     r1,1
+add          r0,r0,r1
+mul          r2,r0,r0
+mul          r0,r2,r0
+sqrt         r0,r0
+sub          r0,r0,r1
+storeu8      r0
+y x - 20.17 * 32768 +
+
+constant     r0,32768
+loadu8       r1,y
+loadu8       r2,x
+sub          r1,r1,r2
+constant     r2,20.17
+fma          r0,r0,r1,r2,0
+storeu8      r0
+x 0.9999 - 1.0001 0.9999 - / 255 *
+
+constant     r0,1.27466e+06
+loadu8       r1,x
+constant     r2,1.27479e+06
+fma          r0,r0,r1,r2,1
+storeu8      r0
+x 0 < 16 x ? 255 > 235 x ?
+
+loadu8       r0,x
+neg          r1,r0
+constant     r2,16
+ternary      r1,r1,r2,r0
+constant     r2,255
+sub          r1,r1,r2
+constant     r2,235
+ternary      r0,r1,r2,r0
+storeu8      r0
+x x * y y * + z z * + a a * + sqrt
+
+loadu8       r0,x
+mul          r0,r0,r0
+loadu8       r1,y
+fma          r0,r0,r1,r1,0
+loadu8       r1,z
+fma          r0,r0,r1,r1,0
+loadu8       r1,a
+fma          r0,r0,r1,r1,0
+sqrt         r0,r0
+storeu8      r0
+x y max z max a max
+
+loadu8       r0,x
+loadu8       r1,y
+max          r0,r0,r1
+loadu8       r1,z
+max          r0,r0,r1
+loadu8       r1,a
+max          r0,r0,r1
+storeu8      r0
+x y + z + a + b + 4 /
+
+loadu8       r0,x
+loadu8       r1,y
+add          r0,r0,r1
+loadu8       r1,z
+add          r0,r0,r1
+loadu8       r1,a
+add          r0,r0,r1
+loadu8       r1,b
+add          r0,r0,r1
+constant     r1,0.25
+mul          r0,r0,r1
+storeu8      r0
+x y max z max a max b max c max d max e max
+
+loadu8       r0,x
+loadu8       r1,y
+max          r0,r0,r1
+loadu8       r1,z
+max          r0,r0,r1
+loadu8       r1,a
+max          r0,r0,r1
+loadu8       r1,b
+max          r0,r0,r1
+loadu8       r1,c
+max          r0,r0,r1
+loadu8       r1,d
+max          r0,r0,r1
+loadu8       r1,e
+max          r0,r0,r1
+storeu8      r0
+x y + z + a + b + c + d + e + 8 /
+
+loadu8       r0,x
+loadu8       r1,y
+add          r0,r0,r1
+loadu8       r1,z
+add          r0,r0,r1
+loadu8       r1,a
+add          r0,r0,r1
+loadu8       r1,b
+add          r0,r0,r1
+loadu8       r1,c
+add          r0,r0,r1
+loadu8       r1,d
+add          r0,r0,r1
+loadu8       r1,e
+add          r0,r0,r1
+constant     r1,0.125
+mul          r0,r0,r1
+storeu8      r0
+x x * y y * + z z * + a a * + b b * + c c * + d d * + e e * + 8 / sqrt
+
+loadu8       r0,x
+mul          r0,r0,r0
+loadu8       r1,y
+fma          r0,r0,r1,r1,0
+loadu8       r1,z
+fma          r0,r0,r1,r1,0
+loadu8       r1,a
+fma          r0,r0,r1,r1,0
+loadu8       r1,b
+fma          r0,r0,r1,r1,0
+loadu8       r1,c
+fma          r0,r0,r1,r1,0
+loadu8       r1,d
+fma          r0,r0,r1,r1,0
+loadu8       r1,e
+fma          r0,r0,r1,r1,0
+constant     r1,0.125
+mul          r0,r0,r1
+sqrt         r0,r0
+storeu8      r0
+x y max 128 / 0.86 pow 255 *
+
+loadu8       r0,x
+loadu8       r1,y
+max          r0,r0,r1
+constant     r1,0.0078125
+mul          r0,r0,r1
+constant     r1,0.86
+pow          r0,r0,r1
+constant     r1,255
+mul          r0,r0,r1
+storeu8      r0
+x 128 - abs y 128 - abs < x y ?
+
+loadu8       r0,y
+constant     r1,128
+sub          r2,r0,r1
+abs          r2,r2
+loadu8       r3,x
+sub          r1,r3,r1
+abs          r1,r1
+sub          r1,r2,r1
+ternary      r0,r1,r3,r0
+storeu8      r0
+x x * y y * + 1 / sqrt 65535 > 255 x x * y y * + 1 / sqrt 0 < 0 x x * y y * + 1 / sqrt ? ?
+
+loadu8       r0,x
+mul          r0,r0,r0
+loadu8       r1,y
+fma          r0,r0,r1,r1,0
+sqrt         r0,r0
+constant     r1,65535
+sub          r1,r0,r1
+constant     r2,255
+constant     r3,0
+max          r0,r0,r3
+ternary      r0,r1,r2,r0
+storeu8      r0
+x 128 - y 128 - * 0 < x 128 - 0.24 * 128 + x 128 - abs y 128 - abs > x 0.24 * y 0.76 * + x ? ?
+
+loadu8       r0,x
+constant     r1,128
+sub          r2,r0,r1
+loadu8       r3,y
+sub          r4,r3,r1
+mul          r5,r2,r4
+neg          r5,r5
+constant     r6,0.24
+fma          r1,r1,r2,r6,0
+abs          r2,r2
+abs          r4,r4
+sub          r2,r2,r4
+mul          r4,r0,r6
+constant     r6,0.76
+fma          r3,r4,r3,r6,0
+ternary      r0,r2,r3,r0
+ternary      r0,r5,r1,r0
+storeu8      r0
+x y and 255 y 128 0 ? ?
+
+loadu8       r0,x
+loadu8       r1,y
+and          r0,r0,r1
+constant     r2,255
+constant     r3,128
+constant     r4,0
+ternary      r1,r1,r3,r4
+ternary      r0,r0,r2,r1
+storeu8      r0
+x 2 + y < x 2 + x 2 - y > x 2 - y ? ?
+
+loadu8       r0,y
+loadu8       r1,x
+sub          r2,r0,r1
+constant     r3,2
+sub          r2,r2,r3
+add          r4,r1,r3
+sub          r1,r1,r3
+max          r0,r1,r0
+ternary      r0,r2,r4,r0
+storeu8      r0
+x -1 + y < x 3 + x -1 - y > x 3 - x 1 * y 99 * + 100 / ? ?
+
+loadu8       r0,y
+loadu8       r1,x
+sub          r2,r0,r1
+constant     r3,1
+add          r2,r2,r3
+constant     r3,3
+add          r4,r1,r3
+constant     r5,-1
+sub          r5,r1,r5
+sub          r5,r5,r0
+sub          r3,r1,r3
+constant     r6,99
+fma          r0,r1,r0,r6,0
+constant     r1,0.01
+mul          r0,r0,r1
+ternary      r0,r5,r3,r0
+ternary      r0,r2,r4,r0
+storeu8      r0
+y 128 2 + > x 2 - y 128 2 - < x 2 + x y 128 - - ? ?
+
+loadu8       r0,y
+constant     r1,130
+sub          r1,r0,r1
+loadu8       r2,x
+constant     r3,2
+sub          r4,r2,r3
+constant     r5,126
+sub          r5,r5,r0
+add          r3,r2,r3
+constant     r6,128
+sub          r0,r0,r6
+sub          r0,r2,r0
+ternary      r0,r5,r3,r0
+ternary      r0,r1,r4,r0
+storeu8      r0
+y 128 = x x y 128 - abs 1 / 1 4 / pow 1 * y 128 - y 128 - abs / * - ?
+
+loadu8       r0,y
+constant     r1,128
+cmp          r2,r0,r1,EQ
+loadu8       r3,x
+sub          r0,r0,r1
+constant     r1,1
+abs          r4,r0
+mul          r5,r4,r4
+mul          r4,r5,r4
+div          r1,r1,r4
+sqrt         r1,r1
+sqrt         r1,r1
+fma          r0,r3,r0,r1,2
+ternary      r0,r2,r3,r0
+storeu8      r0
+x 128 < y 128 < xor x 128 - 100 / 100 * 128 + x 128 - abs y 128 - abs > x 100 * y 0 * + 100 / x ? ?
+
+loadu8       r0,x
+storeu8      r0
+x 128 < y 128 < xor x 128 - 100 / 75 * 128 + x 128 - abs y 128 - abs > x 75 * y 25 * + 100 / x ? ?
+
+constant     r0,128
+loadu8       r1,x
+sub          r2,r0,r1
+loadu8       r3,y
+sub          r4,r0,r3
+xor          r2,r2,r4
+sub          r4,r1,r0
+constant     r5,0.75
+fma          r5,r0,r4,r5,0
+abs          r4,r4
+sub          r0,r3,r0
+abs          r0,r0
+sub          r0,r4,r0
+constant     r4,75
+mul          r4,r1,r4
+constant     r6,25
+fma          r3,r4,r3,r6,0
+constant     r4,0.01
+mul          r3,r3,r4
+ternary      r0,r0,r3,r1
+ternary      r0,r2,r5,r0
+storeu8      r0
+x 8 + y < x 8 + x 24 - y > x 24 - y ? ? x y - abs * x 32 x y - abs - * + 32 /
+
+loadu8       r0,y
+loadu8       r1,x
+sub          r2,r0,r1
+constant     r3,8
+sub          r2,r2,r3
+add          r3,r1,r3
+constant     r4,24
+sub          r4,r1,r4
+max          r4,r4,r0
+ternary      r2,r2,r3,r4
+sub          r0,r1,r0
+abs          r0,r0
+mul          r2,r2,r0
+constant     r3,32
+sub          r0,r3,r0
+fma          r0,r2,r0,r1,0
+constant     r1,0.03125
+mul          r0,r0,r1
+storeu8      r0
+x y - abs 1 < 128 x y - 3.2 / abs 128 x y - 3.2 / abs - x y - 3.2 / abs 128 / * + x y - 3.2 / x y - 3.2 / abs 0 + / * 128 x y - 3.2 / abs - 20 / dup * 128 x y - 3.2 / abs - 20 / dup * 0 + / * 128 + ?
+
+constant     r0,1
+loadu8       r1,x
+loadu8       r2,y
+sub          r1,r1,r2
+abs          r2,r1
+sub          r0,r0,r2
+constant     r2,128
+constant     r3,0.3125
+mul          r4,r1,r3
+abs          r4,r4
+sub          r5,r2,r4
+mul          r5,r4,r5
+constant     r6,0.0078125
+fma          r5,r4,r5,r6,0
+mul          r1,r1,r5
+mul          r1,r1,r3
+div          r1,r1,r4
+add          r1,r1,r2
+ternary      r0,r0,r2,r1
+storeu8      r0
+x 0.001 1 1 1 0.03 y 0.5 - * exp + / - * z / + a 0.001 z / + /
+
+constant     r0,1
+constant     r1,0.015
+loadu8       r2,y
+constant     r3,0.03
+fma          r1,r1,r2,r3,1
+exp          r1,r1
+add          r1,r1,r0
+div          r1,r0,r1
+sub          r0,r0,r1
+constant     r1,0.001
+mul          r0,r0,r1
+loadu8       r2,z
+div          r0,r0,r2
+loadu8       r3,x
+add          r0,r0,r3
+loadu8       r3,a
+div          r1,r1,r2
+add          r1,r3,r1
+div          r0,r0,r1
+storeu8      r0
+2 x y * sqrt * 0.0026 + x y + 0.0026 + /
+
+constant     r0,0.0026
+loadu8       r1,x
+loadu8       r2,y
+mul          r3,r1,r2
+sqrt         r3,r3
+constant     r4,2
+fma          r3,r0,r3,r4,0
+add          r1,r1,r2
+add          r0,r1,r0
+div          r0,r3,r0
+storeu8      r0
+2 x * 0.01 + 2 y x - * 0.03 + * z a + 0.01 + b c - d e - + 0.03 + * /
+
+constant     r0,0.01
+loadu8       r1,x
+constant     r2,2
+fma          r3,r0,r1,r2,0
+constant     r4,0.03
+loadu8       r5,y
+sub          r1,r5,r1
+fma          r1,r4,r1,r2,0
+mul          r1,r3,r1
+loadu8       r2,z
+loadu8       r3,a
+add          r2,r2,r3
+add          r0,r2,r0
+loadu8       r2,b
+loadu8       r3,c
+sub          r2,r2,r3
+loadu8       r3,d
+loadu8       r5,e
+sub          r3,r3,r5
+add          r2,r2,r3
+add          r2,r2,r4
+mul          r0,r0,r2
+div          r0,r1,r0
+storeu8      r0
+x y * 0 > 2 z * 0.01 + 3 a z - * 0.03 + * x y * / x 0 = not y 0 = and 2 z * 0.01 + x / 1 ? ?
+
+loadu8       r0,x
+loadu8       r1,y
+mul          r2,r0,r1
+constant     r3,0.01
+loadu8       r4,z
+constant     r5,2
+fma          r3,r3,r4,r5,0
+constant     r5,0.03
+loadu8       r6,a
+sub          r4,r6,r4
+constant     r6,3
+fma          r4,r5,r4,r6,0
+mul          r4,r3,r4
+div          r4,r4,r2
+constant     r5,0
+cmp          r6,r0,r5,NEQ
+cmp          r1,r1,r5,EQ
+and          r1,r6,r1
+div          r0,r3,r0
+constant     r3,1
+ternary      r0,r1,r0,r3
+ternary      r0,r2,r4,r0
+storeu8      r0
+x z - 0.000001 < 0 y z - x z - / sqrt ?
+
+constant     r0,1e-06
+loadu8       r1,x
+loadu8       r2,z
+sub          r1,r1,r2
+sub          r0,r0,r1
+constant     r3,0
+loadu8       r4,y
+sub          r2,r4,r2
+div          r1,r2,r1
+sqrt         r1,r1
+ternary      r0,r0,r3,r1
+storeu8      r0
+x y - z sqrt 0.0000001 + / b sqrt * a +
+
+loadu8       r0,x
+loadu8       r1,y
+sub          r0,r0,r1
+loadu8       r1,b
+sqrt         r1,r1
+mul          r0,r0,r1
+loadu8       r1,z
+sqrt         r1,r1
+constant     r2,1e-07
+add          r1,r1,r2
+div          r0,r0,r1
+loadu8       r1,a
+add          r0,r0,r1
+storeu8      r0
+x y = 0 255 ?
+
+loadu8       r0,x
+loadu8       r1,y
+cmp          r0,r0,r1,EQ
+constant     r1,0
+constant     r2,255
+ternary      r0,r0,r1,r2
+storeu8      r0
+x y - x z - xor x x y - abs x z - abs < y z ? ?
+
+loadu8       r0,x
+loadu8       r1,y
+sub          r2,r0,r1
+loadu8       r3,z
+sub          r4,r0,r3
+xor          r5,r2,r4
+abs          r4,r4
+abs          r2,r2
+sub          r2,r4,r2
+ternary      r1,r2,r1,r3
+ternary      r0,r5,r0,r1
+storeu8      r0
+y z - abs 2 <= y x <= and y x ?
+
+loadu8       r0,y
+loadu8       r1,z
+sub          r1,r0,r1
+abs          r1,r1
+constant     r2,2
+cmp          r1,r1,r2,LE
+loadu8       r2,x
+cmp          r3,r0,r2,LE
+and          r1,r1,r3
+ternary      r0,r1,r0,r2
+storeu8      r0
+1 x 0.00001 + 100 * 1 + /
+
+constant     r0,1
+constant     r1,0.001
+loadu8       r2,x
+constant     r3,100
+fma          r1,r1,r2,r3,0
+add          r1,r1,r0
+div          r0,r0,r1
+storeu8      r0
+x y / 1 z y / - a * +
+
+loadu8       r0,x
+loadu8       r1,y
+div          r0,r0,r1
+constant     r2,1
+loadu8       r3,z
+div          r1,r3,r1
+sub          r1,r2,r1
+loadu8       r2,a
+fma          r0,r0,r1,r2,0
+storeu8      r0
+x y * 2 * 0.00215 + x dup * y dup * + 0.00215 + /
+
+constant     r0,0.00215
+loadu8       r1,x
+loadu8       r2,y
+mul          r3,r1,r2
+constant     r4,2
+fma          r3,r0,r3,r4,0
+mul          r1,r1,r1
+fma          r1,r1,r2,r2,0
+add          r0,r1,r0
+div          r0,r3,r0
+storeu8      r0
+x y * z a * + 2 * 0.00846 + x dup * y dup * + z dup * + a dup * + 0.00846 + /
+
+constant     r0,0.00846
+loadu8       r1,x
+loadu8       r2,y
+mul          r3,r1,r2
+loadu8       r4,z
+loadu8       r5,a
+fma          r3,r3,r4,r5,0
+constant     r6,2
+fma          r3,r0,r3,r6,0
+mul          r1,r1,r1
+fma          r1,r1,r2,r2,0
+fma          r1,r1,r4,r4,0
+fma          r1,r1,r5,r5,0
+add          r0,r1,r0
+div          r0,r3,r0
+storeu8      r0
+x 0.6 * y 0.4 * + 0 max 1 min 0.25 pow
+
+loadu8       r0,x
+constant     r1,0.6
+mul          r0,r0,r1
+loadu8       r1,y
+constant     r2,0.4
+fma          r0,r0,r1,r2,0
+constant     r1,0
+max          r0,r0,r1
+constant     r1,1
+min          r0,r0,r1
+sqrt         r0,r0
+sqrt         r0,r0
+storeu8      r0
+x 128 - abs y 128 - abs < x 128 - abs x y + 256 - abs < and x 128 - abs dup sqrt - dup * y 128 - abs x y + 256 - abs < y 128 - abs dup sqrt - dup * x y + 256 - abs dup sqrt - dup * ? ? x 128 - y 128 - * 0 > -1 1 ? * 128 +
+
+constant     r0,128
+loadu8       r1,y
+sub          r2,r1,r0
+abs          r3,r2
+loadu8       r4,x
+sub          r5,r4,r0
+abs          r6,r5
+sub          r7,r3,r6
+add          r1,r4,r1
+constant     r4,256
+sub          r1,r1,r4
+abs          r1,r1
+sub          r4,r1,r6
+and          r4,r7,r4
+sqrt         r7,r6
+sub          r6,r6,r7
+mul          r6,r6,r6
+sub          r7,r1,r3
+sqrt         r8,r3
+sub          r3,r3,r8
+mul          r3,r3,r3
+sqrt         r8,r1
+sub          r1,r1,r8
+mul          r1,r1,r1
+ternary      r1,r7,r3,r1
+ternary      r1,r4,r6,r1
+mul          r2,r2,r5
+constant     r3,-1
+constant     r4,1
+ternary      r2,r2,r3,r4
+fma          r0,r0,r1,r2,0
+storeu8      r0

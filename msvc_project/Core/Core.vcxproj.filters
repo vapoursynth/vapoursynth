@@ -16,14 +16,20 @@
     <Filter Include="sdk">
       <UniqueIdentifier>{7b8d16d8-0e90-4ae9-bc15-ed1a0abcc974}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\kernel">
-      <UniqueIdentifier>{b24a0a3c-180b-49e5-b41e-ff88caffc192}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\kernel">
       <UniqueIdentifier>{938163e2-1d8f-4bff-a2d2-e4bddb30c2c4}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\kernel\x86">
       <UniqueIdentifier>{07cba079-c686-4498-bb5c-752dda78f9d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\expr">
+      <UniqueIdentifier>{123223fc-f514-4dd9-bb76-0d739133aaa1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\kernel">
+      <UniqueIdentifier>{b24a0a3c-180b-49e5-b41e-ff88caffc192}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\expr">
+      <UniqueIdentifier>{04bc6c58-2ecc-434e-a0bc-fd4618c4809c}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -129,6 +135,15 @@
     <ClCompile Include="..\..\src\core\kernel\x86\average_sse2.c">
       <Filter>Source Files\kernel\x86</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\expr\expr.cpp">
+      <Filter>Source Files\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\expr\jitcompiler.cpp">
+      <Filter>Source Files\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\expr\jitcompiler_x86.cpp">
+      <Filter>Source Files\expr</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\core\cpufeatures.h">
@@ -153,9 +168,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\VSHelper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\core\jitasm.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core\internalfilters.h">
@@ -196,6 +208,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\core\kernel\average.h">
       <Filter>Header Files\kernel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\expr\jitasm.h">
+      <Filter>Header Files\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\expr\expr.h">
+      <Filter>Header Files\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\expr\jitcompiler.h">
+      <Filter>Header Files\expr</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

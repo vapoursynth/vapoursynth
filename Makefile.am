@@ -19,7 +19,7 @@ commonlibtoolflags = --tag=disable-static
 
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = 
+pkgconfig_DATA =
 
 EXTRA_DIST = pc/vapoursynth.pc.in \
 			 pc/vapoursynth-script.pc.in
@@ -30,11 +30,7 @@ lib_LTLIBRARIES =
 
 
 if VSCORE
-noinst_LTLIBRARIES = libexprfilter.la
-
-libexprfilter_la_SOURCES = src/core/exprfilter.cpp
-libexprfilter_la_CPPFLAGS = $(AM_CXXFLAGS) -fno-strict-aliasing
-
+noinst_LTLIBRARIES =
 lib_LTLIBRARIES += libvapoursynth.la
 
 libvapoursynth_la_SOURCES = src/core/audiofilters.cpp \
@@ -42,10 +38,14 @@ libvapoursynth_la_SOURCES = src/core/audiofilters.cpp \
 							src/core/boxblurfilter.cpp \
 							src/core/cpufeatures.cpp \
 							src/core/cpufeatures.h \
+							src/core/expr/expr.cpp \
+							src/core/expr/expr.h \
+							src/core/expr/jitcompiler.cpp \
+							src/core/expr/jitcompiler.h \
+							src/core/exprfilter.cpp \
 							src/core/filtershared.h \
 							src/core/genericfilters.cpp \
 							src/core/internalfilters.h \
-							src/core/jitasm.h \
 							src/core/kernel/average.cpp \
 							src/core/kernel/average.h \
 							src/core/kernel/cpulevel.cpp \
@@ -88,7 +88,7 @@ pkgconfig_DATA += pc/vapoursynth.pc
 
 libvapoursynth_la_LDFLAGS = -no-undefined -avoid-version $(UNDEFINEDLDFLAGS)
 libvapoursynth_la_CPPFLAGS = $(PTHREAD_CFLAGS) $(ZIMG_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"'
-libvapoursynth_la_LIBADD = $(PTHREAD_LIBS) $(ZIMG_LIBS) $(DLOPENLIB) libexprfilter.la
+libvapoursynth_la_LIBADD = $(PTHREAD_LIBS) $(ZIMG_LIBS) $(DLOPENLIB)
 
 
 if X86ASM
@@ -100,7 +100,8 @@ libvapoursynth_avx2_la_SOURCES = src/core/kernel/x86/generic_avx2.cpp \
 libvapoursynth_avx2_la_CFLAGS = $(AM_CFLAGS) $(AVX2FLAGS)
 libvapoursynth_avx2_la_CXXFLAGS = $(AM_CXXFLAGS) $(AVX2FLAGS)
 
-libvapoursynth_la_SOURCES += src/core/jitasm.h \
+libvapoursynth_la_SOURCES += src/core/expr/jitasm.h \
+							 src/core/expr/jitcompiler_x86.cpp \
 							 src/core/kernel/x86/average_sse2.c \
 							 src/core/kernel/x86/generic_sse2.cpp \
 							 src/core/kernel/x86/merge_sse2.c \
