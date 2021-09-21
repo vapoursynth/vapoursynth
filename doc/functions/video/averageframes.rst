@@ -1,7 +1,7 @@
 AverageFrames
 =============
 
-.. function:: AverageFrames(clip[] clips, float[] weights[, float scale, bint scenechange, int[] planes])
+.. function:: AverageFrames(vnode[] clips, float[] weights[, float scale, bint scenechange, int[] planes])
    :module: std
    
    AverageFrames has two main modes depending on whether one or multiple *clips* are supplied.
