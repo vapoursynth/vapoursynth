@@ -134,7 +134,7 @@ void VSFunction::call(const VSMap *in, VSMap *out) {
         vs_internal_vsapi.mapSetError(out, "Function was passed values that are unknown to its API version");
         return;
     }
-        
+
     func(in, out, userData, core, getVSAPIInternal(apiMajor));
 }
 
@@ -294,7 +294,7 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc,
     : refcount(1), contentType(mtAudio), v3format(nullptr), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (numSamples <= 0)
         core->logFatal("Error in frame creation: bad number of samples (" + std::to_string(numSamples) + ")");
-    
+
     format.af = f;
     numPlanes = format.af.numChannels;
 
@@ -940,7 +940,7 @@ int VSNode::setLinear() {
     cacheLinear = true;
     cacheOverride = true;
     cacheEnabled = true;
-    cache.setFixedSize(true);   
+    cache.setFixedSize(true);
     cache.setMaxFrames(core->threadPool->threadCount() * 2 + 20);
     registerCache(cacheEnabled);
     return cache.getMaxFrames() / 2;
@@ -1155,7 +1155,7 @@ bool VSCore::queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSam
 
 bool VSCore::getVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept {
     // is a V3 id?
-    if ((id & 0xFF000000) == 0 && (id & 0x00FFFFFF)) {   
+    if ((id & 0xFF000000) == 0 && (id & 0x00FFFFFF)) {
         return VideoFormatFromV3(f, getV3VideoFormat(id));
     } else {
         return queryVideoFormat(f, static_cast<VSColorFamily>((id >> 28) & 0xF), static_cast<VSSampleType>((id >> 24) & 0xF), (id >> 16) & 0xFF, (id >> 8) & 0xFF, (id >> 0) & 0xFF);
@@ -1613,7 +1613,7 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
 
 static void VS_CC loadAllPlugins(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
-#ifdef VS_TARGET_OS_WINDOWS    
+#ifdef VS_TARGET_OS_WINDOWS
         core->loadAllPluginsInPath(utf16_from_utf8(vsapi->mapGetData(in, "path", 0, nullptr)), L".dll");
 #else
     #ifdef VS_TARGET_OS_DARWIN
@@ -1799,6 +1799,15 @@ VSCore::VSCore(int flags) :
     cpuLevel(INT_MAX),
     memory(new MemoryUse()),
     enableGraphInspection(flags & ccfEnableGraphInspection) {
+#ifdef VS_USE_MIMALLOC
+    static std::once_flag mionce;
+    std::call_once(mionce, []()
+    {
+        mi_option_set_default(mi_option_segment_cache, 32);
+        mi_option_set_enabled_default(mi_option_large_os_pages, 1);
+    });
+#endif
+
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
         logFatal("Bad SSE state detected when creating new core");
