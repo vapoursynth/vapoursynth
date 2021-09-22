@@ -111,6 +111,7 @@ DECL_MERGEDIFF(float, avx2)
 #undef DECL_MASK_MERGE_PREMUL
 #undef DECL_MASK_MERGE
 #undef DECL_MERGE
+#undef DECL_PREMUL
 
 #ifdef VS_MERGE_IMPL
 /*
