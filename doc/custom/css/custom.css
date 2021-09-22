@@ -1,3 +1,19 @@
 .wy-nav-content {
     max-width: none;
+    padding: 1.618em 4.854em;
+}
+/* margin */
+h2, h3, h4, h5, h6 {
+    margin-top: 32px !important;
+}
+/* decoration */
+h1, h2, h3, h4, h5, h6 {
+    color: #3465a4;
+}
+h2 {
+    padding-bottom: 6px;
+    border-bottom: 2px solid #3465a4;
+}
+h4, h5, h6 {
+    font-weight: 400;
 }
