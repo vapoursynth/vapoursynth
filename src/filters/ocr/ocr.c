@@ -230,18 +230,18 @@ static void VS_CC OCRCreate(const VSMap *in, VSMap *out, void *userData,
         }
     }
 
-    opt = vsapi->propGetData(in, "datapath", 0, &err);
-    size = vsapi->propGetDataSize(in, "datapath", 0, &err);
-
-    if (!err) {
-        d.datapath = szterm(opt, size);
-    }
-
     opt = vsapi->propGetData(in, "language", 0, &err);
     size = vsapi->propGetDataSize(in, "language", 0, &err);
 
     if (!err) {
         d.language = szterm(opt, size);
+    }
+
+    opt = vsapi->propGetData(in, "datapath", 0, &err);
+    size = vsapi->propGetDataSize(in, "datapath", 0, &err);
+
+    if (!err) {
+        d.datapath = szterm(opt, size);
 #ifdef _WIN32
     } else {
         VSPlugin *ocr_plugin = vsapi->getPluginById("biz.srsfckn.ocr", core);
