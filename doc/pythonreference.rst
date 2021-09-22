@@ -37,52 +37,30 @@ operation on a clip, you will get a new clip back with the desired frames.
 Note that frame numbers, like python arrays, start counting at 0.
 Here are a few examples.
 
-Make a single frame clip containing frame number 5::
+=========================================== ===========================================================================================================
+Operation                                   Description
+=========================================== ===========================================================================================================
+video = clip[5]                             Make a single frame clip containing frame number 5
+video = clip[6:10]                          Make a clip containing frames 6 to 9 (unlike Trim, the end value of python slicing is not inclusive)
+video = clip[::2]                           Select even numbered frames
+video = clip[1::2]                          Select odd numbered frames
+video = clip[::-1]                          Negative step is also allowed, so this reverses a clip
+video = clip[-400:-800:-5]                  It may all be combined at once to confuse people, just like normal Python slicing
+clip4 = clip1 + clip2 + clip3               The addition operator can be used to splice clips together, Which is equivalent to:
 
-   video = clip[5]
-   
-Make a clip containing frames 6 to 9 (unlike Trim, the end value of python slicing is not inclusive)::
+                                              ``clip4 = core.std.Splice([core.std.Splice([clip1, clip2], mismatch=False), clip3], mismatch=False)``
 
-   video = clip[6:10]
+clip = clip * 42                            The multiplication operator can be used to loop a clip, Which is equivalent to:
 
-Select even numbered frames::
+                                              ``clip = core.std.Loop(clip, times=42)``
 
-   video = clip[::2]
-   
-Select odd numbered frames::
-
-   video = clip[1::2]
-
-Negative step is also allowed, so this reverses a clip::
-
-   video = clip[::-1]
-
-It may all be combined at once to confuse people, just like normal Python slicing::
-
-   video = clip[-400:-800:-5]
+                                            Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count
+=========================================== ===========================================================================================================
 
 Filters can be chained with a dot, it mostly works like Avisynth::
 
    clip = core.ffms2.Source("asdf.mov")
    clip = clip.std.Trim(first=100, last=2000).std.FlipVertical()
-
-The addition operator can be used to splice clips together::
-
-   clip4 = clip1 + clip2 + clip3
-
-Which is equivalent to::
-
-   clip4 = core.std.Splice([core.std.Splice([clip1, clip2], mismatch=False), clip3], mismatch=False)
-
-The multiplication operator can be used to loop a clip::
-
-   clip = clip * 42
-
-Which is equivalent to::
-
-   clip = core.std.Loop(clip, times=42)
-   
-Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count.
 
 Python Keywords as Filter Arguments
 ***********************************
