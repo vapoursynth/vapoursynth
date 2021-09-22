@@ -220,7 +220,7 @@ latex_documents = [
 man_pages = [
     ('index', 'vapoursynth', 'VapourSynth Documentation',
      ['Fredrik Mellbin'], 3),
-    ('vspipe', 'vspipe', 'pipe output of a VapourSynth script',
+    ('output', 'vspipe', 'pipe output of a VapourSynth script',
      ['Fredrik Mellbin'], 1)
 ]
 
