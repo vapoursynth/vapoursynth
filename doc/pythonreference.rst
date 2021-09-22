@@ -203,6 +203,10 @@ Classes and Functions
       Set the upper framebuffer cache size after which memory is aggressively
       freed. The value is in megabytes.
 
+   .. py:method:: plugins()
+
+      (Reserved)
+
    .. py:method:: get_plugins()
    
       Deprecated, use *plugins()* instead.
@@ -219,6 +223,10 @@ Classes and Functions
 
       Deprecated, use *get_video_format()* instead.
       
+   .. py:method:: query_video_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
+
+      (Reserved)
+
    .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
    
       Deprecated, use *query_video_format()* instead.
@@ -262,20 +270,22 @@ Classes and Functions
 
       The framerate represented as a *Fraction*. It is 0/1 when the clip has a variable
       framerate.
+
+      .. py:attribute:: numerator
+
+      The numerator of the framerate. If the clip has variable framerate, the value will be 0.
       
+      .. py:attribute:: denominator
+
+      The denominator of the framerate. If the clip has variable framerate, the value will be 0.
+
    .. py:attribute:: fps_num
    
       Deprecated, use *fps.numerator* instead
 
-      The numerator of the framerate. If the clip has variable framerate, the
-      value will be 0.
-
    .. py:attribute:: fps_den
    
       Deprecated, use *fps.denominator* instead
-
-      The denominator of the framerate. If the clip has variable framerate, the
-      value will be 0.
 
    .. py:attribute:: flags
 
@@ -610,6 +620,10 @@ Classes and Functions
 
       The namespace of the plugin.
 
+   .. py:method:: functions()
+
+      (Reserved)
+
    .. py:method:: get_functions()
 
       Deprecated, use *functions()* instead.
@@ -715,10 +729,6 @@ Classes and Functions
 
    Deprecated. Use :func:`get_current_environment` instead.
 
-   Returns an Environment-object representing the environment the script is currently running in. It will raise an error if we are currently not inside any
-   script-environment while vsscript is being used.
-
-   This function is intended for Python-based editors using vsscript.
    This function has been deprecated as this function has undefined behaviour when used together with generators or coroutines.
 
 .. py:function:: get_current_environment()
