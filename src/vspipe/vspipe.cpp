@@ -46,11 +46,6 @@ extern "C" {
 #include <cstdio>
 #include <cinttypes>
 
-#ifdef VS_USE_MIMALLOC
-#   include <mimalloc-new-delete.h>
-#endif
-
-
 // fixme, add a more verbose graph mode with filter times included
 // fixme, using a "." for no output is weird
 

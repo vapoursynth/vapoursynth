@@ -53,10 +53,6 @@
 #    include <dlfcn.h>
 #endif
 
-#ifdef VS_USE_MIMALLOC
-#   include <mimalloc-override.h>
-#endif
-
 #ifdef VS_FRAME_GUARD
 static const uint32_t VS_FRAME_GUARD_PATTERN = 0xDEADBEEF;
 #endif

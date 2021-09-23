@@ -16,8 +16,6 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 * Clone zimg into the VapourSynth dir (`git clone https://github.com/sekrit-twc/zimg --branch v3.0`)
 * Clone avs+ into the VapourSynth dir (`git clone https://github.com/AviSynth/AviSynthPlus.git`)
 * Clone libp2p into the VapourSynth dir (`git clone https://github.com/sekrit-twc/libp2p.git`)
-* Clone mimalloc 1.x into the VapourSynth dir (`git clone https://github.com/microsoft/mimalloc`)
-* Compile 32 and 64 bit releases of mimalloc using the solution in mimalloc\ide\vs2019
 * Compile 32 and 64 bit releases using the VapourSynth solution
 
 ## 3. Preparing the Python Project
