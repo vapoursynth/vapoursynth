@@ -221,6 +221,7 @@
     <ClCompile Include="..\..\src\core\kernel\x86\planestats_sse2.c" />
     <ClCompile Include="..\..\src\core\kernel\x86\transpose_sse2.c" />
     <ClCompile Include="..\..\src\core\lutfilters.cpp" />
+    <ClCompile Include="..\..\src\core\memoryuse.cpp" />
     <ClCompile Include="..\..\src\core\mergefilters.cpp" />
     <ClCompile Include="..\..\src\core\reorderfilters.cpp" />
     <ClCompile Include="..\..\src\core\settings.cpp">
@@ -255,6 +256,7 @@
     <ClInclude Include="..\..\src\core\kernel\merge.h" />
     <ClInclude Include="..\..\src\core\kernel\planestats.h" />
     <ClInclude Include="..\..\src\core\kernel\transpose.h" />
+    <ClInclude Include="..\..\src\core\memoryuse.h" />
     <ClInclude Include="..\..\src\core\settings.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>

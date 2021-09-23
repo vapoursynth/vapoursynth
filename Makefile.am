@@ -59,6 +59,8 @@ libvapoursynth_la_SOURCES = src/core/audiofilters.cpp \
 							src/core/kernel/transpose.c \
 							src/core/kernel/transpose.h \
 							src/core/lutfilters.cpp \
+							src/core/memoryuse.cpp \
+							src/core/memoryuse.h \
 							src/core/mergefilters.cpp \
 							src/core/reorderfilters.cpp \
 							src/core/settings.cpp \

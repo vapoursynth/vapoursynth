@@ -801,7 +801,7 @@ static VSFunction *VS_CC addFunctionRef(VSFunction *func) VS_NOEXCEPT {
 
 static int64_t VS_CC setMaxCacheSize(int64_t bytes, VSCore *core) VS_NOEXCEPT {
     assert(core);
-    return core->memory->setMaxMemoryUse(bytes);
+    return core->memory->set_limit(bytes);
 }
 
 static int VS_CC getOutputIndex(VSFrameContext *frameCtx) VS_NOEXCEPT {

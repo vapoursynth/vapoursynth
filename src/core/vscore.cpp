@@ -130,62 +130,18 @@ void VSFunction::call(const VSMap *in, VSMap *out) {
         vs_internal_vsapi.mapSetError(out, "Function was passed values that are unknown to its API version");
         return;
     }
-        
+
     func(in, out, userData, core, getVSAPIInternal(apiMajor));
-}
-
-void MemoryUse::add(size_t bytes) {
-    used.fetch_add(bytes, std::memory_order_relaxed);
-}
-
-void MemoryUse::subtract(size_t bytes) {
-    size_t tmp = used.fetch_sub(bytes, std::memory_order_relaxed) - bytes;
-    if (freeOnZero && !tmp)
-        delete this;
-}
-
-size_t MemoryUse::memoryUse() {
-    return used;
-}
-
-size_t MemoryUse::getLimit() {
-    return maxMemoryUse.load(std::memory_order_relaxed);
-}
-
-int64_t MemoryUse::setMaxMemoryUse(int64_t bytes) {
-    if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX)
-        maxMemoryUse.store(static_cast<size_t>(bytes), std::memory_order_seq_cst);
-    return maxMemoryUse;
-}
-
-bool MemoryUse::isOverLimit() {
-    return used.load(std::memory_order_relaxed) > maxMemoryUse.load(std::memory_order_relaxed);
-}
-
-void MemoryUse::signalFree() {
-    freeOnZero = true;
-    if (!used)
-        delete this;
-}
-
-MemoryUse::MemoryUse() : used(0), freeOnZero(false) {
-    // 1GB
-    setMaxMemoryUse(1024 * 1024 * 1024);
-
-    // set 4GB as default on systems with (probably) 64bit address space
-    if (sizeof(void *) >= 8)
-        setMaxMemoryUse(static_cast<int64_t>(4) * 1024 * 1024 * 1024);
 }
 
 ///////////////
 
-VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) noexcept : refcount(1), mem(mem), size(dataSize + 2 * VSFrame::guardSpace) {
-    data = vsh_aligned_malloc<uint8_t>(size + 2 * VSFrame::guardSpace, VSFrame::alignment);
+VSPlaneData::VSPlaneData(size_t dataSize, vs::MemoryUse &mem) noexcept : refcount(1), mem(mem), size(dataSize + 2 * VSFrame::guardSpace) {
+    data = mem.allocate(size + 2 * VSFrame::guardSpace);
     assert(data);
     if (!data)
         VS_FATAL_ERROR("Failed to allocate memory for plane. Out of memory.");
 
-    mem.add(size);
 #ifdef VS_FRAME_GUARD
     for (size_t i = 0; i < VSFrame::guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
         reinterpret_cast<uint32_t *>(data)[i] = VS_FRAME_GUARD_PATTERN;
@@ -195,18 +151,16 @@ VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) noexcept : refcount(1)
 }
 
 VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem), size(d.size) {
-    data = vsh_aligned_malloc<uint8_t>(size, VSFrame::alignment);
+    data = mem.allocate(size);
     assert(data);
     if (!data)
         VS_FATAL_ERROR("Failed to allocate memory for plane in copy constructor. Out of memory.");
 
-    mem.add(size);
     memcpy(data, d.data, size);
 }
 
 VSPlaneData::~VSPlaneData() {
-    vsh_aligned_free(data);
-    mem.subtract(size);
+    mem.deallocate(data);
 }
 
 bool VSPlaneData::unique() noexcept {
@@ -290,7 +244,7 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc,
     : refcount(1), contentType(mtAudio), v3format(nullptr), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (numSamples <= 0)
         core->logFatal("Error in frame creation: bad number of samples (" + std::to_string(numSamples) + ")");
-    
+
     format.af = f;
     numPlanes = format.af.numChannels;
 
@@ -936,7 +890,7 @@ int VSNode::setLinear() {
     cacheLinear = true;
     cacheOverride = true;
     cacheEnabled = true;
-    cache.setFixedSize(true);   
+    cache.setFixedSize(true);
     cache.setMaxFrames(core->threadPool->threadCount() * 2 + 20);
     registerCache(cacheEnabled);
     return cache.getMaxFrames() / 2;
@@ -1151,7 +1105,7 @@ bool VSCore::queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSam
 
 bool VSCore::getVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept {
     // is a V3 id?
-    if ((id & 0xFF000000) == 0 && (id & 0x00FFFFFF)) {   
+    if ((id & 0xFF000000) == 0 && (id & 0x00FFFFFF)) {
         return VideoFormatFromV3(f, getV3VideoFormat(id));
     } else {
         return queryVideoFormat(f, static_cast<VSColorFamily>((id >> 28) & 0xF), static_cast<VSSampleType>((id >> 24) & 0xF), (id >> 16) & 0xFF, (id >> 8) & 0xFF, (id >> 0) & 0xFF);
@@ -1532,8 +1486,8 @@ void VSCore::getCoreInfo(VSCoreInfo &info) {
     info.core = VAPOURSYNTH_CORE_VERSION;
     info.api = VAPOURSYNTH_API_VERSION;
     info.numThreads = static_cast<int>(threadPool->threadCount());
-    info.maxFramebufferSize = memory->getLimit();
-    info.usedFramebufferSize = memory->memoryUse();
+    info.maxFramebufferSize = memory->limit();
+    info.usedFramebufferSize = memory->allocated_bytes();
 }
 
 bool VSCore::getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept {
@@ -1609,7 +1563,7 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
 
 static void VS_CC loadAllPlugins(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
-#ifdef VS_TARGET_OS_WINDOWS    
+#ifdef VS_TARGET_OS_WINDOWS
         core->loadAllPluginsInPath(utf16_from_utf8(vsapi->mapGetData(in, "path", 0, nullptr)), L".dll");
 #else
     #ifdef VS_TARGET_OS_DARWIN
@@ -1793,7 +1747,7 @@ VSCore::VSCore(int flags) :
     coreFreed(false),
     videoFormatIdOffset(1000),
     cpuLevel(INT_MAX),
-    memory(new MemoryUse()),
+    memory(new vs::MemoryUse()),
     enableGraphInspection(flags & ccfEnableGraphInspection) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
@@ -1952,16 +1906,18 @@ VSCore::VSCore(int flags) :
 }
 
 void VSCore::freeCore() {
+    auto safe_to_string = [](auto x) -> std::string { try { return std::to_string(x); } catch (...) { return ""; } };
+
     if (coreFreed)
         logFatal("Double free of core");
     coreFreed = true;
     threadPool->waitForDone();
     if (numFilterInstances > 1)
-        logMessage(mtWarning, "Core freed but " + std::to_string(numFilterInstances.load() - 1) + " filter instance(s) still exist");
-    if (memory->memoryUse() > 0)
-        logMessage(mtWarning, "Core freed but " + std::to_string(memory->memoryUse()) + " bytes still allocated in framebuffers");
+        logMessage(mtWarning, "Core freed but " + safe_to_string(numFilterInstances.load() - 1) + " filter instance(s) still exist");
+    if (memory->allocated_bytes())
+        logMessage(mtWarning, "Core freed but " + safe_to_string(memory->allocated_bytes()) + " bytes still allocated in framebuffers");
     if (numFunctionInstances > 0)
-        logMessage(mtWarning, "Core freed but " + std::to_string(numFunctionInstances.load()) + " function instance(s) still exist");
+        logMessage(mtWarning, "Core freed but " + safe_to_string(numFunctionInstances.load()) + " function instance(s) still exist");
     // Remove all message handlers on free to prevent a zombie core from crashing the whole application by calling a no longer usable
     // message handler
     while (!messageHandlers.empty())
@@ -1971,11 +1927,11 @@ void VSCore::freeCore() {
 }
 
 VSCore::~VSCore() {
-    memory->signalFree();
     delete threadPool;
     for(const auto &iter : plugins)
         delete iter.second;
     plugins.clear();
+    memory->on_core_freed();
 }
 
 VSMap *VSCore::getPlugins3() {

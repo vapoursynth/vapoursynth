@@ -25,6 +25,7 @@
 #include "VapourSynth3.h"
 #include "vslog.h"
 #include "intrusive_ptr.h"
+#include "memoryuse.h"
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
@@ -41,7 +42,6 @@
 #include <mutex>
 #include <thread>
 #include <condition_variable>
-#include <random>
 #include <algorithm>
 #include <tuple>
 #include <chrono>
@@ -88,7 +88,7 @@ typedef std::pair<VSNode *, int> NodeOutputKey;
 
 template<>
 struct std::hash<NodeOutputKey> {
-    inline size_t operator()(const NodeOutputKey &val) const {  
+    inline size_t operator()(const NodeOutputKey &val) const {
         return reinterpret_cast<size_t>(std::get<0>(val)) + (static_cast<size_t>(std::get<1>(val)) << 16);
     }
 };
@@ -318,7 +318,7 @@ public:
     void copy(const VSMap *src) {
         if (src == this)
             return;
-        
+
         detach();
         for (auto &iter : src->data->data)
             data->data[iter.first] = iter.second;
@@ -370,7 +370,7 @@ class FilterArgument {
 public:
     std::string name;
     VSPropertyType type;
-    
+
     bool arr;
     bool empty;
     bool opt;
@@ -378,31 +378,15 @@ public:
         : name(name), type(type), arr(arr), empty(empty), opt(opt) {}
 };
 
-class MemoryUse {
-private:
-    std::atomic<size_t> used;
-    std::atomic<size_t> maxMemoryUse;
-    bool freeOnZero;
-public:
-    void add(size_t bytes);
-    void subtract(size_t bytes);
-    size_t memoryUse();
-    size_t getLimit();
-    int64_t setMaxMemoryUse(int64_t bytes);
-    bool isOverLimit();
-    void signalFree();
-    MemoryUse();
-};
-
 class VSPlaneData {
 private:
     std::atomic<long> refcount;
-    MemoryUse &mem;
+    vs::MemoryUse &mem;
     ~VSPlaneData();
 public:
     uint8_t *data;
     const size_t size;
-    VSPlaneData(size_t dataSize, MemoryUse &mem) noexcept;
+    VSPlaneData(size_t dataSize, vs::MemoryUse &mem) noexcept;
     VSPlaneData(const VSPlaneData &d) noexcept;
     bool unique() noexcept;
     void add_ref() noexcept;
@@ -1059,12 +1043,12 @@ private:
     std::set<VSLogHandle *> messageHandlers;
 public:
     VSThreadPool *threadPool;
-    MemoryUse *memory;
+    vs::MemoryUse *memory;
 
     bool disableLibraryUnloading;
 
     // Used only for graph inspection
-    bool enableGraphInspection; 
+    bool enableGraphInspection;
     static thread_local PVSFunctionFrame functionFrame;
     //
 

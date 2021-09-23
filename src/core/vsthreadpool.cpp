@@ -92,7 +92,7 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
             if (node->cacheEnabled) {
                 PVSFrame f = node->getCachedFrameInternal(frameContext->key.second);
 
-                if (f) {                    
+                if (f) {
                     bool needsSort = false;
 
                     for (size_t i = 0; i < frameContext->notifyCtxList.size(); i++) {
@@ -354,7 +354,7 @@ void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutpu
         core->logFatal("Negative frame request by: " + notify->key.first->getName());
 
     // check to see if it's time to reevaluate cache sizes
-    if (core->memory->isOverLimit()) {
+    if (core->memory->is_over_limit()) {
         ticks = 0;
         core->notifyCaches(true);
     } else if (++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
@@ -362,7 +362,7 @@ void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutpu
         core->notifyCaches(false);
     }
 
-        
+
     auto it = allContexts.find(key);
     if (it != allContexts.end()) {
         PVSFrameContext &ctx = it->second;
@@ -373,7 +373,7 @@ void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutpu
         // create a new context and append it to the tasks
         allContexts.insert(std::make_pair(key, ctx));
         queueTask(ctx);
-    } 
+    }
 }
 
 bool VSThreadPool::isWorkerThread() {
