@@ -15,11 +15,9 @@ library_dirs = [curdir, "build"]
 if is_win:
     if is_64:
         library_dirs.append(join("msvc_project", "x64", "Release"))
-        library_dirs.append(join("mimalloc", "out", "msvc-x64", "Release"))   
         lib_suffix = "lib64"
     else:
         library_dirs.append(join("msvc_project", "Release"))
-        library_dirs.append(join("mimalloc", "out", "msvc-Win32", "Release"))   
         lib_suffix = "lib32"
 
     #
@@ -76,22 +74,8 @@ if is_win:
 
     # Make sure the setup process copies the VapourSynth.dll into the site-package folder
     print("Found VapourSynth.dll at:", dll_path)
-
-    for path in library_dirs:
-        mimalloc_override_path = join(path, "mimalloc-override.dll")
-        if exists(mimalloc_override_path):
-            break
-    else:
-        raise OSError("Couldn't detect vapoursynth installation path")
-
-    for path in library_dirs:
-        mimalloc_redirect_path = join(path, "mimalloc-redirect.dll" if is_64 else "mimalloc-redirect32.dll")
-        if exists(mimalloc_redirect_path):
-            break
-    else:
-        raise OSError("Couldn't detect vapoursynth installation path")
     
-    extra_data["data_files"] = [(r"Lib\site-packages", [dll_path, mimalloc_override_path, mimalloc_redirect_path])]
+    extra_data["data_files"] = [(r"Lib\site-packages", [dll_path])]
         
         
 setup(

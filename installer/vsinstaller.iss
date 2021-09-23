@@ -13,8 +13,6 @@
   #define AppId 'VapourSynth'
   #define RegistryPath 'SOFTWARE\VapourSynth'
   #define SourceBinaryPath '..\msvc_project\x64\Release'
-  #define MimallocSourceBinaryPath '..\mimalloc\out\msvc-x64\Release'
-  #define MimallocRedirectName 'mimalloc-redirect.dll'
   #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win_amd64.whl'
   #define WheelFilenamePython38(Version) 'VapourSynth-' + Version + '-cp38-cp38-win_amd64.whl'
 #else
@@ -22,8 +20,6 @@
   #define AppId 'VapourSynth-32'
   #define RegistryPath 'SOFTWARE\VapourSynth-32'
   #define SourceBinaryPath '..\msvc_project\Release'
-  #define MimallocSourceBinaryPath '..\mimalloc\out\msvc-Win32\Release'
-  #define MimallocRedirectName 'mimalloc-redirect32.dll'
   #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win32.whl'
   #define WheelFilenamePython38(Version) 'VapourSynth-' + Version + '-cp38-cp38-win32.whl'
 #endif
@@ -102,9 +98,6 @@ Source: {#= SourceBinaryPath}\vspipe.exe; DestDir: {app}\core; Flags: ignorevers
 Source: {#= SourceBinaryPath}\vsvfw.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vsscript.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore; Check: IsPython3
 Source: {#= SourceBinaryPath}\vsscriptpython38.dll; DestName: "vsscript.dll"; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore; Check: IsPython38
-
-Source: {#= MimallocSourceBinaryPath}\mimalloc-override.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
-Source: {#= MimallocSourceBinaryPath}\{#= MimallocRedirectName}; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
 ;vsrepo
 Source: ..\vsrepo\vsrepo.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
