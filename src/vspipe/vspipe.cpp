@@ -1003,6 +1003,7 @@ int main(int argc, char **argv) {
         data->node = node;
         data->alphaNode = alphaNode;
         data->outFile = outFile;
+        data->timecodesFile = timecodesFile;
         
         if (nodeType == mtVideo) {
 
