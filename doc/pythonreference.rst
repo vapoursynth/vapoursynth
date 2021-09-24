@@ -37,52 +37,30 @@ operation on a clip, you will get a new clip back with the desired frames.
 Note that frame numbers, like python arrays, start counting at 0.
 Here are a few examples.
 
-Make a single frame clip containing frame number 5::
+=========================================== ===========================================================================================================
+Operation                                   Description
+=========================================== ===========================================================================================================
+video = clip[5]                             Make a single frame clip containing frame number 5
+video = clip[6:10]                          Make a clip containing frames 6 to 9 (unlike Trim, the end value of python slicing is not inclusive)
+video = clip[::2]                           Select even numbered frames
+video = clip[1::2]                          Select odd numbered frames
+video = clip[::-1]                          Negative step is also allowed, so this reverses a clip
+video = clip[-400:-800:-5]                  It may all be combined at once to confuse people, just like normal Python slicing
+clip4 = clip1 + clip2 + clip3               The addition operator can be used to splice clips together, Which is equivalent to:
 
-   video = clip[5]
-   
-Make a clip containing frames 6 to 9 (unlike Trim, the end value of python slicing is not inclusive)::
+                                              ``clip4 = core.std.Splice([core.std.Splice([clip1, clip2], mismatch=False), clip3], mismatch=False)``
 
-   video = clip[6:10]
+clip = clip * 42                            The multiplication operator can be used to loop a clip, Which is equivalent to:
 
-Select even numbered frames::
+                                              ``clip = core.std.Loop(clip, times=42)``
 
-   video = clip[::2]
-   
-Select odd numbered frames::
-
-   video = clip[1::2]
-
-Negative step is also allowed, so this reverses a clip::
-
-   video = clip[::-1]
-
-It may all be combined at once to confuse people, just like normal Python slicing::
-
-   video = clip[-400:-800:-5]
+                                            Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count
+=========================================== ===========================================================================================================
 
 Filters can be chained with a dot, it mostly works like Avisynth::
 
    clip = core.ffms2.Source("asdf.mov")
    clip = clip.std.Trim(first=100, last=2000).std.FlipVertical()
-
-The addition operator can be used to splice clips together::
-
-   clip4 = clip1 + clip2 + clip3
-
-Which is equivalent to::
-
-   clip4 = core.std.Splice([core.std.Splice([clip1, clip2], mismatch=False), clip3], mismatch=False)
-
-The multiplication operator can be used to loop a clip::
-
-   clip = clip * 42
-
-Which is equivalent to::
-
-   clip = core.std.Loop(clip, times=42)
-   
-Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count.
 
 Python Keywords as Filter Arguments
 ***********************************
@@ -225,6 +203,10 @@ Classes and Functions
       Set the upper framebuffer cache size after which memory is aggressively
       freed. The value is in megabytes.
 
+   .. py:method:: plugins()
+
+      (Reserved)
+
    .. py:method:: get_plugins()
    
       Deprecated, use *plugins()* instead.
@@ -241,6 +223,10 @@ Classes and Functions
 
       Deprecated, use *get_video_format()* instead.
       
+   .. py:method:: query_video_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
+
+      (Reserved)
+
    .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
    
       Deprecated, use *query_video_format()* instead.
@@ -284,20 +270,22 @@ Classes and Functions
 
       The framerate represented as a *Fraction*. It is 0/1 when the clip has a variable
       framerate.
+
+      .. py:attribute:: numerator
+
+      The numerator of the framerate. If the clip has variable framerate, the value will be 0.
       
+      .. py:attribute:: denominator
+
+      The denominator of the framerate. If the clip has variable framerate, the value will be 0.
+
    .. py:attribute:: fps_num
    
       Deprecated, use *fps.numerator* instead
 
-      The numerator of the framerate. If the clip has variable framerate, the
-      value will be 0.
-
    .. py:attribute:: fps_den
    
       Deprecated, use *fps.denominator* instead
-
-      The denominator of the framerate. If the clip has variable framerate, the
-      value will be 0.
 
    .. py:attribute:: flags
 
@@ -632,6 +620,10 @@ Classes and Functions
 
       The namespace of the plugin.
 
+   .. py:method:: functions()
+
+      (Reserved)
+
    .. py:method:: get_functions()
 
       Deprecated, use *functions()* instead.
@@ -737,10 +729,6 @@ Classes and Functions
 
    Deprecated. Use :func:`get_current_environment` instead.
 
-   Returns an Environment-object representing the environment the script is currently running in. It will raise an error if we are currently not inside any
-   script-environment while vsscript is being used.
-
-   This function is intended for Python-based editors using vsscript.
    This function has been deprecated as this function has undefined behaviour when used together with generators or coroutines.
 
 .. py:function:: get_current_environment()
