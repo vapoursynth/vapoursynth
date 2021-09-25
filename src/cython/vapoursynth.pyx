@@ -2093,6 +2093,7 @@ cdef LogHandle createLogHandle(object handler_func):
     cdef LogHandle instance = LogHandle.__new__(LogHandle)
     instance.handler_func = handler_func
     instance.handle = NULL
+    return instance
      
 cdef void __stdcall log_handler_wrapper(int msgType, const char *msg, void *userData) nogil:
     with gil:
