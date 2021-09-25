@@ -69,6 +69,7 @@ __all__ = [
     'YUV440P8',
     'YUV444P8', 'YUV444P9', 'YUV444P10', 'YUV444P12', 'YUV444P14', 'YUV444P16', 'YUV444PH', 'YUV444PS',
   'NONE',
+  
   'FLOAT', 'INTEGER',
   
   'RANGE_FULL', 'RANGE_LIMITED',
@@ -83,7 +84,7 @@ __all__ = [
   'core', 
 ]
     
-__version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(55, 0)
+__version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(56, 0)
 __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 
