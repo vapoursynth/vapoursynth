@@ -2483,7 +2483,7 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("PropToClip", "clip:vnode;prop:data:opt;", "clip:vnode;", propToClipCreate, 0, plugin);
     vspapi->registerFunction("SetFrameProp", "clip:vnode;prop:data;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode;", setFramePropCreate, 0, plugin);
     vspapi->registerFunction("SetFrameProps", "clip:vnode;any", "clip:vnode;", setFramePropsCreate, 0, plugin);
-    vspapi->registerFunction("RemoveFrameProps", "clip:vnode;props:data:opt;", "clip:vnode;", removeFramePropsCreate, 0, plugin);
+    vspapi->registerFunction("RemoveFrameProps", "clip:vnode;props:data[]:opt;", "clip:vnode;", removeFramePropsCreate, 0, plugin);
     vspapi->registerFunction("SetFieldBased", "clip:vnode;value:int;", "clip:vnode;", setFieldBasedCreate, 0, plugin);
     vspapi->registerFunction("CopyFrameProps", "clip:vnode;prop_src:vnode;", "clip:vnode;", copyFramePropsCreate, 0, plugin);
     vspapi->registerFunction("SetAudioCache", "clip:anode;mode:int:opt;fixedsize:int:opt;maxsize:int:opt;maxhistory:int:opt;", "", setCache, 0, plugin);
