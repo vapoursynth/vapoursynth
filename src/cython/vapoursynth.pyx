@@ -515,9 +515,24 @@ def construct_signature(signature, return_signature, injected=None):
     
     if injected:
         del params[0]
-    
-    return inspect.Signature(tuple(params), return_annotation=_construct_type(return_signature))
-    
+
+    if return_signature == 'any':
+        return_signature = 'clip:vnode;'
+
+    return_param = [
+        _construct_parameter(param).annotation
+        for param in return_signature.split(";")
+        if param
+    ]
+    if len(return_param) == 0:
+        return_type = None
+    elif len(return_param) == 1:
+        return_type = return_param.pop()
+    else:
+        return_type = tuple(return_param)
+
+    return inspect.Signature(tuple(params), return_annotation=return_type)
+
 
 class Error(Exception):
     def __init__(self, value):
