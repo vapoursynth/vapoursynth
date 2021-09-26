@@ -18,7 +18,7 @@
 """ This is the VapourSynth module implementing the Python bindings. """
 
 cimport vapoursynth
-from vsconstants cimport *
+include 'vsconstants.pxd'
 from vsscript_internal cimport VSScript
 cimport cython.parallel
 from cython cimport view, final
