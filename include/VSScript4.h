@@ -24,7 +24,7 @@
 #include "VapourSynth4.h"
 
 #define VSSCRIPT_API_MAJOR 4
-#define VSSCRIPT_API_MINOR 0
+#define VSSCRIPT_API_MINOR 1
 #define VSSCRIPT_API_VERSION VS_MAKE_VERSION(VSSCRIPT_API_MAJOR, VSSCRIPT_API_MINOR)
 
 typedef struct VSScript VSScript;
@@ -64,7 +64,7 @@ struct VSSCRIPTAPI {
     /* Returns NULL on success, otherwise an error message */
     const char *(VS_CC *getError)(VSScript *handle) VS_NOEXCEPT;
 
-    /* Returns the script reported exit code */
+    /* Returns the script's reported exit code */
     int (VS_CC *getExitCode)(VSScript *handle) VS_NOEXCEPT;
 
     /* Fetches a variable of any VSMap storable type set in a script. It is stored in the key with the same name in dst. Returns 0 on success. */
@@ -83,6 +83,13 @@ struct VSSCRIPTAPI {
     int (VS_CC *getAltOutputMode)(VSScript *handle, int index) VS_NOEXCEPT;
 
     void (VS_CC *freeScript)(VSScript *handle) VS_NOEXCEPT;
+
+    /*
+    * Set whether or not the working directory is temporarily changed to the same
+    * location as the script file when evaluateFile is called. Off by default.
+    */
+    void (VS_CC *evalSetWorkingDir)(VSScript *handle, int setCWD) VS_NOEXCEPT;
+
 };
 
 VS_API(const VSSCRIPTAPI *) getVSScriptAPI(int version) VS_NOEXCEPT;

@@ -927,6 +927,7 @@ int main(int argc, char **argv) {
     VSCore *core = vsapi->createCore((opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph || opts.printFilterTime) ? ccfEnableGraphInspection : 0);
     vsapi->addLogHandler(logMessageHandler, nullptr, nullptr, core);
     VSScript *se = vssapi->createScript(core);
+    vssapi->evalSetWorkingDir(se, 1);
     if (!opts.scriptArgs.empty()) {
         VSMap *foldedArgs = vsapi->createMap();
         for (const auto &iter : opts.scriptArgs)

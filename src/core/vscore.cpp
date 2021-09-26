@@ -2064,12 +2064,8 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 #ifdef VS_TARGET_OS_WINDOWS
     std::wstring wPath = utf16_from_utf8(relFilename);
     std::vector<wchar_t> fullPathBuffer(32767 + 1); // add 1 since msdn sucks at mentioning whether or not it includes the final null
-    if (wPath.substr(0, 4) != L"\\\\?\\")
-        wPath = L"\\\\?\\" + wPath;
-    GetFullPathName(wPath.c_str(), static_cast<DWORD>(fullPathBuffer.size()), fullPathBuffer.data(), nullptr);
+    GetFullPathNameW(wPath.c_str(), static_cast<DWORD>(fullPathBuffer.size()), fullPathBuffer.data(), nullptr);
     wPath = fullPathBuffer.data();
-    if (wPath.substr(0, 4) == L"\\\\?\\")
-        wPath = wPath.substr(4);
     filename = utf16_to_utf8(wPath);
     for (auto &iter : filename)
         if (iter == '\\')

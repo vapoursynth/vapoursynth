@@ -28,3 +28,4 @@ cdef extern from "src/vsscript/vsscript_internal.h" nogil:
         VSCore *core
         int id
         int exitCode
+        int setCWD

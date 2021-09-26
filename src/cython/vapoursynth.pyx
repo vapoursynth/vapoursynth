@@ -18,7 +18,7 @@
 """ This is the VapourSynth module implementing the Python bindings. """
 
 cimport vapoursynth
-cimport vsconstants
+from vsconstants cimport *
 from vsscript_internal cimport VSScript
 cimport cython.parallel
 from cython cimport view, final
@@ -2710,7 +2710,7 @@ cdef object _vsscript_use_or_create_environment(int id):
 
 @contextlib.contextmanager
 def __chdir(filename, flags):
-    if (flags&1) or filename is None or (filename.startswith("<") and filename.endswith(">")):
+    if ((flags&1) == 0) or (filename is None) or (filename.startswith("<") and filename.endswith(">")):
         return (yield)
     
     origpath = os.getcwd()
@@ -2838,8 +2838,12 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
             fn = None
             if scriptFilename:
                 fn = scriptFilename.decode('utf-8')
-
-            return _vpy_evaluate(se, buffer, fn)
+            
+            if se.setCWD:
+                with __chdir(fn, 1):
+                    return _vpy_evaluate(se, buffer, fn)
+            else:
+                return _vpy_evaluate(se, buffer, fn)
 
         except BaseException, e:
             errstr = 'File reading exception:\n' + str(e)

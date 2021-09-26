@@ -153,6 +153,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             goto vpyerror;
 
         se = vssapi->createScript(nullptr);
+        vssapi->evalSetWorkingDir(se, 1);
         vssapi->evaluateBuffer(se, script.c_str(), scriptName.c_str());
 
         if (!vssapi->getError(se)) {

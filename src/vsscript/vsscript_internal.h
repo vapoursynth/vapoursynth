@@ -29,6 +29,7 @@ typedef struct VSScript {
     VSCore *core;
     int id;
     int exitCode;
+    int setCWD;
 } VSScript;
 
 #endif
