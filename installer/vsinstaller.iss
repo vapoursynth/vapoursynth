@@ -24,6 +24,9 @@
   #define WheelFilenamePython38(Version) 'VapourSynth-' + Version + '-cp38-cp38-win32.whl'
 #endif
 
+#define Dependency_NoExampleSetup
+#include "CodeDependencies.iss"
+
 [Setup]
 OutputDir=Compiled
 OutputBaseFilename=VapourSynth{#= InstallerBits}-R{#= Version}{#= VersionExtra}
@@ -173,11 +176,6 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: not IsAdminInstallMode; Tasks: vscorepath
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Tasks: vsrepopath
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: not IsAdminInstallMode; Tasks: vsrepopath
-
-#include "scripts\products.iss"
-#include "scripts\products\stringversion.iss"
-#include "scripts\products\msiproduct.iss"
-#include "scripts\products\vcredist2017.iss"
 
 [Code]
 
@@ -334,6 +332,21 @@ end;
 
 /////////////////////////////////////////////////////////////////////
 
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := Dependency_PrepareToInstall(NeedsRestart);
+end;
+
+function NeedRestart: Boolean;
+begin
+  Result := Dependency_NeedRestart;
+end;
+
+function UpdateReadyMemo(const Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
+begin
+  Result := Dependency_UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo);
+end;
+
 function InitializeSetup: Boolean;
 var
   HasOtherPython: Boolean;
@@ -361,10 +374,11 @@ begin
       MsgBox('Python {#PythonVersion} or 3.8 ({#InstallerBits}-bit) is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
   else if not Result and not IsAdminInstallMode then
       MsgBox('Python {#PythonVersion} or 3.8 ({#InstallerBits}-bit) is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
-      
-  if not IsAdminInstallMode and not vcredist2017installed(VSRuntimeVersion) then
-      if MsgBox('No recent Visual Studio 2019 Runtime installed.If you proceed with the install it is very likely the installation won''t work.'#13#10#13#10'Go to the download website now?', mbError, MB_YESNO) = IDYES then
-          ShellExec('open', 'https://visualstudio.microsoft.com/downloads/?q=redistributable', '', '', SW_SHOW, ewNoWait, ErrCode);
+    
+  // fixme  
+  //if not IsAdminInstallMode and not vcredist2017installed(VSRuntimeVersion) then
+  //    if MsgBox('No recent Visual Studio 2019 Runtime installed.If you proceed with the install it is very likely the installation won''t work.'#13#10#13#10'Go to the download website now?', mbError, MB_YESNO) = IDYES then
+  //        ShellExec('open', 'https://visualstudio.microsoft.com/downloads/?q=redistributable', '', '', SW_SHOW, ewNoWait, ErrCode);
 end;
 
 procedure WizardFormOnResize(Sender: TObject);
@@ -394,6 +408,7 @@ begin
   end; 
 
   WizardForm.OnResize := @WizardFormOnResize;
+  Dependency_InitializeWizard;
 end;
 
 function GetPythonPath(Param: string): String;
@@ -489,15 +504,11 @@ begin
   else if CurPageID = wpSelectComponents then
   begin    
     PopulatePythonInstallations(PythonList); 
-  end
-  else if CurPageID = wpReady then
-  begin
     if WizardIsComponentSelected('vsruntimes') and not RuntimesAdded then
     begin
-      vcredist2017(VSRuntimeVersion);
+      Dependency_AddVC2015To2019;
       RuntimesAdded := True;
     end;
-    Result := NextButtonClick2(CurPageID);
   end;
 end;
 

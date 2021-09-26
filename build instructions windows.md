@@ -6,7 +6,7 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 
 * Needs [Visual Studio 2019](https://visualstudio.microsoft.com/de/vs/)
 * It also needs both [32bit](https://www.python.org/) and [64bit](https://www.python.org/) Python 3.8.x and 3.9.x (the msvc project assumes that you installed python for all users.)
-* [InnoSetup 6.x](http://www.jrsoftware.org/isdl.php) is needed to create the installer (default installation path assumed)
+* [InnoSetup](http://www.jrsoftware.org/isdl.php) is needed to create the installer (default installation path assumed)
 * [7-zip](https://www.7-zip.org/) is needed to compress the portable version (default installation path assumed)
 
 ## 2. Preparing the C++ Project
@@ -31,13 +31,10 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 
 All the above steps are necessary to create the installer
 
-In order to build the installer you need to download
-and place isxdl.dll in "installer\scripts\isxdl".
-It can be downloaded from: [NET-Framework Installer for InnoSetup](http://www.codeproject.com/Articles/20868/NET-Framework-Installer-for-InnoSetup)
-
 You also need 7z.exe and 7z.dll from
 the 32 bit version of [7-zip](https://www.7-zip.org/)
 Both need to be placed in the "installer" dir.
+(if you only plan to make 64 bit builds then the 64 bit version is ok to use instead)
 
 You'll also have to grab the file `pfm-192-vapoursynth-win.exe`
 which is only available from installations/portable releases.
