@@ -33,13 +33,15 @@
 #endif
 
 #ifdef WAVE_LITTLE_ENDIAN
-#define WAVE_SWAP16(x) (x)
-#define WAVE_SWAP32(x) (x)
+#define WAVE_SWAP16_LE(x) (x)
+#define WAVE_SWAP32_LE(x) (x)
+#define WAVE_SWAP64_LE(x) (x)
 #endif // WAVE_LITTLE_ENDIAN
 
 #ifdef WAVE_BIG_ENDIAN
-#define WAVE_SWAP16(x) __builtin_bswap16(x)
-#define WAVE_SWAP32(x) __builtin_bswap32(x)
+#define WAVE_SWAP16_LE(x) __builtin_bswap16(x)
+#define WAVE_SWAP32_LE(x) __builtin_bswap32(x)
+#define WAVE_SWAP64_LE(x) __builtin_bswap64(x)
 #endif // WAVE_BIG_ENDIAN
 
 void PackChannels16to16le(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) {
@@ -47,7 +49,7 @@ void PackChannels16to16le(const uint8_t *const *const Src, uint8_t *Dst, size_t 
     uint16_t *D = reinterpret_cast<uint16_t *>(Dst);
     for (size_t i = 0; i < Length; i++) {
         for (size_t c = 0; c < Channels; c++)
-            D[c] = WAVE_SWAP16(S[c][i]);
+            D[c] = WAVE_SWAP16_LE(S[c][i]);
         D += Channels;
     }
 }
@@ -57,7 +59,7 @@ void PackChannels32to32le(const uint8_t *const *const Src, uint8_t *Dst, size_t 
     uint32_t *D = reinterpret_cast<uint32_t *>(Dst);
     for (size_t i = 0; i < Length; i++) {
         for (size_t c = 0; c < Channels; c++)
-            D[c] = WAVE_SWAP32(S[c][i]);
+            D[c] = WAVE_SWAP32_LE(S[c][i]);
         D += Channels;
     }
 }
@@ -105,14 +107,14 @@ bool CreateWaveFormatExtensible(WaveFormatExtensible &header, bool IsFloat, int 
     size_t bytesPerOutputSample = (BitsPerSample + 7) / 8;
 
     memcpy(&header.wFormatTag, waveFormatExtensible, sizeof(waveFormatExtensible));
-    header.nChannels = static_cast<uint16_t>(NumChannels);
-    header.nSamplesPerSec = SampleRate;
-    header.nBlockAlign = static_cast<uint16_t>(NumChannels * bytesPerOutputSample);
-    header.nAvgBytesPerSec = static_cast<uint32_t>(NumChannels * bytesPerOutputSample * SampleRate);
-    header.wBitsPerSample = static_cast<uint16_t>(bytesPerOutputSample * 8);
-    header.cbSize = sizeof(WaveFormatExtensible) - offsetof(WaveFormatExtensible, wValidBitsPerSample);
-    header.wValidBitsPerSample = BitsPerSample;
-    header.dwChannelMask = static_cast<uint32_t>(ChannelMask);
+    header.nChannels = WAVE_SWAP16_LE(static_cast<uint16_t>(NumChannels));
+    header.nSamplesPerSec = WAVE_SWAP32_LE(SampleRate);
+    header.nBlockAlign = WAVE_SWAP16_LE(static_cast<uint16_t>(NumChannels * bytesPerOutputSample));
+    header.nAvgBytesPerSec = WAVE_SWAP32_LE(static_cast<uint32_t>(NumChannels * bytesPerOutputSample * SampleRate));
+    header.wBitsPerSample = WAVE_SWAP16_LE(static_cast<uint16_t>(bytesPerOutputSample * 8));
+    header.cbSize = WAVE_SWAP16_LE(sizeof(WaveFormatExtensible) - offsetof(WaveFormatExtensible, wValidBitsPerSample));
+    header.wValidBitsPerSample = WAVE_SWAP16_LE(BitsPerSample);
+    header.dwChannelMask = WAVE_SWAP32_LE(static_cast<uint32_t>(ChannelMask));
     memcpy(&header.SubFormat, IsFloat ? ksDataformatSubtypeIEEEFloat : ksDataformatSubtypePCM, sizeof(ksDataformatSubtypePCM));
     return true;
 }
@@ -128,12 +130,12 @@ bool CreateWave64Header(Wave64Header &header, bool IsFloat, int BitsPerSample, i
         return false;
 
     memcpy(&header.riffUuid, wave64HdrRiffUuidVal, sizeof(wave64HdrRiffUuidVal));
-    header.riffSize = sizeof(header) + dataSize;
+    header.riffSize = WAVE_SWAP64_LE(sizeof(header) + dataSize);
     memcpy(&header.waveUuid, wave64HdrWaveUuidVal, sizeof(wave64HdrWaveUuidVal));
     memcpy(&header.fmtUuid, wave64HdrFmtUuidVal, sizeof(wave64HdrFmtUuidVal));
-    header.fmtSize = sizeof(WaveFormatExtensible) + sizeof(header.fmtUuid) + sizeof(header.fmtSize);
+    header.fmtSize = WAVE_SWAP64_LE(sizeof(WaveFormatExtensible) + sizeof(header.fmtUuid) + sizeof(header.fmtSize));
     memcpy(&header.dataUuid, wave64HdrDataUuidVal, sizeof(wave64HdrDataUuidVal));
-    header.dataSize = dataSize + sizeof(header.dataUuid) + sizeof(header.dataSize);
+    header.dataSize = WAVE_SWAP64_LE(dataSize + sizeof(header.dataUuid) + sizeof(header.dataSize));
     return true;
 }
 
@@ -151,11 +153,11 @@ bool CreateWaveHeader(WaveHeader &header, bool IsFloat, int BitsPerSample, int S
         return false;
 
     memcpy(&header.riffTag, waveHdrRiffTagVal, sizeof(waveHdrRiffTagVal));
-    header.riffSize = static_cast<uint32_t>(sizeof(header) - sizeof(header.riffTag) - sizeof(header.riffSize) + dataSize);
+    header.riffSize = WAVE_SWAP32_LE(static_cast<uint32_t>(sizeof(header) - sizeof(header.riffTag) - sizeof(header.riffSize) + dataSize));
     memcpy(&header.waveTag, waveHdrWaveTagVal, sizeof(waveHdrWaveTagVal));
     memcpy(&header.fmtTag, waveHdrFmtTagVal, sizeof(waveHdrFmtTagVal));
-    header.fmtSize = sizeof(WaveFormatExtensible);
+    header.fmtSize = WAVE_SWAP32_LE(sizeof(WaveFormatExtensible));
     memcpy(&header.dataTag, waveHdrDataTagVal, sizeof(waveHdrDataTagVal));
-    header.dataSize = unsigned(dataSize);
+    header.dataSize = WAVE_SWAP32_LE(static_cast<uint32_t>(dataSize));
     return true;
 }
