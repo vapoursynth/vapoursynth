@@ -69,6 +69,12 @@ static void real_init(void) VS_NOEXCEPT {
 
     HMODULE pythonDll = nullptr;
 
+#ifdef VS_TARGET_OS_WINDOWS
+    _wputenv(L"PYTHONMALLOC=malloc");
+#else
+    setenv("PYTHONMALLOC", "malloc", 1);
+#endif
+
     if (isPortable) {
         std::wstring pyPath = dllPath + L"\\" + pythonDllName;
         pythonDll = LoadLibraryExW(pyPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);

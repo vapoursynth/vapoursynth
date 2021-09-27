@@ -16,7 +16,7 @@ Levels
       clip = std.Levels(clip, min_in=16, max_in=240, min_out=0, max_out=255, planes=[1,2])
 
    The default value of *max_in* and *max_out* is the format's minimum and maximum
-   allowed values repsectively. Note that all input is clamped to the input range
+   allowed values respectively. Note that all input is clamped to the input range
    to prevent out of range output.
    
    .. warning::

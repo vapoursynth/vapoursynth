@@ -17,7 +17,7 @@ ShuffleChannels
    takes a channel constants as its argument. Specifying a non-existent channel
    is an error. If more *channels_in* than *clips* values are specified then the last
    clip in the *clips* list is reused as a source. In addition to the channel constant
-   it's also possible to specify the nth chanel by using negative numbers.
+   it's also possible to specify the nth channel by using negative numbers.
 
    The output channel mapping is determined by *channels_out* and corresponds to the
    input channel order. The number of *channels_out* entries must be the same as the

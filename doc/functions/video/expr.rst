@@ -87,7 +87,7 @@ Expr
       
       f abs
       
-   Are equivelent to these operations in C::
+   Are equivalent to these operations in C::
    
       a ? b : c
       

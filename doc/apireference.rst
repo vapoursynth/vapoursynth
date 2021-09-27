@@ -24,7 +24,7 @@ You may not pass objects (clips, functions and so on) owned by one core as argum
 
 Plugins
 -------
-Plugin code may run more multithreaded than it initially appears. *VapourSynthPluginInit* is the only function always guaranteed to not run in parallel. This means that the contructor and destructor of a filter may be run in parallel for several instances. Use proper synchronization if you need to initialize shared data.
+Plugin code may run more multithreaded than it initially appears. *VapourSynthPluginInit* is the only function always guaranteed to not run in parallel. This means that the constructor and destructor of a filter may be run in parallel for several instances. Use proper synchronization if you need to initialize shared data.
 
 The *GetFrame* function is a bit more complicated so see the reference of the constants. Do however note that the parallelism is per instance. Even if a filter is *fmUnordered* or *fmSerial* other instances may enter *GetFrame* simultaneously.
 

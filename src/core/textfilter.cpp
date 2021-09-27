@@ -466,9 +466,9 @@ static std::string transferToString(int transfer) {
         else if (transfer == VSC_TRANSFER_LINEAR)
             s = "Linear";
         else if (transfer == VSC_TRANSFER_LOG_100)
-            s = "Logaritmic (100:1 range)";
+            s = "Logarithmic (100:1 range)";
         else if (transfer == VSC_TRANSFER_LOG_316)
-            s = "Logaritmic (100 * Sqrt(10) : 1 range)";
+            s = "Logarithmic (100 * Sqrt(10) : 1 range)";
         else if (transfer == VSC_TRANSFER_IEC_61966_2_4)
             s = "IEC 61966-2-4";
         else if (transfer == 12)

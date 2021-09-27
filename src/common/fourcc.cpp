@@ -75,7 +75,7 @@ constexpr Traits fourcc_traits[] = {
     { cfYUV,  stInteger, 10, 0, 0, 0, VS_FCC('Y410'), p2p_y410_le,    4, 1, 32 },
     { cfYUV,  stInteger, 16, 0, 0, 0, VS_FCC('Y416'), p2p_y416_le,    8, 1, 64 },
 
-    // AVS commpatibility formats.
+    // AVS compatibility formats.
     { cfPackedRGB, stInteger, 24, 0, 0, 0, VS_FCC('DIB '), PLANAR, 3, 1, 24, 0, 4 }, // AVS is already upside down!
     { cfPackedRGB, stInteger, 32, 0, 0, 0, VS_FCC('DIB '), PLANAR, 4, 1, 32, 0, 4 },
     { cfPackedYUV, stInteger, 16, 1, 0, 0, VS_FCC('YUY2'), PLANAR, 2, 1, 16 },
@@ -188,7 +188,7 @@ bool NeedsPacking(const VSVideoFormat &fi, int alt_output) {
     return traits && ((traits->packing_mode != PLANAR) || (traits->flags & UPSIDE_DOWN));
 }
 
-// Returns false for YVU plane order and true for YUV whn doing planar output
+// Returns false for YVU plane order and true for YUV when doing planar output
 bool NeedsUVSwap(const VSVideoFormat &fi, int alt_output) {
     const Traits *traits = find_traits(fi, alt_output);
     return traits && (traits->flags & SWAP_UV);

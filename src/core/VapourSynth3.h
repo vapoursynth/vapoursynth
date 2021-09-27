@@ -45,7 +45,7 @@ namespace vs3 {
         cmCompat = 9000000
     } VSColorFamily;
 
-    /* The +10 is so people won't be using the constants interchangably "by accident" */
+    /* The +10 is so people won't be using the constants interchangeably "by accident" */
     typedef enum VSPresetFormat {
         pfNone = 0,
 

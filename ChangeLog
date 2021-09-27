@@ -82,7 +82,7 @@ fixed deadlock when setMessageHandler is called a second time
 added an option to add vspipe, avfs and vsrepo to path in the installer
 added registry entries for the path to vspipe and vsrepo
 imwri is now included in the installer
-the overwrite argument in imwri now also disables the requirement for output filesnames to contain a number
+the overwrite argument in imwri now also disables the requirement for output filenames to contain a number
 fixed corrupt output from imwri when requesting alpha output but the read image doesn't have an alpha channel
 
 r47.2
@@ -347,7 +347,7 @@ more zimg bug fixes, to/from float conversions will no longer sometimes get stuc
 r30:
 fixed imwri bug related to detecting the bitdepth and dimensions of an image
 zimg bug fixes
-changed behavior of resize, now matrix_in, transfer_in, primaries_in, range_in and chromaloc_in take precendence over frame properties by default, the new prefer_props argument restores old behavior
+changed behavior of resize, now matrix_in, transfer_in, primaries_in, range_in and chromaloc_in take precedence over frame properties by default, the new prefer_props argument restores old behavior
 added the possibility to make portable builds on windows
 added half precision float input/output to expr on cpus that have the f16c extension (ivy bridge or later)
 added the possibility for plugins to print messages through the standard logging as well, don't use it unless you really have to
@@ -592,7 +592,7 @@ fixed the lut and lut2 filters for > 8 bit formats (ADub)
 various minor fixes to vivtc
 removed clip.output() since it's a bad design decision, now a command-line program called vspipe can be used to pipe or write raw video output
 renamed newMap() to createMap() to match the naming of all other functions
-added core.get_plugins() for the core and core.namepace.get_functions() for namespaces, it works similarly to list_functions() but instead returns the information in a dict
+added core.get_plugins() for the core and core.namespace.get_functions() for namespaces, it works similarly to list_functions() but instead returns the information in a dict
 removed the unmentioned and unused link option for filter arguments as it is completely pointless and similar functionality may be implemented anyway
 there's now a sane external api available for embedding in other applications, see vsscript.h and vsvfw for an example
 now a singleton pattern is used for the core in python scripts, use vs.get_core() to get a reference to it

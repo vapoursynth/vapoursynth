@@ -1466,7 +1466,7 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoInfo &vi
 
         while (applyLocalOptimizations(tree) || applyStrengthReduction(tree) || applyOpFusion(tree)) {
             if (++num_passes > max_passes)
-                throw std::runtime_error{ "expression compilation did not commplete" };
+                throw std::runtime_error{ "expression compilation did not complete" };
         }
     }
 

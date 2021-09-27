@@ -43,7 +43,7 @@ mapGet/SetError for greater consistency.
 The paTouch mode has been removed and mapSetEmpty should be used instead in the rare cases where
 it's needed.
 Audio node and audio frame types were added and the types are now declared as normal enum constants
-and not obscure charaters. The best way to think about audio and video nodes are that they're two
+and not obscure characters. The best way to think about audio and video nodes are that they're two
 separate types that happen to share functions to manipulate them. As a result of this reasoning a
 single key in a VSMap can only hold audio or video nodes but not a mix of both. The same applies to
 frames (but they're rarely used as arguments).

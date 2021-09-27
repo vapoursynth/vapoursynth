@@ -753,7 +753,7 @@ Classes and Functions
    
    Once the method :meth:`on_policy_registered` has been called, the policy is responsible for creating and managing environments.
 
-   Special considerations have been made to ensure the functions of class cannot be abused. You cannot retrieve the current running policy youself.
+   Special considerations have been made to ensure the functions of class cannot be abused. You cannot retrieve the current running policy yourself.
    The additional API exposed by "on_policy_registered" is only valid if the policy has been registered.
    Once the policy is unregistered, all calls to the additional API will fail with a RuntimeError.
 
@@ -796,7 +796,7 @@ Classes and Functions
 .. py:class:: EnvironmentPolicyAPI
 
    This class is intended to be used by custom Script-Runners and Editors. An instance of this class exposes an additional API.
-   The methods are bound to a specific :class:`EnvironmentPolicy`-instance and will only work if the policy is currenty registered.
+   The methods are bound to a specific :class:`EnvironmentPolicy`-instance and will only work if the policy is currently registered.
 
    Added: R51
 

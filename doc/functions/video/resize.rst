@@ -38,7 +38,7 @@ Resize
       May need to specify additional colorspace parameters.
 
    It usually means the matrix/transfer/primaries are unknown and you have to
-   specify the input colorspace paramaters yourself. Note: 2 means "unspecified"
+   specify the input colorspace parameters yourself. Note: 2 means "unspecified"
    according to the ITU-T recommendation.
 
    *clip*:

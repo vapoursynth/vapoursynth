@@ -211,7 +211,7 @@ Installing with VSRepo
 
 On windows you can use the included vsrepo.py to install and upgrade plugins.
 Simply run ``vsrepo.py install <namespace or identifier>``. If you need a list
-of known scipts and plugins you can run ``vsrepo.py available`` or visit
+of known scripts and plugins you can run ``vsrepo.py available`` or visit
 `vsdb.top <http://vsdb.top/>`_.
 
 

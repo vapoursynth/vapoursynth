@@ -34,7 +34,7 @@ int BMPSize(const VSVideoInfo *vi, int alt_output);
 int BitsPerPixel(const VSVideoFormat &format, int alt_output);
 bool HasSupportedFourCC(const VSVideoFormat &fi);
 bool NeedsPacking(const VSVideoFormat &fi, int alt_output);
-bool NeedsUVSwap(const VSVideoFormat &fi, int alt_output); // Returns false for YVU plane order and true for YUV whn doing planar output
+bool NeedsUVSwap(const VSVideoFormat &fi, int alt_output); // Returns false for YVU plane order and true for YUV when doing planar output
 void PackOutputFrame(const uint8_t *src[3], const ptrdiff_t src_stride[3], uint8_t *dst, int width, int height, const VSVideoFormat &fi, int alt_output);
 
 #endif
