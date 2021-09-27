@@ -434,7 +434,7 @@ msg.set_output()\n";
 
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
-        VSScript *se = vssapi->createScript(nullptr);
+        se = vssapi->createScript(nullptr);
         vssapi->evalSetWorkingDir(se, 1);
         vssapi->evaluateFile(se, szScriptName.c_str());
 
