@@ -1,5 +1,5 @@
 #define Version '56'
-#define VersionExtra ''
+#define VersionExtra '-test1'
 #define PythonVersion '3.9'
 #define PythonCompactVersion '39'
 
@@ -47,7 +47,7 @@ DefaultGroupName={#= AppName}
 AllowCancelDuringInstall=no
 AllowNoIcons=yes
 AllowUNCPath=no
-MinVersion=6.1
+MinVersion=6.1sp1
 UsePreviousPrivileges=yes
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
@@ -106,6 +106,8 @@ Source: {#= SourceBinaryPath}\vsscriptpython38.dll; DestName: "vsscript.dll"; De
 Source: ..\vsrepo\vsrepo.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: ..\vsrepo\vsgenstubs\__init__.py; DestDir: {app}\vsrepo\vsgenstubs; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: ..\vsrepo\vsgenstubs\_vapoursynth.part.pyi; DestDir: {app}\vsrepo\vsgenstubs; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
+Source: ..\vsrepo\vsgenstubs4\__init__.py; DestDir: {app}\vsrepo\vsgenstubs; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
+Source: ..\vsrepo\vsgenstubs4\_vapoursynth.part.pyi; DestDir: {app}\vsrepo\vsgenstubs; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: 7z.exe; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: 7z.dll; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 
@@ -350,7 +352,6 @@ end;
 function InitializeSetup: Boolean;
 var
   HasOtherPython: Boolean;
-  ErrCode: Integer;
 begin
   RuntimesAdded := False;
   PythonList := nil;
