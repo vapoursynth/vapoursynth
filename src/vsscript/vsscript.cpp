@@ -69,11 +69,13 @@ static void real_init(void) VS_NOEXCEPT {
 
     HMODULE pythonDll = nullptr;
 
+/*
 #ifdef VS_TARGET_OS_WINDOWS
     _wputenv(L"PYTHONMALLOC=malloc");
 #else
     setenv("PYTHONMALLOC", "malloc", 1);
 #endif
+*/
 
     if (isPortable) {
         std::wstring pyPath = dllPath + L"\\" + pythonDllName;
