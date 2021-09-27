@@ -1,0 +1,15 @@
+name: codespell
+
+on: [push, pull_request]
+
+jobs:
+  codespell:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - uses: codespell-project/actions-codespell@master
+      with:
+        exclude_file: .codespellignore
+        skip: ./src/avfs/include,./src/avisynth/avisynth.h,./src/avisynth/interface.cpp,./src/core/ter-116n.h,./src/core/expr/jitasm.h

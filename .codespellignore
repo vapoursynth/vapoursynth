@@ -1,0 +1,6 @@
+static bool funcToLut(int nin, int nout, void *vlut, VSFunction *func, const VSAPI *vsapi, std::string &errstr) {
+    for (int i = 0; i < nin; i++) {
+            std::string aLine = nstringToUtf8(argv[arg + 1]).c_str();
+            size_t equalsPos = aLine.find("=");
+                fprintf(stderr, "No value specified for argument: %s\n", aLine.c_str());
+            opts.scriptArgs[aLine.substr(0, equalsPos)] = aLine.substr(equalsPos + 1);
