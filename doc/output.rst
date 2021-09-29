@@ -22,7 +22,7 @@ Options
 *******
 
 ``-a, --arg key=value``
-    Argument to pass to the script environment, it a key with this name and value (bytes typed) will be set in the globals dict
+    Argument to pass to the script environment, it a key with this name and value (str typed) will be set in the globals dict
 
 ``-s, --start N``
     Set output frame range (first frame)
