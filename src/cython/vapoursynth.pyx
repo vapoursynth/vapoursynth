@@ -1583,8 +1583,6 @@ cdef class RawNode(object):
         except Exception as e:
             fut.set_exception(e)
 
-        gc.collect()
-
         return fut
 
     def frames(self, prefetch=None, backlog=None):
@@ -1706,8 +1704,6 @@ cdef class VideoNode(RawNode):
         cdef const VSFrame *f
         self.ensure_valid_frame_number(n)
         
-        gc.collect()
-
         with nogil:
             f = self.funcs.getFrame(n, self.node, errorMsg, 500)
         if f == NULL:
@@ -1961,8 +1957,6 @@ cdef class AudioNode(RawNode):
         cdef const VSFrame *f
         self.ensure_valid_frame_number(n)
         
-        gc.collect()
-
         with nogil:
             f = self.funcs.getFrame(n, self.node, errorMsg, 500)
         if f == NULL:
