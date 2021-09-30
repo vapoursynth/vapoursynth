@@ -43,6 +43,7 @@ import weakref
 import atexit
 import contextlib
 import logging
+import functools
 from threading import local as ThreadLocal, Lock, RLock
 from types import MappingProxyType
 from collections import namedtuple
@@ -643,18 +644,20 @@ cdef class CallbackData(object):
     def for_future(self, object future, object wrap_call=None):
         if wrap_call is None:
             wrap_call = lambda func, *args, **kwargs: func(*args, **kwargs)
-        self.callback = self.handle_future
+        self.callback = functools.partial(CallbackData.handle_future,
+                                          self.env, future, wrap_call)
         self.future = future
         self.wrap_cb = wrap_call
 
-    def handle_future(self, node, n, result):
+    @staticmethod
+    def handle_future(env, future, wrapper, node, n, result):
         if isinstance(result, Error):
-            func = self.future.set_exception
+            func = future.set_exception
         else:
-            func = self.future.set_result
+            func = future.set_result
 
-        with use_environment(self.env).use():
-            self.wrap_cb(func, result)
+        with use_environment(env).use():
+            wrapper(func, result)
 
     def receive(self, n, result):
         self.callback(self.node, n, result)
