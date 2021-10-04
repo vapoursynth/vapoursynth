@@ -186,20 +186,6 @@ The documentation can be built using its own Makefile::
 
 The documentation can be installed using the standard program ``cp``.
 
-Install Python wrapper via pip (PyPI)
-*************************************
-
-The Windows installer will install Python wrapper automatically.
-Some Linux distros (e.g. Fedora & CentOS series) also provide pre-built Python wrapper package.
-If you do not use them, you can install the Python wrapper using pip.
-
-Install `vapoursynth <https://pypi.org/project/VapourSynth/>`_ by using this command::
-
-    pip install VapourSynth
-
-Please note that you need a working installation of VapourSynth beforehand.
-On non-Windows systems, the installer will compile the module before installing.
-
 Plugins and Scripts
 ###################
 
