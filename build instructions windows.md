@@ -17,6 +17,8 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 * Clone avs+ into the VapourSynth dir (`git clone https://github.com/AviSynth/AviSynthPlus.git`)
 * Clone libp2p into the VapourSynth dir (`git clone https://github.com/sekrit-twc/libp2p.git`)
 * Compile 32 and 64 bit releases using the VapourSynth solution
+* Alternatively, you can use `c++_build.bat` which will clone the repositories and compile the Vapoursynth solution.
+  You have to have `msbuild` in your path or launch it from `x64 Native Tools Command Prompt for VS 2019`.
 
 ## 3. Preparing the Python Project
 
@@ -24,6 +26,7 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 * Run `py -3.9-32 -m pip install -r python-requirements.txt` for 32bit.
 * Run `py -3.8 -m pip install -r python-requirements.txt` for 64bit.
 * Run `py -3.8-32 -m pip install -r python-requirements.txt` for 32bit.
+* Alternatively, you can use `install_python_requirements.bat` to launch all the python commands above. 
 * Run `cython_build.bat` to compile the Python modules
 * Run `docs_build.bat` to compile the documentation
 
