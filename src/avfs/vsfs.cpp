@@ -157,6 +157,10 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
         vssapi->evaluateBuffer(se, script.c_str(), scriptName.c_str());
 
         if (!vssapi->getError(se)) {
+            VSCoreInfo info;
+            vsapi->getCoreInfo(vssapi->getCore(se), &info);
+            num_threads = info.numThreads;
+
             videoNode = vssapi->getOutputNode(se, 0);
             if (!videoNode || vsapi->getNodeType(videoNode) != mtVideo) {
                 setError("Output index 0 is not set or not a video node");
@@ -180,20 +184,24 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
                 return ERROR_ACCESS_DENIED;
             }
 
+            if (videoNode) {
+                vsapi->setCacheMode(videoNode, 1);
+                vsapi->setCacheOptions(videoNode, -1, num_threads * 2, -1);
+            }
+
             audioNode = vssapi->getOutputNode(se, 1);
             if (audioNode && vsapi->getNodeType(audioNode) != mtAudio) {
                 setError("Output index index 1 is not an audio node");
                 return ERROR_ACCESS_DENIED;
             }
 
-            if (audioNode)
+            if (audioNode) {
                 ai = vsapi->getAudioInfo(audioNode);
+                vsapi->setCacheMode(audioNode, 1);
+                vsapi->setCacheOptions(audioNode, -1, num_threads * 2, -1);
+            }
 
             alt_output = vssapi->getAltOutputMode(se, 0);
-
-            VSCoreInfo info;
-            vsapi->getCoreInfo(vssapi->getCore(se), &info);
-            num_threads = info.numThreads;
 
             packedFrame.clear();
             packedFrame.resize(BMPSize());

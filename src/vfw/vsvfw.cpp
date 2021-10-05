@@ -441,6 +441,10 @@ bool VapourSynthFile::DelayInit2() {
         if (!vssapi->getError(se)) {
             error_msg.clear();
 
+            VSCoreInfo info;
+            vsapi->getCoreInfo(vssapi->getCore(se), &info);
+            num_threads = info.numThreads;
+
             ////////// video
 
             videoNode = vssapi->getOutputNode(se, 0);
@@ -470,6 +474,9 @@ bool VapourSynthFile::DelayInit2() {
                 goto vpyerror;
             }
 
+            vsapi->setCacheMode(videoNode, 1);
+            vsapi->setCacheOptions(videoNode, -1, num_threads * 2, -1);
+
             alt_output = vssapi->getAltOutputMode(se, 0);
 
             ////////// audio
@@ -488,11 +495,10 @@ bool VapourSynthFile::DelayInit2() {
                     error_msg = "Audio has more samples than can be represented in VFW structures";
                     goto vpyerror;
                 }
-            }
 
-            VSCoreInfo info;
-            vsapi->getCoreInfo(vssapi->getCore(se), &info);
-            num_threads = info.numThreads;
+                vsapi->setCacheMode(audioNode, 1);
+                vsapi->setCacheOptions(audioNode, -1, num_threads * 2, -1);
+            }
 
             return true;
         } else {
