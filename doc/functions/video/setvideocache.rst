@@ -19,8 +19,8 @@ SetVideoCache
    setting *fixedsize* prevents the cache from over time
    altering its *maxsize* based on request history. The
    final *historysize* argument controls how many previous
-   and no longer cached requests should be considered for
-   decisions on growing *maxsize* should generally not
+   and no longer cached requests should be considered when
+   adjusting *maxsize*, generally this value should not
    be touched at all.
    
    Note that setting *mode* will reset all other options
