@@ -252,11 +252,11 @@ For more reference, visit `vsrepo's repository <https://github.com/vapoursynth/v
 Installing Manually
 *******************
 
-You can put your plugin ``.dll`` and script ``.py`` to where you think it is convenient.
+You can put your plugin (``.dll``) and script (``.py``) to where you think it is convenient.
 
 For plugins, you can use ``std.LoadPlugin`` function to load it. there is also a plugin autoloading mechanism to save your time, see blow.
 
-For scripts, you shoud add a relative path to `python39._pth` or `python38._pth`, then you can import it in your script.
+For scripts, you should add a relative path to ``python39._pth`` or ``python38._pth``, then you can import it in your script.
 
 Plugin Autoloading
 ******************
