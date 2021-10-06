@@ -35,7 +35,7 @@
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
-#define VAPOURSYNTH_CORE_VERSION 56
+#define VAPOURSYNTH_CORE_VERSION 57
 #define VAPOURSYNTH_INTERNAL_PLUGIN_VERSION VS_MAKE_VERSION(VAPOURSYNTH_CORE_VERSION, 0)
 #if defined(VS_FRAME_GUARD) && !defined(NDEBUG)
 #define VS_OPTIONS_TEXT "Options: Frame Guard + Extra Assertions\n"
