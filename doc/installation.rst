@@ -241,14 +241,25 @@ available can be found at `vsdb.top <http://vsdb.top/>`_.
 Installing with VSRepo
 **********************
 
-On windows you can use the included vsrepo.py to install and upgrade plugins.
-Simply run ``vsrepo.py install <namespace or identifier>``. If you need a list
-of known scripts and plugins you can run ``vsrepo.py available`` or visit
-`vsdb.top <http://vsdb.top/>`_.
+On windows you can use the included vsrepo.py to install and upgrade plugins and scripts.
 
+Simply run ``vsrepo.py install <namespace or identifier>`` to install them.
 
-Autoloading
-***********
+If you need a list of known plugins and scripts you can run ``vsrepo.py available`` or visit `vsdb.top <http://vsdb.top/>`_.
+
+For more reference, visit `vsrepo's repository <https://github.com/vapoursynth/vsrepo>`_
+
+Installing Manually
+*******************
+
+You can put your plugin ``.dll`` and script ``.py`` to where you think it is convenient.
+
+For plugins, you can use ``std.LoadPlugin`` function to load it. there is also a plugin autoloading mechanism to save your time, see blow.
+
+For scripts, you shoud add a relative path to `python39._pth` or `python38._pth`, then you can import it in your script.
+
+Plugin Autoloading
+******************
 
 VapourSynth automatically loads all the native plugins located in certain
 folders. Autoloading works just like manual loading, with the exception
