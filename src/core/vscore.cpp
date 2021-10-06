@@ -850,9 +850,8 @@ void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
         core->logFatal("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. Instead, it is " + std::to_string(vi->fpsNum) + "/" + std::to_string(vi->fpsDen) + ")");
 
     this->v3vi = *vi;
-    this->v3vi.flags = 0;
+    this->v3vi.flags = vs3::nfNoCache | vs3::nfIsCache;
     this->vi = core->VideoInfoFromV3(this->v3vi);
-
 
     refcount = numOutputs;
 }
@@ -1460,6 +1459,7 @@ vs3::VSVideoInfo VSCore::VideoInfoToV3(const VSVideoInfo &vi) noexcept {
     v3.numFrames = vi.numFrames;
     v3.width = vi.width;
     v3.height = vi.height;
+    v3.flags = vs3::nfNoCache | vs3::nfIsCache;
     return v3;
 }
 
