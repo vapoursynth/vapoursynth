@@ -31,31 +31,38 @@ Grammar
 Slicing and Other Syntactic Sugar
 *********************************
 
-The VideoNode class (always called "clip" in practice) supports the full
+The VideoNode and AudioNode class (always called "clip" in practice) supports the full
 range of indexing and slicing operations in Python. If you do perform a slicing
 operation on a clip, you will get a new clip back with the desired frames.
 Note that frame numbers, like python arrays, start counting at 0.
 Here are a few examples.
 
-=========================================== ===========================================================================================================
-Operation                                   Description
-=========================================== ===========================================================================================================
-video = clip[5]                             Make a single frame clip containing frame number 5
-video = clip[6:10]                          Make a clip containing frames 6 to 9 (unlike Trim, the end value of python slicing is not inclusive)
-video = clip[::2]                           Select even numbered frames
-video = clip[1::2]                          Select odd numbered frames
-video = clip[::-1]                          Negative step is also allowed, so this reverses a clip
-video = clip[-400:-800:-5]                  It may all be combined at once to confuse people, just like normal Python slicing
-clip4 = clip1 + clip2 + clip3               The addition operator can be used to splice clips together, Which is equivalent to:
++-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
+| Operation                                 | Description                                                   | Equivalent                                               |
++===========================================+===============================================================+==========================================================+
+| clip = clip[5]                            | Make a single frame clip containing frame number 5            |                                                          |
++-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
+| clip = clip[5:11]                         | Make a clip containing frames 5 to 10 [#f1]_                  | | clip = core.std.Trim(clip, first=5, last=10)           |
+|                                           |                                                               | | clip = core.std.AudioTrim(clip, first=5, last=10)      |
++-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
+| clip = clip[::2]                          | Select even numbered frames                                   | clip = core.std.SelectEvery(clip, cycle=2, offsets=0)    |
++-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
+| clip = clip[1::2]                         | Select odd numbered frames                                    | clip = core.std.SelectEvery(clip, cycle=2, offsets=1)    |
++-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
+| clip = clip[::-1]                         | Reverses a clip                                               | | clip = core.std.Reverse(clip)                          |
+|                                           |                                                               | | clip = core.std.AudioReverse(clip)                     |
++-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
+| clip = clip1 + clip2                      | The addition operator can be used to splice clips together    | | clip = core.std.Splice([clip1, clip2], mismatch=False) |
+|                                           |                                                               | | clip = core.std.AudioSplice([clip1, clip2])            |
++-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
+| clip = clip * 10                          | The multiplication operator can be used to loop a clip [#f2]_ | | clip = core.std.Loop(clip, times=10)                   |
+|                                           |                                                               | | clip = core.std.AudioLoop(clip, times=10)              |
++-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
 
-                                              ``clip4 = core.std.Splice([core.std.Splice([clip1, clip2], mismatch=False), clip3], mismatch=False)``
+.. [#f1] Note that the end value of python slicing is not inclusive
 
-clip = clip * 42                            The multiplication operator can be used to loop a clip, Which is equivalent to:
+.. [#f2] Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count
 
-                                              ``clip = core.std.Loop(clip, times=42)``
-
-                                            Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count
-=========================================== ===========================================================================================================
 
 Filters can be chained with a dot, it mostly works like Avisynth::
 
