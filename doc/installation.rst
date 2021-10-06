@@ -160,12 +160,6 @@ These are the requirements:
 
    * Sphinx for the documentation (optional)
 
-   * iconv, libass, and ffmpeg for the Subtext plugin (optional)
-
-   * ImageMagick 7 for the Imwri plugin (optional)
-
-   * Tesseract 3 for the OCR plugin (optional)
-
 Note: **any version of Python 3 will do.** A specific version is only
 required when using the official Windows binaries.
 
