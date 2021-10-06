@@ -1,4 +1,5 @@
 r57:
+fixed nodes never being marked as nfnocache/nfiscache in api3 which caused some older applications to enter an infinite cache insertion loop
 fixed memory bloat in python due to circular references when dealing with frame objects
 fixed vsrepo missing genstubs files
 fixed vfw and avfs speed regression from r55
