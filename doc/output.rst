@@ -100,3 +100,26 @@ Avisynth Support
 Note that this AVFS version is also compatible with Avisynth 2.6 and Avisynth+. When using Avisynth+
 higher bitdepth output is also supported. The easiest way to obtain a recent version is to extract
 ``avfs.exe`` from the portable VapourSynth archives.
+
+VFW
+###
+
+On windows, you can output video to VFW based programs.
+
+If you install VapourSynth by installer, the VSVFW.dll is registered already
+
+Else, you could register it manually, use register file below or use `theChaosCoder's batch <https://github.com/theChaosCoder/vapoursynth-portable-FATPACK/blob/master/VapourSynth64Portable/extras/enable_vfw_support.bat>`_.
+
+::
+
+    Windows Registry Editor Version 5.00
+
+    [HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}]
+    @="VapourSynth"
+
+    [HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32]
+    @="<your VSVFW.dll directory>\\VSVFW.dll"
+    "ThreadingModel"="Apartment"
+
+    [HKEY_LOCAL_MACHINE\SOFTWARE\Classes\AVIFile\Extensions\VPY]
+    @="{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"
