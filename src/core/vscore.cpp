@@ -551,10 +551,10 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
 
 bool VSPluginFunction::isV3Compatible() const {
     for (const auto &iter : inArgs)
-        if (iter.type == ptAudioNode || iter.type == ptAudioFrame)
+        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset)
             return false;
     for (const auto &iter : retArgs)
-        if (iter.type == ptAudioNode || iter.type == ptAudioFrame)
+        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset)
             return false;
     return true;
 }

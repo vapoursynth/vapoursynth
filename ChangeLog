@@ -1,3 +1,8 @@
+r57:
+fixed memory bloat in python due to circular references when dealing with frame objects
+fixed vsrepo missing genstubs files
+fixed vfw and avfs speed regression from r55
+
 r56:
 more or less a huge pile of bug/regression fixes for r55
 
