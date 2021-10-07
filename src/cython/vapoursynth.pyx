@@ -520,11 +520,24 @@ def construct_signature(signature, return_signature, injected=None):
         for param in signature.split(";")
         if param
     )
-    
+
     if injected:
         del params[0]
-    
-    return inspect.Signature(tuple(params), return_annotation=_construct_type(return_signature))
+
+    return_annotations = list(
+        _construct_parameter(rparam).annotation
+        for rparam in return_signature.split(";")
+        if rparam
+    )
+
+    if len(return_annotations) == 0:
+        return_annotation = None
+    elif len(return_annotations) == 1:
+        return_annotation = return_annotations.pop()
+    else:
+        return_annotation = typing.Tuple[typing.Any, ...]
+
+    return inspect.Signature(tuple(params), return_annotation=return_annotation)
     
 
 class Error(Exception):
