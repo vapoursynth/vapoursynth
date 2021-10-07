@@ -488,6 +488,12 @@ def _construct_type(signature):
     return type
 
 def _construct_parameter(signature):
+    if signature == "any":
+        return inspect.Parameter(
+            "kwargs", inspect.Parameter.VAR_KEYWORD,
+            annotation=typing.Any
+        )
+
     name, signature = signature.split(":", 1)
     type = _construct_type(signature)
     
