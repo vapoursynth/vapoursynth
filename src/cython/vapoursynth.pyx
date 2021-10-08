@@ -2434,10 +2434,8 @@ cdef class Function(object):
         atypes = {}
         # remove _ from all args
         for key in kwargs:
-            if key[0] == '_':
-                nkey = key[1:]
             # PEP8 tells us single_trailing_underscore_ for collisions with Python-keywords.
-            elif key[-1] == "_":
+            if key[-1] == "_":
                 nkey = key[:-1]
             else:
                 nkey = key
