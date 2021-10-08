@@ -67,20 +67,20 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>../../include;C:\Program Files %28x86%29\Python39-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\Python39-32\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files %28x86%29\Python310-32\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files %28x86%29\Python310-32\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>../../include;C:\Program Files\Python39\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files\Python39\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files\Python310\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\Python310\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>../../include;C:\Program Files %28x86%29\Python39-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\Python39-32\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files %28x86%29\Python310-32\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files %28x86%29\Python310-32\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../include;C:\Program Files\Python39\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files\Python39\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files\Python310\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\Python310\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -97,7 +97,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
-      <DelayLoadDLLs>Python39.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <DelayLoadDLLs>python310.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -115,7 +115,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
-      <DelayLoadDLLs>Python39.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <DelayLoadDLLs>python310.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -136,7 +136,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Windows</SubSystem>
-      <DelayLoadDLLs>Python39.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <DelayLoadDLLs>python310.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -155,7 +155,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <DelayLoadDLLs>Python39.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <DelayLoadDLLs>python310.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

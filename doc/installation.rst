@@ -26,7 +26,7 @@ Prerequisites
 -------------
 
 First download and install the prerequisites:
-   * `Python 3.9.x <http://www.python.org/>`_ or Python 3.8.x -- 32 or 64 bit version depending on which version of VapourSynth you want to install
+   * `Python 3.10.x <http://www.python.org/>`_ or Python 3.8.x -- 32 or 64 bit version depending on which version of VapourSynth you want to install
    
 Note that VapourSynth and Python have to be matched so both are either installed
 for all users or for only for the current user.
@@ -47,7 +47,7 @@ Windows Installation (Portable)
 *******************************
 
 First download and decompress the prerequisites:
-   * `Python 3.9.x <http://www.python.org/>`_ or Python 3.8.x -- 32 or 64 bit embeddable version
+   * `Python 3.10.x <http://www.python.org/>`_ or Python 3.8.x -- 32 or 64 bit embeddable version
    
 Simply decompress the `portable VapourSynth archive <https://github.com/vapoursynth/vapoursynth/releases>`_
 into the Python dir and overwrite all existing files.Run ``vs-detect-python.bat``
@@ -101,7 +101,7 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 Required languages and applications:
 
 * Needs `Visual Studio 2019 <https://visualstudio.microsoft.com/de/vs/>`_
-* It also needs both `32bit <https://www.python.org/>`_ and `64bit <https://www.python.org/>`_ Python 3.8.x and 3.9.x (the msvc project assumes that you installed python for all users.)
+* It also needs both `32bit <https://www.python.org/>`_ and `64bit <https://www.python.org/>`_ Python 3.8.x and 3.10.x (the msvc project assumes that you installed python for all users.)
 * `InnoSetup <http://www.jrsoftware.org/isdl.php>`_ is needed to create the installer (default installation path assumed)
 * `7-zip <https://www.7-zip.org/>`_ is needed to compress the portable version (default installation path assumed)
 
@@ -118,8 +118,8 @@ Preparing the C++ Project
 Preparing the Python Project
 ----------------------------
 
-* Run ``py -3.9 -m pip install -r python-requirements.txt`` for 64bit.
-* Run ``py -3.9-32 -m pip install -r python-requirements.txt`` for 32bit.
+* Run ``py -3.10 -m pip install -r python-requirements.txt`` for 64bit.
+* Run ``py -3.10-32 -m pip install -r python-requirements.txt`` for 32bit.
 * Run ``py -3.8 -m pip install -r python-requirements.txt`` for 64bit.
 * Run ``py -3.8-32 -m pip install -r python-requirements.txt`` for 32bit.
 * Run ``cython_build.bat`` to compile the Python modules
