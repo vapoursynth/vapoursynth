@@ -15,7 +15,7 @@ copy ..\vsrepo\vsrepo.py buildp64
 copy vs-detect-python.bat buildp64
 copy 7z.exe buildp64
 copy 7z.dll buildp64
-copy ..\vapoursynth.cp39-win_amd64.pyd buildp64
+copy ..\vapoursynth.cp310-win_amd64.pyd buildp64
 copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
 copy ..\msvc_project\x64\Release\vsscriptpython38.dll buildp64
@@ -64,7 +64,7 @@ copy ..\vsrepo\vsrepo.py buildp32
 copy vs-detect-python.bat buildp32
 copy 7z.exe buildp32
 copy 7z.dll buildp32
-copy ..\vapoursynth.cp39-win32.pyd buildp32
+copy ..\vapoursynth.cp310-win32.pyd buildp32
 copy ..\msvc_project\Release\VapourSynth.dll buildp32
 copy ..\msvc_project\Release\vsscript.dll buildp32
 copy ..\msvc_project\Release\vsscriptpython38.dll buildp32
