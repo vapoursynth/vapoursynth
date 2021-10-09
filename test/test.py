@@ -51,11 +51,11 @@ class CoreTestSequence(unittest.TestCase):
             self.core.std.BlankClip(width=[])
 
     def test_arg6(self):
-        self.core.std.BlankClip(_width=50)
+        self.core.std.BlankClip(width_=50)
 
     def test_arg7(self):
         with self.assertRaises(vs.Error):
-            self.core.std.BlankClip(_width=[])
+            self.core.std.BlankClip(width_=[])
 
     def test_arg8(self):
         with self.assertRaises(vs.Error):
