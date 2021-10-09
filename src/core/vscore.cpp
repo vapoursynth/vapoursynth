@@ -1307,7 +1307,7 @@ bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSamp
     if (colorFamily != cfUndefined && colorFamily != cfGray && colorFamily != cfYUV && colorFamily != cfRGB)
         return false;
 
-    if (colorFamily == cfUndefined && (subSamplingH != 0 || subSamplingW != 0 || bitsPerSample != 0 || sampleType != stInteger))
+    if (colorFamily == cfUndefined && subSamplingH == 0 && subSamplingW == 0 && bitsPerSample == 0 && sampleType == stInteger)
         return true;
 
     if (sampleType != stInteger && sampleType != stFloat)
@@ -1331,6 +1331,9 @@ bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSamp
 bool VSCore::isValidVideoFormat(const VSVideoFormat &format) noexcept {
     if (!isValidVideoFormat(format.colorFamily, format.sampleType, format.bitsPerSample, format.subSamplingW, format.subSamplingH))
         return false;
+
+    if (format.colorFamily == cfUndefined)
+        return (format.bytesPerSample == 0 && format.numPlanes == 0);
 
     if (format.numPlanes != ((format.colorFamily == cfYUV || format.colorFamily == cfRGB) ? 3 : 1))
         return false;
@@ -1441,7 +1444,10 @@ vs3::VSColorFamily VSCore::ColorFamilyToV3(int colorFamily) noexcept {
 }
 
 const vs3::VSVideoFormat *VSCore::VideoFormatToV3(const VSVideoFormat &format) noexcept {
-    return queryVideoFormat3(ColorFamilyToV3(format.colorFamily), static_cast<VSSampleType>(format.sampleType), format.bitsPerSample, format.subSamplingW, format.subSamplingH);
+    if (format.colorFamily == cfUndefined)
+        return nullptr;
+    else
+        return queryVideoFormat3(ColorFamilyToV3(format.colorFamily), static_cast<VSSampleType>(format.sampleType), format.bitsPerSample, format.subSamplingW, format.subSamplingH);
 }
 
 bool VSCore::VideoFormatFromV3(VSVideoFormat &out, const vs3::VSVideoFormat *format) noexcept {
