@@ -358,12 +358,13 @@ Classes and Functions
       The *prefetch* argument is only for debugging purposes and should never need to be changed.
       The *backlog* argument is only for debugging purposes and should never need to be changed.
 
-   .. py:method:: frames([prefetch=None, backlog=None])
+   .. py:method:: frames([prefetch=None, backlog=None, close=False])
 
       Returns a generator iterator of all VideoFrames in the clip. It will render multiple frames concurrently.
       
       The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
+      The *close* argument determines if the frame should be closed after each iteration step. It defaults to false to remain backward compatible.
 
 .. py:class:: VideoOutputTuple
 
@@ -412,6 +413,23 @@ Classes and Functions
    .. py:method:: copy()
 
       Returns a writable copy of the frame.
+
+   .. py:method:: close()
+
+      Forcefully releases the frame. Once freed, the you cannot call any function on the frame, nor use the associated
+      FrameProps.
+
+      To make sure you don't forget to close the frame, the frame is now a context-manager that automatically calls
+      this method for you:
+
+      .. code::
+
+           with core.std.BlankClip().get_frame(0) as f:
+               print(f.props)
+
+   .. py:attribute:: closed
+
+      Tells you if the frame has been closed. It will be False if the close()-method has not been called yet.
 
    .. py:method:: get_read_ptr(plane)
 
