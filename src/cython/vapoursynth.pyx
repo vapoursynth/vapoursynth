@@ -953,8 +953,7 @@ cdef VideoFormat createVideoFormat(const VSVideoFormat *f, const VSAPI *funcs, V
     return instance
 
 cdef class FrameProps(object):
-    cdef const VSFrame *constf
-    cdef VSFrame *f
+    cdef RawFrame frame
     cdef VSCore *core
     cdef const VSAPI *funcs
     cdef bint readonly
@@ -962,18 +961,16 @@ cdef class FrameProps(object):
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
-    def __dealloc__(self):
-        if self.funcs:
-            self.funcs.freeFrame(self.constf)
-
     def __contains__(self, str name):
-        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.constf)
+        self.frame._ensure_open()
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
         cdef bytes b = name.encode('utf-8')
         cdef int numelem = self.funcs.mapNumElements(m, b)
         return numelem > 0
 
     def __getitem__(self, str name):
-        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.constf)
+        self.frame._ensure_open()
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
         cdef bytes b = name.encode('utf-8')
         cdef list ol = []
         cdef int numelem = self.funcs.mapNumElements(m, b)
@@ -1014,9 +1011,10 @@ cdef class FrameProps(object):
             return ol
 
     def __setitem__(self, str name, value):
+        self.frame._ensure_open()
         if self.readonly:
             raise Error('Cannot delete properties of a read only object')
-        cdef VSMap *m = self.funcs.getFramePropertiesRW(self.f)
+        cdef VSMap *m = self.funcs.getFramePropertiesRW(self.frame.f)
         cdef bytes b = name.encode('utf-8')
         cdef const VSAPI *funcs = self.funcs
         val = value
@@ -1062,16 +1060,19 @@ cdef class FrameProps(object):
             raise
 
     def __delitem__(self, str name):
+        self.frame._ensure_open()
         if self.readonly:
             raise Error('Cannot delete properties of a read only object')
-        cdef VSMap *m = self.funcs.getFramePropertiesRW(self.f)
+        cdef VSMap *m = self.funcs.getFramePropertiesRW(self.frame.f)
         cdef bytes b = name.encode('utf-8')
         self.funcs.mapDeleteKey(m, b)
 
     def __setattr__(self, name, value):
+        self.frame._ensure_open()
         self[name] = value
 
     def __delattr__(self, name):
+        self.frame._ensure_open()
         del self[name]
 
     # Only the methods __getattr__ and keys are required for the support of
@@ -1080,13 +1081,15 @@ cdef class FrameProps(object):
     # in the generic code path.
 
     def __getattr__(self, name):
+        self.frame._ensure_open()
         try:
            return self[name]
         except KeyError as e:
            raise AttributeError from e
 
     def keys(self):
-        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.constf)
+        self.frame._ensure_open()
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
         cdef int numkeys = self.funcs.mapNumKeys(m)
         result = set()
         for i in range(numkeys):
@@ -1094,17 +1097,21 @@ cdef class FrameProps(object):
         return result
 
     def values(self):
+        self.frame._ensure_open()
         return {self[key] for key in self.keys()}
 
     def items(self):
+        self.frame._ensure_open()
         return {(key, self[key]) for key in self.keys()}
 
     def get(self, key, default=None):
+        self.frame._ensure_open()
         if key in self:
             return self[key]
         return default
 
     def pop(self, key, default=_EMPTY):
+        self.frame._ensure_open()
         if key in self:
             value = self[key]
             del self[key]
@@ -1118,6 +1125,7 @@ cdef class FrameProps(object):
         return default
 
     def popitem(self):
+        self.frame._ensure_open()
         if len(self) <= 0:
             raise KeyError
         key = next(iter(self.keys()))
@@ -1128,11 +1136,13 @@ cdef class FrameProps(object):
         Behaves like the dict.setdefault function but since setting None is not supported,
         it will default to zero.
         """
+        self.frame._ensure_open()
         if key not in self:
             self[key] = default
         return self[key]
 
     def update(self, *args, **kwargs):
+        self.frame._ensure_open()
         # This code converts the positional argument into a dict which we then can update
         # with the kwargs.
         if 0 < len(args) < 2:
@@ -1150,6 +1160,7 @@ cdef class FrameProps(object):
             self[k] = v
 
     def clear(self):
+        self.frame._ensure_open()
         for _ in range(len(self)):
             self.popitem()
 
@@ -1157,35 +1168,38 @@ cdef class FrameProps(object):
         """
         We can't copy VideoFrames directly, so we're just gonna return a real dictionary.
         """
+        self.frame._ensure_open()
         return dict(self)
 
     def __iter__(self):
+        self.frame._ensure_open()
         yield from self.keys()
 
     def __len__(self):
-        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.constf)
+        self.frame._ensure_open()
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
         return self.funcs.mapNumKeys(m)
 
     def __dir__(self):
+        self.frame._ensure_open()
         return super(FrameProps, self).__dir__() + list(self.keys())
 
     def __repr__(self):
+        if self.frame.closed:
+            return "<vapoursynth.FrameProps on closed frame>"
         return "<vapoursynth.FrameProps %r>" % dict(self)
 
 cdef FrameProps createFrameProps(RawFrame f):
     cdef FrameProps instance = FrameProps.__new__(FrameProps)
-# since the vsapi only returns const refs when cloning a VSFrame it is safe to cast away the const here
-    instance.constf = f.funcs.addFrameRef(f.constf)
-    instance.f = NULL
+    instance.frame = f
     instance.funcs = f.funcs
     instance.core = f.core
     instance.readonly = f.readonly
-    if not instance.readonly:
-        instance.f = <VSFrame *>instance.constf
     return instance
 
 # Make sure the FrameProps-Object quacks like a Mapping.
 Mapping.register(FrameProps)
+
 
 cdef class RawFrame(object):
     cdef const VSFrame *constf
@@ -1193,7 +1207,6 @@ cdef class RawFrame(object):
     cdef VSCore *core
     cdef const VSAPI *funcs
     cdef unsigned flags
-    cdef readonly FrameProps props
     
     cdef object __weakref__
 
@@ -1204,7 +1217,35 @@ cdef class RawFrame(object):
         if self.funcs:
             self.funcs.freeFrame(self.constf)
 
+    @property
+    def closed(self):
+        return self.constf == NULL
+
+    cdef _ensure_open(self):
+        if self.constf == NULL:
+            raise RuntimeError("The Frame has already been released.")
+
+    def close(self):
+        if self.closed:
+            return
+
+        if self.funcs:
+            self.funcs.freeFrame(self.constf)
+        self.constf = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc=None, val=None, tb=None):
+        self.close()
+
+    @property
+    def props(self):
+        self._ensure_open()
+        return createFrameProps(self)
+
     def get_write_ptr(self, int plane):
+        self._ensure_open()
         if self.f == NULL:
             raise Error('Can only obtain write pointer for writable frames')
         cdef const uint8_t *d = self.funcs.getWritePtr(self.f, plane)
@@ -1213,12 +1254,14 @@ cdef class RawFrame(object):
         return ctypes.c_void_p(<uintptr_t>d)
 
     def get_read_ptr(self, int plane):
+        self._ensure_open()
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
         if d == NULL:
             raise IndexError('Specified plane index out of range')
         return ctypes.c_void_p(<uintptr_t>d)
 
     def get_stride(self, int plane):
+        self._ensure_open()
         cdef ptrdiff_t stride = self.funcs.getStride(self.constf, plane)
         if stride == 0:
             raise IndexError('Specified plane index out of range')
@@ -1238,9 +1281,11 @@ cdef class VideoFrame(RawFrame):
         raise Error('Class cannot be instantiated directly')
 
     def copy(self):
+        self._ensure_open()
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
     def _writelines(self, write):
+        self._ensure_open()
         assert callable(write), "'write' is not callable"
 
         lib = self.funcs
@@ -1276,6 +1321,7 @@ cdef class VideoFrame(RawFrame):
                 write(data)
 
     def __getitem__(self, index):
+        self._ensure_open()
         if PyIndex_Check(index):
             index = PyNumber_Index(index)
         else:
@@ -1292,7 +1338,7 @@ cdef class VideoFrame(RawFrame):
             raise IndexError("index out of range")
 
         data = _video.allocinfo(format)
-        data.base.obj = self
+        data.base.obj = createFramePtr(self.funcs.addFrameRef(self.constf), self.funcs)
         data.base.readonly = not self.flags & 1
 
         _video.fillinfo(&data.base, frame, index, &self.flags, lib)
@@ -1300,6 +1346,7 @@ cdef class VideoFrame(RawFrame):
         return PyMemoryView_FromObject(data)
 
     def __len__(self):
+        self._ensure_open()
         lib = self.funcs
         return lib.getVideoFrameFormat(self.constf).numPlanes
 
@@ -1321,7 +1368,6 @@ cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs,
     instance.format = createVideoFormat(funcs.getVideoFrameFormat(constf), funcs, core)
     instance.width = funcs.getFrameWidth(constf, 0)
     instance.height = funcs.getFrameHeight(constf, 0)
-    instance.props = createFrameProps(instance)
     return instance
 
 
@@ -1335,7 +1381,6 @@ cdef VideoFrame createVideoFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     instance.format = createVideoFormat(funcs.getVideoFrameFormat(f), funcs, core)
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
-    instance.props = createFrameProps(instance)
     return instance
 
 
@@ -1443,9 +1488,11 @@ cdef class AudioFrame(RawFrame):
         raise Error('Class cannot be instantiated directly')
 
     def copy(self):
+        self._ensure_open()
         return createAudioFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
     def __getitem__(self, index):
+        self._ensure_open()
         if PyIndex_Check(index):
             index = PyNumber_Index(index)
 
@@ -1459,7 +1506,7 @@ cdef class AudioFrame(RawFrame):
                 raise IndexError("index out of range")
 
             data = _audio.allocinfo(format)
-            data.base.obj = self
+            data.base.obj = createFramePtr(self.funcs.addFrameRef(self.constf), self.funcs)
             data.base.readonly = not self.flags & 1
 
             _audio.fillinfo(&data.base, frame, index, &self.flags, lib)
@@ -1470,6 +1517,7 @@ cdef class AudioFrame(RawFrame):
                             % (type(index).__name__,))
 
     def __len__(self):
+        self._ensure_open()
         lib = self.funcs
         return lib.getAudioFrameFormat(self.constf).numChannels
 
@@ -1590,7 +1638,7 @@ cdef class RawNode(object):
     def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
         self.ensure_valid_frame_number(n)
 
-        data = createCallbackData(self.funcs, self, cb, future_wrapper)
+        cdef CallbackData data = createCallbackData(self.funcs, self, cb, future_wrapper)
         Py_INCREF(data)
         with nogil:
             self.funcs.getFrameAsync(n, self.node, frameDoneCallback, <void *>data)
@@ -1607,7 +1655,7 @@ cdef class RawNode(object):
 
         return fut
 
-    def frames(self, prefetch=None, backlog=None):
+    def frames(self, prefetch=None, backlog=None, close=False):
         if prefetch is None or prefetch <= 0:
             prefetch = self.core.num_threads
         if backlog is None or backlog < 0:
@@ -1678,10 +1726,21 @@ cdef class RawNode(object):
                 _refill()
 
                 sidx += 1
-                yield result
+                try:
+                    yield result
+
+                finally:
+                    if close:
+                        result.close()
 
         finally:
             finished = True
+
+            for fut in reorder.copy().values():
+                if fut.exception() is not None:
+                    continue
+                fut.result().close()
+
             gc.collect()
 
     def __dealloc__(self):
@@ -1806,7 +1865,7 @@ cdef class VideoNode(RawNode):
         write = fileobj.write
         writelines = VideoFrame._writelines
 
-        for idx, frame in enumerate(self.frames(prefetch, backlog)):
+        for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
             if y4m:
                 fileobj.write(b"FRAME\n")
 
