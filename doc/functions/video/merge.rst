@@ -16,11 +16,11 @@ Merge
 
    How to merge luma::
 
-      Merge(clipa=A, clipb=B, weight=[0, 1])
+      Merge(clipa=A, clipb=B, weight=[1, 0])
 
    How to merge chroma::
 
-      Merge(clipa=A, clipb=B, weight=[1, 0])
+      Merge(clipa=A, clipb=B, weight=[0, 1])
 
    The average of two clips::
 
