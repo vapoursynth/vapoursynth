@@ -34,7 +34,6 @@ Slicing and Other Syntactic Sugar
 The VideoNode and AudioNode class (always called "clip" in practice) supports the full
 range of indexing and slicing operations in Python. If you do perform a slicing
 operation on a clip, you will get a new clip back with the desired frames.
-Note that frame numbers, like python arrays, start counting at 0.
 Here are a few examples.
 
 +-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
@@ -59,15 +58,18 @@ Here are a few examples.
 |                                           |                                                               | | clip = core.std.AudioLoop(clip, times=10)              |
 +-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
 
-.. [#f1] Note that the end value of python slicing is not inclusive
+.. [#f1] Note that frame numbers, like python arrays, start counting at 0 and the end value of slicing is not inclusive
 
 .. [#f2] Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count
 
 
-Filters can be chained with a dot, it mostly works like Avisynth::
+Filters can be chained with a dot::
 
-   clip = core.ffms2.Source("asdf.mov")
    clip = clip.std.Trim(first=100, last=2000).std.FlipVertical()
+
+Which is quivalent to::
+
+   clip = core.std.FlipVertical(core.std.Trim(clip, first=100, last=2000))
 
 Python Keywords as Filter Arguments
 ***********************************
@@ -198,7 +200,7 @@ Classes and Functions
    The *Core* class uses a singleton pattern. Use the *core* attribute to obtain an
    instance. All loaded plugins are exposed as attributes of the core object.
    These attributes in turn hold the functions contained in the plugin.
-   Use *get_plugins()* to obtain a full list of all currently loaded plugins
+   Use *plugins()* to obtain a full list of all currently loaded plugins
    you may call this way.
    
    .. py:attribute:: num_threads
@@ -212,7 +214,7 @@ Classes and Functions
 
    .. py:method:: plugins()
 
-      (Reserved)
+      Containing all loaded plugins.
 
    .. py:method:: get_plugins()
    
@@ -232,7 +234,7 @@ Classes and Functions
       
    .. py:method:: query_video_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
 
-      (Reserved)
+      Retrieve a Format object corresponding to the format information, Invalid formats throw an exception.
 
    .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
    
@@ -280,11 +282,11 @@ Classes and Functions
 
       .. py:attribute:: numerator
 
-      The numerator of the framerate. If the clip has variable framerate, the value will be 0.
+         The numerator of the framerate. If the clip has variable framerate, the value will be 0.
       
       .. py:attribute:: denominator
 
-      The denominator of the framerate. If the clip has variable framerate, the value will be 0.
+         The denominator of the framerate. If the clip has variable framerate, the value will be 0.
 
    .. py:attribute:: fps_num
    
@@ -563,12 +565,11 @@ Classes and Functions
 
    .. py:method:: frames([prefetch=None, backlog=None])
 
-      Returns a generator iterator of all VideoFrames in the clip. It will render multiple frames concurrently.
+      Returns a generator iterator of all AudioFrames in the clip. It will render multiple frames concurrently.
       
       The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
 
-      
 .. py:class:: AudioFrame
 
       This class represents an audio frame and all metadata attached to it.
@@ -627,9 +628,15 @@ Classes and Functions
 
       The namespace of the plugin.
 
+   .. py:attribute:: name
+
+      The name string of the plugin.
+
+   .. py:attribute:: identifier
+
    .. py:method:: functions()
 
-      (Reserved)
+      Containing all the functions in the plugin, You can access it by calling *core.<namespace>.functions()*.
 
    .. py:method:: get_functions()
 
