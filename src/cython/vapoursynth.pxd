@@ -274,7 +274,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VSFrame *newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrame *propSrc, VSCore *core) nogil
         VSFrame *newAudioFrame2(const VSAudioFormat *format, int numSamples, const VSFrame **channelSrc, const int *channels, const VSFrame *propSrc, VSCore *core) nogil
         void freeFrame(const VSFrame *f) nogil
-        const VSFrame *addFrameRef(VSFrame *f) nogil
+        const VSFrame *addFrameRef(const VSFrame *f) nogil
         VSFrame *copyFrame(const VSFrame *f, VSCore *core) nogil
         const VSMap *getFramePropertiesRO(const VSFrame *f) nogil
         VSMap *getFramePropertiesRW(VSFrame *f) nogil
