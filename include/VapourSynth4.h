@@ -210,10 +210,6 @@ typedef struct VSAudioFormat {
     uint64_t channelLayout;
 } VSAudioFormat;
 
-typedef enum VSFilterFlags {
-    ffStrictSpatial = 1
-} VSFilterFlags;
-
 typedef enum VSPropertyType {
     ptUnset = 0,
     ptInt = 1,
