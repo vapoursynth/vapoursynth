@@ -648,44 +648,25 @@ cdef class CallbackData(object):
 
     cdef RawNode node
 
-    cdef object wrap_cb
-    cdef object future
     cdef EnvironmentData env
 
     def __init__(self, object node, EnvironmentData env, object callback = None):
+        # Keeps the node alive during the call.
         self.node = node
-        self.callback = callback
 
-        self.future = None
-        self.wrap_cb = None
+        self.callback = callback
         self.env = env
 
-    def for_future(self, object future, object wrap_call=None):
-        if wrap_call is None:
-            wrap_call = lambda func, *args, **kwargs: func(*args, **kwargs)
-        self.callback = functools.partial(CallbackData.handle_future,
-                                          self.env, future, wrap_call)
-        self.future = future
-        self.wrap_cb = wrap_call
-
-    @staticmethod
-    def handle_future(env, future, wrapper, node, n, result):
-        if isinstance(result, Error):
-            func = future.set_exception
-        else:
-            func = future.set_result
-
-        with use_environment(env).use():
-            wrapper(func, result)
-
     def receive(self, n, result):
-        self.callback(self.node, n, result)
+        with use_environment(self.env).use():
+            if isinstance(result, Exception):
+                self.callback(None, result)
+            else:
+                self.callback(result, None)
 
 
-cdef createCallbackData(const VSAPI* funcs, RawNode node, object cb, object wrap_call=None):
+cdef createCallbackData(const VSAPI* funcs, RawNode node, object cb):
     cbd = CallbackData(node, _env_current(), cb)
-    if not callable(cb):
-        cbd.for_future(cb, wrap_call)
     cbd.funcs = funcs
     return cbd
 
@@ -1636,24 +1617,51 @@ cdef class RawNode(object):
         raise NotImplementedError("Needs to be implemented by subclass.")
 
     def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
-        self.ensure_valid_frame_number(n)
+        import warnings
+        warnings.warn("get_frame_async_raw() is deprecated. Use \"get_frame_async()\" instead.", DeprecationWarning)
 
-        cdef CallbackData data = createCallbackData(self.funcs, self, cb, future_wrapper)
+        def _handle_future(result, exception):
+            if future_wrapper is not None:
+                return future_wrapper(lambda: _handle_future(result, exception))
+
+            if not callable(cb):
+                if exception is not None:
+                    cb.set_exception(exception)
+                else:
+                    cb.set_result(result)
+
+            else:
+                if exception is not None:
+                    cb(self, n, exception)
+                else:
+                    cb(self, n, result)
+
+        return self.get_frame_async(n, _handle_future)
+
+    def get_frame_async(self, int n, object cb = None):
+        if cb is None:
+            def _handle_future(result, exception):
+                if exception is not None:
+                    fut.set_exception(exception)
+                else:
+                    fut.set_result(exception)
+
+            from concurrent.futures import Future
+            fut = Future()
+            fut.set_running_or_notify_cancel()
+
+            try:
+                self.get_frame_async(n, _handle_future)
+            except Exception as e:
+                fut.set_exception(e)
+
+            return fut
+
+        cdef CallbackData data = createCallbackData(self.funcs, self, cb)
         Py_INCREF(data)
         with nogil:
             self.funcs.getFrameAsync(n, self.node, frameDoneCallback, <void *>data)
 
-    def get_frame_async(self, int n):
-        from concurrent.futures import Future
-        fut = Future()
-        fut.set_running_or_notify_cancel()
-
-        try:
-            self.get_frame_async_raw(n, fut)
-        except Exception as e:
-            fut.set_exception(e)
-
-        return fut
 
     def frames(self, prefetch=None, backlog=None, close=False):
         if prefetch is None or prefetch <= 0:
