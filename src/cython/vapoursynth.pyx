@@ -210,7 +210,7 @@ cdef class EnvironmentPolicyAPI:
         self.ensure_policy_matches()
         if not isinstance(environment_data, EnvironmentData):
             raise ValueError("environment_data must be an EnvironmentData instance.")
-        return use_environment(<EnvironmentData>environment_data, direct=False)
+        return use_environment(<EnvironmentData>environment_data)
 
     def create_environment(self, int flags = 0):
         self.ensure_policy_matches()
@@ -243,7 +243,7 @@ cdef class EnvironmentPolicyAPI:
     def __repr__(self):
         target = self._target_policy()
         if target is None:
-            return f"<EnvironmentPolicyAPI bound to <garbage collected> (unregistered)"
+            return f"<EnvironmentPolicyAPI bound to <garbage collected> (unregistered)>"
         elif _policy is not target:
             return f"<EnvironmentPolicyAPI bound to {target!r} (unregistered)>"
         else:
@@ -312,10 +312,8 @@ cdef class _FastManager(object):
         self.previous = None
 
 
-cdef object _tl_env_stack = ThreadLocal()
 cdef class Environment(object):
     cdef readonly object env
-    cdef bint use_stack
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -354,7 +352,6 @@ cdef class Environment(object):
     def copy(self):
         cdef Environment env = Environment.__new__(Environment)
         env.env = self.env
-        env.use_stack = False
         return env
 
     def use(self):
@@ -367,42 +364,6 @@ cdef class Environment(object):
         ctx.previous = None
         return ctx
 
-    cdef _get_stack(self):
-        if not self.use_stack:
-            raise RuntimeError("You cannot directly use the environment as a context-manager. Use Environment.use instead.")
-        _tl_env_stack.stack = getattr(_tl_env_stack, "stack", [])
-        return _tl_env_stack.stack
-
-    def __enter__(self):
-        if not self.alive:
-            raise RuntimeError("The environment has died.")
-
-        env = self.get_env()
-        stack = self._get_stack()
-        stack.append(get_policy().set_environment(env))
-        if len(stack) > 1:
-            import warnings
-            warnings.warn("Using the environment as a context-manager is not reentrant. Expect undefined behaviour. Use Environment.use instead.", RuntimeWarning)
-
-        return self
-
-    def __exit__(self, *_):
-        stack = self._get_stack()
-        if not stack:
-            import warnings
-            warnings.warn("Exiting while the stack is empty. Was the stack-frame suspended during the with-statement?", RuntimeWarning)
-            return
-
-        env = stack.pop()
-        policy = get_policy()
-        if policy.is_alive(env):
-            old = policy.set_environment(env)
-
-        # We exited with a different environment. This is not good. Automatically revert this change.
-        if old is not self.get_env():
-            import warnings
-            warnings.warn("The exited environment did not match the managed environment. Was the stack-frame suspended during the with-statement?", RuntimeWarning)
-
     def __eq__(self, other):
         return other.env_id == self.env_id
 
@@ -413,26 +374,13 @@ cdef class Environment(object):
         return f"<Environment {id(self.env)} ({('active' if self.active else 'alive') if self.alive else 'dead'})>"
 
 
-cdef Environment use_environment(EnvironmentData env, bint direct = False):
+cdef Environment use_environment(EnvironmentData env):
     if id is None: raise ValueError("id may not be None.")
 
     cdef Environment instance = Environment.__new__(Environment)
     instance.env = weakref.ref(env)
-    instance.use_stack = direct
 
     return instance
-
-
-def vpy_current_environment():
-    import warnings
-    warnings.warn("This function is deprecated and might cause unexpected behaviour. Use get_current_environment() instead.", DeprecationWarning)
-
-    env = get_policy().get_current_environment()
-    if env is None:
-        raise RuntimeError("We are not running inside an environment.")
-
-    vsscript_get_core_internal(env) # Make sure a core is defined
-    return use_environment(env, direct=True)
 
 def get_current_environment():
     env = get_policy().get_current_environment()
@@ -440,7 +388,7 @@ def get_current_environment():
         raise RuntimeError("We are not running inside an environment.")
 
     vsscript_get_core_internal(env) # Make sure a core is defined
-    return use_environment(env, direct=False)
+    return use_environment(env)
 
 # Create an empty list whose instance will represent a not passed value.
 _EMPTY = []
