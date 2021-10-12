@@ -2,6 +2,7 @@ include COPYING.LESSER
 
 recursive-include test *
 recursive-include src/cython *.pyx *.pxd
+recursive-include src/vsscript *.h
 recursive-include include *.h *.asm
 recursive-exclude include/cython *
 
