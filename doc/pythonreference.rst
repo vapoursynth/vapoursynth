@@ -845,10 +845,6 @@ Classes and Functions
       Returns a :class:`Environment` that is used by the wrapper for context sensitive data used by VapourSynth.
       For example it holds the currently active core object as well as the currently registered outputs.
 
-   .. py:method:: set_options(environment, options)
-
-      Scripts can be passed (or pass) options between the 
-
    .. py:method:: set_logger(environment, callback)
 
       This function sets the logger for the given environment.
