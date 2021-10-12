@@ -12,6 +12,8 @@ is_64 = (architecture()[0] == "64bit")
 extra_data = {}
 
 library_dirs = [curdir, "build"]
+
+is_portable = False
 if is_win:
     if is_64:
         library_dirs.append(join("msvc_project", "x64", "Release"))
@@ -19,8 +21,6 @@ if is_win:
     else:
         library_dirs.append(join("msvc_project", "Release"))
         lib_suffix = "lib32"
-
-    is_portable = False
 
     #
     # This code detects the library directory by querying the Windows Registry
