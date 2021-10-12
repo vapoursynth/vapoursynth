@@ -70,7 +70,7 @@ jobs:
         python setup.py sdist -d sdist
         mkdir empty
         pushd empty
-        pip install vapoursynth --no-index --find-links ./sdist
+        pip install vapoursynth --no-index --find-links ../sdist
         popd
 
     - name: Run test
