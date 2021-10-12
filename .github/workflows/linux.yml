@@ -67,7 +67,11 @@ jobs:
     - name: make install
       run: |
         sudo make install -j2
-        pip install .
+        python setup.py sdist -d sdist
+        mkdir empty
+        pushd empty
+        pip install vapoursynth --no-index --find-links ./sdist
+        popd
 
     - name: Run test
       run: python -m unittest discover -s test -p "*test.py"
