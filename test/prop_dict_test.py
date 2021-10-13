@@ -12,6 +12,12 @@ class PropDictTest(unittest.TestCase):
         self.frame_copy = self.frame.copy()
         self.props_rw = self.frame_copy.props
 
+    def test_video_props(self):
+        self.core.std.BlankClip().get_frame(0).props
+
+    def test_audio_props(self):
+        self.core.std.BlankAudio().get_frame(0).props
+
     def test_item_access(self):
         self.assertEqual(self.props['_DurationDen'], 24)
         with self.assertRaises(KeyError):
