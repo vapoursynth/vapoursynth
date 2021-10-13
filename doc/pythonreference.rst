@@ -714,7 +714,7 @@ Classes and Functions
 
    .. warning::
 
-      Environment-objects obtained using the :func:`get_current_environment` can directly be used as
+      Environment-objects obtained using the :func:`vpy_current_environment` can directly be used as
       as a context manager. This can cause undefined behaviour when used in combination with generators and/or
       coroutines.
 
@@ -725,7 +725,7 @@ Classes and Functions
 
       .. code::
 
-         env = get_current_environment()
+         env = vpy_current_environment()
          with env:
               yield
 
