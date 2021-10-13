@@ -85,9 +85,9 @@ passing them to the filters.
 
 Another way to deal with such arguments is to place them in a dictionary::
 
-   args = { "lambda": 1 }
-   clip = core.plugin.Filter(clip, **args)
-   
+   kwargs = { "lambda": 1 }
+   clip = core.plugin.Filter(clip, **kwargs)
+
 VapourSynth will also support the PEP8 convention of using a single trailing
 underscore to prevent collisions with python keywords.
 
@@ -164,11 +164,6 @@ Classes and Functions
    the Core will be instantiated with the default options. This is the preferred
    way to reference the core.
 
-.. py:function:: set_message_handler(handler_func)
-
-   Sets a function to handle all debug output and fatal errors. The function should have the form *handler(level, message)*,
-   where level corresponds to the vapoursynth.mt constants. Passing *None* restores the default handler, which prints to stderr.
-
 .. py:function:: get_outputs()
 
    Return a read-only mapping of all outputs registered on the current node.
@@ -239,6 +234,21 @@ Classes and Functions
    .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
    
       Deprecated, use *query_video_format()* instead.
+
+   .. py:method:: add_log_handler(handler_func)
+
+      Installs a custom handler for the various error messages VapourSynth emits.
+      The message handler is currently global, i.e. per process, not per VSCore instance.
+      Returns a LogHandle object.
+      *handler_func* is a callback function of the form *func(MessageType, message)*.
+
+   .. py:method:: remove_log_handler(handle)
+
+      Removes a custom handler.
+
+   .. py:method:: log_message(message_type, message)
+
+      Send a message through VapourSynth’s logging framework.
 
    .. py:method:: version()
 
@@ -704,7 +714,7 @@ Classes and Functions
 
    .. warning::
 
-      Environment-objects obtained using the :func:`vpy_current_environment` can directly be used as
+      Environment-objects obtained using the :func:`get_current_environment` can directly be used as
       as a context manager. This can cause undefined behaviour when used in combination with generators and/or
       coroutines.
 
@@ -715,7 +725,7 @@ Classes and Functions
       
       .. code::
 
-         env = vpy_current_environment()
+         env = get_current_environment()
          with env:
               yield
 
@@ -750,7 +760,7 @@ Classes and Functions
 
       .. code::
       
-         env = vpy_current_environment()
+         env = get_current_environment()
          with env.use():
              with env.use():
                  pass
@@ -840,14 +850,10 @@ Classes and Functions
 
          This function does not check if the id corresponds to a live environment as the caller is expected to know which environments are active.
 
-   .. py:method:: create_environment()
+   .. py:method:: create_environment(flags = 0)
    
       Returns a :class:`Environment` that is used by the wrapper for context sensitive data used by VapourSynth.
       For example it holds the currently active core object as well as the currently registered outputs.
-
-   .. py:method:: set_options(environment, options)
-
-      Scripts can be passed (or pass) options between the 
 
    .. py:method:: set_logger(environment, callback)
 
@@ -881,7 +887,6 @@ Classes and Functions
       This must be done before VapourSynth is used in any way. Here is a non-exhaustive list that automatically register a policy:
 
       * Using "vsscript_init" in "VSScript.h"
-      * Using :func:`get_core`
       * Using :func:`get_outputs`
       * Using :func:`get_output`
       * Using :func:`clear_output`
