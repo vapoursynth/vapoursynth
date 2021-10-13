@@ -16,7 +16,7 @@ special things unique to Python scripting, such as slicing and output.
 VapourSynth Structure
 #####################
 
-Most operations in the VapourSynth library are performed through the singleton 
+Most operations in the VapourSynth library are performed through the singleton
 core object. This core may load plugins, which all end up in their own unit,
 or namespace, so to say, to avoid naming conflicts in the contained functions.
 For this reason you call a plugin function with *core.unit.Function()*.
@@ -85,9 +85,9 @@ passing them to the filters.
 
 Another way to deal with such arguments is to place them in a dictionary::
 
-   args = { "lambda": 1 }
-   clip = core.plugin.Filter(clip, **args)
-   
+   kwargs = { "lambda": 1 }
+   clip = core.plugin.Filter(clip, **kwargs)
+
 VapourSynth will also support the PEP8 convention of using a single trailing
 underscore to prevent collisions with python keywords.
 
@@ -133,7 +133,7 @@ An example on how to get v210 output::
 
    some_clip = core.resize.Bicubic(clip, format=vs.YUV422P10)
    some_clip.set_output(alt_output=1)
-   
+
 An example on how to get UYVY output::
 
    some_clip = core.resize.Bicubic(clip, format=vs.YUV422P8)
@@ -164,17 +164,12 @@ Classes and Functions
    the Core will be instantiated with the default options. This is the preferred
    way to reference the core.
 
-.. py:function:: set_message_handler(handler_func)
-
-   Sets a function to handle all debug output and fatal errors. The function should have the form *handler(level, message)*,
-   where level corresponds to the vapoursynth.mt constants. Passing *None* restores the default handler, which prints to stderr.
-
 .. py:function:: get_outputs()
 
    Return a read-only mapping of all outputs registered on the current node.
 
    The mapping will automatically update when a new output is registered.
-   
+
 .. py:function:: get_output([index = 0])
 
    Get a previously set output node. Throws an error if the index hasn't been
@@ -187,13 +182,13 @@ Classes and Functions
 .. py:function:: clear_outputs()
 
    Clears all clips set for output in the current environment.
-   
+
 .. py:function:: construct_signature(signature[, injected=None])
 
    Creates a *inspect.Signature* object for the given registration signature.
-   
+
    If *injected* is not None, the default of the first argument of the signature will be replaced with the value supplied with injected.
-   
+
 
 .. py:class:: Core
 
@@ -202,13 +197,13 @@ Classes and Functions
    These attributes in turn hold the functions contained in the plugin.
    Use *plugins()* to obtain a full list of all currently loaded plugins
    you may call this way.
-   
+
    .. py:attribute:: num_threads
-      
+
       The number of concurrent threads used by the core. Can be set to change the number. Setting to a value less than one makes it default to the number of hardware threads.
-            
+
    .. py:attribute:: max_cache_size
-   
+
       Set the upper framebuffer cache size after which memory is aggressively
       freed. The value is in megabytes.
 
@@ -217,7 +212,7 @@ Classes and Functions
       Containing all loaded plugins.
 
    .. py:method:: get_plugins()
-   
+
       Deprecated, use *plugins()* instead.
 
    .. py:method:: list_functions()
@@ -231,19 +226,34 @@ Classes and Functions
    .. py:method:: get_format(id)
 
       Deprecated, use *get_video_format()* instead.
-      
+
    .. py:method:: query_video_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
 
       Retrieve a Format object corresponding to the format information, Invalid formats throw an exception.
 
    .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
-   
+
       Deprecated, use *query_video_format()* instead.
+
+   .. py:method:: add_log_handler(handler_func)
+
+      Installs a custom handler for the various error messages VapourSynth emits.
+      The message handler is currently global, i.e. per process, not per VSCore instance.
+      Returns a LogHandle object.
+      *handler_func* is a callback function of the form *func(MessageType, message)*.
+
+   .. py:method:: remove_log_handler(handle)
+
+      Removes a custom handler.
+
+   .. py:method:: log_message(message_type, message)
+
+      Send a message through VapourSynth’s logging framework.
 
    .. py:method:: version()
 
       Returns version information as a string.
-      
+
    .. py:method:: version_number()
 
       Returns the core version as a number.
@@ -283,17 +293,17 @@ Classes and Functions
       .. py:attribute:: numerator
 
          The numerator of the framerate. If the clip has variable framerate, the value will be 0.
-      
+
       .. py:attribute:: denominator
 
          The denominator of the framerate. If the clip has variable framerate, the value will be 0.
 
    .. py:attribute:: fps_num
-   
+
       Deprecated, use *fps.numerator* instead
 
    .. py:attribute:: fps_den
-   
+
       Deprecated, use *fps.denominator* instead
 
    .. py:attribute:: flags
@@ -351,7 +361,7 @@ Classes and Functions
       it controls the FOURCCs used for VFW-style output with certain formats.
 
    .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None, backlog=-1])
- 
+
       Write the whole clip to the specified file handle. It is possible to pipe to stdout by specifying *sys.stdout* as the file.
       YUV4MPEG2 headers will be added when *y4m* is true.
       The current progress can be reported by passing a callback function of the form *func(current_frame, total_frames)* to *progress_update*.
@@ -361,7 +371,7 @@ Classes and Functions
    .. py:method:: frames([prefetch=None, backlog=None, close=False])
 
       Returns a generator iterator of all VideoFrames in the clip. It will render multiple frames concurrently.
-      
+
       The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
       The *close* argument determines if the frame should be closed after each iteration step. It defaults to false to remain backward compatible.
@@ -369,19 +379,19 @@ Classes and Functions
 .. py:class:: VideoOutputTuple
 
       This class is returned by get_output if the output is video.
-      
+
       .. py:attribute:: clip
-      
+
          A VideoNode-instance containing the color planes.
-         
+
       .. py:attribute:: alpha
-      
+
          A VideoNode-instance containing the alpha planes.
-         
+
       .. py:attribute:: alt_output
-      
+
          An integer with the alternate output mode to be used. May be ignored if no meaningful mapping exists.
-      
+
 .. py:class:: VideoFrame
 
       This class represents a video frame and all metadata attached to it.
@@ -438,7 +448,7 @@ Classes and Functions
       C-api and as such calls to *get_write_ptr*, including the ones made internally by other functions in the Python bindings,
       may invalidate any pointers previously gotten to the frame with
       *get_read_ptr* when called.
-      
+
    .. py:method:: get_write_ptr(plane)
 
       Returns a pointer to the raw frame data. It may be modified using ctypes
@@ -446,7 +456,7 @@ Classes and Functions
       C-api and as such calls to *get_write_ptr*, including the ones made internally by other functions in the Python bindings,
       may invalidate any pointers previously gotten to the frame with
       *get_read_ptr* when called.
-      
+
    .. py:method:: get_stride(plane)
 
       Returns the stride between lines in a *plane*.
@@ -525,7 +535,7 @@ Classes and Functions
    .. py:attribute:: bytes_per_sample
 
       The actual storage is padded up to 2^n bytes for efficiency.
-      
+
    .. py:attribute:: channel_layout
 
       A mask of used channels.
@@ -533,7 +543,7 @@ Classes and Functions
    .. py:attribute:: num_channels
 
       The number of channels the format has.
-      
+
    .. py:attribute:: sample_rate
 
       Playback sample rate.
@@ -584,7 +594,7 @@ Classes and Functions
    .. py:method:: frames([prefetch=None, backlog=None])
 
       Returns a generator iterator of all AudioFrames in the clip. It will render multiple frames concurrently.
-      
+
       The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
 
@@ -603,7 +613,7 @@ Classes and Functions
    .. py:attribute:: bytes_per_sample
 
       The actual storage is padded up to 2^n bytes for efficiency.
-      
+
    .. py:attribute:: channel_layout
 
       A mask of used channels.
@@ -611,7 +621,7 @@ Classes and Functions
    .. py:attribute:: num_channels
 
       The number of channels the format has.
-      
+
    .. py:attribute:: readonly
 
       If *readonly* is True, the frame data and properties cannot be modified.
@@ -628,12 +638,12 @@ Classes and Functions
    .. py:method:: get_read_ptr(plane)
 
       Returns a pointer to the raw frame data. The data may not be modified.
-      
+
    .. py:method:: get_write_ptr(plane)
 
       Returns a pointer to the raw frame data. It may be modified using ctypes
       or some other similar python package.
-      
+
    .. py:method:: get_stride(plane)
 
       Returns the stride between lines in a *plane*.
@@ -641,7 +651,7 @@ Classes and Functions
 .. py:class:: Plugin
 
    Plugin is a class that represents a loaded plugin and its namespace.
-   
+
    .. py:attribute:: namespace
 
       The namespace of the plugin.
@@ -663,28 +673,28 @@ Classes and Functions
    .. py:method:: list_functions()
 
       Deprecated, use *functions()* instead.
-      
+
 .. py:class:: Function
 
    Function is a simple wrapper class for a function provided by a VapourSynth plugin.
    Its main purpose is to be called and nothing else.
-   
+
    .. py:attribute:: name
 
       The function name. Identical to the string used to register the function.
-      
+
    .. py:attribute:: plugin
 
       The *Plugin* object the function belongs to.
-      
+
    .. py:attribute:: signature
 
       Raw function signature string. Identical to the string used to register the function.
-      
+
    .. py:attribute:: return_signature
 
       Raw function signature string. Identical to the return type string used register the function.
-   
+
 .. py:class:: Environment
 
    This class represents an environment.
@@ -712,7 +722,7 @@ Classes and Functions
       This can cause issues if the frame is suspended inside the block.
 
       A similar problem also existed in previous VapourSynth versions!
-      
+
       .. code::
 
          env = vpy_current_environment()
@@ -749,8 +759,8 @@ Classes and Functions
       defined before the with-block has been encountered.
 
       .. code::
-      
-         env = vpy_current_environment()
+
+         env = get_current_environment()
          with env.use():
              with env.use():
                  pass
@@ -776,13 +786,13 @@ Classes and Functions
 
    This class is intended for subclassing by custom Script-Runners and Editors.
    Normal users don't need this class. Most methods implemented here have corresponding APIs in other parts of this module.
-   
+
    An instance of this class controls which environment is activated in the current context.
    The exact meaning of "context" is defined by the concrete EnvironmentPolicy. A environment is represented by a :class:`EnvironmentData`-object.
 
    To use this class, first create a subclass and then use :func:`register_policy` to get VapourSynth to use your policy. This must happen before vapoursynth is first
    used. VapourSynth will automatically register an internal policy if it needs one. The subclass must be weak-referenciable!
-   
+
    Once the method :meth:`on_policy_registered` has been called, the policy is responsible for creating and managing environments.
 
    Special considerations have been made to ensure the functions of class cannot be abused. You cannot retrieve the current running policy yourself.
@@ -802,7 +812,7 @@ Classes and Functions
 
       This method is called once the python-process exits or when unregister_policy is called by the environment-policy. This allows the policy to free the resources
       used by the policy.
-   
+
    .. py:method:: get_current_environment()
 
       This method is called by the module to detect which environment is currently running in the current context. If None is returned, it means that no environment is currently active.
@@ -840,21 +850,21 @@ Classes and Functions
 
          This function does not check if the id corresponds to a live environment as the caller is expected to know which environments are active.
 
-   .. py:method:: create_environment()
-   
+   .. py:method:: create_environment(flags = 0)
+
       Returns a :class:`Environment` that is used by the wrapper for context sensitive data used by VapourSynth.
       For example it holds the currently active core object as well as the currently registered outputs.
 
    .. py:method:: set_logger(environment, callback)
 
       This function sets the logger for the given environment.
-      
+
       This logger is a callback function that accepts two parameters: Level, which is an instance of vs.MessageType and a string containing the log message.
 
    .. py:method:: destroy_environment(environment)
 
       Marks an environment as destroyed. Older environment-policy implementations that don't use this function still work.
-      
+
       Either EnvironmentPolicy.is_alive must be overridden or this method be used to mark the environment as destroyed.
 
       Added: R52
@@ -871,13 +881,12 @@ Classes and Functions
    If no policy is installed, the first environment-sensitive call will automatically register an internal policy.
 
    Added: R50
-   
+
    .. note::
 
       This must be done before VapourSynth is used in any way. Here is a non-exhaustive list that automatically register a policy:
 
       * Using "vsscript_init" in "VSScript.h"
-      * Using :func:`get_core`
       * Using :func:`get_outputs`
       * Using :func:`get_output`
       * Using :func:`clear_output`
