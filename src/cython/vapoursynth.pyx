@@ -1538,7 +1538,6 @@ cdef AudioFrame createConstAudioFrame(const VSFrame *constf, const VSAPI *funcs,
     instance.bytes_per_sample = format.bytesPerSample
     instance.channel_layout = format.channelLayout
     instance.num_channels = format.numChannels
-    instance.props = createFrameProps(instance)
     return instance
 
 
@@ -1555,7 +1554,6 @@ cdef AudioFrame createAudioFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     instance.bytes_per_sample = format.bytesPerSample
     instance.channel_layout = format.channelLayout
     instance.num_channels = format.numChannels
-    instance.props = createFrameProps(instance)
     return instance
 
 
