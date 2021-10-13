@@ -1582,7 +1582,7 @@ cdef class RawNode(object):
                     cb(self, n, result)
 
         if future_wrapper is not None:
-            return self.get_frame_async(n, lambda result, exeption: future_wrapper(lambda: _handle_future(result, exception)))
+            return self.get_frame_async(n, lambda result, exception: future_wrapper(lambda: _handle_future(result, exception)))
         else:
             return self.get_frame_async(n, _handle_future)
 
