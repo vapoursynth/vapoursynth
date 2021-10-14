@@ -97,6 +97,10 @@ DECL(1d_conv_v, byte, c)
 DECL(1d_conv_v, word, c)
 DECL(1d_conv_v, float, c)
 
+DECL(1d_conv_x, byte, c)
+DECL(1d_conv_x, word, c)
+DECL(1d_conv_x, float, c)
+
 #ifdef VS_TARGET_CPU_X86
 DECL_3x3(prewitt, byte, sse2)
 DECL_3x3(prewitt, word, sse2)
