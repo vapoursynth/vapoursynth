@@ -508,7 +508,7 @@ void conv_plane_v(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
             srcp[k] = line_ptr(src, row, src_stride);
         }
 
-        conv_scanline_v<T>(srcp, dst, params, width);
+        conv_scanline_v<T>(srcp, dstp, params, width);
     }
 }
 
@@ -535,7 +535,7 @@ void conv_plane_x(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
         }
 
         conv_scanline_v<T>(srcp, tmp, params, width);
-        conv_scanline_h<T>(tmp, dst, params, width);
+        conv_scanline_h<T>(tmp, dstp, params, width);
     }
 
     vsh::vsh_aligned_free(tmp);
@@ -711,16 +711,16 @@ void vs_generic_1d_conv_v_float_c(const void *src, ptrdiff_t src_stride, void *d
 
 void vs_generic_1d_conv_x_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
-    //conv_plane_x<uint8_t>(src, src_stride, dst, dst_stride, *params, width, height);
+    conv_plane_x<uint8_t>(src, src_stride, dst, dst_stride, *params, width, height);
 }
 
 void vs_generic_1d_conv_x_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
-    //conv_plane_x<uint16_t>(src, src_stride, dst, dst_stride, *params, width, height);
+    conv_plane_x<uint16_t>(src, src_stride, dst, dst_stride, *params, width, height);
 }
 
 void vs_generic_1d_conv_x_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
-    //conv_plane_x<float>(src, src_stride, dst, dst_stride, *params, width, height);
+    conv_plane_x<float>(src, src_stride, dst, dst_stride, *params, width, height);
 }
 

@@ -134,6 +134,18 @@ DECL_3x3(conv, byte, sse2)
 DECL_3x3(conv, word, sse2)
 DECL_3x3(conv, float, sse2)
 
+DECL(1d_conv_h, byte, sse2)
+DECL(1d_conv_h, word, sse2)
+DECL(1d_conv_h, float, sse2)
+
+/*DECL(1d_conv_v, byte, sse2)
+DECL(1d_conv_v, word, sse2)
+DECL(1d_conv_v, float, sse2)
+
+DECL(1d_conv_x, byte, sse2)
+DECL(1d_conv_x, word, sse2)
+DECL(1d_conv_x, float, sse2)
+*/
 DECL_3x3(prewitt, byte, avx2)
 DECL_3x3(prewitt, word, avx2)
 DECL_3x3(prewitt, float, avx2)
@@ -165,6 +177,19 @@ DECL_3x3(inflate, float, avx2)
 DECL_3x3(conv, byte, avx2)
 DECL_3x3(conv, word, avx2)
 DECL_3x3(conv, float, avx2)
+
+DECL(1d_conv_h, byte, avx2)
+/*DECL(1d_conv_h, word, avx2)
+DECL(1d_conv_h, float, avx2)
+
+DECL(1d_conv_v, byte, avx2)
+DECL(1d_conv_v, word, avx2)
+DECL(1d_conv_v, float, avx2)
+
+DECL(1d_conv_x, byte, avx2)
+DECL(1d_conv_x, word, avx2)
+DECL(1d_conv_x, float, avx2)
+*/
 #endif /* VS_TARGET_CPU_X86 */
 
 #undef DECL_3x3

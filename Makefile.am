@@ -105,6 +105,7 @@ libvapoursynth_avx2_la_CXXFLAGS = $(AM_CXXFLAGS) $(AVX2FLAGS)
 libvapoursynth_la_SOURCES += src/core/expr/jitasm.h \
 							 src/core/expr/jitcompiler_x86.cpp \
 							 src/core/kernel/x86/average_sse2.c \
+							 src/core/kernel/x86/convolution_sse2.cpp \
 							 src/core/kernel/x86/generic_sse2.cpp \
 							 src/core/kernel/x86/merge_sse2.c \
 							 src/core/kernel/x86/planestats_sse2.c \

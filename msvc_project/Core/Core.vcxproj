@@ -198,6 +198,7 @@
     <ClCompile Include="..\..\src\core\kernel\planestats.c" />
     <ClCompile Include="..\..\src\core\kernel\transpose.c" />
     <ClCompile Include="..\..\src\core\kernel\x86\average_sse2.c" />
+    <ClCompile Include="..\..\src\core\kernel\x86\convolution_sse2.cpp" />
     <ClCompile Include="..\..\src\core\kernel\x86\generic_avx2.cpp">
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
