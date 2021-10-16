@@ -138,11 +138,11 @@ DECL(1d_conv_h, byte, sse2)
 DECL(1d_conv_h, word, sse2)
 DECL(1d_conv_h, float, sse2)
 
-/*DECL(1d_conv_v, byte, sse2)
+DECL(1d_conv_v, byte, sse2)
 DECL(1d_conv_v, word, sse2)
 DECL(1d_conv_v, float, sse2)
 
-DECL(1d_conv_x, byte, sse2)
+/*DECL(1d_conv_x, byte, sse2)
 DECL(1d_conv_x, word, sse2)
 DECL(1d_conv_x, float, sse2)
 */

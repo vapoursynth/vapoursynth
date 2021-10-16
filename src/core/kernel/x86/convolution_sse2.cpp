@@ -6,6 +6,12 @@
 #include <VSHelper4.h>
 #include "../generic.h"
 
+#ifdef _MSC_VER
+#define FORCE_INLINE inline __forceinline
+#else
+#define FORCE_INLINE inline __attribute__((always_inline))
+#endif
+
 namespace {
 
 template <class T>
@@ -28,6 +34,44 @@ void flip_right(T *ptr, unsigned n)
     for (ptrdiff_t i = 0; i < static_cast<ptrdiff_t>(n); ++i) {
         ptr[i] = ptr[-1 - i];
     }
+}
+
+FORCE_INLINE __m128 scale_bias_saturate(__m128 x, const __m128 &scale, const __m128 &bias, const __m128 &saturatemask)
+{
+    return _mm_and_ps(_mm_add_ps(_mm_mul_ps(x, scale), bias), saturatemask);
+}
+
+FORCE_INLINE __m128i export_u8(__m128i i32_lo, __m128i i32_hi, const __m128 &scale, const __m128 &bias, const __m128 &saturatemask)
+{
+    __m128 tmp;
+
+    tmp = scale_bias_saturate(_mm_cvtepi32_ps(i32_lo), scale, bias, saturatemask);
+    i32_lo = _mm_cvtps_epi32(tmp);
+
+    tmp = scale_bias_saturate(_mm_cvtepi32_ps(i32_hi), scale, bias, saturatemask);
+    i32_hi = _mm_cvtps_epi32(tmp);
+
+    i32_lo = _mm_packs_epi32(i32_lo, i32_hi);
+    i32_lo = _mm_packus_epi16(i32_lo, i32_lo);
+    return i32_lo;
+}
+
+FORCE_INLINE __m128i export_u16(__m128i i32_lo, __m128i i32_hi, const __m128 &scale, const __m128 &bias, const __m128 &saturatemask, const __m128i &maxval)
+{
+    __m128 tmp;
+
+    tmp = scale_bias_saturate(_mm_cvtepi32_ps(i32_lo), scale, bias, saturatemask);
+    i32_lo = _mm_cvtps_epi32(tmp);
+    i32_lo = _mm_add_epi32(i32_lo, _mm_set1_epi32(INT16_MIN));
+
+    tmp = scale_bias_saturate(_mm_cvtepi32_ps(i32_hi), scale, bias, saturatemask);
+    i32_hi = _mm_cvtps_epi32(tmp);
+    i32_hi = _mm_add_epi32(i32_hi, _mm_set1_epi32(INT16_MIN));
+
+    i32_lo = _mm_packs_epi32(i32_lo, i32_hi);
+    i32_lo = _mm_min_epi16(i32_lo, maxval);
+    i32_lo = _mm_sub_epi16(i32_lo, _mm_set1_epi16(INT16_MIN));
+    return i32_lo;
 }
 
 
@@ -104,20 +148,7 @@ void conv_scanline_h_byte_pass(const uint8_t *src, uint8_t *dst, int32_t *tmp, c
         }
 
         if (Last) {
-            __m128 accum_lo_f, accum_hi_f;
-
-            accum_lo_f = _mm_cvtepi32_ps(accum_lo);
-            accum_lo_f = _mm_add_ps(_mm_mul_ps(accum_lo_f, scale), bias);
-            accum_lo_f = _mm_and_ps(accum_lo_f, saturatemask);
-            accum_lo = _mm_cvtps_epi32(accum_lo_f);
-
-            accum_hi_f = _mm_cvtepi32_ps(accum_hi);
-            accum_hi_f = _mm_add_ps(_mm_mul_ps(accum_hi_f, scale), bias);
-            accum_hi_f = _mm_and_ps(accum_hi_f, saturatemask);
-            accum_hi = _mm_cvtps_epi32(accum_hi_f);
-
-            accum_lo = _mm_packs_epi32(accum_lo, accum_hi);
-            accum_lo = _mm_packus_epi16(accum_lo, accum_lo);
+            accum_lo = export_u8(accum_lo, accum_hi, scale, bias, saturatemask);
             _mm_storel_epi64((__m128i *)(dst + j), accum_lo);
         } else {
             _mm_store_si128((__m128i *)(tmp + j + 0), accum_lo);
@@ -142,8 +173,8 @@ void conv_scanline_h_word_pass(const uint16_t *src, uint16_t *dst, int32_t *tmp,
 
     __m128 scale = _mm_set_ps1(params.div);
     __m128 bias = _mm_set_ps1(params.bias);
-    __m128 maxval = _mm_set_ps1(params.maxval);
     __m128 saturatemask = _mm_castsi128_ps(_mm_set1_epi32(params.saturate ? 0xFFFFFFFF : 0x7FFFFFFF));
+    __m128i maxval = _mm_set1_epi16(static_cast<int16_t>(static_cast<int32_t>(params.maxval) + INT16_MIN));
 
     src = src - static_cast<ptrdiff_t>(params.matrixsize / 2) + K;
 
@@ -201,26 +232,9 @@ void conv_scanline_h_word_pass(const uint16_t *src, uint16_t *dst, int32_t *tmp,
         }
 
         if (Last) {
-            __m128 accum_lo_f, accum_hi_f;
-
             accum_lo = _mm_sub_epi32(accum_lo, w_bias);
-            accum_lo_f = _mm_cvtepi32_ps(accum_lo);
-            accum_lo_f = _mm_add_ps(_mm_mul_ps(accum_lo_f, scale), bias);
-            accum_lo_f = _mm_and_ps(accum_lo_f, saturatemask);
-            accum_lo_f = _mm_min_ps(accum_lo_f, maxval);
-            accum_lo = _mm_cvtps_epi32(accum_lo_f);
-            accum_lo = _mm_add_epi32(accum_lo, _mm_set1_epi32(INT16_MIN));
-
             accum_hi = _mm_sub_epi32(accum_hi, w_bias);
-            accum_hi_f = _mm_cvtepi32_ps(accum_hi);
-            accum_hi_f = _mm_add_ps(_mm_mul_ps(accum_hi_f, scale), bias);
-            accum_hi_f = _mm_and_ps(accum_hi_f, saturatemask);
-            accum_hi_f = _mm_min_ps(accum_hi_f, maxval);
-            accum_hi = _mm_cvtps_epi32(accum_hi_f);
-            accum_hi = _mm_add_epi32(accum_hi, _mm_set1_epi32(INT16_MIN));
-
-            accum_lo = _mm_packs_epi32(accum_lo, accum_hi);
-            accum_lo = _mm_sub_epi16(accum_lo, _mm_set1_epi16(INT16_MIN));
+            accum_lo = export_u16(accum_lo, accum_hi, scale, bias, saturatemask, maxval);
             _mm_store_si128((__m128i *)(dst + j), accum_lo);
         } else {
             _mm_store_si128((__m128i *)(tmp + j + 0), accum_lo);
@@ -267,16 +281,224 @@ void conv_scanline_h_float_pass(const float *src, float *dst, const vs_generic_p
         if (N >= 10) accum1 = _mm_add_ps(accum1, _mm_mul_ps(w9, _mm_loadu_ps(src + j + 9)));
 
         accum0 = _mm_add_ps(accum0, accum1);
-
-        if (Last) {
-            accum0 = _mm_add_ps(_mm_mul_ps(accum0, scale), bias);
-            accum0 = _mm_and_ps(accum0, saturatemask);
-        }
-
+        if (Last) accum0 = scale_bias_saturate(accum0, scale, bias, saturatemask);
         _mm_store_ps(dst + j, accum0);
     }
 }
 
+template <unsigned N, unsigned K, bool First, bool Last>
+void conv_scanline_v_byte_pass(const void * const src[], uint8_t *dst, int32_t *tmp, const vs_generic_params &params, unsigned n)
+{
+    auto weight = [=](unsigned k) -> uint32_t { return k < N ? static_cast<uint16_t>(params.matrix[K + k]) : 0; };
+
+    const uint8_t *srcp0 = static_cast<const uint8_t *>(src[K + 0]);
+    const uint8_t *srcp1 = N >= 2 ? static_cast<const uint8_t *>(src[K + 1]) : srcp0;
+    const uint8_t *srcp2 = N >= 3 ? static_cast<const uint8_t *>(src[K + 2]) : srcp1;
+    const uint8_t *srcp3 = N >= 4 ? static_cast<const uint8_t *>(src[K + 3]) : srcp2;
+    const uint8_t *srcp4 = N >= 5 ? static_cast<const uint8_t *>(src[K + 4]) : srcp3;
+    const uint8_t *srcp5 = N >= 6 ? static_cast<const uint8_t *>(src[K + 5]) : srcp4;
+    const uint8_t *srcp6 = N >= 7 ? static_cast<const uint8_t *>(src[K + 6]) : srcp5;
+    const uint8_t *srcp7 = N >= 8 ? static_cast<const uint8_t *>(src[K + 7]) : srcp6;
+    const uint8_t *srcp8 = N >= 9 ? static_cast<const uint8_t *>(src[K + 8]) : srcp7;
+    const uint8_t *srcp9 = N >= 10 ? static_cast<const uint8_t *>(src[K + 9]) : srcp8;
+
+    __m128i w0w1 = _mm_set1_epi32((weight(1) << 16) | weight(0));
+    __m128i w2w3 = _mm_set1_epi32((weight(3) << 16) | weight(2));
+    __m128i w4w5 = _mm_set1_epi32((weight(5) << 16) | weight(4));
+    __m128i w6w7 = _mm_set1_epi32((weight(7) << 16) | weight(6));
+    __m128i w8w9 = _mm_set1_epi32((weight(9) << 16) | weight(8));
+
+    __m128 scale = _mm_set_ps1(params.div);
+    __m128 bias = _mm_set_ps1(params.bias);
+    __m128 saturatemask = _mm_castsi128_ps(_mm_set1_epi32(params.saturate ? 0xFFFFFFFF : 0x7FFFFFFF));
+
+    src = src - static_cast<ptrdiff_t>(params.matrixsize / 2) + K;
+
+    for (ptrdiff_t j = 0; j < static_cast<ptrdiff_t>(n); j += 8) {
+        __m128i accum_lo = First ? _mm_setzero_si128() : _mm_load_si128((const __m128i *)(tmp + j + 0));
+        __m128i accum_hi = First ? _mm_setzero_si128() : _mm_load_si128((const __m128i *)(tmp + j + 4));
+        __m128i x0, x1;
+
+        if (N >= 1) {
+            x0 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp0 + j)), _mm_setzero_si128());
+            x1 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp1 + j)), _mm_setzero_si128());
+            accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(_mm_unpacklo_epi16(x0, x1), w0w1));
+            accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(_mm_unpackhi_epi16(x0, x1), w0w1));
+        }
+
+        if (N >= 3) {
+            x0 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp2 + j)), _mm_setzero_si128());
+            x1 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp3 + j)), _mm_setzero_si128());
+            accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(_mm_unpacklo_epi16(x0, x1), w2w3));
+            accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(_mm_unpackhi_epi16(x0, x1), w2w3));
+        }
+
+        if (N >= 5) {
+            x0 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp4 + j)), _mm_setzero_si128());
+            x1 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp5 + j)), _mm_setzero_si128());
+            accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(_mm_unpacklo_epi16(x0, x1), w4w5));
+            accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(_mm_unpackhi_epi16(x0, x1), w4w5));
+        }
+
+        if (N >= 7) {
+            x0 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp6 + j)), _mm_setzero_si128());
+            x1 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp7 + j)), _mm_setzero_si128());
+            accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(_mm_unpacklo_epi16(x0, x1), w6w7));
+            accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(_mm_unpackhi_epi16(x0, x1), w6w7));
+        }
+
+        if (N >= 9) {
+            x0 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp8 + j)), _mm_setzero_si128());
+            x1 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp9 + j)), _mm_setzero_si128());
+            accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(_mm_unpacklo_epi16(x0, x1), w8w9));
+            accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(_mm_unpackhi_epi16(x0, x1), w8w9));
+        }
+
+        if (Last) {
+            accum_lo = export_u8(accum_lo, accum_hi, scale, bias, saturatemask);
+            _mm_storel_epi64((__m128i *)(dst + j), accum_lo);
+        } else {
+            _mm_store_si128((__m128i *)(tmp + j + 0), accum_lo);
+            _mm_store_si128((__m128i *)(tmp + j + 4), accum_hi);
+        }
+    }
+}
+
+template <unsigned N, unsigned K, bool First, bool Last>
+void conv_scanline_v_word_pass(const void * const src[], uint16_t *dst, int32_t *tmp, const vs_generic_params &params, unsigned n, int32_t i32bias)
+{
+    auto weight = [=](unsigned k) -> uint32_t { return k < N ? static_cast<uint16_t>(params.matrix[K + k]) : 0; };
+
+    const uint16_t *srcp0 = static_cast<const uint16_t *>(src[K + 0]);
+    const uint16_t *srcp1 = N >= 2 ? static_cast<const uint16_t *>(src[K + 1]) : srcp0;
+    const uint16_t *srcp2 = N >= 3 ? static_cast<const uint16_t *>(src[K + 2]) : srcp1;
+    const uint16_t *srcp3 = N >= 4 ? static_cast<const uint16_t *>(src[K + 3]) : srcp2;
+    const uint16_t *srcp4 = N >= 5 ? static_cast<const uint16_t *>(src[K + 4]) : srcp3;
+    const uint16_t *srcp5 = N >= 6 ? static_cast<const uint16_t *>(src[K + 5]) : srcp4;
+    const uint16_t *srcp6 = N >= 7 ? static_cast<const uint16_t *>(src[K + 6]) : srcp5;
+    const uint16_t *srcp7 = N >= 8 ? static_cast<const uint16_t *>(src[K + 7]) : srcp6;
+    const uint16_t *srcp8 = N >= 9 ? static_cast<const uint16_t *>(src[K + 8]) : srcp7;
+    const uint16_t *srcp9 = N >= 10 ? static_cast<const uint16_t *>(src[K + 9]) : srcp8;
+
+    __m128i w0w1 = _mm_set1_epi32((weight(1) << 16) | weight(0));
+    __m128i w2w3 = _mm_set1_epi32((weight(3) << 16) | weight(2));
+    __m128i w4w5 = _mm_set1_epi32((weight(5) << 16) | weight(4));
+    __m128i w6w7 = _mm_set1_epi32((weight(7) << 16) | weight(6));
+    __m128i w8w9 = _mm_set1_epi32((weight(9) << 16) | weight(8));
+    __m128i w_bias = _mm_set1_epi32(i32bias);
+
+    __m128 scale = _mm_set_ps1(params.div);
+    __m128 bias = _mm_set_ps1(params.bias);
+    __m128 saturatemask = _mm_castsi128_ps(_mm_set1_epi32(params.saturate ? 0xFFFFFFFF : 0x7FFFFFFF));
+    __m128i maxval = _mm_set1_epi16(static_cast<int16_t>(static_cast<int32_t>(params.maxval) + INT16_MIN));
+
+    src = src - static_cast<ptrdiff_t>(params.matrixsize / 2) + K;
+
+    for (ptrdiff_t j = 0; j < static_cast<ptrdiff_t>(n); j += 8) {
+        __m128i accum_lo = First ? _mm_setzero_si128() : _mm_load_si128((const __m128i *)(tmp + j + 0));
+        __m128i accum_hi = First ? _mm_setzero_si128() : _mm_load_si128((const __m128i *)(tmp + j + 4));
+        __m128i x0, x1;
+
+        if (N >= 1) {
+            x0 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcp0 + j)), _mm_set1_epi16(INT16_MIN));
+            x1 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcp1 + j)), _mm_set1_epi16(INT16_MIN));
+            accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(_mm_unpacklo_epi16(x0, x1), w0w1));
+            accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(_mm_unpackhi_epi16(x0, x1), w0w1));
+        }
+
+        if (N >= 3) {
+            x0 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcp2 + j)), _mm_set1_epi16(INT16_MIN));
+            x1 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcp3 + j)), _mm_set1_epi16(INT16_MIN));
+            accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(_mm_unpacklo_epi16(x0, x1), w2w3));
+            accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(_mm_unpackhi_epi16(x0, x1), w2w3));
+        }
+
+        if (N >= 5) {
+            x0 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcp4 + j)), _mm_set1_epi16(INT16_MIN));
+            x1 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcp5 + j)), _mm_set1_epi16(INT16_MIN));
+            accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(_mm_unpacklo_epi16(x0, x1), w4w5));
+            accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(_mm_unpackhi_epi16(x0, x1), w4w5));
+        }
+
+        if (N >= 7) {
+            x0 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcp6 + j)), _mm_set1_epi16(INT16_MIN));
+            x1 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcp7 + j)), _mm_set1_epi16(INT16_MIN));
+            accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(_mm_unpacklo_epi16(x0, x1), w6w7));
+            accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(_mm_unpackhi_epi16(x0, x1), w6w7));
+        }
+
+        if (N >= 9) {
+            x0 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcp8 + j)), _mm_set1_epi16(INT16_MIN));
+            x1 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcp9 + j)), _mm_set1_epi16(INT16_MIN));
+            accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(_mm_unpacklo_epi16(x0, x1), w8w9));
+            accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(_mm_unpackhi_epi16(x0, x1), w8w9));
+        }
+
+        if (Last) {
+            accum_lo = _mm_sub_epi32(accum_lo, w_bias);
+            accum_hi = _mm_sub_epi32(accum_hi, w_bias);
+            accum_lo = export_u16(accum_lo, accum_hi, scale, bias, saturatemask, maxval);
+            _mm_store_si128((__m128i *)(dst + j), accum_lo);
+        } else {
+            _mm_store_si128((__m128i *)(tmp + j + 0), accum_lo);
+            _mm_store_si128((__m128i *)(tmp + j + 4), accum_hi);
+        }
+    }
+}
+
+template <unsigned N, unsigned K, bool First, bool Last>
+void conv_scanline_v_float_pass(const void * const src[], float *dst, const vs_generic_params &params, unsigned n)
+{
+    auto weight = [=](unsigned k) -> float { return k < N ? params.matrixf[K + k] : 0; };
+
+    const float *srcp0 = static_cast<const float *>(src[K + 0]);
+    const float *srcp1 = N >= 2 ? static_cast<const float *>(src[K + 1]) : srcp0;
+    const float *srcp2 = N >= 3 ? static_cast<const float *>(src[K + 2]) : srcp1;
+    const float *srcp3 = N >= 4 ? static_cast<const float *>(src[K + 3]) : srcp2;
+    const float *srcp4 = N >= 5 ? static_cast<const float *>(src[K + 4]) : srcp3;
+    const float *srcp5 = N >= 6 ? static_cast<const float *>(src[K + 5]) : srcp4;
+    const float *srcp6 = N >= 7 ? static_cast<const float *>(src[K + 6]) : srcp5;
+    const float *srcp7 = N >= 8 ? static_cast<const float *>(src[K + 7]) : srcp6;
+    const float *srcp8 = N >= 9 ? static_cast<const float *>(src[K + 8]) : srcp7;
+    const float *srcp9 = N >= 10 ? static_cast<const float *>(src[K + 9]) : srcp8;
+
+    __m128 w0 = _mm_set_ps1(weight(0));
+    __m128 w1 = _mm_set_ps1(weight(1));
+    __m128 w2 = _mm_set_ps1(weight(2));
+    __m128 w3 = _mm_set_ps1(weight(3));
+    __m128 w4 = _mm_set_ps1(weight(4));
+    __m128 w5 = _mm_set_ps1(weight(5));
+    __m128 w6 = _mm_set_ps1(weight(6));
+    __m128 w7 = _mm_set_ps1(weight(7));
+    __m128 w8 = _mm_set_ps1(weight(8));
+    __m128 w9 = _mm_set_ps1(weight(9));
+
+    __m128 scale = _mm_set_ps1(params.div);
+    __m128 bias = _mm_set_ps1(params.bias);
+    __m128 saturatemask = _mm_castsi128_ps(_mm_set1_epi32(params.saturate ? 0xFFFFFFFF : 0x7FFFFFFF));
+
+    src = src - static_cast<ptrdiff_t>(params.matrixsize / 2) + K;
+
+    for (ptrdiff_t j = 0; j < static_cast<ptrdiff_t>(n); j += 4) {
+        __m128 accum0 = First ? _mm_setzero_ps() : _mm_load_ps(dst + j);
+        __m128 accum1 = _mm_setzero_ps();
+
+        if (N >= 1) accum0 = _mm_add_ps(accum0, _mm_mul_ps(w0, _mm_load_ps(srcp0 + j)));
+        if (N >= 2) accum1 = _mm_add_ps(accum1, _mm_mul_ps(w1, _mm_load_ps(srcp1 + j)));
+        if (N >= 3) accum0 = _mm_add_ps(accum0, _mm_mul_ps(w2, _mm_load_ps(srcp2 + j)));
+        if (N >= 4) accum1 = _mm_add_ps(accum1, _mm_mul_ps(w3, _mm_load_ps(srcp3 + j)));
+        if (N >= 5) accum0 = _mm_add_ps(accum0, _mm_mul_ps(w4, _mm_load_ps(srcp4 + j)));
+        if (N >= 6) accum1 = _mm_add_ps(accum1, _mm_mul_ps(w5, _mm_load_ps(srcp5 + j)));
+        if (N >= 7) accum0 = _mm_add_ps(accum0, _mm_mul_ps(w6, _mm_load_ps(srcp6 + j)));
+        if (N >= 8) accum1 = _mm_add_ps(accum1, _mm_mul_ps(w7, _mm_load_ps(srcp7 + j)));
+        if (N >= 9) accum0 = _mm_add_ps(accum0, _mm_mul_ps(w8, _mm_load_ps(srcp8 + j)));
+        if (N >= 10) accum1 = _mm_add_ps(accum1, _mm_mul_ps(w9, _mm_load_ps(srcp9 + j)));
+
+        accum0 = _mm_add_ps(accum0, accum1);
+        if (Last) accum0 = scale_bias_saturate(accum0, scale, bias, saturatemask);
+        _mm_store_ps(dst + j, accum0);
+    }
+}
 template <unsigned N>
 void conv_scanline_h_byte(const void *src, void *dst, void *tmp, const vs_generic_params &params, unsigned n)
 {
@@ -330,8 +552,69 @@ void conv_scanline_h_float(const void *src, void *dst, void *, const vs_generic_
     }
 }
 
+template <unsigned N>
+void conv_scanline_v_byte(const void * const src[], void *dst, void *tmp, const vs_generic_params &params, unsigned n)
+{
+    uint8_t *dstp = static_cast<uint8_t *>(dst);
+    int32_t *tmpp = static_cast<int32_t *>(tmp);
+
+    if (N > 19) {
+        conv_scanline_v_byte_pass<10, 0, true, false>(src, dstp, tmpp, params, n);
+        conv_scanline_v_byte_pass<10, 10, false, false>(src, dstp, tmpp, params, n);
+        conv_scanline_v_byte_pass<N - 20, 20, false, true>(src, dstp, tmpp, params, n);
+    } else if (N > 9) {
+        conv_scanline_v_byte_pass<10, 0, true, false>(src, dstp, tmpp, params, n);
+        conv_scanline_v_byte_pass<N - 10, 10, false, true>(src, dstp, tmpp, params, n);
+    } else {
+        conv_scanline_v_byte_pass<N, 0, true, true>(src, dstp, tmpp, params, n);
+    }
+}
+
+template <unsigned N>
+void conv_scanline_v_word(const void * const src[], void *dst, void *tmp, const vs_generic_params &params, unsigned n)
+{
+    uint16_t *dstp = static_cast<uint16_t *>(dst);
+    int32_t *tmpp = static_cast<int32_t *>(tmp);
+    int32_t bias = 0;
+
+    for (unsigned k = 0; k < N; ++k) {
+        bias += static_cast<int32_t>(INT16_MIN) * params.matrix[k];
+    }
+
+    if (N > 19) {
+        conv_scanline_v_word_pass<10, 0, true, false>(src, dstp, tmpp, params, n, bias);
+        conv_scanline_v_word_pass<10, 10, false, false>(src, dstp, tmpp, params, n, bias);
+        conv_scanline_v_word_pass<N - 20, 20, false, true>(src, dstp, tmpp, params, n, bias);
+    } else if (N > 9) {
+        conv_scanline_v_word_pass<10, 0, true, false>(src, dstp, tmpp, params, n, bias);
+        conv_scanline_v_word_pass<N - 10, 10, false, true>(src, dstp, tmpp, params, n, bias);
+    } else {
+        conv_scanline_v_word_pass<N, 0, true, true>(src, dstp, tmpp, params, n, bias);
+    }
+}
+
+template <unsigned N>
+void conv_scanline_v_float(const void * const src[], void *dst, void *, const vs_generic_params &params, unsigned n)
+{
+    float *dstp = static_cast<float *>(dst);
+
+    if (N > 19) {
+        conv_scanline_v_float_pass<10, 0, true, false>(src, dstp, params, n);
+        conv_scanline_v_float_pass<10, 10, false, false>(src, dstp, params, n);
+        conv_scanline_v_float_pass<N - 20, 20, false, true>(src, dstp, params, n);
+    } else if (N > 9) {
+        conv_scanline_v_float_pass<10, 0, true, false>(src, dstp, params, n);
+        conv_scanline_v_float_pass<N - 10, 10, false, true>(src, dstp, params, n);
+    } else {
+        conv_scanline_v_float_pass<N, 0, true, true>(src, dstp, params, n);
+    }
+}
+
 template <class T>
 decltype(&conv_scanline_h_byte<0>) select_conv_scanline_h(unsigned fwidth);
+
+template <class T>
+decltype(&conv_scanline_v_byte<0>) select_conv_scanline_v(unsigned fwidth);
 
 #define SELECT(dir, type, T) \
 template <> \
@@ -357,6 +640,9 @@ decltype(&conv_scanline_##dir##_##type<0>) select_conv_scanline_##dir<T>(unsigne
 SELECT(h, byte, uint8_t)
 SELECT(h, word, uint16_t)
 SELECT(h, float, float)
+SELECT(v, byte, uint8_t)
+SELECT(v, word, uint16_t)
+SELECT(v, float, float)
 
 #undef SELECT
 
@@ -403,6 +689,37 @@ void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
     vsh::vsh_aligned_free(tmp);
 }
 
+template <class T>
+void conv_plane_v(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
+{
+    unsigned fwidth = params.matrixsize;
+    unsigned support = fwidth / 2;
+
+    // Multi-pass threshold = 9.
+    auto kernel = select_conv_scanline_v<T>(params.matrixsize);
+    void *tmp = (params.matrixsize > 9 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc(width * sizeof(int32_t), 16) : nullptr;
+
+    for (unsigned i = 0; i < height; ++i) {
+        const void *srcp[25];
+        void *dstp = line_ptr(dst, i, dst_stride);
+
+        unsigned dist_from_bottom = height - 1 - i;
+
+        for (unsigned k = 0; k < support; ++k) {
+            unsigned row = i < support - k ? std::min(support - k - i, height - 1) : i - support + k;
+            srcp[k] = line_ptr(src, row, src_stride);
+        }
+        for (unsigned k = support; k < fwidth; ++k) {
+            unsigned row = dist_from_bottom < k - support ? i - std::min(k - support - dist_from_bottom, i) : i - support + k;
+            srcp[k] = line_ptr(src, row, src_stride);
+        }
+
+        kernel(srcp, dstp, tmp, params, width);
+    }
+
+    vsh::vsh_aligned_free(tmp);
+}
+
 } // namespace
 
 
@@ -419,4 +736,19 @@ void vs_generic_1d_conv_h_word_sse2(const void *src, ptrdiff_t src_stride, void 
 void vs_generic_1d_conv_h_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
     conv_plane_h<float>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_1d_conv_v_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+{
+    conv_plane_v<uint8_t>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_1d_conv_v_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+{
+    conv_plane_v<uint16_t>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_1d_conv_v_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+{
+    conv_plane_v<float>(src, src_stride, dst, dst_stride, *params, width, height);
 }
