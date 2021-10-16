@@ -178,7 +178,7 @@ DECL_3x3(conv, byte, avx2)
 DECL_3x3(conv, word, avx2)
 DECL_3x3(conv, float, avx2)
 
-/*DECL(1d_conv_h, byte, avx2)
+DECL(1d_conv_h, byte, avx2)
 DECL(1d_conv_h, word, avx2)
 DECL(1d_conv_h, float, avx2)
 
@@ -189,7 +189,7 @@ DECL(1d_conv_v, float, avx2)
 DECL(1d_conv_x, byte, avx2)
 DECL(1d_conv_x, word, avx2)
 DECL(1d_conv_x, float, avx2)
-*/
+
 #endif /* VS_TARGET_CPU_X86 */
 
 #undef DECL_3x3

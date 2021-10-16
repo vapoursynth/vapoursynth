@@ -246,6 +246,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_byte_avx2;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_byte_avx2;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_byte_avx2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_byte_avx2;
             break;
         }
     } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
@@ -260,6 +266,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_word_avx2;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_word_avx2;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_word_avx2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_word_avx2;
             break;
         }
     } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
@@ -274,6 +286,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_float_avx2;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_float_avx2;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_float_avx2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_float_avx2;
             break;
         }
     }
