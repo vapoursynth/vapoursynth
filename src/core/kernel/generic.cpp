@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <limits>
 #include <type_traits>
+#include <VSHelper4.h>
 #include "generic.h"
 
 namespace {
@@ -378,7 +379,7 @@ void conv_plane_5x5(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t 
 }
 
 template <class T>
-void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
+void conv_scanline_h(const void *src, void *dst, const vs_generic_params &params, unsigned width)
 {
     typedef typename std::conditional<std::is_integral<T>::value, int32_t, float>::type Accum;
     typedef typename std::conditional<std::is_integral<T>::value, int16_t, float>::type Weight;
@@ -392,143 +393,152 @@ void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
     float bias = params.bias;
     bool saturate = params.saturate;
 
+    const T *srcp = static_cast<const T *>(src);
+    T *dstp = static_cast<T *>(dst);
+
+    for (unsigned j = 0; j < std::min(width, support); ++j) {
+        unsigned dist_from_right = width - 1 - j;
+
+        Accum accum = 0;
+
+        for (unsigned k = 0; k < support; ++k) {
+            unsigned idx = j < support - k ? std::min(support - k - j, width - 1) : j - support + k;
+            accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
+        }
+        for (unsigned k = support; k < fwidth; ++k) {
+            unsigned idx = dist_from_right < k - support ? j - std::min(k - support - dist_from_right, j) : j - support + k;
+            accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
+        }
+
+        float tmp = static_cast<float>(accum) * div + bias;
+        tmp = saturate ? tmp : std::fabs(tmp);
+        dstp[j] = limit(xrint<T>(tmp), maxval);
+    }
+
+    for (unsigned j = support; j < width - std::min(width, support); ++j) {
+        Accum accum = 0;
+
+        for (unsigned k = 0; k < fwidth; ++k) {
+            accum += coeffs[k] * static_cast<Accum>(srcp[j - support + k]);
+        }
+
+        float tmp = static_cast<float>(accum) * div + bias;
+        tmp = saturate ? tmp : std::fabs(tmp);
+        dstp[j] = limit(xrint<T>(tmp), maxval);
+    }
+
+    for (unsigned j = std::max(support, width - std::min(width, support)); j < width; ++j) {
+        unsigned dist_from_right = width - 1 - j;
+
+        Accum accum = 0;
+
+        for (unsigned k = 0; k < support; ++k) {
+            unsigned idx = j < support - k ? std::min(support - k - j, width - 1) : j - support + k;
+            accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
+        }
+        for (unsigned k = support; k < fwidth; ++k) {
+            unsigned idx = dist_from_right < k - support ? j - std::min(k - support - dist_from_right, j) : j - support + k;
+            accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
+        }
+
+        float tmp = static_cast<float>(accum) * div + bias;
+        tmp = saturate ? tmp : std::fabs(tmp);
+        dstp[j] = limit(xrint<T>(tmp), maxval);
+    }
+}
+
+template <class T>
+void conv_scanline_v(const void * const src[], void *dst, const vs_generic_params &params, unsigned width)
+{
+    typedef typename std::conditional<std::is_integral<T>::value, int32_t, float>::type Accum;
+    typedef typename std::conditional<std::is_integral<T>::value, int16_t, float>::type Weight;
+
+    const Weight *coeffs = std::is_integral<T>::value ? (const Weight *)params.matrix : (const Weight *)params.matrixf;
+    unsigned fwidth = params.matrixsize;
+
+    uint16_t maxval = params.maxval;
+    float div = params.div;
+    float bias = params.bias;
+    bool saturate = params.saturate;
+
+    T *dstp = static_cast<T *>(dst);
+
+    for (unsigned j = 0; j < width; ++j) {
+        Accum accum = 0;
+
+        for (unsigned k = 0; k < fwidth; ++k) {
+            accum += coeffs[k] * static_cast<Accum>(static_cast<const T *>(src[k])[j]);
+        }
+
+        float tmp = static_cast<float>(accum) * div + bias;
+        tmp = saturate ? tmp : std::fabs(tmp);
+        dstp[j] = limit(xrint<T>(tmp), maxval);
+    }
+}
+
+template <class T>
+void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
+{
     for (unsigned i = 0; i < height; ++i) {
-        const T *srcp = static_cast<const T * >(line_ptr(src, i, src_stride));
-        T *dstp = static_cast<T *>(line_ptr(dst, i, dst_stride));
+        const void *srcp = line_ptr(src, i, src_stride);
+        void *dstp = line_ptr(dst, i, dst_stride);
 
-        for (unsigned j = 0; j < std::min(width, support); ++j) {
-            unsigned dist_from_right = width - 1 - i;
-
-            Accum accum = 0;
-
-            for (unsigned k = 0; k < support; ++k) {
-                unsigned idx = j < support - k ? std::min(support - k - j, width - 1) : j - support + k;
-                accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
-            }
-            for (unsigned k = support; k < fwidth; ++k) {
-                unsigned idx = dist_from_right < k - support ? j - std::min(k - support - dist_from_right, j) : j - support + k;
-                accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
-            }
-
-            float tmp = static_cast<float>(accum) * div + bias;
-            tmp = saturate ? tmp : std::fabs(tmp);
-            dstp[j] = limit(xrint<T>(tmp), maxval);
-        }
-
-        for (unsigned j = support; j < width - std::min(width, support); ++j) {
-            Accum accum = 0;
-
-            for (unsigned k = 0; k < fwidth; ++k) {
-                accum += coeffs[k] * static_cast<Accum>(srcp[j - support + k]);
-            }
-
-            float tmp = static_cast<float>(accum) * div + bias;
-            tmp = saturate ? tmp : std::fabs(tmp);
-            dstp[j] = limit(xrint<T>(tmp), maxval);
-
-        }
-
-        for (unsigned j = std::max(support, width - std::min(width, support)); j < width; ++j) {
-            unsigned dist_from_right = width - 1 - i;
-
-            Accum accum = 0;
-
-            for (unsigned k = 0; k < support; ++k) {
-                unsigned idx = j < support - k ? std::min(support - k - j, width - 1) : j - support + k;
-                accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
-            }
-            for (unsigned k = support; k < fwidth; ++k) {
-                unsigned idx = dist_from_right < k - support ? j - std::min(k - support - dist_from_right, j) : j - support + k;
-                accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
-            }
-
-            float tmp = static_cast<float>(accum) * div + bias;
-            tmp = saturate ? tmp : std::fabs(tmp);
-            dstp[j] = limit(xrint<T>(tmp), maxval);
-        }
+        conv_scanline_h<T>(srcp, dstp, params, width);
     }
 }
 
 template <class T>
 void conv_plane_v(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
 {
-    typedef typename std::conditional<std::is_integral<T>::value, int32_t, float>::type Accum;
-    typedef typename std::conditional<std::is_integral<T>::value, int16_t, float>::type Weight;
-
-    const Weight *coeffs = std::is_integral<T>::value ? (const Weight *)params.matrix : (const Weight *)params.matrixf;
     unsigned fwidth = params.matrixsize;
     unsigned support = fwidth / 2;
 
-    uint16_t maxval = params.maxval;
-    float div = params.div;
-    float bias = params.bias;
-    bool saturate = params.saturate;
-
-    for (unsigned i = 0; i < std::min(height, support); ++i) {
-        T *dstp = static_cast<T *>(line_ptr(dst, i, dst_stride));
+    for (unsigned i = 0; i < height; ++i) {
+        const void *srcp[25];
+        void *dstp = line_ptr(dst, i, dst_stride);
 
         unsigned dist_from_bottom = height - 1 - i;
-        unsigned idx[25];
 
         for (unsigned k = 0; k < support; ++k) {
-            idx[k] = i < support - k ? std::min(support - k - i, height - 1) : i - support + k;
+            unsigned row = i < support - k ? std::min(support - k - i, height - 1) : i - support + k;
+            srcp[k] = line_ptr(src, row, src_stride);
         }
         for (unsigned k = support; k < fwidth; ++k) {
-            idx[k] = dist_from_bottom < k - support ? i - std::min(k - support - dist_from_bottom, i) : i - support + k;
+            unsigned row = dist_from_bottom < k - support ? i - std::min(k - support - dist_from_bottom, i) : i - support + k;
+            srcp[k] = line_ptr(src, row, src_stride);
         }
 
-        for (unsigned j = 0; j < width; ++j) {
-            Accum accum = 0;
-
-            for (unsigned k = 0; k < fwidth; ++k) {
-                accum += coeffs[k] * static_cast<Accum>(static_cast<const T *>(line_ptr(src, idx[k], src_stride))[j]);
-            }
-
-            float tmp = static_cast<float>(accum) * div + bias;
-            tmp = saturate ? tmp : std::fabs(tmp);
-            dstp[j] = limit(xrint<T>(tmp), maxval);
-        }
+        conv_scanline_v<T>(srcp, dstp, params, width);
     }
-    for (unsigned i = support; i < height - std::min(height, support); ++i) {
-        T *dstp = static_cast<T *>(line_ptr(dst, i, dst_stride));
+}
 
-        for (unsigned j = 0; j < width; ++j) {
-            Accum accum = 0;
+template <class T>
+void conv_plane_x(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
+{
+    void *tmp = vsh::vsh_aligned_malloc(width * sizeof(T), 64);
+    unsigned fwidth = params.matrixsize;
+    unsigned support = fwidth / 2;
 
-            for (unsigned k = 0; k < fwidth; ++k) {
-                accum += coeffs[k] * static_cast<Accum>(static_cast<const T *>(line_ptr(src, i - support + k, src_stride))[j]);
-            }
-
-            float tmp = static_cast<float>(accum) * div + bias;
-            tmp = saturate ? tmp : std::fabs(tmp);
-            dstp[j] = limit(xrint<T>(tmp), maxval);
-        }
-    }
-    for (unsigned i = std::max(support, height - std::min(height, support)); i < height; ++i) {
-        T *dstp = static_cast<T *>(line_ptr(dst, i, dst_stride));
+    for (unsigned i = 0; i < height; ++i) {
+        const void *srcp[25];
+        void *dstp = line_ptr(dst, i, dst_stride);
 
         unsigned dist_from_bottom = height - 1 - i;
-        unsigned idx[25];
 
         for (unsigned k = 0; k < support; ++k) {
-            idx[k] = i < support - k ? std::min(support - k - i, height - 1) : i - support + k;
+            unsigned row = i < support - k ? std::min(support - k - i, height - 1) : i - support + k;
+            srcp[k] = line_ptr(src, row, src_stride);
         }
         for (unsigned k = support; k < fwidth; ++k) {
-            idx[k] = dist_from_bottom < k - support ? i - std::min(k - support - dist_from_bottom, i) : i - support + k;
+            unsigned row = dist_from_bottom < k - support ? i - std::min(k - support - dist_from_bottom, i) : i - support + k;
+            srcp[k] = line_ptr(src, row, src_stride);
         }
 
-        for (unsigned j = 0; j < width; ++j) {
-            Accum accum = 0;
-
-            for (unsigned k = 0; k < fwidth; ++k) {
-                accum += coeffs[k] * static_cast<Accum>(static_cast<const T *>(line_ptr(src, idx[k], src_stride))[j]);
-            }
-
-            float tmp = static_cast<float>(accum) * div + bias;
-            tmp = saturate ? tmp : std::fabs(tmp);
-            dstp[j] = limit(xrint<T>(tmp), maxval);
-        }
+        conv_scanline_v<T>(srcp, tmp, params, width);
+        conv_scanline_h<T>(tmp, dstp, params, width);
     }
+
+    vsh::vsh_aligned_free(tmp);
 }
 
 } // namespace
@@ -698,3 +708,19 @@ void vs_generic_1d_conv_v_float_c(const void *src, ptrdiff_t src_stride, void *d
 {
     conv_plane_v<float>(src, src_stride, dst, dst_stride, *params, width, height);
 }
+
+void vs_generic_1d_conv_x_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+{
+    conv_plane_x<uint8_t>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_1d_conv_x_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+{
+    conv_plane_x<uint16_t>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_1d_conv_x_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+{
+    conv_plane_x<float>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+

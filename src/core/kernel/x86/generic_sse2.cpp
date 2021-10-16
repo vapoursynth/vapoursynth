@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <emmintrin.h>
 #include "../generic.h"
 

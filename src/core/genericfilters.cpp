@@ -107,7 +107,8 @@ enum GenericOperations {
 enum ConvolutionTypes {
     ConvolutionSquare,
     ConvolutionHorizontal,
-    ConvolutionVertical
+    ConvolutionVertical,
+    ConvolutionSeparable
 };
 
 struct GenericDataExtra {
@@ -208,8 +209,7 @@ static void templateInit(T& d, const char *name, bool allowVariableFormat, const
     getPlanesArg(in, d->process, vsapi);
 }
 
-vs_generic_params make_generic_params(const GenericData *d, const VSVideoFormat *fi, int plane)
-{
+vs_generic_params make_generic_params(const GenericData *d, const VSVideoFormat *fi, int plane) {
     vs_generic_params params{};
 
     params.maxval = ((1 << fi->bitsPerSample) - 1);
@@ -246,6 +246,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_byte_avx2;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_byte_avx2;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_byte_avx2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_byte_avx2;
             break;
         }
     } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
@@ -260,6 +266,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_word_avx2;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_word_avx2;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_word_avx2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_word_avx2;
             break;
         }
     } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
@@ -274,6 +286,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_float_avx2;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_float_avx2;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_float_avx2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_float_avx2;
             break;
         }
     }
@@ -294,6 +312,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_byte_sse2;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_byte_sse2;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_byte_sse2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_byte_sse2;
             break;
         }
     } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
@@ -308,6 +332,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_word_sse2;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_word_sse2;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_word_sse2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_float_sse2;
             break;
         }
     } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
@@ -322,6 +352,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_float_sse2;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_float_sse2;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_float_sse2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_float_sse2;
             break;
         }
     }
@@ -349,6 +385,8 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
                 return vs_generic_1d_conv_h_byte_c;
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_byte_c;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_byte_c;
             break;
         }
     } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
@@ -369,6 +407,8 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
                 return vs_generic_1d_conv_h_word_c;
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_word_c;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_word_c;
             break;
         }
     } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
@@ -389,6 +429,8 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
                 return vs_generic_1d_conv_h_float_c;
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_float_c;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_float_c;
             break;
         }
     }
@@ -408,9 +450,10 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
         try {
             if (!is8to16orFloatFormat(*fi))
                 throw std::runtime_error("Frame must be constant format and of integer 8-16 bit type or 32 bit float.");
-            if (vsapi->getFrameWidth(src, fi->numPlanes - 1) < 4 || vsapi->getFrameHeight(src, fi->numPlanes - 1) < 4)
-                throw std::runtime_error("Cannot process frames with subsampled planes smaller than 4x4.");
-
+            if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
+                throw std::runtime_error("Width must be bigger than convolution radius.");
+            if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
+                throw std::runtime_error("Height must be bigger than convolution radius.");
         } catch (const std::runtime_error &error) {
             vsapi->setFilterError((d->filter_name + ": "_s + error.what()).c_str(), frameCtx);
             vsapi->freeFrame(src);
@@ -540,16 +583,18 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             d->matrix_elements = vsapi->mapNumElements(in, "matrix");
 
             const char *mode = vsapi->mapGetData(in, "mode", 0, &err);
-            if (err || mode[0] == 's') {
+            if (err || mode == "s"_s) {
                 d->convolution_type = ConvolutionSquare;
 
                 if (d->matrix_elements != 9 && d->matrix_elements != 25)
                     throw std::runtime_error("When mode starts with 's', matrix must contain exactly 9 or exactly 25 numbers.");
-            } else if (mode[0] == 'h' || mode[0] == 'v') {
-                if (mode[0] == 'h')
+            } else if (mode == "h"_s || mode == "v"_s || mode == "hv"_s || mode == "vh"_s) {
+                if (mode == "h"_s)
                     d->convolution_type = ConvolutionHorizontal;
-                else
+                else if (mode == "v"_s)
                     d->convolution_type = ConvolutionVertical;
+                else
+                    d->convolution_type = ConvolutionSeparable;
 
                 if (d->matrix_elements < 3 || d->matrix_elements > 25)
                     throw std::runtime_error("When mode starts with 'h' or 'v', matrix must contain between 3 and 25 numbers.");
@@ -557,7 +602,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 if (d->matrix_elements % 2 == 0)
                     throw std::runtime_error("matrix must contain an odd number of numbers.");
             } else {
-                throw std::runtime_error("mode must start with 's', 'h', or 'v'.");
+                throw std::runtime_error("mode must be one of 's', 'h', 'v', 'hv', 'vh'.");
             }
 
             float matrix_sumf = 0;
@@ -586,57 +631,11 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 d->rdiv = static_cast<float>(matrix_sumf);
 
             d->rdiv = 1.0f / d->rdiv;
-
-            if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements == 3) {
-                //rewrite to 3x3 matrix here
-                d->convolution_type = ConvolutionSquare;
-                d->matrix_elements = 9;
-                d->matrix[3] = d->matrix[0];
-                d->matrix[4] = d->matrix[1];
-                d->matrix[5] = d->matrix[2];
-                d->matrix[0] = 0;
-                d->matrix[1] = 0;
-                d->matrix[2] = 0;
-                d->matrix[6] = 0;
-                d->matrix[7] = 0;
-                d->matrix[8] = 0;
-                d->matrixf[3] = d->matrixf[0];
-                d->matrixf[4] = d->matrixf[1];
-                d->matrixf[5] = d->matrixf[2];
-                d->matrixf[0] = 0.f;
-                d->matrixf[1] = 0.f;
-                d->matrixf[2] = 0.f;
-                d->matrixf[6] = 0.f;
-                d->matrixf[7] = 0.f;
-                d->matrixf[8] = 0.f;
-            } else if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements == 3) {
-                //rewrite to 3x3 matrix here
-                d->convolution_type = ConvolutionSquare;
-                d->matrix_elements = 9;
-                d->matrix[7] = d->matrix[2];
-                d->matrix[4] = d->matrix[1];
-                d->matrix[1] = d->matrix[0];
-                d->matrix[0] = 0;
-                d->matrix[2] = 0;
-                d->matrix[3] = 0;
-                d->matrix[5] = 0;
-                d->matrix[6] = 0;
-                d->matrix[8] = 0;
-                d->matrixf[7] = d->matrixf[2];
-                d->matrixf[4] = d->matrixf[1];
-                d->matrixf[1] = d->matrixf[0];
-                d->matrixf[0] = 0.f;
-                d->matrixf[2] = 0.f;
-                d->matrixf[3] = 0.f;
-                d->matrixf[5] = 0.f;
-                d->matrixf[6] = 0.f;
-                d->matrixf[8] = 0.f;
-            }
         }
 
-        if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
+        if (op == GenericConvolution && (d->convolution_type == ConvolutionHorizontal || d->convolution_type == ConvolutionSeparable) && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
             throw std::runtime_error("Width must be bigger than convolution radius.");
-        if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
+        if (op == GenericConvolution && (d->convolution_type == ConvolutionVertical || d->convolution_type == ConvolutionSeparable) && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
             throw std::runtime_error("Height must be bigger than convolution radius.");
 
         d->cpulevel = vs_get_cpulevel(core);
