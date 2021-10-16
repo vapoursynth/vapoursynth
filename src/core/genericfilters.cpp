@@ -298,6 +298,8 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
                 return vs_generic_1d_conv_h_byte_sse2;
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_byte_sse2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_byte_sse2;
             break;
         }
     } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
@@ -316,6 +318,8 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
                 return vs_generic_1d_conv_h_word_sse2;
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_word_sse2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_float_sse2;
             break;
         }
     } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
@@ -334,6 +338,8 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
                 return vs_generic_1d_conv_h_float_sse2;
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_float_sse2;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_1d_conv_x_float_sse2;
             break;
         }
     }
