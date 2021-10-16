@@ -631,57 +631,11 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 d->rdiv = static_cast<float>(matrix_sumf);
 
             d->rdiv = 1.0f / d->rdiv;
-
-            if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements == 3) {
-                //rewrite to 3x3 matrix here
-                d->convolution_type = ConvolutionSquare;
-                d->matrix_elements = 9;
-                d->matrix[3] = d->matrix[0];
-                d->matrix[4] = d->matrix[1];
-                d->matrix[5] = d->matrix[2];
-                d->matrix[0] = 0;
-                d->matrix[1] = 0;
-                d->matrix[2] = 0;
-                d->matrix[6] = 0;
-                d->matrix[7] = 0;
-                d->matrix[8] = 0;
-                d->matrixf[3] = d->matrixf[0];
-                d->matrixf[4] = d->matrixf[1];
-                d->matrixf[5] = d->matrixf[2];
-                d->matrixf[0] = 0.f;
-                d->matrixf[1] = 0.f;
-                d->matrixf[2] = 0.f;
-                d->matrixf[6] = 0.f;
-                d->matrixf[7] = 0.f;
-                d->matrixf[8] = 0.f;
-            } else if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements == 3) {
-                //rewrite to 3x3 matrix here
-                d->convolution_type = ConvolutionSquare;
-                d->matrix_elements = 9;
-                d->matrix[7] = d->matrix[2];
-                d->matrix[4] = d->matrix[1];
-                d->matrix[1] = d->matrix[0];
-                d->matrix[0] = 0;
-                d->matrix[2] = 0;
-                d->matrix[3] = 0;
-                d->matrix[5] = 0;
-                d->matrix[6] = 0;
-                d->matrix[8] = 0;
-                d->matrixf[7] = d->matrixf[2];
-                d->matrixf[4] = d->matrixf[1];
-                d->matrixf[1] = d->matrixf[0];
-                d->matrixf[0] = 0.f;
-                d->matrixf[2] = 0.f;
-                d->matrixf[3] = 0.f;
-                d->matrixf[5] = 0.f;
-                d->matrixf[6] = 0.f;
-                d->matrixf[8] = 0.f;
-            }
         }
 
-        if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
+        if (op == GenericConvolution && (d->convolution_type == ConvolutionHorizontal || d->convolution_type == ConvolutionSeparable) && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
             throw std::runtime_error("Width must be bigger than convolution radius.");
-        if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
+        if (op == GenericConvolution && (d->convolution_type == ConvolutionVertical || d->convolution_type == ConvolutionSeparable) && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
             throw std::runtime_error("Height must be bigger than convolution radius.");
 
         d->cpulevel = vs_get_cpulevel(core);
