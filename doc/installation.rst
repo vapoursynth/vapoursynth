@@ -146,7 +146,9 @@ Linux and OS X Compilation
 **************************
 
 These are the requirements:
-   * Autoconf, Automake, and Libtool, probably recent versions
+   * Meson 0.53.0 or later
+
+   * ninja-build
 
    * pkg-config
 
@@ -195,10 +197,9 @@ Or if you already have a copy of the source, update it with::
 
 Enter the VapourSynth directory and run these commands to compile and install::
    
-   ./autogen.sh
-   ./configure
-   make
-   make install
+   meson build
+   ninja -C build
+   ninja -C build install
    
 Depending on your operating system's configuration, VapourSynth may not
 work out of the box with the default prefix of /usr/local. Two errors
@@ -315,8 +316,8 @@ defined.
 
 Two configuration options may be used: **UserPluginDir**, empty by default,
 and **SystemPluginDir**, whose default value is set at compile time to
-``$libdir/vapoursynth``, or to the location passed to the ``--with-plugindir``
-argument to ``configure``.
+``$libdir/vapoursynth``, or to the location passed to the ``plugindir``
+option to ``meson``.
 
 UserPluginDir is tried first, then SystemPluginDir.
 
