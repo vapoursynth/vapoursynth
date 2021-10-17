@@ -1,0 +1,53 @@
+option('enable_guard_pattern',
+  type: 'boolean',
+  value: false,
+  description: 'Add 32 bytes on the left and the right sides of each frame, fills them with a certain value, and checks their integrity after each filter. It can be used to detect buggy filters that write a little outside the frame.'
+)
+
+option('enable_x86_asm',
+  type: 'boolean',
+  value: true,
+  description: 'Enable assembler code for x86 CPUs.'
+)
+
+option('enable_core',
+  type: 'boolean',
+  value: true,
+  description: 'Build the VapourSynth core library.'
+)
+
+option('enable_vsscript',
+  type: 'boolean',
+  value: true,
+  description: 'Build VSScript. Requires Python 3.'
+)
+
+option('enable_vspipe',
+  type: 'boolean',
+  value: true,
+  description: 'Build vspipe. Requires VSScript.'
+)
+
+option('enable_python_module',
+  type: 'boolean',
+  value: true,
+  description: 'Build the Python module. Requires Cython, Python, and the core.'
+)
+
+option('plugindir',
+  type: 'string',
+  value: '$libdir/vapoursynth',
+  description: 'The default value for the configuration option SystemPluginDir in vapoursynth.conf.'
+)
+
+option('python3_bin',
+  type: 'string',
+  value: 'python3',
+  description: 'Find a python installation matching python3_bin. It can be: a name "python-3.6", a path "/usr/local/bin/python3.6m", or just "python3".'
+)
+
+option('cython3_bin',
+  type: 'array',
+  value: ['cython3', 'cython'],
+  description: 'Find a cython executable matching cython3_bin.'
+)
