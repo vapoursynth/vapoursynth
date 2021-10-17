@@ -28,8 +28,22 @@ jobs:
         sudo apt-get update
         sudo apt-get install g++-11 -y
 
-    - name: Print compiler version
-      run: ${{ env.CC }} --version
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
+        python-version: '3.9'
+
+    - name: Install Cython
+      run: |
+        python -m pip install --upgrade pip
+        pip install Cython
+
+    - name: Install Meson
+      run: pip install meson
+
+    - name: Install Ninja
+      run: sudo apt-get install ninja-build
 
     - name: Install zimg
       run: |
@@ -42,31 +56,14 @@ jobs:
         popd
         rm -rf zimg
 
-    - name: Setup Python
-      uses: actions/setup-python@v2
-      with:
-        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
-        python-version: 3.9
-
-    - name: Install cython
+    - name: Build
       run: |
-        python -m pip install --upgrade pip
-        pip install cython
+        meson build -Dprefix=/usr
+        ninja -C build
 
-    - name: Set PKG_CONFIG_PATH
-      run: echo "PKG_CONFIG_PATH=$pythonLocation/lib/pkgconfig" >> $GITHUB_ENV
-
-    - name: configure
+    - name: Install
       run: |
-        ./autogen.sh
-        ./configure --prefix=/usr
-
-    - name: make
-      run: make -j2
-
-    - name: make install
-      run: |
-        sudo make install -j2
+        sudo ninja -C build install
         python setup.py sdist -d sdist
         mkdir empty
         pushd empty

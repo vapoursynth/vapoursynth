@@ -13,13 +13,25 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Print compiler version
-      run: ${{ env.CC }} --version
-
     - name: Install automake
+      run: brew install automake
+
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
+        python-version: '3.9'
+
+    - name: Install Cython
       run: |
-        brew update
-        brew install automake
+        python -m pip install --upgrade pip
+        pip install Cython
+
+    - name: Install Meson
+      run: pip install meson
+
+    - name: Install Ninja
+      run: brew install ninja
 
     - name: Install zimg
       run: |
@@ -32,31 +44,14 @@ jobs:
         popd
         rm -rf zimg
 
-    - name: Setup Python
-      uses: actions/setup-python@v2
-      with:
-        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
-        python-version: 3.9
-
-    - name: Install cython
+    - name: Build
       run: |
-        python -m pip install --upgrade pip
-        pip install cython
+        meson build
+        ninja -C build
 
-    - name: Set PKG_CONFIG_PATH
-      run: echo "PKG_CONFIG_PATH=$pythonLocation/lib/pkgconfig" >> $GITHUB_ENV
-
-    - name: configure
+    - name: Install
       run: |
-        ./autogen.sh
-        ./configure
-
-    - name: make
-      run: make -j3
-
-    - name: make install
-      run: |
-        sudo make install -j3
+        sudo ninja -C build install
         pip install .
 
     - name: Run test
