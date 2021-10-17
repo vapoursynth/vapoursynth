@@ -19,7 +19,7 @@ is installed and :doc:`auto-loaded <installation>`.
 .. code-block:: python
 
    from vapoursynth import core                     # Get an instance of the core
-   clip = core.ffms2.Source(source='filename.mkv')  # Load a video track in mkv file
+   clip = core.ffms2.Source(source='Rule6.mkv')     # Load a video track in mkv file
    clip = core.std.FlipHorizontal(clip)             # Flip the video clip in the horizontal direction
    clip.set_output()                                # Set the video clip to be accessible for output
 
