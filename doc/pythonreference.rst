@@ -95,31 +95,21 @@ Another way to deal with such arguments is to place them in a dictionary::
 VapourSynth will also support the PEP8 convention of using a single trailing
 underscore to prevent collisions with python keywords.
 
-Windows File Paths (Strings With Backslashes)
-*********************************************
+Windows File Paths
+******************
 
 If you have a string containing backslashes, you must either prefix the
 string with "r", or duplicate every single backslash. The reason is
 that the backslash is an escape character in Python.
 
-Incorrect; Python will think "\\A" and "\\G" are supposed to mean
-something special::
+Use `os.path.normcase(path) <https://docs.python.org/3/library/os.path.html#os.path.normcase>`_
+to fix Incorrect path string.
 
-   core.avs.LoadPlugin("B:\Avisynth plugins\GuavaComb.dll")
+Correct example::
 
-Correct; Python will think "\\\\" means something special, namely a
-single backslash::
-
-   core.avs.LoadPlugin("B:\\Avisynth plugins\\GuavaComb.dll")
-
-Correct; Python will not consider any combination of characters special::
-
-   core.avs.LoadPlugin(r"B:\Avisynth plugins\GuavaComb.dll")
-
-Additionally, if the string is a Windows file path, it can also be
-written with forward slashes instead of backslashes::
-
-   core.avs.LoadPlugin("B:/Avisynth plugins/GuavaComb.dll")
+   "B:/VapourSynth/VapourSynth.dll"
+   "B:\\VapourSynth\\VapourSynth.dll"
+   r"B:\VapourSynth\VapourSynth.dll"
 
 Output
 ******
