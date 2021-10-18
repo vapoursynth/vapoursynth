@@ -483,14 +483,17 @@ class vszimg {
     std::shared_ptr<graph_data> m_graph_data_t;
     std::shared_ptr<graph_data> m_graph_data_b;
 
-    VSNode *m_node;
-    VSVideoInfo m_vi;
-    bool m_prefer_props; // If true, frame properties have precedence over filter arguments.
-    double m_src_left, m_src_top, m_src_width, m_src_height;
+    VSNode *m_node = nullptr;
+    VSVideoInfo m_vi{};
+
     vszimgxx::zfilter_graph_builder_params m_params;
+    double m_src_left = NAN, m_src_top = NAN, m_src_width = NAN, m_src_height = NAN; // Propagated to zimage_format.
 
     frame_params m_frame_params;
     frame_params m_frame_params_in;
+    bool m_prefer_props = false; // If true, frame properties have precedence over filter arguments.
+
+    FieldOp m_field_op = FieldOp::NONE;
 
     template <class T, class Map>
     static void lookup_enum_str(const VSMap *map, const char *key, const Map &enum_table, optional_of<T> *out, const VSAPI *vsapi) {
@@ -529,18 +532,10 @@ class vszimg {
             *out = in.get();
     }
 
-    vszimg(const VSMap *in, void *userData, VSCore *core, const VSAPI *vsapi) :
-        m_node{ nullptr },
-        m_vi(),
-        m_prefer_props(false),
-        m_src_left(),
-        m_src_top(),
-        m_src_width(),
-        m_src_height()
+    vszimg(const VSMap *in, void *userData, VSCore *core, const VSAPI *vsapi)
     {
         vszimg_userdata u{ userData };
-        if (u.op != FieldOp::NONE)
-            vsapi->logMessage(mtFatal, "not implemented", core);
+        m_field_op = u.op;
 
         try {
             m_node = vsapi->mapGetNode(in, "clip", 0, nullptr);
@@ -551,12 +546,13 @@ class vszimg {
             m_vi.width = propGetScalarDef<unsigned>(in, "width", node_vi.width, vsapi);
             m_vi.height = propGetScalarDef<unsigned>(in, "height", node_vi.height, vsapi);
 
-            int format_id = propGetScalarDef<int>(in, "format", 0, vsapi);
-            if (format_id == 0) {
-                m_vi.format = node_vi.format;
-            } else {
+            if (m_field_op == FieldOp::DEINTERLACE)
+                m_vi.height = node_vi.height * 2;
+
+            if (int format_id = propGetScalarDef<int>(in, "format", 0, vsapi))
                 vsapi->getVideoFormatByID(&m_vi.format, format_id, core);
-            }
+            else
+                m_vi.format = node_vi.format;
 
             lookup_enum(in, "matrix", g_matrix_table, &m_frame_params.matrix, vsapi);
             lookup_enum(in, "transfer", g_transfer_table, &m_frame_params.transfer, vsapi);
@@ -710,6 +706,14 @@ class vszimg {
             }
 
             set_dst_colorspace(src_format, &dst_format);
+
+            if (m_field_op == FieldOp::DEINTERLACE) {
+                if (interlaced || src_format.field_parity == ZIMG_FIELD_PROGRESSIVE)
+                    vsapi->logMessage(mtFatal, "expected _Field when bobbing", core);
+
+                dst_format.height = src_format.height * 2;
+                dst_format.field_parity = ZIMG_FIELD_PROGRESSIVE;
+            }
 
             if (src_format == dst_format && isSameVideoFormat(src_vsformat, dst_vsformat) && !is_shifted(src_format)) {
                 VSFrame *clone = vsapi->copyFrame(src_frame, core);
@@ -871,6 +875,43 @@ public:
     }
 };
 
+
+void VS_CC bobCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) noexcept {
+    vszimg_userdata u{ userData };
+    u.op = FieldOp::DEINTERLACE;
+
+    VSPlugin *stdplugin = vsapi->getPluginByNamespace("std", core);
+    VSMap *tmp_map = nullptr;
+    VSMap *sep_fields = nullptr;
+    int _;
+
+    if (const char *filterName = vsapi->mapGetData(in, "filter", 0, &_)) {
+        auto it = g_resample_filter_table.find(filterName);
+
+        if (it != g_resample_filter_table.end())
+            u.filter = it->second;
+    }
+
+    tmp_map = vsapi->createMap();
+    vsapi->mapConsumeNode(tmp_map, "clip", vsapi->mapGetNode(in, "clip", 0, nullptr), maReplace);
+    if (vsapi->mapNumElements(in, "tff") > 0)
+        vsapi->mapSetInt(tmp_map, "tff", vsapi->mapGetInt(in, "tff", 0, nullptr), maReplace);
+    sep_fields = vsapi->invoke(stdplugin, "SeparateFields", tmp_map);
+    if (const char *err = vsapi->mapGetError(sep_fields)) {
+        vsapi->mapSetError(out, err);
+        goto fail;
+    }
+
+    vsapi->copyMap(in, tmp_map);
+    vsapi->mapDeleteKey(tmp_map, "filter");
+    vsapi->mapDeleteKey(tmp_map, "tff");
+    vsapi->mapConsumeNode(tmp_map, "clip", vsapi->mapGetNode(sep_fields, "clip", 0, nullptr), maReplace);
+    vszimg::create(tmp_map, out, u, core, vsapi);
+fail:
+    vsapi->freeMap(tmp_map);
+    vsapi->freeMap(sep_fields);
+}
+
 } // namespace
 
 
@@ -879,47 +920,54 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
 #define FLOAT_OPT(x) #x ":float:opt;"
 #define DATA_OPT(x) #x ":data:opt;"
 #define ENUM_OPT(x) INT_OPT(x) DATA_OPT(x ## _s)
-    static const char FORMAT_DEFINITION[] =
+
+#define COMMON_ARGS \
+  INT_OPT(format) \
+  ENUM_OPT(matrix) \
+  ENUM_OPT(transfer) \
+  ENUM_OPT(primaries) \
+  ENUM_OPT(range) \
+  ENUM_OPT(chromaloc) \
+  ENUM_OPT(matrix_in) \
+  ENUM_OPT(transfer_in) \
+  ENUM_OPT(primaries_in) \
+  ENUM_OPT(range_in) \
+  ENUM_OPT(chromaloc_in) \
+  FLOAT_OPT(filter_param_a) \
+  FLOAT_OPT(filter_param_b) \
+  DATA_OPT(resample_filter_uv) \
+  FLOAT_OPT(filter_param_a_uv) \
+  FLOAT_OPT(filter_param_b_uv) \
+  DATA_OPT(dither_type) \
+  DATA_OPT(cpu_type) \
+  INT_OPT(prefer_props) \
+  FLOAT_OPT(src_left) \
+  FLOAT_OPT(src_top) \
+  FLOAT_OPT(src_width) \
+  FLOAT_OPT(src_height) \
+  FLOAT_OPT(nominal_luminance)
+
+    static const char RESAMPLE_ARGS[] =
         "clip:vnode;"
         INT_OPT(width)
         INT_OPT(height)
-        INT_OPT(format)
-        ENUM_OPT(matrix)
-        ENUM_OPT(transfer)
-        ENUM_OPT(primaries)
-        ENUM_OPT(range)
-        ENUM_OPT(chromaloc)
-        ENUM_OPT(matrix_in)
-        ENUM_OPT(transfer_in)
-        ENUM_OPT(primaries_in)
-        ENUM_OPT(range_in)
-        ENUM_OPT(chromaloc_in)
-        FLOAT_OPT(filter_param_a)
-        FLOAT_OPT(filter_param_b)
-        DATA_OPT(resample_filter_uv)
-        FLOAT_OPT(filter_param_a_uv)
-        FLOAT_OPT(filter_param_b_uv)
-        DATA_OPT(dither_type)
-        DATA_OPT(cpu_type)
-        INT_OPT(prefer_props)
-        FLOAT_OPT(src_left)
-        FLOAT_OPT(src_top)
-        FLOAT_OPT(src_width)
-        FLOAT_OPT(src_height)
-        FLOAT_OPT(nominal_luminance);
+        COMMON_ARGS;
+
+    static const char RETURN_VALUE[] = "clip:vnode;";
+
+    vspapi->configPlugin(VSH_RESIZE_PLUGIN_ID, "resize", "VapourSynth Resize", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
+    vspapi->registerFunction("Bilinear", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_BILINEAR), plugin);
+    vspapi->registerFunction("Bicubic", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_BICUBIC), plugin);
+    vspapi->registerFunction("Point", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_POINT), plugin);
+    vspapi->registerFunction("Lanczos", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_LANCZOS), plugin);
+    vspapi->registerFunction("Spline16", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE16), plugin);
+    vspapi->registerFunction("Spline36", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE36), plugin);
+    vspapi->registerFunction("Spline64", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE64), plugin);
+
+    vspapi->registerFunction("Bob", "clip:vnode;filter:data:opt;tff:int:opt;" COMMON_ARGS, RETURN_VALUE, bobCreate, vszimg_userdata(ZIMG_RESIZE_BICUBIC), plugin);
+#undef COMMON_ARGS
 #undef INT_OPT
 #undef FLOAT_OPT
 #undef DATA_OPT
 #undef ENUM_OPT
-
-    static const char RETURN_FORMAT_DEFINITION[] = "clip:vnode;";
-
-    vspapi->configPlugin(VSH_RESIZE_PLUGIN_ID, "resize", "VapourSynth Resize", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("Bilinear", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_BILINEAR), plugin);
-    vspapi->registerFunction("Bicubic", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_BICUBIC), plugin);
-    vspapi->registerFunction("Point", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_POINT), plugin);
-    vspapi->registerFunction("Lanczos", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_LANCZOS), plugin);
-    vspapi->registerFunction("Spline16", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE16), plugin);
-    vspapi->registerFunction("Spline36", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE36), plugin);
-    vspapi->registerFunction("Spline64", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE64), plugin);
 }
