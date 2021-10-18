@@ -1,13 +1,15 @@
 Resize
 ======
 
-.. function::   Bilinear(vnode clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type="none", string cpu_type, bint prefer_props=False, float src_left, float src_top, float src_width, float src_height, float nominal_luminance])
+.. function::   Bilinear(vnode clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type="none", string cpu_type, float src_left, float src_top, float src_width, float src_height, float nominal_luminance])
                 Bicubic(vnode clip[, ...])
                 Point(vnode clip[, ...])
                 Lanczos(vnode clip[, ...])
                 Spline16(vnode clip[, ...])
                 Spline36(vnode clip[, ...])
                 Spline64(vnode clip[, ...])
+
+                Bob(vnode clip, string filter="bicubic", bint tff[, ...])
    :module: resize
    
    In VapourSynth the resizers have several functions. In addition to scaling,
@@ -19,6 +21,8 @@ Resize
 
    If you do not know which resizer to choose, then try Bicubic. It usually
    makes a good neutral default.
+
+   *Bob* can be used as a rudimentary deinterlacer.
 
    Arguments denoted as type *enum* may be specified by numerical index (see
    ITU-T H.265 Annex E.3) or by name. Enums specified by name have their
@@ -41,6 +45,11 @@ Resize
    specify the input colorspace parameters yourself. Note: 2 means "unspecified"
    according to the ITU-T recommendation.
 
+   Resizing is performed per-field for interlaced images, as indicated by the
+   *_FieldBased* frame property. Source filters may sometimes mark progressive
+   video as interlaced, which can result in sub-optimal resampling quality
+   unless *_FieldBased* is cleared.
+
    *clip*:
    
       Accepts all kinds of input.
@@ -48,6 +57,14 @@ Resize
    *width*, *height*:
    
       Output image dimensions.
+
+   *filter*:
+
+      Scaling method for deinterlacing. See *resample_filter_uv* for accepted values.
+
+   *tff*:
+
+      Field order for deinterlacing. Used when the *_FieldBased* property is not set.
 
    *format*:
    
@@ -78,9 +95,7 @@ Resize
       Input colorspace/format specification. If the corresponding frame property is set
       to a value other than unspecified, the frame property is used instead of this parameter.
       Default values are set for certain color families. See the equivalent output arguments
-      for more information. By default these override the corresponding frame properties if
-      present, to instead give the frame properties precedence when both are present set
-      *prefer_props*.
+      for more information.
 
    *filter_param_a*, *filter_param_b*:
    
@@ -107,12 +122,6 @@ Resize
    *cpu_type*:
    
       Only used for testing.
-      
-   *prefer_props*:
-   
-      Determines whether frame properties or arguments take precedence when both are present.
-      This option affects the *matrix_in*, *transfer_in*, *primaries_in*, *range_in*
-      and *chromaloc_in* arguments and their frame property equivalents.
       
    *src_left*, *src_top*, *src_width*, *src_height*:
    
