@@ -253,6 +253,10 @@ Classes and Functions
 
       Returns the core version as a number.
 
+   .. py:method:: rule6()
+
+      Illegal behavior detection.
+
 .. py:class:: VideoNode
 
    Represents a video clip. The class itself supports indexing and slicing to
