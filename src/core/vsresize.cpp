@@ -491,7 +491,6 @@ class vszimg {
 
     frame_params m_frame_params;
     frame_params m_frame_params_in;
-    bool m_prefer_props = false; // If true, frame properties have precedence over filter arguments.
 
     FieldOp m_field_op = FieldOp::NONE;
 
@@ -583,7 +582,6 @@ class vszimg {
 
             lookup_enum_str_opt(in, "dither_type", g_dither_type_table, &m_params.dither_type, vsapi);
             lookup_enum_str_opt(in, "cpu_type", g_cpu_type_table, &m_params.cpu_type, vsapi);
-            m_prefer_props = !!propGetScalarDef<int>(in, "prefer_props", 0, vsapi);
 
             m_src_left = propGetScalarDef<double>(in, "src_left", NAN, vsapi);
             m_src_top = propGetScalarDef<double>(in, "src_top", NAN, vsapi);
@@ -636,17 +634,23 @@ class vszimg {
         return data;
     }
 
-    void set_src_colorspace(zimg_image_format *src_format) {
-        propagate_if_present(m_frame_params_in.matrix, &src_format->matrix_coefficients);
-        propagate_if_present(m_frame_params_in.transfer, &src_format->transfer_characteristics);
-        propagate_if_present(m_frame_params_in.primaries, &src_format->color_primaries);
-        propagate_if_present(m_frame_params_in.range, &src_format->pixel_range);
-        propagate_if_present(m_frame_params_in.chromaloc, &src_format->chroma_location);
+    void set_frame_params(const frame_params &params, zimg_image_format *format) {
+        propagate_if_present(params.matrix, &format->matrix_coefficients);
+        propagate_if_present(params.transfer, &format->transfer_characteristics);
+        propagate_if_present(params.primaries, &format->color_primaries);
+        propagate_if_present(params.range, &format->pixel_range);
+        propagate_if_present(params.chromaloc, &format->chroma_location);
+    }
+
+    void set_src_colorspace(const VSMap *props, zimg_image_format *src_format, bool *interlaced, const VSAPI *vsapi) {
+        // Frame properties take precedence over defaults.
+        set_frame_params(m_frame_params_in, src_format);
+        import_frame_props(props, src_format, interlaced, vsapi);
     }
 
     void set_dst_colorspace(const zimg_image_format &src_format, zimg_image_format *dst_format) {
         // Avoid copying matrix coefficients when restricted by color family.
-        if (dst_format->matrix_coefficients != ZIMG_MATRIX_RGB && dst_format->matrix_coefficients != ZIMG_MATRIX_YCGCO)
+        if (dst_format->matrix_coefficients != ZIMG_MATRIX_RGB)
             dst_format->matrix_coefficients = src_format.matrix_coefficients;
 
         dst_format->transfer_characteristics = src_format.transfer_characteristics;
@@ -665,12 +669,7 @@ class vszimg {
         }
 
         dst_format->field_parity = src_format.field_parity;
-
-        propagate_if_present(m_frame_params.matrix, &dst_format->matrix_coefficients);
-        propagate_if_present(m_frame_params.transfer, &dst_format->transfer_characteristics);
-        propagate_if_present(m_frame_params.primaries, &dst_format->color_primaries);
-        propagate_if_present(m_frame_params.range, &dst_format->pixel_range);
-        propagate_if_present(m_frame_params.chromaloc, &dst_format->chroma_location);
+        set_frame_params(m_frame_params, dst_format);
     }
 
     const VSFrame *real_get_frame(const VSFrame *src_frame, VSCore *core, const VSAPI *vsapi) {
@@ -697,14 +696,8 @@ class vszimg {
 
             bool interlaced = false;
 
-            if (m_prefer_props) {
-                set_src_colorspace(&src_format);
-                import_frame_props(src_props, &src_format, &interlaced, vsapi);
-            } else {
-                import_frame_props(src_props, &src_format, &interlaced, vsapi);
-                set_src_colorspace(&src_format);
-            }
-
+            set_frame_params(m_frame_params_in, &src_format);
+            import_frame_props(src_props, &src_format, &interlaced, vsapi);
             set_dst_colorspace(src_format, &dst_format);
 
             if (m_field_op == FieldOp::DEINTERLACE) {
@@ -940,7 +933,6 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
   FLOAT_OPT(filter_param_b_uv) \
   DATA_OPT(dither_type) \
   DATA_OPT(cpu_type) \
-  INT_OPT(prefer_props) \
   FLOAT_OPT(src_left) \
   FLOAT_OPT(src_top) \
   FLOAT_OPT(src_width) \
