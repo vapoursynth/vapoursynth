@@ -413,6 +413,29 @@ bool is_shifted(const zimg_image_format &fmt) {
 }
 
 
+enum class FieldOp {
+    NONE,
+    DEINTERLACE,
+};
+
+
+struct vszimg_userdata {
+    zimg_resample_filter_e filter;
+    FieldOp op;
+
+    explicit vszimg_userdata(void *encoded) :
+        filter{ static_cast<zimg_resample_filter_e>(reinterpret_cast<intptr_t>(encoded) & 0x3FFF) },
+        op{ static_cast<FieldOp>(reinterpret_cast<intptr_t>(encoded) >> 14) }
+    {}
+
+    vszimg_userdata(zimg_resample_filter_e filter, FieldOp op = FieldOp::NONE) : filter{ filter }, op{ op } {}
+
+    void *encode() const { return reinterpret_cast<void *>((static_cast<intptr_t>(filter) & 0x3FFF) | (static_cast<intptr_t>(op) << 14)); }
+
+    operator void *() const { return encode(); }
+};
+
+
 class vszimg {
     template <class T>
     class optional_of {
@@ -515,6 +538,10 @@ class vszimg {
         m_src_width(),
         m_src_height()
     {
+        vszimg_userdata u{ userData };
+        if (u.op != FieldOp::NONE)
+            vsapi->logMessage(mtFatal, "not implemented", core);
+
         try {
             m_node = vsapi->mapGetNode(in, "clip", 0, nullptr);
             const VSVideoInfo &node_vi = *vsapi->getVideoInfo(m_node);
@@ -545,7 +572,7 @@ class vszimg {
 
             m_params.cpu_type = ZIMG_CPU_AUTO_64B;
             m_params.allow_approximate_gamma = 1;
-            m_params.resample_filter = static_cast<zimg_resample_filter_e>(reinterpret_cast<intptr_t>(userData));
+            m_params.resample_filter = u.filter;
             m_params.filter_param_a = propGetScalarDef<double>(in, "filter_param_a", m_params.filter_param_a, vsapi);
             m_params.filter_param_b = propGetScalarDef<double>(in, "filter_param_b", m_params.filter_param_b, vsapi);
 
@@ -888,11 +915,11 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     static const char RETURN_FORMAT_DEFINITION[] = "clip:vnode;";
 
     vspapi->configPlugin(VSH_RESIZE_PLUGIN_ID, "resize", "VapourSynth Resize", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("Bilinear", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_BILINEAR, plugin);
-    vspapi->registerFunction("Bicubic", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_BICUBIC, plugin);
-    vspapi->registerFunction("Point", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_POINT, plugin);
-    vspapi->registerFunction("Lanczos", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_LANCZOS, plugin);
-    vspapi->registerFunction("Spline16", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_SPLINE16, plugin);
-    vspapi->registerFunction("Spline36", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_SPLINE36, plugin);
-    vspapi->registerFunction("Spline64", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_SPLINE64, plugin);
+    vspapi->registerFunction("Bilinear", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_BILINEAR), plugin);
+    vspapi->registerFunction("Bicubic", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_BICUBIC), plugin);
+    vspapi->registerFunction("Point", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_POINT), plugin);
+    vspapi->registerFunction("Lanczos", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_LANCZOS), plugin);
+    vspapi->registerFunction("Spline16", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE16), plugin);
+    vspapi->registerFunction("Spline36", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE36), plugin);
+    vspapi->registerFunction("Spline64", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE64), plugin);
 }
