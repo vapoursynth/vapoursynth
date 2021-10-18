@@ -413,9 +413,6 @@ bool is_shifted(const zimg_image_format &fmt) {
 }
 
 
-void VS_CC vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi);
-const VSFrame * VS_CC vszimg_get_frame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
-
 class vszimg {
     template <class T>
     class optional_of {
@@ -592,7 +589,7 @@ class vszimg {
                 }
             }
         } catch (...) {
-            freeFunc(core, vsapi);
+            freeResources(core, vsapi);
             throw;
         }
     }
@@ -772,7 +769,7 @@ public:
         assert(!m_node);
     }
 
-    void freeFunc(VSCore *core, const VSAPI *vsapi) {
+    void freeResources(VSCore *core, const VSAPI *vsapi) {
         vsapi->freeNode(m_node);
         m_node = nullptr;
     }
@@ -799,7 +796,7 @@ public:
         return ret;
     }
 
-    static void create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    static void VS_CC create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
         try {
             vszimg *x = new vszimg{ in, userData, core, vsapi };
             const char *resizeType = "UnknownResize";
@@ -827,7 +824,7 @@ public:
                     break;
             }
             VSFilterDependency deps[] = {{x->m_node, rpStrictSpatial}};
-            vsapi->createVideoFilter(out, resizeType, &x->m_vi, &vszimg_get_frame, vszimg_free, fmParallel, deps, 1, x, core);
+            vsapi->createVideoFilter(out, resizeType, &x->m_vi, &vszimg::static_get_frame, &vszimg::free, fmParallel, deps, 1, x, core);
         } catch (const vszimgxx::zerror &e) {
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
             vsapi->mapSetError(out, errmsg.c_str());
@@ -835,21 +832,17 @@ public:
             vsapi->mapSetError(out, ("Resize error: "_s + e.what()).c_str());
         }
     }
+
+    static void VS_CC free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+        vszimg *ptr = static_cast<vszimg *>(instanceData);
+        ptr->freeResources(core, vsapi);
+        delete ptr;
+    }
+
+    static const VSFrame * VS_CC static_get_frame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+        return static_cast<vszimg *>(instanceData)->get_frame(n, activationReason, frameData, frameCtx, core, vsapi);
+    }
 };
-
-void VS_CC vszimg_create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    vszimg::create(in, out, userData, core, vsapi);
-}
-
-void VS_CC vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    vszimg *x = static_cast<vszimg *>(instanceData);
-    x->freeFunc(core, vsapi);
-    delete x;
-}
-
-const VSFrame * VS_CC vszimg_get_frame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    return static_cast<vszimg *>(instanceData)->get_frame(n, activationReason, frameData, frameCtx, core, vsapi);
-}
 
 } // namespace
 
@@ -895,11 +888,11 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     static const char RETURN_FORMAT_DEFINITION[] = "clip:vnode;";
 
     vspapi->configPlugin(VSH_RESIZE_PLUGIN_ID, "resize", "VapourSynth Resize", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("Bilinear", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_BILINEAR, plugin);
-    vspapi->registerFunction("Bicubic", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_BICUBIC, plugin);
-    vspapi->registerFunction("Point", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_POINT, plugin);
-    vspapi->registerFunction("Lanczos", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_LANCZOS, plugin);
-    vspapi->registerFunction("Spline16", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE16, plugin);
-    vspapi->registerFunction("Spline36", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE36, plugin);
-    vspapi->registerFunction("Spline64", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE64, plugin);
+    vspapi->registerFunction("Bilinear", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_BILINEAR, plugin);
+    vspapi->registerFunction("Bicubic", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_BICUBIC, plugin);
+    vspapi->registerFunction("Point", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_POINT, plugin);
+    vspapi->registerFunction("Lanczos", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_LANCZOS, plugin);
+    vspapi->registerFunction("Spline16", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_SPLINE16, plugin);
+    vspapi->registerFunction("Spline36", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_SPLINE36, plugin);
+    vspapi->registerFunction("Spline64", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, &vszimg::create, (void *)ZIMG_RESIZE_SPLINE64, plugin);
 }
