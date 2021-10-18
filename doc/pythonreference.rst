@@ -36,27 +36,31 @@ range of indexing and slicing operations in Python. If you do perform a slicing
 operation on a clip, you will get a new clip back with the desired frames.
 Here are a few examples.
 
-+-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
-| Operation                                 | Description                                                   | Equivalent                                               |
-+===========================================+===============================================================+==========================================================+
-| clip = clip[5]                            | Make a single frame clip containing frame number 5            |                                                          |
-+-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
-| clip = clip[5:11]                         | Make a clip containing frames 5 to 10 [#f1]_                  | | clip = core.std.Trim(clip, first=5, last=10)           |
-|                                           |                                                               | | clip = core.std.AudioTrim(clip, first=5, last=10)      |
-+-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
-| clip = clip[::2]                          | Select even numbered frames                                   | clip = core.std.SelectEvery(clip, cycle=2, offsets=0)    |
-+-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
-| clip = clip[1::2]                         | Select odd numbered frames                                    | clip = core.std.SelectEvery(clip, cycle=2, offsets=1)    |
-+-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
-| clip = clip[::-1]                         | Reverses a clip                                               | | clip = core.std.Reverse(clip)                          |
-|                                           |                                                               | | clip = core.std.AudioReverse(clip)                     |
-+-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
-| clip = clip1 + clip2                      | The addition operator can be used to splice clips together    | | clip = core.std.Splice([clip1, clip2], mismatch=False) |
-|                                           |                                                               | | clip = core.std.AudioSplice([clip1, clip2])            |
-+-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
-| clip = clip * 10                          | The multiplication operator can be used to loop a clip [#f2]_ | | clip = core.std.Loop(clip, times=10)                   |
-|                                           |                                                               | | clip = core.std.AudioLoop(clip, times=10)              |
-+-------------------------------------------+---------------------------------------------------------------+----------------------------------------------------------+
++---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
+| Operation                       | Description                                                   | Equivalent                                             |
++=================================+===============================================================+========================================================+
+| clip = clip[5]                  | Make a single frame clip containing frame number 5            |                                                        |
++---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
+| clip = clip[5:11]               | Make a clip containing frames 5 to 10 [#f1]_                  | clip = core.std.Trim(clip, first=5, last=10)           |
+|                                 |                                                               |                                                        |
+|                                 |                                                               | clip = core.std.AudioTrim(clip, first=5, last=10)      |
++---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
+| clip = clip[::2]                | Select even numbered frames                                   | clip = core.std.SelectEvery(clip, cycle=2, offsets=0)  |
++---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
+| clip = clip[1::2]               | Select odd numbered frames                                    | clip = core.std.SelectEvery(clip, cycle=2, offsets=1)  |
++---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
+| clip = clip[::-1]               | Reverses a clip                                               | clip = core.std.Reverse(clip)                          |
+|                                 |                                                               |                                                        |
+|                                 |                                                               | clip = core.std.AudioReverse(clip)                     |
++---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
+| clip = clip1 + clip2            | The addition operator can be used to splice clips together    | clip = core.std.Splice([clip1, clip2], mismatch=False) |
+|                                 |                                                               |                                                        |
+|                                 |                                                               | clip = core.std.AudioSplice([clip1, clip2])            |
++---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
+| clip = clip * 10                | The multiplication operator can be used to loop a clip [#f2]_ | clip = core.std.Loop(clip, times=10)                   |
+|                                 |                                                               |                                                        |
+|                                 |                                                               | clip = core.std.AudioLoop(clip, times=10)              |
++---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
 
 .. [#f1] Note that frame numbers, like python arrays, start counting at 0 and the end value of slicing is not inclusive
 
@@ -91,31 +95,21 @@ Another way to deal with such arguments is to place them in a dictionary::
 VapourSynth will also support the PEP8 convention of using a single trailing
 underscore to prevent collisions with python keywords.
 
-Windows File Paths (Strings With Backslashes)
-*********************************************
+Windows File Paths
+******************
 
 If you have a string containing backslashes, you must either prefix the
 string with "r", or duplicate every single backslash. The reason is
 that the backslash is an escape character in Python.
 
-Incorrect; Python will think "\\A" and "\\G" are supposed to mean
-something special::
+Use `os.path.normcase(path) <https://docs.python.org/3/library/os.path.html#os.path.normcase>`_
+to fix Incorrect path string.
 
-   core.avs.LoadPlugin("B:\Avisynth plugins\GuavaComb.dll")
+Correct example::
 
-Correct; Python will think "\\\\" means something special, namely a
-single backslash::
-
-   core.avs.LoadPlugin("B:\\Avisynth plugins\\GuavaComb.dll")
-
-Correct; Python will not consider any combination of characters special::
-
-   core.avs.LoadPlugin(r"B:\Avisynth plugins\GuavaComb.dll")
-
-Additionally, if the string is a Windows file path, it can also be
-written with forward slashes instead of backslashes::
-
-   core.avs.LoadPlugin("B:/Avisynth plugins/GuavaComb.dll")
+   "B:/VapourSynth/VapourSynth.dll"
+   "B:\\VapourSynth\\VapourSynth.dll"
+   r"B:\VapourSynth\VapourSynth.dll"
 
 Output
 ******
@@ -158,6 +152,7 @@ all frames in a clip, use this code::
 
 Classes and Functions
 #####################
+
 .. py:attribute:: core
 
    Gets the singleton Core object. If it is the first time the function is called,
@@ -257,6 +252,10 @@ Classes and Functions
    .. py:method:: version_number()
 
       Returns the core version as a number.
+
+   .. py:method:: rule6()
+
+      Illegal behavior detection.
 
 .. py:class:: VideoNode
 
