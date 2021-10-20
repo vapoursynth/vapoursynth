@@ -219,7 +219,6 @@ uint8_t *MemoryUse::allocate(size_t size)
 {
     assert(size < SIZE_MAX - 4095 - 64);
 
-    uint8_t *ptr = nullptr;
     size_t aligned_size = (size + ALIGNMENT + (ALIGNMENT - 1)) & ~static_cast<size_t>(ALIGNMENT - 1);
     size_t page_aligned_size = (aligned_size + 4095) & ~static_cast<size_t>(4095);
 
