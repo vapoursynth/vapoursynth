@@ -12,6 +12,8 @@ is_64 = (architecture()[0] == "64bit")
 extra_data = {}
 
 library_dirs = [curdir, "build"]
+
+is_portable = False
 if is_win:
     if is_64:
         library_dirs.append(join("msvc_project", "x64", "Release"))
@@ -53,6 +55,8 @@ if is_win:
         # hit the path.
         #
         # This is an indicator for portable installations.
+        is_portable = True
+
         dll_path = which("vapoursynth.dll")
         if dll_path is None:
             # If the vapoursynth.dll is not located in PATH, we then hit the registry
@@ -87,12 +91,16 @@ setup(
     author_email = "fredrik.mellbin@gmail.com",
     license = "LGPL 2.1 or later",
     version = "57",
-    long_description = "A portable replacement for Avisynth",
+    long_description = "A portable replacement for Avisynth" if is_portable else "A modern replacement for Avisynth",
     platforms = "All",
     ext_modules = [Extension("vapoursynth", [join("src", "cython", "vapoursynth.pyx")],
                              libraries = ["vapoursynth"],
                              library_dirs = library_dirs,
-                             include_dirs = [curdir, join("src", "cython")])],
+                             include_dirs = [
+                                 curdir,
+                                 join("src", "cython"),
+                                 join("src", "vsscript")
+                            ])],
     setup_requires=[
         'setuptools>=18.0',
         "Cython",
