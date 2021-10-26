@@ -321,6 +321,13 @@ Classes and Functions
 
       *The future will always be in the running or completed state*
 
+   .. py:method:: get_frame_async(n, cb: callable)
+
+      Renders a frame in another thread. When the frame is rendered, it will either call `cb(Frame, None)` on success
+      or `cb(None, Exception)` if something fails.
+
+      Added: R58
+
    .. py:method:: get_frame_async_raw(n, cb: callable)
 
       First form of this method. It will call the callback from another thread as soon as the frame is rendered.
@@ -329,6 +336,8 @@ Classes and Functions
       on failure.
 
       *This method is intended for glue code. For normal use, use get_frame_async instead.*
+
+      Deprecated, use *get_frame_async(n, cb)* instead.
 
       :param n: The frame number
       :param cb: A callback in the form `cb(node, n, result)`
@@ -343,6 +352,8 @@ Classes and Functions
       all calls to its future-object must be wrapped.
 
       *This method is intended for glue code. For normal use, use get_frame_async instead.*
+
+      Deprecated, use *get_frame_async(n, cb)* instead.
 
       :param n: The frame number
       :param cb: The future-object whose result will be set.

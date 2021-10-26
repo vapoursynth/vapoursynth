@@ -31,11 +31,19 @@ class FilterTestSequence(unittest.TestCase):
         time.sleep(1)
         raise RuntimeError("Fail")
 
-    def cb(self, node, n, result):
+    def cb_old(self, node, n, result):
         self.cb_called = True
         self.cb_result = result
         self.cb_node = node
         self.cb_n = n
+
+        self.condition.set()
+
+    def cb(self, result, error):
+        self.cb_result = (result, error)
+        self.cb_called = True
+        self.cb_node = None
+        self.cb_n = None
 
         self.condition.set()
 
@@ -47,7 +55,27 @@ class FilterTestSequence(unittest.TestCase):
     # Tests start here
 
     def test_raw_cb_slow(self):
-        self.slow_filter.get_frame_async_raw(0, self.cb)
+        self.slow_filter.get_frame_async(0, self.cb)
+        self.condition.wait(2)
+
+        self.assertTrue(self.cb_called)
+        self.assertIsInstance(self.cb_result, tuple)
+        self.assertEqual(len(self.cb_result), 2)
+        self.assertIsInstance(self.cb_result[0], vs.VideoFrame)
+        self.assertIsNone(self.cb_result[1])
+
+    def test_raw_cb_fail(self):
+        self.fail_filter.get_frame_async(0, self.cb)
+        self.condition.wait(2)
+
+        self.assertTrue(self.cb_called)
+        self.assertIsInstance(self.cb_result, tuple)
+        self.assertEqual(len(self.cb_result), 2)
+        self.assertIsInstance(self.cb_result[1], vs.Error)
+        self.assertIsNone(self.cb_result[0])
+
+    def test_raw_cb_slow_old(self):
+        self.slow_filter.get_frame_async_raw(0, self.cb_old)
         self.condition.wait(2)
 
         self.assertTrue(self.cb_called)
@@ -55,8 +83,8 @@ class FilterTestSequence(unittest.TestCase):
         self.assertEqual(self.cb_n, 0)
         self.assertIsInstance(self.cb_result, vs.VideoFrame)
 
-    def test_raw_cb_fail(self):
-        self.fail_filter.get_frame_async_raw(0, self.cb)
+    def test_raw_cb_fail_old(self):
+        self.fail_filter.get_frame_async_raw(0, self.cb_old)
         self.condition.wait(2)
 
         self.assertTrue(self.cb_called)
@@ -71,13 +99,6 @@ class FilterTestSequence(unittest.TestCase):
         self.slow_filter.get_frame_async_raw(1, fut)
         self.assertIsInstance(fut.result(2), vs.VideoFrame)
 
-    def test_raw_cb_fut_slow_mv(self):
-        fut = Future()
-        fut.set_running_or_notify_cancel()
-        self.slow_filter.get_frame_async_raw(1, fut, self.mv)
-        self.assertIsInstance(fut.result(2), vs.VideoFrame)
-        self.assertEqual(fut.set_result, self.mv_called)
-
     def test_raw_cb_fut_fail(self):
         fut = Future()
         fut.set_running_or_notify_cancel()
@@ -85,13 +106,20 @@ class FilterTestSequence(unittest.TestCase):
         with self.assertRaisesRegex(vs.Error, "Fail"):
             fut.result(2)
 
-    def test_raw_cb_fut_fail_mv(self):
+    def test_raw_cb_fut_slow_mv(self):
+        fut = Future()
+        fut.set_running_or_notify_cancel()
+        self.slow_filter.get_frame_async_raw(1, fut, self.mv)
+        self.assertIsInstance(fut.result(2), vs.VideoFrame)
+        self.assertIsNotNone(self.mv_called)
+
+    def test_raw_cb_fut_fail_mv_old(self):
         fut = Future()
         fut.set_running_or_notify_cancel()
         self.fail_filter.get_frame_async_raw(1, fut, self.mv)
         with self.assertRaisesRegex(vs.Error, "Fail"):
             fut.result(2)
-        self.assertEqual(fut.set_exception, self.mv_called)
+        self.assertIsNotNone(self.mv_called)
 
     def test_async_slow(self):
         fut = self.slow_filter.get_frame_async(1)
