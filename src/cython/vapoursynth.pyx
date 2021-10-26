@@ -1590,7 +1590,7 @@ cdef class RawNode(object):
                 if exception is not None:
                     fut.set_exception(exception)
                 else:
-                    fut.set_result(exception)
+                    fut.set_result(result)
 
             from concurrent.futures import Future
             fut = Future()
