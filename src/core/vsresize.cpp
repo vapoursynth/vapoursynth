@@ -823,32 +823,25 @@ public:
     static void VS_CC create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
         try {
             vszimg *x = new vszimg{ in, userData, core, vsapi };
-            const char *resizeType = "UnknownResize";
-            switch (reinterpret_cast<uintptr_t>(userData)) {
-                case ZIMG_RESIZE_POINT:
-                    resizeType = "Point";
-                    break;
-                case ZIMG_RESIZE_BILINEAR:
-                    resizeType = "Bilinear";
-                    break;
-                case ZIMG_RESIZE_BICUBIC:
-                    resizeType = "Bicubic";
-                    break;
-                case ZIMG_RESIZE_SPLINE16:
-                    resizeType = "Spline16";
-                    break;
-                case ZIMG_RESIZE_SPLINE36:
-                    resizeType = "Spline36";
-                    break;
-                case ZIMG_RESIZE_SPLINE64:
-                    resizeType = "Spline64";
-                    break;
-                case ZIMG_RESIZE_LANCZOS:
-                    resizeType = "Lanczos";
-                    break;
+            vszimg_userdata u{ userData };
+            const char *name = "";
+
+            if (u.op == FieldOp::DEINTERLACE) {
+                name = "Bob";
+            } else {
+                switch (u.filter) {
+                case ZIMG_RESIZE_POINT: name = "Point"; break;
+                case ZIMG_RESIZE_BILINEAR: name = "Bilinear"; break;
+                case ZIMG_RESIZE_BICUBIC: name = "Bicubic"; break;
+                case ZIMG_RESIZE_SPLINE16: name = "Spline16"; break;
+                case ZIMG_RESIZE_SPLINE36: name = "Spline36"; break;
+                case ZIMG_RESIZE_SPLINE64: name = "Spline64"; break;
+                case ZIMG_RESIZE_LANCZOS: name = "Lanczos"; break;
+                }
             }
+
             VSFilterDependency deps[] = {{x->m_node, rpStrictSpatial}};
-            vsapi->createVideoFilter(out, resizeType, &x->m_vi, &vszimg::static_get_frame, &vszimg::free, fmParallel, deps, 1, x, core);
+            vsapi->createVideoFilter(out, name, &x->m_vi, &vszimg::static_get_frame, &vszimg::free, fmParallel, deps, 1, x, core);
         } catch (const vszimgxx::zerror &e) {
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
             vsapi->mapSetError(out, errmsg.c_str());
