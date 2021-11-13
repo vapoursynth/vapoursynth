@@ -78,14 +78,14 @@ Which is quivalent to::
 Python Keywords as Filter Arguments
 ***********************************
 
-If a filter's argument happens to be a Python keyword, you may prepend
+If a filter's argument happens to be a Python keyword, you may append
 an underscore to the argument's name when invoking the filter. The Python
-module will strip one leading underscore from all filter arguments before
+module will strip one trailing underscore (if present) from all filter arguments before
 passing them to the filters.
 
 ::
 
-   clip = core.plugin.Filter(clip, _lambda=1)
+   clip = core.plugin.Filter(clip, lambda_=1)
 
 Another way to deal with such arguments is to place them in a dictionary::
 
