@@ -505,7 +505,7 @@ begin
     PopulatePythonInstallations(PythonList); 
     if WizardIsComponentSelected('vsruntimes') and not RuntimesAdded then
     begin
-      Dependency_AddVC2015To2019;
+      Dependency_AddVC2015To2022;
       RuntimesAdded := True;
     end;
   end;
