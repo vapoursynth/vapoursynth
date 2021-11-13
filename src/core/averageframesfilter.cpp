@@ -182,7 +182,7 @@ static const VSFrame *VS_CC averageFramesGetFrame(int n, int activationReason, v
             }
 
             const void *src_ptrs[32];
-            const void *weights_ptr = (fi->bytesPerSample == 1 || fi->bytesPerSample == 2) ? (const void *)d->weights.data() : d->fweights.data();
+            const void *weights_ptr = (fi->bytesPerSample == 1 || fi->bytesPerSample == 2) ? (const void *)weights.data() : fweights.data();
             const void *scale_ptr = (fi->bytesPerSample == 1 || fi->bytesPerSample == 2) ? (const void *)&d->scale : &d->fscale;
 
             for (unsigned n = 0; n < frames.size(); ++n) {
