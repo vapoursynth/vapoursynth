@@ -386,6 +386,33 @@ Classes and Functions
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
       The *close* argument determines if the frame should be closed after each iteration step. It defaults to false to remain backward compatible.
 
+   .. py:method:: is_inspectable(version=None)
+   
+      Returns a truthy value if you can use the node inspection API with a given version.
+      The python inspection-api is versioned, as the underlying API is unstable at the time of writing.
+      The version number will be incremented every time the python API changes.
+      There will be no attempt to maintain backwards compatibility as long as the API is marked as unstable.
+
+      This method may never return a truthy value.
+
+      This is the only stable function in the current inspection api-implementation.
+
+      .. note::
+
+         Be aware that introspection features must be enabled manually by the backing environment. Standalone Python-Scripts,
+         not running inside vspipe or other editors, have introspection enabled automatically.
+
+      .. warning::
+
+         The graph-inspection-api is unstable. Omitting the version-argument will therefore always return
+         None.
+
+      The current version of the unstable python graph-inspection API is 0.
+
+      Added: R58
+
+      :param version: If None, it will use the version number of the last stable API.
+
 .. py:class:: VideoOutputTuple
 
       This class is returned by get_output if the output is video.
@@ -607,6 +634,34 @@ Classes and Functions
 
       The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
+
+   .. py:method:: is_inspectable(version=None)
+   
+      Returns a truthy value if you can use the node inspection API with a given version.
+      The python inspection-api is versioned, as the underlying API is unstable at the time of writing.
+      The version number will be incremented every time the python API changes.
+      There will be no attempt to maintain backwards compatibility as long as the API is marked as unstable.
+
+      This method may never return a truthy value.
+
+      This is the only stable function in the current inspection api-implementation.
+
+      .. note::
+
+         Be aware that introspection features must be enabled manually by the backing environment. Standalone Python-Scripts,
+         not running inside vspipe or other editors, have introspection enabled automatically.
+
+      .. warning::
+
+         The graph-inspection-api is unstable. Omitting the version-argument will therefore always return
+         None.
+
+      The current version of the unstable python graph-inspection API is 0.
+
+      Added: R58
+
+      :param version: If None, it will use the version number of the last stable API.
+
 
 .. py:class:: AudioFrame
 
@@ -904,6 +959,15 @@ Classes and Functions
       * Using :func:`vpy_current_environment`
       * Using :func:`get_current_environment`
       * Accessing any attribute of :attr:`core`
+
+
+.. py:function:: _try_enable_introspection(version=None)
+
+   Tries to enable introspection. Returns true if it succeeds.
+
+   :param version: If not passed it will use the newest stable introspection-api.
+
+   Added: R58
 
 .. py:function:: has_policy()
 
