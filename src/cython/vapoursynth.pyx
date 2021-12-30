@@ -1709,39 +1709,39 @@ cdef class RawNode(object):
         return self._inspectable()
 
     @property
-    def node_name(self):
+    def _node_name(self):
         if not self._inspectable():
-            return self.__class__.__name__
+            raise AttributeError("This node is not inspectable")
         return self.funcs.getNodeName(self.node).decode("utf-8")
 
     @property
-    def name(self):
+    def _name(self):
         if not self._inspectable():
             raise AttributeError("This node is not inspectable.")
 
         return self.funcs.getNodeCreationFunctionName(self.node, 0).decode("utf-8")
 
     @property
-    def inputs(self):
+    def _inputs(self):
         if not self._inspectable():
             raise AttributeError("This node is not inspectable.")
 
         return mapToDict(self.funcs.getNodeCreationFunctionArguments(self.node, 0), False)
 
     @property
-    def timings(self):
+    def _timings(self):
         if not self._inspectable():
             raise AttributeError("This node is not inspectable")
         return self.funcs.getNodeFilterTime(self.node)
 
     @property
-    def mode(self):
+    def _mode(self):
         if not self._inspectable():
             raise AttributeError("This node is not inspectable")
         return FilterMode(self.funcs.getNodeFilterMode(self.node))
 
     @property
-    def dependencies(self):
+    def _dependencies(self):
         if not self._inspectable():
             raise AttributeError("This node is not inspectable")
 
