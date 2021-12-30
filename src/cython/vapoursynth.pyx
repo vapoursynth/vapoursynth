@@ -148,7 +148,7 @@ cdef class StandaloneEnvironmentPolicy:
 
     def on_policy_registered(self, api):
         self._logger = logging.getLogger("vapoursynth")
-        self._environment = api.create_environment()
+        self._environment = api.create_environment(CoreCreationFlags.ccfEnableGraphInspection)
         api.set_logger(self._environment, self._on_log_message)
 
     def on_policy_cleared(self):
@@ -1697,6 +1697,55 @@ cdef class RawNode(object):
 
             gc.collect()
 
+    # Inspect API
+    @property
+    def inspectable(self):
+        if self.funcs.getAPIVersion() != VAPOURSYNTH_API_VERSION:
+            return False
+        return self.core.flags & CoreCreationFlags.ccfEnableGraphInspection
+
+    @property
+    def node_name(self):
+        if not self.inspectable:
+            return self.__class__.__name__
+        return self.funcs.getNodeName(self.node).decode("utf-8")
+
+    @property
+    def name(self):
+        if not self.inspectable:
+            raise AttributeError("This node is not inspectable.")
+
+        return self.funcs.getNodeCreationFunctionName(self.node, 0).decode("utf-8")
+
+    @property
+    def inputs(self):
+        if not self.inspectable:
+            raise AttributeError("This node is not inspectable.")
+
+        return mapToDict(self.funcs.getNodeCreationFunctionArguments(self.node, 0), False)
+
+    @property
+    def timings(self):
+        if not self.inspectable:
+            raise AttributeError("This node is not inspectable")
+        return self.funcs.getNodeFilterTime(self.node)
+
+    @property
+    def mode(self):
+        if not self.inspectable:
+            raise AttributeError("This node is not inspectable")
+        return FilterMode(self.funcs.getNodeFilterMode(self.node))
+
+    @property
+    def dependencies(self):
+        if not self.inspectable:
+            raise AttributeError("This node is not inspectable")
+
+        return tuple(
+            createNode(self.funcs.getNodeDependencies(self.node)[idx].source, self.funcs, self.core)
+            for idx in range(self.funcs.getNumNodeDependencies(self.node))
+        )
+
     def __dealloc__(self):
         if self.funcs:
             self.funcs.freeNode(self.node)
@@ -2133,6 +2182,7 @@ cdef void __stdcall log_handler_free(void *userData) nogil:
         Py_DECREF(<LogHandle>userData)
 
 cdef class Core(object):
+    cdef int creationFlags
     cdef VSCore *core
     cdef const VSAPI *funcs
 
@@ -2169,6 +2219,10 @@ cdef class Core(object):
             cdef int64_t new_size = mb
             new_size = new_size * 1024 * 1024
             self.funcs.setMaxCacheSize(new_size, self.core)
+
+    @property
+    def flags(self):
+        return self.creationFlags
 
     def __getattr__(self, name):
         cdef VSPlugin *plugin
@@ -2297,6 +2351,7 @@ cdef Core createCore(EnvironmentData env):
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = instance.funcs.createCore(env.coreCreationFlags)
+    instance.creationFlags = env.coreCreationFlags
     return instance
     
 cdef Core createCore2(VSCore *core):
@@ -2546,6 +2601,8 @@ cdef Function createFunction(VSPluginFunction *func, Plugin plugin, const VSAPI 
     instance.funcs = funcs
     instance.func = func
     return instance
+
+
 
 # for python functions being executed by vs
 

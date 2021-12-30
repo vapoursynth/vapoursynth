@@ -116,9 +116,9 @@ cdef extern from "include/VapourSynth4.h" nogil:
         RGBH "pfRGBH"
         RGBS "pfRGBS"
 
-    enum VSFilterMode:
+    cpdef enum FilterMode "VSFilterMode":
         fmParallel
-        fmParallelRequestsOnly
+        fmParallelRequests
         fmUnordered
         fmFrameState
 
@@ -233,6 +233,10 @@ cdef extern from "include/VapourSynth4.h" nogil:
         dtUnknown
         dtBinary
         dtUtf8
+
+    struct VSFilterDependency:
+        VSNode *source;
+        int requestPattern
 
 
     ctypedef const VSAPI *(__stdcall *VSGetVapourSynthAPI)(int version)
@@ -386,5 +390,16 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void logMessage(int msgType, const char *msg, VSCore *core) nogil
         VSLogHandle *addLogHandler(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) nogil
         bint removeLogHandler(VSLogHandle *handle, VSCore *core) nogil
-                
+
+
+
+        # Unstable API, has no set place.
+        const char *getNodeCreationFunctionName(VSNode *node, int level) nogil
+        const VSMap *getNodeCreationFunctionArguments(VSNode *node, int level) nogil
+        const char *getNodeName(VSNode *node) nogil
+        int getNodeFilterMode(VSNode *node) nogil
+        int64_t getNodeFilterTime(VSNode *node) nogil
+        const VSFilterDependency *getNodeDependencies(VSNode *node) nogil
+        int getNumNodeDependencies(VSNode *node) nogil
+
     const VSAPI *getVapourSynthAPI(int version) nogil

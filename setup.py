@@ -94,6 +94,7 @@ setup(
     long_description = "A portable replacement for Avisynth" if is_portable else "A modern replacement for Avisynth",
     platforms = "All",
     ext_modules = [Extension("vapoursynth", [join("src", "cython", "vapoursynth.pyx")],
+                             define_macros = [ ("VS_GRAPH_API", None) ],
                              libraries = ["vapoursynth"],
                              library_dirs = library_dirs,
                              include_dirs = [
