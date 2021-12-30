@@ -1750,6 +1750,26 @@ cdef class RawNode(object):
             for idx in range(self.funcs.getNumNodeDependencies(self.node))
         )
 
+    def __eq__(self, other):
+        if other is self:
+            return True
+        if not self._inspectable():
+            # This makes __eq__ only check for being the same,
+            # when introspection is enabled.
+            return False
+
+        if not isinstance(other, RawNode):
+            return False
+        else:
+            return self.node == (<RawNode>other).node
+
+    def __hash__(self):
+        if not self._inspectable():
+            # Since nodes are immutable, this is valid:
+            return hash(id(self))
+        else:
+            return hash(int(<uintptr_t>self.node))
+
     def __dealloc__(self):
         if self.funcs:
             self.funcs.freeNode(self.node)
