@@ -1698,47 +1698,51 @@ cdef class RawNode(object):
             gc.collect()
 
     # Inspect API
-    @property
-    def inspectable(self):
+    cdef bint _inspectable(self):
         if self.funcs.getAPIVersion() != VAPOURSYNTH_API_VERSION:
             return False
-        return self.core.flags & CoreCreationFlags.ccfEnableGraphInspection
+        return bool(self.core.flags & CoreCreationFlags.ccfEnableGraphInspection)
+
+    def is_inspectable(self, version=None):
+        if version != 0:
+            return False
+        return self._inspectable()
 
     @property
     def node_name(self):
-        if not self.inspectable:
+        if not self._inspectable():
             return self.__class__.__name__
         return self.funcs.getNodeName(self.node).decode("utf-8")
 
     @property
     def name(self):
-        if not self.inspectable:
+        if not self._inspectable():
             raise AttributeError("This node is not inspectable.")
 
         return self.funcs.getNodeCreationFunctionName(self.node, 0).decode("utf-8")
 
     @property
     def inputs(self):
-        if not self.inspectable:
+        if not self._inspectable():
             raise AttributeError("This node is not inspectable.")
 
         return mapToDict(self.funcs.getNodeCreationFunctionArguments(self.node, 0), False)
 
     @property
     def timings(self):
-        if not self.inspectable:
+        if not self._inspectable():
             raise AttributeError("This node is not inspectable")
         return self.funcs.getNodeFilterTime(self.node)
 
     @property
     def mode(self):
-        if not self.inspectable:
+        if not self._inspectable():
             raise AttributeError("This node is not inspectable")
         return FilterMode(self.funcs.getNodeFilterMode(self.node))
 
     @property
     def dependencies(self):
-        if not self.inspectable:
+        if not self._inspectable():
             raise AttributeError("This node is not inspectable")
 
         return tuple(
