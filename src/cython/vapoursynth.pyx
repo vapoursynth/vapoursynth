@@ -130,6 +130,7 @@ class EnvironmentPolicy(object):
 cdef class StandaloneEnvironmentPolicy:
     cdef EnvironmentData _environment
     cdef object _logger
+    cdef int _flags
 
     cdef object __weakref__
 
@@ -148,7 +149,7 @@ cdef class StandaloneEnvironmentPolicy:
 
     def on_policy_registered(self, api):
         self._logger = logging.getLogger("vapoursynth")
-        self._environment = api.create_environment(CoreCreationFlags.ccfEnableGraphInspection)
+        self._environment = api.create_environment(self._flags)
         api.set_logger(self._environment, self._on_log_message)
 
     def on_policy_cleared(self):
@@ -262,11 +263,29 @@ def register_policy(policy):
     _policy.on_policy_registered(_api)
 
 
+def _try_enable_introspection(version=None):
+    global _policy
+    if _policy is not None:
+        return False
+
+    if version != 0:
+        return False
+
+    cdef StandaloneEnvironmentPolicy standalone_policy = StandaloneEnvironmentPolicy.__new__(StandaloneEnvironmentPolicy)
+    standalone_policy._flags = int(CoreCreationFlags.ccfEnableGraphInspection)
+    register_policy(standalone_policy)
+
+    return True
+
+
 ## DO NOT EXPOSE THIS FUNCTION TO PYTHON-LAND!
 cdef get_policy():
     global _policy
+    cdef StandaloneEnvironmentPolicy standalone_policy
+
     if _policy is None:
         standalone_policy = StandaloneEnvironmentPolicy.__new__(StandaloneEnvironmentPolicy)
+        standalone_policy._flags = 0
         register_policy(standalone_policy)
 
     return _policy
