@@ -130,6 +130,7 @@ class EnvironmentPolicy(object):
 cdef class StandaloneEnvironmentPolicy:
     cdef EnvironmentData _environment
     cdef object _logger
+    cdef int _flags
 
     cdef object __weakref__
 
@@ -148,7 +149,7 @@ cdef class StandaloneEnvironmentPolicy:
 
     def on_policy_registered(self, api):
         self._logger = logging.getLogger("vapoursynth")
-        self._environment = api.create_environment()
+        self._environment = api.create_environment(self._flags)
         api.set_logger(self._environment, self._on_log_message)
 
     def on_policy_cleared(self):
@@ -262,11 +263,29 @@ def register_policy(policy):
     _policy.on_policy_registered(_api)
 
 
+def _try_enable_introspection(version=None):
+    global _policy
+    if _policy is not None:
+        return False
+
+    if version != 0:
+        return False
+
+    cdef StandaloneEnvironmentPolicy standalone_policy = StandaloneEnvironmentPolicy.__new__(StandaloneEnvironmentPolicy)
+    standalone_policy._flags = int(CoreCreationFlags.ccfEnableGraphInspection)
+    register_policy(standalone_policy)
+
+    return True
+
+
 ## DO NOT EXPOSE THIS FUNCTION TO PYTHON-LAND!
 cdef get_policy():
     global _policy
+    cdef StandaloneEnvironmentPolicy standalone_policy
+
     if _policy is None:
         standalone_policy = StandaloneEnvironmentPolicy.__new__(StandaloneEnvironmentPolicy)
+        standalone_policy._flags = 0
         register_policy(standalone_policy)
 
     return _policy
@@ -1697,6 +1716,79 @@ cdef class RawNode(object):
 
             gc.collect()
 
+    # Inspect API
+    cdef bint _inspectable(self):
+        if self.funcs.getAPIVersion() != VAPOURSYNTH_API_VERSION:
+            return False
+        return bool(self.core.flags & CoreCreationFlags.ccfEnableGraphInspection)
+
+    def is_inspectable(self, version=None):
+        if version != 0:
+            return False
+        return self._inspectable()
+
+    @property
+    def _node_name(self):
+        if not self._inspectable():
+            raise AttributeError("This node is not inspectable")
+        return self.funcs.getNodeName(self.node).decode("utf-8")
+
+    @property
+    def _name(self):
+        if not self._inspectable():
+            raise AttributeError("This node is not inspectable.")
+
+        return self.funcs.getNodeCreationFunctionName(self.node, 0).decode("utf-8")
+
+    @property
+    def _inputs(self):
+        if not self._inspectable():
+            raise AttributeError("This node is not inspectable.")
+
+        return mapToDict(self.funcs.getNodeCreationFunctionArguments(self.node, 0), False)
+
+    @property
+    def _timings(self):
+        if not self._inspectable():
+            raise AttributeError("This node is not inspectable")
+        return self.funcs.getNodeFilterTime(self.node)
+
+    @property
+    def _mode(self):
+        if not self._inspectable():
+            raise AttributeError("This node is not inspectable")
+        return FilterMode(self.funcs.getNodeFilterMode(self.node))
+
+    @property
+    def _dependencies(self):
+        if not self._inspectable():
+            raise AttributeError("This node is not inspectable")
+
+        return tuple(
+            createNode(self.funcs.getNodeDependencies(self.node)[idx].source, self.funcs, self.core)
+            for idx in range(self.funcs.getNumNodeDependencies(self.node))
+        )
+
+    def __eq__(self, other):
+        if other is self:
+            return True
+        if not self._inspectable():
+            # This makes __eq__ only check for being the same,
+            # when introspection is enabled.
+            return False
+
+        if not isinstance(other, RawNode):
+            return False
+        else:
+            return self.node == (<RawNode>other).node
+
+    def __hash__(self):
+        if not self._inspectable():
+            # Since nodes are immutable, this is valid:
+            return hash(id(self))
+        else:
+            return hash(int(<uintptr_t>self.node))
+
     def __dealloc__(self):
         if self.funcs:
             self.funcs.freeNode(self.node)
@@ -2133,6 +2225,7 @@ cdef void __stdcall log_handler_free(void *userData) nogil:
         Py_DECREF(<LogHandle>userData)
 
 cdef class Core(object):
+    cdef int creationFlags
     cdef VSCore *core
     cdef const VSAPI *funcs
 
@@ -2169,6 +2262,10 @@ cdef class Core(object):
             cdef int64_t new_size = mb
             new_size = new_size * 1024 * 1024
             self.funcs.setMaxCacheSize(new_size, self.core)
+
+    @property
+    def flags(self):
+        return self.creationFlags
 
     def __getattr__(self, name):
         cdef VSPlugin *plugin
@@ -2297,6 +2394,7 @@ cdef Core createCore(EnvironmentData env):
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = instance.funcs.createCore(env.coreCreationFlags)
+    instance.creationFlags = env.coreCreationFlags
     return instance
     
 cdef Core createCore2(VSCore *core):
@@ -2546,6 +2644,8 @@ cdef Function createFunction(VSPluginFunction *func, Plugin plugin, const VSAPI 
     instance.funcs = funcs
     instance.func = func
     return instance
+
+
 
 # for python functions being executed by vs
 
