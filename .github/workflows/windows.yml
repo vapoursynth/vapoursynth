@@ -56,10 +56,10 @@ jobs:
         (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\libs",$py_binary_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
         (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\include",$py_include_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
 
-    - name: Setup Python 3.9
+    - name: Setup Python 3.10
       uses: actions/setup-python@v2
       with:
-        python-version: 3.9
+        python-version: '3.10'
         architecture: ${{ matrix.arch }}
 
     - name: Install cython
@@ -67,14 +67,14 @@ jobs:
         python -m pip install --upgrade pip
         pip install cython
         
-    - name: Patch Python 3.9 Include Paths
+    - name: Patch Python 3.10 Include Paths
       run: |
         $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
         $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python39-32\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python39-32\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python39\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python39\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python310-32\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python310-32\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python310\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python310\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
 
     - name: Compile
       run: |
