@@ -1,9 +1,10 @@
 r58:
-Fix averageframes no respecting scenechange property (sekrit-twc)
+fixed certain expressions failing to compile in expr filter
+fixed averageframes not respecting scenechange property (sekrit-twc)
 added bob filter (sekrit-twc)
 added support for separable convolutions and optimized convolution in general (sekrit-twc)
 fixed audionode get_frame() in python
-enabled cache for nodes with no registered dependencies, this means nodes returned by getoutput won't need to manually have the cache enabled
+enabled cache for nodes with no registered dependencies, this means nodes returned by getoutput won't need to manually have the cache enabled if they have no filter consumers
 
 r57:
 added close method for frames in python (cid-chan)

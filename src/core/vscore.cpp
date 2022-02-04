@@ -792,7 +792,7 @@ void VSNode::addConsumer(VSNode *consumer, int strictSpatial) {
         consumers.push_back({consumer, strictSpatial});
 
         if (!cacheOverride)
-            cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].requestPattern);
+            cacheEnabled = (consumers.size() != 1) || (consumers.size() == 1 && !consumers[0].requestPattern);
     }
     registerCache(cacheEnabled);
 }
@@ -808,7 +808,7 @@ void VSNode::removeConsumer(VSNode *consumer, int strictSpatial) {
         }
 
         if (!cacheOverride)
-            cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].requestPattern);
+            cacheEnabled = (consumers.size() != 1) || (consumers.size() == 1 && !consumers[0].requestPattern);
 
         if (!cacheEnabled)
             cache.clear();

@@ -474,7 +474,7 @@ bool VapourSynthFile::DelayInit2() {
                 goto vpyerror;
             }
 
-            vsapi->setCacheMode(videoNode, 1);
+            vsapi->setCacheMode(videoNode, cmForceEnable);
             vsapi->setCacheOptions(videoNode, -1, num_threads * 2, -1);
 
             alt_output = vssapi->getAltOutputMode(se, 0);
@@ -496,7 +496,7 @@ bool VapourSynthFile::DelayInit2() {
                     goto vpyerror;
                 }
 
-                vsapi->setCacheMode(audioNode, 1);
+                vsapi->setCacheMode(audioNode, cmForceEnable);
                 vsapi->setCacheOptions(audioNode, -1, num_threads * 2, -1);
             }
 

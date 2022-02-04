@@ -185,7 +185,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             }
 
             if (videoNode) {
-                vsapi->setCacheMode(videoNode, 1);
+                vsapi->setCacheMode(videoNode, cmForceEnable);
                 vsapi->setCacheOptions(videoNode, -1, num_threads * 2, -1);
             }
 
@@ -197,7 +197,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
 
             if (audioNode) {
                 ai = vsapi->getAudioInfo(audioNode);
-                vsapi->setCacheMode(audioNode, 1);
+                vsapi->setCacheMode(audioNode, cmForceEnable);
                 vsapi->setCacheOptions(audioNode, -1, num_threads * 2, -1);
             }
 

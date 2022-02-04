@@ -985,7 +985,7 @@ static int VS_CC getNodeType(VSNode *node) VS_NOEXCEPT {
 }
 
 static void VS_CC setCacheMode(VSNode *node, int mode) VS_NOEXCEPT {
-    assert(node && mode >= -1 && mode <= 1);
+    assert(node && mode >= cmAuto && mode <= cmForceEnable);
     node->setCacheMode(mode);
 }
 

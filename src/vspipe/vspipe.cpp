@@ -954,6 +954,11 @@ int main(int argc, char **argv) {
 
     VSNode *alphaNode = vssapi->getOutputAlphaNode(se, opts.outputIndex);
 
+    // disable cache since no frame is ever requested twice
+    vsapi->setCacheMode(node, cmForceDisable);
+    if (alphaNode)
+        vsapi->setCacheMode(alphaNode, cmForceDisable);
+
     std::chrono::duration<double> scriptEvaluationTime = std::chrono::steady_clock::now() - scriptEvaluationStart;
     if (opts.printProgress)
         fprintf(stderr, "Script evaluation done in %.2f seconds\n", scriptEvaluationTime.count());
