@@ -520,7 +520,7 @@ class ExponentMap {
             if (lhsCategory == 2)
                 return lhsNode->op.imm.f < rhsNode->op.imm.f;
             else if (lhsCategory == 1)
-                return lhsNode->op.imm.u < rhsNode->op.imm.f;
+                return lhsNode->op.imm.u < rhsNode->op.imm.u;
             else
                 return lhs.first < rhs.first;
         };
