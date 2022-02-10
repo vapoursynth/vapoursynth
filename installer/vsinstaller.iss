@@ -179,7 +179,7 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; Value
 
 [Code]
 
-const VSRuntimeVersion = '14.29.30133';
+const VSRuntimeVersion = '14.30.30708';
 
 type
   TPythonPath = record
@@ -332,21 +332,6 @@ end;
 
 /////////////////////////////////////////////////////////////////////
 
-function PrepareToInstall(var NeedsRestart: Boolean): String;
-begin
-  Result := Dependency_PrepareToInstall(NeedsRestart);
-end;
-
-function NeedRestart: Boolean;
-begin
-  Result := Dependency_NeedRestart;
-end;
-
-function UpdateReadyMemo(const Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
-begin
-  Result := Dependency_UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo);
-end;
-
 function InitializeSetup: Boolean;
 var
   HasOtherPython: Boolean;
@@ -407,7 +392,6 @@ begin
   end; 
 
   WizardForm.OnResize := @WizardFormOnResize;
-  Dependency_InitializeWizard;
 end;
 
 function GetPythonPath(Param: string): String;

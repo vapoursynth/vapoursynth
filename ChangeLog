@@ -1,4 +1,7 @@
 r58:
+updated the supported python versions to 3.10 and 3.8
+updated visual studio 2022 runtime version
+updated projects to visual studio 2022
 fixed certain expressions failing to compile in expr filter
 fixed averageframes not respecting scenechange property (sekrit-twc)
 added bob filter (sekrit-twc)
