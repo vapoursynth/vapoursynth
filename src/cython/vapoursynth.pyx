@@ -85,7 +85,7 @@ __all__ = [
   'core', 
 ]
     
-__version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(57, 0)
+__version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(58, 0)
 __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 
