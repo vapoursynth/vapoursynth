@@ -47,9 +47,9 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
         int plane;
         for (plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
-            int src_stride = vsapi->getStride(src, plane);
+            ptrdiff_t src_stride = vsapi->getStride(src, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            int dst_stride = vsapi->getStride(dst, plane); // note that if a frame has the same dimensions and format, the stride is guaranteed to be the same. int dst_stride = src_stride would be fine too in this filter.
+            ptrdiff_t dst_stride = vsapi->getStride(dst, plane); // note that if a frame has the same dimensions and format, the stride is guaranteed to be the same. int dst_stride = src_stride would be fine too in this filter.
             // Since planes may be subsampled you have to query the height of them individually
             int h = vsapi->getFrameHeight(src, plane);
             int y;

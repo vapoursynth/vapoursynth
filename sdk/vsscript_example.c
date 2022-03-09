@@ -49,8 +49,7 @@ int main(int argc, char **argv) {
     assert(vsapi);
 
     // This line does the actual script evaluation. If se = NULL it will create a new environment
-    se = vssapi->evaluateFile(argv[1], NULL, NULL);   
-    if (vssapi->getError(se)) {
+    if (vssapi->evaluateFile(se, argv[1])) {
         fprintf(stderr, "Script evaluation failed:\n%s", vssapi->getError(se));
         vssapi->freeScript(se);
         return 1;
