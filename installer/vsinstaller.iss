@@ -1,5 +1,5 @@
 #define Version '58'
-#define VersionExtra ''
+#define VersionExtra '-RC1'
 #define PythonVersion '3.10'
 #define PythonCompactVersion '310'
 
@@ -71,7 +71,7 @@ Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disab
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
 Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Flags: disablenouninstallwarning
-Name: "vsruntimes"; Description: "Visual Studio 2019 Runtime"; Types: Full; Check: IsAdminInstallMode; Flags: disablenouninstallwarning
+Name: "vsruntimes"; Description: "Visual Studio 2015-2022 Runtime"; Types: Full; Check: IsAdminInstallMode; Flags: disablenouninstallwarning
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "VapourSynth:"; Components: vscore

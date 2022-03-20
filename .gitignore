@@ -13,6 +13,9 @@ src/cython/vapoursynth_api.h
 *.lo
 *.so
 *.dll
+*.exe
+*.7z
+*.pyd
 .libs
 .deps/
 .dirstamp
