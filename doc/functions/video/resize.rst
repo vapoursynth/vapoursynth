@@ -8,7 +8,6 @@ Resize
                 Spline16(vnode clip[, ...])
                 Spline36(vnode clip[, ...])
                 Spline64(vnode clip[, ...])
-
                 Bob(vnode clip, string filter="bicubic", bint tff[, ...])
    :module: resize
    

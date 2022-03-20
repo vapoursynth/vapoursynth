@@ -322,6 +322,7 @@ Classes and Functions
       *The future will always be in the running or completed state*
 
    .. py:method:: get_frame_async(n, cb: callable)
+      :noindex:
 
       Renders a frame in another thread. When the frame is rendered, it will either call `cb(Frame, None)` on success
       or `cb(None, Exception)` if something fails.
