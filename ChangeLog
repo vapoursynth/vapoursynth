@@ -3,6 +3,7 @@ updated the supported python versions to 3.10 and 3.8
 updated visual studio 2022 runtime version
 updated projects to visual studio 2022
 updated zimg to 3.0.4
+out of range requests getFrame() are now properly rejected instead of possibly crashing later
 removed the prefer_props argument from resizers, trying to use it will result in a warning message
 fixed certain expressions failing to compile in expr filter
 fixed averageframes not respecting scenechange property (sekrit-twc)

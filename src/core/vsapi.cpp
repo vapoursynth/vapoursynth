@@ -90,7 +90,7 @@ static void VS_CC getFrameAsync(int n, VSNode *clip, VSFrameDoneCallback fdc, vo
     int numFrames = (clip->getNodeType() == mtVideo) ? clip->getVideoInfo().numFrames : clip->getAudioInfo().numFrames;
     VSFrameContext *ctx = new VSFrameContext(n, clip, fdc, userData, true);
 
-    if (n < 0 || (numFrames && n >= numFrames))
+    if (n < 0 || n >= numFrames)
         ctx->setError("Invalid frame number " + std::to_string(n) + " requested, clip only has " + std::to_string(numFrames) + " frames");
 
     clip->getFrame(ctx);
@@ -121,6 +121,18 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrame *frame, int 
 
 static const VSFrame *VS_CC getFrame(int n, VSNode *node, char *errorMsg, int bufSize) VS_NOEXCEPT {
     assert(node);
+    int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
+    if (n < 0 || n >= numFrames) {
+        if (errorMsg && bufSize > 0) {
+            memset(errorMsg, 0, bufSize);
+            if (errorMsg) {
+                strncpy(errorMsg, ("Invalid frame number " + std::to_string(n) + " requested, clip only has " + std::to_string(numFrames) + " frames").c_str(), bufSize);
+                errorMsg[bufSize - 1] = 0;
+            }
+        }
+        return nullptr;
+    }
+
     GetFrameWaiter g(errorMsg, bufSize);
     std::unique_lock<std::mutex> l(g.b);
     bool isWorker = node->isWorkerThread();
