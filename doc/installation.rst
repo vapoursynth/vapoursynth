@@ -256,7 +256,7 @@ You can put your plugin (``.dll``) and script (``.py``) to where you think it is
 
 For plugins, you can use ``std.LoadPlugin`` function to load it. there is also a plugin autoloading mechanism to save your time, see blow.
 
-For scripts, you should add a relative path to ``python39._pth`` or ``python38._pth``, then you can import it in your script.
+For scripts, you should add a relative path to ``python<your_python_version>._pth``, then you can import it in your script.
 
 Plugin Autoloading
 ******************
@@ -271,7 +271,6 @@ that any errors encountered while loading a plugin are silently ignored.
    use, such as /usr/lib or /usr/local/lib in a Linux system. Several
    users reported crashes when VapourSynth attempted to load some
    random libraries (\*cough\*wxgtk\*cough\*).
-
 
 Windows
 -------
