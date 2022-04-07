@@ -1000,8 +1000,11 @@ Classes and Functions
 Constants
 #########
 
-Video Color Family Constants
-****************************
+Video
+*****
+
+Color Family
+------------
 
 The color family constants describe groups of formats and the basic way their
 color information is stored. You should be familiar with all of them apart from
@@ -1013,8 +1016,8 @@ formats. These are the declared constants in the module::
    YUV
    GRAY
 
-Video Format Constants
-**********************
+Format
+------
 
 Format constants exactly describe a format. All common and even more uncommon
 formats have handy constants predefined so in practice no one should really
@@ -1025,7 +1028,6 @@ bits per sample in one plane. The exception to this rule is RGB, which has the
 bits for all 3 planes added together. The long list of values::
 
    NONE
-
    GRAY8
    GRAY9
    GRAY10
@@ -1035,37 +1037,29 @@ bits for all 3 planes added together. The long list of values::
    GRAY32
    GRAYH
    GRAYS
-
    YUV420P8
    YUV422P8
    YUV444P8
    YUV410P8
    YUV411P8
    YUV440P8
-
    YUV420P9
    YUV422P9
    YUV444P9
-
    YUV420P10
    YUV422P10
    YUV444P10
-
    YUV420P12
    YUV422P12
    YUV444P12
-
    YUV420P14
    YUV422P14
    YUV444P14
-
    YUV420P16
    YUV422P16
    YUV444P16
-
    YUV444PH
    YUV444PS
-
    RGB24
    RGB27
    RGB30
@@ -1075,8 +1069,97 @@ bits for all 3 planes added together. The long list of values::
    RGBH
    RGBS
 
-Audio Channel Constants
-***********************
+Chroma Location
+---------------
+
+::
+
+   CHROMA_LEFT
+   CHROMA_CENTER
+   CHROMA_TOP_LEFT
+   CHROMA_TOP
+   CHROMA_BOTTOM_LEFT
+   CHROMA_BOTTOM
+
+Field Based
+-----------
+
+::
+
+   FIELD_PROGRESSIVE
+   FIELD_TOP
+   FIELD_BOTTOM
+
+Color Range
+-----------
+
+::
+
+   RANGE_FULL
+   RANGE_LIMITED
+
+Matrix Coefficients
+-------------------
+
+::
+
+   MATRIX_RGB
+   MATRIX_BT709
+   MATRIX_UNSPECIFIED
+   MATRIX_FCC
+   MATRIX_BT470_BG
+   MATRIX_ST170_M
+   MATRIX_YCGCO
+   MATRIX_BT2020_NCL
+   MATRIX_BT2020_CL
+   MATRIX_CHROMATICITY_DERIVED_NCL
+   MATRIX_CHROMATICITY_DERIVED_CL
+   MATRIX_ICTCP
+
+TransferCharacteristics
+-----------------------
+
+::
+
+   TRANSFER_BT709
+   TRANSFER_UNSPECIFIED
+   TRANSFER_BT470_M
+   TRANSFER_BT470_BG
+   TRANSFER_BT601
+   TRANSFER_ST240_M
+   TRANSFER_LINEAR
+   TRANSFER_LOG_100
+   TRANSFER_LOG_316
+   TRANSFER_IEC_61966_2_4
+   TRANSFER_IEC_61966_2_1
+   TRANSFER_BT2020_10
+   TRANSFER_BT2020_12
+   TRANSFER_ST2084
+   TRANSFER_ARIB_B67
+
+Color Primaries
+---------------
+
+::
+
+   PRIMARIES_BT709
+   PRIMARIES_UNSPECIFIED
+   PRIMARIES_BT470_M
+   PRIMARIES_BT470_BG
+   PRIMARIES_ST170_M
+   PRIMARIES_ST240_M
+   PRIMARIES_FILM
+   PRIMARIES_BT2020
+   PRIMARIES_ST428
+   PRIMARIES_ST431_2
+   PRIMARIES_ST432_1
+   PRIMARIES_EBU3213_E
+
+Audio
+*****
+
+Channels
+--------
 
 ::
 
@@ -1106,8 +1189,8 @@ Audio Channel Constants
    SURROUND_DIRECT_RIGHT
    LOW_FREQUENCY2
 
-Sample Type Constants
-*********************
+Sample Type
+***********
 
 ::
 
