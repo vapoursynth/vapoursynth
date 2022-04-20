@@ -25,6 +25,7 @@
 #include "avisynth_compat.h"
 #include <algorithm>
 #include <cstdarg>
+#include <cstddef>
 #include <limits>
 #include "../common/vsutf16.h"
 #include "p2p_api.h"
@@ -891,7 +892,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         }
 
         std::vector<VSFilterDependency> deps;
-        for (int i = 0; i < preFetchClips.size(); i++)
+        for (size_t i = 0; i < preFetchClips.size(); i++)
             deps.push_back({preFetchClips[i], rpGeneral});
 
         VSNode *node = vsapi->createVideoFilter2(
