@@ -891,7 +891,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         }
 
         std::vector<VSFilterDependency> deps;
-        for (int i = 0; i < preFetchClips.size(); i++)
+        for (unsigned int i = 0; i < preFetchClips.size(); i++)
             deps.push_back({preFetchClips[i], rpGeneral});
 
         VSNode *node = vsapi->createVideoFilter2(
