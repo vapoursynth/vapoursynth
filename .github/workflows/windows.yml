@@ -88,6 +88,114 @@ jobs:
         popd
         popd
 
+        
+    - name: Package for Python 3.10
+      run: |
+        mkdir wheels
+        pip install wheel
+        python setup.py bdist_wheel -d ./wheels
+        python setup.py sdist -d ./wheels --format=zip
+        
+        pushd installer
+        if ("${{ matrix.arch }}" -eq "x64") {
+          pushd buildp64
+        } else {
+          pushd buildp32
+        }
+        
+        python setup.py bdist_wheel -d ../../wheels
+        
+        popd
+        popd
+        
+    - name: Setup Python 3.8 a second time
+      uses: actions/setup-python@v3
+      with:
+        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
+        python-version: 3.8
+        # The target architecture (x86, x64) of the Python interpreter.
+        architecture: ${{ matrix.arch }}
+
+    - name: Building for Python 3.8
+      run: |
+        pip install . --no-deps
+  
+        pushd installer
+        if ("x64" -eq "x64") {
+          Remove-Item 'buildp64' -Recurse
+        } else {
+          Remove-Item 'buildp32' -Recurse
+        }
+        
+        $env:SKIP_COMPRESS="yes"
+        $env:SKIP_WAIT="yes"
+        & ".\make portable.bat"
+  
+  
+        if ("${{ matrix.arch }}" -eq "x64") {
+          pushd buildp64
+        } else {
+          pushd buildp32
+        }
+        pip install . --no-deps
+        popd
+        popd
+
+    - name: Package for Python 3.8
+      run: |
+        pip install wheel
+        python setup.py bdist_wheel -d ./wheels
+        python setup.py sdist -d ./wheels --format=zip
+        
+        pushd installer
+        if ("${{ matrix.arch }}" -eq "x64") {
+          pushd buildp64
+        } else {
+          pushd buildp32
+        }
+        
+        python setup.py bdist_wheel -d ../../wheels
+        
+        popd
+        popd
+      
+    - name: Upload build artefacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: Wheels
+        path: |
+          wheels/**/*.whl
+          wheels/*.whl
+          wheels/**/*.zip
+          wheels/*.zip
+
     - name: Run test
       if: ${{ matrix.test }}
       run: python -m unittest discover -s test -p "*test.py"
+      
+  test-windows:
+    runs-on: windows-latest
+    needs: build-msvc
+    strategy:
+      matrix:
+        arch: [x86, x64]
+        python: ["3.8", "3.10"]
+        
+    steps:
+    - name: Setup Python ${{ matrix.python }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python }}
+        architecture: ${{ matrix.arch }}
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: Wheels
+    
+    - name: Try installing
+      run: |
+        pip install --no-index --find-links . vapoursynth
+        pip install --no-index --find-links . vapoursynth_portable
+        
+        python -c "from vapoursynth import core; print(core.std.BlankClip())"
