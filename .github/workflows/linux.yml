@@ -31,6 +31,12 @@ jobs:
     - name: Print compiler version
       run: ${{ env.CC }} --version
 
+    - name: Upgrade automake
+      run: |
+        sudo add-apt-repository ppa:devacom/devel
+        sudo apt-get update
+        sudo apt-get install automake
+
     - name: Install zimg
       run: |
         git clone https://github.com/sekrit-twc/zimg --branch v3.0 --depth 1
