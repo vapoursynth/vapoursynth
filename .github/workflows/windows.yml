@@ -20,10 +20,10 @@ jobs:
             test: true
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1
+      uses: microsoft/setup-msbuild@v1.1
   
     - name: Clone Dependencies
       run: |
@@ -33,7 +33,7 @@ jobs:
         git clone https://github.com/sekrit-twc/libp2p --depth 1
 
     - name: Setup Python 3.8
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: 3.8
@@ -50,7 +50,7 @@ jobs:
         (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\include",$py_include_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
 
     - name: Setup Python 3.10
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: '3.10'
         architecture: ${{ matrix.arch }}
