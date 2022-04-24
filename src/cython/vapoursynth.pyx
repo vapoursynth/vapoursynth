@@ -2615,6 +2615,9 @@ cdef class Function(object):
             self.funcs.freeMap(inm)
             dtomsuccess = False
             dtomexceptmsg = str(e)    
+        except Exception:
+            self.funcs.freeMap(inm)
+            raise
         
         if dtomsuccess == False:
             raise Error(self.name + ': ' + dtomexceptmsg)
