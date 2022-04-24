@@ -318,16 +318,17 @@ cdef class _FastManager(object):
         raise RuntimeError("Cannot directly instantiate this class.")
 
     def __enter__(self):
+        self.previous = get_policy().get_current_environment()
         if self.target is not None:
-            self.previous = get_policy().set_environment(self.target)
+            get_policy().set_environment(self.target)
             self.target = None
-        else:
-            self.previous = get_policy().get_current_environment()
     
     def __exit__(self, *_):
         policy = get_policy()
         if policy.is_alive(self.previous):
             policy.set_environment(self.previous)
+        else:
+            policy.set_environment(None)
         self.previous = None
 
 
@@ -2614,6 +2615,9 @@ cdef class Function(object):
             self.funcs.freeMap(inm)
             dtomsuccess = False
             dtomexceptmsg = str(e)    
+        except Exception:
+            self.funcs.freeMap(inm)
+            raise
         
         if dtomsuccess == False:
             raise Error(self.name + ': ' + dtomexceptmsg)
