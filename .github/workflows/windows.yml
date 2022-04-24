@@ -199,3 +199,41 @@ jobs:
         pip install --no-index --find-links . vapoursynth_portable
         
         python -c "from vapoursynth import core; print(core.std.BlankClip())"
+
+  public:
+    runs-on: ubuntu-latest
+    needs: test-windows
+
+    steps:
+    - name: Setup Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: Wheels
+
+    - name: Install twine
+      run: |
+        pip install twine
+
+    - name: Upload VapourSynth
+      if: startsWith(github.event.ref, 'refs/tags/R')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_NOT_PORTABLE }}
+        TWINE_REPOSITORY_URL: https://test.pypi.org/legacy/
+      run: |
+        twine upload VapourSynth-*
+
+    - name: Upload VapourSynth Portable
+      if: startsWith(github.event.ref, 'refs/tags/R')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PORTABLE }}
+        TWINE_REPOSITORY_URL: https://test.pypi.org/legacy/
+      run: |
+        twine upload VapourSynth_portable-*
+
