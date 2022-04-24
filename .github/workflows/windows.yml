@@ -224,7 +224,6 @@ jobs:
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_NOT_PORTABLE }}
-        TWINE_REPOSITORY_URL: https://test.pypi.org/legacy/
       run: |
         twine upload VapourSynth-*
 
@@ -233,7 +232,6 @@ jobs:
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PORTABLE }}
-        TWINE_REPOSITORY_URL: https://test.pypi.org/legacy/
       run: |
         twine upload VapourSynth_portable-*
 
