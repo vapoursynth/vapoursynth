@@ -655,7 +655,7 @@ void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
 
     // Multi-pass threshold = 13.
     auto kernel = select_conv_scanline_h<T>(params.matrixsize);
-    void *tmp = (params.matrixsize > 13 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc(width * sizeof(int32_t), 32) : nullptr;
+    void *tmp = (params.matrixsize > 13 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc((width + 16) * sizeof(int32_t), 32) : nullptr;
 
     for (unsigned i = 0; i < height; ++i) {
         const T *srcp = static_cast<const T *>(line_ptr(src, i, src_stride));
@@ -695,7 +695,7 @@ void conv_plane_v(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
 
     // Multi-pass threshold = 9.
     auto kernel = select_conv_scanline_v<T>(params.matrixsize);
-    void *tmp = (params.matrixsize > 9 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc(width * sizeof(int32_t), 32) : nullptr;
+    void *tmp = (params.matrixsize > 9 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc((width + 16) * sizeof(int32_t), 32) : nullptr;
 
     for (unsigned i = 0; i < height; ++i) {
         const void *srcp[25];
@@ -728,7 +728,7 @@ void conv_plane_x(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
     auto kernel_v = select_conv_scanline_v<T>(params.matrixsize);
     auto kernel_h = select_conv_scanline_h<T>(params.matrixsize);
     T *tmp1 = vsh::vsh_aligned_malloc<T>((width + 64) * sizeof(T), 32);
-    void *tmp2 = (params.matrixsize > 9 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc(width * sizeof(int32_t), 32) : nullptr;
+    void *tmp2 = (params.matrixsize > 9 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc((width + 16) * sizeof(int32_t), 32) : nullptr;
 
     for (unsigned i = 0; i < height; ++i) {
         const void *srcp[25];
