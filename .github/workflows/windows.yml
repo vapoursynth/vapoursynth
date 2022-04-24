@@ -203,6 +203,7 @@ jobs:
   public:
     runs-on: ubuntu-latest
     needs: test-windows
+    if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
 
     steps:
     - name: Setup Python 3.10
@@ -220,7 +221,6 @@ jobs:
         pip install twine
 
     - name: Upload VapourSynth
-      if: startsWith(github.event.ref, 'refs/tags/R')
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_NOT_PORTABLE }}
@@ -228,7 +228,6 @@ jobs:
         twine upload VapourSynth-*
 
     - name: Upload VapourSynth Portable
-      if: startsWith(github.event.ref, 'refs/tags/R')
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PORTABLE }}
