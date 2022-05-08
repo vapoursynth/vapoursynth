@@ -40,7 +40,7 @@ void average_plane_float(const void *weights_, const void * const *srcs, unsigne
 {
 	const float *weights = static_cast<const float *>(weights_);
 	ptrdiff_t offset = 0;
-	float scale = *static_cast<const float *>(scale_);
+	float scale = 1.0f / *static_cast<const float *>(scale_);
 
 	for (unsigned i = 0; i < h; ++i) {
 		float *dst = reinterpret_cast<float *>(static_cast<uint8_t *>(dst_) + offset);

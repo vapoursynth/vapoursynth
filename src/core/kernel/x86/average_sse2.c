@@ -251,7 +251,7 @@ void vs_average_plane_word_chroma_sse2(const void *weights_, const void * const 
 void vs_average_plane_float_sse2(const void *weights_, const void * const *srcs, unsigned num_srcs, void *dst_, const void *scale_, unsigned depth, unsigned w, unsigned h, ptrdiff_t stride)
 {
 	__m128 weights[32];
-	__m128 scale = _mm_set_ps1(*(const float *)scale_);
+	__m128 scale = _mm_set_ps1(1.0f / *(const float *)scale_);
 	ptrdiff_t offset = 0;
 	unsigned i, j, k;
 
