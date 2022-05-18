@@ -337,7 +337,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_word_sse2;
             else if (d->convolution_type == ConvolutionSeparable)
-                return vs_generic_1d_conv_x_float_sse2;
+                return vs_generic_1d_conv_x_word_sse2;
             break;
         }
     } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
