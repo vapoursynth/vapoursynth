@@ -97,9 +97,9 @@ DECL(1d_conv_v, byte, c)
 DECL(1d_conv_v, word, c)
 DECL(1d_conv_v, float, c)
 
-DECL(1d_conv_x, byte, c)
-DECL(1d_conv_x, word, c)
-DECL(1d_conv_x, float, c)
+DECL(2d_conv_sep, byte, c)
+DECL(2d_conv_sep, word, c)
+DECL(2d_conv_sep, float, c)
 
 #ifdef VS_TARGET_CPU_X86
 DECL_3x3(prewitt, byte, sse2)
@@ -142,9 +142,9 @@ DECL(1d_conv_v, byte, sse2)
 DECL(1d_conv_v, word, sse2)
 DECL(1d_conv_v, float, sse2)
 
-DECL(1d_conv_x, byte, sse2)
-DECL(1d_conv_x, word, sse2)
-DECL(1d_conv_x, float, sse2)
+DECL(2d_conv_sep, byte, sse2)
+DECL(2d_conv_sep, word, sse2)
+DECL(2d_conv_sep, float, sse2)
 
 DECL_3x3(prewitt, byte, avx2)
 DECL_3x3(prewitt, word, avx2)
@@ -186,9 +186,9 @@ DECL(1d_conv_v, byte, avx2)
 DECL(1d_conv_v, word, avx2)
 DECL(1d_conv_v, float, avx2)
 
-DECL(1d_conv_x, byte, avx2)
-DECL(1d_conv_x, word, avx2)
-DECL(1d_conv_x, float, avx2)
+DECL(2d_conv_sep, byte, avx2)
+DECL(2d_conv_sep, word, avx2)
+DECL(2d_conv_sep, float, avx2)
 
 #endif /* VS_TARGET_CPU_X86 */
 

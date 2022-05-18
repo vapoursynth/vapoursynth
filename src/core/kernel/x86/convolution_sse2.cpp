@@ -790,17 +790,17 @@ void vs_generic_1d_conv_v_float_sse2(const void *src, ptrdiff_t src_stride, void
     conv_plane_v<float>(src, src_stride, dst, dst_stride, *params, width, height);
 }
 
-void vs_generic_1d_conv_x_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+void vs_generic_2d_conv_sep_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
     conv_plane_x<uint8_t>(src, src_stride, dst, dst_stride, *params, width, height);
 }
 
-void vs_generic_1d_conv_x_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+void vs_generic_2d_conv_sep_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
     conv_plane_x<uint16_t>(src, src_stride, dst, dst_stride, *params, width, height);
 }
 
-void vs_generic_1d_conv_x_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+void vs_generic_2d_conv_sep_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
     conv_plane_x<float>(src, src_stride, dst, dst_stride, *params, width, height);
 }

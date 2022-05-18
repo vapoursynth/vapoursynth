@@ -251,7 +251,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_byte_avx2;
             else if (d->convolution_type == ConvolutionSeparable)
-                return vs_generic_1d_conv_x_byte_avx2;
+                return vs_generic_2d_conv_sep_byte_avx2;
             break;
         }
     } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
@@ -271,7 +271,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_word_avx2;
             else if (d->convolution_type == ConvolutionSeparable)
-                return vs_generic_1d_conv_x_word_avx2;
+                return vs_generic_2d_conv_sep_word_avx2;
             break;
         }
     } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
@@ -291,7 +291,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_float_avx2;
             else if (d->convolution_type == ConvolutionSeparable)
-                return vs_generic_1d_conv_x_float_avx2;
+                return vs_generic_2d_conv_sep_float_avx2;
             break;
         }
     }
@@ -317,7 +317,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_byte_sse2;
             else if (d->convolution_type == ConvolutionSeparable)
-                return vs_generic_1d_conv_x_byte_sse2;
+                return vs_generic_2d_conv_sep_byte_sse2;
             break;
         }
     } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
@@ -337,7 +337,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_word_sse2;
             else if (d->convolution_type == ConvolutionSeparable)
-                return vs_generic_1d_conv_x_word_sse2;
+                return vs_generic_2d_conv_sep_word_sse2;
             break;
         }
     } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
@@ -357,7 +357,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_float_sse2;
             else if (d->convolution_type == ConvolutionSeparable)
-                return vs_generic_1d_conv_x_float_sse2;
+                return vs_generic_2d_conv_sep_float_sse2;
             break;
         }
     }
@@ -386,7 +386,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_byte_c;
             else if (d->convolution_type == ConvolutionSeparable)
-                return vs_generic_1d_conv_x_byte_c;
+                return vs_generic_2d_conv_sep_byte_c;
             break;
         }
     } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
@@ -408,7 +408,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_word_c;
             else if (d->convolution_type == ConvolutionSeparable)
-                return vs_generic_1d_conv_x_word_c;
+                return vs_generic_2d_conv_sep_word_c;
             break;
         }
     } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
@@ -430,7 +430,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_float_c;
             else if (d->convolution_type == ConvolutionSeparable)
-                return vs_generic_1d_conv_x_float_c;
+                return vs_generic_2d_conv_sep_float_c;
             break;
         }
     }
