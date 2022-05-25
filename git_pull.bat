@@ -1,0 +1,13 @@
+git pull
+cd zimg
+git pull
+cd ..
+cd libp2p
+git pull
+cd ..
+cd AviSynthPlus
+git pull
+cd ..
+cd vsrepo
+git pull
+cd ..

@@ -35,7 +35,7 @@
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
-#define VAPOURSYNTH_CORE_VERSION 58
+#define VAPOURSYNTH_CORE_VERSION 59
 #define VAPOURSYNTH_INTERNAL_PLUGIN_VERSION VS_MAKE_VERSION(VAPOURSYNTH_CORE_VERSION, 0)
 #if defined(VS_FRAME_GUARD) && !defined(NDEBUG)
 #define VS_OPTIONS_TEXT "Options: Frame Guard + Extra Assertions\n"
@@ -47,7 +47,7 @@
 #define VS_OPTIONS_TEXT "Options: -\n"
 #endif
 #define VAPOURSYNTH_VERSION_STRING "VapourSynth Video Processing Library\n" \
-    "Copyright (c) 2012-2021 Fredrik Mellbin\n" \
+    "Copyright (c) 2012-2022 Fredrik Mellbin\n" \
     "Core R" XSTR(VAPOURSYNTH_CORE_VERSION) "\n" \
     "API R" XSTR(VAPOURSYNTH_API_MAJOR) "." XSTR(VAPOURSYNTH_API_MINOR) "\n" \
     "API R" XSTR(VAPOURSYNTH3_API_MAJOR) "." XSTR(VAPOURSYNTH3_API_MINOR) "\n" \
