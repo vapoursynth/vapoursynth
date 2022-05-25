@@ -1,3 +1,8 @@
+r59:
+fixed several convolution crashes
+fixed averageframes weights with float input
+fixed rare cython memory leak on error
+
 r58:
 updated the supported python versions to 3.10 and 3.8
 updated visual studio 2022 runtime version
