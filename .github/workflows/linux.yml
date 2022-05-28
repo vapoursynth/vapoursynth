@@ -4,7 +4,7 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build-gcc:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     env:
       CC: ${{ matrix.cc }}
@@ -13,29 +13,23 @@ jobs:
     strategy:
       matrix:
         include:
-          - cc: gcc-10
-            cxx: g++-10
           - cc: gcc-11
             cxx: g++-11
+          - cc: gcc-12
+            cxx: g++-12
       fail-fast: false
 
     steps:
     - uses: actions/checkout@v3
 
-    - name: Install GCC 11
-      if: ${{ matrix.cc == 'gcc-11' }}
+    - name: Install GCC 12
+      if: ${{ matrix.cc == 'gcc-12' }}
       run: |
         sudo apt-get update
-        sudo apt-get install g++-11 -y
+        sudo apt-get install g++-12
 
     - name: Print compiler version
       run: ${{ env.CC }} --version
-
-    - name: Upgrade automake
-      run: |
-        sudo add-apt-repository ppa:devacom/devel
-        sudo apt-get update
-        sudo apt-get install automake
 
     - name: Install zimg
       run: |
