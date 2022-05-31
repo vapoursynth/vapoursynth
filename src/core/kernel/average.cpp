@@ -36,7 +36,7 @@ void average_plane_int(const void *weights_, const void * const *srcs, unsigned 
 	}
 }
 
-void average_plane_float(const void *weights_, const void * const *srcs, unsigned num_srcs, void *dst_, const void *scale_, unsigned depth, unsigned w, unsigned h, ptrdiff_t stride, bool chroma)
+void average_plane_float(const void *weights_, const void * const *srcs, unsigned num_srcs, void *dst_, const void *scale_, unsigned depth, unsigned w, unsigned h, ptrdiff_t stride)
 {
 	const float *weights = static_cast<const float *>(weights_);
 	ptrdiff_t offset = 0;
@@ -85,5 +85,5 @@ void vs_average_plane_word_chroma_c(const void *weights, const void * const *src
 
 void vs_average_plane_float_c(const void *weights, const void * const *srcs, unsigned num_srcs, void *dst, const void *scale, unsigned depth, unsigned w, unsigned h, ptrdiff_t stride)
 {
-	average_plane_float(weights, srcs, num_srcs, dst, scale, depth, w, h, stride, true);
+	average_plane_float(weights, srcs, num_srcs, dst, scale, depth, w, h, stride);
 }

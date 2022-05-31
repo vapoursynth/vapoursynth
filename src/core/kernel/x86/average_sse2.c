@@ -269,7 +269,7 @@ void vs_average_plane_float_sse2(const void *weights_, const void * const *srcs,
 
 			for (k = 0; k < num_srcs; ++k) {
 				const float *ptr = (const float *)((const uint8_t *)srcs[k] + offset);
-				__m128 val = _mm_load_ps(ptr);
+				__m128 val = _mm_load_ps(ptr + j);
 				accum = _mm_add_ps(accum, _mm_mul_ps(val, weights[k]));
 			}
 
