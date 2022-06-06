@@ -68,7 +68,7 @@ FORCE_INLINE __m256i export_u16(__m256i i32_lo, __m256i i32_hi, const __m256 &sc
     i32_hi = _mm256_cvtps_epi32(tmp);
 
     i32_lo = _mm256_packus_epi32(i32_lo, i32_hi);
-    i32_lo = _mm256_min_epi16(i32_lo, maxval);
+    i32_lo = _mm256_min_epu16(i32_lo, maxval);
     return i32_lo;
 }
 
@@ -172,7 +172,7 @@ void conv_scanline_h_word_pass(const uint16_t *src, uint16_t *dst, int32_t *tmp,
     __m256 scale = _mm256_broadcast_ss(&params.div);
     __m256 bias = _mm256_broadcast_ss(&params.bias);
     __m256 saturatemask = _mm256_castsi256_ps(_mm256_set1_epi32(params.saturate ? 0xFFFFFFFF : 0x7FFFFFFF));
-    __m256i maxval = _mm256_set1_epi16(static_cast<int16_t>(static_cast<int32_t>(params.maxval) + INT16_MIN));
+    __m256i maxval = _mm256_set1_epi16(params.maxval);
 
     src = src - static_cast<ptrdiff_t>(params.matrixsize / 2) + K;
 
@@ -388,7 +388,7 @@ void conv_scanline_v_word_pass(const void * const src[], uint16_t *dst, int32_t 
     __m256 scale = _mm256_broadcast_ss(&params.div);
     __m256 bias = _mm256_broadcast_ss(&params.bias);
     __m256 saturatemask = _mm256_castsi256_ps(_mm256_set1_epi32(params.saturate ? 0xFFFFFFFF : 0x7FFFFFFF));
-    __m256i maxval = _mm256_set1_epi16(static_cast<int16_t>(static_cast<int32_t>(params.maxval) + INT16_MIN));
+    __m256i maxval = _mm256_set1_epi16(params.maxval);
 
     src = src - static_cast<ptrdiff_t>(params.matrixsize / 2) + K;
 
