@@ -1858,21 +1858,33 @@ VSCore::VSCore(int flags) :
 
 #else
     std::string configFile;
-    const char *home = getenv("HOME");
 #ifdef VS_TARGET_OS_DARWIN
-    std::string filter = ".dylib";
-    if (home) {
-        configFile.append(home).append("/Library/Application Support/VapourSynth/vapoursynth.conf");
-    }
+    const std::string filter = ".dylib";
 #else
-    std::string filter = ".so";
-    const char *xdg_config_home = getenv("XDG_CONFIG_HOME");
-    if (xdg_config_home) {
-        configFile.append(xdg_config_home).append("/vapoursynth/vapoursynth.conf");
-    } else if (home) {
-        configFile.append(home).append("/.config/vapoursynth/vapoursynth.conf");
-    } // If neither exists, an empty string will do.
+    const std::string filter = ".so";
 #endif
+    
+    const char *override = getenv("VAPOURSYNTH_CONF_PATH");
+
+    if (override) {
+        configFile.append(override);
+    } else {
+        const char *home = getenv("HOME");
+#ifdef VS_TARGET_OS_DARWIN
+        std::string filter = ".dylib";
+        if (home) {
+            configFile.append(home).append("/Library/Application Support/VapourSynth/vapoursynth.conf");
+        }
+#else
+        std::string filter = ".so";
+        const char *xdg_config_home = getenv("XDG_CONFIG_HOME");
+        if (xdg_config_home) {
+            configFile.append(xdg_config_home).append("/vapoursynth/vapoursynth.conf");
+        } else if (home) {
+            configFile.append(home).append("/.config/vapoursynth/vapoursynth.conf");
+        } // If neither exists, an empty string will do.
+#endif
+    }
 
     VSMap *settings = readSettings(configFile);
     const char *error = vs_internal_vsapi.mapGetError(settings);

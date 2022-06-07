@@ -312,6 +312,8 @@ $XDG_CONFIG_HOME/vapoursynth/vapoursynth.conf,
 or $HOME/.config/vapoursynth/vapoursynth.conf if XDG_CONFIG_HOME is not
 defined.
 
+To provide your own path to the config file, you can use $VAPOURSYNTH_CONF_PATH.
+
 Two configuration options may be used: **UserPluginDir**, empty by default,
 and **SystemPluginDir**, whose default value is set at compile time to
 ``$libdir/vapoursynth``, or to the location passed to the ``--with-plugindir``
@@ -331,3 +333,5 @@ OS X
 Autoloading can be configured using the file
 $HOME/Library/Application Support/VapourSynth/vapoursynth.conf. Everything else is
 the same as in Linux.
+
+Like on linux, you can use $VAPOURSYNTH_CONF_PATH to provide your own configuration.
