@@ -1193,6 +1193,12 @@ cdef class RawFrame(object):
         self._ensure_open()
         return createFrameProps(self)
 
+    @props.setter
+    def props(self, new_props):
+        p = self.props
+        p.clear()
+        p.update(**new_props)
+
     def get_write_ptr(self, int plane):
         self._ensure_open()
         if self.f == NULL:
