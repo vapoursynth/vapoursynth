@@ -1582,28 +1582,6 @@ cdef class RawNode(object):
     cdef ensure_valid_frame_number(self, int n):
         raise NotImplementedError("Needs to be implemented by subclass.")
 
-    def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
-        import warnings
-        warnings.warn("get_frame_async_raw() is deprecated. Use \"get_frame_async()\" instead.", DeprecationWarning)
-
-        def _handle_future(result, exception):
-            if not callable(cb):
-                if exception is not None:
-                    cb.set_exception(exception)
-                else:
-                    cb.set_result(result)
-
-            else:
-                if exception is not None:
-                    cb(self, n, exception)
-                else:
-                    cb(self, n, result)
-
-        if future_wrapper is not None:
-            return self.get_frame_async(n, lambda result, exception: future_wrapper(lambda: _handle_future(result, exception)))
-        else:
-            return self.get_frame_async(n, _handle_future)
-
     def get_frame_async(self, int n, object cb = None):
         if cb is None:
             def _handle_future(result, exception):

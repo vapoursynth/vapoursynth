@@ -329,38 +329,6 @@ Classes and Functions
 
       Added: R58
 
-   .. py:method:: get_frame_async_raw(n, cb: callable)
-
-      First form of this method. It will call the callback from another thread as soon as the frame is rendered.
-
-      The `result`-value passed to the callback will either be a VideoFrame-instance on success or a Error-instance
-      on failure.
-
-      *This method is intended for glue code. For normal use, use get_frame_async instead.*
-
-      Deprecated, use *get_frame_async(n, cb)* instead.
-
-      :param n: The frame number
-      :param cb: A callback in the form `cb(node, n, result)`
-
-   .. py:method:: get_frame_async_raw(n, cb: Future[, wrapper: callable = None])
-      :noindex:
-
-      Second form of this method. It will take a Future-like object (including asyncio.Future or similar)
-      and set its result or exception according to the result of the function.
-
-      The optional `wrapper`-parameter is intended for calls like asyncio.EventLoop.call_soon_threadsafe in which
-      all calls to its future-object must be wrapped.
-
-      *This method is intended for glue code. For normal use, use get_frame_async instead.*
-
-      Deprecated, use *get_frame_async(n, cb)* instead.
-
-      :param n: The frame number
-      :param cb: The future-object whose result will be set.
-      :param wrapper: A wrapper-callback which is responsible for moving the result across thread boundaries. If not
-                      given, the result of the future will be set in a random thread.
-
    .. py:method:: set_output(index = 0, alpha = None, alt_output = 0)
 
       Set the clip to be accessible for output. This is the standard way to
@@ -596,34 +564,6 @@ Classes and Functions
       exception thrown when rendering the frame.
 
       *The future will always be in the running or completed state*
-
-   .. py:method:: get_frame_async_raw(n, cb: callable)
-
-      First form of this method. It will call the callback from another thread as soon as the frame is rendered.
-
-      The `result`-value passed to the callback will either be a AudioFrame-instance on success or a Error-instance
-      on failure.
-
-      *This method is intended for glue code. For normal use, use get_frame_async instead.*
-
-      :param n: The frame number
-      :param cb: A callback in the form `cb(node, n, result)`
-
-   .. py:method:: get_frame_async_raw(n, cb: Future[, wrapper: callable = None])
-      :noindex:
-
-      Second form of this method. It will take a Future-like object (including asyncio.Future or similar)
-      and set its result or exception according to the result of the function.
-
-      The optional `wrapper`-parameter is intended for calls like asyncio.EventLoop.call_soon_threadsafe in which
-      all calls to its future-object must be wrapped.
-
-      *This method is intended for glue code. For normal use, use get_frame_async instead.*
-
-      :param n: The frame number
-      :param cb: The future-object whose result will be set.
-      :param wrapper: A wrapper-callback which is responsible for moving the result across thread boundaries. If not
-                      given, the result of the future will be set in a random thread.
 
    .. py:method:: set_output(index = 0)
 

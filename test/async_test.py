@@ -74,53 +74,6 @@ class FilterTestSequence(unittest.TestCase):
         self.assertIsInstance(self.cb_result[1], vs.Error)
         self.assertIsNone(self.cb_result[0])
 
-    def test_raw_cb_slow_old(self):
-        self.slow_filter.get_frame_async_raw(0, self.cb_old)
-        self.condition.wait(2)
-
-        self.assertTrue(self.cb_called)
-        self.assertEqual(self.cb_node, self.slow_filter)
-        self.assertEqual(self.cb_n, 0)
-        self.assertIsInstance(self.cb_result, vs.VideoFrame)
-
-    def test_raw_cb_fail_old(self):
-        self.fail_filter.get_frame_async_raw(0, self.cb_old)
-        self.condition.wait(2)
-
-        self.assertTrue(self.cb_called)
-        self.assertEqual(self.cb_node, self.fail_filter)
-        self.assertEqual(self.cb_n, 0)
-        self.assertIsInstance(self.cb_result, vs.Error)
-        self.assertEqual(str(self.cb_result), "Fail")
-
-    def test_raw_cb_fut_slow(self):
-        fut = Future()
-        fut.set_running_or_notify_cancel()
-        self.slow_filter.get_frame_async_raw(1, fut)
-        self.assertIsInstance(fut.result(2), vs.VideoFrame)
-
-    def test_raw_cb_fut_fail(self):
-        fut = Future()
-        fut.set_running_or_notify_cancel()
-        self.fail_filter.get_frame_async_raw(1, fut)
-        with self.assertRaisesRegex(vs.Error, "Fail"):
-            fut.result(2)
-
-    def test_raw_cb_fut_slow_mv(self):
-        fut = Future()
-        fut.set_running_or_notify_cancel()
-        self.slow_filter.get_frame_async_raw(1, fut, self.mv)
-        self.assertIsInstance(fut.result(2), vs.VideoFrame)
-        self.assertIsNotNone(self.mv_called)
-
-    def test_raw_cb_fut_fail_mv_old(self):
-        fut = Future()
-        fut.set_running_or_notify_cancel()
-        self.fail_filter.get_frame_async_raw(1, fut, self.mv)
-        with self.assertRaisesRegex(vs.Error, "Fail"):
-            fut.result(2)
-        self.assertIsNotNone(self.mv_called)
-
     def test_async_slow(self):
         fut = self.slow_filter.get_frame_async(1)
         self.assertIsInstance(fut.result(2), vs.VideoFrame)
