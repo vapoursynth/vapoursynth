@@ -1793,16 +1793,13 @@ cdef class VideoNode(RawNode):
         raise Error('Class cannot be instantiated directly')
         
     def __getattr__(self, name):
-        err = False
         try:
             obj = self.core.__getattr__(name)
             if isinstance(obj, Plugin):
                 (<Plugin>obj).injected_arg = self
             return obj
         except AttributeError:
-            err = True
-        if err:
-            raise AttributeError('There is no attribute or namespace named ' + name)
+            raise AttributeError(f'There is no attribute or namespace named {name}') from None
 
     cdef ensure_valid_frame_number(self, int n):
         if n < 0:
