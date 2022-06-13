@@ -2267,49 +2267,11 @@ cdef class Core(object):
             plugin = self.funcs.getNextPlugin(plugin, self.core)
             yield tmp
 
-    def get_plugins(self):
-        import warnings
-        warnings.warn("get_plugins() is deprecated. Use \"plugins()\" instead.", DeprecationWarning)
-        
-        cdef dict sout = {}
-        
-        for plugin in self.plugins():
-            plugin_dict = { 'namespace': plugin.namespace, 'identifier': plugin.identifier, 'name': plugin.name }
-
-            function_dict = {}
-            for func in plugin.functions():
-                function_dict[func.name] = func.signature
-
-            plugin_dict['functions'] = function_dict
-            sout[plugin_dict['identifier']] = plugin_dict
-
-        return sout
-
-    def list_functions(self):
-        import warnings
-        warnings.warn("list_functions() is deprecated. Use \"plugins()\" instead.", DeprecationWarning)
-        
-        sout = ""
-        plugins = self.get_plugins()
-        for plugin in sorted(plugins.keys()):
-            sout += 'name: ' + plugins[plugin]['name'] + '\n'
-            sout += 'namespace: ' + plugins[plugin]['namespace'] + '\n'
-            sout += 'identifier: ' + plugins[plugin]['identifier'] + '\n'
-            for function in sorted(plugins[plugin]['functions'].keys()):
-                line = '\t' + function + '(' + plugins[plugin]['functions'][function].replace(';', '; ') + ')\n'
-                sout += line.replace('; )', ')')
-        return sout
-
     def query_video_format(self, ColorFamily color_family, SampleType sample_type, int bits_per_sample, int subsampling_w = 0, int subsampling_h = 0):
         cdef VSVideoFormat fmt
         if not self.funcs.queryVideoFormat(&fmt, color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core):
             raise Error('Invalid format specified')
         return createVideoFormat(&fmt, self.funcs, self.core)
-
-    def register_format(self, ColorFamily color_family, SampleType sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
-        import warnings
-        warnings.warn("register_format() is deprecated. Use \"query_video_format\" instead.", DeprecationWarning)
-        return self.query_video_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h);
 
     def get_video_format(self, uint32_t id):
         cdef VSVideoFormat fmt
@@ -2317,11 +2279,6 @@ cdef class Core(object):
             raise Error('Invalid format id specified')
         else:
             return createVideoFormat(&fmt, self.funcs, self.core)
-
-    def get_format(self, uint32_t id):
-        import warnings
-        warnings.warn("get_format() is deprecated. Use \"get_video_format\" instead.", DeprecationWarning)
-        return self.get_video_format(id);
         
     def log_message(self, MessageType message_type, str message):
         self.funcs.logMessage(message_type, message.encode('utf-8'), self.core)
@@ -2452,20 +2409,6 @@ cdef class Plugin(object):
             tmp = createFunction(func, self, self.funcs)
             func = self.funcs.getNextPluginFunction(func, self.plugin)
             yield tmp
-
-    def get_functions(self):
-        import warnings
-        warnings.warn("get_functions() is deprecated. Use \"functions()\" instead.", DeprecationWarning)
-        
-        cdef dict sout = {}
-        for func in self.functions():
-            sout[func.name] = func.signature
-        
-        return sout
-
-    def list_functions(self):
-        import warnings
-        warnings.warn("list_functions() is deprecated. Use \"functions()\" instead.", DeprecationWarning)
         
         sout = ""
         functions = self.get_functions()

@@ -1,3 +1,7 @@
+r60:
+removed all deprecated (and replaced by better versions) functions in python: get_frame_async_raw, get_plugins, get_functions, list_functions, get_format, register_format
+fixed convolution output for 9-15 bit material
+
 r59:
 fixed several convolution crashes
 fixed averageframes weights with float input

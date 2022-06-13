@@ -206,29 +206,13 @@ Classes and Functions
 
       Containing all loaded plugins.
 
-   .. py:method:: get_plugins()
-
-      Deprecated, use *plugins()* instead.
-
-   .. py:method:: list_functions()
-
-      Deprecated, use *plugins()* instead.
-
    .. py:method:: get_video_format(id)
 
       Retrieve a Format object corresponding to the specified id. Returns None if the *id* is invalid.
 
-   .. py:method:: get_format(id)
-
-      Deprecated, use *get_video_format()* instead.
-
    .. py:method:: query_video_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
 
       Retrieve a Format object corresponding to the format information, Invalid formats throw an exception.
-
-   .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
-
-      Deprecated, use *query_video_format()* instead.
 
    .. py:method:: add_log_handler(handler_func)
 
@@ -672,14 +656,6 @@ Classes and Functions
 
       Containing all the functions in the plugin, You can access it by calling *core.<namespace>.functions()*.
 
-   .. py:method:: get_functions()
-
-      Deprecated, use *functions()* instead.
-
-   .. py:method:: list_functions()
-
-      Deprecated, use *functions()* instead.
-
 .. py:class:: Function
 
    Function is a simple wrapper class for a function provided by a VapourSynth plugin.
@@ -718,23 +694,6 @@ Classes and Functions
         with env.use():
           # Do stuff inside this env.
 
-   .. warning::
-
-      Environment-objects obtained using the :func:`vpy_current_environment` can directly be used as
-      as a context manager. This can cause undefined behaviour when used in combination with generators and/or
-      coroutines.
-
-      This context-manager maintains a thread-local environment-stack that is used to restore the previous environment.
-      This can cause issues if the frame is suspended inside the block.
-
-      A similar problem also existed in previous VapourSynth versions!
-
-      .. code::
-
-         env = vpy_current_environment()
-         with env:
-              yield
-
    .. py:function:: is_single()
 
       Returns True if the script is _not_ running inside a vsscript-Environment.
@@ -772,12 +731,6 @@ Classes and Functions
                  pass
 
       Added: R51
-
-.. py:function:: vpy_current_environment()
-
-   Deprecated. Use :func:`get_current_environment` instead.
-
-   This function has been deprecated as this function has undefined behaviour when used together with generators or coroutines.
 
 .. py:function:: get_current_environment()
 
@@ -897,7 +850,6 @@ Classes and Functions
       * Using :func:`get_output`
       * Using :func:`clear_output`
       * Using :func:`clear_outputs`
-      * Using :func:`vpy_current_environment`
       * Using :func:`get_current_environment`
       * Accessing any attribute of :attr:`core`
 
