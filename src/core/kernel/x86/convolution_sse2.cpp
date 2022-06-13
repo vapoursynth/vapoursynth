@@ -650,7 +650,6 @@ template <class T>
 void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
 {
     unsigned width_aligned = (width + 15U) & ~15U;
-    ptrdiff_t support = params.matrixsize / 2;
 
     // Max support = 12. Max buffering = 12 before, 16 window, 12 after.
     alignas(16) T padded[48];
