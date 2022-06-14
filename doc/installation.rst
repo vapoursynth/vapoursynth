@@ -282,8 +282,8 @@ Global plugins are placed last to prevent them from overriding any of the includ
 The searched paths are:
 
 #. *<AppData>*\\VapourSynth\\plugins32 or *<AppData>*\\VapourSynth\\plugins64
-#. *<VapourSynth path>*\\core32\\plugins or *<VapourSynth path>*\\core64\\plugins
-#. *<VapourSynth path>*\\plugins32 or *<VapourSynth path>*\\plugins64
+#. *<VapourSynth path>*\\core\\plugins
+#. *<VapourSynth path>*\\plugins
 
 Note that the per user path is not created by default. 
 On modern Windows versions the *AppData* directory is located in *<user>*\\AppData\\Roaming by default.
