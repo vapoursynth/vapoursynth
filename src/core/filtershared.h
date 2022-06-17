@@ -143,7 +143,7 @@ static inline bool getProcessPlanesArg(const VSMap *in, VSMap *out, const char *
     return true;
 }
 
-static bool is8to16orFloatFormat(const VSVideoFormat &fi, bool allowVariable = false, bool allowCompat = false) {
+static bool is8to16orFloatFormat(const VSVideoFormat &fi, bool allowVariable = false) {
     if (fi.colorFamily == cfUndefined && !allowVariable)
         return false;
 
