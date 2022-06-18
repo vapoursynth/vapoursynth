@@ -657,11 +657,16 @@ static const VSFrame *VS_CC freezeFramesGetFrame(int n, int activationReason, vo
 }
 
 static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<FreezeFramesData> d(new FreezeFramesData(vsapi));
-
     int num_freeze = vsapi->mapNumElements(in, "first");
     if (num_freeze != vsapi->mapNumElements(in, "last") || num_freeze != vsapi->mapNumElements(in, "replacement"))
         RETERROR("FreezeFrames: 'first', 'last', and 'replacement' must have the same length.");
+
+    if (num_freeze == 0) {
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clip", 0, 0), maAppend);
+        return;
+    }
+
+    std::unique_ptr<FreezeFramesData> d(new FreezeFramesData(vsapi));
 
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
@@ -706,5 +711,5 @@ void reorderInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Splice", "clips:vnode[];mismatch:int:opt;", "clip:vnode;", spliceCreate, 0, plugin);
     vspapi->registerFunction("DuplicateFrames", "clip:vnode;frames:int[];", "clip:vnode;", duplicateFramesCreate, 0, plugin);
     vspapi->registerFunction("DeleteFrames", "clip:vnode;frames:int[];", "clip:vnode;", deleteFramesCreate, 0, plugin);
-    vspapi->registerFunction("FreezeFrames", "clip:vnode;first:int[];last:int[];replacement:int[];", "clip:vnode;", freezeFramesCreate, 0, plugin);
+    vspapi->registerFunction("FreezeFrames", "clip:vnode;first:int[]:empty;last:int[]:empty;replacement:int[]:empty;", "clip:vnode;", freezeFramesCreate, 0, plugin);
 }

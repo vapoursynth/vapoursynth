@@ -1,5 +1,6 @@
 r60:
-you can directly assign to frame-props.
+freezeframes now accepts empty arrays and simply passes through the source clip
+you can directly assign to frame-props
 removed all deprecated (and replaced by better versions) functions in python: get_frame_async_raw, get_plugins, get_functions, list_functions, get_format, register_format
 fixed convolution output for 9-15 bit material
 
