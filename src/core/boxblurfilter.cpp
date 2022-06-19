@@ -318,7 +318,7 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
         if (!is8to16orFloatFormat(vi->format))
-            throw std::runtime_error("clip must be constant format and of integer 8-16 bit type or 32 bit float");
+            throw std::runtime_error("clip must be constant format and of integer 8-16 bit type or 32 bit float, passed " + videoFormatToName(vi->format, vsapi));
 
         bool process[3];
         getPlanesArg(in, process, vsapi);

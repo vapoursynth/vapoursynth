@@ -56,6 +56,14 @@ static inline int floatToIntS(float f) {
         return static_cast<int>(lround(f));
 }
 
+static inline std::string videoFormatToName(const VSVideoFormat &f, const VSAPI *vsapi) {
+    char buffer[32] = {};
+    if (vsapi->getVideoFormatName(&f, buffer))
+        return buffer;
+    else
+        return std::string();
+}
+
 // Convenience structs for *NodeData templates
 
 typedef struct NoExtraData {

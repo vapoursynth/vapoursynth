@@ -112,14 +112,14 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
 
     const VSVideoInfo *alphavi = vsapi->getVideoInfo(d->nodes[1]);
 
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(("PreMultiply: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(d->vi->format, vsapi)).c_str());
+
     if (alphavi->format.colorFamily != cfGray || alphavi->format.sampleType != d->vi->format.sampleType || alphavi->format.bitsPerSample != d->vi->format.bitsPerSample)
         RETERROR("PreMultiply: alpha clip must be grayscale and same sample format and bitdepth as main clip");
 
     if (!isConstantVideoFormat(d->vi) || !isConstantVideoFormat(alphavi) || d->vi->width != alphavi->width || d->vi->height != alphavi->height)
         RETERROR("PreMultiply: both clips must have the same constant format and dimensions");
-
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR("PreMultiply: only 8-16 bit integer and 32 bit float input supported");
 
     // do we need to resample the first mask plane and use it for all the planes?
     if ((d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0)) {
@@ -275,11 +275,11 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
     d->cpulevel = vs_get_cpulevel(core);
 
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(("Merge: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(d->vi->format, vsapi)).c_str());
+
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR("Merge: both clips must have constant format and dimensions, and the same format and dimensions");
-
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR("Merge: only 8-16 bit integer and 32 bit float input supported");
 
     if (nweight > d->vi->format.numPlanes)
         RETERROR("Merge: more weights given than the number of planes to merge");
@@ -415,11 +415,11 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     if (maskvi->format.numPlanes == 1)
         d->first_plane = 1;
 
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(("MaskedMerge: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(d->vi->format, vsapi)).c_str());
+
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->nodes[1])))
         RETERROR("MaskedMerge: both clips must have constant format and dimensions, and the same format and dimensions");
-
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR("MaskedMerge: only 8-16 bit integer and 32 bit float input supported");
 
     if (maskvi->width != d->vi->width || maskvi->height != d->vi->height || maskvi->format.bitsPerSample != d->vi->format.bitsPerSample
         || (!isSameVideoFormat(&maskvi->format, &d->vi->format) && maskvi->format.colorFamily != cfGray && !d->first_plane))
@@ -551,11 +551,11 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(("MakeDiff: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(d->vi->format, vsapi)).c_str());
+
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR("MakeDiff: both clips must have constant format and dimensions, and the same format and dimensions");
-
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR("MakeDiff: only 8-16 bit integer and 32 bit float input supported");
 
     if (!getProcessPlanesArg(in, out, "MakeDiff", d->process, vsapi))
         return;
@@ -657,11 +657,11 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(("MergeDiff: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(d->vi->format, vsapi)).c_str());
+
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR("MergeDiff: both clips must have constant format and dimensions, and the same format and dimensions");
-
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR("MergeDiff: only 8-16 bit integer and 32 bit float input supported");
 
     if (!getProcessPlanesArg(in, out, "MergeDiff", d->process, vsapi))
         return;
