@@ -96,6 +96,7 @@ static std::string mismatchToText(const MismatchInfo &info) {
             s += ", ";
         s += "framerate";
     }
+    return s;
 }
 
 //////////////////////////////////////////

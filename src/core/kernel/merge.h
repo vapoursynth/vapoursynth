@@ -38,7 +38,9 @@ union vs_merge_weight {
 #define DECL_MASK_MERGE(pixel, isa) void vs_mask_merge_##pixel##_##isa(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
 #define DECL_MASK_MERGE_PREMUL(pixel, isa) void vs_mask_merge_premul_##pixel##_##isa(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
 #define DECL_MAKEDIFF(pixel, isa) void vs_makediff_##pixel##_##isa(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
+#define DECL_MAKEFULLDIFF(pixelfrom, pixelto, isa) void vs_makefulldiff_##pixelfrom##_##pixelto##_##isa(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
 #define DECL_MERGEDIFF(pixel, isa) void vs_mergediff_##pixel##_##isa(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
+#define DECL_MERGEFULLDIFF(pixelfrom, pixelto, isa) void vs_mergefulldiff_##pixelfrom##_##pixelto##_##isa(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
 
 DECL_PREMUL(byte, c)
 DECL_PREMUL(word, c)
@@ -60,9 +62,17 @@ DECL_MAKEDIFF(byte, c)
 DECL_MAKEDIFF(word, c)
 DECL_MAKEDIFF(float, c)
 
+DECL_MAKEFULLDIFF(byte, word, c)
+DECL_MAKEFULLDIFF(word, word, c)
+DECL_MAKEFULLDIFF(word, dword, c)
+
 DECL_MERGEDIFF(byte, c)
 DECL_MERGEDIFF(word, c)
 DECL_MERGEDIFF(float, c)
+
+DECL_MERGEFULLDIFF(word, byte, c)
+DECL_MERGEFULLDIFF(word, word, c)
+DECL_MERGEFULLDIFF(dword, word, c)
 
 #ifdef VS_TARGET_CPU_X86
 DECL_MERGE(byte, sse2);

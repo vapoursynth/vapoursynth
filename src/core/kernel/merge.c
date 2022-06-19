@@ -319,6 +319,51 @@ void vs_makediff_float_c(const void *src1, const void *src2, void *dst, unsigned
     }
 }
 
+void vs_makefulldiff_byte_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
+    const uint8_t *srcp1 = src1;
+    const uint8_t *srcp2 = src2;
+    uint16_t *dstp = dst;
+    unsigned i;
+
+    (void)depth;
+
+    for (i = 0; i < n; i++) {
+        uint8_t v1 = srcp1[i];
+        uint8_t v2 = srcp2[i];
+        dstp[i] = (int)v1 - (int)v2 + 256;
+    }
+}
+
+void vs_makefulldiff_word_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
+    const uint16_t *srcp1 = src1;
+    const uint16_t *srcp2 = src2;
+    uint16_t *dstp = dst;
+    unsigned i;
+
+    uint16_t half = 1U << depth;
+
+    for (i = 0; i < n; i++) {
+        uint16_t v1 = srcp1[i];
+        uint16_t v2 = srcp2[i];
+        dstp[i] = v1 - v2 + half;
+    }
+}
+
+void vs_makefulldiff_word_dword_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
+    const uint16_t *srcp1 = src1;
+    const uint16_t *srcp2 = src2;
+    uint32_t *dstp = dst;
+    unsigned i;
+
+    int32_t half = 1U << depth;
+
+    for (i = 0; i < n; i++) {
+        uint16_t v1 = srcp1[i];
+        uint16_t v2 = srcp2[i];
+        dstp[i] = (int32_t)v1 - (int32_t)v2 + half;
+    }
+}
+
 void vs_mergediff_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
     const uint8_t *srcp1 = src1;
@@ -364,5 +409,54 @@ void vs_mergediff_float_c(const void *src1, const void *src2, void *dst, unsigne
 
     for (i = 0; i < n; i++) {
         dstp[i] = srcp1[i] + srcp2[i];
+    }
+}
+
+void vs_mergefulldiff_word_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
+    const uint8_t *srcp1 = src1;
+    const uint16_t *srcp2 = src2;
+    uint8_t *dstp = dst;
+    unsigned i;
+
+    (void)depth;
+
+    for (i = 0; i < n; i++) {
+        uint8_t v1 = srcp1[i];
+        uint16_t v2 = srcp2[i];
+        dstp[i] = VSMIN(VSMAX((int32_t)v1 + (int32_t)v2 - 256, 0), 255);
+    }
+}
+
+void vs_mergefulldiff_word_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
+    const uint16_t *srcp1 = src1;
+    const uint16_t *srcp2 = src2;
+    uint16_t *dstp = dst;
+    unsigned i;
+
+    int32_t half = 1U << depth;
+    int32_t maxval = (1U << depth) - 1;
+
+    for (i = 0; i < n; i++) {
+        uint16_t v1 = srcp1[i];
+        uint16_t v2 = srcp2[i];
+        int32_t tmp = (int32_t)v1 + (int32_t)v2 - half;
+        dstp[i] = VSMIN(VSMAX(tmp, 0), maxval);
+    }
+}
+
+void vs_mergefulldiff_dword_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
+    const uint16_t *srcp1 = src1;
+    const uint32_t *srcp2 = src2;
+    uint16_t *dstp = dst;
+    unsigned i;
+
+    int32_t half = 1U << depth;
+    int32_t maxval = (1U << depth) - 1;
+
+    for (i = 0; i < n; i++) {
+        uint16_t v1 = srcp1[i];
+        uint16_t v2 = srcp2[i];
+        int32_t tmp = (int32_t)v1 + (int32_t)v2 - half;
+        dstp[i] = VSMIN(VSMAX(tmp, 0), maxval);
     }
 }
