@@ -231,11 +231,11 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         if (!is8to16orFloatFormat(d->vi.format))
             throw std::runtime_error("clips must be constant format and of integer 8-16 bit type or 32 bit float, passed " + videoFormatToName(d->vi.format, vsapi));
 
-        for (auto iter : d->nodes) {
-            const VSVideoInfo *vi = vsapi->getVideoInfo(iter);
+        for (size_t i = 1; i < d->nodes.size(); i++) {
+            const VSVideoInfo *vi = vsapi->getVideoInfo(d->nodes[i]);
             d->vi.numFrames = std::max(d->vi.numFrames, vi->numFrames);
             if (!isSameVideoInfo(&d->vi, vi))
-                throw std::runtime_error("All clips must have the same format");
+                throw std::runtime_error(("All clips must have the same format, passed " + videoInfoToString(&d->vi, vsapi) + " and " + videoInfoToString(vi, vsapi) + " in clip #" + std::to_string(i)).c_str());
         }
 
         for (int i = 0; i < numWeights; i++) {

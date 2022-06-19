@@ -2015,7 +2015,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     if (d->node2) {
         const VSVideoInfo *vi2 = vsapi->getVideoInfo(d->node2);
         if (!isSameVideoInfo(vi, vi2) || !isConstantVideoFormat(vi2))
-            RETERROR("PlaneStats: both input clips must have the same format when second clip is used");
+            RETERROR(("PlaneStats: both input clips must have the same format when second clip is used, passed " + videoInfoToString(vi, vsapi) + " and " + videoInfoToString(vi2, vsapi)).c_str());
     }
 
     const char *tmpprop = vsapi->mapGetData(in, "prop", 0, &err);

@@ -279,7 +279,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         RETERROR(("Merge: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(d->vi->format, vsapi)).c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
-        RETERROR("Merge: both clips must have constant format and dimensions, and the same format and dimensions");
+        RETERROR(("Merge: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
 
     if (nweight > d->vi->format.numPlanes)
         RETERROR("Merge: more weights given than the number of planes to merge");
@@ -419,11 +419,11 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
         RETERROR(("MaskedMerge: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(d->vi->format, vsapi)).c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->nodes[1])))
-        RETERROR("MaskedMerge: both clips must have constant format and dimensions, and the same format and dimensions");
+        RETERROR(("MaskedMerge: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[1]), vsapi)).c_str());
 
     if (maskvi->width != d->vi->width || maskvi->height != d->vi->height || maskvi->format.bitsPerSample != d->vi->format.bitsPerSample
         || (!isSameVideoFormat(&maskvi->format, &d->vi->format) && maskvi->format.colorFamily != cfGray && !d->first_plane))
-        RETERROR("MaskedMerge: mask clip must have same dimensions as main clip and be the same format or equivalent grayscale version");
+        RETERROR(("MaskedMerge: mask clip must have same dimensions as main clip and be the same format or grayscale, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(maskvi, vsapi)).c_str());
 
     if (!getProcessPlanesArg(in, out, "MaskedMerge", d->process, vsapi))
         return;
@@ -555,7 +555,7 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
         RETERROR(("MakeDiff: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(d->vi->format, vsapi)).c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
-        RETERROR("MakeDiff: both clips must have constant format and dimensions, and the same format and dimensions");
+        RETERROR(("MakeDiff: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
 
     if (!getProcessPlanesArg(in, out, "MakeDiff", d->process, vsapi))
         return;
@@ -661,7 +661,7 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
         RETERROR(("MergeDiff: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(d->vi->format, vsapi)).c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
-        RETERROR("MergeDiff: both clips must have constant format and dimensions, and the same format and dimensions");
+        RETERROR(("MergeDiff: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
 
     if (!getProcessPlanesArg(in, out, "MergeDiff", d->process, vsapi))
         return;

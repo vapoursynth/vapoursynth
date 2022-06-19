@@ -61,7 +61,11 @@ static inline std::string videoFormatToName(const VSVideoFormat &f, const VSAPI 
     if (vsapi->getVideoFormatName(&f, buffer))
         return buffer;
     else
-        return std::string();
+        return "ERROR";
+}
+
+static inline std::string videoInfoToString(const VSVideoInfo *f, const VSAPI *vsapi) {
+    return videoFormatToName(f->format, vsapi) + ((f->width == 0 || f->height == 0) ? "[undefined]" : ("[" + std::to_string(f->width) + "x" + std::to_string(f->height) + "]"));
 }
 
 // Convenience structs for *NodeData templates
