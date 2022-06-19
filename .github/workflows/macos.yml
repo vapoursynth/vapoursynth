@@ -4,7 +4,7 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build-clang:
-    runs-on: macos-latest
+    runs-on: macos-12
 
     env:
       CC: clang
