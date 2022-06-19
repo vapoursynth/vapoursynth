@@ -1,4 +1,5 @@
 r60:
+better error messages when filters get unsupported input formats or combinations thereof
 freezeframes now accepts empty arrays and simply passes through the source clip
 you can directly assign to frame-props
 removed all deprecated (and replaced by better versions) functions in python: get_frame_async_raw, get_plugins, get_functions, list_functions, get_format, register_format
