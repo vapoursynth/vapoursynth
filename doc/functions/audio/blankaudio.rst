@@ -11,7 +11,7 @@ BlankAudio
    are set, then *sampletype* will take precedence.
    
    The *channels* argument are a bitmask of shifted channel constants. For example
-   the default stereo value is formed by doing (1 << acFrontLeft) | (1 << acFrontRight).
+   the default stereo value is formed by doing (1 << FRONT_LEFT) | (1 << FRONT_RIGHT).
    
    The possible *sampletype* values are currently INTEGER (0) and FLOAT (1).
 

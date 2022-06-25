@@ -1,4 +1,6 @@
 r60:
+fixed splitchannels crash on certain channel configurations (YomikoR)
+added makefulldiff and mergefulldiff, these are versions of makediff and mergediff that don't clamp the difference to half range and instead use a higher precision diff clip
 better error messages when filters get unsupported input formats or combinations thereof
 freezeframes now accepts empty arrays and simply passes through the source clip
 you can directly assign to frame-props
