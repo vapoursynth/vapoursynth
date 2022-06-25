@@ -806,11 +806,12 @@ static void VS_CC splitChannelsCreate(const VSMap *in, VSMap *out, void *userDat
     for (int i = 0; i < numChannels; i++) {
         while (!(channelLayout & (static_cast<uint64_t>(1) << index)))
             index++;
-        vsapi->mapSetInt(map, "channels_in", i, maReplace);
-        vsapi->mapSetInt(map, "channels_out", i, maReplace);
+        vsapi->mapSetInt(map, "channels_in", index, maReplace);
+        vsapi->mapSetInt(map, "channels_out", index, maReplace);
         VSMap *tmp = vsapi->invoke(vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core), "ShuffleChannels", map);
         vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(tmp, "clip", 0, nullptr), maAppend);
         vsapi->freeMap(tmp);
+        index++;
     }
 
     vsapi->freeMap(map);
