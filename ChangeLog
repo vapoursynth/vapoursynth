@@ -1,4 +1,5 @@
 r60:
+blankaudio now takes an array of channel constants since this better matches how most other functions work
 fixed splitchannels crash on certain channel configurations (YomikoR)
 added makefulldiff and mergefulldiff, these are versions of makediff and mergediff that don't clamp the difference to half range and instead use a higher precision diff clip
 better error messages when filters get unsupported input formats or combinations thereof

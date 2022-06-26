@@ -1,7 +1,7 @@
 BlankAudio
 ==========
 
-.. function:: BlankAudio([anode clip, int channels=<stereo>, int bits=16, int sampletype=INTEGER, int samplerate=44100, int length=(10*samplerate), bint keep=0])
+.. function:: BlankAudio([anode clip, int[] channels=[FRONT_LEFT, FRONT_RIGHT], int bits=16, int sampletype=INTEGER, int samplerate=44100, int length=(10*samplerate), bint keep=0])
    :module: std
 
    Generates a new empty clip. This can be useful to have when editing audio
@@ -10,8 +10,8 @@ BlankAudio
    the properties from *clip*. If both an argument such as *sampletype*, and *clip*
    are set, then *sampletype* will take precedence.
    
-   The *channels* argument are a bitmask of shifted channel constants. For example
-   the default stereo value is formed by doing (1 << FRONT_LEFT) | (1 << FRONT_RIGHT).
+   The *channels* argument is a list of channel constants. Specifying the same channel twice
+   is not allowed.
    
    The possible *sampletype* values are currently INTEGER (0) and FLOAT (1).
 

@@ -921,13 +921,19 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
         hasai = true;
     }
 
-    tmp2 = vsapi->mapGetInt(in, "channels", 0, &err);
+    int numChannelElems = vsapi->mapNumElements(in, "channels");
 
-    if (err) {
+    if (numChannelElems <= 0) {
         if (!hasai)
             d->ai.format.channelLayout = (1 << acFrontLeft) | (1 << acFrontRight);
     } else {
-        d->ai.format.channelLayout = tmp2;
+        d->ai.format.channelLayout = 0;
+        for (int i = 0; i < numChannelElems; i++) {
+            int64_t ctemp = vsapi->mapGetInt(in, "channels", i, nullptr);
+            if (d->ai.format.channelLayout & ctemp)
+                RETERROR("BlankAudio: channel specified twice");
+            d->ai.format.channelLayout |= ctemp;
+        }
     }
 
     tmp1 = vsapi->mapGetIntSaturated(in, "bits", 0, &err);
@@ -1058,6 +1064,6 @@ void audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("ShuffleChannels", "clips:anode[];channels_in:int[];channels_out:int[];", "clip:anode;", shuffleChannelsCreate, 0, plugin);
     vspapi->registerFunction("SplitChannels", "clip:anode;", "clip:anode[];", splitChannelsCreate, 0, plugin);
     vspapi->registerFunction("AssumeSampleRate", "clip:anode;src:anode:opt;samplerate:int:opt;", "clip:anode;", assumeSampleRateCreate, 0, plugin);
-    vspapi->registerFunction("BlankAudio", "clip:anode:opt;channels:int:opt;bits:int:opt;sampletype:int:opt;samplerate:int:opt;length:int:opt;keep:int:opt;", "clip:anode;", blankAudioCreate, 0, plugin);
+    vspapi->registerFunction("BlankAudio", "clip:anode:opt;channels:int[]:opt;bits:int:opt;sampletype:int:opt;samplerate:int:opt;length:int:opt;keep:int:opt;", "clip:anode;", blankAudioCreate, 0, plugin);
     vspapi->registerFunction("TestAudio", "channels:int:opt;bits:int:opt;isfloat:int:opt;samplerate:int:opt;length:int:opt;", "clip:anode;", testAudioCreate, 0, plugin);
 }
