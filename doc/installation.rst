@@ -90,6 +90,14 @@ Arch Linux
 ----------
 `VapourSynth-related packages <https://www.archlinux.org/packages/?q=vapoursynth>`_ are provided by the Community repository.
 
+Nix and NixOS
+-------------
+``vapoursynth`` is available on nixpkgs, either via ``nixpkgs#vapoursynth`` or via ``nixpkgs#python3Packages.vapoursynth`` (currently on unstable only).
+Be aware that the derivation is broken on MacOS.
+
+VapourSynth releases are not backported to the current stable branch.
+To get the newest version use the unstable branch.
+
 Windows Compilation
 *******************
 
