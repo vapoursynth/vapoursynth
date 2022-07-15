@@ -878,6 +878,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
             else if (bytesPerOutputSample == 4)
                 PackChannels32to32le(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af.numChannels);
 
+            lSamples -= copyLength;
             dstPos += copyLength * af.numChannels * bytesPerOutputSample;
 
             vsapi->freeFrame(f);
