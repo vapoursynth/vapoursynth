@@ -766,7 +766,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         vsapi->getVideoFormatName(&parent->vi->format, nameBuffer);
 
         std::string frameErrorScript = "import vapoursynth as vs\nimport sys\ncore = vs.core\n";
-        frameErrorScript += "err_script_formatid = " + std::string(nameBuffer) + "\n";
+        frameErrorScript += "err_script_formatid = vs." + std::string(nameBuffer) + "\n";
         frameErrorScript += "err_script_width = " + std::to_string(parent->vi->width) + "\n";
         frameErrorScript += "err_script_height = " + std::to_string(parent->vi->height) + "\n";
         frameErrorScript += "err_script_background = core.std.BlankClip(width=err_script_width, height=err_script_height, format=vs.RGB24)\n";
