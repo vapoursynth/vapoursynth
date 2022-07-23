@@ -1656,8 +1656,8 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     do {
         try {
             loadPlugin(utf16_to_utf8(path + L"\\" + findData.cFileName));
-        } catch (VSException &) {
-            // Ignore any errors
+        } catch (VSException &e) {
+            logMessage(mtWarning, e.what());
         }
     } while (FindNextFile(findHandle, &findData));
     FindClose(findHandle);
@@ -1683,8 +1683,8 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
                 std::string fullname;
                 fullname.append(path).append("/").append(name);
                 loadPlugin(fullname);
-            } catch (VSException &) {
-                // Ignore any errors
+            } catch (VSException &e) {
+                logMessage(mtWarning, e.what());
             }
         }
     }
