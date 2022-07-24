@@ -548,10 +548,12 @@ class vszimg {
             if (m_field_op == FieldOp::DEINTERLACE)
                 m_vi.height = node_vi.height * 2;
 
-            if (int format_id = propGetScalarDef<int>(in, "format", 0, vsapi))
-                vsapi->getVideoFormatByID(&m_vi.format, format_id, core);
-            else
+            if (int format_id = propGetScalarDef<int>(in, "format", 0, vsapi)) {
+                if (!vsapi->getVideoFormatByID(&m_vi.format, format_id, core) || m_vi.format.colorFamily == cfUndefined)
+                    throw std::runtime_error{ "Invalid format id." };
+            } else {
                 m_vi.format = node_vi.format;
+            }
 
             lookup_enum(in, "matrix", g_matrix_table, &m_frame_params.matrix, vsapi);
             lookup_enum(in, "transfer", g_transfer_table, &m_frame_params.transfer, vsapi);
