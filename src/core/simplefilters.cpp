@@ -1274,8 +1274,12 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     tmp1 = vsapi->mapGetIntSaturated(in, "length", 0, &err);
 
     if (err) {
-        if (!hasvi)
-            d->vi.numFrames = int64ToIntS((d->vi.fpsNum * 10) / d->vi.fpsDen);
+        if (!hasvi) {
+            if (d->vi.fpsNum > 0 && d->vi.fpsDen > 0)
+                d->vi.numFrames = int64ToIntS((d->vi.fpsNum * 10) / d->vi.fpsDen);
+            else
+                d->vi.numFrames = 300;
+        }
     } else {
         d->vi.numFrames = tmp1;
     }
