@@ -80,6 +80,10 @@ static void real_init(void) VS_NOEXCEPT {
     if (isPortable) {
         std::wstring pyPath = dllPath + L"\\" + pythonDllName;
         pythonDll = LoadLibraryExW(pyPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+        if (!pythonDll) {
+            pyPath = dllPath + L"\\..\\" + pythonDllName;
+            pythonDll = LoadLibraryExW(pyPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+        }
     } else {
         DWORD dwType = REG_SZ;
         HKEY hKey = 0;
