@@ -1389,6 +1389,79 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 }
 
 //////////////////////////////////////////
+// Recover
+typedef struct {
+    VSVideoInfo vi;
+    VSFunction *func;
+    VSNode *clip;
+    VSMap* in;
+    VSMap* out;
+} RecoverData;
+
+static const VSFrame*VS_CC recoverGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    RecoverData *d = reinterpret_cast<RecoverData *>(instanceData);
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->clip, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        return vsapi->getFrameFilter(n, d->clip, frameCtx);
+    } else if (activationReason == arError) {
+        int err;
+        const char* errorMessage = vsapi->getFilterError(frameCtx);
+        if (errorMessage != nullptr) 
+            vsapi->mapSetData(d->in, "reason", errorMessage, strlen(errorMessage), dtUtf8, 0);
+        vsapi->clearFilterError(frameCtx);
+
+        vsapi->mapSetInt(d->in, "n", n, maAppend);
+
+        vsapi->callFunction(d->func, d->in, d->out);
+        vsapi->clearMap(d->in);
+        if (vsapi->mapGetError(d->out)) {
+            vsapi->setFilterError(vsapi->mapGetError(d->out), frameCtx);
+            vsapi->clearMap(d->out);
+            return nullptr;
+        };
+
+        const VSFrame *frame = vsapi->mapGetFrame(d->out, "val", 0, &err);
+        vsapi->clearMap(d->out);
+
+        if (err) {
+            vsapi->setFilterError("Recover: Function did't return a frame", frameCtx);
+            return nullptr;
+        };
+
+        return frame;
+    };
+
+    return nullptr;
+}
+
+
+static void VS_CC recoverFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    RecoverData *d = reinterpret_cast<RecoverData *>(instanceData);
+    vsapi->freeNode(d->clip);
+    vsapi->freeFunction(d->func);
+    vsapi->freeMap(d->in);
+    vsapi->freeMap(d->out);
+    delete d;
+}
+
+static void VS_CC recoverCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<RecoverData> d(new RecoverData());
+    VSNode *node = vsapi->mapGetNode(in, "clip", 0, 0);
+    d->vi = *vsapi->getVideoInfo(node);
+    d->clip = node;
+    d->func = vsapi->mapGetFunction(in, "recover", 0, 0);
+
+    d->in = vsapi->createMap();
+    d->out = vsapi->createMap();
+
+    VSFilterDependency dep = { node, rpGeneral };
+
+    vsapi->createVideoFilter(out, "Recover", &d->vi, recoverGetFrame, recoverFree, fmParallelRequests, &dep, 1, d.get(), core);
+    d.release();
+}
+
+//////////////////////////////////////////
 // FrameEval
 
 typedef struct {
@@ -2476,6 +2549,7 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("AssumeFPS", "clip:vnode;src:vnode:opt;fpsnum:int:opt;fpsden:int:opt;", "clip:vnode;", assumeFPSCreate, 0, plugin);
     vspapi->registerFunction("FrameEval", "clip:vnode;eval:func;prop_src:vnode[]:opt;clip_src:vnode[]:opt;", "clip:vnode;", frameEvalCreate, 0, plugin);
     vspapi->registerFunction("ModifyFrame", "clip:vnode;clips:vnode[];selector:func;", "clip:vnode;", modifyFrameCreate, 0, plugin);
+    vspapi->registerFunction("Recover", "clip:vnode;recover:func;", "clip:vnode;", recoverCreate, 0, plugin);
     vspapi->registerFunction("Transpose", "clip:vnode;", "clip:vnode;", transposeCreate, 0, plugin);
     vspapi->registerFunction("PEMVerifier", "clip:vnode;upper:float[]:opt;lower:float[]:opt;", "clip:vnode;", pemVerifierCreate, 0, plugin);
     vspapi->registerFunction("PlaneStats", "clipa:vnode;clipb:vnode:opt;plane:int:opt;prop:data:opt;", "clip:vnode;", planeStatsCreate, 0, plugin);

@@ -391,7 +391,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VSLogHandle *addLogHandler(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) nogil
         bint removeLogHandler(VSLogHandle *handle, VSCore *core) nogil
 
-
+        const char* getFilterError(VSFrameContext*) nogil
+        void clearFilterError(VSFrameContext*) nogil
 
         # Unstable API, has no set place.
         const char *getNodeCreationFunctionName(VSNode *node, int level) nogil

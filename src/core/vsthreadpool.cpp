@@ -158,8 +158,10 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
 
             assert(frameContext->numFrameRequests == 0);
             int ar = arInitial;
+            bool hadError = false;
             if (frameContext->hasError()) {
                 ar = arError;
+                hadError = true;
             } else if (!frameContext->first) {
                 ar = (node->apiMajor == 3) ? static_cast<int>(vs3::arAllFramesReady) : static_cast<int>(arAllFramesReady);
             } else if (frameContext->first) {
@@ -177,6 +179,8 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
             bool frameProcessingDone = f || frameContext->hasError();
             if (frameContext->hasError() && f)
                 core->logFatal("A frame was returned by " + node->name + " but an error was also set, this is not allowed");
+            if (hadError && !frameProcessingDone)
+                core->logFatal("arError has been called, but new frames have been requested.");
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context

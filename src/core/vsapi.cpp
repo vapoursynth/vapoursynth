@@ -256,6 +256,18 @@ static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *conte
     context->setError(errorMessage);
 }
 
+static const char* VS_CC getFilterError(VSFrameContext* context) VS_NOEXCEPT {
+    assert(context);
+    if (!context->hasError())
+        return nullptr;
+    return context->getErrorMessage().c_str();
+}
+
+static void VS_CC clearFilterError(VSFrameContext* context) VS_NOEXCEPT {
+    assert(context);
+    context->clearError();
+}
+
 static const VSVideoInfo *VS_CC getVideoInfo(VSNode *node) VS_NOEXCEPT {
     assert(node && node->getNodeType() == mtVideo);
     return &node->getVideoInfo();
@@ -1187,6 +1199,9 @@ const VSAPI vs_internal_vsapi = {
     &logMessage,
     &addLogHandler,
     &removeLogHandler,
+
+    &getFilterError,
+    &clearFilterError,
 
     &getNodeCreationFunctionName,
     &getNodeCreationFunctionArguments,

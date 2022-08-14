@@ -599,6 +599,7 @@ public:
     }
 
     bool setError(const std::string &errorMsg);
+    bool clearError();
     VSFrameContext(NodeOutputKey key, const PVSFrameContext &notify);
     VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput);
 };

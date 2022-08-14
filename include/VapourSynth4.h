@@ -26,7 +26,7 @@
 
 #define VS_MAKE_VERSION(major, minor) (((major) << 16) | (minor))
 #define VAPOURSYNTH_API_MAJOR 4
-#define VAPOURSYNTH_API_MINOR 0
+#define VAPOURSYNTH_API_MINOR 1
 #define VAPOURSYNTH_API_VERSION VS_MAKE_VERSION(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 #define VS_AUDIO_FRAME_SAMPLES 3072
@@ -463,6 +463,9 @@ struct VSAPI {
     void (VS_CC *logMessage)(int msgType, const char *msg, VSCore *core) VS_NOEXCEPT;
     VSLogHandle *(VS_CC *addLogHandler)(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT; /* free and userData can be NULL, returns a handle that can be passed to removeLogHandler */
     int (VS_CC *removeLogHandler)(VSLogHandle *handle, VSCore *core) VS_NOEXCEPT; /* returns non-zero if successfully removed */
+
+    const char* (VS_CC *getFilterError)(VSFrameContext* ctx) VS_NOEXCEPT;
+    void (VS_CC *clearFilterError)(VSFrameContext* ctx) VS_NOEXCEPT;
     
 #ifdef VS_GRAPH_API
     /* Graph information */
