@@ -47,3 +47,8 @@ x64
 Debug
 Release
 msvc_project/.vs
+
+AviSynthPlus/
+libp2p/
+vsrepo/
+zimg/
