@@ -60,7 +60,7 @@ jobs:
         pushd installer
         $env:SKIP_COMPRESS="yes"
         $env:SKIP_WAIT="yes"
-        & ".\make portable.bat"
+        & ".\make_portable.bat"
         
         if ("${{ matrix.arch }}" -eq "x64") {
           pushd buildp64
