@@ -41,14 +41,9 @@ dist/
 .eggs
 *.egg-info/
 
-zimg/
-AviSynthPlus
-
 *.log
 *.user
 x64
 Debug
 Release
 msvc_project/.vs
-vsrepo/
-libp2p/
