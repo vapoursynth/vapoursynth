@@ -107,8 +107,8 @@
     <LibraryPath>D:\Python\Python310\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>../../include;D:\Program Files %28x86%29\Python310-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Program Files %28x86%29\Python310-32\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;D:\Python\Python310-32\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Python\Python310-32\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>../../include;D:\Python\Python310\include;$(IncludePath)</IncludePath>
