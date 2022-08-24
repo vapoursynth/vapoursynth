@@ -1,9 +1,29 @@
 @echo off
 
-git clone https://github.com/AviSynth/AviSynthPlus
-git clone https://github.com/sekrit-twc/libp2p
-git clone https://github.com/vapoursynth/vsrepo
-git clone https://github.com/sekrit-twc/zimg --branch v3.0
+IF NOT EXIST AviSynthPlus (
+    git clone https://github.com/AviSynth/AviSynthPlus
+) ELSE (
+    echo AviSynthPlus: & pushd AviSynthPlus & git pull & popd
+)
+
+IF NOT EXIST libp2p (
+    git clone https://github.com/sekrit-twc/libp2p
+) ELSE (
+    echo libp2p: & pushd libp2p & git pull &popd
+)
+
+IF NOT EXIST vsrepo (
+    git clone https://github.com/vapoursynth/vsrepo
+) ELSE (
+    echo vsrepo: & pushd vsrepo & git pull &popd
+)
+
+IF NOT EXIST zimg (
+    git clone https://github.com/sekrit-twc/zimg --branch v3.0
+) ELSE (
+    echo zimg: & pushd zimg & git pull & popd
+)
+
 py -3.10 -m pip install -r python-requirements.txt
 py -3.10-32 -m pip install -r python-requirements.txt
 
