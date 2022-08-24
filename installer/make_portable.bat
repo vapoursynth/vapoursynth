@@ -1,3 +1,5 @@
+@echo off
+
 rem extract version string
 for /F "tokens=2 delims='" %%a in ('findstr /C:"#define Version " vsinstaller.iss') do set v=%%a
 for /F "tokens=2 delims='" %%a in ('findstr /C:"#define VersionExtra " vsinstaller.iss') do set w=%%a
@@ -48,13 +50,11 @@ xcopy /E ..\doc\_build\html\* buildp64\doc
 type nul >buildp64\portable.vs
 type nul >buildp64\vapoursynth64\plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
-  del Compiled\vapoursynth64-portable-R%v%%w%.7z
-  cd buildp64
-  if exist C:\Program Files\7-Zip\ (
-    "C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
-  ) else (
-    "D:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
+  if exist Compiled\vapoursynth64-portable-R%v%%w%.7z (
+    del Compiled\vapoursynth64-portable-R%v%%w%.7z
   )
+  cd buildp64
+  7z.exe a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
   cd ..
   rmdir /s /q buildp64
 )
@@ -104,13 +104,11 @@ xcopy /E ..\doc\_build\html\* buildp32\doc
 type nul >buildp32\portable.vs
 type nul >buildp32\vapoursynth32\plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
-  del Compiled\vapoursynth32-portable-R%v%%w%.7z
-  cd buildp32
-    if exist C:\Program Files\7-Zip\ (
-    "C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
-  ) else (
-    "D:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
+  if exist Compiled\vapoursynth32-portable-R%v%%w%.7z (
+    del Compiled\vapoursynth32-portable-R%v%%w%.7z
   )
+  cd buildp32
+  7z.exe a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
   cd ..
   rmdir /s /q buildp32
 )
