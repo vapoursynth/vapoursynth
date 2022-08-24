@@ -36,7 +36,11 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp64\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp64\sdk\examples
 copy ..\sdk\invert_example.c buildp64\sdk\examples
 copy ..\sdk\vsscript_example.c buildp64\sdk\examples
-copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x64\Microsoft.VC143.CRT\*" buildp64
+if exist C:\Program Files\Microsoft Visual Studio\ (
+  copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x64\Microsoft.VC143.CRT\*" buildp64
+) else (
+  copy "D:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x64\Microsoft.VC143.CRT\*" buildp64
+)
 copy pfm-192-vapoursynth-win.exe buildp64
 copy .\setup.py buildp64
 copy .\MANIFEST.in buildp64
@@ -46,7 +50,11 @@ type nul >buildp64\vapoursynth64\plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
   del Compiled\vapoursynth64-portable-R%v%%w%.7z
   cd buildp64
-  "C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
+  if exist C:\Program Files\7-Zip\ (
+    "C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
+  ) else (
+    "D:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
+  )
   cd ..
   rmdir /s /q buildp64
 )
@@ -84,7 +92,11 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp32\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp32\sdk\examples
 copy ..\sdk\invert_example.c buildp32\sdk\examples
 copy ..\sdk\vsscript_example.c buildp32\sdk\examples
-copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x86\Microsoft.VC143.CRT\*" buildp32
+if exist C:\Program Files\Microsoft Visual Studio\ (
+  copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x86\Microsoft.VC143.CRT\*" buildp32
+) else (
+  copy "D:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x86\Microsoft.VC143.CRT\*" buildp32
+)
 copy pfm-192-vapoursynth-win.exe buildp32
 copy .\setup.py buildp32
 copy .\MANIFEST.in buildp32
@@ -94,7 +106,11 @@ type nul >buildp32\vapoursynth32\plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
   del Compiled\vapoursynth32-portable-R%v%%w%.7z
   cd buildp32
-  "C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
+    if exist C:\Program Files\7-Zip\ (
+    "C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
+  ) else (
+    "D:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
+  )
   cd ..
   rmdir /s /q buildp32
 )
