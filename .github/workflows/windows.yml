@@ -32,23 +32,6 @@ jobs:
         git clone https://github.com/AviSynth/AviSynthPlus.git --depth 1
         git clone https://github.com/sekrit-twc/libp2p --depth 1
 
-    - name: Setup Python 3.8
-      uses: actions/setup-python@v3
-      with:
-        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
-        python-version: 3.8
-        # The target architecture (x86, x64) of the Python interpreter.
-        architecture: ${{ matrix.arch }}
-
-    - name: Patch Python 3.8 Include Paths
-      run: |
-        $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
-        $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\libs",$py_binary_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\include",$py_include_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\libs",$py_binary_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\include",$py_include_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
-
     - name: Setup Python 3.10
       uses: actions/setup-python@v3
       with:
@@ -107,58 +90,7 @@ jobs:
         
         popd
         popd
-        
-    - name: Setup Python 3.8 a second time
-      uses: actions/setup-python@v3
-      with:
-        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
-        python-version: 3.8
-        # The target architecture (x86, x64) of the Python interpreter.
-        architecture: ${{ matrix.arch }}
 
-    - name: Building for Python 3.8
-      run: |
-        pip install . --no-deps
-  
-        pushd installer
-        if ("x64" -eq "x64") {
-          Remove-Item 'buildp64' -Recurse
-        } else {
-          Remove-Item 'buildp32' -Recurse
-        }
-        
-        $env:SKIP_COMPRESS="yes"
-        $env:SKIP_WAIT="yes"
-        & ".\make portable.bat"
-  
-  
-        if ("${{ matrix.arch }}" -eq "x64") {
-          pushd buildp64
-        } else {
-          pushd buildp32
-        }
-        pip install . --no-deps
-        popd
-        popd
-
-    - name: Package for Python 3.8
-      run: |
-        pip install wheel
-        python setup.py bdist_wheel -d ./wheels
-        python setup.py sdist -d ./wheels --format=zip
-        
-        pushd installer
-        if ("${{ matrix.arch }}" -eq "x64") {
-          pushd buildp64
-        } else {
-          pushd buildp32
-        }
-        
-        python setup.py bdist_wheel -d ../../wheels
-        
-        popd
-        popd
-      
     - name: Upload build artefacts
       uses: actions/upload-artifact@v2
       with:
@@ -179,7 +111,7 @@ jobs:
     strategy:
       matrix:
         arch: [x86, x64]
-        python: ["3.8", "3.10"]
+        python: ["3.10"]
         
     steps:
     - name: Setup Python ${{ matrix.python }}

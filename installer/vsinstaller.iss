@@ -14,14 +14,12 @@
   #define RegistryPath 'SOFTWARE\VapourSynth'
   #define SourceBinaryPath '..\msvc_project\x64\Release'
   #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win_amd64.whl'
-  #define WheelFilenamePython38(Version) 'VapourSynth-' + Version + '-cp38-cp38-win_amd64.whl'
 #else
   #define AppName 'VapourSynth (32-bits)'
   #define AppId 'VapourSynth-32'
   #define RegistryPath 'SOFTWARE\VapourSynth-32'
   #define SourceBinaryPath '..\msvc_project\Release'
   #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win32.whl'
-  #define WheelFilenamePython38(Version) 'VapourSynth-' + Version + '-cp38-cp38-win32.whl'
 #endif
 
 #define Dependency_NoExampleSetup
@@ -81,7 +79,6 @@ Name: vsrepopath; Description: "Add VSRepo to PATH"; GroupDescription: "VSRepo:"
 
 [Run]
 Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename(Version)}"""; Check: IsPython3; Flags: runhidden; Components: vscore
-Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilenamePython38(Version)}"""; Check: IsPython38; Flags: runhidden; Components: vscore
 Filename: "{app}\pismo\pfm-192-vapoursynth-win.exe"; Parameters: "install"; Check: IsAdminInstallMode; Flags: runhidden; Components: pismo
 Filename: {code:GetPythonExecutable}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden runasoriginaluser; Components: vsrepo
 
@@ -92,7 +89,6 @@ Filename: {code:GetPythonExecutable}; Parameters: "-m pip uninstall -y VapourSyn
 ;core binaries
 Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: ..\dist\{#= WheelFilename(Version)}; DestDir: {app}\python; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
-Source: ..\dist\{#= WheelFilenamePython38(Version)}; DestDir: {app}\python; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
 Source: {#= SourceBinaryPath}\vapoursynth.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vapoursynth.pdb; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
@@ -100,7 +96,6 @@ Source: {#= SourceBinaryPath}\avfs.exe; DestDir: {app}\core; Flags: ignoreversio
 Source: {#= SourceBinaryPath}\vspipe.exe; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vsvfw.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vsscript.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore; Check: IsPython3
-Source: {#= SourceBinaryPath}\vsscriptpython38.dll; DestName: "vsscript.dll"; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore; Check: IsPython38
 
 ;vsrepo
 Source: ..\vsrepo\vsrepo.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
@@ -207,11 +202,6 @@ begin
   Result := PythonVersion = '{#PythonVersion}';
 end;
 
-function IsPython38: Boolean;
-begin
-  Result := PythonVersion = '3.8';
-end;
-
 procedure GetPythonInstallations2(var DestArray: array of TPythonPath; RegRoot: Integer; RegPath: string; PythonVer: string; AssumeBitness: Integer);
 var
   Names, Tags: TArrayOfString;
@@ -266,8 +256,6 @@ procedure GetPythonInstallations;
 begin
   GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '{#PythonVersion}', 0);
   GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '{#PythonVersion}', {#InstallerBitsInt}); 
-  GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '3.8', 0);
-  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '3.8', {#InstallerBitsInt}); 
 end;
 
 procedure PopulatePythonInstallations(List: TNewCheckListBox);
@@ -353,11 +341,11 @@ begin
   Result := GetArrayLength(PythonInstallations) > 0; 
 
   if not Result and not HasOtherPython then
-      MsgBox('No suitable Python {#PythonVersion} or 3.8 ({#InstallerBits}-bit) installation found. The installer will now exit.', mbCriticalError, MB_OK)
+      MsgBox('No suitable Python {#PythonVersion} ({#InstallerBits}-bit) installation found. The installer will now exit.', mbCriticalError, MB_OK)
   else if not Result and IsAdminInstallMode then
-      MsgBox('Python {#PythonVersion} or 3.8 ({#InstallerBits}-bit) is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
+      MsgBox('Python {#PythonVersion} ({#InstallerBits}-bit) is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
   else if not Result and not IsAdminInstallMode then
-      MsgBox('Python {#PythonVersion} or 3.8 ({#InstallerBits}-bit) is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
+      MsgBox('Python {#PythonVersion} ({#InstallerBits}-bit) is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
     
   // fixme  
   //if not IsAdminInstallMode and not vcredist2017installed(VSRuntimeVersion) then
