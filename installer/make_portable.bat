@@ -38,9 +38,9 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp64\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp64\sdk\examples
 copy ..\sdk\invert_example.c buildp64\sdk\examples
 copy ..\sdk\vsscript_example.c buildp64\sdk\examples
-if exist C:\Program Files\Microsoft Visual Studio\ (
+IF EXIST "C:\Program Files\Microsoft Visual Studio\" (
   copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x64\Microsoft.VC143.CRT\*" buildp64
-) else (
+) ELSE (
   copy "D:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x64\Microsoft.VC143.CRT\*" buildp64
 )
 copy pfm-192-vapoursynth-win.exe buildp64
@@ -50,7 +50,7 @@ xcopy /E ..\doc\_build\html\* buildp64\doc
 type nul >buildp64\portable.vs
 type nul >buildp64\vapoursynth64\plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
-  if exist Compiled\vapoursynth64-portable-R%v%%w%.7z (
+  IF EXIST "Compiled\vapoursynth64-portable-R%v%%w%.7z" (
     del Compiled\vapoursynth64-portable-R%v%%w%.7z
   )
   cd buildp64
@@ -92,9 +92,9 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp32\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp32\sdk\examples
 copy ..\sdk\invert_example.c buildp32\sdk\examples
 copy ..\sdk\vsscript_example.c buildp32\sdk\examples
-if exist C:\Program Files\Microsoft Visual Studio\ (
+IF EXIST "C:\Program Files\Microsoft Visual Studio\" (
   copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x86\Microsoft.VC143.CRT\*" buildp32
-) else (
+) ELSE (
   copy "D:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x86\Microsoft.VC143.CRT\*" buildp32
 )
 copy pfm-192-vapoursynth-win.exe buildp32
@@ -104,7 +104,7 @@ xcopy /E ..\doc\_build\html\* buildp32\doc
 type nul >buildp32\portable.vs
 type nul >buildp32\vapoursynth32\plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
-  if exist Compiled\vapoursynth32-portable-R%v%%w%.7z (
+  IF EXIST "Compiled\vapoursynth32-portable-R%v%%w%.7z" (
     del Compiled\vapoursynth32-portable-R%v%%w%.7z
   )
   cd buildp32
