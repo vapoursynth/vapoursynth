@@ -82,6 +82,38 @@
     <IncludePath>../../include;C:\Program Files\Python310\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\Program Files\Python310\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <IncludePath>../../include;D:\Program Files %28x86%29\Python310-32\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Program Files %28x86%29\Python310-32\libs;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>../../include;C:\Program Files\Python310\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Program Files\Python310\libs;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <IncludePath>../../include;D:\Program Files %28x86%29\Python310-32\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Program Files %28x86%29\Python310-32\libs;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>../../include;D:\Program Files\Python310\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Program Files\Python310\libs;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <IncludePath>../../include;D:\Program Files %28x86%29\Python310-32\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Program Files %28x86%29\Python310-32\libs;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>../../include;D:\Python\Python310\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Python\Python310\libs;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <IncludePath>../../include;D:\Program Files %28x86%29\Python310-32\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Program Files %28x86%29\Python310-32\libs;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>../../include;D:\Python\Python310\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Python\Python310\libs;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
