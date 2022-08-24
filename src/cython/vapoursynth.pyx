@@ -2409,12 +2409,6 @@ cdef class Plugin(object):
             tmp = createFunction(func, self, self.funcs)
             func = self.funcs.getNextPluginFunction(func, self.plugin)
             yield tmp
-        
-        sout = ""
-        functions = self.get_functions()
-        for key in sorted(functions.keys()):
-            sout += key + '(' + functions[key].replace(';', '; ') + ')\n'
-        return sout.replace('; )', ')')
 
     def __dir__(self):
         attrs = []
