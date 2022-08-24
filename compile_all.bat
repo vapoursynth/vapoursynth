@@ -17,9 +17,10 @@ echo MSVC's MSBuild executable not found!
 GOTO endc
 
 :buildm
-"%MSBuildPTH%\Msbuild\Current\Bin\MSBuild.exe" msvc_project\VapourSynth.sln /p:Configuration=Release /p:Platform=Win32
-"%MSBuildPTH%\Msbuild\Current\Bin\MSBuild.exe" msvc_project\VapourSynth.sln /p:Configuration=Release /p:Platform=x64
-
+pushd msvc_project
+"%MSBuildPTH%\Msbuild\Current\Bin\MSBuild.exe" VapourSynth.sln /t:Clean;Build /p:Configuration=Release /p:Platform=x64
+"%MSBuildPTH%\Msbuild\Current\Bin\MSBuild.exe" VapourSynth.sln /t:Clean;Build /p:Configuration=Release /p:Platform=Win32
+popd
 
 @echo | call docs_build.bat
 @echo | call cython_build.bat
