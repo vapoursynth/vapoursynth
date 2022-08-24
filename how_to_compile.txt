@@ -1,7 +1,0 @@
-.\install_deps.bat
-Build x64, Win32 solutions
-.\docs_build.bat
-.\cython_build.bat
-cd installer
-.\make_portable.bat
-.\make_installers.bat
