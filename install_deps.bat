@@ -28,3 +28,7 @@ GOTO end
 ECHO 7-zip not installed!
 
 :end
+
+IF NOT EXIST installer/pfm-192-vapoursynth-win.exe (
+    ECHO You need to grab pfm-192-vapoursynth-win.exe from a portable release!
+)
