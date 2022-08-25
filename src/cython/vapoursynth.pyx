@@ -22,7 +22,7 @@ include 'vsconstants.pxd'
 from vsscript_internal cimport VSScript
 cimport cython.parallel
 from cython cimport view, final
-from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t
+from libc.stdint cimport uint32_t
 from cpython.buffer cimport PyBUF_SIMPLE
 from cpython.buffer cimport PyBuffer_FillInfo
 from cpython.buffer cimport PyBuffer_IsContiguous
@@ -34,7 +34,6 @@ from cpython.number cimport PyNumber_Index
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
 import ctypes
-import threading
 import traceback
 import gc
 import sys
@@ -43,8 +42,7 @@ import weakref
 import atexit
 import contextlib
 import logging
-import functools
-from threading import local as ThreadLocal, Lock, RLock
+from threading import local as ThreadLocal, RLock
 from types import MappingProxyType
 from collections import namedtuple
 from collections.abc import Iterable, Mapping
