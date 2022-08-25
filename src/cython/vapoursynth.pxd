@@ -46,7 +46,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         pass
     ctypedef struct VSFrameContext:
         pass
-        
+
     cpdef enum MediaType "VSMediaType":
         VIDEO "mtVideo"
         AUDIO "mtAudio"
@@ -90,15 +90,15 @@ cdef extern from "include/VapourSynth4.h" nogil:
         YUV420P10 "pfYUV420P10"
         YUV422P10 "pfYUV422P10"
         YUV444P10 "pfYUV444P10"
-        
+
         YUV420P12 "pfYUV420P12"
         YUV422P12 "pfYUV422P12"
         YUV444P12 "pfYUV444P12"
-        
+
         YUV420P14 "pfYUV420P14"
         YUV422P14 "pfYUV422P14"
         YUV444P14 "pfYUV444P14"
-        
+
         YUV420P16 "pfYUV420P16"
         YUV422P16 "pfYUV422P16"
         YUV444P16 "pfYUV444P16"
@@ -130,7 +130,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int subSamplingW
         int subSamplingH
         int numPlanes
-        
+
     cpdef enum AudioChannels "VSAudioChannels":
         FRONT_LEFT "acFrontLeft"
         FRONT_RIGHT "acFrontRight"
@@ -149,15 +149,15 @@ cdef extern from "include/VapourSynth4.h" nogil:
         TOP_FRONT_RIGHT "acTopFrontRight"
         TOP_BACK_LEFT "acTopBackLeft"
         TOP_BACK_CENTER "acTopBackCenter"
-        TOP_BACK_RIGHT "acTopBackRight"     
+        TOP_BACK_RIGHT "acTopBackRight"
         STEREO_LEFT "acStereoLeft"
         STEREO_RIGHT "acStereoRight"
-        WIDE_LEFT "acWideLeft"   
+        WIDE_LEFT "acWideLeft"
         WIDE_RIGHT "acWideRight"
-        SURROUND_DIRECT_LEFT "acSurroundDirectLeft"   
+        SURROUND_DIRECT_LEFT "acSurroundDirectLeft"
         SURROUND_DIRECT_RIGHT "acSurroundDirectRight"
         LOW_FREQUENCY2 "acLowFrequency2"
-        
+
     ctypedef struct VSAudioFormat:
         int sampleType
         int bitsPerSample
@@ -202,7 +202,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int width
         int height
         int numFrames
-        
+
     struct VSAudioInfo:
         VSAudioFormat format
         int sampleRate
@@ -220,7 +220,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         MESSAGE_TYPE_WARNING "mtWarning"
         MESSAGE_TYPE_CRITICAL "mtCritical"
         MESSAGE_TYPE_FATAL "mtFatal"
-        
+
     cpdef enum CoreCreationFlags "VSCoreCreationFlags":
         ccfEnableGraphInspection
         ccfDisableAutoLoading
@@ -228,7 +228,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
 
     enum VSPluginConfigFlags:
         pcModifiable
-        
+
     enum VSDataTypeHint:
         dtUnknown
         dtBinary
@@ -241,13 +241,13 @@ cdef extern from "include/VapourSynth4.h" nogil:
 
     ctypedef const VSAPI *(__stdcall *VSGetVapourSynthAPI)(int version)
 
-    ctypedef void (__stdcall *VSPublicFunction)(const VSMap *input, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) 
-    ctypedef void (__stdcall *VSInitPlugin)(VSPlugin *plugin, const VSPLUGINAPI *vspapi)  
+    ctypedef void (__stdcall *VSPublicFunction)(const VSMap *input, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
+    ctypedef void (__stdcall *VSInitPlugin)(VSPlugin *plugin, const VSPLUGINAPI *vspapi)
 
     ctypedef void (__stdcall *VSFreeFunctionData)(void *userData)
     ctypedef const VSFrame *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
-   
+
     ctypedef void (__stdcall *VSFrameDoneCallback)(void *userData, const VSFrame *f, int n, VSNode *node, const char *errorMsg)
     ctypedef void (__stdcall *VSLogHandler)(int msgType, const char *msg, void *userData)
     ctypedef void (__stdcall *VSLogHandlerFree)(void *userData)
@@ -256,7 +256,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int getAPIVersion() nogil
         bint configPlugin(const char *identifier, const char *pluginNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) nogil
         bint registerFunction(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
-        
+
     ctypedef struct VSAPI:
         # Audio and video filter
         void createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
@@ -271,7 +271,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void setCacheMode(VSNode *node, int mode) nogil
         const VSVideoInfo *getVideoInfo(VSNode *node) nogil
         const VSAudioInfo *getAudioInfo(VSNode *node) nogil
-        
+
         # Frame related
         VSFrame *newVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrame *propSrc, VSCore *core) nogil
         VSFrame *newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) nogil
@@ -282,18 +282,18 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VSFrame *copyFrame(const VSFrame *f, VSCore *core) nogil
         const VSMap *getFramePropertiesRO(const VSFrame *f) nogil
         VSMap *getFramePropertiesRW(VSFrame *f) nogil
-    
+
         ptrdiff_t getStride(const VSFrame *f, int plane) nogil
         const uint8_t *getReadPtr(const VSFrame *f, int plane) nogil
         uint8_t *getWritePtr(VSFrame *f, int plane) nogil
-        
+
         const VSVideoFormat *getVideoFrameFormat(const VSFrame *f) nogil
         const VSAudioFormat *getAudioFrameFormat(const VSFrame *f) nogil
         int getFrameType(const VSFrame *f) nogil
         int getFrameWidth(const VSFrame *f, int plane) nogil
         int getFrameHeight(const VSFrame *f, int plane) nogil
         int getFrameLength(const VSFrame *f) nogil
-    
+
         # General format functions
         bint getVideoFormatName(const VSVideoFormat *format, char *buffer) nogil
         bint getAudioFormatName(const VSAudioFormat *format, char *buffer) nogil
@@ -310,54 +310,54 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void releaseFrameEarly(VSNode *node, int n, VSFrameContext *frameCtx) nogil
         void cacheFrame(const VSFrame *frame, int n, VSFrameContext *frameCtx) nogil
         void setFilterError(const char *errorMessage, VSFrameContext *frameCtx) nogil
-        
+
         # External functions
         VSFunction *createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core) nogil
         void freeFunction(VSFunction *f) nogil
         VSFunction *addFunctionRef(VSFunction *f) nogil
         void callFunction(VSFunction *func, const VSMap *inm, VSMap *outm) nogil
-    
+
         # Map and proptery access
         VSMap *createMap() nogil
         void freeMap(VSMap *map) nogil
         void clearMap(VSMap *map) nogil
         void copyMap(const VSMap *src, VSMap *dst) nogil
-        
+
         void mapSetError(VSMap *map, const char *errorMessage) nogil
         char *mapGetError(const VSMap *map) nogil
-        
+
         int mapNumKeys(const VSMap *map) nogil
         const char *mapGetKey(const VSMap *map, int index) nogil
         bint mapDeleteKey(VSMap *map, const char *key) nogil
         int mapNumElements(const VSMap *map, const char *key) nogil
         int mapGetType(const VSMap *map, const char *key) nogil
         int mapSetEmpty(VSMap *map, const char *key, int type) nogil
-        
+
         int64_t mapGetInt(const VSMap *map, const char *key, int index, int *error) nogil
         int mapGetIntSaturated(const VSMap *map, const char *key, int index, int *error) nogil
         const int64_t *mapGetIntArray(const VSMap *map, const char *key, int *error) nogil
         bint mapSetInt(VSMap *map, const char *key, int64_t i, int append) nogil
         bint mapSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) nogil
-        
+
         double mapGetFloat(const VSMap *map, const char *key, int index, int *error) nogil
         float mapGetFloatSaturated(const VSMap *map, const char *key, int index, int *error) nogil
         const double *mapGetFloatArray(const VSMap *map, const char *key, int *error) nogil
         bint mapSetFloat(VSMap *map, const char *key, double d, int append) nogil
         bint mapSetFloatArray(VSMap *map, const char *key, const double *d, int size) nogil
-        
+
         const char *mapGetData(const VSMap *map, const char *key, int index, int *error) nogil
         int mapGetDataSize(const VSMap *map, const char *key, int index, int *error) nogil
         int mapGetDataTypeHint(const VSMap *map, const char *key, int index, int *error) nogil
         bint mapSetData(VSMap *map, const char *key, const char *data, int size, int type, int append) nogil
-        
+
         VSNode *mapGetNode(const VSMap *map, const char *key, int index, int *error) nogil
         bint mapSetNode(VSMap *map, const char *key, VSNode *node, int append) nogil
         bint mapConsumeNode(VSMap *map, const char *key, VSNode *node, int append) nogil
-        
+
         const VSFrame *mapGetFrame(const VSMap *map, const char *key, int index, int *error) nogil
         bint mapSetFrame(VSMap *map, const char *key, const VSFrame *f, int append) nogil
         bint mapConsumeFrame(VSMap *map, const char *key, const VSFrame *f, int append) nogil
-        
+
         VSFunction *mapGetFunction(const VSMap *map, const char *key, int index, int *error) nogil
         bint mapSetFunction(VSMap *map, const char *key, VSFunction *func, int append) nogil
         bint mapConsumeFunction(VSMap *map, const char *key, VSFunction *func, int append) nogil
@@ -377,7 +377,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         const char *getPluginFunctionReturnType(VSPluginFunction *func) nogil
         const char *getPluginPath(const VSPlugin *plugin) nogil
         VSMap *invoke(VSPlugin *plugin, const char *name, const VSMap *args) nogil
-        
+
         # Core and information
         VSCore *createCore(int flags) nogil
         void freeCore(VSCore *core) nogil
@@ -385,12 +385,11 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int setThreadCount(int threads, VSCore *core) nogil
         void getCoreInfo(VSCore *core, VSCoreInfo *info) nogil
         int getAPIVersion() nogil
-        
+
         # Message handler
         void logMessage(int msgType, const char *msg, VSCore *core) nogil
         VSLogHandle *addLogHandler(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) nogil
         bint removeLogHandler(VSLogHandle *handle, VSCore *core) nogil
-
 
 
         # Unstable API, has no set place.
