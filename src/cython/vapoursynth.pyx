@@ -17,43 +17,37 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 """ This is the VapourSynth module implementing the Python bindings. """
 
-cimport vapoursynth
 include 'vsconstants.pxd'
+
+cimport vapoursynth
 from vsscript_internal cimport VSScript
+
 cimport cython.parallel
 from cython cimport view, final
+
 from libc.stdint cimport uint32_t
-from cpython.buffer cimport PyBUF_SIMPLE
-from cpython.buffer cimport PyBuffer_FillInfo
-from cpython.buffer cimport PyBuffer_IsContiguous
-from cpython.buffer cimport PyBuffer_Release
-from cpython.memoryview cimport PyMemoryView_FromObject
-from cpython.memoryview cimport PyMemoryView_GET_BUFFER
-from cpython.number cimport PyIndex_Check
-from cpython.number cimport PyNumber_Index
+
+from cpython.buffer cimport PyBUF_SIMPLE, PyBuffer_FillInfo, PyBuffer_IsContiguous, PyBuffer_Release
+from cpython.memoryview cimport PyMemoryView_FromObject, PyMemoryView_GET_BUFFER
+from cpython.number cimport PyIndex_Check, PyNumber_Index
 from cpython.ref cimport Py_INCREF, Py_DECREF
-import os
-import ctypes
-import traceback
-import gc
-import sys
-import inspect
-import weakref
+
 import atexit
 import contextlib
+import ctypes
+import gc
+import inspect
 import logging
-from threading import local as ThreadLocal, RLock
-from types import MappingProxyType
+import os
+import sys
+import traceback
+import typing
+import weakref
 from collections import namedtuple
-from collections.abc import Iterable, Mapping
 from fractions import Fraction
+from threading import RLock, local as ThreadLocal
+from types import MappingProxyType
 
-# Ensure that the import doesn't fail
-# if typing is not available on the python installation.
-try:
-    import typing
-except ImportError as e:
-    typing = None
 
 __all__ = [
   'GRAY',
@@ -475,9 +469,6 @@ def _construct_parameter(signature):
     )
 
 def construct_signature(signature, return_signature, injected=None):
-    if typing is None:
-        raise RuntimeError("At least Python 3.5 is required to use type-hinting")
-    
     if isinstance(signature, vapoursynth.Function):
         signature = signature.signature
 
@@ -780,7 +771,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
         if val is None:
             continue
 
-        if isinstance(val, (str, bytes, bytearray, RawNode, RawFrame)) or not isinstance(val, Iterable):
+        if isinstance(val, (str, bytes, bytearray, RawNode, RawFrame)) or not isinstance(val, typing.Iterable):
             val = [val]
 
         for v in val:
@@ -1145,7 +1136,7 @@ cdef FrameProps createFrameProps(RawFrame f):
     return instance
 
 # Make sure the FrameProps-Object quacks like a Mapping.
-Mapping.register(FrameProps)
+typing.Mapping.register(FrameProps)
 
 
 cdef class RawFrame(object):
@@ -2456,8 +2447,6 @@ cdef class Function(object):
     
     @property
     def __signature__(self):
-        if typing is None:
-            return None
         return construct_signature(self.signature, self.return_signature, injected=self.plugin.injected_arg)
 
     def __init__(self):
