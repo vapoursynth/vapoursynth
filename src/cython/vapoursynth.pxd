@@ -19,7 +19,7 @@
 #
 #cython: language_level=3
 
-from libc.stdint cimport uint8_t, uint32_t, int64_t, uint64_t, uintptr_t
+from libc.stdint cimport uint8_t, uint32_t, int64_t, uint64_t
 from libc.stddef cimport ptrdiff_t
 
 cdef extern from "include/VapourSynth4.h" nogil:

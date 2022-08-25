@@ -19,13 +19,12 @@
 
 include 'vsconstants.pxd'
 
-cimport vapoursynth
 from vsscript_internal cimport VSScript
 
-cimport cython.parallel
-from cython cimport view, final
+cimport cython
+cimport cython.parallel  # type: ignore
 
-from libc.stdint cimport uint32_t
+from libc.stdint cimport uintptr_t
 
 from cpython.buffer cimport PyBUF_SIMPLE, PyBuffer_FillInfo, PyBuffer_IsContiguous, PyBuffer_Release
 from cpython.memoryview cimport PyMemoryView_FromObject, PyMemoryView_GET_BUFFER
@@ -47,6 +46,9 @@ from collections import namedtuple
 from fractions import Fraction
 from threading import RLock, local as ThreadLocal
 from types import MappingProxyType
+
+if typing.TYPE_CHECKING:
+    from vapoursynth cimport *
 
 
 __all__ = [
@@ -81,7 +83,7 @@ __version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(60
 __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 
-@final
+@cython.final
 cdef class EnvironmentData(object):
     cdef bint alive
     cdef Core core
@@ -118,7 +120,7 @@ class EnvironmentPolicy(object):
         return env.alive
 
 
-@final
+@cython.final
 cdef class StandaloneEnvironmentPolicy:
     cdef EnvironmentData _environment
     cdef object _logger
@@ -186,7 +188,7 @@ cdef void __stdcall _logFree(void* userData) nogil:
     with gil:
         Py_DECREF(<object>userData)
 
-@final
+@cython.final
 cdef class EnvironmentPolicyAPI:
     # This must be a weak-ref to prevent a cyclic dependency that happens if the API
     # is stored within an EnvironmentPolicy-instance.
@@ -301,7 +303,7 @@ cdef EnvironmentData _env_current():
 atexit.register(lambda: clear_policy())
 
 
-@final
+@cython.final
 cdef class _FastManager(object):
     cdef EnvironmentData target
     cdef EnvironmentData previous
@@ -419,15 +421,15 @@ def _construct_type(signature):
 
     # Handle types
     if type == "vnode":
-        type = vapoursynth.VideoNode
+        type = VideoNode
     elif type == "anode":
-        type = vapoursynth.AudioNode
+        type = AudioNode
     elif type == "vframe":
-        type = vapoursynth.VideoFrame
+        type = VideoFrame
     elif type == "aframe":
-        type = vapoursynth.AudioFrame
+        type = AudioFrame
     elif type == "func":
-        type = typing.Union[vapoursynth.Func, typing.Callable]
+        type = typing.Union[Func, typing.Callable]
     elif type == "int":
         type = int
     elif type == "float":
@@ -469,7 +471,7 @@ def _construct_parameter(signature):
     )
 
 def construct_signature(signature, return_signature, injected=None):
-    if isinstance(signature, vapoursynth.Function):
+    if isinstance(signature, Function):
         signature = signature.signature
 
     params = list(
@@ -2632,7 +2634,7 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
             vsapi.mapSetError(outm, emsg)
 
 
-@final
+@cython.final
 cdef class VSScriptEnvironmentPolicy:
     cdef dict _env_map
 
