@@ -2279,6 +2279,19 @@ cdef class Core(object):
             raise Error('Invalid format id specified')
         else:
             return createVideoFormat(&fmt, self.funcs, self.core)
+
+    def get_format(self, uint32_t id):
+        import warnings
+        warnings.warn("get_format() is deprecated. Use \"get_video_format\" instead.", DeprecationWarning)
+        return self.get_video_format(id);
+
+    def create_video_frame(self, object format, int width, int height):
+        cdef VSVideoFormat fmt
+        if not self.funcs.getVideoFormatByID(&fmt, int(format), self.core):
+            raise Error('Invalid format id specified')
+
+        cdef VSFrame* ref = self.funcs.newVideoFrame(&fmt, width, height, NULL, self.core)
+        return createVideoFrame(ref, self.funcs, self.core)
         
     def log_message(self, MessageType message_type, str message):
         self.funcs.logMessage(message_type, message.encode('utf-8'), self.core)

@@ -17,6 +17,13 @@ class CoreTestSequence(unittest.TestCase):
     def test_num_threads(self):
         self.assertEqual(self.core.num_threads, 10)
 
+    def test_create_video_frame(self):
+        frame = self.core.create_video_frame(vs.RGB24, 100, 100)
+        self.assertIsInstance(frame, vs.VideoFrame)
+        self.assertEqual(frame.format, self.core.get_video_format(vs.RGB24))
+        self.assertEqual(frame.width, 100)
+        self.assertEqual(frame.height, 100)
+        self.assertFalse(frame.readonly)
 
 ### Clip-Attr tests
 
