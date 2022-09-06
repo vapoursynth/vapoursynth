@@ -2345,7 +2345,7 @@ cdef Core createCore2(VSCore *core):
 cdef Core _get_core(threads = None):
     env = _env_current()
     if env is None:
-        raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
+        raise Error('No environment is currently activated. Please activate an environment. (Hint: get_current_environment().use() allows you to temporary select an environment of your choice.)')
 
     return vsscript_get_core_internal(env)
 
