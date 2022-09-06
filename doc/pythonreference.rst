@@ -214,6 +214,11 @@ Classes and Functions
 
       Retrieve a Format object corresponding to the format information, Invalid formats throw an exception.
 
+   .. py:method:: create_video_frame(format, width, height)
+
+      Creates a new frame with uninitialized planes with the given dimensions and format.
+      This function is safe to call within a frame callback.
+
    .. py:method:: add_log_handler(handler_func)
 
       Installs a custom handler for the various error messages VapourSynth emits.
