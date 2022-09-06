@@ -2280,11 +2280,6 @@ cdef class Core(object):
         else:
             return createVideoFormat(&fmt, self.funcs, self.core)
 
-    def get_format(self, uint32_t id):
-        import warnings
-        warnings.warn("get_format() is deprecated. Use \"get_video_format\" instead.", DeprecationWarning)
-        return self.get_video_format(id);
-
     def create_video_frame(self, object format, int width, int height):
         cdef VSVideoFormat fmt
         if not self.funcs.getVideoFormatByID(&fmt, int(format), self.core):
