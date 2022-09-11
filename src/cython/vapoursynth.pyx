@@ -2372,6 +2372,9 @@ cdef class _CoreProxy(object):
     @property
     def core(self):
         return _get_core()
+
+    def version_number(self):
+        return __version__[0]
         
     def __dir__(self):
         d = dir(self.core)
