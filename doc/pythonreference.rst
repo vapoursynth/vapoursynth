@@ -242,6 +242,10 @@ Classes and Functions
 
       Returns the core version as a number.
 
+      .. note::
+
+         If you are writing a library, you should use *vapoursynth.__version__* or *vapoursynth.__api_version__* instead.
+
    .. py:method:: rule6()
 
       Illegal behavior detection.
