@@ -536,7 +536,7 @@ def construct_signature(signature, return_signature, injected=None):
         if param
     )
 
-    if injected:
+    if injected and params:
         del params[0]
 
     return_annotations = list(
