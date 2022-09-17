@@ -200,6 +200,12 @@ cdef class EnvironmentPolicyAPI:
     # is stored within an EnvironmentPolicy-instance.
     cdef object _target_policy
 
+    cdef object _lock
+    cdef object _known_environments
+    # Sadly, weakref has no WeakSet.
+    # So we use a counter to fake a WeakSet.
+    cdef int _known_environments_counter
+
     def __init__(self):
         raise RuntimeError("Cannot directly instantiate this class.")
 
@@ -223,6 +229,11 @@ cdef class EnvironmentPolicyAPI:
         env.coreCreationFlags = flags
         env.alive = True
 
+        with self._lock:
+            counter = self._known_environments_counter
+            self._known_environments_counter += 1
+            self._known_environments[counter] = env
+
         return env
 
     def set_logger(self, env, logger):
@@ -239,6 +250,8 @@ cdef class EnvironmentPolicyAPI:
 
     def unregister_policy(self):
         self.ensure_policy_matches()
+        for environment in self._known_environments.values():
+            self.destroy_environment(environment)
         clear_policy()
 
     def __repr__(self):
@@ -260,6 +273,8 @@ def register_policy(policy):
     # Expose Additional API-calls to the newly registered Environment-policy.
     cdef EnvironmentPolicyAPI _api = EnvironmentPolicyAPI.__new__(EnvironmentPolicyAPI)
     _api._target_policy = weakref.ref(_policy)
+    _api._known_environments = weakref.WeakValueDictionary()
+    _api._lock = threading.Lock()
     _policy.on_policy_registered(_api)
 
 
