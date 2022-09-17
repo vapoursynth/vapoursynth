@@ -242,6 +242,9 @@ cdef class EnvironmentPolicyAPI:
 
     def destroy_environment(self, EnvironmentData env):
         self.ensure_policy_matches()
+        if not env.alive:
+            return
+
         _unset_logger(env)
         env.core = None
         env.log = NULL
