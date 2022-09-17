@@ -38,50 +38,57 @@ def _with_policy():
         pol._api.unregister_policy()
 
 
-def _wrap_with(func):
-    func(EnvironmentTest())
+test_functions = {}
+counter = 0
+
+def _wrap_with(ident):
+    func = test_functions[ident]
+    return func(EnvironmentTest())
 
 
 def subprocess_runner(func):
+    global counter
+    my_counter = counter
+    counter += 1
+    test_functions[my_counter] = func
+
     def _wrapper(self):
         with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as executor:
-            executor.submit(_wrap_with, func).result()
+            executor.submit(_wrap_with, my_counter).result()
+
     return _wrapper
-
-def t_environment_use_unsets_environment_on_exit(self):
-    with _with_policy() as pol:
-        env = pol._api.create_environment()
-        wrapped = pol._api.wrap_environment(env)
-
-        with self.assertRaises(RuntimeError):
-            vs.get_current_environment()
-
-        with wrapped.use():
-            print(vs.get_current_environment())
-
-        with self.assertRaises(RuntimeError):
-            print(vs.get_current_environment())
-
-
-def t_environment_use_restores_environment_on_exit(self):
-    with _with_policy() as pol:
-        env1 = pol._api.create_environment()
-        wrapped1 = pol._api.wrap_environment(env1)
-
-        env2 = pol._api.create_environment()
-        wrapped2 = pol._api.wrap_environment(env2)
-
-        with wrapped1.use():
-            ce1 = vs.get_current_environment()
-
-            with wrapped2.use():
-                self.assertNotEqual(ce1, vs.get_current_environment())
-
-            self.assertEqual(ce1, vs.get_current_environment())
 
 
 class EnvironmentTest(unittest.TestCase):
-
-    test_environment_use_unsets_environment_on_exit = subprocess_runner(t_environment_use_unsets_environment_on_exit)
-    test_environment_use_restores_environment_on_exit = subprocess_runner(t_environment_use_restores_environment_on_exit)
-
+    @subprocess_runner
+    def test_environment_use_unsets_environment_on_exit(self):
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+    
+            with self.assertRaises(RuntimeError):
+                vs.get_current_environment()
+    
+            with wrapped.use():
+                self.assertEqual(vs.get_current_environment(), wrapped)
+    
+            with self.assertRaises(RuntimeError):
+                vs.get_current_environment()
+    
+    
+    @subprocess_runner
+    def test_environment_use_restores_environment_on_exit(self):
+        with _with_policy() as pol:
+            env1 = pol._api.create_environment()
+            wrapped1 = pol._api.wrap_environment(env1)
+    
+            env2 = pol._api.create_environment()
+            wrapped2 = pol._api.wrap_environment(env2)
+    
+            with wrapped1.use():
+                ce1 = vs.get_current_environment()
+    
+                with wrapped2.use():
+                    self.assertNotEqual(ce1, vs.get_current_environment())
+    
+                self.assertEqual(ce1, vs.get_current_environment())
