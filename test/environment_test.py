@@ -92,3 +92,40 @@ class EnvironmentTest(unittest.TestCase):
                     self.assertNotEqual(ce1, vs.get_current_environment())
     
                 self.assertEqual(ce1, vs.get_current_environment())
+
+
+    @subprocess_runner
+    def test_environment_clearing_runs_callbacks(self):
+        f1_run = [False]
+        def f1():
+            f1_run[0] = True
+
+        f2_run = [False]
+        def f2():
+            f2_run[0] = True
+
+
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use() as pol:
+                vs.register_on_destroy(f1)
+                vs.register_on_destroy(f2)
+                vs.unregister_on_destroy(f1)
+
+        self.assertFalse(f1_run[0])
+        self.assertTrue(f2_run[0])
+
+        f1_run = [False]
+        f2_run = [False]
+
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                vs.register_on_destroy(f1)
+
+        self.assertTrue(f1_run[0])
+        self.assertFalse(f2_run[0])

@@ -93,6 +93,7 @@ __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAP
 cdef class EnvironmentData(object):
     cdef bint alive
     cdef Core core
+    cdef object on_destroy
     cdef dict outputs
 
     cdef int coreCreationFlags
@@ -227,6 +228,7 @@ cdef class EnvironmentPolicyAPI:
         env.log = NULL
         env.outputs = {}
         env.coreCreationFlags = flags
+        env.on_destroy = []
         env.alive = True
 
         with self._lock:
@@ -244,6 +246,18 @@ cdef class EnvironmentPolicyAPI:
         self.ensure_policy_matches()
         if not env.alive:
             return
+
+        callbacks = env.on_destroy
+        env.on_destroy = None
+
+        with use_environment(env).use():
+            for callback in callbacks:
+                try:
+                    callback()
+                except Exception as e:
+                    import traceback
+                    formatted = traceback.format_exc(type(e), e, e.__traceback__)
+                    env.core.log_message(MessageType.MESSAGE_TYPE_CRITICAL, formatted)
 
         _unset_logger(env)
         env.core = None
@@ -325,6 +339,21 @@ cdef EnvironmentData _env_current():
 
 # Make sure the policy is cleared at exit.
 atexit.register(lambda: clear_policy())
+
+
+def register_on_destroy(callback):
+    cdef EnvironmentData env = get_policy().get_current_environment()
+    if env.on_destroy is None:
+        raise ValueError("The environment is already being destroyed.")
+
+    env.on_destroy.append(callback)
+
+def unregister_on_destroy(callback):
+    cdef EnvironmentData env = get_policy().get_current_environment()
+    if env.on_destroy is None:
+        raise ValueError("The environment is already being destroyed.")
+
+    env.on_destroy.remove(callback)
 
 
 @final

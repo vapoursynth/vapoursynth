@@ -185,6 +185,20 @@ Classes and Functions
    If *injected* is not None, the default of the first argument of the signature will be replaced with the value supplied with injected.
 
 
+.. py:function:: register_on_destroy(callback)
+
+   Registers a callback that is called when the script is being finalized.
+   This allows you to release resources at the end of a script.
+
+   A callback must be registered with every script that is run,
+   even if the code is being reused in multiple script runs.
+
+   No new callbacks can be registered when the script is already being finalized.
+
+.. py:function:: unregister_on_destroy(callback)
+
+   Unregisters a previously added callback.
+
 .. py:class:: Core
 
    The *Core* class uses a singleton pattern. Use the *core* attribute to obtain an
