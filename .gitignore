@@ -41,7 +41,9 @@ dist/
 .eggs
 *.egg-info/
 
-zimg/
+libp2p
+vsrepo
+zimg
 AviSynthPlus
 
 *.log
