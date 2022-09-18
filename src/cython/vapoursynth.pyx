@@ -1230,7 +1230,7 @@ cdef class VideoFrame(RawFrame):
         self._ensure_open()
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
-    def _writelines(self, write):
+    def writelines(self, write):
         self._ensure_open()
         assert callable(write), "'write' is not callable"
 
@@ -1881,7 +1881,7 @@ cdef class VideoNode(RawNode):
             fileobj.write(data.encode("ascii"))
 
         write = fileobj.write
-        writelines = VideoFrame._writelines
+        writelines = VideoFrame.writelines
 
         for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
             if y4m:
