@@ -52,3 +52,5 @@ x64
 Debug
 Release
 msvc_project/.vs
+
+.ccls-cache/
