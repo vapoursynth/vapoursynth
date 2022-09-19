@@ -474,21 +474,24 @@ Classes and Functions
 
       Returns the stride between lines in a *plane*.
 
-   .. py:method:: writelines(write)
+   .. py:method:: writelines()
 
       This method is usually used to dump the contents of a VideoFrame to disk.
-      The `write` parameter is a callable that must take a memoryview as input, and outputs None.
+      The returned generator yields contiguous chunks of the VideoFrame memory.
 
       .. code::
          with open('output.raw', 'wb') as file:
             with vs.core.std.BlankClip(color=[25, 50, 60]).get_frame(0) as f:
-               f.writelines(file.write)
+               for line in f.writelines():
+                  file.write(line)
 
       .. note::
-         Usually, the frame contents will be held in a contiguous array, and `write` will get the full plane data.
-         Don't, however, take this for granted, as it can't be the case, and `write` will be called with each line.
+         Usually, the frame contents will be held in a contiguous array,
+         and this method will yield *n_planes* of data chunks each holding the entire plane.
+         Don't, however, take this for granted, as it can't be the case,
+         and you will iterate over lines of plane data instead, which are assured to be contiguous.
          
-         If you want to read the whole plane, use frame[plane_idx] to get the plane memoryview.
+         If you want to safely read the whole plane, use frame[plane_idx] to get the plane memoryview.
 
 .. py:class:: VideoFormat
 
