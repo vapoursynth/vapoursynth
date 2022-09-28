@@ -1286,7 +1286,7 @@ cdef class VideoFrame(RawFrame):
         self._ensure_open()
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
-    def writelines(self):
+    def writechunks(self):
         self._ensure_open()
 
         lib = self.funcs
@@ -1937,14 +1937,14 @@ cdef class VideoNode(RawNode):
             fileobj.write(data.encode("ascii"))
 
         write = fileobj.write
-        writelines = VideoFrame.writelines
+        writechunks = VideoFrame.writechunks
 
         for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
             if y4m:
                 fileobj.write(b"FRAME\n")
             
-            for line in writelines(frame):
-                write(line)
+            for chunk in writechunks(frame):
+                write(chunk)
 
             if progress_update is not None:
                 progress_update(idx+1, len(self))
