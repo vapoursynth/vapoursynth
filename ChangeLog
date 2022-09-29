@@ -1,6 +1,7 @@
 r61:
-blankclip can now emit variable size and variable format clips.
-libraries can now register clean up callbacks when a core gets destroyed.
+fixed makefulldiff for 16 bit clips, previously it used too small intermediate variables
+blankclip can now emit variable size and variable format clips
+libraries can now register clean up callbacks when a core gets destroyed
 
 r60:
 fixed blankclip crashing when fpsnum or fpsden is 0 despite it being allowed
