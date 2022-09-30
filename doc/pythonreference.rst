@@ -474,7 +474,7 @@ Classes and Functions
 
       Returns the stride between lines in a *plane*.
 
-   .. py:method:: writechunks()
+   .. py:method:: readchunks()
 
       This method is usually used to dump the contents of a VideoFrame to disk.
       The returned generator yields contiguous chunks of the VideoFrame memory.
@@ -482,7 +482,7 @@ Classes and Functions
       .. code::
          with open('output.raw', 'wb') as file:
             with vs.core.std.BlankClip(color=[25, 50, 60]).get_frame(0) as f:
-               for chunk in f.writechunks():
+               for chunk in f.readchunks():
                   file.write(chunk)
 
       .. note::
