@@ -1286,9 +1286,8 @@ cdef class VideoFrame(RawFrame):
         self._ensure_open()
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
-    def _writelines(self, write):
+    def readchunks(self):
         self._ensure_open()
-        assert callable(write), "'write' is not callable"
 
         lib = self.funcs
         frame = <VSFrame*> self.constf
@@ -1317,10 +1316,10 @@ cdef class VideoFrame(RawFrame):
 
                 for _ in range(lines):
                     line = PyMemoryView_FromObject(data)
-                    write(line)
+                    yield line
                     tmp.buf = &(<char*> tmp.buf)[stride]
             else:
-                write(data)
+                yield data
 
     def __getitem__(self, index):
         self._ensure_open()
@@ -1938,13 +1937,14 @@ cdef class VideoNode(RawNode):
             fileobj.write(data.encode("ascii"))
 
         write = fileobj.write
-        writelines = VideoFrame._writelines
+        readchunks = VideoFrame.readchunks
 
         for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
             if y4m:
                 fileobj.write(b"FRAME\n")
-
-            writelines(frame, write)
+            
+            for chunk in readchunks(frame):
+                write(chunk)
 
             if progress_update is not None:
                 progress_update(idx+1, len(self))
