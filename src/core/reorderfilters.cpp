@@ -56,7 +56,7 @@ static MismatchInfo findCommonVi(VSNode **nodes, int num, VSVideoInfo *outvi, co
         }
 
         if (!isSameVideoFormat(&outvi->format, &vi->format)) {
-            memset(&outvi->format, 0, sizeof(outvi->format));
+            outvi->format = {};
             result.differentFormat = true;
             if (!result.clipnum)
                 result.clipnum = i;
@@ -484,7 +484,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
         MismatchInfo mminfo = findCommonVi(d->nodes.data(), d->numclips, &vi, vsapi);
         if (!mminfo.match && !mismatch && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d->nodes[0])))
-            RETERROR(("Splice: clips are mismatched in " + mismatchToText(mminfo) + " starting at clip #" + std::to_string(mminfo.clipnum) + ", passed " + videoInfoToString(&vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum]), vsapi)).c_str());
+            RETERROR(("Splice: clips are mismatched in " + mismatchToText(mminfo) + " starting at clip #" + std::to_string(mminfo.clipnum) + ", passed " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum - 1]), vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum]), vsapi)).c_str());
 
         d->numframes.resize(d->numclips);
         vi.numFrames = 0;
