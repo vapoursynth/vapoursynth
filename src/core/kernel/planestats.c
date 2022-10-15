@@ -171,4 +171,9 @@ void vs_plane_stats_2_float_c(union vs_plane_stats *stats, const void *src1, ptr
         srcp1 += src1_stride;
         srcp2 += src2_stride;
     }
+
+    stats->f.min = fmin;
+    stats->f.max = fmax;
+    stats->f.acc = facc;
+    stats->f.diffacc = fdiffacc;
 }
