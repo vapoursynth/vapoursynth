@@ -2308,7 +2308,7 @@ static void VS_CC setFramePropsCreate(const VSMap *in, VSMap *out, void *userDat
     vsapi->mapDeleteKey(d->props, "clip");
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "SetFrameProps", vsapi->getVideoInfo(d->node), setFramePropsGetFrame, filterFree<SetFramePropsData>, fmParallel, deps, 1, d.get(), core);
+    vsapi->createVideoFilter(out, "SetFrameProps", vsapi->getVideoInfo(d->node), setFramePropsGetFrame, setFramePropsFree, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
 
