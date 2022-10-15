@@ -189,8 +189,7 @@ static VSNode *VS_CC packYUY2Create(VSNode *node, VSCore *core, const VSAPI *vsa
     vsapi->getVideoFormatByID(&d->vi.format, pfGray16, core);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    VSNode *ret = vsapi->createVideoFilter2("PackYUY2", &d->vi, packYUY2GetFrame, filterFree<PackYUY2Data>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    VSNode *ret = vsapi->createVideoFilter2("PackYUY2", &d->vi, packYUY2GetFrame, filterFree<PackYUY2Data>, fmParallel, deps, 1, d.release(), core);
     return ret;
 }
 
@@ -246,8 +245,7 @@ static VSNode *VS_CC unpackYUY2Create(VSNode *node, VSCore *core, const VSAPI *v
     vsapi->getVideoFormatByID(&d->vi.format, pfYUV422P8, core);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    VSNode *ret = vsapi->createVideoFilter2("UnpackRGB32", &d->vi, unpackYUY2GetFrame, filterFree<UnpackYUY2Data>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    VSNode *ret = vsapi->createVideoFilter2("UnpackRGB32", &d->vi, unpackYUY2GetFrame, filterFree<UnpackYUY2Data>, fmParallel, deps, 1, d.release(), core);
     return ret;
 }
 
@@ -303,8 +301,7 @@ static VSNode *VS_CC packRGB32Create(VSNode *node, VSCore *core, const VSAPI *vs
     vsapi->getVideoFormatByID(&d->vi.format, pfGray32, core);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    VSNode *ret = vsapi->createVideoFilter2("PackRGB32", &d->vi, packRGB32GetFrame, filterFree<PackRGB32Data>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    VSNode *ret = vsapi->createVideoFilter2("PackRGB32", &d->vi, packRGB32GetFrame, filterFree<PackRGB32Data>, fmParallel, deps, 1, d.release(), core);
     return ret;
 }
 
@@ -360,8 +357,7 @@ static VSNode *VS_CC unpackRGB32Create(VSNode *node, VSCore *core, const VSAPI *
     vsapi->getVideoFormatByID(&d->vi.format, pfRGB24, core);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    VSNode *ret = vsapi->createVideoFilter2("UnpackRGB32", &d->vi, unpackRGB32GetFrame, filterFree<UnpackRGB32Data>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    VSNode *ret = vsapi->createVideoFilter2("UnpackRGB32", &d->vi, unpackRGB32GetFrame, filterFree<UnpackRGB32Data>, fmParallel, deps, 1, d.release(), core);
     return ret;
 }
 
@@ -871,7 +867,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         PClip clip = ret.AsClip();
 
         PrefetchInfo prefetchInfo = getPrefetchInfo(wf->name, in, core, vsapi);
-        std::unique_ptr<WrappedClip> filterData(new WrappedClip(wf->name, clip, preFetchClips, prefetchInfo, fakeEnv.get()));
+        std::unique_ptr<WrappedClip> filterData(new WrappedClip(wf->name, clip, preFetchClips, prefetchInfo, fakeEnv.release()));
 
         if (!filterData->preFetchClips.empty())
             filterData->fakeEnv->uglyNode = filterData->preFetchClips.front();
@@ -925,8 +921,6 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     } else if (ret.IsString()) {
         vsapi->mapSetData(out, "val", ret.AsString(), -1, dtUtf8, maReplace);
     }
-
-    fakeEnv.release();
 }
 
 void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc apply, void *user_data) {

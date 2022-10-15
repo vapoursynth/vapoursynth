@@ -653,13 +653,11 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
 
     if (d->format == cfGray) {
         VSFilterDependency deps1[] = {{ d->nodes[0], rpStrictSpatial }};
-        vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, deps1, 1, d.get(), core);
+        vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, deps1, 1, d.release(), core);
     } else {
         VSFilterDependency deps3[] = {{ d->nodes[0], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[0])->numFrames) ? rpStrictSpatial : rpGeneral }, { d->nodes[1], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpGeneral }, { d->nodes[2], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpGeneral }};
-        vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, deps3, 3, d.get(), core);
+        vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, deps3, 3, d.release(), core);
     }
-
-    d.release();
 }
 
 //////////////////////////////////////////
@@ -796,8 +794,7 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
         muldivRational(&d->vi.fpsNum, &d->vi.fpsDen, 2, 1);
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
-    vsapi->createVideoFilter(out, "SeparateFields", &d->vi, separateFieldsGetframe, filterFree<SeparateFieldsData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "SeparateFields", &d->vi, separateFieldsGetframe, filterFree<SeparateFieldsData>, fmParallel, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -901,8 +898,7 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
         RETERROR("DoubleWeave: clip must have constant format and dimensions");
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
-    vsapi->createVideoFilter(out, "DoubleWeave", &d->vi, doubleWeaveGetframe, filterFree<DoubleWeaveData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "DoubleWeave", &d->vi, doubleWeaveGetframe, filterFree<DoubleWeaveData>, fmParallel, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -941,8 +937,7 @@ static void VS_CC flipVerticalCreate(const VSMap *in, VSMap *out, void *userData
     std::unique_ptr<FlipVeritcalData> d(new FlipVeritcalData(vsapi));
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "FlipVertical", vsapi->getVideoInfo(d->node), flipVerticalGetframe, filterFree<FlipVeritcalData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "FlipVertical", vsapi->getVideoInfo(d->node), flipVerticalGetframe, filterFree<FlipVeritcalData>, fmParallel, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -1039,8 +1034,7 @@ static void VS_CC flipHorizontalCreate(const VSMap *in, VSMap *out, void *userDa
     d->flip = !!userData;
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, d->flip ? "Turn180" : "FlipHorizontal", vsapi->getVideoInfo(d->node), flipHorizontalGetframe, filterFree<FlipHorizontalData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, d->flip ? "Turn180" : "FlipHorizontal", vsapi->getVideoInfo(d->node), flipHorizontalGetframe, filterFree<FlipHorizontalData>, fmParallel, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -1136,8 +1130,7 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < numclips; i++)
             deps.push_back({d->nodes[i], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames) ? rpStrictSpatial : rpGeneral});
-        vsapi->createVideoFilter(out, d->vertical ? "StackVertical" : "StackHorizontal", &d->vi, stackGetframe, filterFree<StackData>, fmParallel, deps.data(), numclips, d.get(), core);
-        d.release();
+        vsapi->createVideoFilter(out, d->vertical ? "StackVertical" : "StackHorizontal", &d->vi, stackGetframe, filterFree<StackData>, fmParallel, deps.data(), numclips, d.release(), core);
     }
 }
 
@@ -1336,8 +1329,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         deliveredInfo.format.numPlanes = 0;
     }
 
-    vsapi->createVideoFilter(out, "BlankClip", &deliveredInfo, blankClipGetframe, blankClipFree, d->keep ? fmUnordered : fmParallel, nullptr, 0, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "BlankClip", &deliveredInfo, blankClipGetframe, blankClipFree, d->keep ? fmUnordered : fmParallel, nullptr, 0, d.release(), core);
 }
 
 
@@ -1406,8 +1398,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
     reduceRational(&d->vi.fpsNum, &d->vi.fpsDen);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "AssumeFPS", &d->vi, assumeFPSGetframe, filterFree<AssumeFPSData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "AssumeFPS", &d->vi, assumeFPSGetframe, filterFree<AssumeFPSData>, fmParallel, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -1577,8 +1568,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
         deps.push_back({d->propsrc[i], rpGeneral}); // FIXME, propsrc could be strict spatial
     for (int i = 0; i < numclipsrc; i++)
         deps.push_back({clipsrc[i], rpGeneral});
-    vsapi->createVideoFilter(out, "FrameEval", &d->vi, (d->propsrc.size() > 0) ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree, (d->propsrc.size() > 0) ? fmParallelRequests : fmUnordered, deps.data(), deps.size(), d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "FrameEval", &d->vi, (d->propsrc.size() > 0) ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree, (d->propsrc.size() > 0) ? fmParallelRequests : fmUnordered, deps.data(), deps.size(), d.release(), core);
 
     for (auto &iter : clipsrc)
         vsapi->freeNode(iter);
@@ -1675,8 +1665,7 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
     std::vector<VSFilterDependency> deps;
     for (int i = 0; i < numnode; i++)
         deps.push_back({d->node[i], rpStrictSpatial});
-    vsapi->createVideoFilter(out, "ModifyFrame", d->vi, modifyFrameGetFrame, modifyFrameFree, fmParallelRequests, deps.data(), numnode, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "ModifyFrame", d->vi, modifyFrameGetFrame, modifyFrameFree, fmParallelRequests, deps.data(), numnode, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -1760,8 +1749,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     d->cpulevel = vs_get_cpulevel(core);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "Transpose", &d->vi, transposeGetFrame, filterFree<TransposeData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "Transpose", &d->vi, transposeGetFrame, filterFree<TransposeData>, fmParallel, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -2049,8 +2037,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     d->cpulevel = vs_get_cpulevel(core);
 
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, !d->node2 ? 0 : (vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral}};
-    vsapi->createVideoFilter(out, "PlaneStats", vi, planeStatsGetFrame, filterFree<PlaneStatsData>, fmParallel, deps, d->node2 ? 2 : 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "PlaneStats", vi, planeStatsGetFrame, filterFree<PlaneStatsData>, fmParallel, deps, d->node2 ? 2 : 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -2173,8 +2160,7 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     vsapi->freeFrame(src);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "PropToClip", &d->vi, propToClipGetFrame, filterFree<PropToClipData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "PropToClip", &d->vi, propToClipGetFrame, filterFree<PropToClipData>, fmParallel, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -2259,8 +2245,7 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
     }
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "SetFrameProp", vsapi->getVideoInfo(d->node), setFramePropGetFrame, filterFree<SetFramePropData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "SetFrameProp", vsapi->getVideoInfo(d->node), setFramePropGetFrame, filterFree<SetFramePropData>, fmParallel, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -2361,8 +2346,7 @@ static void VS_CC removeFramePropsCreate(const VSMap *in, VSMap *out, void *user
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "RemoveFrameProps", vsapi->getVideoInfo(d->node), removeFramePropsGetFrame, filterFree<RemoveFramePropsData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "RemoveFrameProps", vsapi->getVideoInfo(d->node), removeFramePropsGetFrame, filterFree<RemoveFramePropsData>, fmParallel, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -2403,8 +2387,7 @@ static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userDat
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "SetFieldBased", vsapi->getVideoInfo(d->node), setFieldBasedGetFrame, filterFree<SetFieldBasedData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "SetFieldBased", vsapi->getVideoInfo(d->node), setFieldBasedGetFrame, filterFree<SetFieldBasedData>, fmParallel, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -2440,8 +2423,7 @@ static void VS_CC copyFramePropsCreate(const VSMap *in, VSMap *out, void *userDa
     d->node2 = vsapi->mapGetNode(in, "prop_src", 0, nullptr);
 
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (vsapi->getVideoInfo(d->node1)->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral}};
-    vsapi->createVideoFilter(out, "CopyFrameProps", vsapi->getVideoInfo(d->node1), copyFramePropsGetFrame, filterFree<CopyFramePropsData>, fmParallel, deps, 2, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "CopyFrameProps", vsapi->getVideoInfo(d->node1), copyFramePropsGetFrame, filterFree<CopyFramePropsData>, fmParallel, deps, 2, d.release(), core);
 }
 
 //////////////////////////////////////////

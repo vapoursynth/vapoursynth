@@ -290,8 +290,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         for (int i = 0; i < numNodes; i++)
             deps.push_back({d->nodes[i], (vsapi->getVideoInfo(d->nodes[i])->numFrames >= d->vi.numFrames) ? rpStrictSpatial : rpGeneral});
     }
-    vsapi->createVideoFilter(out, "AverageFrames", &d->vi, averageFramesGetFrame, filterFree<AverageFrameData>, fmParallel, deps.data(), numNodes, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "AverageFrames", &d->vi, averageFramesGetFrame, filterFree<AverageFrameData>, fmParallel, deps.data(), numNodes, d.release(), core);
 }
 
 } // namespace

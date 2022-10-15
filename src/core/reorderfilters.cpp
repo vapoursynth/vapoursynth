@@ -261,8 +261,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < d->numclips; i++)
             deps.push_back({d->nodes[i], (maxNumFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames) ? rpStrictSpatial : rpGeneral});
-        vsapi->createVideoFilter(out, "Interleave", &d->vi, interleaveGetframe, filterFree<InterleaveData>, fmParallel, deps.data(), d->numclips, d.get(), core);
-        d.release();
+        vsapi->createVideoFilter(out, "Interleave", &d->vi, interleaveGetframe, filterFree<InterleaveData>, fmParallel, deps.data(), d->numclips, d.release(), core);
     }
 }
 
@@ -290,8 +289,7 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d->vi = vsapi->getVideoInfo(d->node);
 
     VSFilterDependency deps[] = {{ d->node, rpNoFrameReuse }};
-    vsapi->createVideoFilter(out, "Reverse", d->vi, reverseGetframe, filterFree<ReverseData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "Reverse", d->vi, reverseGetframe, filterFree<ReverseData>, fmParallel, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -501,8 +499,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < d->numclips; i++)
             deps.push_back({ d->nodes[i], rpNoFrameReuse });
-        vsapi->createVideoFilter(out, "Splice", &vi, spliceGetframe, filterFree<SpliceData>, fmParallel, deps.data(), d->numclips, d.get(), core);
-        d.release();
+        vsapi->createVideoFilter(out, "Splice", &vi, spliceGetframe, filterFree<SpliceData>, fmParallel, deps.data(), d->numclips, d.release(), core);
     }
 }
 

@@ -136,8 +136,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     VSFilterDependency deps[] = {{ d->nodes[0], rpStrictSpatial }, { d->nodes[1], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpGeneral }, { d->nodes[2], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpGeneral }};
-    vsapi->createVideoFilter(out, "PreMultiply", d->vi, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, deps, d->nodes[2] ? 3 : 2, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "PreMultiply", d->vi, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, deps, d->nodes[2] ? 3 : 2, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -285,8 +284,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         RETERROR("Merge: more weights given than the number of planes to merge");
 
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral}};
-    vsapi->createVideoFilter(out, "Merge", d->vi, mergeGetFrame, filterFree<MergeData>, fmParallel, deps, 2, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "Merge", d->vi, mergeGetFrame, filterFree<MergeData>, fmParallel, deps, 2, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -457,8 +455,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     d->cpulevel = vs_get_cpulevel(core);
 
     VSFilterDependency deps[] = {{ d->nodes[0], rpStrictSpatial }, { d->nodes[1], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpGeneral }, { d->nodes[2], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpGeneral }, { d->nodes[3], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpGeneral }};
-    vsapi->createVideoFilter(out, "MaskedMerge", d->vi, maskedMergeGetFrame, filterFree<MaskedMergeData>, fmParallel, deps, d->nodes[3] ? 4 : 3, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "MaskedMerge", d->vi, maskedMergeGetFrame, filterFree<MaskedMergeData>, fmParallel, deps, d->nodes[3] ? 4 : 3, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -563,8 +560,7 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
     d->cpulevel = vs_get_cpulevel(core);
 
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral}};
-    vsapi->createVideoFilter(out, "MakeDiff", d->vi, makeDiffGetFrame, filterFree<MakeDiffData>, fmParallel, deps, 2, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "MakeDiff", d->vi, makeDiffGetFrame, filterFree<MakeDiffData>, fmParallel, deps, 2, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -665,8 +661,7 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
     d->cpulevel = vs_get_cpulevel(core);
 
     VSFilterDependency deps[] = { {d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral} };
-    vsapi->createVideoFilter(out, "MakeFullDiff", &d->outvi, makeFullDiffGetFrame, filterFree<MakeFullDiffData>, fmParallel, deps, 2, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "MakeFullDiff", &d->outvi, makeFullDiffGetFrame, filterFree<MakeFullDiffData>, fmParallel, deps, 2, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -771,8 +766,7 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
     d->cpulevel = vs_get_cpulevel(core);
 
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral}};
-    vsapi->createVideoFilter(out, "MergeDiff", d->vi, mergeDiffGetFrame, filterFree<MergeDiffData>, fmParallel, deps, 2, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "MergeDiff", d->vi, mergeDiffGetFrame, filterFree<MergeDiffData>, fmParallel, deps, 2, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -869,8 +863,7 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
     d->cpulevel = vs_get_cpulevel(core);
 
     VSFilterDependency deps[] = { {d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpGeneral} };
-    vsapi->createVideoFilter(out, "MergeFullDiff", d->vi, mergeFullDiffGetFrame, filterFree<MergeFullDiffData>, fmParallel, deps, 2, d.get(), core);
-    d.release();
+    vsapi->createVideoFilter(out, "MergeFullDiff", d->vi, mergeFullDiffGetFrame, filterFree<MergeFullDiffData>, fmParallel, deps, 2, d.release(), core);
 }
 
 //////////////////////////////////////////
