@@ -93,6 +93,41 @@ class CoreTestSequence(unittest.TestCase):
         clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
         self.core.text.ClipInfo(clip, alignment=None)
 
+#blank clip argument tests
+    def test_blank_clip_no_variable(self):
+        clip = self.core.std.BlankClip(format=vs.YUV444P8, color=[69, 242, 115], width=120, height=121)
+        self.assertEqual(clip.width, 120)
+        self.assertEqual(clip.height, 121)
+        self.assertEqual(int(clip.format), int(vs.YUV444P8))
+
+        frame = clip.get_frame(0)
+        self.assertEqual(frame.width, 120)
+        self.assertEqual(frame.height, 121)
+        self.assertEqual(int(frame.format), int(vs.YUV444P8))
+
+    def test_blank_clip_variable_size(self):
+        clip = self.core.std.BlankClip(format=vs.YUV444P8, color=[69, 242, 115], varsize=True, width=120, height=121)
+        self.assertEqual(clip.width, 0)
+        self.assertEqual(clip.height, 0)
+        self.assertEqual(int(clip.format), int(vs.YUV444P8))
+
+        frame = clip.get_frame(0)
+        self.assertEqual(frame.width, 120)
+        self.assertEqual(frame.height, 121)
+        self.assertEqual(int(frame.format), int(vs.YUV444P8))
+
+    def test_blank_clip_variable_format(self):
+        clip = self.core.std.BlankClip(format=vs.YUV444P8, color=[69, 242, 115], varformat=True, width=120, height=121)
+        self.assertEqual(clip.width, 120)
+        self.assertEqual(clip.height, 121)
+        self.assertEqual(clip.format, None)
+
+        frame = clip.get_frame(0)
+        self.assertEqual(frame.width, 120)
+        self.assertEqual(frame.height, 121)
+        self.assertEqual(int(frame.format), int(vs.YUV444P8))
+
+
 #lut argument tests
     def test_lut_arg1(self):
         clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])

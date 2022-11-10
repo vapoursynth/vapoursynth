@@ -1,7 +1,7 @@
 BlankClip
 =========
 
-.. function:: BlankClip([vnode clip, int width=640, int height=480, int format=vs.RGB24, int length=(10*fpsnum)/fpsden, int fpsnum=24, int fpsden=1, float[] color=<black>, bint keep=0])
+.. function:: BlankClip([vnode clip, int width=640, int height=480, int format=vs.RGB24, int length=(10*fpsnum)/fpsden, int fpsnum=24, int fpsden=1, float[] color=<black>, bint keep=0, bint varsize=0, bint varformat=0])
    :module: std
 
    Generates a new empty clip. This can be useful to have when editing video or
@@ -13,6 +13,12 @@ BlankClip
    If *keep* is set, a reference to the same frame is returned on every request.
    Otherwise a new frame is generated every time. There should usually be no
    reason to change this setting.
+
+   If *varsize* is set, a clip with variable size will be returned. The frames
+   themselves will still have the size given by the width and height arguments.
+
+   If *varformat* is set, a clip with variable format will be returned.
+   The frames themselves will have the format given by the format argument.
 
    It is never an error to use BlankClip.
 

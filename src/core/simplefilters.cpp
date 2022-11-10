@@ -1318,7 +1318,25 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->keep = !!vsapi->mapGetInt(in, "keep", 0, &err);
 
-    vsapi->createVideoFilter(out, "BlankClip", &d->vi, blankClipGetframe, blankClipFree, d->keep ? fmUnordered : fmParallel, nullptr, 0, d.get(), core);
+    VSVideoInfo deliveredInfo = d->vi;
+
+    tmp2 = vsapi->mapGetInt(in, "varsize", 0, &err);
+    if (!err && tmp2) {
+        deliveredInfo.width = 0;
+        deliveredInfo.height = 0;
+    }
+
+    tmp2 = vsapi->mapGetInt(in, "varformat", 0, &err);
+    if (!err && tmp2) {
+        deliveredInfo.format.colorFamily = cfUndefined;
+        deliveredInfo.format.bitsPerSample = 0;
+        deliveredInfo.format.bytesPerSample = 0;
+        deliveredInfo.format.subSamplingW = 0;
+        deliveredInfo.format.subSamplingH = 0;
+        deliveredInfo.format.numPlanes = 0;
+    }
+
+    vsapi->createVideoFilter(out, "BlankClip", &deliveredInfo, blankClipGetframe, blankClipFree, d->keep ? fmUnordered : fmParallel, nullptr, 0, d.get(), core);
     d.release();
 }
 
@@ -2476,7 +2494,7 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Turn180", "clip:vnode;", "clip:vnode;", flipHorizontalCreate, (void *)1, plugin);
     vspapi->registerFunction("StackVertical", "clips:vnode[];", "clip:vnode;", stackCreate, (void *)1, plugin);
     vspapi->registerFunction("StackHorizontal", "clips:vnode[];", "clip:vnode;", stackCreate, 0, plugin);
-    vspapi->registerFunction("BlankClip", "clip:vnode:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;", "clip:vnode;", blankClipCreate, 0, plugin);
+    vspapi->registerFunction("BlankClip", "clip:vnode:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;varsize:int:opt;varformat:int:opt;", "clip:vnode;", blankClipCreate, 0, plugin);
     vspapi->registerFunction("AssumeFPS", "clip:vnode;src:vnode:opt;fpsnum:int:opt;fpsden:int:opt;", "clip:vnode;", assumeFPSCreate, 0, plugin);
     vspapi->registerFunction("FrameEval", "clip:vnode;eval:func;prop_src:vnode[]:opt;clip_src:vnode[]:opt;", "clip:vnode;", frameEvalCreate, 0, plugin);
     vspapi->registerFunction("ModifyFrame", "clip:vnode;clips:vnode[];selector:func;", "clip:vnode;", modifyFrameCreate, 0, plugin);

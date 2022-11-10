@@ -87,6 +87,7 @@ __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAP
 cdef class EnvironmentData(object):
     cdef bint alive
     cdef Core core
+    cdef object on_destroy
     cdef dict outputs
 
     cdef int coreCreationFlags
@@ -194,6 +195,12 @@ cdef class EnvironmentPolicyAPI:
     # is stored within an EnvironmentPolicy-instance.
     cdef object _target_policy
 
+    cdef object _lock
+    cdef object _known_environments
+    # Sadly, weakref has no WeakSet.
+    # So we use a counter to fake a WeakSet.
+    cdef int _known_environments_counter
+
     def __init__(self):
         raise RuntimeError("Cannot directly instantiate this class.")
 
@@ -215,7 +222,13 @@ cdef class EnvironmentPolicyAPI:
         env.log = NULL
         env.outputs = {}
         env.coreCreationFlags = flags
+        env.on_destroy = []
         env.alive = True
+
+        with self._lock:
+            counter = self._known_environments_counter
+            self._known_environments_counter += 1
+            self._known_environments[counter] = env
 
         return env
 
@@ -225,6 +238,21 @@ cdef class EnvironmentPolicyAPI:
 
     def destroy_environment(self, EnvironmentData env):
         self.ensure_policy_matches()
+        if not env.alive:
+            return
+
+        callbacks = env.on_destroy
+        env.on_destroy = None
+
+        with use_environment(env).use():
+            for callback in callbacks:
+                try:
+                    callback()
+                except Exception as e:
+                    import traceback
+                    formatted = traceback.format_exc(type(e), e, e.__traceback__)
+                    env.core.log_message(MessageType.MESSAGE_TYPE_CRITICAL, formatted)
+
         _unset_logger(env)
         env.core = None
         env.log = NULL
@@ -233,6 +261,8 @@ cdef class EnvironmentPolicyAPI:
 
     def unregister_policy(self):
         self.ensure_policy_matches()
+        for environment in self._known_environments.values():
+            self.destroy_environment(environment)
         clear_policy()
 
     def __repr__(self):
@@ -254,6 +284,8 @@ def register_policy(policy):
     # Expose Additional API-calls to the newly registered Environment-policy.
     cdef EnvironmentPolicyAPI _api = EnvironmentPolicyAPI.__new__(EnvironmentPolicyAPI)
     _api._target_policy = weakref.ref(_policy)
+    _api._known_environments = weakref.WeakValueDictionary()
+    _api._lock = threading.Lock()
     _policy.on_policy_registered(_api)
 
 
@@ -301,6 +333,21 @@ cdef EnvironmentData _env_current():
 
 # Make sure the policy is cleared at exit.
 atexit.register(lambda: clear_policy())
+
+
+def register_on_destroy(callback):
+    cdef EnvironmentData env = get_policy().get_current_environment()
+    if env.on_destroy is None:
+        raise ValueError("The environment is already being destroyed.")
+
+    env.on_destroy.append(callback)
+
+def unregister_on_destroy(callback):
+    cdef EnvironmentData env = get_policy().get_current_environment()
+    if env.on_destroy is None:
+        raise ValueError("The environment is already being destroyed.")
+
+    env.on_destroy.remove(callback)
 
 
 @cython.final

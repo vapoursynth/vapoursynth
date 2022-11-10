@@ -1,3 +1,7 @@
+r61:
+blankclip can now emit variable size and variable format clips.
+libraries can now register clean up callbacks when a core gets destroyed.
+
 r60:
 fixed blankclip crashing when fpsnum or fpsden is 0 despite it being allowed
 fixed invalid format ids sometimes being treated as api3 values when passed to resize 
