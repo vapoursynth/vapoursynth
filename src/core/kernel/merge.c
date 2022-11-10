@@ -455,7 +455,7 @@ void vs_mergefulldiff_dword_word_c(const void *src1, const void *src2, void *dst
 
     for (i = 0; i < n; i++) {
         uint16_t v1 = srcp1[i];
-        uint16_t v2 = srcp2[i];
+        uint32_t v2 = srcp2[i];
         int32_t tmp = (int32_t)v1 + (int32_t)v2 - half;
         dstp[i] = VSMIN(VSMAX(tmp, 0), maxval);
     }

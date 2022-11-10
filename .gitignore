@@ -43,6 +43,11 @@ dist/
 .eggs
 *.egg-info/
 
+libp2p
+vsrepo
+zimg
+AviSynthPlus
+
 *.log
 *.user
 x64
@@ -50,7 +55,4 @@ Debug
 Release
 msvc_project/.vs
 
-AviSynthPlus/
-libp2p/
-vsrepo/
-zimg/
+.ccls-cache/
