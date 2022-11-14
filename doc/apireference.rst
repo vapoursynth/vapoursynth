@@ -9,9 +9,6 @@ Public Headers
 
 .. toctree::
    :maxdepth: 1
-   :glob:
-
-   api/*
    
 Common Pitfalls
 ###############
