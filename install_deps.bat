@@ -24,7 +24,10 @@ IF NOT EXIST zimg (
     echo zimg: & pushd zimg & git pull & popd
 )
 
+py -3.10 -m ensurepip
 py -3.10 -m pip install -r python-requirements.txt
+
+py -3.10-32 -m ensurepip
 py -3.10-32 -m pip install -r python-requirements.txt
 
 SET ZFOLDER=C:\Program Files\7-Zip
