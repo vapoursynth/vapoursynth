@@ -48,7 +48,11 @@ static void real_init(void) VS_NOEXCEPT {
     #define VS_INSTALL_REGKEY L"Software\\VapourSynth-32"
 #endif
 
-    const std::wstring pythonDllName = L"python310.dll";
+    #ifdef VSSCRIPT_PYTHON38
+        const std::wstring pythonDllName = L"python38.dll";
+    #else
+        const std::wstring pythonDllName = L"python310.dll";
+    #endif
 
     // portable
     HMODULE module;

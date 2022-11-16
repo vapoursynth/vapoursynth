@@ -74,6 +74,7 @@ copy 7z.dll buildp32
 copy ..\vapoursynth.cp310-win32.pyd buildp32
 copy ..\msvc_project\Release\VapourSynth.dll buildp32
 copy ..\msvc_project\Release\vsscript.dll buildp32
+copy ..\msvc_project\Release\vsscriptpython38.dll buildp32
 copy ..\msvc_project\Release\avfs.exe buildp32
 copy ..\msvc_project\Release\vsvfw.dll buildp32
 copy ..\msvc_project\Release\vspipe.exe buildp32
