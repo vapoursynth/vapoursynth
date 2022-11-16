@@ -22,7 +22,7 @@ cdef extern from "include/VSConstants4.h" nogil:
     cpdef enum ColorRange "VSColorRange":
         RANGE_FULL "VSC_RANGE_FULL"
         RANGE_LIMITED "VSC_RANGE_LIMITED"
-
+        
     cpdef enum ChromaLocation "VSChromaLocation":
         CHROMA_LEFT "VSC_CHROMA_LEFT"
         CHROMA_CENTER "VSC_CHROMA_CENTER"
@@ -30,12 +30,12 @@ cdef extern from "include/VSConstants4.h" nogil:
         CHROMA_TOP "VSC_CHROMA_TOP"
         CHROMA_BOTTOM_LEFT "VSC_CHROMA_BOTTOM_LEFT"
         CHROMA_BOTTOM "VSC_CHROMA_BOTTOM"
-
+        
     cpdef enum FieldBased "VSFieldBased":
         FIELD_PROGRESSIVE "VSC_FIELD_PROGRESSIVE"
         FIELD_TOP "VSC_FIELD_TOP"
         FIELD_BOTTOM "VSC_FIELD_BOTTOM"
-
+        
     cpdef enum MatrixCoefficients "VSMatrixCoefficients":
         MATRIX_RGB "VSC_MATRIX_RGB"
         MATRIX_BT709 "VSC_MATRIX_BT709"
@@ -49,7 +49,7 @@ cdef extern from "include/VSConstants4.h" nogil:
         MATRIX_CHROMATICITY_DERIVED_NCL "VSC_MATRIX_CHROMATICITY_DERIVED_NCL"
         MATRIX_CHROMATICITY_DERIVED_CL "VSC_MATRIX_CHROMATICITY_DERIVED_CL"
         MATRIX_ICTCP "VSC_MATRIX_ICTCP"
-
+        
     cpdef enum TransferCharacteristics "VSTransferCharacteristics":
         TRANSFER_BT709 "VSC_TRANSFER_BT709"
         TRANSFER_UNSPECIFIED "VSC_TRANSFER_UNSPECIFIED"
@@ -66,7 +66,7 @@ cdef extern from "include/VSConstants4.h" nogil:
         TRANSFER_BT2020_12 "VSC_TRANSFER_BT2020_12"
         TRANSFER_ST2084 "VSC_TRANSFER_ST2084"
         TRANSFER_ARIB_B67 "VSC_TRANSFER_ARIB_B67"
-
+        
     cpdef enum ColorPrimaries "VSColorPrimaries":
         PRIMARIES_BT709 "VSC_PRIMARIES_BT709"
         PRIMARIES_UNSPECIFIED "VSC_PRIMARIES_UNSPECIFIED"
@@ -80,3 +80,4 @@ cdef extern from "include/VSConstants4.h" nogil:
         PRIMARIES_ST431_2 "VSC_PRIMARIES_ST431_2"
         PRIMARIES_ST432_1 "VSC_PRIMARIES_ST432_1"
         PRIMARIES_EBU3213_E "VSC_PRIMARIES_EBU3213_E"
+        
