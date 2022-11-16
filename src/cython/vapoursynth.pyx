@@ -285,7 +285,7 @@ def register_policy(policy):
     cdef EnvironmentPolicyAPI _api = EnvironmentPolicyAPI.__new__(EnvironmentPolicyAPI)
     _api._target_policy = weakref.ref(_policy)
     _api._known_environments = weakref.WeakValueDictionary()
-    _api._lock = threading.Lock()
+    _api._lock = RLock()
     _policy.on_policy_registered(_api)
 
 
