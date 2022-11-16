@@ -21,6 +21,7 @@
 from vapoursynth cimport VSCore
 
 cdef extern from "src/vsscript/vsscript_internal.h" nogil:
+
     ctypedef struct VSScript:
         void *pyenvdict
         void *errstr
