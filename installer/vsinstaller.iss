@@ -265,9 +265,9 @@ end;
 procedure GetPythonInstallations;
 begin
   GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '{#PythonVersion}', 0);
-  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '{#PythonVersion}', {#InstallerBitsInt});
+  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '{#PythonVersion}', {#InstallerBitsInt}); 
   GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '3.8', 0);
-  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '3.8', {#InstallerBitsInt});  
+  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '3.8', {#InstallerBitsInt}); 
 end;
 
 procedure PopulatePythonInstallations(List: TNewCheckListBox);
