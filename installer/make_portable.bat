@@ -20,6 +20,7 @@ copy 7z.dll buildp64
 copy ..\vapoursynth.cp310-win_amd64.pyd buildp64
 copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
+copy ..\msvc_project\x64\Release\vsscriptpython38.dll buildp64
 copy ..\msvc_project\x64\Release\avfs.exe buildp64
 copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
 copy ..\msvc_project\x64\Release\vspipe.exe buildp64
