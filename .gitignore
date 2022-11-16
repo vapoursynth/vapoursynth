@@ -14,6 +14,7 @@ src/cython/vapoursynth_api.h
 *.so
 *.dll
 *.exe
+!pfm-192-vapoursynth-win.exe
 *.7z
 *.pyd
 .libs
