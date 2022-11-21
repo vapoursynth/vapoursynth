@@ -480,6 +480,7 @@ Classes and Functions
       The returned generator yields contiguous chunks of the VideoFrame memory.
 
       .. code::
+      
          with open('output.raw', 'wb') as file:
             with vs.core.std.BlankClip(color=[25, 50, 60]).get_frame(0) as f:
                for chunk in f.readchunks():
