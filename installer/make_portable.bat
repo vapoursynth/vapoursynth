@@ -40,9 +40,9 @@ copy ..\sdk\filter_skeleton.c buildp64\sdk\examples
 copy ..\sdk\invert_example.c buildp64\sdk\examples
 copy ..\sdk\vsscript_example.c buildp64\sdk\examples
 IF EXIST "C:\Program Files\Microsoft Visual Studio\" (
-  copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x64\Microsoft.VC143.CRT\*" buildp64
+  copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.34.31931\x64\Microsoft.VC143.CRT\*" buildp64
 ) ELSE (
-  copy "D:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x64\Microsoft.VC143.CRT\*" buildp64
+  copy "D:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.34.31931\x64\Microsoft.VC143.CRT\*" buildp64
 )
 copy pfm-192-vapoursynth-win.exe buildp64
 copy .\setup.py buildp64
@@ -95,9 +95,9 @@ copy ..\sdk\filter_skeleton.c buildp32\sdk\examples
 copy ..\sdk\invert_example.c buildp32\sdk\examples
 copy ..\sdk\vsscript_example.c buildp32\sdk\examples
 IF EXIST "C:\Program Files\Microsoft Visual Studio\" (
-  copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x86\Microsoft.VC143.CRT\*" buildp32
+  copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.34.31931\x86\Microsoft.VC143.CRT\*" buildp32
 ) ELSE (
-  copy "D:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.32.31326\x86\Microsoft.VC143.CRT\*" buildp32
+  copy "D:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.34.31931\x86\Microsoft.VC143.CRT\*" buildp32
 )
 copy pfm-192-vapoursynth-win.exe buildp32
 copy .\setup.py buildp32
