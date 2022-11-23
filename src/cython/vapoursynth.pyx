@@ -1819,9 +1819,10 @@ cdef class RawNode(object):
         running = 0
         lock = RLock()
         reorder = {}
+        curr_frames = 0
 
         def _request_next():
-            nonlocal finished, running
+            nonlocal finished, running, curr_frames
             with lock:
                 if finished:
                     return
@@ -1835,6 +1836,7 @@ cdef class RawNode(object):
 
                 idx, fut = ni
                 reorder[idx] = fut
+                curr_frames += 1
                 fut.add_done_callback(_finished)
 
         def _finished(f):
@@ -1857,13 +1859,13 @@ cdef class RawNode(object):
             with lock:
                 # Two rules: 1. Don't exceed the concurrency barrier.
                 #            2. Don't exceed unused-frames-backlog
-                while (not finished) and (running < prefetch) and len(reorder)<backlog:
+                while (not finished) and (running < prefetch) and curr_frames < backlog:
                     _request_next()
         _refill()
 
         sidx = 0
         try:
-            while (not finished) or (len(reorder)>0) or running>0:
+            while (not finished) or (curr_frames > 0) or running > 0:
                 if sidx not in reorder:
                     # Spin. Reorder being empty should never happen.
                     continue
@@ -1873,6 +1875,7 @@ cdef class RawNode(object):
 
                 result = fut.result()
                 del reorder[sidx]
+                curr_frames -= 1
                 _refill()
 
                 sidx += 1
