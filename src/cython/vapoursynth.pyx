@@ -1767,6 +1767,19 @@ cdef class _audio:
         view.len = view.shape[0] * view.itemsize
         view.buf = _frame.getdata(frame, channel, flags, lib)
 
+cdef _get_handle_future():
+    fut = Future()
+    fut.set_running_or_notify_cancel()
+
+    def _handle_future(result, exception):
+        if exception is not None:
+            fut.set_exception(exception)
+        else:
+            fut.set_result(result)
+
+    _handle_future.fut = fut
+
+    return _handle_future
 
 cdef class RawNode(object):
     cdef VSNode *node
@@ -1783,21 +1796,14 @@ cdef class RawNode(object):
 
     def get_frame_async(self, int n, object cb = None):
         if cb is None:
-            def _handle_future(result, exception):
-                if exception is not None:
-                    fut.set_exception(exception)
-                else:
-                    fut.set_result(result)
-
-            fut = Future()
-            fut.set_running_or_notify_cancel()
+            _handle_future = _get_handle_future()
 
             try:
                 self.get_frame_async(n, _handle_future)
             except Exception as e:
-                fut.set_exception(e)
+                _handle_future.fut.set_exception(e)
 
-            return fut
+            return _handle_future.fut
 
         cdef CallbackData data = createCallbackData(self.funcs, self, cb)
         Py_INCREF(data)
@@ -1808,12 +1814,24 @@ cdef class RawNode(object):
     def frames(self, prefetch=None, backlog=None, close=False):
         if prefetch is None or prefetch <= 0:
             prefetch = self.core.num_threads
+        
         if backlog is None or backlog < 0:
-            backlog = prefetch*3
+            backlog = prefetch * 3
         elif backlog < prefetch:
             backlog = prefetch
 
-        enum_fut = enumerate((self.get_frame_async(frameno) for frameno in range(self.num_frames)))
+        def _get_enum_fut():
+            get_frame_async = self.get_frame_async
+
+            for n in range(self.num_frames):
+                handle_future = _get_handle_future()
+                get_frame_async(n, handle_future)
+
+                yield n, handle_future.fut
+
+            return None
+
+        enum_fut = _get_enum_fut().__next__
 
         finished = False
         running = 0
@@ -1823,26 +1841,29 @@ cdef class RawNode(object):
 
         def _request_next():
             nonlocal finished, running, curr_frames
-            with lock:
-                if finished:
-                    return
+            
+            if finished:
+                return
 
-                ni = next(enum_fut, None)
-                if ni is None:
+            with lock:
+                try:
+                    idx, fut = enum_fut()
+                except StopIteration:
                     finished = True
                     return
 
-                running += 1
-
-                idx, fut = ni
                 reorder[idx] = fut
+                running += 1
                 curr_frames += 1
+                
                 fut.add_done_callback(_finished)
 
         def _finished(f):
             nonlocal finished, running
+            
             with lock:
                 running -= 1
+                
                 if finished:
                     return
 
@@ -1864,6 +1885,7 @@ cdef class RawNode(object):
         _refill()
 
         sidx = 0
+
         try:
             while (not finished) or (curr_frames > 0) or running > 0:
                 if sidx not in reorder:
@@ -1874,24 +1896,27 @@ cdef class RawNode(object):
                 fut = reorder[sidx]
 
                 result = fut.result()
+                
                 del reorder[sidx]
+                
                 curr_frames -= 1
                 _refill()
 
                 sidx += 1
+
                 try:
                     yield result
 
                 finally:
                     if close:
                         result.close()
-
         finally:
             finished = True
 
             for fut in reorder.copy().values():
                 if fut.exception() is not None:
                     continue
+
                 fut.result().close()
 
             gc.collect()
