@@ -1801,7 +1801,6 @@ cdef class RawNode(object):
                 else:
                     fut.set_result(result)
 
-            from concurrent.futures import Future
             fut = Future()
             fut.set_running_or_notify_cancel()
 
