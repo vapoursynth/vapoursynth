@@ -107,7 +107,7 @@ jobs:
         
         popd
         popd
-
+        
     - name: Setup Python 3.8 a second time
       uses: actions/setup-python@v3
       with:
@@ -125,12 +125,12 @@ jobs:
         } else {
           Remove-Item 'buildp32' -Recurse
         }
-
+        
         $env:SKIP_COMPRESS="yes"
         $env:SKIP_WAIT="yes"
         & ".\make_portable.bat"
-
-
+  
+  
         if ("${{ matrix.arch }}" -eq "x64") {
           pushd buildp64
         } else {
@@ -157,7 +157,7 @@ jobs:
         
         popd
         popd
-
+      
     - name: Upload build artefacts
       uses: actions/upload-artifact@v2
       with:
