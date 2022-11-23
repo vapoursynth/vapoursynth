@@ -2019,8 +2019,6 @@ cdef class VideoNode(RawNode):
             return createConstVideoFrame(f, self.funcs, self.core.core)
 
     def set_output(self, int index = 0, VideoNode alpha = None, int alt_output = 0):
-        cdef const VSVideoFormat *aformat = NULL
-        clip = self
         if alpha is not None:
             if (self.vi.width != alpha.vi.width) or (self.vi.height != alpha.vi.height):
                 raise Error('Alpha clip dimensions must match the main video')
@@ -2031,10 +2029,8 @@ cdef class VideoNode(RawNode):
                     raise Error('Alpha clip format must match the main video')
             elif (self.vi.format.colorFamily != UNDEFINED) or (alpha.vi.format.colorFamily != UNDEFINED):
                 raise Error('Format must be either known or unknown for both alpha and main clip')
-            
-            _get_output_dict("set_output")[index] = VideoOutputTuple(self, alpha, alt_output)
-        else:
-            _get_output_dict("set_output")[index] = VideoOutputTuple(self, None, alt_output)
+
+        _get_output_dict("set_output")[index] = VideoOutputTuple(self, alpha, alt_output)
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0, int backlog = -1):
         if (fileobj is sys.stdout or fileobj is sys.stderr):
