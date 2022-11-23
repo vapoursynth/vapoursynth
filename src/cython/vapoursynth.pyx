@@ -747,19 +747,12 @@ cdef class CallbackData(object):
 
     cdef EnvironmentData env
 
-    def __init__(self, object node, EnvironmentData env, object callback = None):
+    def __init__(self, object node, EnvironmentData env, object callback):
         # Keeps the node alive during the call.
         self.node = node
 
         self.callback = callback
         self.env = env
-
-    def receive(self, n, result):
-        with use_environment(self.env).use():
-            if isinstance(result, Exception):
-                self.callback(None, result)
-            else:
-                self.callback(result, None)
 
 
 cdef createCallbackData(const VSAPI* funcs, RawNode node, object cb):
@@ -788,20 +781,15 @@ cdef FramePtr createFramePtr(const VSFrame *f, const VSAPI *funcs):
 
 cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNode *node, const char *errormsg) nogil:
     with gil:
+        result = error = None
         d = <CallbackData>data
+
         try:
             if f == NULL:
-                result = 'Internal error - no error message.'
+                error = 'Internal error - no error message.'
                 if errormsg != NULL:
-                    result = errormsg.decode('utf-8')
-                result = Error(result)
-
-            elif isinstance(d.node, VideoNode):
-                result = createConstFrame(f, d.funcs, d.node.core.core)
-
-            elif isinstance(d.node, AudioNode):
-                result = createConstAudioFrame(f, d.funcs, d.node.core.core)
-
+                    error = errormsg.decode('utf-8')
+                error = Error(error)
             else:
                 result = Error("This should not happen. Add your own node-implementation to the frameDoneCallback code.")
             
