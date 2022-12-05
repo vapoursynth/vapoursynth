@@ -105,7 +105,9 @@ Source: {#= SourceBinaryPath}\vsscriptpython38.dll; DestName: "vsscript.dll"; De
 ;vsrepo
 Source: ..\vsrepo\vsrepo.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: ..\vsrepo\vsgenstubs4\__init__.py; DestDir: {app}\vsrepo\vsgenstubs4; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
+Source: ..\vsrepo\vsgenstubs4\__main__.py; DestDir: {app}\vsrepo\vsgenstubs4; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: ..\vsrepo\vsgenstubs4\_vapoursynth.part.pyi; DestDir: {app}\vsrepo\vsgenstubs4; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
+Source: ..\vsrepo\vsgenstubs4\init.py; DestDir: {app}\vsrepo\vsgenstubs4; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: 7z.exe; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: 7z.dll; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 
