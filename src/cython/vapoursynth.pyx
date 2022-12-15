@@ -1406,11 +1406,17 @@ cdef class VideoFrame(RawFrame):
         return lib.getVideoFrameFormat(self.constf).numPlanes
 
     def __str__(self):
-        cdef str s = 'VideoFrame\n'
-        s += '\tFormat: ' + self.format.name + '\n'
-        s += '\tWidth: ' + str(self.width) + '\n'
-        s += '\tHeight: ' + str(self.height) + '\n'
-        return s
+        d = 'dynamic'
+        format = self.format.name if self.format else d
+        width, height = (self.width, self.height) if self.width and self.height else (d, d)
+
+        return (
+            'VideoFrame\n'
+            f'\tFormat: {format}\n'
+            f'\tWidth: {width}\n'
+            f'\tHeight: {height}\n'
+            f'\tReadonly: {str(self.readonly)}\n'
+        )
 
 
 cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
