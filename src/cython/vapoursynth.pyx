@@ -2442,6 +2442,7 @@ cdef class Core(object):
             f'Core\n
             f'\t{version}\n'
             f'\tNumber of Threads: {self.num_threads:d}\n'
+            f'\tMax Cache Size: {self.max_cache_size:d}\n'
         )
 
 cdef object createNode(VSNode *node, const VSAPI *funcs, Core core):
