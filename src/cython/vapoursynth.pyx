@@ -2436,11 +2436,12 @@ cdef class Core(object):
         return super(Core, self).__dir__() + plugins
 
     def __str__(self):
-        version = '\n\t'.join([x.strip() for x in self.version().splitlines()])
+        version_lines = [x.strip() for x in self.version().splitlines()]
+        copyright = '\n'.join(version_lines[:2])
+        version = '\n\t'.join(version_lines[2:])
 
         return (
-            f'Core\n
-            f'\t{version}\n'
+            f'{copyright}\n\t{version}\n'
             f'\tNumber of Threads: {self.num_threads:d}\n'
             f'\tMax Cache Size: {self.max_cache_size:d}\n'
         )
