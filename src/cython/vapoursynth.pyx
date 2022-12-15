@@ -1590,6 +1590,7 @@ cdef class AudioFrame(RawFrame):
             f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
             f'\tNum Channels: {self.num_channels:d}\n'
             f'\tChannels: {channels}\n'
+            f'\tReadonly: {str(self.readonly)}\n'
         )
 
 
