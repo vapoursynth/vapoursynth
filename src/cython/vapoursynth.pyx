@@ -2257,18 +2257,22 @@ cdef class AudioNode(RawNode):
         return self.num_samples
 
     def __str__(self):
-        channels = []
-        for v in AudioChannels:
-            if ((1 << v) & self.channel_layout):
-                channels.append(AudioChannels(v).name)        
-        channels = ', '.join(channels)
+        channels = ', '.join([
+            AudioChannels(v).name
+            for v in AudioChannels
+            if ((1 << v) & self.channel_layout)
+        ])
                 
-        return ('Audio Node\n'
-               f'\tSample Type: {self.sample_type.name}\n'
-               f'\tBits Per Sample: {self.bits_per_sample:d}\n'
-               f'\tChannels: {channels:s}\n'
-               f'\tSample Rate: {self.sample_rate:d}\n'
-               f'\tNum Samples: {self.num_samples:d}\n')
+        return (
+            'AudioNode\n'
+            f'\tSample Type: {self.sample_type.name}\n'
+            f'\tBits Per Sample: {self.bits_per_sample:d}\n'
+            f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
+            f'\tNum Channels: {self.num_channels:d}\n'
+            f'\tChannels: {channels}\n'
+            f'\tSample Rate: {self.sample_rate:d}\n'
+            f'\tNum Samples: {self.num_samples:d}\n'
+        )
     
 cdef AudioNode createAudioNode(VSNode *node, const VSAPI *funcs, Core core):
     cdef AudioNode instance = AudioNode.__new__(AudioNode)
