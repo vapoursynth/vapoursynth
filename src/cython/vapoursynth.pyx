@@ -2436,10 +2436,13 @@ cdef class Core(object):
         return super(Core, self).__dir__() + plugins
 
     def __str__(self):
-        cdef str s = 'Core\n'
-        s += self.version() + '\n'
-        s += '\tNumber of Threads: ' + str(self.num_threads) + '\n'
-        return s
+        version = '\n\t'.join([x.strip() for x in self.version().splitlines()])
+
+        return (
+            f'Core\n
+            f'\t{version}\n'
+            f'\tNumber of Threads: {self.num_threads:d}\n'
+        )
 
 cdef object createNode(VSNode *node, const VSAPI *funcs, Core core):
     if funcs.getNodeType(node) == VIDEO:
