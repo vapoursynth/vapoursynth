@@ -976,16 +976,18 @@ cdef class VideoFormat(object):
         return self.id
 
     def __str__(self):
-        return ('Video Format Descriptor\n'
-               f'\tId: {self.id:d}\n'
-               f'\tName: {self.name}\n'
-               f'\tColor Family: {self.color_family.name}\n'
-               f'\tSample Type: {self.sample_type.name}\n'
-               f'\tBits Per Sample: {self.bits_per_sample:d}\n'
-               f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
-               f'\tPlanes: {self.num_planes:d}\n'
-               f'\tSubsampling W: {self.subsampling_w:d}\n'
-               f'\tSubsampling H: {self.subsampling_h:d}\n')
+        return (
+            'VideoFormat\n'
+            f'\tID: {self.id:d}\n'
+            f'\tName: {self.name}\n'
+            f'\tColor Family: {self.color_family.name}\n'
+            f'\tSample Type: {self.sample_type.name}\n'
+            f'\tBits Per Sample: {self.bits_per_sample:d}\n'
+            f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
+            f'\tNum Planes: {self.num_planes:d}\n'
+            f'\tSubsampling W: {f"{1 << self.subsampling_w}x" if self.subsampling_w else "None"}\n'
+            f'\tSubsampling H: {f"{1 << self.subsampling_h}x" if self.subsampling_h else "None"}\n'
+        )
 
 cdef VideoFormat createVideoFormat(const VSVideoFormat *f, const VSAPI *funcs, VSCore *core):
     cdef VideoFormat instance = VideoFormat.__new__(VideoFormat)
