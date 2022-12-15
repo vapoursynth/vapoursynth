@@ -2510,6 +2510,9 @@ cdef class _CoreProxy(object):
         
     def __setattr__(self, name, value):
         setattr(self.core, name, value)
+
+    def __str__(self):
+        return str(self.core)
     
 core = _CoreProxy.__new__(_CoreProxy)
     
