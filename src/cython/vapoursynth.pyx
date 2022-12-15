@@ -2097,25 +2097,18 @@ cdef class VideoNode(RawNode):
         return self.num_frames
 
     def __str__(self):
-        cdef str s = 'VideoNode\n'
+        d = 'dynamic'
+        format = self.format.name if self.format else d
+        width, height = (self.width, self.height) if self.width and self.height else (d, d)
 
-        if self.format:
-            s += '\tFormat: ' + self.format.name + '\n'
-        else:
-            s += '\tFormat: dynamic\n'
-
-        if not self.width or not self.height:
-            s += '\tWidth: dynamic\n'
-            s += '\tHeight: dynamic\n'
-        else:
-            s += '\tWidth: ' + str(self.width) + '\n'
-            s += '\tHeight: ' + str(self.height) + '\n'
-
-        s += '\tNum Frames: ' + str(self.num_frames) + '\n'
-
-        s += <str>f"\tFPS: {self.fps or 'dynamic'}\n"
-
-        return s
+        return (
+            'VideoNode\n'
+            f'\tFormat: {format}\n'
+            f'\tWidth: {width}\n'
+            f'\tHeight: {height}\n'
+            f'\tNum Frames: {self.num_frames:d}\n'
+            f'\tFPS: {self.fps or d}\n'
+        )
 
 cdef VideoNode createVideoNode(VSNode *node, const VSAPI *funcs, Core core):
     cdef VideoNode instance = VideoNode.__new__(VideoNode)
