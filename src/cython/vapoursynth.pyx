@@ -1577,7 +1577,20 @@ cdef class AudioFrame(RawFrame):
         return lib.getAudioFrameFormat(self.constf).numChannels
 
     def __str__(self):
-        return 'AudioFrame\n'
+        channels = ', '.join([
+            AudioChannels(v).name
+            for v in AudioChannels
+            if ((1 << v) & self.channel_layout)
+        ])
+                
+        return (
+            'AudioFrame\n'
+            f'\tSample Type: {self.sample_type.name}\n'
+            f'\tBits Per Sample: {self.bits_per_sample:d}\n'
+            f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
+            f'\tNum Channels: {self.num_channels:d}\n'
+            f'\tChannels: {channels}\n'
+        )
 
 
 cdef AudioFrame createConstAudioFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
