@@ -62,6 +62,18 @@ def subprocess_runner(func):
 
 class EnvironmentTest(unittest.TestCase):
     @subprocess_runner
+    def test_environment_can_retrieve_api(self):
+        with _with_policy() as pol:
+            _version = vs.__api_version__
+            self.assertIsNotNone(pol._api.get_vapoursynth_api((_version.api_major << 16) | _version.api_minor))
+
+    @subprocess_runner
+    def test_environment_can_retrieve_core_ptr(self):
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            self.assertIsNotNone(pol._api.get_core_ptr(env))
+
+    @subprocess_runner
     def test_environment_use_unsets_environment_on_exit(self):
         with _with_policy() as pol:
             env = pol._api.create_environment()

@@ -254,6 +254,14 @@ cdef class EnvironmentPolicyAPI:
     def set_logger(self, env, logger):
         Py_INCREF(logger)
         _set_logger(env, _logCb, _logFree, <void *>logger)
+    
+    def get_vapoursynth_api(self, int version):
+        self.ensure_policy_matches()
+        return ctypes.c_void_p(<uintptr_t>getVapourSynthAPI(version))
+
+    def get_core_ptr(self, EnvironmentData environment_data):
+        self.ensure_policy_matches()
+        return ctypes.c_void_p(<uintptr_t>environment_data.core.core)
 
     def destroy_environment(self, EnvironmentData env):
         self.ensure_policy_matches()
