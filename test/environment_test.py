@@ -1,3 +1,4 @@
+import gc
 import unittest
 import contextlib
 import multiprocessing
@@ -75,7 +76,6 @@ class EnvironmentTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 vs.get_current_environment()
     
-    
     @subprocess_runner
     def test_environment_use_restores_environment_on_exit(self):
         with _with_policy() as pol:
@@ -93,9 +93,8 @@ class EnvironmentTest(unittest.TestCase):
     
                 self.assertEqual(ce1, vs.get_current_environment())
 
-
     @subprocess_runner
-    def test_environment_clearing_runs_callbacks(self):
+    def test_policy_clearing_runs_callbacks(self):
         f1_run = [False]
         def f1():
             f1_run[0] = True
@@ -109,7 +108,7 @@ class EnvironmentTest(unittest.TestCase):
             env = pol._api.create_environment()
             wrapped = pol._api.wrap_environment(env)
 
-            with wrapped.use() as pol:
+            with wrapped.use():
                 vs.register_on_destroy(f1)
                 vs.register_on_destroy(f2)
                 vs.unregister_on_destroy(f1)
@@ -129,3 +128,53 @@ class EnvironmentTest(unittest.TestCase):
 
         self.assertTrue(f1_run[0])
         self.assertFalse(f2_run[0])
+
+    @subprocess_runner
+    def test_environment_destruction_runs_callbacks(self):
+        f1_run = [False]
+        def f1():
+            f1_run[0] = True
+
+        f2_run = [False]
+        def f2():
+            f2_run[0] = True
+
+
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                vs.register_on_destroy(f1)
+                vs.register_on_destroy(f2)
+                vs.unregister_on_destroy(f1)
+
+            pol._api.destroy_environment(env)
+
+            self.assertFalse(f1_run[0])
+            self.assertTrue(f2_run[0])
+
+
+            f1_run = [False]
+            f2_run = [False]
+
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                vs.register_on_destroy(f1)
+
+            pol._api.destroy_environment(env)
+
+            self.assertTrue(f1_run[0])
+            self.assertFalse(f2_run[0])
+
+    @subprocess_runner
+    def test_environment_warns_against_resource_leaks(self):
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+
+            with self.assertWarnsRegex(RuntimeWarning, "An environment is getting collected"):
+                env = None
+                gc.collect()
+
