@@ -2555,6 +2555,16 @@ cdef class _CoreProxy(object):
         setattr(self.core, name, value)
 
     def __str__(self):
+        if _env_current() is None:
+            return (
+                'Uninitialized Environment:\n'
+                f'\tCore R{__version__[0]}\n'
+                f'\tAPI R{__api_version__[0]}.{__api_version__[1]}\n'
+                '\tOptions: Unknown\n'
+                '\tNumber of Threads: Unknown\n'
+                '\tMax Cache Size: Unknown\n'
+            )
+
         return str(self.core)
     
 core = _CoreProxy.__new__(_CoreProxy)
