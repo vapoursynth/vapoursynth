@@ -105,6 +105,15 @@ cdef class EnvironmentData(object):
         raise RuntimeError("Cannot directly instantiate this class.")
 
     def __dealloc__(self):
+        if self.alive:
+            import warnings
+            warnings.warn(
+                "An environment is getting collected "
+                "without calling EnvironmentPolicyAPI.destroy_environment(). "
+                "This skips some lifecycle callbacks (e.g. register_on_destroy). "
+                "This might cause libraries to misbehave.",
+                RuntimeWarning
+            )
         _unset_logger(self)
 
 
@@ -130,6 +139,7 @@ class EnvironmentPolicy(object):
 @final
 cdef class StandaloneEnvironmentPolicy:
     cdef EnvironmentData _environment
+    cdef object _api
     cdef object _logger
     cdef int _flags
 
@@ -149,12 +159,15 @@ cdef class StandaloneEnvironmentPolicy:
         self._logger.log(levelmap[level], msg)
 
     def on_policy_registered(self, api):
+        self._api = api
         self._logger = logging.getLogger("vapoursynth")
         self._environment = api.create_environment(self._flags)
         api.set_logger(self._environment, self._on_log_message)
 
     def on_policy_cleared(self):
+        self._api.destroy_environment(self._environment)
         self._environment = None
+        self._api = None
 
     def get_current_environment(self):
         return self._environment
@@ -241,6 +254,14 @@ cdef class EnvironmentPolicyAPI:
     def set_logger(self, env, logger):
         Py_INCREF(logger)
         _set_logger(env, _logCb, _logFree, <void *>logger)
+    
+    def get_vapoursynth_api(self, int version):
+        self.ensure_policy_matches()
+        return ctypes.c_void_p(<uintptr_t>getVapourSynthAPI(version))
+
+    def get_core_ptr(self, EnvironmentData environment_data):
+        self.ensure_policy_matches()
+        return ctypes.c_void_p(<uintptr_t>environment_data.core.core)
 
     def destroy_environment(self, EnvironmentData env):
         self.ensure_policy_matches()
@@ -269,7 +290,7 @@ cdef class EnvironmentPolicyAPI:
         self.ensure_policy_matches()
         for environment in self._known_environments.values():
             self.destroy_environment(environment)
-        clear_policy()
+        clear_policy(delay=False)
 
     def __repr__(self):
         target = self._target_policy()
@@ -325,12 +346,19 @@ cdef get_policy():
 def has_policy():
     return _policy is not None
 
-cdef clear_policy():
+cdef clear_policy(delay=False):
     global _policy
     old_policy = _policy
-    _policy = None
+
+    if not delay:
+        _policy = None
+
     if old_policy is not None:
         old_policy.on_policy_cleared()
+
+    if delay:
+        _policy = None
+
     return old_policy
 
 cdef EnvironmentData _env_current():
@@ -338,7 +366,7 @@ cdef EnvironmentData _env_current():
 
 
 # Make sure the policy is cleared at exit.
-atexit.register(lambda: clear_policy())
+atexit.register(lambda: clear_policy(delay=True))
 
 
 def register_on_destroy(callback):
