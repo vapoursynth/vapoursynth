@@ -1629,11 +1629,7 @@ cdef class AudioFrame(RawFrame):
         return lib.getAudioFrameFormat(self.constf).numChannels
 
     def __str__(self):
-        channels = ', '.join([
-            AudioChannels(v).name
-            for v in AudioChannels
-            if ((1 << v) & self.channel_layout)
-        ])
+        channels = ', '.join([c.name for c in self.channels])
                 
         return (
             'AudioFrame\n'
@@ -2320,11 +2316,7 @@ cdef class AudioNode(RawNode):
         return self.num_samples
 
     def __str__(self):
-        channels = ', '.join([
-            AudioChannels(v).name
-            for v in AudioChannels
-            if ((1 << v) & self.channel_layout)
-        ])
+        channels = ', '.join([c.name for c in self.channels])
                 
         return (
             'AudioNode\n'
