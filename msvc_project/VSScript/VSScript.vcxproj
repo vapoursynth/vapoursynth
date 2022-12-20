@@ -150,50 +150,6 @@
     <IncludePath>../../include;C:\Program Files %28x86%29\Python38-32\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\Program Files %28x86%29\Python38-32\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>../../include;D:\Program Files %28x86%29\Python38-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Program Files %28x86%29\Python38-32\libs;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>../../include;C:\Python\Python38-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Python\Python38-32\libs;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>../../include;D:\Python\Python38-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Python\Python38-32\libs;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../include;C:\Program Files\Python38\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files\Python38\libs;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../include;D:\Program Files\Python38\include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Program Files\Python38\libs;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../include;C:\Python\Python38\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Python\Python38\libs;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../include;D:\Python\Python38\include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Python\Python38\libs;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>../../include;C:\Program Files %28x86%29\Python38-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\Python38-32\libs;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>../../include;D:\Program Files %28x86%29\Python38-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Program Files %28x86%29\Python38-32\libs;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>../../include;C:\Python\Python38-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Python\Python38-32\libs;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>../../include;D:\Python\Python38-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Python\Python38-32\libs;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>  
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
