@@ -1253,6 +1253,46 @@ cdef FrameProps createFrameProps(RawFrame f):
 Mapping.register(FrameProps)
 
 
+cdef class ChannelLayout(int):
+    cdef readonly int num_channels
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    def __contains__(self, layout):
+        return bool(self & (1 << layout))
+
+    def __iter__(self):
+        for v in AudioChannels:
+            if ((1 << v) & self):
+                yield v
+
+    def __eq__(self, other):
+        if not isinstance(other, ChannelLayout):
+            return False
+        return other == self
+
+    def __len__(self):
+        return self.num_channels
+
+    def __repr__(self):
+        cls = self.__class__
+        return f'<{cls.__module__}.{cls.__qualname__} object at 0x{f"{id(self):X}".rjust(16, "0"))}>'
+
+    def __str__(self):
+        layout = ', '.join([c.name for c in self])
+
+        return (
+            'ChannelLayout\n'
+            f'\tNum channels: {self.num_channels:d}\n'
+            f'\tLayout: {layout}\n'
+        )
+
+cdef ChannelLayout createChannelLayout(int64_t channelLayout, int num_channels):
+    cdef ChannelLayout instance = ChannelLayout.__new__(ChannelLayout, channelLayout)
+    instance.num_channels = num_channels
+    return instance
+
 cdef class RawFrame(object):
     cdef const VSFrame *constf
     cdef VSFrame *f
@@ -1553,6 +1593,10 @@ cdef class AudioFrame(RawFrame):
     def copy(self):
         self._ensure_open()
         return createAudioFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
+
+    @property
+    def channels(self):
+        return createChannelLayout(self.channel_layout, self.num_channels)
 
     def __getitem__(self, index):
         self._ensure_open()
@@ -2194,7 +2238,11 @@ cdef class AudioNode(RawNode):
 
     def set_output(self, int index = 0):
         _get_output_dict("set_output")[index] = self
-            
+
+    @property
+    def channels(self):
+        return createChannelLayout(self.channel_layout, self.num_channels)
+
     def __add__(x, y):
         if not isinstance(x, AudioNode) or not isinstance(y, AudioNode):
             return NotImplemented
