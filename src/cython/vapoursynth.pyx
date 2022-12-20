@@ -2766,10 +2766,12 @@ cdef class Function(object):
         raise Error('Class cannot be instantiated directly')
 
     cdef is_video_injectable(self):
-        return self.signature.find(':vnode') > 0
-        
+        first_arg_i = self.signature.find(':')
+        return first_arg_i > 0 and self.signature.find(':vnode') == first_arg_i
+ 
     cdef is_audio_injectable(self):
-        return self.signature.find(':anode') > 0
+        first_arg_i = self.signature.find(':')
+        return first_arg_i > 0 and self.signature.find(':anode') == first_arg_i
 
     def __call__(self, *args, **kwargs):
         cdef VSMap *inm
