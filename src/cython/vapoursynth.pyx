@@ -33,6 +33,7 @@ from cpython.number cimport PyIndex_Check
 from cpython.number cimport PyNumber_Index
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
+import enum
 import ctypes
 import threading
 import traceback
@@ -607,7 +608,34 @@ def construct_signature(signature, return_signature, injected=None):
         return_annotation = typing.Tuple[typing.Any, ...]
 
     return inspect.Signature(tuple(params), return_annotation=return_annotation)
+
+def _construct_repr_wrap(value):
+    if isinstance(value, (enum.Enum, VideoFormat)):
+        return value.name
+
+    if isinstance(value, typing.Iterator):
+        value = ', '.join(_construct_repr_wrap(v) for v in value)
+
+    to_wrap = isinstance(value, str) and not value.startswith('<') and ' ' in value
+
+    if to_wrap:
+        return f'"{value}"'
     
+    return value
+
+def _construct_repr(obj, **kwargs):
+    address = f'{id(obj):X}'.rjust(16, "0")
+
+    add_data = ''
+
+    if kwargs:
+        add_data += ', '.join(
+            f'{key}={_construct_repr_wrap(value)}'
+            for key, value in kwargs.items()
+        )
+        add_data = f' {add_data}'
+
+    return f'<{obj.__class__.__module__}.{obj.__class__.__qualname__} object at 0x{address}{add_data}>'
 
 class Error(Exception):
     def __init__(self, value):
@@ -975,6 +1003,18 @@ cdef class VideoFormat(object):
     def __int__(self):
         return self.id
 
+    def __repr__(self):
+        return _construct_repr(
+            self, id=self.id, name=self.name,
+            color_family=self.color_family,
+            sample_type=self.sample_type,
+            bits_per_sample=self.bits_per_sample,
+            bytes_per_sample=self.bytes_per_sample,
+            num_planes=self.num_planes,
+            subsampling_w=self.subsampling_w,
+            subsampling_h=self.subsampling_h,
+        )
+
     def __str__(self):
         return (
             'VideoFormat\n'
@@ -1276,8 +1316,9 @@ cdef class ChannelLayout(int):
         return self.num_channels
 
     def __repr__(self):
-        cls = self.__class__
-        return f'<{cls.__module__}.{cls.__qualname__} object at 0x{f"{id(self):X}".rjust(16, "0"))}>'
+        return _construct_repr(
+            self, num_channels=self.num_channels, layout=iter(self)
+        )
 
     def __str__(self):
         layout = ', '.join([c.name for c in self])
@@ -1446,6 +1487,14 @@ cdef class VideoFrame(RawFrame):
         self._ensure_open()
         lib = self.funcs
         return lib.getVideoFrameFormat(self.constf).numPlanes
+
+    def __repr__(self):
+        d = 'dynamic'
+        width, height = (self.width, self.height) if self.width and self.height else (d, d)
+        
+        return _construct_repr(
+            self, format=self.format or d, width=width, height=height, readonly=self.readonly,
+        )
 
     def __str__(self):
         d = 'dynamic'
@@ -1627,6 +1676,15 @@ cdef class AudioFrame(RawFrame):
         self._ensure_open()
         lib = self.funcs
         return lib.getAudioFrameFormat(self.constf).numChannels
+
+    def __repr__(self):
+        return _construct_repr(
+            self, sample_type=self.sample_type,
+            bits_per_sample=self.bits_per_sample,
+            bytes_per_sample=self.bytes_per_sample,
+            num_channels=self.num_channels, channels=iter(self.channels),
+            readonly=self.readonly
+        )
 
     def __str__(self):
         channels = ', '.join([c.name for c in self.channels])
@@ -2145,6 +2203,14 @@ cdef class VideoNode(RawNode):
     def __len__(self):
         return self.num_frames
 
+    def __repr__(self):
+        d = 'dynamic'
+        width, height = (self.width, self.height) if self.width and self.height else (d, d)
+
+        return _construct_repr(
+            self, format=self.format or d, width=width, height=height, num_frames=self.num_frames, fps=self.fps or d
+        )
+
     def __str__(self):
         d = 'dynamic'
         format = self.format.name if self.format else d
@@ -2315,6 +2381,17 @@ cdef class AudioNode(RawNode):
     def __len__(self):
         return self.num_samples
 
+    def __repr__(self):
+        return _construct_repr(
+            self, sample_type=self.sample_type,
+            bits_per_sample=self.bits_per_sample,
+            bytes_per_sample=self.bytes_per_sample,
+            num_channels=self.num_channels,
+            channels=iter(self.channels), sample_type=self.sample_rate,
+            num_samples=self.num_samples
+
+        )
+
     def __str__(self):
         channels = ', '.join([c.name for c in self.channels])
                 
@@ -2477,6 +2554,20 @@ cdef class Core(object):
             plugins.append(plugin.namespace)
         return super(Core, self).__dir__() + plugins
 
+    def __repr__(self):
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo(self.core, &v)
+
+        api_major = (v.api >> 16)
+        api_minor = v.api - (api_major << 16)
+
+        api_v = api_major + api_minor / 10
+
+        return _construct_repr(
+            self, core_version=v.core, api_version=api_v, num_threads=v.numThreads,
+            max_cache_size=(<int64_t>v.maxFramebufferSize + 1024 * 1024 - 1) // <int64_t>(1024 * 1024)
+        )
+
     def __str__(self):
         version_lines = [x.strip() for x in self.version().splitlines()]
         copyright = '\n'.join(version_lines[:2])
@@ -2553,6 +2644,15 @@ cdef class _CoreProxy(object):
         
     def __setattr__(self, name, value):
         setattr(self.core, name, value)
+
+    def __repr__(self):
+        if _env_current() is None:
+            core_repr = None
+        else:
+            core_repr = repr(self.core)
+
+        return _construct_repr(self, core=core_repr)
+
 
     def __str__(self):
         if _env_current() is None:
