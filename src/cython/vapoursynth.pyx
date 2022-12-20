@@ -2387,7 +2387,7 @@ cdef class AudioNode(RawNode):
             bits_per_sample=self.bits_per_sample,
             bytes_per_sample=self.bytes_per_sample,
             num_channels=self.num_channels,
-            channels=iter(self.channels), sample_type=self.sample_rate,
+            channels=iter(self.channels), sample_rate=self.sample_rate,
             num_samples=self.num_samples
 
         )
