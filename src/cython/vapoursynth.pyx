@@ -2867,11 +2867,8 @@ cdef class Function(object):
 
     def __repr__(self):
         sig = self.__signature__
-        idx = int(self.plugin.injected_arg is not None) - 1
 
-        parameters = ", ".join([
-            str(param) for i, param in enumerate(sig.parameters.values()) if i != idx
-        ])
+        parameters = ", ".join(map(str, sig.parameters.values()))
         signature = f'({parameters}) -> {inspect.formatannotation(sig.return_annotation)}'
         signature = signature.replace('vapoursynth.', '')
 
