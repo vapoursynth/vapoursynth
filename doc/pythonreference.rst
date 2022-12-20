@@ -875,6 +875,22 @@ Classes and Functions
 
       Unregisters the policy it is bound to and allows another policy to be registered.
 
+   .. py:method:: get_vapoursynth_api(version)
+
+      Exposes getVapoursynthAPI to python. Returns a ctypes.c_void_p.
+
+      Access to this function is provisional and might be removed if it is abused too much.
+
+      Added: R62
+
+   .. py:method:: get_core_ptr(environment)
+
+      Returns a ctypes.c_void_p pointing to the `Core*`-object that powers the environment.
+
+      Access to this function is provisional and might be removed if it is abused too much.
+
+      Added: R62
+
 .. py:function:: register_policy(policy)
 
    This function is intended for use by custom Script-Runners and Editors. It installs your custom :class:`EnvironmentPolicy`. This function only works if no other policy has been
