@@ -376,6 +376,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         const char *getPluginFunctionArguments(VSPluginFunction *func) nogil
         const char *getPluginFunctionReturnType(VSPluginFunction *func) nogil
         const char *getPluginPath(const VSPlugin *plugin) nogil
+        int *getPluginVersion(const VSPlugin *plugin) nogil;
         VSMap *invoke(VSPlugin *plugin, const char *name, const VSMap *args) nogil
         
         # Core and information
