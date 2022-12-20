@@ -2865,6 +2865,22 @@ cdef class Function(object):
         self.funcs.freeMap(outm)
         return retdict
 
+    def __repr__(self):
+        sig = self.__signature__
+        idx = int(self.plugin.injected_arg is not None) - 1
+
+        parameters = ", ".join([
+            str(param) for i, param in enumerate(sig.parameters.values()) if i != idx
+        ])
+        signature = f'({parameters}) -> {inspect.formatannotation(sig.return_annotation)}'
+        signature = signature.replace('vapoursynth.', '')
+
+        return _construct_repr(
+            self, bound=(Core if self.plugin.injected_arg is None else type(self.plugin.injected_arg)).__name__,
+            signature=signature
+        )
+
+
 cdef Function createFunction(VSPluginFunction *func, Plugin plugin, const VSAPI *funcs):
     cdef Function instance = Function.__new__(Function)
     instance.name = funcs.getPluginFunctionName(func).decode('utf-8')
