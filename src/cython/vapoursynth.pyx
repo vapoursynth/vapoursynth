@@ -2737,6 +2737,12 @@ cdef class Plugin(object):
                 return True
         return False
 
+    def __repr__(self):
+        return _construct_repr(
+            self, version=self.__version__,
+            bound=(Core if self.injected_arg is None else type(self.injected_arg)).__name__
+        )
+
 cdef Plugin createPlugin(VSPlugin *plugin, const VSAPI *funcs, Core core):
     cdef Plugin instance = Plugin.__new__(Plugin)
     instance.core = core
