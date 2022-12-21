@@ -277,7 +277,7 @@ cdef class EnvironmentPolicyAPI:
                     callback()
                 except Exception as e:
                     import traceback
-                    formatted = traceback.format_exc(type(e), e, e.__traceback__)
+                    formatted = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
                     env.core.log_message(MessageType.MESSAGE_TYPE_CRITICAL, formatted)
 
         _unset_logger(env)
