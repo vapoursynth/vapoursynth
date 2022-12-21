@@ -2726,8 +2726,9 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                         ret = 0
                     ret = {'val':ret}
                 dictToMap(ret, outm, core, vsapi)
-        except BaseException, e:
-            emsg = str(e).encode('utf-8')
+        except BaseException as e:
+            import traceback
+            emsg = b'\n' + ''.join(traceback.format_exception(type(e), e, e.__traceback__)).encode('utf-8')
             vsapi.mapSetError(outm, emsg)
 
 
