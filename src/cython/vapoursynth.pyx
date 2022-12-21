@@ -843,7 +843,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
             elif callable(v):
                 tf = createFuncPython(v, core, funcs)
 
-                if funcs.mapSetFunction(inm, ckey, (<Func>v).ref, 1) != 0:
+                if funcs.mapSetFunction(inm, ckey, (<Func>tf).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
    
             else:
