@@ -2815,8 +2815,8 @@ cdef class VSScriptEnvironmentPolicy:
     cdef _free_environment(self, int script_id):
         env = self._env_map.pop(script_id, None)
         if env is not None:
-            self.stdout.flush()
-            self.stderr.flush()
+            sys.stdout.flush()
+            sys.stderr.flush()
             self._api.destroy_environment(env)
             
     def is_alive(self, EnvironmentData environment):
