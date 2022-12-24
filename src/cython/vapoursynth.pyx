@@ -99,6 +99,8 @@ cdef class EnvironmentData(object):
     cdef int coreCreationFlags
     cdef VSLogHandle* log
 
+    cdef object env_locals
+
     cdef object __weakref__
 
     def __init__(self):
@@ -242,6 +244,7 @@ cdef class EnvironmentPolicyAPI:
         env.outputs = {}
         env.coreCreationFlags = flags
         env.on_destroy = []
+        env.env_locals = weakref.WeakKeyDictionary()
         env.alive = True
 
         with self._lock:
@@ -284,6 +287,8 @@ cdef class EnvironmentPolicyAPI:
         env.core = None
         env.log = NULL
         env.outputs = {}
+        env.env_locals.clear()
+        env.env_locals = None
         env.alive = False
 
     def unregister_policy(self):
@@ -467,6 +472,27 @@ cdef class Environment(object):
             return "<Environment (default)>"
 
         return f"<Environment {id(self.env)} ({('active' if self.active else 'alive') if self.alive else 'dead'})>"
+
+
+cdef class Local:
+    cdef object __weakref__
+
+    def __getattr__(self, key):
+        cdef EnvironmentData env = get_policy().get_current_environment()
+        values = env.env_locals.setdefault(self, {})
+        if key not in values:
+            raise AttributeError(key)
+        return values[key]
+
+    def __setattr__(self, key, value):
+        cdef EnvironmentData env = get_policy().get_current_environment()
+        values = env.env_locals.setdefault(self, {})
+        values[key] = value
+
+    def __delattr__(self, key):
+        cdef EnvironmentData env = get_policy().get_current_environment()
+        values = env.env_locals.setdefault(self, {})
+        values.pop(key)
 
 
 cdef Environment use_environment(EnvironmentData env):
