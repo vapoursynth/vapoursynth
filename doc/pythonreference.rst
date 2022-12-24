@@ -264,6 +264,17 @@ Classes and Functions
 
       Illegal behavior detection.
 
+.. py:class:: Local
+
+   Internally, there can be more than one core. This is usually the case in previewer-applications.
+   Use this class to store variables that depend on the currently active core.
+
+   .. code::
+
+        l = Local()
+        l.test = 1
+
+
 .. py:class:: VideoNode
 
    Represents a video clip. The class itself supports indexing and slicing to
