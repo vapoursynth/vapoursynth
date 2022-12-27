@@ -1225,12 +1225,7 @@ cdef FrameProps createFrameProps(RawFrame f):
 Mapping.register(FrameProps)
 
 
-cdef class ChannelLayout(int):
-    cdef readonly int num_channels
-
-    def __init__(self):
-        raise Error('Class cannot be instantiated directly')
-
+class ChannelLayout(int):
     def __contains__(self, layout):
         return bool(self & (1 << layout))
 
@@ -1245,7 +1240,7 @@ cdef class ChannelLayout(int):
         return other == self
 
     def __len__(self):
-        return self.num_channels
+        return self.bit_count()
 
     def __repr__(self):
         cls = self.__class__
@@ -1256,14 +1251,9 @@ cdef class ChannelLayout(int):
 
         return (
             'ChannelLayout\n'
-            f'\tNum channels: {self.num_channels:d}\n'
+            f'\tNum channels: {len(self):d}\n'
             f'\tLayout: {layout}\n'
         )
-
-cdef ChannelLayout createChannelLayout(int64_t channelLayout, int num_channels):
-    cdef ChannelLayout instance = ChannelLayout.__new__(ChannelLayout, channelLayout)
-    instance.num_channels = num_channels
-    return instance
 
 cdef class RawFrame(object):
     cdef const VSFrame *constf
@@ -1562,7 +1552,7 @@ cdef class AudioFrame(RawFrame):
 
     @property
     def channels(self):
-        return createChannelLayout(self.channel_layout, self.num_channels)
+        return ChannelLayout(self.channel_layout)
 
     def __getitem__(self, index):
         self._ensure_open()
@@ -2200,7 +2190,7 @@ cdef class AudioNode(RawNode):
 
     @property
     def channels(self):
-        return createChannelLayout(self.channel_layout, self.num_channels)
+        return ChannelLayout(self.channel_layout)
 
     def __add__(x, y):
         if not isinstance(x, AudioNode) or not isinstance(y, AudioNode):
