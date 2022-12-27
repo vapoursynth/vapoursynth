@@ -1312,7 +1312,7 @@ class ChannelLayout(int):
 
     def __repr__(self):
         return _construct_repr(
-            self, num_channels=self.num_channels, layout=iter(self)
+            self, num_channels=len(self), layout=iter(self)
         )
 
     def __str__(self):
