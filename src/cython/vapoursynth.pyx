@@ -1234,11 +1234,6 @@ class ChannelLayout(int):
             if ((1 << v) & self):
                 yield v
 
-    def __eq__(self, other):
-        if not isinstance(other, ChannelLayout):
-            return False
-        return other == self
-
     def __len__(self):
         return self.bit_count()
 
