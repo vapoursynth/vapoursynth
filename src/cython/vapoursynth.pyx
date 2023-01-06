@@ -281,7 +281,7 @@ cdef class EnvironmentPolicyAPI:
                     callback()
                 except Exception as e:
                     import traceback
-                    formatted = traceback.format_exc(type(e), e, e.__traceback__)
+                    formatted = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
                     env.core.log_message(MessageType.MESSAGE_TYPE_CRITICAL, formatted)
 
         _unset_logger(env)
@@ -897,7 +897,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
             elif callable(v):
                 tf = createFuncPython(v, core, funcs)
 
-                if funcs.mapSetFunction(inm, ckey, (<Func>v).ref, 1) != 0:
+                if funcs.mapSetFunction(inm, ckey, (<Func>tf).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
    
             else:
@@ -1301,11 +1301,6 @@ class ChannelLayout(int):
         for v in AudioChannels:
             if ((1 << v) & self):
                 yield v
-
-    def __eq__(self, other):
-        if not isinstance(other, ChannelLayout):
-            return False
-        return other == self
 
     def __len__(self):
         return self.bit_count()
@@ -2692,7 +2687,7 @@ cdef class Plugin(object):
             yield tmp
 
     @property
-    def __version__(self):
+    def version(self):
         ver = <int>self.funcs.getPluginVersion(self.plugin)
 
         ver_major = (ver >> 16)
@@ -2951,8 +2946,9 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                         ret = 0
                     ret = {'val':ret}
                 dictToMap(ret, outm, core, vsapi)
-        except BaseException, e:
-            emsg = str(e).encode('utf-8')
+        except BaseException as e:
+            import traceback
+            emsg = b'\n' + ''.join(traceback.format_exception(type(e), e, e.__traceback__)).encode('utf-8')
             vsapi.mapSetError(outm, emsg)
 
 
@@ -3039,8 +3035,8 @@ cdef class VSScriptEnvironmentPolicy:
     cdef _free_environment(self, int script_id):
         env = self._env_map.pop(script_id, None)
         if env is not None:
-            self.stdout.flush()
-            self.stderr.flush()
+            sys.stdout.flush()
+            sys.stderr.flush()
             self._api.destroy_environment(env)
             
     def is_alive(self, EnvironmentData environment):
