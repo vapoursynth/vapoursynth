@@ -2524,7 +2524,9 @@ cdef class _CoreProxy(object):
         setattr(self.core, name, value)
     
 core = _CoreProxy.__new__(_CoreProxy)
-    
+
+PluginVersion = namedtuple("PluginVersion", "major minor")
+
 
 cdef class Plugin(object):
     cdef Core core
@@ -2554,6 +2556,15 @@ cdef class Plugin(object):
             tmp = createFunction(func, self, self.funcs)
             func = self.funcs.getNextPluginFunction(func, self.plugin)
             yield tmp
+
+    @property
+    def version(self):
+        ver = <int>self.funcs.getPluginVersion(self.plugin)
+
+        ver_major = (ver >> 16)
+        ver_minor = (ver_major > -1) and (ver - (ver_major << 16)) or 0
+
+        return PluginVersion(ver_major, ver_minor)
 
     def __dir__(self):
         attrs = []
@@ -2611,10 +2622,12 @@ cdef class Function(object):
         raise Error('Class cannot be instantiated directly')
 
     cdef is_video_injectable(self):
-        return self.signature.find(':vnode') > 0
-        
+        first_arg_i = self.signature.find(':')
+        return first_arg_i > 0 and self.signature.find(':vnode') == first_arg_i
+ 
     cdef is_audio_injectable(self):
-        return self.signature.find(':anode') > 0
+        first_arg_i = self.signature.find(':')
+        return first_arg_i > 0 and self.signature.find(':anode') == first_arg_i
 
     def __call__(self, *args, **kwargs):
         cdef VSMap *inm
