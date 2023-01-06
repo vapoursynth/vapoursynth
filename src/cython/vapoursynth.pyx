@@ -1251,6 +1251,31 @@ cdef FrameProps createFrameProps(RawFrame f):
 Mapping.register(FrameProps)
 
 
+class ChannelLayout(int):
+    def __contains__(self, layout):
+        return bool(self & (1 << layout))
+
+    def __iter__(self):
+        for v in AudioChannels:
+            if ((1 << v) & self):
+                yield v
+
+    def __len__(self):
+        return self.bit_count()
+
+    def __repr__(self):
+        cls = self.__class__
+        return f'<{cls.__module__}.{cls.__qualname__} object at 0x{f"{id(self):X}".rjust(16, "0"))}>'
+
+    def __str__(self):
+        layout = ', '.join([c.name for c in self])
+
+        return (
+            'ChannelLayout\n'
+            f'\tNum channels: {len(self):d}\n'
+            f'\tLayout: {layout}\n'
+        )
+
 cdef class RawFrame(object):
     cdef const VSFrame *constf
     cdef VSFrame *f
@@ -1545,6 +1570,10 @@ cdef class AudioFrame(RawFrame):
     def copy(self):
         self._ensure_open()
         return createAudioFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
+
+    @property
+    def channels(self):
+        return ChannelLayout(self.channel_layout)
 
     def __getitem__(self, index):
         self._ensure_open()
@@ -2179,7 +2208,11 @@ cdef class AudioNode(RawNode):
 
     def set_output(self, int index = 0):
         _get_output_dict("set_output")[index] = self
-            
+
+    @property
+    def channels(self):
+        return ChannelLayout(self.channel_layout)
+
     def __add__(x, y):
         if not isinstance(x, AudioNode) or not isinstance(y, AudioNode):
             return NotImplemented
