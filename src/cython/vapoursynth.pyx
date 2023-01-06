@@ -2499,7 +2499,7 @@ cdef class Plugin(object):
             yield tmp
 
     @property
-    def __version__(self):
+    def version(self):
         ver = <int>self.funcs.getPluginVersion(self.plugin)
 
         ver_major = (ver >> 16)
