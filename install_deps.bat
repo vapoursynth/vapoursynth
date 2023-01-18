@@ -25,15 +25,19 @@ IF NOT EXIST zimg (
 )
 
 py -3.10 -m ensurepip
+py -3.10 -m pip install --upgrade pip --no-warn-script-location
 py -3.10 -m pip install -r python-requirements.txt
 
 py -3.10-32 -m ensurepip
+py -3.10-32 -m pip install --upgrade pip --no-warn-script-location
 py -3.10-32 -m pip install -r python-requirements.txt
 
 py -3.8 -m ensurepip
+py -3.8 -m pip install --upgrade pip --no-warn-script-location
 py -3.8 -m pip install -r python-requirements.txt
 
 py -3.8-32 -m ensurepip
+py -3.8-32 -m pip install --upgrade pip --no-warn-script-location
 py -3.8-32 -m pip install -r python-requirements.txt
 
 SET ZFOLDER=%ProgramFiles%\7-Zip
