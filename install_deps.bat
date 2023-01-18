@@ -36,16 +36,16 @@ py -3.8 -m pip install -r python-requirements.txt
 py -3.8-32 -m ensurepip
 py -3.8-32 -m pip install -r python-requirements.txt
 
+SET ZFOLDER=%ProgramFiles%\7-Zip
+IF EXIST "%ZFOLDER%\7z.exe" GOTO copym
+
 SET ZFOLDER=C:\Program Files\7-Zip
 IF EXIST "%ZFOLDER%\7z.exe" GOTO copym
 
-SET ZFOLDER=D:\Program Files\7-Zip
+SET ZFOLDER=%ProgramFiles(x86)%\7-Zip
 IF EXIST "%ZFOLDER%\7z.exe" GOTO copym
 
 SET ZFOLDER=C:\Program Files (x86)\7-Zip
-IF EXIST "%ZFOLDER%\7z.exe" GOTO copym
-
-SET ZFOLDER=D:\Program Files (x86)\7-Zip
 IF EXIST "%ZFOLDER%\7z.exe" GOTO copym
 
 GOTO end
