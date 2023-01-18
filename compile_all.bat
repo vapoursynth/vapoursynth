@@ -1,15 +1,15 @@
 @echo | call install_deps.bat
 
+SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Community
+IF EXIST "%MSBuildPTH%\Msbuild\Current\Bin\MSBuild.exe" GOTO buildm
+
 SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Community
 IF EXIST "%MSBuildPTH%\Msbuild\Current\Bin\MSBuild.exe" GOTO buildm
 
-SET MSBuildPTH=D:\Program Files\Microsoft Visual Studio\2022\Community
+SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise
 IF EXIST "%MSBuildPTH%\Msbuild\Current\Bin\MSBuild.exe" GOTO buildm
 
 SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise
-IF EXIST "%MSBuildPTH%\Msbuild\Current\Bin\MSBuild.exe" GOTO buildm
-
-SET MSBuildPTH=D:\Program Files\Microsoft Visual Studio\2022\Enterprise
 IF EXIST "%MSBuildPTH%\Msbuild\Current\Bin\MSBuild.exe" GOTO buildm
 
 
