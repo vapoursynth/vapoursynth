@@ -40,14 +40,11 @@ jobs:
         # The target architecture (x86, x64) of the Python interpreter.
         architecture: ${{ matrix.arch }}
 
-    - name: Patch Python 3.8 Include Paths
+    - name: Get Python 3.8 Install Path
       run: |
-        $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
-        $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\libs",$py_binary_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\include",$py_include_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\libs",$py_binary_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\include",$py_include_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
+        $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
+        $env:VSPYTHON38_PATH=$py_install_path
+        $env:VSPYTHON3832_PATH=$py_install_path
 
     - name: Setup Python 3.10
       uses: actions/setup-python@v3
@@ -60,14 +57,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install cython
         
-    - name: Patch Python 3.10 Include Paths
+    - name: Get Python 3.10 Install Path
       run: |
-        $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
-        $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python310-32\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python310-32\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python310\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python310\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
+        $env:VSPYTHON310_PATH=$py_install_path
+        $env:VSPYTHON31032_PATH=$py_install_path
 
     - name: Compile
       run: |
