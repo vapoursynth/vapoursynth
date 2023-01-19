@@ -43,8 +43,7 @@ jobs:
     - name: Get Python 3.8 Install Path
       run: |
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
-        $env:VSPYTHON38_PATH=$py_install_path
-        $env:VSPYTHON3832_PATH=$py_install_path
+        echo "PYTHON38_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Setup Python 3.10
       uses: actions/setup-python@v3
@@ -60,11 +59,14 @@ jobs:
     - name: Get Python 3.10 Install Path
       run: |
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
-        $env:VSPYTHON310_PATH=$py_install_path
-        $env:VSPYTHON31032_PATH=$py_install_path
+        echo "PYTHON310_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Compile
       run: |
+        $env:VSPYTHON38_PATH="${{ env.PYTHON38_PATH }}"
+        $env:VSPYTHON3832_PATH="${{ env.PYTHON38_PATH }}"
+        $env:VSPYTHON310_PATH="${{ env.PYTHON310_PATH }}"
+        $env:VSPYTHON31032_PATH="${{ env.PYTHON310_PATH }}"
         msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}        
         pip install . --no-deps
         
