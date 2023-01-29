@@ -1,3 +1,6 @@
+r62:
+added a class Local for environment-local values.
+
 r61:
 fixed error message when splicing mismatched clips so it's actually helpful
 fixed a memory leak when freeing setframeprops filter (Endill)

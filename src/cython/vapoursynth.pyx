@@ -33,6 +33,7 @@ from cpython.number cimport PyIndex_Check
 from cpython.number cimport PyNumber_Index
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
+import enum
 import ctypes
 import threading
 import traceback
@@ -98,6 +99,8 @@ cdef class EnvironmentData(object):
 
     cdef int coreCreationFlags
     cdef VSLogHandle* log
+
+    cdef object env_locals
 
     cdef object __weakref__
 
@@ -242,6 +245,7 @@ cdef class EnvironmentPolicyAPI:
         env.outputs = {}
         env.coreCreationFlags = flags
         env.on_destroy = []
+        env.env_locals = weakref.WeakKeyDictionary()
         env.alive = True
 
         with self._lock:
@@ -277,13 +281,15 @@ cdef class EnvironmentPolicyAPI:
                     callback()
                 except Exception as e:
                     import traceback
-                    formatted = traceback.format_exc(type(e), e, e.__traceback__)
+                    formatted = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
                     env.core.log_message(MessageType.MESSAGE_TYPE_CRITICAL, formatted)
 
         _unset_logger(env)
         env.core = None
         env.log = NULL
         env.outputs = {}
+        env.env_locals.clear()
+        env.env_locals = None
         env.alive = False
 
     def unregister_policy(self):
@@ -469,6 +475,27 @@ cdef class Environment(object):
         return f"<Environment {id(self.env)} ({('active' if self.active else 'alive') if self.alive else 'dead'})>"
 
 
+cdef class Local:
+    cdef object __weakref__
+
+    def __getattr__(self, key):
+        cdef EnvironmentData env = get_policy().get_current_environment()
+        values = env.env_locals.setdefault(self, {})
+        if key not in values:
+            raise AttributeError(key)
+        return values[key]
+
+    def __setattr__(self, key, value):
+        cdef EnvironmentData env = get_policy().get_current_environment()
+        values = env.env_locals.setdefault(self, {})
+        values[key] = value
+
+    def __delattr__(self, key):
+        cdef EnvironmentData env = get_policy().get_current_environment()
+        values = env.env_locals.setdefault(self, {})
+        values.pop(key)
+
+
 cdef Environment use_environment(EnvironmentData env):
     if id is None: raise ValueError("id may not be None.")
 
@@ -581,7 +608,34 @@ def construct_signature(signature, return_signature, injected=None):
         return_annotation = typing.Tuple[typing.Any, ...]
 
     return inspect.Signature(tuple(params), return_annotation=return_annotation)
+
+def _construct_repr_wrap(value):
+    if isinstance(value, (enum.Enum, VideoFormat)):
+        return value.name
+
+    if isinstance(value, typing.Iterator):
+        value = ', '.join(_construct_repr_wrap(v) for v in value)
+
+    to_wrap = isinstance(value, str) and not value.startswith('<') and ' ' in value
+
+    if to_wrap:
+        return f'"{value}"'
     
+    return value
+
+def _construct_repr(obj, **kwargs):
+    address = f'{id(obj):X}'.rjust(16, "0")
+
+    add_data = ''
+
+    if kwargs:
+        add_data += ', '.join(
+            f'{key}={_construct_repr_wrap(value)}'
+            for key, value in kwargs.items()
+        )
+        add_data = f' {add_data}'
+
+    return f'<{obj.__class__.__module__}.{obj.__class__.__qualname__} object at 0x{address}{add_data}>'
 
 class Error(Exception):
     def __init__(self, value):
@@ -843,7 +897,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
             elif callable(v):
                 tf = createFuncPython(v, core, funcs)
 
-                if funcs.mapSetFunction(inm, ckey, (<Func>v).ref, 1) != 0:
+                if funcs.mapSetFunction(inm, ckey, (<Func>tf).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
    
             else:
@@ -949,17 +1003,31 @@ cdef class VideoFormat(object):
     def __int__(self):
         return self.id
 
+    def __repr__(self):
+        return _construct_repr(
+            self, id=self.id, name=self.name,
+            color_family=self.color_family,
+            sample_type=self.sample_type,
+            bits_per_sample=self.bits_per_sample,
+            bytes_per_sample=self.bytes_per_sample,
+            num_planes=self.num_planes,
+            subsampling_w=self.subsampling_w,
+            subsampling_h=self.subsampling_h,
+        )
+
     def __str__(self):
-        return ('Video Format Descriptor\n'
-               f'\tId: {self.id:d}\n'
-               f'\tName: {self.name}\n'
-               f'\tColor Family: {self.color_family.name}\n'
-               f'\tSample Type: {self.sample_type.name}\n'
-               f'\tBits Per Sample: {self.bits_per_sample:d}\n'
-               f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
-               f'\tPlanes: {self.num_planes:d}\n'
-               f'\tSubsampling W: {self.subsampling_w:d}\n'
-               f'\tSubsampling H: {self.subsampling_h:d}\n')
+        return (
+            'VideoFormat\n'
+            f'\tID: {self.id:d}\n'
+            f'\tName: {self.name}\n'
+            f'\tColor Family: {self.color_family.name}\n'
+            f'\tSample Type: {self.sample_type.name}\n'
+            f'\tBits Per Sample: {self.bits_per_sample:d}\n'
+            f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
+            f'\tNum Planes: {self.num_planes:d}\n'
+            f'\tSubsampling W: {f"{1 << self.subsampling_w}x" if self.subsampling_w else "None"}\n'
+            f'\tSubsampling H: {f"{1 << self.subsampling_h}x" if self.subsampling_h else "None"}\n'
+        )
 
 cdef VideoFormat createVideoFormat(const VSVideoFormat *f, const VSAPI *funcs, VSCore *core):
     cdef VideoFormat instance = VideoFormat.__new__(VideoFormat)
@@ -1225,6 +1293,32 @@ cdef FrameProps createFrameProps(RawFrame f):
 Mapping.register(FrameProps)
 
 
+class ChannelLayout(int):
+    def __contains__(self, layout):
+        return bool(self & (1 << layout))
+
+    def __iter__(self):
+        for v in AudioChannels:
+            if ((1 << v) & self):
+                yield v
+
+    def __len__(self):
+        return self.bit_count()
+
+    def __repr__(self):
+        return _construct_repr(
+            self, num_channels=len(self), layout=iter(self)
+        )
+
+    def __str__(self):
+        layout = ', '.join([c.name for c in self])
+
+        return (
+            'ChannelLayout\n'
+            f'\tNum channels: {len(self):d}\n'
+            f'\tLayout: {layout}\n'
+        )
+
 cdef class RawFrame(object):
     cdef const VSFrame *constf
     cdef VSFrame *f
@@ -1379,12 +1473,26 @@ cdef class VideoFrame(RawFrame):
         lib = self.funcs
         return lib.getVideoFrameFormat(self.constf).numPlanes
 
+    def __repr__(self):
+        d = 'dynamic'
+        width, height = (self.width, self.height) if self.width and self.height else (d, d)
+        
+        return _construct_repr(
+            self, format=self.format or d, width=width, height=height, readonly=self.readonly,
+        )
+
     def __str__(self):
-        cdef str s = 'VideoFrame\n'
-        s += '\tFormat: ' + self.format.name + '\n'
-        s += '\tWidth: ' + str(self.width) + '\n'
-        s += '\tHeight: ' + str(self.height) + '\n'
-        return s
+        d = 'dynamic'
+        format = self.format.name if self.format else d
+        width, height = (self.width, self.height) if self.width and self.height else (d, d)
+
+        return (
+            'VideoFrame\n'
+            f'\tFormat: {format}\n'
+            f'\tWidth: {width}\n'
+            f'\tHeight: {height}\n'
+            f'\tReadonly: {str(self.readonly)}\n'
+        )
 
 
 cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
@@ -1520,6 +1628,10 @@ cdef class AudioFrame(RawFrame):
         self._ensure_open()
         return createAudioFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
+    @property
+    def channels(self):
+        return ChannelLayout(self.channel_layout)
+
     def __getitem__(self, index):
         self._ensure_open()
         if PyIndex_Check(index):
@@ -1550,8 +1662,27 @@ cdef class AudioFrame(RawFrame):
         lib = self.funcs
         return lib.getAudioFrameFormat(self.constf).numChannels
 
+    def __repr__(self):
+        return _construct_repr(
+            self, sample_type=self.sample_type,
+            bits_per_sample=self.bits_per_sample,
+            bytes_per_sample=self.bytes_per_sample,
+            num_channels=self.num_channels, channels=iter(self.channels),
+            readonly=self.readonly
+        )
+
     def __str__(self):
-        return 'AudioFrame\n'
+        channels = ', '.join([c.name for c in self.channels])
+                
+        return (
+            'AudioFrame\n'
+            f'\tSample Type: {self.sample_type.name}\n'
+            f'\tBits Per Sample: {self.bits_per_sample:d}\n'
+            f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
+            f'\tNum Channels: {self.num_channels:d}\n'
+            f'\tChannels: {channels}\n'
+            f'\tReadonly: {str(self.readonly)}\n'
+        )
 
 
 cdef AudioFrame createConstAudioFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
@@ -2057,26 +2188,27 @@ cdef class VideoNode(RawNode):
     def __len__(self):
         return self.num_frames
 
+    def __repr__(self):
+        d = 'dynamic'
+        width, height = (self.width, self.height) if self.width and self.height else (d, d)
+
+        return _construct_repr(
+            self, format=self.format or d, width=width, height=height, num_frames=self.num_frames, fps=self.fps or d
+        )
+
     def __str__(self):
-        cdef str s = 'VideoNode\n'
+        d = 'dynamic'
+        format = self.format.name if self.format else d
+        width, height = (self.width, self.height) if self.width and self.height else (d, d)
 
-        if self.format:
-            s += '\tFormat: ' + self.format.name + '\n'
-        else:
-            s += '\tFormat: dynamic\n'
-
-        if not self.width or not self.height:
-            s += '\tWidth: dynamic\n'
-            s += '\tHeight: dynamic\n'
-        else:
-            s += '\tWidth: ' + str(self.width) + '\n'
-            s += '\tHeight: ' + str(self.height) + '\n'
-
-        s += '\tNum Frames: ' + str(self.num_frames) + '\n'
-
-        s += <str>f"\tFPS: {self.fps or 'dynamic'}\n"
-
-        return s
+        return (
+            'VideoNode\n'
+            f'\tFormat: {format}\n'
+            f'\tWidth: {width}\n'
+            f'\tHeight: {height}\n'
+            f'\tNum Frames: {self.num_frames:d}\n'
+            f'\tFPS: {self.fps or d}\n'
+        )
 
 cdef VideoNode createVideoNode(VSNode *node, const VSAPI *funcs, Core core):
     cdef VideoNode instance = VideoNode.__new__(VideoNode)
@@ -2153,7 +2285,11 @@ cdef class AudioNode(RawNode):
 
     def set_output(self, int index = 0):
         _get_output_dict("set_output")[index] = self
-            
+
+    @property
+    def channels(self):
+        return ChannelLayout(self.channel_layout)
+
     def __add__(x, y):
         if not isinstance(x, AudioNode) or not isinstance(y, AudioNode):
             return NotImplemented
@@ -2230,19 +2366,30 @@ cdef class AudioNode(RawNode):
     def __len__(self):
         return self.num_samples
 
+    def __repr__(self):
+        return _construct_repr(
+            self, sample_type=self.sample_type,
+            bits_per_sample=self.bits_per_sample,
+            bytes_per_sample=self.bytes_per_sample,
+            num_channels=self.num_channels,
+            channels=iter(self.channels), sample_rate=self.sample_rate,
+            num_samples=self.num_samples
+
+        )
+
     def __str__(self):
-        channels = []
-        for v in AudioChannels:
-            if ((1 << v) & self.channel_layout):
-                channels.append(AudioChannels(v).name)        
-        channels = ', '.join(channels)
+        channels = ', '.join([c.name for c in self.channels])
                 
-        return ('Audio Node\n'
-               f'\tSample Type: {self.sample_type.name}\n'
-               f'\tBits Per Sample: {self.bits_per_sample:d}\n'
-               f'\tChannels: {channels:s}\n'
-               f'\tSample Rate: {self.sample_rate:d}\n'
-               f'\tNum Samples: {self.num_samples:d}\n')
+        return (
+            'AudioNode\n'
+            f'\tSample Type: {self.sample_type.name}\n'
+            f'\tBits Per Sample: {self.bits_per_sample:d}\n'
+            f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
+            f'\tNum Channels: {self.num_channels:d}\n'
+            f'\tChannels: {channels}\n'
+            f'\tSample Rate: {self.sample_rate:d}\n'
+            f'\tNum Samples: {self.num_samples:d}\n'
+        )
     
 cdef AudioNode createAudioNode(VSNode *node, const VSAPI *funcs, Core core):
     cdef AudioNode instance = AudioNode.__new__(AudioNode)
@@ -2392,11 +2539,30 @@ cdef class Core(object):
             plugins.append(plugin.namespace)
         return super(Core, self).__dir__() + plugins
 
+    def __repr__(self):
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo(self.core, &v)
+
+        api_major = (v.api >> 16)
+        api_minor = v.api - (api_major << 16)
+
+        api_v = api_major + api_minor / 10
+
+        return _construct_repr(
+            self, core_version=v.core, api_version=api_v, num_threads=v.numThreads,
+            max_cache_size=(<int64_t>v.maxFramebufferSize + 1024 * 1024 - 1) // <int64_t>(1024 * 1024)
+        )
+
     def __str__(self):
-        cdef str s = 'Core\n'
-        s += self.version() + '\n'
-        s += '\tNumber of Threads: ' + str(self.num_threads) + '\n'
-        return s
+        version_lines = [x.strip() for x in self.version().splitlines()]
+        copyright = '\n'.join(version_lines[:2])
+        version = '\n\t'.join(version_lines[2:])
+
+        return (
+            f'{copyright}\n\t{version}\n'
+            f'\tNumber of Threads: {self.num_threads:d}\n'
+            f'\tMax Cache Size: {self.max_cache_size:d}\n'
+        )
 
 cdef object createNode(VSNode *node, const VSAPI *funcs, Core core):
     if funcs.getNodeType(node) == VIDEO:
@@ -2463,9 +2629,33 @@ cdef class _CoreProxy(object):
         
     def __setattr__(self, name, value):
         setattr(self.core, name, value)
+
+    def __repr__(self):
+        if _env_current() is None:
+            core_repr = None
+        else:
+            core_repr = repr(self.core)
+
+        return _construct_repr(self, core=core_repr)
+
+
+    def __str__(self):
+        if _env_current() is None:
+            return (
+                'Uninitialized Environment:\n'
+                f'\tCore R{__version__[0]}\n'
+                f'\tAPI R{__api_version__[0]}.{__api_version__[1]}\n'
+                '\tOptions: Unknown\n'
+                '\tNumber of Threads: Unknown\n'
+                '\tMax Cache Size: Unknown\n'
+            )
+
+        return str(self.core)
     
 core = _CoreProxy.__new__(_CoreProxy)
-    
+
+PluginVersion = namedtuple("PluginVersion", "major minor")
+
 
 cdef class Plugin(object):
     cdef Core core
@@ -2496,6 +2686,15 @@ cdef class Plugin(object):
             func = self.funcs.getNextPluginFunction(func, self.plugin)
             yield tmp
 
+    @property
+    def version(self):
+        ver = <int>self.funcs.getPluginVersion(self.plugin)
+
+        ver_major = (ver >> 16)
+        ver_minor = (ver_major > -1) and (ver - (ver_major << 16)) or 0
+
+        return PluginVersion(ver_major, ver_minor)
+
     def __dir__(self):
         attrs = []
         if isinstance(self.injected_arg, VideoNode):
@@ -2522,6 +2721,12 @@ cdef class Plugin(object):
             if (<Function>func).is_audio_injectable():
                 return True
         return False
+
+    def __repr__(self):
+        return _construct_repr(
+            self, version=self.__version__,
+            bound=(Core if self.injected_arg is None else type(self.injected_arg)).__name__
+        )
 
 cdef Plugin createPlugin(VSPlugin *plugin, const VSAPI *funcs, Core core):
     cdef Plugin instance = Plugin.__new__(Plugin)
@@ -2552,10 +2757,12 @@ cdef class Function(object):
         raise Error('Class cannot be instantiated directly')
 
     cdef is_video_injectable(self):
-        return self.signature.find(':vnode') > 0
-        
+        first_arg_i = self.signature.find(':')
+        return first_arg_i > 0 and self.signature.find(':vnode') == first_arg_i
+ 
     cdef is_audio_injectable(self):
-        return self.signature.find(':anode') > 0
+        first_arg_i = self.signature.find(':')
+        return first_arg_i > 0 and self.signature.find(':anode') == first_arg_i
 
     def __call__(self, *args, **kwargs):
         cdef VSMap *inm
@@ -2643,6 +2850,19 @@ cdef class Function(object):
         self.funcs.freeMap(outm)
         return retdict
 
+    def __repr__(self):
+        sig = self.__signature__
+
+        parameters = ", ".join(map(str, sig.parameters.values()))
+        signature = f'({parameters}) -> {inspect.formatannotation(sig.return_annotation)}'
+        signature = signature.replace('vapoursynth.', '')
+
+        return _construct_repr(
+            self, bound=(Core if self.plugin.injected_arg is None else type(self.plugin.injected_arg)).__name__,
+            signature=signature
+        )
+
+
 cdef Function createFunction(VSPluginFunction *func, Plugin plugin, const VSAPI *funcs):
     cdef Function instance = Function.__new__(Function)
     instance.name = funcs.getPluginFunctionName(func).decode('utf-8')
@@ -2726,8 +2946,9 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                         ret = 0
                     ret = {'val':ret}
                 dictToMap(ret, outm, core, vsapi)
-        except BaseException, e:
-            emsg = str(e).encode('utf-8')
+        except BaseException as e:
+            import traceback
+            emsg = b'\n' + ''.join(traceback.format_exception(type(e), e, e.__traceback__)).encode('utf-8')
             vsapi.mapSetError(outm, emsg)
 
 
@@ -2814,8 +3035,8 @@ cdef class VSScriptEnvironmentPolicy:
     cdef _free_environment(self, int script_id):
         env = self._env_map.pop(script_id, None)
         if env is not None:
-            self.stdout.flush()
-            self.stderr.flush()
+            sys.stdout.flush()
+            sys.stderr.flush()
             self._api.destroy_environment(env)
             
     def is_alive(self, EnvironmentData environment):

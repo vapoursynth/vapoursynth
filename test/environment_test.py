@@ -1,4 +1,6 @@
 import gc
+import sys
+import weakref
 import unittest
 import contextlib
 import multiprocessing
@@ -58,6 +60,10 @@ def subprocess_runner(func):
             executor.submit(_wrap_with, my_counter).result()
 
     return _wrapper
+
+
+class AnObject:
+    pass
 
 
 class EnvironmentTest(unittest.TestCase):
@@ -190,3 +196,81 @@ class EnvironmentTest(unittest.TestCase):
                 env = None
                 gc.collect()
 
+
+    @subprocess_runner
+    def test_locals_store_data_between_envs(self):
+        local = vs.Local()
+
+        with _with_policy() as pol:
+            env1 = pol._api.create_environment()
+            wrapped1 = pol._api.wrap_environment(env1)
+
+            env2 = pol._api.create_environment()
+            wrapped2 = pol._api.wrap_environment(env2)
+
+            with wrapped1.use():
+                with self.assertRaises(AttributeError):
+                    local.hello
+
+            with wrapped2.use():
+                local.hello = 5
+
+            with wrapped1.use():
+                local.hello = 1
+
+            with wrapped2.use():
+                self.assertEqual(local.hello, 5)
+
+            with wrapped1.use():
+                self.assertEqual(local.hello, 1)
+
+            with wrapped1.use():
+                del local.hello
+
+            with wrapped2.use():
+                self.assertEqual(local.hello, 5)
+
+            with wrapped1.use():
+                with self.assertRaises(AttributeError):
+                    local.hello
+    
+    @subprocess_runner
+    def test_locals_differ_from_each_other(self):
+        local1 = vs.Local()
+        local2 = vs.Local()
+
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                local1.a = 5
+                local2.a = 6
+
+                self.assertEqual(local1.a, 5)
+                self.assertEqual(local2.a, 6)
+    
+    @subprocess_runner
+    def test_locals_store_data_between_envs(self):
+        local = vs.Local()
+        o = AnObject()
+
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                local.obj = o
+
+            wr = weakref.ref(o)
+            del o
+
+            with wrapped.use():
+                self.assertIsNotNone(wr())
+
+            pol._api.destroy_environment(env)
+            gc.collect()
+            gc.collect()
+            gc.collect()
+            
+            self.assertIsNone(wr())
