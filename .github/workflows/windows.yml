@@ -40,14 +40,10 @@ jobs:
         # The target architecture (x86, x64) of the Python interpreter.
         architecture: ${{ matrix.arch }}
 
-    - name: Patch Python 3.8 Include Paths
+    - name: Get Python 3.8 Install Path
       run: |
-        $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
-        $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\libs",$py_binary_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\include",$py_include_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\libs",$py_binary_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
-        (Get-Content -Path "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\include",$py_include_path | Set-Content "msvc_project/VSScriptPython38/VSScriptPython38.vcxproj"
+        $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
+        echo "PYTHON38_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Setup Python 3.10
       uses: actions/setup-python@v3
@@ -60,24 +56,24 @@ jobs:
         python -m pip install --upgrade pip
         pip install cython
         
-    - name: Patch Python 3.10 Include Paths
+    - name: Get Python 3.10 Install Path
       run: |
-        $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
-        $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python310-32\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python310-32\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python310\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python310\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
+        echo "PYTHON310_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Compile
       run: |
+        $env:VSPYTHON38_PATH="${{ env.PYTHON38_PATH }}"
+        $env:VSPYTHON3832_PATH="${{ env.PYTHON38_PATH }}"
+        $env:VSPYTHON310_PATH="${{ env.PYTHON310_PATH }}"
+        $env:VSPYTHON31032_PATH="${{ env.PYTHON310_PATH }}"
         msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}        
         pip install . --no-deps
         
         pushd installer
         $env:SKIP_COMPRESS="yes"
         $env:SKIP_WAIT="yes"
-        & ".\make portable.bat"
+        & ".\make_portable.bat"
         
         if ("${{ matrix.arch }}" -eq "x64") {
           pushd buildp64
@@ -115,7 +111,6 @@ jobs:
         python-version: 3.8
         # The target architecture (x86, x64) of the Python interpreter.
         architecture: ${{ matrix.arch }}
-
     - name: Building for Python 3.8
       run: |
         pip install . --no-deps
@@ -129,7 +124,7 @@ jobs:
         
         $env:SKIP_COMPRESS="yes"
         $env:SKIP_WAIT="yes"
-        & ".\make portable.bat"
+        & ".\make_portable.bat"
   
   
         if ("${{ matrix.arch }}" -eq "x64") {

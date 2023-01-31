@@ -1,4 +1,4 @@
 pushd doc
-call make html
+sphinx-build -b html -d _build/doctrees . _build/html
 pause
 popd

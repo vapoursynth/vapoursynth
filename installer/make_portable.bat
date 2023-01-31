@@ -1,7 +1,11 @@
+@echo off
+
 rem extract version string
 for /F "tokens=2 delims='" %%a in ('findstr /C:"#define Version " vsinstaller.iss') do set v=%%a
 for /F "tokens=2 delims='" %%a in ('findstr /C:"#define VersionExtra " vsinstaller.iss') do set w=%%a
 @echo %v%%w%
+
+call setmvscvars.bat
 
 rem 64bit build
 mkdir buildp64\vapoursynth64\coreplugins
@@ -11,11 +15,13 @@ mkdir buildp64\sdk\examples
 mkdir buildp64\sdk\lib32
 mkdir buildp64\sdk\lib64
 mkdir buildp64\doc
+mkdir buildp64\vsgenstubs4
 copy ..\vsrepo\vsrepo.py buildp64
+copy ..\vsrepo\vsgenstubs4 buildp64\vsgenstubs4
 copy vs-detect-python.bat buildp64
 copy 7z.exe buildp64
 copy 7z.dll buildp64
-copy ..\vapoursynth.cp310-win_amd64.pyd buildp64
+copy ..\vapoursynth.cp3*-win_amd64.pyd buildp64
 copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
 copy ..\msvc_project\x64\Release\vsscriptpython38.dll buildp64
@@ -37,7 +43,7 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp64\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp64\sdk\examples
 copy ..\sdk\invert_example.c buildp64\sdk\examples
 copy ..\sdk\vsscript_example.c buildp64\sdk\examples
-copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.34.31931\x64\Microsoft.VC143.CRT\*" buildp64
+copy "%MVSCRedistPath%\%RedistVersion%\x64\Microsoft.VC%RedistShortVersion%.CRT\*" buildp64
 copy pfm-192-vapoursynth-win.exe buildp64
 copy .\setup.py buildp64
 copy .\MANIFEST.in buildp64
@@ -45,9 +51,11 @@ xcopy /E ..\doc\_build\html\* buildp64\doc
 type nul >buildp64\portable.vs
 type nul >buildp64\vapoursynth64\plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
-  del Compiled\vapoursynth64-portable-R%v%%w%.7z
+  IF EXIST "Compiled\vapoursynth64-portable-R%v%%w%.7z" (
+    del Compiled\vapoursynth64-portable-R%v%%w%.7z
+  )
   cd buildp64
-  "C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
+  7z.exe a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
   cd ..
   rmdir /s /q buildp64
 )
@@ -60,11 +68,13 @@ mkdir buildp32\sdk\examples
 mkdir buildp32\sdk\lib32
 mkdir buildp32\sdk\lib64
 mkdir buildp32\doc
+mkdir buildp32\vsgenstubs4
 copy ..\vsrepo\vsrepo.py buildp32
+copy ..\vsrepo\vsgenstubs4 buildp32\vsgenstubs4
 copy vs-detect-python.bat buildp32
 copy 7z.exe buildp32
 copy 7z.dll buildp32
-copy ..\vapoursynth.cp310-win32.pyd buildp32
+copy ..\vapoursynth.cp3*-win32.pyd buildp32
 copy ..\msvc_project\Release\VapourSynth.dll buildp32
 copy ..\msvc_project\Release\vsscript.dll buildp32
 copy ..\msvc_project\Release\vsscriptpython38.dll buildp32
@@ -86,7 +96,7 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp32\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp32\sdk\examples
 copy ..\sdk\invert_example.c buildp32\sdk\examples
 copy ..\sdk\vsscript_example.c buildp32\sdk\examples
-copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.34.31931\x86\Microsoft.VC143.CRT\*" buildp32
+copy "%MVSCRedistPath%\%RedistVersion%\x86\Microsoft.VC%RedistShortVersion%.CRT\*" buildp32
 copy pfm-192-vapoursynth-win.exe buildp32
 copy .\setup.py buildp32
 copy .\MANIFEST.in buildp32
@@ -94,12 +104,16 @@ xcopy /E ..\doc\_build\html\* buildp32\doc
 type nul >buildp32\portable.vs
 type nul >buildp32\vapoursynth32\plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
-  del Compiled\vapoursynth32-portable-R%v%%w%.7z
+  IF EXIST "Compiled\vapoursynth32-portable-R%v%%w%.7z" (
+    del Compiled\vapoursynth32-portable-R%v%%w%.7z
+  )
   cd buildp32
-  "C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
+  7z.exe a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
   cd ..
   rmdir /s /q buildp32
 )
+
+:endc
 
 if "%SKIP_WAIT%" EQU "" (
   pause
