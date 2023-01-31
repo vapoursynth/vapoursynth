@@ -19,7 +19,7 @@ IF NOT EXIST vsrepo (
 )
 
 IF NOT EXIST zimg (
-    git clone https://github.com/sekrit-twc/zimg --branch v3.0
+    git clone https://github.com/sekrit-twc/zimg --shallow-submodules --recurse-submodules
 ) ELSE (
     echo zimg: & pushd zimg & git pull & popd
 )

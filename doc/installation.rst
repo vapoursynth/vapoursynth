@@ -118,7 +118,7 @@ Preparing the C++ Project
 
 * Clone VapourSynth
 * Clone VSRepo into the VapourSynth dir (``git clone https://github.com/vapoursynth/vsrepo``)
-* Clone zimg into the VapourSynth dir (``git clone https://github.com/sekrit-twc/zimg --branch v3.0``)
+* Clone zimg into the VapourSynth dir (``git clone https://github.com/sekrit-twc/zimg.git --recurse-submodules``)
 * Clone avs+ into the VapourSynth dir (``git clone https://github.com/AviSynth/AviSynthPlus.git``)
 * Clone libp2p into the VapourSynth dir (``git clone https://github.com/sekrit-twc/libp2p.git``)
 * Compile 32 and 64 bit releases using the VapourSynth solution
@@ -160,7 +160,7 @@ These are the requirements:
 
    * GCC 4.8 or newer, or Clang
 
-   * `zimg v3.0 branch <https://github.com/sekrit-twc/zimg/releases>`_
+   * `zimg <https://github.com/sekrit-twc/zimg>`_
 
    * Python 3
 
