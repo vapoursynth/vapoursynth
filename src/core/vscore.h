@@ -84,6 +84,10 @@ class VSException : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
+class VSNoEntryPointException : public VSException {
+    using VSException::VSException;
+};
+
 typedef std::pair<VSNode *, int> NodeOutputKey;
 
 template<>

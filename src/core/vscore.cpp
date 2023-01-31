@@ -1664,6 +1664,8 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     do {
         try {
             loadPlugin(utf16_to_utf8(path + L"\\" + findData.cFileName));
+        } catch (VSNoEntryPointException &) {
+            // do nothing since we may encounter supporting dlls without an entry point
         } catch (VSException &e) {
             logMessage(mtWarning, e.what());
         }
@@ -1691,6 +1693,8 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
                 std::string fullname;
                 fullname.append(path).append("/").append(name);
                 loadPlugin(fullname);
+            } catch (VSNoEntryPointException &) {
+                // do nothing since we may encounter supporting dlls without an entry point
             } catch (VSException &e) {
                 logMessage(mtWarning, e.what());
             }
@@ -2122,7 +2126,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     if (!pluginInit && !pluginInit3) {
         if (!core->disableLibraryUnloading)
             FreeLibrary(libHandle);
-        throw VSException("No entry point found in " + relFilename);
+        throw VSNoEntryPointException("No entry point found in " + relFilename);
     }
 #else
     std::vector<char> fullPathBuffer(PATH_MAX + 1);
