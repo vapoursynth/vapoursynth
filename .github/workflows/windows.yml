@@ -45,10 +45,10 @@ jobs:
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
         echo "PYTHON38_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-    - name: Setup Python 3.10
+    - name: Setup Python 3.11
       uses: actions/setup-python@v3
       with:
-        python-version: '3.10'
+        python-version: '3.11'
         architecture: ${{ matrix.arch }}
 
     - name: Install cython
@@ -56,17 +56,17 @@ jobs:
         python -m pip install --upgrade pip
         pip install cython
         
-    - name: Get Python 3.10 Install Path
+    - name: Get Python 3.11 Install Path
       run: |
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
-        echo "PYTHON310_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "PYTHON_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Compile
       run: |
         $env:VSPYTHON38_PATH="${{ env.PYTHON38_PATH }}"
         $env:VSPYTHON3832_PATH="${{ env.PYTHON38_PATH }}"
-        $env:VSPYTHON310_PATH="${{ env.PYTHON310_PATH }}"
-        $env:VSPYTHON31032_PATH="${{ env.PYTHON310_PATH }}"
+        $env:VSPYTHON_PATH="${{ env.PYTHON_PATH }}"
+        $env:VSPYTHON32_PATH="${{ env.PYTHON_PATH }}"
         msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}        
         pip install . --no-deps
         
@@ -85,7 +85,7 @@ jobs:
         popd
 
         
-    - name: Package for Python 3.10
+    - name: Package for Python 3.11
       run: |
         mkdir wheels
         pip install wheel
@@ -174,7 +174,7 @@ jobs:
     strategy:
       matrix:
         arch: [x86, x64]
-        python: ["3.8", "3.10"]
+        python: ["3.8", "3.11"]
         
     steps:
     - name: Setup Python ${{ matrix.python }}
@@ -201,10 +201,10 @@ jobs:
     if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
 
     steps:
-    - name: Setup Python 3.10
+    - name: Setup Python 3.11
       uses: actions/setup-python@v3
       with:
-        python-version: "3.10"
+        python-version: "3.11"
 
     - name: Download build artifacts
       uses: actions/download-artifact@v2
