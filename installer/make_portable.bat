@@ -5,41 +5,7 @@ for /F "tokens=2 delims='" %%a in ('findstr /C:"#define Version " vsinstaller.is
 for /F "tokens=2 delims='" %%a in ('findstr /C:"#define VersionExtra " vsinstaller.iss') do set w=%%a
 @echo %v%%w%
 
-IF MSBuildPTH=="" GOTO setmvspath
-IF NOT DEFINED MSBuildPTH GOTO setmvspath
-IF NOT EXIST %MSBuildPTH% GOTO setmvspath
-
-goto foundmvspath
-
-:setmvspath
-SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Community
-IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
-
-SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Community
-IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
-
-SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise
-IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
-
-SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise
-IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
-
-ECHO MSVC couldn't be found!
-GOTO endc
-
-:foundmvspath
-SET MVSCRedistPath=%MSBuildPTH%\VC\Redist\MSVC
-SET RedistVersion=
-SET RedistShortVersion=
-
-for /F "delims=" %%A in ('dir "%MVSCRedistPath%" /o-n /ad /b') do (
-    IF NOT DEFINED RedistShortVersion (
-        SET tmppath=%%A
-        SET RedistShortVersion=%tmppath:~1%
-    ) ELSE (
-        IF NOT DEFINED RedistVersion SET RedistVersion=%%A
-    )
-)
+call setmvscvars.bat
 
 rem 64bit build
 mkdir buildp64\vapoursynth64\coreplugins
