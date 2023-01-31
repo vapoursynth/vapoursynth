@@ -3,6 +3,10 @@
 #define PythonVersion '3.10'
 #define PythonCompactVersion '310'
 
+#ifndef VSRuntimeVersion
+  #define VSRuntimeVersion '14.32.31326'
+#endif
+
 #ifndef InstallerBits
   #define InstallerBits '64'
 #endif
@@ -180,8 +184,6 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: not IsAdminInstallMode; Tasks: vsrepopath
 
 [Code]
-
-const VSRuntimeVersion = '14.32.31326';
 
 type
   TPythonPath = record
