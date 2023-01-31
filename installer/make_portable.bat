@@ -5,22 +5,27 @@ for /F "tokens=2 delims='" %%a in ('findstr /C:"#define Version " vsinstaller.is
 for /F "tokens=2 delims='" %%a in ('findstr /C:"#define VersionExtra " vsinstaller.iss') do set w=%%a
 @echo %v%%w%
 
-IF NOT DEFINED MSBuildPTH (
-    SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Community
-    IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
+IF MSBuildPTH=="" GOTO setmvspath
+IF NOT DEFINED MSBuildPTH GOTO setmvspath
+IF NOT EXIST %MSBuildPTH% GOTO setmvspath
 
-    SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Community
-    IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
+goto foundmvspath
 
-    SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise
-    IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
+:setmvspath
+SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Community
+IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
 
-    SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise
-    IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
+SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Community
+IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
 
-    ECHO MSVC couldn't be found!
-    GOTO endc
-)
+SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise
+IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
+
+SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise
+IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
+
+ECHO MSVC couldn't be found!
+GOTO endc
 
 :foundmvspath
 SET MVSCRedistPath=%MSBuildPTH%\VC\Redist\MSVC
