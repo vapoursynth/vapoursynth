@@ -49,6 +49,7 @@ from threading import local as ThreadLocal, Lock, RLock
 from types import MappingProxyType
 from collections import namedtuple
 from collections.abc import Iterable, Mapping
+from concurrent.futures import Future
 from fractions import Fraction
 
 # Ensure that the import doesn't fail
