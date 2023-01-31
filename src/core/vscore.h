@@ -1039,8 +1039,10 @@ private:
 
     void registerFormats();
 
+    static constexpr size_t maxStoredLogMessages = 500;
     std::mutex logMutex;
     std::set<VSLogHandle *> messageHandlers;
+    std::list<std::pair<VSMessageType, std::string>> storedMessages;
 public:
     VSThreadPool *threadPool;
     vs::MemoryUse *memory;

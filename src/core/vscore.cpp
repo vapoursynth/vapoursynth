@@ -1233,20 +1233,25 @@ bool VSCore::queryAudioFormat(VSAudioFormat &f, VSSampleType sampleType, int bit
 }
 
 bool VSCore::isValidFormatPointer(const void *f) {
-    {
-        std::lock_guard<std::mutex> lock(videoFormatLock);
+    std::lock_guard<std::mutex> lock(videoFormatLock);
 
-        for (const auto &iter : videoFormats) {
-            if (&iter.second == f)
-                return true;
-        }
+    for (const auto &iter : videoFormats) {
+        if (&iter.second == f)
+            return true;
     }
     return false;
 }
 
 VSLogHandle *VSCore::addLogHandler(VSLogHandler handler, VSLogHandlerFree freeFunc, void *userData) {
     std::lock_guard<std::mutex> lock(logMutex);
-    return *(messageHandlers.insert(new VSLogHandle{ handler, freeFunc, userData }).first);
+    VSLogHandle *handle = *(messageHandlers.insert(new VSLogHandle{ handler, freeFunc, userData }).first);
+
+    for (const auto &iter : storedMessages)
+        handler(iter.first, iter.second.c_str(), userData);
+    if (storedMessages.size() == maxStoredLogMessages)
+        handler(mtWarning, "Log messages after this point may have been discarded due to the buffer reaching its max size", userData);
+    storedMessages.clear();
+    return handle;
 }
 
 bool VSCore::removeLogHandler(VSLogHandle *rec) {
@@ -1262,9 +1267,12 @@ bool VSCore::removeLogHandler(VSLogHandle *rec) {
 }
 
 void VSCore::logMessage(VSMessageType type, const char *msg) {
+    assert(msg);
     std::lock_guard<std::mutex> lock(logMutex);
     for (auto iter : messageHandlers)
         iter->handler(type, msg, iter->userData);
+    if (messageHandlers.empty() && storedMessages.size() < maxStoredLogMessages)
+        storedMessages.push_back(std::make_pair(type, msg));
 
     switch (type) {
         case mtDebug:
