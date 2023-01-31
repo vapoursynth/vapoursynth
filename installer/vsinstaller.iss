@@ -1,7 +1,7 @@
 #define Version '61'
 #define VersionExtra ''
-#define PythonVersion '3.10'
-#define PythonCompactVersion '310'
+#define PythonVersion '3.11'
+#define PythonCompactVersion '311'
 
 #ifndef VSRuntimeVersion
   #define VSRuntimeVersion '14.32.31326'
