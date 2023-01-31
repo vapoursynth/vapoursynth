@@ -5,6 +5,37 @@ for /F "tokens=2 delims='" %%a in ('findstr /C:"#define Version " vsinstaller.is
 for /F "tokens=2 delims='" %%a in ('findstr /C:"#define VersionExtra " vsinstaller.iss') do set w=%%a
 @echo %v%%w%
 
+IF NOT DEFINED MSBuildPTH (
+    SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Community
+    IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
+
+    SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Community
+    IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
+
+    SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise
+    IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
+
+    SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise
+    IF EXIST "%MSBuildPTH%\VC" GOTO foundmvspath
+
+    ECHO MSVC couldn't be found!
+    GOTO endc
+)
+
+:foundmvspath
+SET MVSCRedistPath=%MSBuildPTH%\VC\Redist\MSVC
+SET RedistVersion=
+SET RedistShortVersion=
+
+for /F "delims=" %%A in ('dir "%MVSCRedistPath%" /o-n /ad /b') do (
+    IF NOT DEFINED RedistShortVersion (
+        SET tmppath=%%A
+        SET RedistShortVersion=%tmppath:~1%
+    ) ELSE (
+        IF NOT DEFINED RedistVersion SET RedistVersion=%%A
+    )
+)
+
 rem 64bit build
 mkdir buildp64\vapoursynth64\coreplugins
 mkdir buildp64\vapoursynth64\plugins
@@ -41,11 +72,7 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp64\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp64\sdk\examples
 copy ..\sdk\invert_example.c buildp64\sdk\examples
 copy ..\sdk\vsscript_example.c buildp64\sdk\examples
-IF EXIST "%ProgramFiles%\Microsoft Visual Studio\" (
-  copy "%ProgramFiles%\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.34.31931\x64\Microsoft.VC143.CRT\*" buildp64
-) ELSE (
-  copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.34.31931\x64\Microsoft.VC143.CRT\*" buildp64
-)
+copy "%MVSCRedistPath%\%RedistVersion%\x64\Microsoft.VC%RedistShortVersion%.CRT\*" buildp64
 copy pfm-192-vapoursynth-win.exe buildp64
 copy .\setup.py buildp64
 copy .\MANIFEST.in buildp64
@@ -98,11 +125,7 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp32\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp32\sdk\examples
 copy ..\sdk\invert_example.c buildp32\sdk\examples
 copy ..\sdk\vsscript_example.c buildp32\sdk\examples
-IF EXIST "%ProgramFiles%\Microsoft Visual Studio\" (
-  copy "%ProgramFiles%\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.34.31931\x86\Microsoft.VC143.CRT\*" buildp32
-) ELSE (
-  copy "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.34.31931\x86\Microsoft.VC143.CRT\*" buildp32
-)
+copy "%MVSCRedistPath%\%RedistVersion%\x86\Microsoft.VC%RedistShortVersion%.CRT\*" buildp32
 copy pfm-192-vapoursynth-win.exe buildp32
 copy .\setup.py buildp32
 copy .\MANIFEST.in buildp32
@@ -118,6 +141,8 @@ if "%SKIP_COMPRESS%" EQU "" (
   cd ..
   rmdir /s /q buildp32
 )
+
+:endc
 
 if "%SKIP_WAIT%" EQU "" (
   pause
