@@ -815,7 +815,7 @@ public:
                 ret = real_get_frame(src_frame, core, vsapi);
             }
         } catch (const vszimgxx::zerror &e) {
-            std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
+            std::string errmsg = "Resize error " + std::to_string(e.code) + "(Node: " + vsapi->getNodeName(m_node) + "): " + e.msg;
             vsapi->setFilterError(errmsg.c_str(), frameCtx);
         } catch (const std::exception &e) {
             vsapi->setFilterError(("Resize error: "_s + e.what()).c_str(), frameCtx);
@@ -848,7 +848,7 @@ public:
             VSFilterDependency deps[] = {{x->m_node, rpStrictSpatial}};
             vsapi->createVideoFilter(out, name, &x->m_vi, &vszimg::static_get_frame, &vszimg::free, fmParallel, deps, 1, x, core);
         } catch (const vszimgxx::zerror &e) {
-            std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
+            std::string errmsg = "Resize error " + std::to_string(e.code) + "(Node: " + vsapi->getNodeName(vsapi->mapGetNode(in, "clip", 0, nullptr)) + "): " + e.msg;
             vsapi->mapSetError(out, errmsg.c_str());
         } catch (const std::exception &e) {
             vsapi->mapSetError(out, ("Resize error: "_s + e.what()).c_str());
