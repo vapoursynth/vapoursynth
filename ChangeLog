@@ -1,4 +1,5 @@
 r62:
+updated the supported python versions to 3.11 and 3.8
 now up to 500 log messages are cached when no log handler is attached
 improvements to repr, audio channel handling and other python fixes (setsugennoao)
 added a class Local for environment-local values
