@@ -999,7 +999,7 @@ int main(int argc, char **argv) {
 
             if (vsapi->mapGetError(result)) {
                 mapError = result;
-            } else if (alphaResult && vsapi->mapGetError(alphaResult)) {
+            } else if (vsapi->mapGetError(alphaResult)) {
                 mapError = alphaResult;
             }
 
@@ -1007,8 +1007,7 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "%s\n", vsapi->mapGetError(mapError));
                 vsapi->freeMap(mapError);
                 vsapi->freeMap(result);
-                if (alphaResult)
-                    vsapi->freeMap(alphaResult);
+                vsapi->freeMap(alphaResult);
                 vsapi->freeNode(node);
                 vsapi->freeNode(alphaNode);
                 vssapi->freeScript(se);
@@ -1016,11 +1015,10 @@ int main(int argc, char **argv) {
             } else {
                 vsapi->freeNode(node);
                 node = vsapi->mapGetNode(result, "clip", 0, nullptr);
-                vsapi->freeMap(result);
-                if (alphaResult) {
+                if (alphaResult)
                     alphaNode = vsapi->mapGetNode(alphaResult, "clip", 0, nullptr);
-                    vsapi->freeMap(alphaResult);
-                }
+                vsapi->freeMap(result);
+                vsapi->freeMap(alphaResult);
             }
         }
 
