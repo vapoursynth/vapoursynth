@@ -1007,6 +1007,8 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "%s\n", vsapi->mapGetError(mapError));
                 vsapi->freeMap(mapError);
                 vsapi->freeMap(result);
+                if (alphaResult)
+                    vsapi->freeMap(alphaResult);
                 vsapi->freeNode(node);
                 vsapi->freeNode(alphaNode);
                 vssapi->freeScript(se);
