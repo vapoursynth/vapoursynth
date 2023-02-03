@@ -1,6 +1,6 @@
-setuptools
-wheel
-cython
+setuptools>=58
+wheel>=0.38.4
+cython>=0.29.33
 sphinx
 sphinx-intl
 sphinx-rtd-theme
