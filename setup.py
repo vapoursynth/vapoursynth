@@ -4,6 +4,7 @@ from os import curdir
 from os.path import dirname, exists, join
 from platform import architecture
 from shutil import which
+from typing import Union
 
 from setuptools import Extension, setup  # type: ignore
 
@@ -47,7 +48,7 @@ if is_win:
 
         return value
 
-    dll_path: str | None
+    dll_path: Union[str, None]
 
     # Locate the vapoursynth dll inside the library directories first
     # should we find it, it is a clear indicator that VapourSynth
