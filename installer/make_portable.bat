@@ -24,7 +24,6 @@ copy 7z.dll buildp64
 copy ..\vapoursynth.cp3*-win_amd64.pyd buildp64
 copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
-copy ..\msvc_project\x64\Release\vsscriptpython38.dll buildp64
 copy ..\msvc_project\x64\Release\avfs.exe buildp64
 copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
 copy ..\msvc_project\x64\Release\vspipe.exe buildp64
@@ -77,7 +76,6 @@ copy 7z.dll buildp32
 copy ..\vapoursynth.cp3*-win32.pyd buildp32
 copy ..\msvc_project\Release\VapourSynth.dll buildp32
 copy ..\msvc_project\Release\vsscript.dll buildp32
-copy ..\msvc_project\Release\vsscriptpython38.dll buildp32
 copy ..\msvc_project\Release\avfs.exe buildp32
 copy ..\msvc_project\Release\vsvfw.dll buildp32
 copy ..\msvc_project\Release\vspipe.exe buildp32

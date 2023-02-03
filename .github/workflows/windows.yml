@@ -40,11 +40,6 @@ jobs:
         # The target architecture (x86, x64) of the Python interpreter.
         architecture: ${{ matrix.arch }}
 
-    - name: Get Python 3.8 Install Path
-      run: |
-        $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
-        echo "PYTHON38_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
-
     - name: Setup Python 3.11
       uses: actions/setup-python@v3
       with:
@@ -63,8 +58,6 @@ jobs:
 
     - name: Compile
       run: |
-        $env:VSPYTHON38_PATH="${{ env.PYTHON38_PATH }}"
-        $env:VSPYTHON3832_PATH="${{ env.PYTHON38_PATH }}"
         $env:VSPYTHON_PATH="${{ env.PYTHON_PATH }}"
         $env:VSPYTHON32_PATH="${{ env.PYTHON_PATH }}"
         msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}        
