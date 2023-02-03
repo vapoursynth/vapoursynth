@@ -99,7 +99,7 @@ setup(
     author="Fredrik Mellbin",
     author_email="fredrik.mellbin@gmail.com",
     license="LGPL 2.1 or later",
-    version="61",
+    version="62",
     long_description="A portable replacement for Avisynth" if is_portable else "A modern replacement for Avisynth",
     platforms="All",
     ext_modules=[
