@@ -29,6 +29,8 @@
 #ifdef VS_TARGET_OS_WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <iostream>
+#include <algorithm>
 #endif
 
 static std::once_flag flag;
@@ -40,74 +42,150 @@ static bool initialized = false;
 static PyThreadState *ts = nullptr;
 static PyGILState_STATE s;
 
-static void real_init(void) VS_NOEXCEPT {
+
+static PyGILState_STATE initialize_gil() VS_NOEXCEPT {
+    int preInitialized = Py_IsInitialized();
+    if (!preInitialized)
+        Py_InitializeEx(0);
+    return PyGILState_Ensure();
+}
+
+static bool check_vapoursynth() {
+    PyObject *module = 0;
+    module = PyImport_ImportModule("vapoursynth");
+
+    if (module) {
+        Py_DECREF(module);
+        module = 0;
+        return true;
+    }
+
+    Py_XDECREF(module);
+
+    return false;
+}
+
 #ifdef VS_TARGET_OS_WINDOWS
+
 #ifdef _WIN64
     #define VS_INSTALL_REGKEY L"Software\\VapourSynth"
 #else
     #define VS_INSTALL_REGKEY L"Software\\VapourSynth-32"
 #endif
 
-#ifdef VSSCRIPT_PYTHON38
-    const std::wstring pythonDllName = L"python38.dll";
-#else
-    const std::wstring pythonDllName = L"python311.dll";
-#endif
+#define PYTHON_CORE_REGKEY L"Software\\Python\\PythonCore\\"
 
-    // portable
-    HMODULE module;
-    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&real_init, &module);
-    std::vector<wchar_t> pathBuf(65536);
-    GetModuleFileNameW(module, pathBuf.data(), (DWORD)pathBuf.size());
-    std::wstring dllPath = pathBuf.data();
-    dllPath.resize(dllPath.find_last_of('\\') + 1);
-    std::wstring portableFilePath = dllPath + L"portable.vs";
-    FILE *portableFile = _wfopen(portableFilePath.c_str(), L"rb");
-    bool isPortable = !!portableFile;
-    if (portableFile)
-        fclose(portableFile);
+const std::vector<std::wstring> pythonVersions {
+    L"3.12", L"3.11", L"3.10", L"3.9", L"3.8",
+};
 
+static bool checkPythonInstall(const std::wstring pyPath, const std::wstring pythonVer) {
     HMODULE pythonDll = nullptr;
 
-/*
-#ifdef VS_TARGET_OS_WINDOWS
-    _wputenv(L"PYTHONMALLOC=malloc");
-#else
-    setenv("PYTHONMALLOC", "malloc", 1);
-#endif
-*/
+    std::wcerr << L"vsscript: " << pyPath << L"." << std::endl;
 
-    if (isPortable) {
-        std::wstring pyPath = dllPath + L"\\" + pythonDllName;
-        pythonDll = LoadLibraryExW(pyPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
-    } else {
-        DWORD dwType = REG_SZ;
-        HKEY hKey = 0;
+    std::wstring dllName = pythonVer;
+    dllName.erase(std::remove(dllName.begin(), dllName.end(), L'.'), dllName.end());
 
-        wchar_t value[1024];
-        DWORD valueLength = 1000;
-        if (RegOpenKeyW(HKEY_CURRENT_USER, VS_INSTALL_REGKEY, &hKey) != ERROR_SUCCESS) {
-            if (RegOpenKeyW(HKEY_LOCAL_MACHINE, VS_INSTALL_REGKEY, &hKey) != ERROR_SUCCESS)
-                return;
+    std::wstring path = pyPath + L"\\python" + dllName + L".dll";
+    pythonDll = LoadLibraryExW(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+    if (pythonDll) {
+        initialize_gil();
+
+        if (check_vapoursynth()) {
+            std::wcerr << L"vsscript: found " << path << L"." << std::endl;
+            return true;
         }
 
-        LSTATUS status = RegQueryValueExW(hKey, L"PythonPath", nullptr, &dwType, (LPBYTE)&value, &valueLength);
-        RegCloseKey(hKey);
-        if (status != ERROR_SUCCESS)
-            return;
-
-        std::wstring pyPath = value;
-        pyPath += L"\\" + pythonDllName;
-
-        pythonDll = LoadLibraryExW(pyPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+        FreeLibrary(pythonDll);
     }
-    if (!pythonDll)
-        return;
+
+    std::wcerr << L"vsscript: not found " << path << L"." << std::endl;
+
+    return !!pythonDll;
+}
+
+static bool checkPythonInstallAllVersions(const std::wstring pyPath) {
+    for (const auto &pyVer: pythonVersions) {
+        if (checkPythonInstall(pyPath, pyVer)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool findPythonInstall(void) VS_NOEXCEPT {
+    HMODULE module;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&findPythonInstall, &module);
+
+    std::vector<wchar_t> pathBuf(65536);
+    GetModuleFileNameW(module, pathBuf.data(), (DWORD)pathBuf.size());
+
+    std::wstring dllPath = pathBuf.data();
+    dllPath.resize(dllPath.find_last_of('\\') + 1);
+
+    if (checkPythonInstallAllVersions(dllPath)) {
+        return true;
+    }
+
+    HMODULE pythonDll = nullptr;
+    DWORD dwType = REG_SZ;
+    HKEY hKey = 0;
+    wchar_t value[1024];
+    DWORD valueLength = 1000;
+
+    HKEY installType = 0;
+
+    if (RegOpenKeyW(HKEY_CURRENT_USER, VS_INSTALL_REGKEY, &hKey) == ERROR_SUCCESS) {
+        installType = HKEY_CURRENT_USER;
+    } else if (RegOpenKeyW(HKEY_LOCAL_MACHINE, VS_INSTALL_REGKEY, &hKey) == ERROR_SUCCESS) {
+        installType = HKEY_LOCAL_MACHINE;
+    }
+
+    if (!installType) {
+        return false;
+    }
+
+    LSTATUS status;
+
+    status = RegQueryValueExW(hKey, L"PythonPath", nullptr, &dwType, (LPBYTE)&value, &valueLength);
+
+    RegCloseKey(hKey);
+
+    if (status == ERROR_SUCCESS && checkPythonInstallAllVersions(value)) {
+        return true;
+    }
+
+    hKey = 0;
+    for (const auto &pyVer: pythonVersions) {
+        std::wstring keyName = PYTHON_CORE_REGKEY + pyVer + L"\\InstallPath";
+
+        std::wcerr << L"vsscript: " << keyName << "." << std::endl;
+
+        if (RegOpenKeyW(installType, keyName.c_str(), &hKey) == ERROR_SUCCESS) {
+            status = RegQueryValueExW(hKey, NULL, nullptr, &dwType, (LPBYTE)&value, &valueLength);
+            RegCloseKey(hKey);
+
+            if (status == ERROR_SUCCESS && checkPythonInstall(value, pyVer)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 #endif
-    int preInitialized = Py_IsInitialized();
-    if (!preInitialized)
-        Py_InitializeEx(0);
-    s = PyGILState_Ensure();
+
+static void real_init(void) VS_NOEXCEPT {
+#ifdef VS_TARGET_OS_WINDOWS
+    if (!findPythonInstall()) {
+        std::wcerr << L"vsscript: unable to find a suitable python install." << std::endl;
+        abort();
+    }
+#endif
+    s = initialize_gil();
     if (import_vapoursynth())
         return;
     if (vpy4_initVSScript())

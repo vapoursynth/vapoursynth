@@ -8,8 +8,6 @@ pushd msvc_project
 
 FOR /F "tokens=*" %%g IN ('py -3.11 -c "import sys; import os; print(os.path.dirname(sys.executable))"') DO SET VSPYTHON_PATH=%%g
 FOR /F "tokens=*" %%g IN ('py -3.11-32 -c "import sys; import os; print(os.path.dirname(sys.executable))"') DO SET VSPYTHON32_PATH=%%g
-FOR /F "tokens=*" %%g IN ('py -3.8 -c "import sys; import os; print(os.path.dirname(sys.executable))"') DO SET VSPYTHON38_PATH=%%g
-FOR /F "tokens=*" %%g IN ('py -3.8-32 -c "import sys; import os; print(os.path.dirname(sys.executable))"') DO SET VSPYTHON3832_PATH=%%g
 
 "%MSBuildPTH%\Msbuild\Current\Bin\MSBuild.exe" VapourSynth.sln /t:Clean;Build /p:Configuration=Release /p:Platform=x64
 "%MSBuildPTH%\Msbuild\Current\Bin\MSBuild.exe" VapourSynth.sln /t:Clean;Build /p:Configuration=Release /p:Platform=Win32
