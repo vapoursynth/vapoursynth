@@ -989,7 +989,7 @@ int main(int argc, char **argv) {
 
             VSMap *alphaResult;
             if (alphaNode) {
-                vsapi->mapSetNode(args, "clip", node, maReplace);
+                vsapi->mapSetNode(args, "clip", alphaNode, maReplace);
                 alphaResult = vsapi->invoke(stdPlugin, "Trim", args);
             }
 
