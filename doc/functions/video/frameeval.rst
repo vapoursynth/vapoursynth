@@ -71,7 +71,7 @@ FrameEval
          adjusted_clip = vs.core.std.FrameEval(rgb_clip, functools.partial(GrayWorld1Adjust, clip=rgb_clip, core=vs.core), prop_src=[r_avg, g_avg, b_avg])
          return vs.core.resize.Bilinear(adjusted_clip, format=clip.format.id, matrix_s=matrix_s)
 
-      vs.core.std.LoadPlugin(path='ffms2.dll')
-      main = vs.core.ffms2.Source(source='...')
+      vs.core.std.LoadPlugin(path='BestSource.dll')
+      main = vs.core.bs.VideoSource(source='...')
       main = GrayWorld1(main)
       main.set_output()
