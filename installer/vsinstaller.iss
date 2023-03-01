@@ -1,4 +1,4 @@
-#define Version '61'
+#define Version '62'
 #define VersionExtra ''
 #define PythonVersion '3.11'
 #define PythonCompactVersion '311'
@@ -108,6 +108,7 @@ Source: {#= SourceBinaryPath}\vsscriptpython38.dll; DestName: "vsscript.dll"; De
 
 ;vsrepo
 Source: ..\vsrepo\vsrepo.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
+Source: ..\vsrepo\vsgenstubs.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: ..\vsrepo\vsgenstubs4\__init__.py; DestDir: {app}\vsrepo\vsgenstubs4; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: ..\vsrepo\vsgenstubs4\__main__.py; DestDir: {app}\vsrepo\vsgenstubs4; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: ..\vsrepo\vsgenstubs4\_vapoursynth.part.pyi; DestDir: {app}\vsrepo\vsgenstubs4; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
