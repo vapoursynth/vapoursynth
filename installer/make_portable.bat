@@ -17,6 +17,7 @@ mkdir buildp64\sdk\lib64
 mkdir buildp64\doc
 mkdir buildp64\vsgenstubs4
 copy ..\vsrepo\vsrepo.py buildp64
+copy ..\vsrepo\vsgenstubs.py buildp64
 copy ..\vsrepo\vsgenstubs4 buildp64\vsgenstubs4
 copy vs-detect-python.bat buildp64
 copy 7z.exe buildp64
@@ -70,6 +71,7 @@ mkdir buildp32\sdk\lib64
 mkdir buildp32\doc
 mkdir buildp32\vsgenstubs4
 copy ..\vsrepo\vsrepo.py buildp32
+copy ..\vsrepo\vsgenstubs.py buildp32
 copy ..\vsrepo\vsgenstubs4 buildp32\vsgenstubs4
 copy vs-detect-python.bat buildp32
 copy 7z.exe buildp32
