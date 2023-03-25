@@ -593,6 +593,7 @@ class vszimg {
             m_src_width = propGetScalarDef<double>(in, "src_width", NAN, vsapi);
             m_src_height = propGetScalarDef<double>(in, "src_height", NAN, vsapi);
             m_params.nominal_peak_luminance = propGetScalarDef<double>(in, "nominal_luminance", NAN, vsapi);
+            m_params.use_scene_referred = propGetScalarDef<int>(in, "scene_referred", 0, vsapi);
 
             // Basic compatibility check.
             if (isConstantVideoFormat(&node_vi) && isConstantVideoFormat(&m_vi)) {
@@ -942,7 +943,8 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
         "clip:vnode;"
         INT_OPT(width)
         INT_OPT(height)
-        COMMON_ARGS;
+        COMMON_ARGS
+        INT_OPT(scene_referred);
 
     static const char RETURN_VALUE[] = "clip:vnode;";
 
