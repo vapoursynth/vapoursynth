@@ -983,11 +983,31 @@ int main(int argc, char **argv) {
                 vsapi->mapSetInt(args, "first", opts.startPos, maAppend);
             if (opts.endPos > -1)
                 vsapi->mapSetInt(args, "last", opts.endPos, maAppend);
-            VSMap *result = vsapi->invoke(vsapi->getPluginByID(VSH_STD_PLUGIN_ID, vssapi->getCore(se)), (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
+
+            VSPlugin *stdPlugin = vsapi->getPluginByID(VSH_STD_PLUGIN_ID, vssapi->getCore(se));
+            VSMap *result = vsapi->invoke(stdPlugin, (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
+
+            VSMap *alphaResult;
+            if (alphaNode) {
+                vsapi->mapSetNode(args, "clip", alphaNode, maReplace);
+                alphaResult = vsapi->invoke(stdPlugin, "Trim", args);
+            }
+
             vsapi->freeMap(args);
+
+            VSMap *mapError;
+
             if (vsapi->mapGetError(result)) {
-                fprintf(stderr, "%s\n", vsapi->mapGetError(result));
+                mapError = result;
+            } else if (vsapi->mapGetError(alphaResult)) {
+                mapError = alphaResult;
+            }
+
+            if (mapError) {
+                fprintf(stderr, "%s\n", vsapi->mapGetError(mapError));
+                vsapi->freeMap(mapError);
                 vsapi->freeMap(result);
+                vsapi->freeMap(alphaResult);
                 vsapi->freeNode(node);
                 vsapi->freeNode(alphaNode);
                 vssapi->freeScript(se);
@@ -995,7 +1015,10 @@ int main(int argc, char **argv) {
             } else {
                 vsapi->freeNode(node);
                 node = vsapi->mapGetNode(result, "clip", 0, nullptr);
+                if (alphaResult)
+                    alphaNode = vsapi->mapGetNode(alphaResult, "clip", 0, nullptr);
                 vsapi->freeMap(result);
+                vsapi->freeMap(alphaResult);
             }
         }
 

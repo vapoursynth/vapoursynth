@@ -2736,7 +2736,7 @@ cdef class Plugin(object):
 
     def __repr__(self):
         return _construct_repr(
-            self, version=self.__version__,
+            self, version=self.version,
             bound=(Core if self.injected_arg is None else type(self.injected_arg)).__name__
         )
 
