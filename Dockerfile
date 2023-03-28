@@ -84,3 +84,5 @@ RUN pip install --no-index /tmp/*.whl && rm /tmp/*.whl
 RUN set -ex \
 	&& vspipe --version \
 	&& python -c 'from vapoursynth import core; print(core.version())'
+
+ENV VS_PLUGINDIR=/usr/lib/vapoursynth
