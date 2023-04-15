@@ -987,7 +987,7 @@ int main(int argc, char **argv) {
             VSPlugin *stdPlugin = vsapi->getPluginByID(VSH_STD_PLUGIN_ID, vssapi->getCore(se));
             VSMap *result = vsapi->invoke(stdPlugin, (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
 
-            VSMap *alphaResult;
+            VSMap *alphaResult = nullptr;
             if (alphaNode) {
                 vsapi->mapSetNode(args, "clip", alphaNode, maReplace);
                 alphaResult = vsapi->invoke(stdPlugin, "Trim", args);
@@ -995,11 +995,10 @@ int main(int argc, char **argv) {
 
             vsapi->freeMap(args);
 
-            VSMap *mapError;
-
+            VSMap *mapError = nullptr;
             if (vsapi->mapGetError(result)) {
                 mapError = result;
-            } else if (vsapi->mapGetError(alphaResult)) {
+            } else if (alphaResult && vsapi->mapGetError(alphaResult)) {
                 mapError = alphaResult;
             }
 

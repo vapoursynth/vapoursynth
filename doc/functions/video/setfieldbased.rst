@@ -20,6 +20,6 @@ SetFieldBased
    been encoded as interlaced you can set it to be treated as frame based
    (not interlaced) to improve resizing quality::
 
-      clip = core.ffms2.Source("rule6.mkv")
+      clip = core.bs.VideoSource("rule6.mkv")
       clip = core.std.SetFieldBased(clip, 0)
       clip = clip.resize.Bilinear(clip, width=320, height=240)
