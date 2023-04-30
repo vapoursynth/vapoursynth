@@ -91,7 +91,7 @@ typedef enum VSSampleType {
 
 #define VS_MAKE_VIDEO_ID(colorFamily, sampleType, bitsPerSample, subSamplingW, subSamplingH) ((colorFamily << 28) | (sampleType << 24) | (bitsPerSample << 16) | (subSamplingW << 8) | (subSamplingH << 0))
 
-typedef enum VSPresetFormat {
+typedef enum VSPresetVideoFormat {
     pfNone = 0,
 
     pfGray8 = VS_MAKE_VIDEO_ID(cfGray, stInteger, 8, 0, 0),
@@ -145,7 +145,7 @@ typedef enum VSPresetFormat {
 
     pfRGBH = VS_MAKE_VIDEO_ID(cfRGB, stFloat, 16, 0, 0),
     pfRGBS = VS_MAKE_VIDEO_ID(cfRGB, stFloat, 32, 0, 0),
-} VSPresetFormat;
+} VSPresetVideoFormat;
 
 #undef VS_MAKE_VIDEO_ID
 
@@ -468,11 +468,10 @@ struct VSAPI {
     /* Graph information */
 
     /* 
-     * NOT PART OF THE STABLE API!
      * These functions only exist to retrieve internal details for debug purposes and graph visualization
      * They will only only work properly when used on a core created with ccfEnableGraphInspection and are
-     * not safe to use concurrently with frame requests or other API functions
-     * NOT PART OF THE STABLE API!
+     * not safe to use concurrently with frame requests or other API functions. Because of this they are
+     * unsuitable for use in plugins and filters.
      */
     
     const char *(VS_CC *getNodeCreationFunctionName)(VSNode *node, int level) VS_NOEXCEPT; /* level=0 returns the name of the function that created the filter, specifying a higher level will retrieve the function above that invoked it or NULL if a non-existent level is requested */
