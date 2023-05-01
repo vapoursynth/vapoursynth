@@ -76,9 +76,15 @@ Structs_
 
    VSVideoFormat_
 
-   VSCoreInfo_
-
    VSVideoInfo_
+   
+   VSAudioFormat_
+   
+   VSAudioInfo_
+
+   VSCoreInfo_   
+
+   VSPLUGINAPI_
 
    VSAPI_
 
@@ -838,6 +844,96 @@ struct VSVideoFormat
       Number of planes.
 
 
+.. _VSVideoInfo:
+
+struct VSVideoInfo
+------------------
+
+   Contains information about a clip.
+
+   .. c:member:: VSVideoFormat format
+
+      Format of the clip. Will have *colorFamily* set to *cfUndefined* if the format can vary.
+
+   .. c:member:: int64_t fpsNum
+
+      Numerator part of the clip's frame rate. It will be 0 if the frame
+      rate can vary. Should always be a reduced fraction.
+
+   .. c:member:: int64_t fpsDen
+
+      Denominator part of the clip's frame rate. It will be 0 if the frame
+      rate can vary. Should always be a reduced fraction.
+
+   .. c:member:: int width
+
+      Width of the clip. Both width and height will be 0 if the clip's dimensions can vary.
+
+   .. c:member:: int height
+
+      Height of the clip. Both width and height will be 0 if the clip's dimensions can vary.
+
+   .. c:member:: int numFrames
+
+      Length of the clip.   
+      
+      
+.. _VSAudioFormat:
+
+struct VSAudioFormat
+--------------------
+
+   Describes the format of a clip. 
+   
+   Use queryAudioFormat_\ () to fill it in with proper error checking. Manually filling out the struct is allowed but discouraged
+   since illegal combinations of values will cause undefined behavior.
+
+   .. c:member:: int sampleType
+
+      See VSSampleType_.
+
+   .. c:member:: int bitsPerSample
+
+      Number of significant bits.
+
+   .. c:member:: int bytesPerSample
+
+      Number of bytes needed for a sample. This is always a power of 2 and the
+      smallest possible that can fit the number of bits used per sample.
+
+   .. c:member:: int numChannels
+
+      Number of audio channels.
+
+   .. c:member:: uint64_t channelLayout
+
+      A bitmask representing the channels present using the constants in 1 left shifted by the constants in VSAudioChannels_. 
+
+
+.. _VSAudioInfo:
+
+struct VSAudioInfo
+------------------
+
+   Contains information about a clip.
+
+   .. c:member:: VSAudioFormat format
+
+      Format of the clip. Unlike video the audio format can never change.
+
+   .. c:member:: int sampleRate
+
+      Sample rate.   
+      
+   .. c:member:: int64_t numSamples
+
+      Length of the clip in audio samples.   
+
+   .. c:member:: int numFrames
+
+      Length of the clip in audio frames.   
+      
+
 .. _VSCoreInfo:
 
 struct VSCoreInfo
@@ -871,46 +967,39 @@ struct VSCoreInfo
       Current size of the framebuffer cache, in bytes.
 
 
-.. _VSVideoInfo:
+.. _VSPLUGINAPI:
 
-struct VSVideoInfo
+struct VSPLUGINAPI
 ------------------
+  
+   This struct is used to access VapourSynth's API when a plugin is initially loaded.
 
-   Contains information about a clip.
+----------
 
-   .. c:member:: const VSFormat* format
+   .. _getAPIVersion:
 
-      Format of the clip. It will be NULL if the clip's format can vary.
+   int getAPIVersion()
+   
+      See getAPIVersion_\ () in the struct VSAPI_.
 
-   .. c:member:: int64_t fpsNum
+----------
 
-      Numerator part of the clip's frame rate. It will be 0 if the frame
-      rate can vary. Should always be a reduced fraction.
+   .. _configPlugin:
 
-   .. c:member:: int64_t fpsDen
+   int configPlugin(const char \*identifier, const char \*pluginNamespace, const char \*name, int pluginVersion, int apiVersion, int flags, VSPlugin \*plugin)
+   
+      Used to provide information about a plugin when loaded. Must be called exactly once from the *VapourSynthPluginInit2* entry point.
+      It is recommended to use the VS_MAKE_VERSION_ when providing the *pluginVersion*. If you don't know the specific *apiVersion* you actually require simply
+      pass VAPOURSYNTH_API_VERSION_ to match the header version you're compiling against. The *flags* consist of values from VSPluginConfigFlags_ ORed together
+      but should for most plugins typically be 0.
+      
+      Returns non-zero on success.
 
-      Denominator part of the clip's frame rate. It will be 0 if the frame
-      rate can vary. Should always be a reduced fraction.
+----------
 
-   .. c:member:: int width
-
-      Width of the clip. Both width and height will be 0 if the clip's dimensions can vary.
-
-   .. c:member:: int height
-
-      Height of the clip. Both width and height will be 0 if the clip's dimensions can vary.
-
-   .. c:member:: int numFrames
-
-      Length of the clip.
-
-      Since API R3.2 (VapourSynth R27) this is no longer allowed to be 0,
-      i.e. clips with unknown length are not supported.
-
-   .. c:member:: int flags
-
-      The flags passed to createFilter_ (either 0, or one or more of
-      VSNodeFlags_).
+   int registerFunction(const char \*name, const char \*args, const char \*returnType, VSPublicFunction argsFunc, void \*functionData, VSPlugin \*plugin)
+   
+      See registerFunction_\ () in the struct VSAPI_.
 
 
 .. _VSAPI:
