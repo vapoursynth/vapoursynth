@@ -1587,7 +1587,7 @@ struct VSAPI
       Thread-safe.
 
       *id*
-         The format identifier: one of VSPresetFormat_ or a custom registered
+         The format identifier: one of VSPresetVideoFormat_ or a custom registered
          format.
 
       Returns NULL if the identifier is not known.
