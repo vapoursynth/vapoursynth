@@ -20,8 +20,8 @@ AudioMix
    Output channels and order is determined by the *channels_out* array
    between input index and output channel happens on the order of lowest output channel
    identifier to the highest.
-   
-   
+
+
 
    Below are some examples of useful operations.
 
@@ -32,7 +32,7 @@ AudioMix
    Downmix 5.1 audio::
 
       AudioMix(clips=clip, matrix=[1, 0, 0.7071, 0, 0.7071, 0, 0, 1, 0.7071, 0, 0, 0.7071], channels_out=[vs.FRONT_LEFT, vs.FRONT_RIGHT])
-      
+
    Copy stereo audio to 5.1 and zero the other channels::
 
       AudioMix(clips=c, matrix=[1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0], channels_out=[vs.FRONT_LEFT, vs.FRONT_RIGHT, vs.FRONT_CENTER, vs.LOW_FREQUENCY, vs.BACK_LEFT, vs.BACK_RIGHT])

@@ -9,41 +9,41 @@ Introduction_
 
 Structs_
    VSScript_
-   
+
    VSScriptAPI_
-   
-   
+
+
 Functions_
    *getVSScriptAPI_
 
    *getApiVersion_
-      
+
    *getVSAPI_
-      
+
    *createScript_
-      
+
    *getCore_
-      
+
    *evaluateBuffer_
-      
+
    *evaluateFile_
-      
+
    *getError_
-      
+
    *getExitCode_
-   
+
    *getVariable_
-      
+
    *setVariables_
-      
+
    *getOutputNode_
-      
+
    *getOutputAlphaNode_
-      
+
    *getAltOutputMode_
-      
+
    *freeScript_
-      
+
    *evalSetWorkingDir_
 
 
@@ -89,14 +89,14 @@ Functions
 #########
 
 getVSScriptAPI
--------------
+--------------
 
 .. c:function:: const VSSCRIPTAPI *getVSScriptAPI(int version)
 
     Returns a struct containing function pointer for the api. Will return NULL is the specified *version* isn't supported.
-    
+
     It is recommended to always pass *VSSCRIPT_API_VERSION*.
-    
+
 
 getApiVersion
 -------------
@@ -105,7 +105,7 @@ getApiVersion
 
     Returns the api version provided by vsscript.
 
-    
+
 getVSAPI
 --------
 
@@ -122,7 +122,7 @@ createScript
 .. c:function:: VSScript *createScript(VSCore *core)
 
     Creates an empty script environment that can be used to evaluate scripts. Passing a pre-created *core* can be usful to have custom core creation flags, log callbacks or plugins pre-loaded. Passing NULL will automatically create a new core with default settings.
-    
+
     Takes over ownership of the *core* regardless of success or failure. Returns NULL on error.
 
 
@@ -132,7 +132,7 @@ getCore
 .. c:function:: VSCore *getCore(VSScript *handle)
 
     Retrieves the VapourSynth core that was created in the script environment. If a VapourSynth core has not been created yet, it will be created now, with the default options (see the :doc:`../pythonreference`).
-    
+
     VSScript retains ownership of the returned core object.
 
     Returns NULL on error.
@@ -155,12 +155,12 @@ evaluateBuffer
 
     *scriptFilename*
         A name for the script, which will be displayed in error messages. If this is NULL, the name "<string>" will be used.
-        
+
         The special ``__file__`` variable will be set to *scriptFilename*'s absolute path if this is not NULL.
 
     Returns non-zero in case of errors. The error message can be retrieved with getError_\ (). If the script calls *sys.exit(code)* the exit code can be retrieved with getExitCode_\ (). The working directory behavior can be changed by calling evalSetWorkingDir_\ () before this function.
-    
-    
+
+
 evaluateFile
 ------------
 
@@ -179,7 +179,7 @@ getError
     Returns the error message from a script environment, or NULL, if there is no error.
 
     It is okay to pass NULL.
-    
+
     VSScript retains ownership of the pointer and it is only guaranteed to be valid until the next vsscript operation on the *handle*.
 
 
@@ -239,7 +239,7 @@ getOutputNode
 
     Returns NULL if there is no node at the requested index.
 
-    
+
 getOutputAlphaNode
 ------------------
 
@@ -258,7 +258,7 @@ getAltOutputMode
 .. c:function:: int getAltOutputMode(VSScript *handle, int index)
 
     Retrieves the alternative output mode settings from the script. This value has no fixed meaning but in vspipe and vsvfw it
-    indicates that alternate output formats should be used when multipe ones are available. It is up to the client application to define the exact meaning or simply disregard it completely.
+    indicates that alternate output formats should be used when multiple ones are available. It is up to the client application to define the exact meaning or simply disregard it completely.
 
     Returns 0 if there is no alt output mode set.
 

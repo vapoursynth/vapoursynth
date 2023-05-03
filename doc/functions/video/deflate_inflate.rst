@@ -12,7 +12,7 @@ Deflate/Inflate
       between 8 and 16, or float sample type and bit depth of 32. If
       there are any frames with other formats, an error will be
       returned.
-      
+
    *planes*
       Specifies which planes will be processed. Any unprocessed planes
       will be simply copied.

@@ -26,7 +26,7 @@ Options
 
 ``-s, --start N``
     Set output frame range (first frame)
-  
+
 ``-e, --end N``
     Set output frame range (last frame)
 
@@ -44,7 +44,7 @@ Options
 
 ``-p, --progress``
     Print progress to stderr
-    
+
 ``--filter-time``
     Records the time spent in each filter and prints it out at the end of processing.
 

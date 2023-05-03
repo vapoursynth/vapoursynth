@@ -27,7 +27,7 @@ Prerequisites
 
 First download and install the prerequisites:
    * `Python 3.11.x <http://www.python.org/>`_ or Python 3.8.x -- 32 or 64 bit version depending on which version of VapourSynth you want to install
-   
+
 Note that VapourSynth and Python have to be matched so both are either installed
 for all users or for only for the current user.
 
@@ -48,7 +48,7 @@ Windows Installation (Portable)
 
 First download and decompress the prerequisites:
    * `Python 3.11.x <http://www.python.org/>`_ or Python 3.8.x -- 32 or 64 bit embeddable version
-   
+
 Simply decompress the `portable VapourSynth archive <https://github.com/vapoursynth/vapoursynth/releases>`_
 into the Python dir and overwrite all existing files.Run ``vs-detect-python.bat``
 to configure it for the current Python version. Done.
@@ -61,7 +61,7 @@ OS X Installation
 First download and install the prerequisites:
    * Xcode -- Available from the AppStore
    * `Homebrew <http://brew.sh/>`_ -- A package manager
-   
+
 Simply run these commands in a terminal and wait for them to complete::
 
    brew install vapoursynth
@@ -70,7 +70,7 @@ Linux installation
 ******************
 
 Several distributions have VapourSynth packages. Note that those packages are usually OUT OF DATE.
- 
+
 Debian
 ------
 The VapourSynth packages are provided by `deb-multimedia repository <https://www.deb-multimedia.org/>`_.
@@ -183,7 +183,7 @@ commands in a terminal and wait for them to complete::
 
    brew install python3 ffmpeg libass zimg imagemagick
    pip3 install cython
-   
+
 If you've already installed all the required packages and instead want
 to update them, simply run::
 
@@ -196,18 +196,18 @@ Compilation
 If you haven't checked out the source code before, use git to do so::
 
    git clone https://github.com/vapoursynth/vapoursynth.git
-   
+
 Or if you already have a copy of the source, update it with::
 
    git pull
 
 Enter the VapourSynth directory and run these commands to compile and install::
-   
+
    ./autogen.sh
    ./configure
    make
    make install
-   
+
 Depending on your operating system's configuration, VapourSynth may not
 work out of the box with the default prefix of /usr/local. Two errors
 may pop up when running ``vspipe --version``:
@@ -293,7 +293,7 @@ The searched paths are:
 #. *<VapourSynth path>*\\core\\plugins
 #. *<VapourSynth path>*\\plugins
 
-Note that the per user path is not created by default. 
+Note that the per user path is not created by default.
 On modern Windows versions the *AppData* directory is located in *<user>*\\AppData\\Roaming by default.
 
 Shortcuts to the global autoload directory are located in the start menu.

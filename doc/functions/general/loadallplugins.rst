@@ -13,7 +13,7 @@ LoadAllPlugins
       LoadPlugin(path='c:\plugins')
 
    Correct ways::
-   
+
       LoadPlugin(path='c:/plugins')
       LoadPlugin(path=r'c:\plugins')
       LoadPlugin(path='c:\\plugins\\')

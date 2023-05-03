@@ -9,7 +9,11 @@ Public Headers
 
 .. toctree::
    :maxdepth: 1
-   
+
+   api/vapoursynth4.h
+   api/vshelper4.h
+   api/vsscript4.h
+
 Common Pitfalls
 ###############
 
@@ -39,7 +43,7 @@ unknown. It is also a fatal error to set them to a value not specified below.
 int _ChromaLocation
 
    Chroma sample position in YUV formats.
-   
+
    0=left, 1=center, 2=topleft, 3=top, 4=bottomleft, 5=bottom.
 
 int _ColorRange
@@ -47,19 +51,19 @@ int _ColorRange
    Full or limited range (PC/TV range). Primarily used with YUV formats.
 
    0=full range, 1=limited range.
- 
+
 int _Primaries
 
    Color primaries as specified in ITU-T H.265 Table E.3.
-   
+
 int _Matrix
 
    Matrix coefficients as specified in ITU-T H.265 Table E.5.
-   
+
 int _Transfer
 
    Transfer characteristics as specified in ITU-T H.265 Table E.4.
-   
+
 int _FieldBased
 
    If the frame is composed of two independent fields (interlaced).
@@ -78,7 +82,7 @@ int _DurationNum, int _DurationDen
    modify the framerate should also change these values.
 
    This fraction should always be normalized.
-   
+
 bint _Combed
 
    Whether or not the frame needs postprocessing, usually hinted from field

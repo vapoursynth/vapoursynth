@@ -9,7 +9,7 @@ Lut
    *x* to be evaluated. Either *lut*, *lutf* or *function* must be used. The lut will be
    applied to the planes listed in *planes* and the other planes will simply be
    passed through unchanged. By default all *planes* are processed.
-   
+
    If *floatout* is set then the output will be floating point instead, and either
    *lutf* needs to be set or *function* always needs to return floating point
    values.

@@ -23,7 +23,7 @@ Convolution
 
    *matrix*
       Coefficients for the convolution.
-      
+
       When *mode* is "s", this must be an array of 9 or 25 numbers, for
       a 3x3 or 5x5 convolution, respectively.
 
@@ -72,14 +72,14 @@ Convolution
       horizontal and vertical.
 
    How to apply a simple blur equivalent to Avisynth's Blur(1):
-   
+
    .. code-block:: python
-   
+
       Convolution(matrix=[1, 2, 1, 2, 4, 2, 1, 2, 1])
-   
+
    How to apply a stronger blur equivalent to Avisynth's Blur(1.58):
 
    .. code-block:: python
-      
+
       Convolution(matrix=[1, 1, 1, 1, 1, 1, 1, 1, 1])
 

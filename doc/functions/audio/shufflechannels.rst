@@ -22,8 +22,8 @@ ShuffleChannels
    The output channel mapping is determined by *channels_out* and corresponds to the
    input channel order. The number of *channels_out* entries must be the same as the
    number of *channels_in* entries. Specifying the same output channel twice is an error.
-   
-   
+
+
 
    Below are some examples of useful operations.
 
@@ -34,11 +34,11 @@ ShuffleChannels
    Swap left and right audio channels in a stereo clip::
 
       ShuffleChannels(clips=clip, channels_in=[vs.FRONT_RIGHT, vs.FRONT_LEFT], channels_out=[vs.FRONT_LEFT, vs.FRONT_RIGHT])
-      
+
    Swap left and right audio channels in a stereo clip (alternate ordering of arguments)::
 
       ShuffleChannels(clips=clip, channels_in=[vs.FRONT_LEFT, vs.FRONT_RIGHT], channels_out=[vs.FRONT_RIGHT, vs.FRONT_LEFT])
-      
+
    Swap left and right audio channels in a stereo clip (alternate indexing)::
 
       ShuffleChannels(clips=clip, channels_in=[-2, -1], channels_out=[vs.FRONT_LEFT, vs.FRONT_RIGHT])

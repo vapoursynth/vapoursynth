@@ -15,7 +15,7 @@ FrameEval
    *f*, containing the current frames. This is mainly so frame properties can be
    accessed and used to make decisions. Note that *f* will only be a list if
    more than one *prop_src* clip is provided.
-   
+
    The *clip_src* argument only exists as a way to hint which clips are referenced in the
    *eval* function which can improve caching and graph generation. Its use is encouraged
    but not required.

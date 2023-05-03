@@ -46,19 +46,19 @@ Expr
    Since the expression is being evaluated at runtime, there are also the stack
    manipulation operators, *swap* and *dup*. The former swaps the topmost and
    second topmost values, and the latter duplicates the topmost stack value.
-   
+
    These operators also have *swapN* and *dupN* forms that allow a value N
    steps up in the stack to be swapped or duplicated. The top value of the stack
    has index zero meaning that *dup* is equivalent to *dup0* and *swap* is
    equivalent to *swap1*. This is because *swapN* always swaps with the topmost
    value at index 0.
-   
+
    Expressions are converted to byte-code or machine-code by an optimizing
    compiler and are not guaranteed to evaluate in the order originally written.
    The compiler assumes that all input values are finite (i.e neither NaN nor
    INF) and that no operator will produce a non-finite value. Such expressions
    are invalid. This is especially important for the transcendental operators:
-   
+
    * exp - expression must not overflow (i.e. x <= 88)
    * log - input must be finite and non-negative (i.e. x >= 0 && x <= 3e+38)
    * pow - base must be finite and non-negative. Result must not overflow (i.e. x >= 0 && x <= 3e+38; 1e-38 <= result <= 3e+38)
@@ -78,21 +78,21 @@ Expr
    The operators taking three arguments are::
 
       ?
-      
+
    For example these operations::
-   
+
       a b c ?
-      
+
       d e <
-      
+
       f abs
-      
+
    Are equivalent to these operations in C::
-   
+
       a ? b : c
-      
+
       d < e
-      
+
       abs(f)
 
    The sin/cos operators are approximated to within 2e-6 absolute error for

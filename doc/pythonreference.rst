@@ -374,7 +374,7 @@ Classes and Functions
       The *close* argument determines if the frame should be closed after each iteration step. It defaults to false to remain backward compatible.
 
    .. py:method:: is_inspectable(version=None)
-   
+
       Returns a truthy value if you can use the node inspection API with a given version.
       The python inspection-api is versioned, as the underlying API is unstable at the time of writing.
       The version number will be incremented every time the python API changes.
@@ -491,7 +491,7 @@ Classes and Functions
       The returned generator yields contiguous chunks of the VideoFrame memory.
 
       .. code::
-      
+
          with open('output.raw', 'wb') as file:
             with vs.core.std.BlankClip(color=[25, 50, 60]).get_frame(0) as f:
                for chunk in f.readchunks():
@@ -502,7 +502,7 @@ Classes and Functions
          and this method will yield *n_planes* of data chunks each holding the entire plane.
          Don't, however, take this for granted, as it can't be the case,
          and you will iterate over lines of plane data instead, which are assured to be contiguous.
-         
+
          If you want to safely read the whole plane, use frame[plane_idx] to get the plane memoryview.
 
 .. py:class:: VideoFormat
@@ -615,7 +615,7 @@ Classes and Functions
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
 
    .. py:method:: is_inspectable(version=None)
-   
+
       Returns a truthy value if you can use the node inspection API with a given version.
       The python inspection-api is versioned, as the underlying API is unstable at the time of writing.
       The version number will be incremented every time the python API changes.

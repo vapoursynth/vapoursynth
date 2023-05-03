@@ -10,7 +10,7 @@ Resize
                 Spline64(vnode clip[, ...])
                 Bob(vnode clip, string filter="bicubic", bint tff[, ...])
    :module: resize
-   
+
    In VapourSynth the resizers have several functions. In addition to scaling,
    they also do colorspace conversions and conversions to and from the compat
    formats. Resize converts a clip of known or unknown format to another clip
@@ -31,9 +31,9 @@ Resize
    Note that *matrix* is not an optional argument when converting to YUV.
    Also note that if no matrix is specified in an input YUV frame's properties
    then *matrix_in* also needs to be set.
-   
+
    The function will return an error if the subsampling restrictions aren't
-   followed.  
+   followed.
 
    If you get an error like::
 
@@ -50,11 +50,11 @@ Resize
    unless *_FieldBased* is cleared.
 
    *clip*:
-   
+
       Accepts all kinds of input.
 
    *width*, *height*:
-   
+
       Output image dimensions.
 
    *filter*:
@@ -66,7 +66,7 @@ Resize
       Field order for deinterlacing. Used when the *_FieldBased* property is not set.
 
    *format*:
-   
+
       Output format id.
 
    *matrix*, *transfer*, *primaries*:
@@ -83,27 +83,27 @@ Resize
       and full-range for RGB.
 
    *chromaloc*:
-   
+
       Output chroma location. For subsampled formats, specifies the chroma location. If
       the input format is 4:4:4 or RGB and the output is subsampled, the default location
       is left-aligned, as per MPEG. Possible chroma locations (ITU-T H.265 Figure E.1):
       *left*, *center*, *top_left*, *top*, *bottom_left*, *bottom*
-      
+
    *matrix_in*, *transfer_in*, *primaries_in*, *range_in*, *chromaloc_in*:
-   
+
       Input colorspace/format specification. If the corresponding frame property is set
       to a value other than unspecified, the frame property is used instead of this parameter.
       Default values are set for certain color families. See the equivalent output arguments
       for more information.
 
    *filter_param_a*, *filter_param_b*:
-   
+
       Parameters for the scaler used for RGB and Y-channel. For the bicubic filter,
       filter_param_a/b represent the "b" and "c" parameters. For the lanczos filter,
       filter_param_a represents the number of taps.
 
    *resample_filter_uv*:
-   
+
       Scaling method for UV channels. It defaults to the same as for the Y-channel. The
       following values can be used with *resample_filter_uv*: *point*, *bilinear*, *bicubic*,
       *spline16*, *spline36*, *lanczos*.
@@ -113,24 +113,24 @@ Resize
       Parameters for the scaler used for UV channels.
 
    *dither_type*:
-   
+
       Dithering method. Dithering is used only for conversions resulting in an integer
       format. The following dithering methods are available: *none*, *ordered*, *random*,
       *error_diffusion*.
-      
+
    *cpu_type*:
-   
+
       Only used for testing.
-      
+
    *src_left*, *src_top*, *src_width*, *src_height*:
-   
+
       Used to select the source region of the input to use. Can also be used to shift the image.
       Defaults to the whole image.
-      
+
    *nominal_luminance*:
-   
+
       Determines the physical brightness of the value 1.0. The unit is in cd/m^2.
-      
+
    To convert to YV12::
 
       Bicubic(clip=clip, format=vs.YUV420P8, matrix_s="709")
@@ -146,9 +146,9 @@ Resize
    The following tables list values of selected colorspace enumerations and
    their abbreviated names. (Numerical value in parentheses.) For all possible values,
    see ITU-T H.265.
-   
+
       Matrix coefficients (ITU-T H.265 Table E.5)::
-        
+
         rgb (0)        Identity
                        The identity matrix.
                        Typically used for GBR (often referred to as RGB);
@@ -177,7 +177,7 @@ Resize
         ictcp (14)     ICtCp
 
       Transfer characteristics (ITU-T H.265 Table E.4)::
-        
+
         709 (1)        V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
                        V = 4.500 * Lc for b > Lc >= 0
                        Rec. ITU-R BT.709-5
@@ -186,14 +186,14 @@ Resize
         unspec (2)     Unspecified
                        Image characteristics are unknown or are determined by the
                        application.
-        470m (4)       ITU-R Rec. BT.470-6 System M       
+        470m (4)       ITU-R Rec. BT.470-6 System M
         470bg (5)      ITU-R Rec. BT.470-6 System B, G (historical)
         601 (6)        V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
                        V = 4.500 * Lc for b > Lc >= 0
                        Rec. ITU-R BT.601-6 525 or 625
                        (functionally the same as the values 1 (709),
                        14 (2020_10) and 15 (2020_12))
-        240m (7)       SMPTE 240M       
+        240m (7)       SMPTE 240M
         linear (8)     V = Lc for all values of Lc
                        Linear transfer characteristics
         log100 (9)     Log 1:100 contrast
@@ -214,7 +214,7 @@ Resize
         std-b67 (18)   ARIB std-b67
 
       Color primaries (ITU-T H.265 Table E.3)::
-      
+
         709 (1)        primary x y
                        green 0.300 0.600
                        blue 0.150 0.060
@@ -255,7 +255,7 @@ Resize
                        Also known as JEDEC P22
 
       Pixel range (ITU-T H.265 Eq E-4 to E-15)::
-      
+
         limited (0) Studio (TV) legal range, 16-235 in 8 bits.
                     Y = Clip1Y( Round( ( 1 << ( BitDepthY - 8 ) ) *
                                               ( 219 * E'Y + 16 ) ) )

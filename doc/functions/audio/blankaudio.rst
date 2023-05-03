@@ -9,10 +9,10 @@ BlankAudio
    Instead of specifying every property individually, BlankAudio can also copy
    the properties from *clip*. If both an argument such as *sampletype*, and *clip*
    are set, then *sampletype* will take precedence.
-   
+
    The *channels* argument is a list of channel constants. Specifying the same channel twice
    is not allowed.
-   
+
    The possible *sampletype* values are currently INTEGER (0) and FLOAT (1).
 
    If *keep* is set, a reference to the same frame is returned on every request.

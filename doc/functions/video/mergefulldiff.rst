@@ -12,4 +12,4 @@ MergeFullDiff
       blur_clip = core.std.Convolution(clip, matrix=[1, 2, 1, 2, 4, 2, 1, 2, 1])
       diff_clip = core.std.MakeFullDiff(clip, blur_clip)
       sharpened_clip = core.std.MergeFullDiff(clip, diff_clip)
-      
+

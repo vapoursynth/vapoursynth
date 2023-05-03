@@ -16,7 +16,7 @@ Lut2
    output clip. The user is responsible for understanding the effects of bit
    depth conversion, specifically from higher bit depths to lower bit depths,
    as no scaling or clamping is applied.
-   
+
    If *floatout* is set then the output will be floating point instead, and either
    *lutf* needs to be set or *function* always needs to return floating point
    values.

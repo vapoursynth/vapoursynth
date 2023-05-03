@@ -17,9 +17,9 @@ Macros_
    VAPOURSYNTH_API_MINOR_
 
    VAPOURSYNTH_API_VERSION_
-   
+
    VS_AUDIO_FRAME_SAMPLES_
-   
+
 
 Enums_
    VSColorFamily_
@@ -31,7 +31,7 @@ Enums_
    VSFilterMode_
 
    VSMediaType_
-   
+
    VSAudioChannels_
 
    VSPropertyType_
@@ -45,15 +45,15 @@ Enums_
    VSMessageType_
 
    VSCoreCreationFlags_
-   
+
    VSPluginConfigFlags_
-   
+
    VSDataTypeHint_
-   
+
    VSRequestPattern_
-   
+
    VSCacheMode_
-   
+
 
 Structs_
    VSFrame_
@@ -63,13 +63,13 @@ Structs_
    VSCore_
 
    VSPlugin_
-   
+
    VSPluginFunction_
 
    VSFunction_
 
    VSMap_
-   
+
    VSLogHandle_
 
    VSFrameContext_
@@ -77,12 +77,12 @@ Structs_
    VSVideoFormat_
 
    VSVideoInfo_
-   
+
    VSAudioFormat_
-   
+
    VSAudioInfo_
 
-   VSCoreInfo_   
+   VSCoreInfo_
 
    VSPLUGINAPI_
 
@@ -94,16 +94,14 @@ Structs_
 
           * freeCore_
 
-          * getCoreInfo_
-          
           * getCoreInfo2_
 
           * setMaxCacheSize_
 
           * setMessageHandler_
-          
+
           * addMessageHandler_
-          
+
           * removeMessageHandler_
 
           * logMessage_
@@ -330,7 +328,7 @@ Major API version.
 VAPOURSYNTH_API_MINOR
 ---------------------
 
-Minor API version. It is bumped when new functions are added to VSAPI_ or core behavior is noticably changed.
+Minor API version. It is bumped when new functions are added to VSAPI_ or core behavior is noticeably changed.
 
 
 VAPOURSYNTH_API_VERSION
@@ -382,7 +380,7 @@ enum VSPresetVideoFormat
    The H and S suffixes stand for half precision and single precision,
    respectively. All formats are planar. See the header for all currently
    defined video format presets.
-   
+
    * pf\*
 
 
@@ -423,7 +421,7 @@ enum VSFilterMode
 
      For compatibility with other filtering architectures. DO NOT USE IN NEW FILTERS.
      The filter's "getframe" function only ever gets called from one thread at a
-     time. Unlike fmUnordered, only one frame is processed at a time. 
+     time. Unlike fmUnordered, only one frame is processed at a time.
 
 
 .. _VSMediaType:
@@ -444,14 +442,14 @@ enum VSAudioChannels
 --------------------
 
    Audio channel positions as an enum. Mirrors the FFmpeg audio channel constants in older api versions. See the header for all available values.
-   
+
    * ac\*
-   
+
 
 .. _VSPropertyType:
 
 enum VSPropertyType
-------------------
+-------------------
 
    Types of properties that can be stored in a VSMap.
 
@@ -462,15 +460,15 @@ enum VSPropertyType
    * ptFloat
 
    * ptData
-   
+
    * ptFunction
 
    * ptVideoNode
-   
+
    * ptAudioNode
 
    * ptVideoFrame
-   
+
    * ptAudioFrame
 
 
@@ -483,7 +481,7 @@ enum VSMapPropertyError
    parameter.
 
    All errors are non-zero.
-   
+
    * peSuccess
 
    * peUnset
@@ -498,9 +496,9 @@ enum VSMapPropertyError
    * peIndex
 
      The requested index was out of bounds.
-     
+
    * peError
-   
+
      The map has the error state set.
 
 
@@ -544,7 +542,7 @@ enum VSMessageType
    See addLogHandler_\ ().
 
    * mtDebug
-   
+
    * mtInformation
 
    * mtWarning
@@ -562,19 +560,19 @@ enum VSCoreCreationFlags
    Options when creating a core.
 
    * ccfEnableGraphInspection
-   
+
       Required to use the graph inspection api functions. Increases memory usage due to the extra information stored.
-   
+
    * ccfDisableAutoLoading
-   
+
       Don't autoload any user plugins. Core plugins are always loaded.
-      
+
    * ccfDisableLibraryUnloading
-   
+
       Don't unload plugin libraries when the core is destroyed. Due to a small amount of memory leaking every load
       and unload (windows feature, not my fault) of a library this may help in applications with extreme amount of script reloading.
-   
-   
+
+
 .. _VSPluginConfigFlags:
 
 enum VSPluginConfigFlags
@@ -583,11 +581,11 @@ enum VSPluginConfigFlags
    Options when loading a plugin.
 
    * pcModifiable
-   
+
       Allow functions to be added to the plugin object after the plugin loading phase. Mostly useful for
       Avisynth compatibility and other foreign plugin loaders.
-   
-   
+
+
 .. _VSDataTypeHint:
 
 enum VSDataTypeHint
@@ -598,9 +596,9 @@ enum VSDataTypeHint
    created as an artifact of API3 compatibility.
 
    * dtUnknown
-   
+
    * dtBinary
-   
+
    * dtUtf8
 
 
@@ -612,18 +610,18 @@ enum VSRequestPattern
    Describes the upstream frame request pattern of a filter.
 
    * rpGeneral
-   
+
       Anything goes. Note that filters that may be requesting beyond the end of a VSNode length in frames (repeating the last frame) should use *rpGeneral* and not any of the other modes.
-   
+
    * rpNoFrameReuse
-   
+
      Will only request an input frame at most once if all output frames are requested exactly one time. This includes filters such as Trim, Reverse, SelectEvery.
-   
+
    * rpStrictSpatial
-   
+
      Only requests frame N to output frame N. The main difference to *rpNoFrameReuse* is that the requested frame is always fixed and known ahead of time. Filter examples Lut, Expr (conditionally, see *rpGeneral* note) and similar.
 
-   
+
 .. _VSCacheMode:
 
 enum VSCacheMode
@@ -632,13 +630,13 @@ enum VSCacheMode
    Describes how the output of a node is cached.
 
    * cmAuto
-   
+
       Cache is enabled or disabled based on the reported request patterns and number of consumers.
-   
+
    * cmForceDisable
-   
+
       Never cache anything.
-   
+
    * cmForceEnable
 
       * Always use the cache.
@@ -659,7 +657,7 @@ struct VSFrame
 
    Each row of pixels in a frame is guaranteed to have an alignment of at least 32
    bytes. Two frames with the same width and bytes per sample are guaranteed to have the same stride.
-   
+
    Audio data is also guaranteed to be at least 32 byte aligned.
 
    Any data can be attached to a frame, using a VSMap_.
@@ -714,7 +712,7 @@ struct VSPlugin
         the plugin's namespace.
 
       - A full name, which is used by the core in a few error messages.
-      
+
       - The version of the plugin.
 
       - The VapourSynth API version the plugin requires.
@@ -733,8 +731,8 @@ struct VSPlugin
    getNextPlugin_\ ().
 
    Once loaded, a plugin only gets unloaded when the VapourSynth core is freed.
-   
-   
+
+
 .. _VSPluginFunction:
 
 struct VSPluginFunction
@@ -742,7 +740,7 @@ struct VSPluginFunction
 
    A function belonging to a Vapoursynth plugin. This object primarily exists so
    a plugin's name, argument list and return type can be queried by editors.
-   
+
    One peculiarity is that plugin functions cannot be invoked using a `VSPluginFunction`
    pointer but is instead done using invoke_\ () which takes a `VSPlugin` and
    the function name as a string.
@@ -807,11 +805,11 @@ struct VSFrameContext
 struct VSVideoFormat
 --------------------
 
-   Describes the format of a clip. 
-   
+   Describes the format of a clip.
+
    Use queryVideoFormat_\ () to fill it in with proper error checking. Manually filling out the struct is allowed but discouraged
    since illegal combinations of values will cause undefined behavior.
-   
+
    .. c:member:: int colorFamily
 
       See VSColorFamily_.
@@ -875,16 +873,16 @@ struct VSVideoInfo
 
    .. c:member:: int numFrames
 
-      Length of the clip.   
-      
-      
+      Length of the clip.
+
+
 .. _VSAudioFormat:
 
 struct VSAudioFormat
 --------------------
 
-   Describes the format of a clip. 
-   
+   Describes the format of a clip.
+
    Use queryAudioFormat_\ () to fill it in with proper error checking. Manually filling out the struct is allowed but discouraged
    since illegal combinations of values will cause undefined behavior.
 
@@ -907,7 +905,7 @@ struct VSAudioFormat
 
    .. c:member:: uint64_t channelLayout
 
-      A bitmask representing the channels present using the constants in 1 left shifted by the constants in VSAudioChannels_. 
+      A bitmask representing the channels present using the constants in 1 left shifted by the constants in VSAudioChannels_.
 
 
 .. _VSAudioInfo:
@@ -923,16 +921,16 @@ struct VSAudioInfo
 
    .. c:member:: int sampleRate
 
-      Sample rate.   
-      
+      Sample rate.
+
    .. c:member:: int64_t numSamples
 
-      Length of the clip in audio samples.   
+      Length of the clip in audio samples.
 
    .. c:member:: int numFrames
 
-      Length of the clip in audio frames.   
-      
+      Length of the clip in audio frames.
+
 
 .. _VSCoreInfo:
 
@@ -971,7 +969,7 @@ struct VSCoreInfo
 
 struct VSPLUGINAPI
 ------------------
-  
+
    This struct is used to access VapourSynth's API when a plugin is initially loaded.
 
 ----------
@@ -979,7 +977,7 @@ struct VSPLUGINAPI
    .. _getAPIVersion:
 
    int getAPIVersion()
-   
+
       See getAPIVersion_\ () in the struct VSAPI_.
 
 ----------
@@ -987,18 +985,18 @@ struct VSPLUGINAPI
    .. _configPlugin:
 
    int configPlugin(const char \*identifier, const char \*pluginNamespace, const char \*name, int pluginVersion, int apiVersion, int flags, VSPlugin \*plugin)
-   
+
       Used to provide information about a plugin when loaded. Must be called exactly once from the *VapourSynthPluginInit2* entry point.
       It is recommended to use the VS_MAKE_VERSION_ when providing the *pluginVersion*. If you don't know the specific *apiVersion* you actually require simply
       pass VAPOURSYNTH_API_VERSION_ to match the header version you're compiling against. The *flags* consist of values from VSPluginConfigFlags_ ORed together
       but should for most plugins typically be 0.
-      
+
       Returns non-zero on success.
 
 ----------
 
    int registerFunction(const char \*name, const char \*args, const char \*returnType, VSPublicFunction argsFunc, void \*functionData, VSPlugin \*plugin)
-   
+
       See registerFunction_\ () in the struct VSAPI_.
 
 
@@ -1033,12 +1031,12 @@ struct VSAPI
 
 ----------
 
-   .. _getCoreInfo:
+   .. _getCoreInfo2:
 
    void getCoreInfo2(VSCore_ \*core, VSCoreInfo_ \*info)
 
       Returns information about the VapourSynth core.
-      
+
       This function is thread-safe.
 
 ----------
@@ -1055,7 +1053,7 @@ struct VSAPI
    .. _setMessageHandler:
 
    void setMessageHandler(VSMessageHandler handler, void \*userData)
-   
+
       Deprecated as of API 3.6 (VapourSynth R47)
 
       Installs a custom handler for the various error messages VapourSynth
@@ -1084,7 +1082,7 @@ struct VSAPI
 
       *userData*
          Pointer that gets passed to the message handler.
-         
+
 ----------
 
    .. _addMessageHandler:
@@ -1114,17 +1112,17 @@ struct VSAPI
 
          *msg*
             The message.
-            
+
       *free*
          typedef void (VS_CC \*VSMessageHandlerFree)(void \*userData)
-         
+
          Called when a handler is removed.
 
       *userData*
          Pointer that gets passed to the message handler.
-         
+
       This function was introduced in API R3.6 (VapourSynth R47).
-         
+
 ----------
 
    .. _removeMessageHandler:
@@ -1138,7 +1136,7 @@ struct VSAPI
 
       *id*
          Message handler id obtained from addMessageHandler_\ ().
-         
+
       This function was introduced in API R3.6 (VapourSynth R47).
 
 ----------
@@ -1238,13 +1236,13 @@ struct VSAPI
       transferred to the caller.
 
       Example (assume *frameA*, *frameB*, *frameC* are existing frames):
-      
+
       .. code-block:: c
 
          const VSFrame * frames[3] = { frameA, frameB, frameC };
          const int planes[3] = { 1, 0, 2 };
          VSFrame * newFrame = vsapi->newVideoFrame2(f, w, h, frames, planes, frameB, core);
-         
+
       The newFrame's first plane is now a copy of *frameA*'s second plane,
       the second plane is a copy of *frameB*'s first plane,
       the third plane is a copy of *frameC*'s third plane
@@ -1408,7 +1406,7 @@ struct VSAPI
       This function is meant for external applications using the core as a
       library, or if frame requests are necessary during a filter's
       initialization.
-      
+
       Thread-safe.
 
       *n*
@@ -1420,7 +1418,7 @@ struct VSAPI
       *errorMsg*
          Pointer to a buffer of *bufSize* bytes to store a possible error
          message. Can be NULL if no error message is wanted.
-         
+
       *bufSize*
          Maximum length for the error message, in bytes (including the
          trailing '\0'). Can be 0 if no error message is wanted.
@@ -1439,9 +1437,9 @@ struct VSAPI
 
       Requests the generation of a frame. When the frame is ready,
       a user-provided function is called.
-      
+
       This function is meant for applications using VapourSynth as a library.
-      
+
       Thread-safe.
 
       *n*
@@ -2305,19 +2303,19 @@ struct VSAPI
    void callFunc(VSFuncRef_ \*func, const VSMap_ \*in, VSMap_ \*out, VSCore_ \*core, const VSAPI_ \*vsapi)
 
       Calls a function. If the call fails *out* will have an error set.
-      
+
       *func*
          Function to be called.
 
       *in*
          Arguments passed to *func*.
-         
+
       *out*
          Returned values from *func*.
 
       *core*
          Must be NULL.
-         
+
       *vsapi*
          Must be NULL.
 
@@ -2454,7 +2452,7 @@ struct VSAPI
       .. warning::
          This function has several issues and may or may not return the
          actual node or frame number.
-         
+
       Finds out which requested frame is ready. To be used in a filter's
       "getframe" function, when it is called with *activationReason*
       arFrameReady.

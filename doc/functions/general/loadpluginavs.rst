@@ -13,7 +13,7 @@ LoadPlugin (Avisynth Compatibility)
    The compatibility module can work with a large number of Avisynth's plugins.
    However, the wrapping is not complete, so the following things will cause
    problems:
-   
+
       * The plugin expects YUY2 or RGB32 input. In this case provide input in
         either YUV422P8 or RGB24 format pass compatpack=True as an argument
         to the Avisynth function.
@@ -28,7 +28,7 @@ LoadPlugin (Avisynth Compatibility)
    *func* then they will be named *func*, *func_2* and *func_3*. This means
    that Avisynth functions that have multiple overloads (rare) will give
    each overload a different name.
-   
+
    Note that if you are really insane you can load Avisynth's VirtualDub plugin
    loader and use VirtualDub plugins as well. Function overloads are very common
    when dealing with VirtualDub.
@@ -38,7 +38,7 @@ LoadPlugin (Avisynth Compatibility)
       LoadPlugin(path='c:\plugins\filter.dll')
 
    Correct ways::
-   
+
       LoadPlugin(path='c:/plugins/filter.dll')
       LoadPlugin(path=r'c:\plugins\filter.dll')
       LoadPlugin(path='c:\\plugins\\filter.dll')

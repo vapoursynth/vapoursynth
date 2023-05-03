@@ -9,9 +9,9 @@ Introduction_
 
 Macros_
    VSH_STD_PLUGIN_ID_
-   
+
    VSH_RESIZE_PLUGIN_ID_
-   
+
    VSH_TEXT_PLUGIN_ID_
 
    VS_RESTRICT_
@@ -26,18 +26,18 @@ Macros_
 
 
 Functions_
-   `vsh_aligned_malloc <vsh_aligned_malloc_cpp_>`_
+   `vsh_aligned_malloc <vsh_aligned_malloc_c_>`_
 
-   `vsh_aligned_free <vsh_aligned_free_cpp_>`_
+   `vsh_aligned_free <vsh_aligned_free_c_>`_
 
    isConstantFormat_
 
    isSameVideoFormat_
-   
+
    isSameVideoPresetFormat_
-   
+
    isSameVideoInfo_
-   
+
    isSameAudioFormat_
 
    isSameAudioInfo_
@@ -49,7 +49,7 @@ Functions_
    reduceRational_
 
    int64ToIntS_
-   
+
    doubleToFloatS_
 
    bitblt_
@@ -93,7 +93,7 @@ or its C++ counterpart.
 .. _vsh_aligned_malloc_c:
 
 VSH_ALIGNED_MALLOC
------------------
+------------------
 
 VSH_ALIGNED_MALLOC(pptr, size, alignment)
 
@@ -106,7 +106,7 @@ the arguments are in the style of posix_memalign().
 .. _vs_aligned_free_c:
 
 VSH_ALIGNED_FREE
----------------
+----------------
 
 VSH_ALIGNED_FREE(ptr)
 
@@ -134,7 +134,7 @@ Returns the maximum of the two numbers.
 Functions
 #########
 
-.. _vs_aligned_malloc_cpp:
+.. _vs_aligned_malloc_c:
 
 vsh_aligned_malloc
 ------------------
@@ -145,7 +145,7 @@ vsh_aligned_malloc
    `VSH_ALIGNED_MALLOC <VSH_ALIGNED_MALLOC_c_>`_ macro but is easier to use.
 
 
-.. _vsh_aligned_free_cpp:
+.. _vsh_aligned_free_c:
 
 vsh_aligned_free
 ----------------
@@ -170,16 +170,16 @@ isSameVideoFormat
 
    Checks if two clips have the same video format. If the format is
    unknown in both, it will be considered the same.
-   
-   
+
+
 isSameVideoPresetFormat
 -----------------------
 
 .. cpp:function:: static inline bool vsh::isSameVideoPresetFormat(unsigned presetFormat, const VSVideoFormat *v, VSCore *core, const VSAPI *vsapi)
 
    Checks if a clip has the same video format as the preset.
-   
-   
+
+
 isSameVideoInfo
 ---------------
 
@@ -224,7 +224,7 @@ reduceRational
 .. cpp:function:: static inline void vsh::reduceRational(int64_t *num, int64_t *den)
 
    Reduces a rational number.
-   
+
 
 addRational
 -----------
