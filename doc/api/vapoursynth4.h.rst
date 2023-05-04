@@ -1884,9 +1884,9 @@ struct VSAPI
 
 ----------
 
-   .. _setError:
+   .. _mapSetError:
 
-   void setError(VSMap_ \*map, const char \*errorMessage)
+   void mapSetError(VSMap_ \*map, const char \*errorMessage)
 
       Adds an error message to a map. The map is cleared first. The error
       message is copied. In this state the map may only be freed, cleared
@@ -1897,29 +1897,29 @@ struct VSAPI
 
 ----------
 
-   .. _getError:
+   .. _mapGetError:
 
-   const char \*getError(const VSMap_ \*map)
+   const char \*mapGetError(const VSMap_ \*map)
 
       Returns a pointer to the error message contained in the map,
-      or NULL if there is no error message. The pointer is valid as long as
-      the map lives.
+      or NULL if there is no error set. The pointer is valid until
+      the next modifying operation on the map.
 
 ----------
 
-   .. _propNumKeys:
+   .. _mapNumKeys:
 
-   int propNumKeys(const VSMap_ \*map)
+   int mapNumKeys(const VSMap_ \*map)
 
       Returns the number of keys contained in a property map.
 
 ----------
 
-   .. _propGetKey:
+   .. _mapGetKey:
 
-   const char \*propGetKey(const VSMap_ \*map, int index)
+   const char \*mapGetKey(const VSMap_ \*map, int index)
 
-      Returns a key from a property map.
+      Returns the nth key from a property map.
 
       Passing an invalid *index* will cause a fatal error.
 
@@ -1927,9 +1927,9 @@ struct VSAPI
 
 ----------
 
-   .. _propDeleteKey:
+   .. _mapDeleteKey:
 
-   int propDeleteKey(VSMap_ \*map, const char \*key)
+   int mapDeleteKey(VSMap_ \*map, const char \*key)
 
       Removes the property with the given key. All values associated with the
       key are lost.
@@ -1938,46 +1938,45 @@ struct VSAPI
 
 ----------
 
-   .. _propGetType:
+   .. _mapGetType:
 
-   char propGetType(const VSMap_ \*map, const char \*key)
+   int mapGetType(const VSMap_ \*map, const char \*key)
 
-      Returns the type of the elements associated with the given key in a
-      property map.
-
-      The returned value is one of VSPropTypes_. If there is no such key in the
-      map, the returned value is ptUnset.
+      Returns a value from VSPropertyType_ representing type
+      of elements in the given key. If there is no such key in the
+      map, the returned value is ptUnset. Note that also empty
+      arrays created with mapSetEmpty_ are typed.
 
 ----------
 
-   .. _propNumElements:
+   .. _mapNumElements:
 
-   int propNumElements(const VSMap_ \*map, const char \*key)
+   int mapNumElements(const VSMap_ \*map, const char \*key)
 
       Returns the number of elements associated with a key in a property map.
       Returns -1 if there is no such key in the map.
 
 ----------
 
-   .. _propGetInt:
+   .. _mapGetInt:
 
-   int64_t propGetInt(const VSMap_ \*map, const char \*key, int index, int \*error)
+   int64_t mapGetInt(const VSMap_ \*map, const char \*key, int index, int \*error)
 
-      Retrieves an integer from a map.
+      Retrieves an integer from a specified *key* in a *map*.
 
       Returns the number on success, or 0 in case of error.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL),
+      If the map has an error set (i.e. if mapGetError_\ () returns non-NULL),
       VapourSynth will die with a fatal error.
-
+      
       *index*
          Zero-based index of the element.
 
-         Use propNumElements_\ () to know the total number of elements
+         Use mapNumElements_\ () to know the total number of elements
          associated with a key.
 
       *error*
-         One of VSGetPropErrors_, or 0 on success.
+         One of VSGetPropErrors_, peSuccess on success.
 
          You may pass NULL here, but then any problems encountered while
          retrieving the property will cause VapourSynth to die with a fatal
@@ -1985,136 +1984,97 @@ struct VSAPI
 
 ----------
 
-   .. _propGetIntArray:
+   .. _mapGetIntArray:
 
-   const int64_t \*propGetIntArray(const VSMap_ \*map, const char \*key, int \*error)
+   const int64_t \*mapGetIntArray(const VSMap_ \*map, const char \*key, int \*error)
 
       Retrieves an array of integers from a map. Use this function if there
       are a lot of numbers associated with a key, because it is faster than
-      calling propGetInt_\ () in a loop.
+      calling mapGetInt_\ () in a loop.
 
       Returns a pointer to the first element of the array on success, or NULL
-      in case of error.
+      in case of error. Use mapNumElements_\ () to know the total number of
+      elements associated with a key.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL),
-      VapourSynth will die with a fatal error.
-
-      Use propNumElements_\ () to know the total number of elements associated
-      with a key.
-
-      *error*
-         One of VSGetPropErrors_, or 0 on success.
-
-         You may pass NULL here, but then any problems encountered while
-         retrieving the property will cause VapourSynth to die with a fatal
-         error.
-
-      This function was introduced in API R3.1 (VapourSynth R26).
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
-   .. _propGetFloat:
+   .. _mapGetFloat:
 
-   double propGetFloat(const VSMap_ \*map, const char \*key, int index, int \*error)
+   double mapGetFloat(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves a floating point number from a map.
 
       Returns the number on success, or 0 in case of error.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL),
-      VapourSynth will die with a fatal error.
-
-      *index*
-         Zero-based index of the element.
-
-         Use propNumElements_\ () to know the total number of elements
-         associated with a key.
-
-      *error*
-         One of VSGetPropErrors_, or 0 on success.
-
-         You may pass NULL here, but then any problems encountered while
-         retrieving the property will cause VapourSynth to die with a fatal
-         error.
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
-   .. _propGetFloatArray:
+   .. _mapGetFloatArray:
 
-   const double \*propGetFloatArray(const VSMap_ \*map, const char \*key, int \*error)
-
-      Retrieves an array of floating point numbers from a map. Use this
-      function if there are a lot of numbers associated with a key, because
-      it is faster than calling propGetFloat_\ () in a loop.
+   const double \*mapGetFloatArray(const VSMap_ \*map, const char \*key, int \*error)
+   
+      Retrieves an array of floating point numbers from a map. Use this function if there
+      are a lot of numbers associated with a key, because it is faster than
+      calling mapGetFloat_\ () in a loop.
 
       Returns a pointer to the first element of the array on success, or NULL
-      in case of error.
+      in case of error. Use mapNumElements_\ () to know the total number of
+      elements associated with a key.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL),
-      VapourSynth will die with a fatal error.
-
-      Use propNumElements_\ () to know the total number of elements associated
-      with a key.
-
-      *error*
-         One of VSGetPropErrors_, or 0 on success.
-
-         You may pass NULL here, but then any problems encountered while
-         retrieving the property will cause VapourSynth to die with a fatal
-         error.
-
-      This function was introduced in API R3.1 (VapourSynth R26).
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
-   .. _propGetData:
+   .. _mapGetData:
 
-   const char \*propGetData(const VSMap_ \*map, const char \*key, int index, int \*error)
+   const char \*mapGetData(const VSMap_ \*map, const char \*key, int index, int \*error)
 
-      Retrieves arbitrary binary data from a map.
+      Retrieves arbitrary binary data from a map. Checking mapGetDataTypeHint_\ ()
+      may provide a hint about whether or not the data is human readable.
 
       Returns a pointer to the data on success, or NULL in case of error.
 
       The array returned is guaranteed to be NULL-terminated. The NULL
-      byte is not considered to be part of the array (propGetDataSize_
+      byte is not considered to be part of the array (mapGetDataSize_
       doesn't count it).
 
       The pointer is valid until the map is destroyed, or until the
       corresponding key is removed from the map or altered.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL),
-      VapourSynth will die with a fatal error.
-
-      *index*
-         Zero-based index of the element.
-
-         Use propNumElements_\ () to know the total number of elements
-         associated with a key.
-
-      *error*
-         One of VSGetPropErrors_, or 0 on success.
-
-         You may pass NULL here, but then any problems encountered while
-         retrieving the property will cause VapourSynth to die with a fatal
-         error.
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
-   .. _propGetDataSize:
+   .. _mapGetDataSize:
 
-   int propGetDataSize(const VSMap_ \*map, const char \*key, int index, int \*error)
+   int mapGetDataSize(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Returns the size in bytes of a property of type ptData (see
       VSPropTypes_), or 0 in case of error. The terminating NULL byte
-      added by propSetData_\ () is not counted.
-
-
+      added by mapSetData_\ () is not counted.
+      
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
-   .. _propGetNode:
+   .. _mapGetDataTypeHint:
 
-   VSNode_ \*propGetNode(const VSMap_ \*map, const char \*key, int index, int \*error)
+   int mapGetDataTypeHint(const VSMap_ \*map, const char \*key, int index, int \*error)
+
+      Returns the size in bytes of a property of type ptData (see
+      VSPropTypes_), or 0 in case of error. The terminating NULL byte
+      added by mapSetData_\ () is not counted.
+      
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
+
+----------
+
+   .. _mapGetNode:
+
+   VSNode_ \*mapGetNode(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves a node from a map.
 
@@ -2123,25 +2083,11 @@ struct VSAPI
       This function increases the node's reference count, so freeNode_\ () must
       be used when the node is no longer needed.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL),
-      VapourSynth will die with a fatal error.
-
-      *index*
-         Zero-based index of the element.
-
-         Use propNumElements_\ () to know the total number of elements
-         associated with a key.
-
-      *error*
-         One of VSGetPropErrors_, or 0 on success.
-
-         You may pass NULL here, but then any problems encountered while
-         retrieving the property will cause VapourSynth to die with a fatal
-         error.
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
-   .. _propGetFrame:
+   .. _mapGetFrame:
 
    const VSFrame_ \*propGetFrame(const VSMap_ \*map, const char \*key, int index, int \*error)
 
@@ -2152,27 +2098,13 @@ struct VSAPI
       This function increases the frame's reference count, so freeFrame_\ () must
       be used when the frame is no longer needed.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL),
-      VapourSynth will die with a fatal error.
-
-      *index*
-         Zero-based index of the element.
-
-         Use propNumElements_\ () to know the total number of elements
-         associated with a key.
-
-      *error*
-         One of VSGetPropErrors_, or 0 on success.
-
-         You may pass NULL here, but then any problems encountered while
-         retrieving the property will cause VapourSynth to die with a fatal
-         error.
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
-   .. _propGetFunc:
+   .. _mapGetFunction:
 
-   VSFuncRef_ \*propGetFunc(const VSMap_ \*map, const char \*key, int index, int \*error)
+   VSFunctionRef_ \*mapGetFunc(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves a function from a map.
 
@@ -2181,35 +2113,21 @@ struct VSAPI
       This function increases the function's reference count, so freeFunc_\ () must
       be used when the function is no longer needed.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL),
-      VapourSynth will die with a fatal error.
-
-      *index*
-         Zero-based index of the element.
-
-         Use propNumElements_\ () to know the total number of elements associated
-         with a key.
-
-      *error*
-         One of VSGetPropErrors_, or 0 on success.
-
-         You may pass NULL here, but then any problems encountered while
-         retrieving the property will cause VapourSynth to die with a fatal
-         error.
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
-   .. _propSetInt:
+   .. _mapSetInt:
 
-   int propSetInt(VSMap_ \*map, const char \*key, int64_t i, int append)
+   int mapSetInt(VSMap_ \*map, const char \*key, int64_t i, int append)
 
-      Adds a property to a map.
+      Sets an integer to the specified key in a map.
 
       Multiple values can be associated with one key, but they must all be the
       same type.
 
       *key*
-         Name of the property. Alphanumeric characters and the underscore
+         Name of the property. Alphanumeric characters and underscore
          may be used.
 
       *i*
@@ -2219,23 +2137,23 @@ struct VSAPI
          One of VSPropAppendMode_.
 
       Returns 0 on success, or 1 if trying to append to a property with the
-      wrong type.
+      wrong type to an existing key.
 
 ----------
 
-   .. _propSetIntArray:
+   .. _mapSetIntArray:
 
-   int propSetIntArray(VSMap_ \*map, const char \*key, const int64_t \*i, int size)
+   int mapSetIntArray(VSMap_ \*map, const char \*key, const int64_t \*i, int size)
 
       Adds an array of integers to a map. Use this function if there are a
-      lot of numbers to add, because it is faster than calling propSetInt_\ ()
+      lot of numbers to add, because it is faster than calling mapSetInt_\ ()
       in a loop.
 
       If *map* already contains a property with this *key*, that property will
       be overwritten and all old values will be lost.
 
       *key*
-         Name of the property. Alphanumeric characters and the underscore
+         Name of the property. Alphanumeric characters and underscore
          may be used.
 
       *i*
@@ -2248,47 +2166,31 @@ struct VSAPI
 
       Returns 0 on success, or 1 if *size* is negative.
 
-      This function was introduced in API R3.1 (VapourSynth R26).
+----------
+
+   .. _mapSetFloat:
+
+   int mapSetFloat(VSMap_ \*map, const char \*key, double d, int append)
+   
+      Sets a float to the specified key in a map.
+
+      See mapSetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
-   .. _propSetFloat:
+   .. _mapSetFloatArray:
 
-   int propSetFloat(VSMap_ \*map, const char \*key, double d, int append)
-
-      Adds a property to a map.
-
-      Multiple values can be associated with one key, but they must all be the
-      same type.
-
-      *key*
-         Name of the property. Alphanumeric characters and the underscore
-         may be used.
-
-      *d*
-         Value to store.
-
-      *append*
-         One of VSPropAppendMode_.
-
-      Returns 0 on success, or 1 if trying to append to a property with the
-      wrong type.
-
-----------
-
-   .. _propSetFloatArray:
-
-   int propSetFloatArray(VSMap_ \*map, const char \*key, const double \*d, int size)
+   int mapSetFloatArray(VSMap_ \*map, const char \*key, const double \*d, int size)
 
       Adds an array of floating point numbers to a map. Use this function if
       there are a lot of numbers to add, because it is faster than calling
-      propSetFloat_\ () in a loop.
+      mapSetFloat_\ () in a loop.
 
       If *map* already contains a property with this *key*, that property will
       be overwritten and all old values will be lost.
 
       *key*
-         Name of the property. Alphanumeric characters and the underscore
+         Name of the property. Alphanumeric characters and underscore
          may be used.
 
       *d*
@@ -2301,15 +2203,13 @@ struct VSAPI
 
       Returns 0 on success, or 1 if *size* is negative.
 
-      This function was introduced in API R3.1 (VapourSynth R26).
-
 ----------
 
-   .. _propSetData:
+   .. _mapSetData:
 
-   int propSetData(VSMap_ \*map, const char \*key, const char \*data, int size, int append)
+   int mapSetData(VSMap \*map, const char \*key, const char \*data, int size, int type, int append)
 
-      Adds a property to a map.
+      Sets binary data to the specified key in a map.
 
       Multiple values can be associated with one key, but they must all be the
       same type.
@@ -2322,40 +2222,15 @@ struct VSAPI
          Value to store.
 
          This function copies the data, so the pointer should be freed when
-         no longer needed.
+         no longer needed. A terminating NULL is always added to the copied data
+         but not included in the total size to make string handling easier.
 
       *size*
          The number of bytes to copy. If this is negative, everything up to
          the first NULL byte will be copied.
-
-         This function will always add a NULL byte at the end of the data.
-
-      *append*
-         One of VSPropAppendMode_.
-
-      Returns 0 on success, or 1 if trying to append to a property with the
-      wrong type.
-
-----------
-
-   .. _propSetNode:
-
-   int propSetNode(VSMap_ \*map, const char \*key, VSNode_ \*node, int append)
-
-      Adds a property to a map.
-
-      Multiple values can be associated with one key, but they must all be the
-      same type.
-
-      *key*
-         Name of the property. Alphanumeric characters and the underscore
-         may be used.
-
-      *node*
-         Value to store.
-
-         This function will increase the node's reference count, so the
-         pointer should be freed when no longer needed.
+         
+      *type*
+         One of VSDataTypeHint_ to hint whether or not it is human readable data.
 
       *append*
          One of VSPropAppendMode_.
@@ -2365,63 +2240,69 @@ struct VSAPI
 
 ----------
 
-   .. _propSetFrame:
+   .. _mapSetNode:
 
-   int propSetFrame(VSMap_ \*map, const char \*key, const VSFrame_ \*f, int append)
+   int mapSetNode(VSMap_ \*map, const char \*key, VSNode_ \*node, int append)
 
-      Adds a property to a map.
+      Sets a node to the specified key in a map.
 
-      Multiple values can be associated with one key, but they must all be the
-      same type.
-
-      *key*
-         Name of the property. Alphanumeric characters and the underscore
-         may be used.
-
-      *f*
-         Value to store.
-
-         This function will increase the frame's reference count, so the
-         pointer should be freed when no longer needed.
-
-      *append*
-         One of VSPropAppendMode_.
-
-      Returns 0 on success, or 1 if trying to append to a property with the
-      wrong type.
+      See mapSetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
-   .. _propSetFunc:
+   .. _mapConsumeNode:
 
-   int propSetFunc(VSMap_ \*map, const char \*key, VSFuncRef_ \*func, int append)
+   int mapConsumeNode(VSMap_ \*map, const char \*key, VSNode_ \*node, int append)
 
-      Adds a property to a map.
+      Sets a node to the specified key in a map and decreases the reference count.
 
-      Multiple values can be associated with one key, but they must all be the
-      same type.
-
-      *key*
-         Name of the property. Alphanumeric characters and the underscore
-         may be used.
-
-      *func*
-         Value to store.
-
-         This function will increase the function's reference count, so the
-         pointer should be freed when no longer needed.
-
-      *append*
-         One of VSPropAppendMode_.
-
-      Returns 0 on success, or 1 if trying to append to a property with the
-      wrong type.
+      See mapSetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
-   .. _getPluginById:
+   .. _mapSetFrame:
 
-   VSPlugin_ \*getPluginById(const char \*identifier, VSCore_ \*core)
+   int mapSetFrame(VSMap_ \*map, const char \*key, const VSFrame_ \*f, int append)
+
+      Sets a frame to the specified key in a map.
+
+      See mapSetInt_\ () for a complete description of the arguments and general behavior.
+
+----------
+
+   .. _mapConsumeFrame:
+
+   int mapConsumeFrame(VSMap_ \*map, const char \*key, const VSFrame_ \*f, int append)
+
+      Sets a frame to the specified key in a map and decreases the reference count.
+
+      See mapSetInt_\ () for a complete description of the arguments and general behavior.
+
+----------
+
+   .. _mapSetFunction:
+
+   int mapSetFunction(VSMap_ \*map, const char \*key, VSFunction \*func, int append)
+
+      Sets a function object to the specified key in a map.
+
+      See mapSetInt_\ () for a complete description of the arguments and general behavior.
+
+----------
+
+   .. _mapConsumeFunction:
+
+   int mapConsumeFunction(VSMap_ \*map, const char \*key, VSFunction \*func, int append)
+
+      Sets a function object to the specified key in a map and decreases the reference count.
+
+      See mapSetInt_\ () for a complete description of the arguments and general behavior.
+
+----------
+
+   .. _getPluginByID:
+
+   VSPlugin_ \*getPluginByID(const char \*identifier, VSCore_ \*core)
 
       Returns a pointer to the plugin with the given identifier, or NULL
       if not found.
@@ -2431,47 +2312,17 @@ struct VSAPI
 
 ----------
 
-   .. _getPluginByNs:
+   .. _getPluginByNamespace:
 
-   VSPlugin_ \*getPluginByNs(const char \*ns, VSCore_ \*core)
+   VSPlugin_ \*getPluginByNamespace(const char \*ns, VSCore_ \*core)
 
       Returns a pointer to the plugin with the given namespace, or NULL
       if not found.
 
-      getPluginById_ should be used instead.
+      getPluginByID_ is generally a better option.
 
       *ns*
          Namespace.
-
-----------
-
-   .. _getPlugins:
-
-   VSMap_ \*getPlugins(VSCore_ \*core)
-
-      Returns a map containing a list of all loaded plugins. The map
-      must be freed when no longer needed.
-
-      Keys:
-         Meaningless unique strings.
-
-      Values:
-         Namespace, identifier, and full name, separated by semicolons.
-
-----------
-
-   .. _getFunctions:
-
-   VSMap_ \*getFunctions(VSPlugin_ \*plugin)
-
-      Returns a map containing a list of the filters exported by a plugin.
-      The map must be freed when no longer needed.
-
-      Keys:
-         The filter names.
-
-      Values:
-         The filter name followed by its argument string, separated by a semicolon.
 
 ----------
 
@@ -2492,9 +2343,9 @@ struct VSAPI
 
 ----------
 
-   .. _createFunc:
+   .. _createFunction:
 
-   VSFuncRef_ \*createFunc(VSPublicFunction func, void \*userData, VSFreeFuncData free, VSCore \*core, const VSAPI \*vsapi)
+   VSFunction_ \*createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core)
 
       *func*
          typedef void (VS_CC \*VSPublicFunction)(const VSMap_ \*in, VSMap_ \*out, void \*userData, VSCore_ \*core, const VSAPI_ \*vsapi)
@@ -2505,24 +2356,23 @@ struct VSAPI
          Pointer passed to *func*.
 
       *free*
-         typedef void (VS_CC \*VSFreeFuncData)(void \*userData)
+         typedef void (VS_CC \*VSFreeFunctionData)(void \*userData)
 
-         Callback tasked with freeing *userData*.
-
-----------
-
-   .. _cloneFuncRef:
-
-   VSFuncRef_ \*cloneFuncRef(VSFuncRef_ \*f)
-
-      Duplicates a func reference. This new reference has to be deleted with
-      freeFunc_\ () when it is no longer needed.
+         Callback tasked with freeing *userData*. Can be NULL.
 
 ----------
 
-   .. _callFunc:
+   .. _addFunctionRef:
 
-   void callFunc(VSFuncRef_ \*func, const VSMap_ \*in, VSMap_ \*out, VSCore_ \*core, const VSAPI_ \*vsapi)
+   VSFunction_ \*addFunctionRef(VSFunction_ \*f)
+
+      Increments the reference count of a function. Returns *f* as a convenience.
+
+----------
+
+   .. _callFunction:
+
+   void callFunction(VSFunction_ \*func, const VSMap_ \*in, VSMap_ \*out)
 
       Calls a function. If the call fails *out* will have an error set.
       
@@ -2535,23 +2385,15 @@ struct VSAPI
       *out*
          Returned values from *func*.
 
-      *core*
-         Must be NULL.
-         
-      *vsapi*
-         Must be NULL.
-
 ----------
 
-   .. _freeFunc:
+   .. _freeFunction:
 
-   void freeFunc(VSFuncRef_ \*f)
+   void freeFunction(VSFunction_ \*f)
 
-      Deletes a function reference, releasing the caller's ownership of the function.
+      Decrements the reference count of a function and deletes it when it reaches 0.
 
       It is safe to pass NULL.
-
-      Don't try to use the function once the reference has been deleted.
 
 ----------
 
@@ -2570,19 +2412,17 @@ struct VSAPI
 
       Invokes a filter.
 
-      invoke() makes sure the filter has no compat input nodes, checks that
+      invoke() checks that
       the *args* passed to the filter are consistent with the argument list
       registered by the plugin that contains the filter, calls the filter's
-      "create" function, and checks that the filter doesn't return any compat
-      nodes. If everything goes smoothly, the filter will be ready to generate
+      "create" function, and checks that the filter returns the declared types.
+      If everything goes smoothly, the filter will be ready to generate
       frames after invoke() returns.
-
-      Thread-safe.
 
       *plugin*
          A pointer to the plugin where the filter is located. Must not be NULL.
 
-         See getPluginById_\ () and getPluginByNs_\ ().
+         See getPluginByID_\ ().
 
       *name*
          Name of the filter to invoke.
@@ -2590,11 +2430,11 @@ struct VSAPI
       *args*
          Arguments for the filter.
 
-      Returns a map containing the filter's return value(s). The caller gets
-      ownership of the map. Use getError_\ () to check if the filter was invoked
+      Returns a map containing the filter's return value(s). The caller takes
+      ownership of the map. Use mapGetError_\ () to check if the filter was invoked
       successfully.
 
-      Most filters will either add an error to the map, or one or more clips
+      Most filters will either set an error, or one or more clips
       with the key "clip". The exception to this are functions, for example
       LoadPlugin, which doesn't return any clips for obvious reasons.
 
@@ -2634,8 +2474,9 @@ const VSAPI_\* getVapourSynthAPI(int version)
    Returns a pointer to the global VSAPI instance.
 
    Returns NULL if the requested API version is not supported or if the system
-   does not meet the minimum requirements to run VapourSynth.
-
+   does not meet the minimum requirements to run VapourSynth. It is recommended
+   to pass VAPOURSYNTH_API_VERSION_.
+   
 
 Writing plugins
 ###############
