@@ -94,33 +94,41 @@ Structs_
 
           * freeCore_
 
+          * setMaxCacheSize_
+          
+          * setThreadCount_
+          
           * getCoreInfo_
           
-          * getCoreInfo2_
-
-          * setMaxCacheSize_
-
-          * setMessageHandler_
+          * getAPIVersion_
           
-          * addMessageHandler_
+      * Functions that deal with logging
           
-          * removeMessageHandler_
+          * addLogHandler_
+          
+          * removeLogHandler_
 
           * logMessage_
-
-          * setThreadCount_
 
       * Functions that deal with frames:
 
           * newVideoFrame_
 
           * newVideoFrame2_
+          
+          * newAudioFrame_
 
+          * newAudioFrame2_
+          
+          * freeFrame_
+          
+          * addFrameRef_
+          
           * copyFrame_
 
-          * cloneFrameRef_
+          * getFramePropertiesRO_
 
-          * freeFrame_
+          * getFramePropertiesRW_
 
           * getStride_
 
@@ -128,41 +136,57 @@ Structs_
 
           * getWritePtr_
 
-          * getFrameFormat_
+          * getVideoFrameFormat_
+          
+          * getAudioFrameFormat_
+          
+          * getFrameType_
 
           * getFrameWidth_
 
           * getFrameHeight_
 
-          * copyFrameProps_
+          * getFrameLength_
 
-          * getFramePropsRO_
+      * Functions that deal with filters and nodes:
+      
+          * createVideoFilter_
 
-          * getFramePropsRW_
+          * createVideoFilter2_
+          
+          * createAudioFilter_
 
-      * Functions that deal with nodes:
-
-          * cloneNodeRef_
+          * createAudioFilter2_
+          
+          * setLinearFilter_
+          
+          * setCacheMode_
+          
+          * setCacheOptions_
 
           * freeNode_
-
-          * getFrame_
-
-          * getFrameAsync_
-
-          * getFrameFilter_
-
-          * requestFrameFilter_
+          
+          * addNodeRef_
+          
+          * getNodeType_
 
           * getVideoInfo_
 
-          * setVideoInfo_
+          * getAudioInfo_    
 
       * Functions that deal with formats:
+      
+          * getVideoFormatName_
+          
+          * getAudioFormatName_
+          
+          * queryVideoFormat_
+          
+          * queryAudioFormat_
 
-          * getFormatPreset_
+          * queryVideoFormatID_
 
-          * registerFormat_
+          * getVideoFormatByID_
 
       * Functions that deal with maps:
 
@@ -171,98 +195,127 @@ Structs_
           * freeMap_
 
           * clearMap_
+          
+          * copyMap_
 
-          * setError_
+          * mapSetError_
 
-          * getError_
+          * mapGetError_
 
-          * propNumKeys_
+          * mapNumKeys_
 
-          * propGetKey_
+          * mapGetKey_
 
-          * propDeleteKey_
+          * mapDeleteKey_
 
-          * propGetType_
+          * mapNumElements_
+          
+          * mapGetType_
+          
+          * mapSetEmpty_
 
-          * propNumElements_
+          * mapGetInt_
+          
+          * mapGetIntSaturated_
 
-          * propGetInt_
+          * mapGetIntArray_
+          
+          * mapSetInt_
 
-          * propGetIntArray_
+          * mapSetIntArray_
 
-          * propGetFloat_
+          * mapGetFloat_
+          
+          * mapGetFloatSaturated_
 
-          * propGetFloatArray_
+          * mapGetFloatArray_
+          
+          * mapSetFloat_
 
-          * propGetData_
+          * mapSetFloatArray_
 
-          * propGetDataSize_
+          * mapGetData_
 
-          * propGetNode_
+          * mapGetDataSize_
+          
+          * mapGetDataTypeHint_
 
-          * propGetFrame_
+          * mapSetData_
 
-          * propGetFunc_
+          * mapGetNode_
+          
+          * mapSetNode_
+          
+          * mapConsumeNode_
 
-          * propSetInt_
+          * mapGetFrame_
+          
+          * mapSetFrame_
+          
+          * mapConsumeFrame_
 
-          * propSetIntArray_
+          * mapGetFunction_
 
-          * propSetFloat_
+          * mapSetFunction_
+          
+          * mapConsumeFunction_
 
-          * propSetFloatArray_
-
-          * propSetData_
-
-          * propSetNode_
-
-          * propSetFrame_
-
-          * propSetFunc_
-
-      * Functions that deal with plugins:
-
-          * getPluginById_
-
-          * getPluginByNs_
-
-          * getPlugins_
-
-          * getFunctions_
-
-          * getPluginPath_
-
-      * Functions that deal with functions:
-
-          * createFunc_
-
-          * cloneFuncRef_
-
-          * callFunc_
-
-          * freeFunc_
-
-      * Functions that are mostly used in plugins:
-
-          * createFilter_
-
+      * Functions that deal with plugins and plugin functions:
+      
           * registerFunction_
 
-      * Functions that resist classification:
+          * getPluginByID_
 
+          * getPluginByNamespace_
+
+          * getNextPlugin_
+          
+          * getPluginName_
+          
+          * getPluginID_
+          
+          * getPluginNamespace_
+          
+          * getNextPluginFunction_
+          
+          * getPluginFunctionName_
+          
+          * getPluginFunctionArguments_
+          
+          * getPluginFunctionReturnType_
+
+          * getPluginPath_
+          
+          * getPluginVersion_
+          
           * invoke_
 
-      * Functions that are useful only in a filter's getframe function,
-        but otherwise still resist classification:
+      * Functions that deal with wrapped external functions:
 
-          * setFilterError_
+          * createFunction_
+          
+          * freeFunction_
 
-          * getOutputIndex_
+          * addFunctionRef_
 
-          * queryCompletedFrame_
+          * callFunction_
+
+      * Functions that are used to fetch frames and inside filters:
+
+          * getFrame_
+
+          * getFrameAsync_
+
+          * getFrameFilter_
+
+          * requestFrameFilter_        
 
           * releaseFrameEarly_
-
+          
+          * cacheFrame_
+          
+          * setFilterError_
+          
 
 Functions_
    getVapourSynthAPI_
@@ -270,8 +323,6 @@ Functions_
 
 `Writing plugins`_
    VSInitPlugin_
-
-   VSFilterInit_
 
    VSFilterGetFrame_
 
@@ -799,7 +850,7 @@ struct VSLogHandle
 struct VSFrameContext
 ---------------------
 
-   Not really interesting.
+   Opaque type representing the current frame request in a filter.
 
 
 .. _VSVideoFormat:
@@ -1013,14 +1064,14 @@ struct VSAPI
 
    .. _createCore:
 
-   VSCore_ \*createCore(int threads)
+   VSCore_ \*createCore(int flags)
 
       Creates the VapourSynth processing core and returns a pointer to it. It is
-      legal to create multiple cores but in most cases it shouldn't be needed.
+      possible to create multiple cores but in most cases it shouldn't be needed.
 
-      *threads*
-         Number of desired worker threads. If 0 or lower, a suitable value is
-         automatically chosen, based on the number of logical CPUs.
+      *flags*
+         `VSCoreCreationFlags` ORed together if desired. Pass 0 for sane defaults
+         that should suit most uses.
 
 ----------
 
@@ -1033,16 +1084,6 @@ struct VSAPI
 
 ----------
 
-   .. _getCoreInfo:
-
-   void getCoreInfo2(VSCore_ \*core, VSCoreInfo_ \*info)
-
-      Returns information about the VapourSynth core.
-      
-      This function is thread-safe.
-
-----------
-
    .. _setMaxCacheSize:
 
    int64_t setMaxCacheSize(int64_t bytes, VSCore_ \*core)
@@ -1052,56 +1093,62 @@ struct VSAPI
 
 ----------
 
-   .. _setMessageHandler:
+   .. _setThreadCount
 
-   void setMessageHandler(VSMessageHandler handler, void \*userData)
-   
-      Deprecated as of API 3.6 (VapourSynth R47)
+   int setThreadCount(int threads, VSCore_ \*core)
 
-      Installs a custom handler for the various error messages VapourSynth
-      emits. The message handler is currently global, i.e. per process, not
-      per VSCore_ instance.
+      Sets the number of threads used for processing. Pass 0 to automatically detect.
+      Returns the number of threads that will be used for processing.
 
-      The default message handler simply sends the messages to the
-      standard error stream.
-
-      This function is thread-safe.
-
-      *handler*
-         typedef void (VS_CC \*VSMessageHandler)(int msgType, const char \*msg, void \*userdata)
-
-         Custom message handler. If this is NULL, the default message
-         handler will be restored.
-
-         *msgType*
-            The type of message. One of VSMessageType_.
-
-            If *msgType* is mtFatal, VapourSynth will call abort() after the
-            message handler returns.
-
-         *msg*
-            The message.
-
-      *userData*
-         Pointer that gets passed to the message handler.
-         
 ----------
 
-   .. _addMessageHandler:
+   .. _getCoreInfo:
 
-   int addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void \*userData)
+   void getCoreInfo(VSCore_ \*core, VSCoreInfo_ \*info)
+
+      Returns information about the VapourSynth core.
+
+----------
+
+   .. _getAPIVersion:
+
+   int getAPIVersion()
+
+      Returns the highest VAPOURSYNTH_API_VERSION_ the library support.
+
+----------
+
+   .. _logMessage:
+
+   void logMessage(int msgType, const char \*msg, VSCore \*core)
+
+      Send a message through VapourSynth's logging framework. See
+      addMessageHandler_.
+
+      *msgType*
+         The type of message. One of VSMessageType_.
+
+         If *msgType* is mtFatal, VapourSynth will call abort() after
+         delivering the message.
+
+      *msg*
+         The message.
+      
+----------
+
+   .. _addLogHandler:
+
+   VSLogHandle \*addLogHandler(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core)
 
       Installs a custom handler for the various error messages VapourSynth
-      emits. The message handler is currently global, i.e. per process, not
-      per VSCore_ instance. Returns a unique id for the handler.
+      emits. The message handler is per VSCore_ instance. Returns a unique handle.
 
-      If no error handler is installed the messages are sent to the
-      standard error stream.
-
-      This function is thread-safe.
+      If no log handler is installed up to a few hundred messages are cached and
+      will be delivered as soon as a log handler is attached. This behavior exists
+      mostly so that warnings when auto-loading plugins (default behavior) won't disappear-
 
       *handler*
-         typedef void (VS_CC \*VSMessageHandler)(int msgType, const char \*msg, void \*userdata)
+         typedef void (VS_CC \*VSLogHandler)(int msgType, const char \*msg, void \*userdata)
 
          Custom message handler. If this is NULL, the default message
          handler will be restored.
@@ -1116,75 +1163,32 @@ struct VSAPI
             The message.
             
       *free*
-         typedef void (VS_CC \*VSMessageHandlerFree)(void \*userData)
+         typedef void (VS_CC \*VSLogHandlerFree)(void \*userData)
          
          Called when a handler is removed.
 
       *userData*
          Pointer that gets passed to the message handler.
-         
-      This function was introduced in API R3.6 (VapourSynth R47).
-         
+                  
 ----------
 
-   .. _removeMessageHandler:
+   .. _removeLogHandler:
 
-   int removeMessageHandler(int id)
+   int removeLogHandler(VSLogHandle \*handle, VSCore \*core)
 
       Removes a custom handler. Return non-zero on success and zero if
-      the handler id is invalid.
+      the handle is invalid.
 
-      This function is thread-safe.
-
-      *id*
-         Message handler id obtained from addMessageHandler_\ ().
-         
-      This function was introduced in API R3.6 (VapourSynth R47).
-
-----------
-
-   .. _logMessage:
-
-   void logMessage(int msgType, const char \*msg)
-
-      Send a message through VapourSynth's logging framework. See
-      setMessageHandler_.
-
-      This function is thread-safe.
-
-      *msgType*
-         The type of message. One of VSMessageType_.
-
-         If *msgType* is mtFatal, VapourSynth will call abort() after
-         delivering the message.
-
-      *msg*
-         The message.
-
-      This function was introduced in API R3.4 (VapourSynth R30).
-
-----------
-
-   .. _setThreadCount:
-
-   int setThreadCount(int threads, VSCore_ \*core)
-
-      Sets the number of worker threads for the given core. If the requested
-      number of threads is zero or lower, the number of hardware threads will
-      be detected and used.
-
-      Returns the new thread count.
-
-      This function was introduced in VapourSynth R24 without bumping
-      the API version (R3).
+      *handle*
+         Handle obtained from addLogHandler_\ ().
 
 ----------
 
    .. _newVideoFrame:
 
-   VSFrame_ \*newVideoFrame(const VSFormat_ \*format, int width, int height, const VSFrame_ \*propSrc, VSCore_ \*core)
+   VSFrame_ \*newVideoFrame(const VSVideoFormat_ \*format, int width, int height, const VSFrame_ \*propSrc, VSCore_ \*core)
 
-      Creates a new frame, optionally copying the properties attached to another
+      Creates a new video frame, optionally copying the properties attached to another
       frame. It is a fatal error to pass invalid arguments to this function.
 
       The new frame contains uninitialised memory.
@@ -1209,9 +1213,9 @@ struct VSAPI
 
    .. _newVideoFrame2:
 
-   VSFrame_ \*newVideoFrame2(const VSFormat_ \*format, int width, int height, const VSFrame_ \**planeSrc, const int \*planes, const VSFrame_ \*propSrc, VSCore_ \*core)
+   VSFrame_ \*newVideoFrame2(const VSVideoFormat_ \*format, int width, int height, const VSFrame_ \**planeSrc, const int \*planes, const VSFrame_ \*propSrc, VSCore_ \*core)
 
-      Creates a new frame from the planes of existing frames, optionally copying
+      Creates a new video frame from the planes of existing frames, optionally copying
       the properties attached to another frame. It is a fatal error to pass invalid arguments to this function.
 
       *format*
@@ -1252,6 +1256,84 @@ struct VSAPI
 
 ----------
 
+   .. _newAudioFrame:
+
+   VSFrame_ \*newAudioFrame(const VSAudioFormat \*format, int numSamples, const VSFrame \*propSrc, VSCore \*core)
+
+      Creates a new audio frame, optionally copying the properties attached to another
+      frame. It is a fatal error to pass invalid arguments to this function.
+
+      The new frame contains uninitialised memory.
+
+      *format*
+         The desired audio format. Must not be NULL.
+
+      *numSamples*
+         The number of samples in the frame. All audio frames apart from the last one returned by a filter must have VS_AUDIO_FRAME_SAMPLES_.
+
+      *propSrc*
+         A frame from which properties will be copied. Can be NULL.
+
+      Returns a pointer to the created frame. Ownership of the new frame is
+      transferred to the caller.
+
+      See also newAudioFrame2_\ ().
+      
+----------
+
+   .. _newAudioFrame2:
+
+   VSFrame_ \*newAudioFrame2(const VSAudioFormat \*format, int numSamples, const VSFrame **channelSrc, const int *channels, const VSFrame \*propSrc, VSCore \*core)
+
+      Creates a new audio frame, optionally copying the properties attached to another
+      frame. It is a fatal error to pass invalid arguments to this function.
+
+      The new frame contains uninitialised memory.
+
+      *format*
+         The desired audio format. Must not be NULL.
+
+      *numSamples*
+         The number of samples in the frame. All audio frames apart from the last one returned by a filter must have VS_AUDIO_FRAME_SAMPLES_.
+
+      *channelSrc*
+         Array of frames from which channels will be copied. If any elements of
+         the array are NULL, the corresponding planes in the new frame will
+         contain uninitialised memory.
+
+      *channels*
+         Array of channel numbers indicating which channel to copy from the
+         corresponding source frame. Note that the number refers to the nth channel
+         and not a channel name constant.
+
+      *propSrc*
+         A frame from which properties will be copied. Can be NULL.
+
+      Returns a pointer to the created frame. Ownership of the new frame is
+      transferred to the caller.
+
+      See also newVideoFrame2_\ ().
+
+----------
+
+   .. _freeFrame:
+
+   void freeFrame(const VSFrame_ \*f)
+
+      Decrements the reference count of a frame and deletes it when it reaches 0.
+
+      It is safe to pass NULL.
+      
+----------
+
+   .. _addFrameRef:
+
+   const VSFrame_ \*addFrameRef(const VSFrame_ \*f)
+
+      Increments the reference count of a frame. Returns *f* as a convenience.
+
+----------
+
    .. _copyFrame:
 
    VSFrame_ \*copyFrame(const VSFrame_ \*f, VSCore_ \*core)
@@ -1264,35 +1346,31 @@ struct VSAPI
 
 ----------
 
-   .. _cloneFrameRef:
+   .. _getFramePropertiesRO:
 
-   const VSFrame_ \*cloneFrameRef(const VSFrame_ \*f)
+   const VSMap_ \*getFramePropertiesRO(const VSFrame_ \*f)
 
-      Duplicates a frame reference. This new reference has to be deleted with
-      freeFrame_\ () when it is no longer needed.
+      Returns a read-only pointer to a frame's properties. The pointer is valid
+      as long as the frame lives.
 
 ----------
 
-   .. _freeFrame:
+   .. _getFramePropertiesRW:
 
-   void freeFrame(const VSFrame_ \*f)
+   VSMap_ \*getFramePropertiesRW(VSFrame_ \*f)
 
-      Deletes a frame reference, releasing the caller's ownership of the frame.
-
-      It is safe to pass NULL.
-
-      Don't try to use the frame once the reference has been deleted.
+      Returns a read/write pointer to a frame's properties. The pointer is valid
+      as long as the frame lives.
 
 ----------
 
    .. _getStride:
 
-   int getStride(const VSFrame_ \*f, int plane)
+   ptrdiff_t getStride(const VSFrame_ \*f, int plane)
 
       Returns the distance in bytes between two consecutive lines of a plane of
-      a frame. The stride is always positive.
-
-      Passing an invalid plane number will cause a fatal error.
+      a video frame. The stride is always positive. Returns 0 if the requested
+      *plane* doesn't exist or if it isn't a video frame.
 
 ----------
 
@@ -1300,9 +1378,8 @@ struct VSAPI
 
    const uint8_t \*getReadPtr(const VSFrame_ \*f, int plane)
 
-      Returns a read-only pointer to a plane of a frame.
-
-      Passing an invalid plane number will cause a fatal error.
+      Returns a read-only pointer to a *plane* or channel of a frame.
+      Returns NULL if an invalid *plane* or channel number is passed.
 
       .. note::
          Don't assume all three planes of a frame are allocated in one
@@ -1314,9 +1391,8 @@ struct VSAPI
 
    uint8_t \*getWritePtr(VSFrame_ \*f, int plane)
 
-      Returns a read/write pointer to a plane of a frame.
-
-      Passing an invalid plane number will cause a fatal error.
+      Returns a read-write pointer to a *plane* or channel of a frame.
+      Returns NULL if an invalid *plane* or channel number is passed.
 
       .. note::
          Don't assume all three planes of a frame are allocated in one
@@ -1324,11 +1400,27 @@ struct VSAPI
 
 ----------
 
-   .. _getFrameFormat:
+   .. _getVideoFrameFormat:
 
-   const VSFormat_ \*getFrameFormat(const VSFrame_ \*f)
+   const VSVideoFormat_ \*getVideoFrameFormat(const VSFrame_ \*f)
 
-      Retrieves the format of a frame.
+      Retrieves the format of a video frame.
+      
+----------
+
+   .. _getAudioFrameFormat:
+
+   const VSAudioFormat_ \*getAudioFrameFormat(const VSFrame_ \*f)
+
+      Retrieves the format of an audio frame.
+      
+----------
+
+   .. _getFrameType:
+
+   int getFrameType(const VSFrame_ \*f)
+
+      Returns a value from VSMediaType_ to distinguish audio and video frames.
 
 ----------
 
@@ -1336,8 +1428,9 @@ struct VSAPI
 
    int getFrameWidth(const VSFrame_ \*f, int plane)
 
-      Returns the width of a plane of a given frame, in pixels. The width
-      depends on the plane number because of the possible chroma subsampling.
+      Returns the width of a *plane* of a given video frame, in pixels. The width
+      depends on the plane number because of the possible chroma subsampling. Returns 0
+      for audio frames.
 
 ----------
 
@@ -1345,56 +1438,211 @@ struct VSAPI
 
    int getFrameHeight(const VSFrame_ \*f, int plane)
 
-      Returns the height of a plane of a given frame, in pixels. The height
-      depends on the plane number because of the possible chroma subsampling.
+      Returns the height of a *plane* of a given video frame, in pixels. The height
+      depends on the plane number because of the possible chroma subsampling. Returns 0
+      for audio frames.
+      
+----------
+
+   .. _getFrameLength:
+
+   int getFrameLength(const VSFrame_ \*f)
+
+      Returns the number of audio samples in a frame. Always returns 1 for video frames.
 
 ----------
 
-   .. _copyFrameProps:
+   .. _createVideoFilter:
 
-   void copyFrameProps(const VSFrame_ \*src, VSFrame_ \*dst, VSCore_ \*core)
+   void createVideoFilter(VSMap \*out, const char \*name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core)
 
-      Copies the property map of a frame to another frame, overwriting all
-      existing properties.
+      Creates a new video filter node.
+
+      *out*
+         Output map for the filter node.
+
+      *name*
+         Instance name. Please make it the same as the filter's name for easy identification.
+
+      *vi*
+         The output format of the filter.
+
+      *getFrame*
+         The filter's "getframe" function. Must not be NULL.
+
+      *free*
+         The filter's "free" function. Can be NULL.
+
+      *filterMode*
+         One of VSFilterMode_. Indicates the level of parallelism
+         supported by the filter.
+
+      *dependencies*
+         An array of nodes the filter requests frames from and the access pattern.
+         Used to more efficiently configure caches.
+         
+      *numDeps*
+         Length of the *dependencies* array.
+
+      *instanceData*
+         A pointer to the private filter data. This pointer will be passed to
+         the *getFrame* and *free* functions. It should be freed by
+         the *free* function.
+
+      After this function returns, *out* will contain the new node appended to the
+      "clip" property, or an error, if something went wrong.
 
 ----------
 
-   .. _getFramePropsRO:
+   .. _createVideoFilter2:
 
-   const VSMap_ \*getFramePropsRO(const VSFrame_ \*f)
+   VSNode \*createVideoFilter2(const char \*name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core)
 
-      Returns a read-only pointer to a frame's properties. The pointer is valid
-      as long as the frame lives.
-
-----------
-
-   .. _getFramePropsRW:
-
-   VSMap_ \*getFramePropsRW(VSFrame_ \*f)
-
-      Returns a read/write pointer to a frame's properties. The pointer is valid
-      as long as the frame lives.
+      Identical to createVideoFilter_ except that the new node is returned
+      instead of appended to the *out* map. Returns NULL on error.
 
 ----------
 
-   .. _cloneNodeRef:
+   .. _createAudioFilter:
 
-   VSNode_ \*cloneNodeRef(VSNode_ \*node)
+   void createAudioFilter(VSMap \*out, const char \*name, const VSAudioInfo \*ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency \*dependencies, int numDeps, void \*instanceData, VSCore \*core)
 
-      Duplicates a node reference. This new reference has to be deleted with
-      freeNode_\ () when it is no longer needed.
+      Creates a new video filter node.
 
+      *out*
+         Output map for the filter node.
+
+      *name*
+         Instance name. Please make it the same as the filter's name for easy identification.
+
+      *ai*
+         The output format of the filter.
+
+      *getFrame*
+         The filter's "getframe" function. Must not be NULL.
+
+      *free*
+         The filter's "free" function. Can be NULL.
+
+      *filterMode*
+         One of VSFilterMode_. Indicates the level of parallelism
+         supported by the filter.
+
+      *dependencies*
+         An array of nodes the filter requests frames from and the access pattern.
+         Used to more efficiently configure caches.
+         
+      *numDeps*
+         Length of the *dependencies* array.
+
+      *instanceData*
+         A pointer to the private filter data. This pointer will be passed to
+         the *getFrame* and *free* functions. It should be freed by
+         the *free* function.
+
+      After this function returns, *out* will contain the new node appended to the
+      "clip" property, or an error, if something went wrong.
+
+----------
+
+   .. _createAudioFilter2:
+
+   VSNode \*createAudioFilter2(const char \*name, const VSAudioInfo \*ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency \*dependencies, int numDeps, void \*instanceData, VSCore \*core)
+
+      Identical to createAudioFilter_ except that the new node is returned
+      instead of appended to the *out* map. Returns NULL on error.
+
+----------
+
+   .. _setLinearFilter:
+
+   int setLinearFilter(VSNode *node)
+
+      Must be called immediately after audio or video filter creation.
+      Returns the upper bound of how many additional frames it is
+      reasonable to pass to cacheFrame_ when trying to make a request
+      more linear.
+      
+----------
+
+   .. _setCacheMode:
+
+   void setCacheMode(VSNode *node, int mode)
+
+      Determines the strategy for frame caching. Pass a VSCacheMode_ constant.
+      Mostly useful for cache debugging since the auto mode should work well
+      in just about all cases. Calls to this function may also be silently ignored.
+      
+      Resets the cache to default options when called, discarding setCacheOptions_
+      changes.
+      
+ ----------
+
+   .. _setCacheOptions:
+
+   void setCacheOptions(VSNode *node, int fixedSize, int maxSize, int maxHistorySize)
+
+      Call after setCacheMode_ or the changes will be discarded. Sets internal
+      details of a node's associated cache. Calls to this function may also
+      be silently ignored.
+      
+      *fixedSize*
+         Set to non-zero to make the cache always hold *maxSize* frames.
+         
+      *maxSize*
+         The maximum number of frames to cache. Note that this value is automatically
+         adjusted using an internal algorithm unless *fixedSize* is set.
+         
+      *maxHistorySize*
+         How many frames that have been recently evicted from the cache to keep track off.
+         Used to determine if growing or shrinking the cache is beneficial. Has no effect
+         when *fixedSize* is set.
+      
 ----------
 
    .. _freeNode:
 
    void freeNode(VSNode_ \*node)
 
-      Deletes a node reference, releasing the caller's ownership of the node.
+      Decreases the reference count of a node and destroys it once it reaches 0.
 
       It is safe to pass NULL.
+      
+----------
 
-      Don't try to use the node once the reference has been deleted.
+   .. _addNodeRef:
+
+   VSNode_ \*addNodeRef(VSNode_ \*node)
+
+      Increment the reference count of a node. Returns the same *node* for convenience.
+
+----------
+
+   .. _getNodeType:
+
+   int getNodeType(VSNode_ \*node)
+
+      Returns VSMediaType_. Used to determine if a node is of audio or video type.
+
+----------
+
+   .. _getVideoInfo:
+
+   const VSVideoInfo_ \*getVideoInfo(VSNode_ \*node)
+
+      Returns a pointer to the video info associated with a node. The pointer is
+      valid as long as the node lives. It is undefined behavior to pass a non-video
+      node.
+      
+----------
+
+   .. _getAudioInfo:
+
+   const VSAudioInfo_ \*getAudioInfo(VSNode_ \*node)
+
+      Returns a pointer to the audio info associated with a node. The pointer is
+      valid as long as the node lives. It is undefined behavior to pass a non-audio
+      node.
 
 ----------
 
@@ -1547,34 +1795,6 @@ struct VSAPI
 
       *frameCtx*
          The context passed to the filter's "getframe" function.
-
-----------
-
-   .. _getVideoInfo:
-
-   const VSVideoInfo_ \*getVideoInfo(VSNode_ \*node)
-
-      Returns a pointer to the video info associated with a node. The pointer is
-      valid as long as the node lives.
-
-----------
-
-   .. _setVideoInfo:
-
-   void setVideoInfo(const VSVideoInfo_ \*vi, int numOutputs, VSNode_ \*node)
-
-      Sets the node's video info.
-
-      *vi*
-         Pointer to *numOutputs* VSVideoInfo_ instances. The structures are
-         copied by the core. The flags are however ignored and replaced by the
-         flags passed to _createFilter.
-
-      *numOutputs*
-         Number of clips the filter wants to return. Must be greater than 0.
-
-      *node*
-         Pointer to the node whose video info is to be set.
 
 ----------
 
@@ -2335,49 +2555,6 @@ struct VSAPI
 
 ----------
 
-   .. _createFilter:
-
-   void createFilter(const VSMap_ \*in, VSMap_ \*out, const char \*name, VSFilterInit_ init, VSFilterGetFrame_ getFrame, VSFilterFree_ free, int filterMode, int flags, void \*instanceData, VSCore_ \*core)
-
-      Creates a new filter node.
-
-      *in*
-         List of the filter's arguments.
-
-      *out*
-         List of the filter's return values (clip(s) or an error).
-
-      *name*
-         Instance name. Please make it the same as the filter's name.
-
-      *init*
-         The filter's "init" function. Must not be NULL.
-
-      *getFrame*
-         The filter's "getframe" function. Must not be NULL.
-
-      *free*
-         The filter's "free" function. Can be NULL.
-
-      *filterMode*
-         One of VSFilterMode_. Indicates the level of parallelism
-         supported by the filter.
-
-      *flags*
-         Set to nfNoCache (VSNodeFlags_) if the frames generated by the filter
-         should not be cached. It is useful for filters that only shuffle
-         frames around without modifying them (e.g. std.Interleave). For most
-         filters this should be 0.
-
-      *instanceData*
-         A pointer to the private filter data. This pointer will be passed to
-         the *init*, *getFrame*, and *free* functions. It should be freed by
-         the *free* function.
-
-      After this function returns, *out* will contain the new node(s) in the
-      "clip" property, or an error, if something went wrong.
-
-----------
 
    .. _registerFunction:
 
@@ -2433,31 +2610,6 @@ struct VSAPI
       This is the way to report errors in a filter's "getframe" function.
       Such errors are not necessarily fatal, i.e. the caller can try to
       request the same frame again.
-
-----------
-
-   .. _getOutputIndex:
-
-   int getOutputIndex(VSFrameContext_ \*frameCtx)
-
-      Returns the index of the node from which the frame is being requested.
-
-      Only needed in the "getframe" function of filters that return more than
-      one clip.
-
-----------
-
-   .. _queryCompletedFrame:
-
-   void queryCompletedFrame(VSNode_ \**node, int \*n, VSFrameContext_ \*frameCtx)
-
-      .. warning::
-         This function has several issues and may or may not return the
-         actual node or frame number.
-         
-      Finds out which requested frame is ready. To be used in a filter's
-      "getframe" function, when it is called with *activationReason*
-      arFrameReady.
 
 ----------
 
@@ -2650,33 +2802,6 @@ typedef void (VS_CC \*VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunctio
 
    *plugin*
       The plugin object in the core. Pass to *configFunc* and *registerFunc*.
-
-----------
-
-.. _VSFilterInit:
-
-typedef void (VS_CC \*VSFilterInit)(VSMap_ \*in, VSMap_ \*out, void \**instanceData, VSNode_ \*node, VSCore_ \*core, const VSAPI_ \*vsapi)
-
-   A filter's "init" function.
-
-   This function is called by createFilter_\ () (indirectly).
-
-   This is the only place where setVideoInfo_\ () can be called. There is no
-   reason to do anything else here.
-
-   If an error occurs in this function:
-      - free the input nodes, if any
-
-      - free the instance data
-
-      - free whatever else got allocated so far (obviously)
-
-      - call setError_\ () on the *out* map
-
-      - return
-
-   *instanceData*
-      Pointer to a pointer to the filter's private instance data.
 
 ----------
 
