@@ -1,4 +1,5 @@
 r63:
+switched to C++17 for the entire project
 added a warning every time the deprecated cache filter is instantiated and ignored
 fixed a regression with alpha nodes in vspipe introduced in r62
 
