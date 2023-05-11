@@ -34,10 +34,7 @@
 
 extern const AVS_Linkage* const AVS_linkage;
 
-namespace {
-std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
-} // namespace
-
+using namespace std::string_literals;
 using namespace vsh;
 
 namespace AvisynthCompat {
@@ -523,14 +520,14 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
     if (!ref) {
         if (numSlowWarnings < 200) {
             numSlowWarnings++;
-            std::string s = "Avisynth Compat: requested frame "_s + std::to_string(n) + " not prefetched, using slow method";
+            std::string s = "Avisynth Compat: requested frame "s + std::to_string(n) + " not prefetched, using slow method";
             vsapi->logMessage(mtWarning, s.c_str(), fakeEnv->core);
         }
         ref = vsapi->getFrame(n, clip, buf.data(), static_cast<int>(buf.size()));
     }
 
     if (!ref)
-        vsapi->logMessage(mtFatal, ("Avisynth Compat: error while getting input frame synchronously: "_s + buf.data()).c_str(), fakeEnv->core);
+        vsapi->logMessage(mtFatal, ("Avisynth Compat: error while getting input frame synchronously: "s + buf.data()).c_str(), fakeEnv->core);
 
     bool isMultiplePlanes = (vi.pixel_type & VideoInfo::CS_PLANAR) && !(vi.pixel_type & VideoInfo::CS_INTERLEAVED);
 
@@ -570,8 +567,8 @@ static void prefetchHelper(int n, VSNode *node, const PrefetchInfo &p, VSFrameCo
     }
 }
 
-#define WARNING(fname, warning) if (name == #fname) vsapi->logMessage(mtWarning, "Avisynth Compat: "_s + #fname + " - " + #warning).c_str(), core);
-#define BROKEN(fname) if (name == #fname) vsapi->logMessage(mtWarning, ("Avisynth Compat: Invoking known broken function "_s + name).c_str(), core);
+#define WARNING(fname, warning) if (name == #fname) vsapi->logMessage(mtWarning, "Avisynth Compat: "s + #fname + " - " + #warning).c_str(), core);
+#define BROKEN(fname) if (name == #fname) vsapi->logMessage(mtWarning, ("Avisynth Compat: Invoking known broken function "s + name).c_str(), core);
 #define OTHER(fname) if (name == #fname) return PrefetchInfo(1, 1, 0, 0);
 #define SOURCE(fname) if (name == #fname) return PrefetchInfo(1, 1, 0, 0);
 #define PREFETCHR0(fname) if (name == #fname) return PrefetchInfo(1, 1, 0, 0);
@@ -771,7 +768,7 @@ static const VSFrame *VS_CC avisynthFilterGetFrame(int n, int activationReason, 
             if (!frame)
                 vsapi->logMessage(mtFatal, "Avisynth Error: no frame returned", core);
         } catch (const AvisynthError &e) {
-            vsapi->logMessage(mtFatal, ("Avisynth Error: avisynth errors in GetFrame() are unrecoverable, crashing... "_s + e.msg).c_str(), core);
+            vsapi->logMessage(mtFatal, ("Avisynth Error: avisynth errors in GetFrame() are unrecoverable, crashing... "s + e.msg).c_str(), core);
         } catch (const IScriptEnvironment::NotFound &) {
             vsapi->logMessage(mtFatal, "Avisynth Error: escaped IScriptEnvironment::NotFound exceptions are non-recoverable, crashing...", core);
         } catch (...) {
@@ -1016,7 +1013,7 @@ AVSValue FakeAvisynth::Invoke(const char *name, const AVSValue args, const char*
         return args[0];
     }
 
-    vsapi->logMessage(mtWarning, ("Invoke not fully implemented, tried to call: "_s + name + " but I will pretend it doesn't exist").c_str(), core);
+    vsapi->logMessage(mtWarning, ("Invoke not fully implemented, tried to call: "s + name + " but I will pretend it doesn't exist").c_str(), core);
     throw IScriptEnvironment::NotFound();
     return AVSValue();
 }
@@ -1350,7 +1347,7 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
 
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
-        vsapi->logMessage(mtFatal, ("Bad SSE state detected after loading "_s + rawPath).c_str(), core);
+        vsapi->logMessage(mtFatal, ("Bad SSE state detected after loading "s + rawPath).c_str(), core);
 #endif
 }
 

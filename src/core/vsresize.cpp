@@ -41,7 +41,7 @@ using namespace vsh;
 
 namespace {
 
-std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
+using namespace std::string_literals;
 
 const std::unordered_map<std::string, zimg_cpu_type_e> g_cpu_type_table{
     { "none",      ZIMG_CPU_NONE },
@@ -150,7 +150,7 @@ const std::unordered_map<std::string, zimg_resample_filter_e> g_resample_filter_
 template <class T, class U>
 T range_check_integer(U x, const char *key) {
     if (x < std::numeric_limits<T>::min() || x > std::numeric_limits<T>::max())
-        throw std::range_error{ "value for key \""_s + key + "\" out of range" };
+        throw std::range_error{ "value for key \""s + key + "\" out of range" };
     return static_cast<T>(x);
 }
 
@@ -209,7 +209,7 @@ void translate_pixel_type(const VSVideoFormat *format, zimg_pixel_type_e *out, c
     else {
         char buffer[32];
         vsapi->getVideoFormatName(format, buffer);
-        throw std::runtime_error{ "no matching pixel type for format: "_s + buffer };
+        throw std::runtime_error{ "no matching pixel type for format: "s + buffer };
     }
 }
 
@@ -480,7 +480,7 @@ class vszimg {
             if (it != enum_table.end())
                 *out = it->second;
             else
-                throw std::runtime_error{ "bad value: "_s + key };
+                throw std::runtime_error{ "bad value: "s + key };
         }
     }
 
@@ -796,7 +796,7 @@ public:
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
             vsapi->setFilterError(errmsg.c_str(), frameCtx);
         } catch (const std::exception &e) {
-            vsapi->setFilterError(("Resize error: "_s + e.what()).c_str(), frameCtx);
+            vsapi->setFilterError(("Resize error: "s + e.what()).c_str(), frameCtx);
         }
 
         vsapi->freeFrame(src_frame);
@@ -829,7 +829,7 @@ public:
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
             vsapi->mapSetError(out, errmsg.c_str());
         } catch (const std::exception &e) {
-            vsapi->mapSetError(out, ("Resize error: "_s + e.what()).c_str());
+            vsapi->mapSetError(out, ("Resize error: "s + e.what()).c_str());
         }
     }
 
