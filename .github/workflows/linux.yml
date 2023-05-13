@@ -33,13 +33,13 @@ jobs:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: '3.11'
 
-    - name: Install cython
-      run: |
-        python -m pip install --upgrade pip
-        pip install cython
-
     - name: Set PKG_CONFIG_PATH
       run: echo "PKG_CONFIG_PATH=$pythonLocation/lib/pkgconfig" >> $GITHUB_ENV
+
+    - name: Install/upgrade required Python packages
+      run: |
+        python -m pip install -U pip
+        pip install -U cython setuptools wheel
 
     - name: configure
       run: |
