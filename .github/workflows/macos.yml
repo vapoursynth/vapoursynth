@@ -6,12 +6,13 @@ jobs:
   build-clang:
     runs-on: macos-latest
 
-    env:
-      CC: clang
-      CXX: clang++
-
     steps:
     - uses: actions/checkout@v3
+
+    - name: Set CC and CXX to use Clang/LLVM 15
+      run: |
+        echo "CC=$(brew --prefix llvm@15)/bin/clang" >> $GITHUB_ENV
+        echo "CXX=$(brew --prefix llvm@15)/bin/clang++" >> $GITHUB_ENV
 
     - name: Print compiler version
       run: ${{ env.CC }} --version
