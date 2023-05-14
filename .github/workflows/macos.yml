@@ -33,14 +33,10 @@ jobs:
         popd
         rm -rf zimg
 
-    - name: Setup Python
-      uses: actions/setup-python@v3
+    - uses: actions/setup-python@v4
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: '3.11'
-
-    - name: Set PKG_CONFIG_PATH
-      run: echo "PKG_CONFIG_PATH=$pythonLocation/lib/pkgconfig" >> $GITHUB_ENV
 
     - name: Install/upgrade required Python packages
       run: |
