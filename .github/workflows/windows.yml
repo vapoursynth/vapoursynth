@@ -155,7 +155,7 @@ jobs:
         popd
 
     - name: Upload build artefacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: Wheels
         path: |
@@ -184,7 +184,7 @@ jobs:
         architecture: ${{ matrix.arch }}
 
     - name: Download build artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: Wheels
 
@@ -207,7 +207,7 @@ jobs:
         python-version: "3.11"
 
     - name: Download build artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: Wheels
 
