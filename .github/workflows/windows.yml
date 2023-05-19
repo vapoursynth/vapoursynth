@@ -5,7 +5,7 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   build-msvc:
     runs-on: windows-latest
-    
+
     strategy:
       matrix:
         arch: [x86, x64]
@@ -24,7 +24,7 @@ jobs:
 
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@v1.1
-  
+
     - name: Clone Dependencies
       run: |
         git clone https://github.com/vapoursynth/vsrepo --depth 1
@@ -33,7 +33,7 @@ jobs:
         git clone https://github.com/sekrit-twc/libp2p --depth 1
 
     - name: Setup Python 3.8
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: 3.8
@@ -46,16 +46,16 @@ jobs:
         echo "PYTHON38_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Setup Python 3.11
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: '3.11'
         architecture: ${{ matrix.arch }}
 
     - name: Install cython
       run: |
-        python -m pip install --upgrade pip
-        pip install cython
-        
+        python -m pip install -U pip
+        pip install -U cython setuptools
+
     - name: Get Python 3.11 Install Path
       run: |
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
@@ -67,14 +67,14 @@ jobs:
         $env:VSPYTHON3832_PATH="${{ env.PYTHON38_PATH }}"
         $env:VSPYTHON_PATH="${{ env.PYTHON_PATH }}"
         $env:VSPYTHON32_PATH="${{ env.PYTHON_PATH }}"
-        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}        
+        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}
         pip install . --no-deps
-        
+
         pushd installer
         $env:SKIP_COMPRESS="yes"
         $env:SKIP_WAIT="yes"
         & ".\make_portable.bat"
-        
+
         if ("${{ matrix.arch }}" -eq "x64") {
           pushd buildp64
         } else {
@@ -84,49 +84,49 @@ jobs:
         popd
         popd
 
-        
     - name: Package for Python 3.11
       run: |
         mkdir wheels
-        pip install wheel
+        pip install -U wheel
         python setup.py bdist_wheel -d ./wheels
         python setup.py sdist -d ./wheels --format=zip
-        
+
         pushd installer
         if ("${{ matrix.arch }}" -eq "x64") {
           pushd buildp64
         } else {
           pushd buildp32
         }
-        
+
         python setup.py bdist_wheel -d ../../wheels
-        
+
         popd
         popd
-        
+
     - name: Setup Python 3.8 a second time
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: 3.8
         # The target architecture (x86, x64) of the Python interpreter.
         architecture: ${{ matrix.arch }}
+
     - name: Building for Python 3.8
       run: |
         pip install . --no-deps
-  
+
         pushd installer
         if ("x64" -eq "x64") {
           Remove-Item 'buildp64' -Recurse
         } else {
           Remove-Item 'buildp32' -Recurse
         }
-        
+
         $env:SKIP_COMPRESS="yes"
         $env:SKIP_WAIT="yes"
         & ".\make_portable.bat"
-  
-  
+
+
         if ("${{ matrix.arch }}" -eq "x64") {
           pushd buildp64
         } else {
@@ -138,24 +138,24 @@ jobs:
 
     - name: Package for Python 3.8
       run: |
-        pip install wheel
+        pip install -U wheel
         python setup.py bdist_wheel -d ./wheels
         python setup.py sdist -d ./wheels --format=zip
-        
+
         pushd installer
         if ("${{ matrix.arch }}" -eq "x64") {
           pushd buildp64
         } else {
           pushd buildp32
         }
-        
+
         python setup.py bdist_wheel -d ../../wheels
-        
+
         popd
         popd
-      
+
     - name: Upload build artefacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: Wheels
         path: |
@@ -167,7 +167,7 @@ jobs:
     - name: Run test
       if: ${{ matrix.test }}
       run: python -m unittest discover -s test -p "*test.py"
-      
+
   test-windows:
     runs-on: windows-latest
     needs: build-msvc
@@ -175,24 +175,24 @@ jobs:
       matrix:
         arch: [x86, x64]
         python: ["3.8", "3.11"]
-        
+
     steps:
     - name: Setup Python ${{ matrix.python }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python }}
         architecture: ${{ matrix.arch }}
 
     - name: Download build artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: Wheels
-    
+
     - name: Try installing
       run: |
         pip install --no-index --find-links . vapoursynth
         pip install --no-index --find-links . vapoursynth_portable
-        
+
         python -c "from vapoursynth import core; print(core.std.BlankClip())"
 
   public:
@@ -202,18 +202,18 @@ jobs:
 
     steps:
     - name: Setup Python 3.11
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: "3.11"
 
     - name: Download build artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: Wheels
 
     - name: Install twine
       run: |
-        pip install twine
+        pip install -U twine
 
     - name: Upload VapourSynth
       env:
@@ -228,4 +228,3 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PORTABLE }}
       run: |
         twine upload VapourSynth_portable-*
-
