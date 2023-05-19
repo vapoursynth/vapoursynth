@@ -93,7 +93,7 @@ or its C++ counterpart.
 .. _vsh_aligned_malloc_c:
 
 VSH_ALIGNED_MALLOC
------------------
+------------------
 
 VSH_ALIGNED_MALLOC(pptr, size, alignment)
 
@@ -103,10 +103,10 @@ the arguments are in the style of posix_memalign().
 *pptr* is a pointer to a pointer.
 
 
-.. _vs_aligned_free_c:
+.. _vsh_aligned_free_c:
 
 VSH_ALIGNED_FREE
----------------
+----------------
 
 VSH_ALIGNED_FREE(ptr)
 
@@ -134,7 +134,7 @@ Returns the maximum of the two numbers.
 Functions
 #########
 
-.. _vs_aligned_malloc_cpp:
+.. _vsh_aligned_malloc_cpp:
 
 vsh_aligned_malloc
 ------------------
@@ -250,7 +250,7 @@ doubleToFloatS
 .. cpp:function:: static inline int vsh::doubleToFloatS(double d)
 
    Converts a double to float. It's useful to silence
-   warnings when reading double properties from a VSMap and mostly exists to mirror `doubleToFloatS`_.
+   warnings when reading double properties from a VSMap and mostly exists to mirror `int64ToIntS`_.
 
 
 bitblt

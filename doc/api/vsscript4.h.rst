@@ -14,37 +14,37 @@ Structs_
    
    
 Functions_
-   *getVSScriptAPI_
+   getVSScriptAPI_
 
-   *getApiVersion_
+   getApiVersion_
       
-   *getVSAPI_
+   getVSAPI_
       
-   *createScript_
+   createScript_
       
-   *getCore_
+   getCore_
       
-   *evaluateBuffer_
+   evaluateBuffer_
       
-   *evaluateFile_
+   evaluateFile_
       
-   *getError_
+   getError_
       
-   *getExitCode_
+   getExitCode_
    
-   *getVariable_
+   getVariable_
+     
+   setVariables_
       
-   *setVariables_
+   getOutputNode_
       
-   *getOutputNode_
+   getOutputAlphaNode_
       
-   *getOutputAlphaNode_
+   getAltOutputMode_
       
-   *getAltOutputMode_
+   freeScript_
       
-   *freeScript_
-      
-   *evalSetWorkingDir_
+   evalSetWorkingDir_
 
 
 Introduction
@@ -89,7 +89,7 @@ Functions
 #########
 
 getVSScriptAPI
--------------
+--------------
 
 .. c:function:: const VSSCRIPTAPI *getVSScriptAPI(int version)
 
