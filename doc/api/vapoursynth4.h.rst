@@ -1644,188 +1644,108 @@ struct VSAPI
 
 ----------
 
-   .. _getFrame:
+   .. _getVideoFormatName:
 
-   const VSFrame_ \*getFrame(int n, VSNode_ \*node, char \*errorMsg, int bufSize)
+   int getVideoFormatName(const VSVideoFormat \*format, char \*buffer)
 
-      Generates a frame directly. The frame is available when the function
-      returns.
-
-      This function is meant for external applications using the core as a
-      library, or if frame requests are necessary during a filter's
-      initialization.
+      Tries to output a fairly human-readable name of a video format.
       
-      Thread-safe.
-
-      *n*
-         The frame number. Negative values will cause an error.
-
-      *node*
-         The node from which the frame is requested.
-
-      *errorMsg*
-         Pointer to a buffer of *bufSize* bytes to store a possible error
-         message. Can be NULL if no error message is wanted.
-         
-      *bufSize*
-         Maximum length for the error message, in bytes (including the
-         trailing '\0'). Can be 0 if no error message is wanted.
-
-      Returns a reference to the generated frame, or NULL in case of failure.
-      The ownership of the frame is transferred to the caller.
-
-      .. warning::
-         Never use inside a filter's "getframe" function.
-
-----------
-
-   .. _getFrameAsync:
-
-   void getFrameAsync(int n, VSNode_ \*node, VSFrameDoneCallback callback, void \*userData)
-
-      Requests the generation of a frame. When the frame is ready,
-      a user-provided function is called.
+      *format*
+         The input video format.
       
-      This function is meant for applications using VapourSynth as a library.
+      *buffer*
+         Destination buffer. At most 32 bytes including terminating NULL
+         will be written.
       
-      Thread-safe.
+      Returns non-zero on success.
+      
+----------
 
-      *n*
-         Frame number. Negative values will cause an error.
+   .. _getAudioFormatName:
 
-      *node*
-         The node from which the frame is requested.
+   int getAudioFormatName(const VSAudioFormat \*format, char \*buffer)
 
-      *callback*
-         typedef void (VS_CC \*VSFrameDoneCallback)(void \*userData, const VSFrame_ \*f, int n, VSNode_ \*node, const char \*errorMsg)
-
-         Function of the client application called by the core when a requested
-         frame is ready, after a call to getFrameAsync().
-
-         If multiple frames were requested, they can be returned in any order.
-         Client applications must take care of reordering them.
-
-         This function is only ever called from one thread at a time.
-
-         getFrameAsync() may be called from this function to request more
-         frames.
-
-         *userData*
-            Pointer to private data from the client application, as passed
-            previously to getFrameAsync().
-
-         *f*
-            Contains a reference to the generated frame, or NULL in case of failure.
-            The ownership of the frame is transferred to the caller.
-
-         *n*
-            The frame number.
-
-         *node*
-            Node the frame belongs to.
-
-         *errorMsg*
-            String that usually contains an error message if the frame
-            generation failed. NULL if there is no error.
-
-      *userData*
-         Pointer passed to the callback.
-
-      .. warning::
-         Never use inside a filter's "getframe" function.
+      Tries to output a fairly human-readable name of an audio format.
+      
+      *format*
+         The input audio format.
+      
+      *buffer*
+         Destination buffer. At most 32 bytes including terminating NULL
+         will be written.
+      
+      Returns non-zero on success.
 
 ----------
 
-   .. _getFrameFilter:
+   .. _queryVideoFormat:
 
-   const VSFrame_ \*getFrameFilter(int n, VSNode_ \*node, VSFrameContext_ \*frameCtx)
+   int queryVideoFormat(VSVideoFormat_ \*format, int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore_ \*core)
 
-      Retrieves a frame that was previously requested with
-      requestFrameFilter_\ ().
+      Fills out a VSVideoInfo_ struct based on the provided arguments. Validates the arguments before filling out *format*.
 
-      Only use inside a filter's "getframe" function.
-
-      A filter usually calls this function when its activation reason is
-      arAllFramesReady or arFrameReady. See VSActivationReason_.
-
-      It is safe to retrieve a frame more than once, but each reference
-      needs to be freed.
-
-      *n*
-         The frame number.
-
-      *node*
-         The node from which the frame is retrieved.
-
-      *frameCtx*
-         The context passed to the filter's "getframe" function.
-
-      Returns a pointer to the requested frame, or NULL if the requested frame
-      is not available for any reason. The ownership of the frame is
-      transferred to the caller.
-
-----------
-
-   .. _requestFrameFilter:
-
-   void requestFrameFilter(int n, VSNode_ \*node, VSFrameContext_ \*frameCtx)
-
-      Requests a frame from a node and returns immediately.
-
-      Only use inside a filter's "getframe" function.
-
-      A filter usually calls this function when its activation reason is
-      arInitial. The requested frame can then be retrieved using
-      getFrameFilter_\ (), when the filter's activation reason is
-      arAllFramesReady or arFrameReady. See VSActivationReason_.
-
-      It is safe to request a frame more than once. An unimportant consequence
-      of requesting a frame more than once is that the getframe function may
-      be called more than once for the same frame with reason arFrameReady.
-
-      It is best to request frames in ascending order, i.e. n, n+1, n+2, etc.
-
-      *n*
-         The frame number. Negative values will cause an error.
-
-      *node*
-         The node from which the frame is requested.
-
-      *frameCtx*
-         The context passed to the filter's "getframe" function.
-
-----------
-
-   .. _getFormatPreset:
-
-   const VSFormat_ \*getFormatPreset(int id, VSCore_ \*core)
-
-      Returns a VSFormat structure from a video format identifier.
-
-      Thread-safe.
-
-      *id*
-         The format identifier: one of VSPresetFormat_ or a custom registered
-         format.
-
-      Returns NULL if the identifier is not known.
-
-----------
-
-   .. _registerFormat:
-
-   const VSFormat_ \*registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore_ \*core)
-
-      Registers a custom video format.
-
-      Thread-safe.
+      *format*
+         The struct to fill out.
 
       *colorFamily*
          One of VSColorFamily_.
 
+      *sampleType*
+         One of VSSampleType_.
+
+      *bitsPerSample*
+         Number of meaningful bits for a single component. The valid range is
+         8-32.
+
+         For floating point formats only 16 or 32 bits are allowed.
+
+      *subSamplingW*
+         log2 of the horizontal chroma subsampling. 0 == no subsampling. The valid range is 0-4.
+
+      *subSamplingH*
+         log2 of the vertical chroma subsampling. 0 == no subsampling. The valid range is 0-4.
+
          .. note::
-            Registering compat formats is not allowed. Only certain privileged
-            built-in filters are allowed to handle compat formats.
+            RGB formats are not allowed to be subsampled in VapourSynth.
+
+      Returns non-zero on success.
+
+----------
+
+   .. _queryAudioFormat:
+
+   int queryAudioFormat(VSAudioFormat_ \*format, int sampleType, int bitsPerSample, uint64_t channelLayout, VSCore_ \*core)
+
+      Fills out a VSAudioFormat_ struct based on the provided arguments. Validates the arguments before filling out *format*.
+
+      *format*
+         The struct to fill out.
+
+      *sampleType*
+         One of VSSampleType_.
+
+      *bitsPerSample*
+         Number of meaningful bits for a single component. The valid range is
+         8-32.
+
+         For floating point formats only 32 bits are allowed.
+
+      *channelLayout*
+         A bitmask contructed from bitshifted constants in VSAudioChannels_. For example stereo is expressed as (1 << acFrontLeft) | (1 << acFrontRight).
+
+      Returns non-zero on success.
+          
+----------
+
+   .. _queryVideoFormatID:
+
+   uint32_t queryVideoFormatID(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore_ \*core)
+
+      Get the id associated with a video format. Similar to queryVideoFormat_\ () except that it returns a format id instead
+      of filling out a VSVideoInfo_ struct.
+
+      *colorFamily*
+         One of VSColorFamily_.
 
       *sampleType*
          One of VSSampleType_.
@@ -1837,22 +1757,32 @@ struct VSAPI
          For floating point formats, only 16 or 32 bits are allowed.
 
       *subSamplingW*
-         log2 of the horizontal chroma subsampling. 0 == no subsampling.
+         log2 of the horizontal chroma subsampling. 0 == no subsampling. The valid range is 0-4.
 
       *subSamplingH*
-         log2 of the vertical chroma subsampling. The valid range is 0-4.
+         log2 of the vertical chroma subsampling. 0 == no subsampling. The valid range is 0-4.
 
          .. note::
             RGB formats are not allowed to be subsampled in VapourSynth.
 
-      Returns a pointer to the created VSFormat_ object. Its *id* member
-      contains the attributed format identifier. The pointer is valid as long
-      as the VSCore_ instance lives. Returns NULL in case an invalid format
-      is described.
+      Returns a valid format id if the provided arguments are valid, on error
+      0 is returned.
+      
+----------
+      
+   .. _getVideoFormatByID:
 
-      If the parameters specify a format that is already registered (including
-      preset formats), then no new format is created and the existing one is
-      returned.
+   int getVideoFormatByID(VSVideoFormat *format, uint32_t id, VSCore *core)
+
+      Fills out the VSVideoFormat struct passed to *format* based
+      
+      *format*
+         The struct to fill out.
+
+      *id*
+         The format identifier: one of VSPresetVideoFormat_ or a value gotten from queryVideoFormatID_.
+
+      Returns 0 on failure and non-zero on success.
 
 ----------
 
@@ -1902,7 +1832,7 @@ struct VSAPI
 
       For errors encountered in a filter's "getframe" function, use
       setFilterError_.
-      
+
 ----------
 
    .. _mapNumKeys:
@@ -1989,7 +1919,7 @@ struct VSAPI
          You may pass NULL here, but then any problems encountered while
          retrieving the property will cause VapourSynth to die with a fatal
          error.
-         
+
 ----------
 
    .. _mapGetIntSaturated:
@@ -2364,71 +2294,13 @@ struct VSAPI
 
       VapourSynth retains ownership of the returned pointer.
 
-      This function was introduced in VapourSynth R25 without bumping
-      the API version (R3).
-
 ----------
 
-   .. _createFunction:
+   .. getPluginVersion:
 
-   VSFunction_ \*createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core)
+   int getPluginVersion(const VSPlugin_ \*plugin)
 
-      *func*
-         typedef void (VS_CC \*VSPublicFunction)(const VSMap_ \*in, VSMap_ \*out, void \*userData, VSCore_ \*core, const VSAPI_ \*vsapi)
-
-         User-defined function that may be called in any context.
-
-      *userData*
-         Pointer passed to *func*.
-
-      *free*
-         typedef void (VS_CC \*VSFreeFunctionData)(void \*userData)
-
-         Callback tasked with freeing *userData*. Can be NULL.
-
-----------
-
-   .. _addFunctionRef:
-
-   VSFunction_ \*addFunctionRef(VSFunction_ \*f)
-
-      Increments the reference count of a function. Returns *f* as a convenience.
-
-----------
-
-   .. _callFunction:
-
-   void callFunction(VSFunction_ \*func, const VSMap_ \*in, VSMap_ \*out)
-
-      Calls a function. If the call fails *out* will have an error set.
-      
-      *func*
-         Function to be called.
-
-      *in*
-         Arguments passed to *func*.
-         
-      *out*
-         Returned values from *func*.
-
-----------
-
-   .. _freeFunction:
-
-   void freeFunction(VSFunction_ \*f)
-
-      Decrements the reference count of a function and deletes it when it reaches 0.
-
-      It is safe to pass NULL.
-
-----------
-
-
-   .. _registerFunction:
-
-   void registerFunction(const char \*name, const char \*args, VSPublicFunction argsFunc, void \*functionData, VSPlugin_ \*plugin)
-
-      See VSInitPlugin_.
+      Returns the version of the plugin. This is the same as the version number passed to configPlugin_.
 
 ----------
 
@@ -2466,6 +2338,254 @@ struct VSAPI
 
 ----------
 
+   .. _createFunction:
+
+   VSFunction_ \*createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core)
+
+      *func*
+         typedef void (VS_CC \*VSPublicFunction)(const VSMap_ \*in, VSMap_ \*out, void \*userData, VSCore_ \*core, const VSAPI_ \*vsapi)
+
+         User-defined function that may be called in any context.
+
+      *userData*
+         Pointer passed to *func*.
+
+      *free*
+         typedef void (VS_CC \*VSFreeFunctionData)(void \*userData)
+
+         Callback tasked with freeing *userData*. Can be NULL.
+
+----------
+
+   .. _freeFunction:
+
+   void freeFunction(VSFunction_ \*f)
+
+      Decrements the reference count of a function and deletes it when it reaches 0.
+
+      It is safe to pass NULL.
+      
+----------
+
+   .. _addFunctionRef:
+
+   VSFunction_ \*addFunctionRef(VSFunction_ \*f)
+
+      Increments the reference count of a function. Returns *f* as a convenience.
+
+----------
+
+   .. _callFunction:
+
+   void callFunction(VSFunction_ \*func, const VSMap_ \*in, VSMap_ \*out)
+
+      Calls a function. If the call fails *out* will have an error set.
+      
+      *func*
+         Function to be called.
+
+      *in*
+         Arguments passed to *func*.
+         
+      *out*
+         Returned values from *func*.
+
+----------
+
+   .. _getFrame:
+
+   const VSFrame_ \*getFrame(int n, VSNode_ \*node, char \*errorMsg, int bufSize)
+
+      Fetches a frame synchronously. The frame is available when the function
+      returns.
+
+      This function is meant for external applications using the core as a
+      library, or if frame requests are necessary during a filter's
+      initialization.
+      
+      Thread-safe.
+
+      *n*
+         The frame number. Negative values will cause an error.
+
+      *node*
+         The node from which the frame is requested.
+
+      *errorMsg*
+         Pointer to a buffer of *bufSize* bytes to store a possible error
+         message. Can be NULL if no error message is wanted.
+         
+      *bufSize*
+         Maximum length for the error message, in bytes (including the
+         trailing '\0'). Can be 0 if no error message is wanted.
+
+      Returns a reference to the generated frame, or NULL in case of failure.
+      The ownership of the frame is transferred to the caller.
+
+      .. warning::
+         Never use inside a filter's "getframe" function.
+
+----------
+
+   .. _getFrameAsync:
+
+   void getFrameAsync(int n, VSNode_ \*node, VSFrameDoneCallback callback, void \*userData)
+
+      Requests the generation of a frame. When the frame is ready,
+      a user-provided function is called. Note that the completion
+      *callback* will only be called from a single thread at a time.
+      
+      This function is meant for applications using VapourSynth as a library.
+      
+      Thread-safe.
+
+      *n*
+         Frame number. Negative values will cause an error.
+
+      *node*
+         The node from which the frame is requested.
+
+      *callback*
+         typedef void (VS_CC \*VSFrameDoneCallback)(void \*userData, const VSFrame_ \*f, int n, VSNode_ \*node, const char \*errorMsg)
+
+         Function of the client application called by the core when a requested
+         frame is ready, after a call to getFrameAsync().
+
+         If multiple frames were requested, they can be returned in any order.
+         Client applications must take care of reordering them.
+
+         This function is only ever called from one thread at a time.
+
+         getFrameAsync() may be called from this function to request more
+         frames.
+
+         *userData*
+            Pointer to private data from the client application, as passed
+            previously to getFrameAsync().
+
+         *f*
+            Contains a reference to the generated frame, or NULL in case of failure.
+            The ownership of the frame is transferred to the caller.
+
+         *n*
+            The frame number.
+
+         *node*
+            Node the frame belongs to.
+
+         *errorMsg*
+            String that usually contains an error message if the frame
+            generation failed. NULL if there is no error.
+
+      *userData*
+         Pointer passed to the callback.
+
+      .. warning::
+         Never use inside a filter's "getframe" function.
+
+----------
+
+   .. _getFrameFilter:
+
+   const VSFrame_ \*getFrameFilter(int n, VSNode_ \*node, VSFrameContext_ \*frameCtx)
+
+      Retrieves a frame that was previously requested with
+      requestFrameFilter_\ ().
+
+      Only use inside a filter's "getframe" function.
+
+      A filter usually calls this function when its activation reason is
+      arAllFramesReady or arFrameReady. See VSActivationReason_.
+
+      It is safe to retrieve a frame more than once, but each reference
+      needs to be freed.
+
+      *n*
+         The frame number.
+
+      *node*
+         The node from which the frame is retrieved.
+
+      *frameCtx*
+         The context passed to the filter's "getframe" function.
+
+      Returns a pointer to the requested frame, or NULL if the requested frame
+      is not available for any reason. The ownership of the frame is
+      transferred to the caller.
+
+----------
+
+   .. _requestFrameFilter:
+
+   void requestFrameFilter(int n, VSNode_ \*node, VSFrameContext_ \*frameCtx)
+
+      Requests a frame from a node and returns immediately.
+
+      Only use inside a filter's "getframe" function.
+
+      A filter usually calls this function when its activation reason is
+      arInitial. The requested frame can then be retrieved using
+      getFrameFilter_\ (), when the filter's activation reason is
+      arAllFramesReady. See VSActivationReason_.
+
+      It is best to request frames in ascending order, i.e. n, n+1, n+2, etc.
+
+      *n*
+         The frame number. Negative values will cause an error.
+
+      *node*
+         The node from which the frame is requested.
+
+      *frameCtx*
+         The context passed to the filter's "getframe" function.
+         
+----------
+
+   .. _releaseFrameEarly:
+
+   void releaseFrameEarly(VSNode_ \*node, int n, VSFrameContext_ \*frameCtx)
+
+      By default all requested frames are referenced until a filter's frame
+      request is done. In extreme cases where a filter needs to reduce 20+
+      frames into a single output frame it may be beneficial to request
+      these in batches and incrementally process the data instead.
+      
+      Should rarely be needed.
+
+      Only use inside a filter's "getframe" function.
+      
+      *node*
+         The node from which the frame was requested.
+         
+      *n*
+         The frame number. Invalid frame numbers (not cached or negative) will simply be ignored.
+
+      *frameCtx*
+         The context passed to the filter's "getframe" function.
+
+----------
+
+   .. _registerFunction:
+
+   void registerFunction(const char \*name, const char \*args, VSPublicFunction argsFunc, void \*functionData, VSPlugin_ \*plugin)
+
+      See VSInitPlugin_.
+
+----------
+
+   .. _cacheFrame:
+
+   void cacheFrame(const VSFrame *frame, int n, VSFrameContext_ \*frameCtx)
+
+      Pushes a not requested frame into the cache. This is useful for (source) filters that greatly
+      benefit from completely linear access and producing all output in linear order.
+ 
+      This function may only be used in filters that were created with setLinearFilter_.
+
+      Only use inside a filter's "getframe" function.
+      
+----------
+
    .. _setFilterError:
 
    void setFilterError(const char \*errorMessage, VSFrameContext_ \*frameCtx)
@@ -2476,19 +2596,6 @@ struct VSAPI
       This is the way to report errors in a filter's "getframe" function.
       Such errors are not necessarily fatal, i.e. the caller can try to
       request the same frame again.
-
-----------
-
-   .. _releaseFrameEarly:
-
-   void releaseFrameEarly(VSNode_ \*node, int n, VSFrameContext_ \*frameCtx)
-
-      Normally a reference is kept to all requested frames until the current frame is complete.
-      If a filter scans a large number of frames this can consume all memory, instead the filter
-      should release the internal frame references as well immediately by calling this function.
-
-      Only use inside a filter's "getframe" function.
-
 
 Functions
 #########
