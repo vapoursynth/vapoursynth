@@ -27,9 +27,7 @@
 #include "VSHelper4.h"
 #include "filtershared.h"
 
-namespace {
-std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
-} // namespace
+using namespace std::string_literals;
 
 //////////////////////////////////////////
 // BoxBlur
@@ -392,7 +390,7 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     } catch (const std::exception &e) {
         vsapi->freeNode(node);
-        RETERROR(("BoxBlur: "_s + e.what()).c_str());
+        RETERROR(("BoxBlur: "s + e.what()).c_str());
     }
 }
 

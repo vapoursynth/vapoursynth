@@ -39,8 +39,8 @@
 #endif
 
 namespace {
-std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
 
+using namespace std::string_literals;
 using namespace vsh;
 
 ///////////////////////////////////////
@@ -279,7 +279,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
     } catch (const std::runtime_error &e) {
         for (auto iter : d->nodes)
             vsapi->freeNode(iter);
-        vsapi->mapSetError(out, ("AverageFrames: "_s + e.what()).c_str());
+        vsapi->mapSetError(out, ("AverageFrames: "s + e.what()).c_str());
         return;
     }
 
