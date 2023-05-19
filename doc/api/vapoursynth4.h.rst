@@ -195,12 +195,10 @@ Structs_
           * freeMap_
 
           * clearMap_
-          
-          * copyMap_
-
-          * mapSetError_
 
           * mapGetError_
+          
+          * mapSetError_
 
           * mapNumKeys_
 
@@ -1884,6 +1882,16 @@ struct VSAPI
 
 ----------
 
+   .. _mapGetError:
+
+   const char \*mapGetError(const VSMap_ \*map)
+
+      Returns a pointer to the error message contained in the map,
+      or NULL if there is no error set. The pointer is valid until
+      the next modifying operation on the map.
+
+----------
+
    .. _mapSetError:
 
    void mapSetError(VSMap_ \*map, const char \*errorMessage)
@@ -1894,17 +1902,7 @@ struct VSAPI
 
       For errors encountered in a filter's "getframe" function, use
       setFilterError_.
-
-----------
-
-   .. _mapGetError:
-
-   const char \*mapGetError(const VSMap_ \*map)
-
-      Returns a pointer to the error message contained in the map,
-      or NULL if there is no error set. The pointer is valid until
-      the next modifying operation on the map.
-
+      
 ----------
 
    .. _mapNumKeys:
@@ -1938,6 +1936,15 @@ struct VSAPI
 
 ----------
 
+   .. _mapNumElements:
+
+   int mapNumElements(const VSMap_ \*map, const char \*key)
+
+      Returns the number of elements associated with a key in a property map.
+      Returns -1 if there is no such key in the map.
+
+----------
+
    .. _mapGetType:
 
    int mapGetType(const VSMap_ \*map, const char \*key)
@@ -1946,15 +1953,16 @@ struct VSAPI
       of elements in the given key. If there is no such key in the
       map, the returned value is ptUnset. Note that also empty
       arrays created with mapSetEmpty_ are typed.
-
+      
 ----------
 
-   .. _mapNumElements:
+   .. _mapSetEmpty:
 
-   int mapNumElements(const VSMap_ \*map, const char \*key)
+   int mapSetEmpty(const VSMap_ \*map, const char \*key, int type)
 
-      Returns the number of elements associated with a key in a property map.
-      Returns -1 if there is no such key in the map.
+      Creates an empty array of *type* in *key*. Returns non-zero
+      value on failure due to *key* already existing or having an
+      invalid name.
 
 ----------
 
@@ -1981,6 +1989,15 @@ struct VSAPI
          You may pass NULL here, but then any problems encountered while
          retrieving the property will cause VapourSynth to die with a fatal
          error.
+         
+----------
+
+   .. _mapGetIntSaturated:
+
+   int mapGetIntSaturated(const VSMap_ \*map, const char \*key, int index, int \*error)
+
+      Works just like mapGetInt_\ () except that the value returned is also
+      converted to an integer using saturation.
 
 ----------
 
@@ -1995,123 +2012,6 @@ struct VSAPI
       Returns a pointer to the first element of the array on success, or NULL
       in case of error. Use mapNumElements_\ () to know the total number of
       elements associated with a key.
-
-      See mapGetInt_\ () for a complete description of the arguments and general behavior.
-
-----------
-
-   .. _mapGetFloat:
-
-   double mapGetFloat(const VSMap_ \*map, const char \*key, int index, int \*error)
-
-      Retrieves a floating point number from a map.
-
-      Returns the number on success, or 0 in case of error.
-
-      See mapGetInt_\ () for a complete description of the arguments and general behavior.
-
-----------
-
-   .. _mapGetFloatArray:
-
-   const double \*mapGetFloatArray(const VSMap_ \*map, const char \*key, int \*error)
-   
-      Retrieves an array of floating point numbers from a map. Use this function if there
-      are a lot of numbers associated with a key, because it is faster than
-      calling mapGetFloat_\ () in a loop.
-
-      Returns a pointer to the first element of the array on success, or NULL
-      in case of error. Use mapNumElements_\ () to know the total number of
-      elements associated with a key.
-
-      See mapGetInt_\ () for a complete description of the arguments and general behavior.
-
-----------
-
-   .. _mapGetData:
-
-   const char \*mapGetData(const VSMap_ \*map, const char \*key, int index, int \*error)
-
-      Retrieves arbitrary binary data from a map. Checking mapGetDataTypeHint_\ ()
-      may provide a hint about whether or not the data is human readable.
-
-      Returns a pointer to the data on success, or NULL in case of error.
-
-      The array returned is guaranteed to be NULL-terminated. The NULL
-      byte is not considered to be part of the array (mapGetDataSize_
-      doesn't count it).
-
-      The pointer is valid until the map is destroyed, or until the
-      corresponding key is removed from the map or altered.
-
-      See mapGetInt_\ () for a complete description of the arguments and general behavior.
-
-----------
-
-   .. _mapGetDataSize:
-
-   int mapGetDataSize(const VSMap_ \*map, const char \*key, int index, int \*error)
-
-      Returns the size in bytes of a property of type ptData (see
-      VSPropTypes_), or 0 in case of error. The terminating NULL byte
-      added by mapSetData_\ () is not counted.
-      
-      See mapGetInt_\ () for a complete description of the arguments and general behavior.
-
-----------
-
-   .. _mapGetDataTypeHint:
-
-   int mapGetDataTypeHint(const VSMap_ \*map, const char \*key, int index, int \*error)
-
-      Returns the size in bytes of a property of type ptData (see
-      VSPropTypes_), or 0 in case of error. The terminating NULL byte
-      added by mapSetData_\ () is not counted.
-      
-      See mapGetInt_\ () for a complete description of the arguments and general behavior.
-
-----------
-
-   .. _mapGetNode:
-
-   VSNode_ \*mapGetNode(const VSMap_ \*map, const char \*key, int index, int \*error)
-
-      Retrieves a node from a map.
-
-      Returns a pointer to the node on success, or NULL in case of error.
-
-      This function increases the node's reference count, so freeNode_\ () must
-      be used when the node is no longer needed.
-
-      See mapGetInt_\ () for a complete description of the arguments and general behavior.
-
-----------
-
-   .. _mapGetFrame:
-
-   const VSFrame_ \*propGetFrame(const VSMap_ \*map, const char \*key, int index, int \*error)
-
-      Retrieves a frame from a map.
-
-      Returns a pointer to the frame on success, or NULL in case of error.
-
-      This function increases the frame's reference count, so freeFrame_\ () must
-      be used when the frame is no longer needed.
-
-      See mapGetInt_\ () for a complete description of the arguments and general behavior.
-
-----------
-
-   .. _mapGetFunction:
-
-   VSFunctionRef_ \*mapGetFunc(const VSMap_ \*map, const char \*key, int index, int \*error)
-
-      Retrieves a function from a map.
-
-      Returns a pointer to the function on success, or NULL in case of error.
-
-      This function increases the function's reference count, so freeFunc_\ () must
-      be used when the function is no longer needed.
 
       See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
@@ -2168,6 +2068,43 @@ struct VSAPI
 
 ----------
 
+   .. _mapGetFloat:
+
+   double mapGetFloat(const VSMap_ \*map, const char \*key, int index, int \*error)
+
+      Retrieves a floating point number from a map.
+
+      Returns the number on success, or 0 in case of error.
+
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
+
+----------
+
+   .. _mapGetFloatSaturated:
+
+   float mapGetFloatSaturated(const VSMap_ \*map, const char \*key, int index, int \*error)
+
+      Works just like mapGetFloat_\ () except that the value returned is also
+      converted to a float.
+
+----------
+
+   .. _mapGetFloatArray:
+
+   const double \*mapGetFloatArray(const VSMap_ \*map, const char \*key, int \*error)
+   
+      Retrieves an array of floating point numbers from a map. Use this function if there
+      are a lot of numbers associated with a key, because it is faster than
+      calling mapGetFloat_\ () in a loop.
+
+      Returns a pointer to the first element of the array on success, or NULL
+      in case of error. Use mapNumElements_\ () to know the total number of
+      elements associated with a key.
+
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
+
+----------
+
    .. _mapSetFloat:
 
    int mapSetFloat(VSMap_ \*map, const char \*key, double d, int append)
@@ -2202,6 +2139,50 @@ struct VSAPI
          will be created empty.
 
       Returns 0 on success, or 1 if *size* is negative.
+
+----------
+
+   .. _mapGetData:
+
+   const char \*mapGetData(const VSMap_ \*map, const char \*key, int index, int \*error)
+
+      Retrieves arbitrary binary data from a map. Checking mapGetDataTypeHint_\ ()
+      may provide a hint about whether or not the data is human readable.
+
+      Returns a pointer to the data on success, or NULL in case of error.
+
+      The array returned is guaranteed to be NULL-terminated. The NULL
+      byte is not considered to be part of the array (mapGetDataSize_
+      doesn't count it).
+
+      The pointer is valid until the map is destroyed, or until the
+      corresponding key is removed from the map or altered.
+
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
+
+----------
+
+   .. _mapGetDataSize:
+
+   int mapGetDataSize(const VSMap_ \*map, const char \*key, int index, int \*error)
+
+      Returns the size in bytes of a property of type ptData (see
+      VSPropTypes_), or 0 in case of error. The terminating NULL byte
+      added by mapSetData_\ () is not counted.
+      
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
+
+----------
+
+   .. _mapGetDataTypeHint:
+
+   int mapGetDataTypeHint(const VSMap_ \*map, const char \*key, int index, int \*error)
+
+      Returns the size in bytes of a property of type ptData (see
+      VSPropTypes_), or 0 in case of error. The terminating NULL byte
+      added by mapSetData_\ () is not counted.
+      
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
 
@@ -2240,6 +2221,21 @@ struct VSAPI
 
 ----------
 
+   .. _mapGetNode:
+
+   VSNode_ \*mapGetNode(const VSMap_ \*map, const char \*key, int index, int \*error)
+
+      Retrieves a node from a map.
+
+      Returns a pointer to the node on success, or NULL in case of error.
+
+      This function increases the node's reference count, so freeNode_\ () must
+      be used when the node is no longer needed.
+
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
+
+----------
+
    .. _mapSetNode:
 
    int mapSetNode(VSMap_ \*map, const char \*key, VSNode_ \*node, int append)
@@ -2260,6 +2256,21 @@ struct VSAPI
 
 ----------
 
+   .. _mapGetFrame:
+
+   const VSFrame_ \*propGetFrame(const VSMap_ \*map, const char \*key, int index, int \*error)
+
+      Retrieves a frame from a map.
+
+      Returns a pointer to the frame on success, or NULL in case of error.
+
+      This function increases the frame's reference count, so freeFrame_\ () must
+      be used when the frame is no longer needed.
+
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
+      
+----------
+
    .. _mapSetFrame:
 
    int mapSetFrame(VSMap_ \*map, const char \*key, const VSFrame_ \*f, int append)
@@ -2278,6 +2289,21 @@ struct VSAPI
 
       See mapSetInt_\ () for a complete description of the arguments and general behavior.
 
+----------
+
+   .. _mapGetFunction:
+
+   VSFunctionRef_ \*mapGetFunc(const VSMap_ \*map, const char \*key, int index, int \*error)
+
+      Retrieves a function from a map.
+
+      Returns a pointer to the function on success, or NULL in case of error.
+
+      This function increases the function's reference count, so freeFunc_\ () must
+      be used when the function is no longer needed.
+
+      See mapGetInt_\ () for a complete description of the arguments and general behavior.
+      
 ----------
 
    .. _mapSetFunction:
