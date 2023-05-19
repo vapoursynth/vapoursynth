@@ -1,5 +1,5 @@
-VapourSynth.h
-=============
+VapourSynth4.h
+==============
 
 Table of contents
 #################
