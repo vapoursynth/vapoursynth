@@ -2567,9 +2567,118 @@ struct VSAPI
 
    .. _registerFunction:
 
-   void registerFunction(const char \*name, const char \*args, VSPublicFunction argsFunc, void \*functionData, VSPlugin_ \*plugin)
+   int registerFunction(const char \*name, const char \*args, const char \*returnType, VSPublicFunction argsFunc, void \*functionData, VSPlugin_ \*plugin)
 
-      See VSInitPlugin_.
+      Function that registers a filter exported by the plugin. A plugin can
+      export any number of filters. This function may only be called during the plugin
+      loading phase unless the pcModifiable flag was set by configPlugin_.
+
+      *name*
+         Filter name. The characters allowed are letters, numbers, and the
+         underscore. The first character must be a letter. In other words:
+         ``^[a-zA-Z][a-zA-Z0-9_]*$``
+
+         Filter names *should be* PascalCase.
+
+      *args*
+         String containing the filter's list of arguments.
+
+         Arguments are separated by a semicolon. Each argument is made of
+         several fields separated by a colon. Don't insert additional
+         whitespace characters, or VapourSynth will die.
+
+         Fields:
+            The argument name.
+               The same characters are allowed as for the filter's name.
+               Argument names *should be* all lowercase and use only letters
+               and the underscore.
+
+            The type.
+               "int": int64_t
+
+               "float": double
+
+               "data": const char*
+
+               "anode": const VSNode_\ * (audio type)
+
+               "vnode": const VSNode_\ * (video type)
+
+               "aframe": const VSFrame_\ * (audio type)
+               
+               "vframe": const VSFrame_\ * (video type)
+
+               "func": const VSFuncRef_\ *
+
+               It is possible to declare an array by appending "[]" to the type.
+
+            "opt"
+               If the parameter is optional.
+
+            "empty"
+               For arrays that are allowed to be empty.
+               
+            "any"
+               Can only be placed last without a semicolon after. Indicates that all remaining arguments that don't match
+               should also be passed through.
+
+         The following example declares the arguments "blah", "moo", and "asdf"::
+
+            blah:vnode;moo:int[]:opt;asdf:float:opt;
+            
+         The following example declares the arguments "blah" and accepts all other arguments no matter the type::
+
+            blah:vnode;any
+
+      *returnType*
+         Specifies works similarly to *args* but instead specifies which keys and what type will be returned. Typically this will be::
+         
+            clip:vnode; 
+            
+         for video filters. It is important to not simply specify "any" for all filters since this information is used for better
+         auto-completion in many editors.
+
+      *argsFunc*
+         typedef void (VS_CC \*VSPublicFunction)(const VSMap_ \*in, VSMap_ \*out, void \*userData, VSCore_ \*core, const VSAPI_ \*vsapi)
+
+         User-defined function called by the core to create an instance of the
+         filter. This function is often named ``fooCreate``.
+
+         In this function, the filter's input parameters should be retrieved
+         and validated, the filter's private instance data should be
+         initialised, and createAudioFilter_\ () or createVideoFilter_\ () should be called. This is where
+         the filter should perform any other initialisation it requires.
+
+         If for some reason you cannot create the filter, you have to free any
+         created node references using freeNode_\ (), call mapSetError_\ () on
+         *out*, and return.
+
+         *in*
+            Input parameter list.
+
+            Use propGetInt_\ () and friends to retrieve a parameter value.
+
+            The map is guaranteed to exist only until the filter's "init"
+            function returns. In other words, pointers returned by
+            propGetData_\ () will not be usable in the filter's "getframe" and
+            "free" functions.
+
+         *out*
+            Output parameter list. createFilter_\ () will add the output
+            node(s) with the key named "clip", or an error, if something went
+            wrong.
+
+         *userData*
+            Pointer that was passed to registerFunction_\ ().
+
+      *functionData*
+         Pointer to user data that gets passed to *argsFunc* when creating a
+         filter. Useful to register multiple filters using a single *argsFunc*
+         function.
+
+      *plugin*
+         Pointer to the plugin object in the core, as passed to
+         VapourSynthPluginInit2().
 
 ----------
 
@@ -2634,154 +2743,25 @@ in the VapourSynth source contains some examples.
 
 .. _VSInitPlugin:
 
-typedef void (VS_CC \*VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin_ \*plugin)
+typedef void (VS_CC \*VSInitPlugin)(VSPlugin_ \*plugin, const VSPLUGINAPI_ \*vspapi)
 
    A plugin's entry point. It must be called ``VapourSynthPluginInit2``.
    This function is called after the core loads the shared library. Its purpose
    is to configure the plugin and to register the filters the plugin wants to
    export.
 
-   *configFunc*
-      typedef void (VS_CC \*VSConfigPlugin)(const char \*identifier, const char \*defaultNamespace, const char \*name, int apiVersion, int readonly, VSPlugin_ \*plugin)
-
-      Configures the plugin. Call **once**, before calling *registerFunc*.
-
-      *identifier*
-         Reverse URL that must uniquely identify the plugin.
-
-         If you don't own a domain then make one up that's related to the
-         plugin name.
-
-         Example: "com.vapoursynth.std"
-
-      *defaultNamespace*
-         Namespace where the plugin's filters will go. This, too, must be
-         unique.
-
-         Only lowercase letters and the underscore should be used, and it
-         shouldn't be too long. Additionally, words that are special to
-         Python, e.g. "del", should be avoided.
-
-         Example: "resize"
-
-      *name*
-         Plugin name in readable form.
-
-      *apiVersion*
-         The VapourSynth API version the plugin uses.
-
-         Use the VAPOURSYNTH_API_VERSION_ macro.
-
-      *readonly*
-         If set to 0, the plugin can export new filters after initialisation.
-         The built-in Avisynth compat plugin uses this feature to add filters
-         at runtime, as they are loaded. Most plugins should set this to 1.
-
-      *plugin*
-         Pointer to the plugin object in the core, as passed to
-         VapourSynthPluginInit2().
-
-   *registerFunc*
-      typedef void (VS_CC \*VSRegisterFunction)(const char \*name, const char \*args, VSPublicFunction argsFunc, void \*functionData, VSPlugin_ \*plugin)
-
-      Function that registers a filter exported by the plugin. A plugin can
-      export any number of filters.
-
-      *name*
-         Filter name. The characters allowed are letters, numbers, and the
-         underscore. The first character must be a letter. In other words:
-         ``^[a-zA-Z][a-zA-Z0-9_]*$``
-
-         Filter names *should be* PascalCase.
-
-      *args*
-         String containing the filter's list of arguments.
-
-         Arguments are separated by a semicolon. Each argument is made of
-         several fields separated by a colon. Don't insert additional
-         whitespace characters, or VapourSynth will die.
-
-         Fields:
-            The argument name.
-               The same characters are allowed as for the filter's name.
-               Argument names *should be* all lowercase and use only letters
-               and the underscore.
-
-            The type.
-               "int": int64_t
-
-               "float": double
-
-               "data": const char*
-
-               "clip": const VSNode_\ *
-
-               "frame": const VSFrame_\ *
-
-               "func": const VSFuncRef_\ *
-
-               It is possible to declare an array by appending "[]" to the type.
-
-            "opt"
-               If the parameter is optional.
-
-            "empty"
-               For arrays that are allowed to be empty.
-
-         The following example declares the arguments "blah", "moo", and "asdf"::
-
-            blah:clip;moo:int[]:opt;asdf:float:opt;
-
-      *argsFunc*
-         typedef void (VS_CC \*VSPublicFunction)(const VSMap_ \*in, VSMap_ \*out, void \*userData, VSCore_ \*core, const VSAPI_ \*vsapi)
-
-         User-defined function called by the core to create an instance of the
-         filter. This function is often named ``fooCreate``.
-
-         In this function, the filter's input parameters should be retrieved
-         and validated, the filter's private instance data should be
-         initialised, and createFilter_\ () should be called. This is where
-         the filter should perform any other initialisation it requires.
-
-         If for some reason you cannot create the filter, you have to free any
-         created node references using freeNode_\ (), call setError_\ () on
-         *out*, and return.
-
-         *in*
-            Input parameter list.
-
-            Use propGetInt_\ () and friends to retrieve a parameter value.
-
-            The map is guaranteed to exist only until the filter's "init"
-            function returns. In other words, pointers returned by
-            propGetData_\ () will not be usable in the filter's "getframe" and
-            "free" functions.
-
-         *out*
-            Output parameter list. createFilter_\ () will add the output
-            node(s) with the key named "clip", or an error, if something went
-            wrong.
-
-         *userData*
-            Pointer that was passed to registerFunction_\ ().
-
-      *functionData*
-         Pointer to user data that gets passed to *argsFunc* when creating a
-         filter. Useful to register multiple filters using a single *argsFunc*
-         function.
-
-      *plugin*
-         Pointer to the plugin object in the core, as passed to
-         VapourSynthPluginInit2().
-
    *plugin*
-      The plugin object in the core. Pass to *configFunc* and *registerFunc*.
+      A pointer to the plugin object to be initialized.
+
+   *vspapi*
+      A pointer to a VSPLUGINAPI_ struct with a subset of the VapourSynth API used for initializing plugins.
+      The proper way to do things is to call configPlugin_ and then registerFunction_ for each function to export.
 
 ----------
 
 .. _VSFilterGetFrame:
 
-typedef const VSFrame_ \*(VS_CC \*VSFilterGetFrame)(int n, int activationReason, void \**instanceData, void \**frameData, VSFrameContext_ \*frameCtx, VSCore_ \*core, const VSAPI_ \*vsapi)
+typedef const VSFrame_ \*(VS_CC \*VSFilterGetFrame)(int n, int activationReason, void \*instanceData, void \**frameData, VSFrameContext_ \*frameCtx, VSCore_ \*core, const VSAPI_ \*vsapi)
 
    A filter's "getframe" function. It is called by the core when it needs
    the filter to generate a frame.
@@ -2806,14 +2786,12 @@ typedef const VSFrame_ \*(VS_CC \*VSFilterGetFrame)(int n, int activationReason,
       This function is first called with *activationReason* arInitial. At this
       point the function should request the input frames it needs and return
       NULL. When one or all of the requested frames are ready, this function
-      is called again with *activationReason* arFrameReady or arAllFramesReady.
+      is called again with arAllFramesReady.
       The function should only return a frame when called with
       *activationReason* arAllFramesReady.
 
-      In the case of arFrameReady, use queryCompletedFrame_\ () to find out
-      which of the requested frames is ready.
-
-      Most filters will only need to handle arInitial and arAllFramesReady.
+      If a the function is called with arError all processing has to be aborted
+      and any.
 
    *instanceData*
       The filter's private instance data.
@@ -2823,7 +2801,8 @@ typedef const VSFrame_ \*(VS_CC \*VSFilterGetFrame)(int n, int activationReason,
       It must be deallocated before the last call for the given frame
       (arAllFramesReady or error).
 
-      By default, *frameData* is a pointer to NULL.
+      It points to a void *[4] array of memory that may be used freely.
+      See filters like Splice and Trim for examples.
 
    Return a reference to the output frame number *n* when it is ready, or NULL.
    The ownership of the frame is transferred to the caller.
