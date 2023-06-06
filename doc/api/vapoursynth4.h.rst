@@ -385,7 +385,7 @@ Major API version.
 VAPOURSYNTH_API_MINOR
 ---------------------
 
-Minor API version. It is bumped when new functions are added to VSAPI_ or core behavior is noticably changed.
+Minor API version. It is bumped when new functions are added to VSAPI_ or core behavior is noticeably changed.
 
 
 VAPOURSYNTH_API_VERSION
@@ -1757,7 +1757,7 @@ struct VSAPI
          For floating point formats only 32 bits are allowed.
 
       *channelLayout*
-         A bitmask contructed from bitshifted constants in VSAudioChannels_. For example stereo is expressed as (1 << acFrontLeft) | (1 << acFrontRight).
+         A bitmask constructed from bitshifted constants in VSAudioChannels_. For example stereo is expressed as (1 << acFrontLeft) | (1 << acFrontRight).
 
       Returns non-zero on success.
           

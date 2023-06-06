@@ -258,7 +258,7 @@ getAltOutputMode
 .. c:function:: int getAltOutputMode(VSScript *handle, int index)
 
     Retrieves the alternative output mode settings from the script. This value has no fixed meaning but in vspipe and vsvfw it
-    indicates that alternate output formats should be used when multipe ones are available. It is up to the client application to define the exact meaning or simply disregard it completely.
+    indicates that alternate output formats should be used when multiple ones are available. It is up to the client application to define the exact meaning or simply disregard it completely.
 
     Returns 0 if there is no alt output mode set.
 
