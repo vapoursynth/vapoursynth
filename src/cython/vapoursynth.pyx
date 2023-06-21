@@ -573,7 +573,7 @@ def _construct_parameter(signature):
         default=default_value, annotation=type
     )
 
-def construct_signature(signature, return_signature, injected=None):
+def construct_signature(signature, return_signature, injected=None, name=None):
     if isinstance(signature, vapoursynth.Function):
         signature = signature.signature
 
@@ -587,17 +587,22 @@ def construct_signature(signature, return_signature, injected=None):
         del params[0]
 
     return_annotations = list(
-        _construct_parameter(rparam).annotation
+        _construct_parameter(rparam)
         for rparam in return_signature.split(";")
         if rparam
     )
 
-    if len(return_annotations) == 0:
+    if not return_annotations:
         return_annotation = None
     elif len(return_annotations) == 1:
-        return_annotation = return_annotations.pop()
+        return_annotation = return_annotations.pop().annotation
     else:
-        return_annotation = typing.Tuple[typing.Any, ...]
+        ret_dict_name = f'_ReturnDict_{name}' if name else '_ReturnDict'
+        return_annotation = typing.TypedDict(
+            ret_dict_name, {ret_ann.name: ret_ann.annotation for ret_ann in return_annotations}, total=True
+        )
+        return_annotation.__module__ = Exception.__module__
+
 
     return inspect.Signature(tuple(params), return_annotation=return_annotation)
 
@@ -2751,7 +2756,11 @@ cdef class Function(object):
 
     @property
     def __signature__(self):
-        return construct_signature(self.signature, self.return_signature, injected=self.plugin.injected_arg)
+        return construct_signature(
+            self.signature, self.return_signature,
+            name=f'{self.plugin.namespace}_{self.name}',
+            injected=self.plugin.injected_arg
+        )
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
