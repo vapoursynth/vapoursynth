@@ -1,12 +1,12 @@
-CURRENT_RELEASE = "63"
-
 # Always prefer setuptools over distutils
-from setuptools import setup, find_packages
+from setuptools import setup
 from platform import architecture
-from codecs import open
 
 import os
-from os import listdir, path
+from os import path
+from pathlib import Path
+
+CURRENT_RELEASE = Path(__file__).resolve().parent.with_name('VERSION').read_text('utf8').strip().split('-')[0]
 
 try:
     from wheel.bdist_wheel import bdist_wheel as _bdist_wheel

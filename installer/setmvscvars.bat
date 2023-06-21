@@ -1,5 +1,17 @@
 @REM @echo off
 
+SET CURRENT_VERSION=
+SET CURRENT_VERSION_EXTRA=
+SET /p VERSION_STRING=<../version
+
+FOR /f "tokens=1,2 delims=-" %%a in ("%VERSION_STRING%") do (
+    SET CURRENT_VERSION=%%a
+    SET CURRENT_VERSION_EXTRA=%%b
+    IF DEFINED CURRENT_VERSION_EXTRA (
+        SET "CURRENT_VERSION_EXTRA=-%%b"
+    ) 
+)
+
 IF NOT DEFINED MSBuildPTH GOTO setmvscpath
 IF NOT EXIST MSBuildPTH GOTO setmvscpath
 

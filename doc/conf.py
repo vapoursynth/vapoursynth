@@ -12,6 +12,7 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
+from pathlib import Path
 import sys, os
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -49,7 +50,7 @@ copyright = '2012-2023, Fredrik Mellbin'
 # built documents.
 #
 # The short X.Y version.
-version = 'R63'
+version = 'R' + Path(__file__).resolve().parent.with_name('VERSION').read_text('utf8').strip().split('-')[0]
 # The full version, including alpha/beta/rc tags.
 release = version
 
