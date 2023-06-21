@@ -1,5 +1,8 @@
 # vapoursynth
-[![Windows](https://github.com/vapoursynth/vapoursynth/actions/workflows/windows.yml/badge.svg)](https://github.com/vapoursynth/vapoursynth/actions/workflows/windows.yml) [![Linux](https://github.com/vapoursynth/vapoursynth/actions/workflows/linux.yml/badge.svg)](https://github.com/vapoursynth/vapoursynth/actions/workflows/linux.yml) [![macOS](https://github.com/vapoursynth/vapoursynth/actions/workflows/macos.yml/badge.svg)](https://github.com/vapoursynth/vapoursynth/actions/workflows/macos.yml)
+[![Windows](https://github.com/vapoursynth/vapoursynth/actions/workflows/windows.yml/badge.svg)](https://github.com/vapoursynth/vapoursynth/actions/workflows/windows.yml)
+[![Linux](https://github.com/vapoursynth/vapoursynth/actions/workflows/linux.yml/badge.svg)](https://github.com/vapoursynth/vapoursynth/actions/workflows/linux.yml)
+[![macOS](https://github.com/vapoursynth/vapoursynth/actions/workflows/macos.yml/badge.svg)](https://github.com/vapoursynth/vapoursynth/actions/workflows/macos.yml)
+[![codespell](https://github.com/vapoursynth/vapoursynth/actions/workflows/codespell.yml/badge.svg)](https://github.com/vapoursynth/vapoursynth/actions/workflows/codespell.yml)
 
 *A video processing framework with simplicity in mind*
 

@@ -140,6 +140,12 @@ static inline uint16_t doubleToHalfPixelValue(double v, int *err) {
 // Cache compatibility filter, does nothing
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    int err;
+    bool makeLinear = !!vsapi->mapGetInt(in, "make_linear", 0, &err);
+    if (makeLinear)
+        vsapi->logMessage(mtCritical, "Explicitly instantiated a Cache with make_linear set. This is no longer possible and the original clip has been passed through instead which may cause severe issues.", core);
+    else
+        vsapi->logMessage(mtWarning, "Explicitly instantiated a Cache. This is no longer possible and the original clip has been passed through instead.", core);
     vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clip", 0, nullptr), maAppend);
 }
 

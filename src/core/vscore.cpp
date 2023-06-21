@@ -746,7 +746,7 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame 
         throw VSException("The VSAudioInfo structure passed by " + name + " is invalid.");
 
     this->ai = *ai;
-    int64_t maxSamples =  std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
+    constexpr int64_t maxSamples = std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
     if (this->ai.numSamples > maxSamples)
         throw VSException("Filter " + name + " specified " + std::to_string(this->ai.numSamples) + " output samples but " + std::to_string(maxSamples) + " samples is the upper limit");
     this->ai.numFrames = static_cast<int>((this->ai.numSamples + VS_AUDIO_FRAME_SAMPLES - 1) / VS_AUDIO_FRAME_SAMPLES);

@@ -61,7 +61,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         INTEGER "stInteger"
         FLOAT "stFloat"
 
-    cpdef enum PresetFormat "VSPresetFormat":
+    cpdef enum PresetVideoFormat "VSPresetVideoFormat":
         NONE "pfNone"
 
         GRAY8 "pfGray8"

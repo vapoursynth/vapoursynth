@@ -467,7 +467,7 @@ static void VS_CC audioGainCreate(const VSMap *in, VSMap *out, void *userData, V
     std::unique_ptr<AudioGainData> d(new AudioGainData(vsapi));
     int numGainValues = vsapi->mapNumElements(in, "gain");
     for (int i = 0; i < numGainValues; i++)
-        d->gain.push_back(vsapi->mapGetFloat(in, "gain", i, nullptr));
+        d->gain.push_back(vsapi->mapGetFloatSaturated(in, "gain", i, nullptr));
 
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->ai = vsapi->getAudioInfo(d->node);

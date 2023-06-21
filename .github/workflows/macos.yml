@@ -6,12 +6,13 @@ jobs:
   build-clang:
     runs-on: macos-latest
 
-    env:
-      CC: clang
-      CXX: clang++
-
     steps:
     - uses: actions/checkout@v3
+
+    - name: Set CC and CXX to use Clang/LLVM 15
+      run: |
+        echo "CC=$(brew --prefix llvm@15)/bin/clang" >> $GITHUB_ENV
+        echo "CXX=$(brew --prefix llvm@15)/bin/clang++" >> $GITHUB_ENV
 
     - name: Print compiler version
       run: ${{ env.CC }} --version
@@ -32,19 +33,15 @@ jobs:
         popd
         rm -rf zimg
 
-    - name: Setup Python
-      uses: actions/setup-python@v3
+    - uses: actions/setup-python@v4
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: '3.11'
 
-    - name: Install cython
+    - name: Install/upgrade required Python packages
       run: |
-        python -m pip install --upgrade pip
-        pip install cython
-
-    - name: Set PKG_CONFIG_PATH
-      run: echo "PKG_CONFIG_PATH=$pythonLocation/lib/pkgconfig" >> $GITHUB_ENV
+        python -m pip install -U pip
+        pip install -U cython setuptools wheel
 
     - name: configure
       run: |

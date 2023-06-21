@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -40,7 +41,7 @@ using namespace vsh;
 
 namespace {
 
-std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
+using namespace std::string_literals;
 
 const std::unordered_map<std::string, zimg_cpu_type_e> g_cpu_type_table{
     { "none",      ZIMG_CPU_NONE },
@@ -149,7 +150,7 @@ const std::unordered_map<std::string, zimg_resample_filter_e> g_resample_filter_
 template <class T, class U>
 T range_check_integer(U x, const char *key) {
     if (x < std::numeric_limits<T>::min() || x > std::numeric_limits<T>::max())
-        throw std::range_error{ "value for key \""_s + key + "\" out of range" };
+        throw std::range_error{ "value for key \""s + key + "\" out of range" };
     return static_cast<T>(x);
 }
 
@@ -208,7 +209,7 @@ void translate_pixel_type(const VSVideoFormat *format, zimg_pixel_type_e *out, c
     else {
         char buffer[32];
         vsapi->getVideoFormatName(format, buffer);
-        throw std::runtime_error{ "no matching pixel type for format: "_s + buffer };
+        throw std::runtime_error{ "no matching pixel type for format: "s + buffer };
     }
 }
 
@@ -437,35 +438,12 @@ struct vszimg_userdata {
 
 
 class vszimg {
-    template <class T>
-    class optional_of {
-        T m_value;
-        bool m_is_present;
-    public:
-        optional_of() : m_value{}, m_is_present{ false } {}
-
-        optional_of(const T &x) : m_value{ x }, m_is_present{ true } {}
-
-        optional_of &operator=(const T &v) {
-            m_value = v;
-            m_is_present = true;
-            return *this;
-        }
-
-        const T &get() const {
-            assert(is_present());
-            return m_value;
-        }
-
-        bool is_present() const { return m_is_present; }
-    };
-
     struct frame_params {
-        optional_of<zimg_matrix_coefficients_e> matrix;
-        optional_of<zimg_transfer_characteristics_e> transfer;
-        optional_of<zimg_color_primaries_e> primaries;
-        optional_of<zimg_pixel_range_e> range;
-        optional_of<zimg_chroma_location_e> chromaloc;
+        std::optional<zimg_matrix_coefficients_e> matrix;
+        std::optional<zimg_transfer_characteristics_e> transfer;
+        std::optional<zimg_color_primaries_e> primaries;
+        std::optional<zimg_pixel_range_e> range;
+        std::optional<zimg_chroma_location_e> chromaloc;
     };
 
     struct graph_data {
@@ -495,19 +473,19 @@ class vszimg {
     FieldOp m_field_op = FieldOp::NONE;
 
     template <class T, class Map>
-    static void lookup_enum_str(const VSMap *map, const char *key, const Map &enum_table, optional_of<T> *out, const VSAPI *vsapi) {
+    static void lookup_enum_str(const VSMap *map, const char *key, const Map &enum_table, std::optional<T> *out, const VSAPI *vsapi) {
         if (vsapi->mapNumElements(map, key) > 0) {
             const char *enum_str = propGetScalar<const char *>(map, key, vsapi);
             auto it = enum_table.find(enum_str);
             if (it != enum_table.end())
                 *out = it->second;
             else
-                throw std::runtime_error{ "bad value: "_s + key };
+                throw std::runtime_error{ "bad value: "s + key };
         }
     }
 
     template <class T, class Map>
-    static void lookup_enum(const VSMap *map, const char *key, const Map &enum_table, optional_of<T> *out, const VSAPI *vsapi) {
+    static void lookup_enum(const VSMap *map, const char *key, const Map &enum_table, std::optional<T> *out, const VSAPI *vsapi) {
         if (vsapi->mapNumElements(map, key) > 0) {
             *out = static_cast<T>(propGetScalar<int>(map, key, vsapi));
         } else {
@@ -518,17 +496,17 @@ class vszimg {
 
     template <class T, class Map>
     static bool lookup_enum_str_opt(const VSMap *map, const char *key, const Map &enum_table, T *out, const VSAPI *vsapi) {
-        optional_of<T> opt;
+        std::optional<T> opt;
         lookup_enum_str(map, key, enum_table, &opt, vsapi);
-        if (opt.is_present())
-            *out = opt.get();
-        return opt.is_present();
+        if (opt.has_value())
+            *out = opt.value();
+        return opt.has_value();
     }
 
     template <class T>
-    static void propagate_if_present(const optional_of<T> &in, T *out) {
-        if (in.is_present())
-            *out = in.get();
+    static void propagate_if_present(const std::optional<T> &in, T *out) {
+        if (in.has_value())
+            *out = in.value();
     }
 
     vszimg(const VSMap *in, void *userData, VSCore *core, const VSAPI *vsapi)
@@ -610,7 +588,7 @@ class vszimg {
                     && dst_format.matrix_coefficients == ZIMG_MATRIX_UNSPECIFIED
                     && src_format.color_family != ZIMG_COLOR_YUV
                     && src_format.color_family != ZIMG_COLOR_GREY
-                    && !m_frame_params.matrix.is_present()) {
+                    && !m_frame_params.matrix.has_value()) {
                     throw std::runtime_error{ "Matrix must be specified when converting to YUV or GRAY from RGB" };
                 }
             }
@@ -818,7 +796,7 @@ public:
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
             vsapi->setFilterError(errmsg.c_str(), frameCtx);
         } catch (const std::exception &e) {
-            vsapi->setFilterError(("Resize error: "_s + e.what()).c_str(), frameCtx);
+            vsapi->setFilterError(("Resize error: "s + e.what()).c_str(), frameCtx);
         }
 
         vsapi->freeFrame(src_frame);
@@ -851,7 +829,7 @@ public:
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
             vsapi->mapSetError(out, errmsg.c_str());
         } catch (const std::exception &e) {
-            vsapi->mapSetError(out, ("Resize error: "_s + e.what()).c_str());
+            vsapi->mapSetError(out, ("Resize error: "s + e.what()).c_str());
         }
     }
 

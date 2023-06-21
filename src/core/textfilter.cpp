@@ -35,7 +35,7 @@ const int margin_h = 16;
 const int margin_v = 16;
 
 namespace {
-std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
+using namespace std::string_literals;
 
 typedef std::vector<std::string> stringlist;
 } // namespace
@@ -574,10 +574,10 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
             char nameBuffer[32];
             vsapi->getVideoFormatName(&d->vi->format, nameBuffer);
 
-            text += "Format name: "_s + std::string(nameBuffer) + (d->vi->format.colorFamily == cfUndefined ? "\n" : " (may vary)\n");
+            text += "Format name: "s + std::string(nameBuffer) + (d->vi->format.colorFamily == cfUndefined ? "\n" : " (may vary)\n");
 
             text += "Color family: " + colorFamilyToString(frame_format->colorFamily) + "\n";
-            text += "Sample type: "_s + (frame_format->sampleType == stInteger ? "Integer" : "Float") + "\n";
+            text += "Sample type: "s + (frame_format->sampleType == stInteger ? "Integer" : "Float") + "\n";
             text += "Bits per sample: " + std::to_string(frame_format->bitsPerSample) + "\n";
             text += "Subsampling Height/Width: " + std::to_string(1 << frame_format->subSamplingH) + "x/" + std::to_string(1 << frame_format->subSamplingW) + "x\n";
 
@@ -609,7 +609,7 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
             text += "Range: " + rangeToString(range) + "\n";
             text += "Chroma Location: " + chromaLocationToString(location) + "\n";
             text += "Field handling: " + fieldBasedToString(field) + "\n";
-            text += "Picture type: "_s + (picttype ? picttype : "Unknown") + "\n";
+            text += "Picture type: "s + (picttype ? picttype : "Unknown") + "\n";
 
             if (d->vi->fpsNum && d->vi->fpsDen) {
                 text += "Fps: " + std::to_string(d->vi->fpsNum) + "/" + std::to_string(d->vi->fpsDen) + " (" + std::to_string(static_cast<double>(d->vi->fpsNum) / d->vi->fpsDen) + ")\n";

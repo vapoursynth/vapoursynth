@@ -179,14 +179,7 @@ static inline int VSH4_MANGLE_FUNCTION_NAME(int64ToIntS)(int64_t i) {
 
 /* converts a double to float with saturation, useful to silence warnings when reading float properties among other things */
 static inline float VSH4_MANGLE_FUNCTION_NAME(doubleToFloatS)(double d) {
-    if (!isfinite(d))
-        return (float)d;
-    else if (d > FLT_MAX)
-        return FLT_MAX;
-    else if (d < -FLT_MAX)
-        return -FLT_MAX;
-    else
-        return (float)d;
+    return (float)d;
 }
 
 static inline void VSH4_MANGLE_FUNCTION_NAME(bitblt)(void *dstp, ptrdiff_t dst_stride, const void *srcp, ptrdiff_t src_stride, size_t row_size, size_t height) {

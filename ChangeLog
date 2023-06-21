@@ -1,3 +1,9 @@
+r63:
+updated all api documentation for api4
+switched to C++17 for the entire project
+added a warning every time the deprecated cache filter is instantiated and ignored
+fixed a regression with alpha nodes in vspipe introduced in r62
+
 r62:
 updated the supported python versions to 3.11 and 3.8
 now up to 500 log messages are cached when no log handler is attached

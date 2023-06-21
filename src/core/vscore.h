@@ -159,7 +159,7 @@ typedef vs_intrusive_ptr<VSArrayBase> PVSArrayBase;
 template<typename T, VSPropertyType propType>
 class VSArray final : public VSArrayBase {
 private:
-    T singleData;
+    T singleData = {};
     std::vector<T> data;
 public:
     explicit VSArray() noexcept : VSArrayBase(propType) {}
