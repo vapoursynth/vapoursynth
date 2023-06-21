@@ -574,9 +574,6 @@ def _construct_parameter(signature):
     )
 
 def construct_signature(signature, return_signature, injected=None):
-    if typing is None:
-        raise RuntimeError("At least Python 3.5 is required to use type-hinting")
-
     if isinstance(signature, vapoursynth.Function):
         signature = signature.signature
 
@@ -2754,8 +2751,6 @@ cdef class Function(object):
 
     @property
     def __signature__(self):
-        if typing is None:
-            return None
         return construct_signature(self.signature, self.return_signature, injected=self.plugin.injected_arg)
 
     def __init__(self):
