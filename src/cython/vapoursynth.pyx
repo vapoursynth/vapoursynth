@@ -45,19 +45,15 @@ import atexit
 import contextlib
 import logging
 import functools
+import typing
+import traceback
+import warnings
 from threading import local as ThreadLocal, Lock, RLock
 from types import MappingProxyType
 from collections import namedtuple
 from collections.abc import Iterable, Mapping
 from concurrent.futures import Future
 from fractions import Fraction
-
-# Ensure that the import doesn't fail
-# if typing is not available on the python installation.
-try:
-    import typing
-except ImportError as e:
-    typing = None
 
 __all__ = [
   'GRAY',
@@ -110,7 +106,6 @@ cdef class EnvironmentData(object):
 
     def __dealloc__(self):
         if self.alive:
-            import warnings
             warnings.warn(
                 "An environment is getting collected "
                 "without calling EnvironmentPolicyAPI.destroy_environment(). "
@@ -281,7 +276,6 @@ cdef class EnvironmentPolicyAPI:
                 try:
                     callback()
                 except Exception as e:
-                    import traceback
                     formatted = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
                     env.core.log_message(MessageType.MESSAGE_TYPE_CRITICAL, formatted)
 
@@ -797,7 +791,6 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNod
             try:
                 d.receive(n, result)
             except:
-                import traceback
                 traceback.print_exc()
         finally:
             Py_DECREF(d)
@@ -2896,7 +2889,6 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
 
     Note: This is apparently how python-logging does this.
     """
-    import warnings
     if file is not None:
         if _warnings_showwarning is not None:
             _warnings_showwarning(message, category, filename, lineno, file, line)
@@ -2959,7 +2951,6 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                     ret = {'val':ret}
                 dictToMap(ret, outm, core, vsapi)
         except BaseException as e:
-            import traceback
             emsg = b'\n' + ''.join(traceback.format_exception(type(e), e, e.__traceback__)).encode('utf-8')
             vsapi.mapSetError(outm, emsg)
 
@@ -2979,7 +2970,6 @@ cdef class VSScriptEnvironmentPolicy:
 
     def on_policy_registered(self, policy_api):
         global _warnings_showwarning
-        import warnings
 
         self._stack = ThreadLocal()
         self._api = policy_api
@@ -2998,7 +2988,6 @@ cdef class VSScriptEnvironmentPolicy:
 
     def on_policy_cleared(self):
         global _warnings_showwarning
-        import warnings
 
         self._env_map = None
         self._stack = None
