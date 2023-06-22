@@ -1335,6 +1335,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     tmp2 = vsapi->mapGetInt(in, "varformat", 0, &err);
     if (!err && tmp2) {
         deliveredInfo.format.colorFamily = cfUndefined;
+        deliveredInfo.format.sampleType = stInteger;
         deliveredInfo.format.bitsPerSample = 0;
         deliveredInfo.format.bytesPerSample = 0;
         deliveredInfo.format.subSamplingW = 0;
