@@ -1857,7 +1857,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
 
     if (!is8to16orFloatFormat(vi->format))
-        RETERROR(("PEMVerifier: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(vi->format, vsapi)).c_str());
+        RETERROR(invalidVideoFormatMessage(vi->format, vsapi, "PEMVerifier").c_str());
 
     if (numlower < 0) {
         for (int i = 0; i < vi->format.numPlanes; i++) {
@@ -2033,7 +2033,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node1);
 
     if (!is8to16orFloatFormat(vi->format))
-        RETERROR(("PlaneStats: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(vi->format, vsapi)).c_str());
+        RETERROR(invalidVideoFormatMessage(vi->format, vsapi, "PlaneStats").c_str());
 
     d->plane = vsapi->mapGetIntSaturated(in, "plane", 0, &err);
     if (d->plane < 0 || d->plane >= vi->format.numPlanes)

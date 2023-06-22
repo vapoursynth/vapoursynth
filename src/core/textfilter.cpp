@@ -497,11 +497,10 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
 
         const VSVideoFormat *frame_format = vsapi->getVideoFrameFormat(src);
-        if ((frame_format->sampleType == stInteger && frame_format->bitsPerSample > 16) ||
-            (frame_format->sampleType == stFloat && frame_format->bitsPerSample != 32)) {
-                vsapi->freeFrame(src);
-                vsapi->setFilterError((d->instanceName + ": Only 8..16 bit integer and 32 bit float formats supported").c_str(), frameCtx);
-                return nullptr;
+        if (!is8to16orFloatFormat(*frame_format)) {
+            vsapi->freeFrame(src);
+            vsapi->setFilterError(invalidVideoFormatMessage(*frame_format, vsapi, d->instanceName.c_str()).c_str(), frameCtx);
+            return nullptr;
         }
 
         int width = vsapi->getFrameWidth(src, 0);
@@ -670,11 +669,10 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
     d->vi = vsapi->getVideoInfo(d->node);
 
-    if (d->vi->format.colorFamily != cfUndefined && ((d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample > 16) ||
-        (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample != 32))) {
-            vsapi->mapSetError(out, "Text: Only 8-16 bit integer and 32 bit float formats supported");
-            vsapi->freeNode(d->node);
-            return;
+    if (!is8to16orFloatFormat(d->vi->format, false, true)) {
+        vsapi->mapSetError(out, invalidVideoFormatMessage(d->vi->format, vsapi, "Text", false, true).c_str());
+        vsapi->freeNode(d->node);
+        return;
     }
 
     d->alignment = vsapi->mapGetIntSaturated(in, "alignment", 0, &err);
