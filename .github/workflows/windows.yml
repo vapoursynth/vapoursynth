@@ -40,6 +40,11 @@ jobs:
         # The target architecture (x86, x64) of the Python interpreter.
         architecture: ${{ matrix.arch }}
 
+    - name: Install cython
+      run: |
+        python -m pip install -U pip
+        pip install -U cython setuptools
+
     - name: Get Python 3.8 Install Path
       run: |
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
@@ -129,7 +134,6 @@ jobs:
         $env:SKIP_COMPRESS="yes"
         $env:SKIP_WAIT="yes"
         & ".\make_portable.bat"
-
 
         if ("${{ matrix.arch }}" -eq "x64") {
           pushd buildp64
