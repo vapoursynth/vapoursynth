@@ -1345,7 +1345,7 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
 #endif
     }
 
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
         vsapi->logMessage(mtFatal, ("Bad SSE state detected after loading "s + rawPath).c_str(), core);
 #endif

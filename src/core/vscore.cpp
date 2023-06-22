@@ -955,7 +955,7 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
         std::chrono::nanoseconds duration = std::chrono::high_resolution_clock::now() - startTime;
         processingTime.fetch_add(duration.count(), std::memory_order_relaxed);
     }
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
         core->logFatal("Bad SSE state detected after return from "+ name);
 #endif
@@ -1767,7 +1767,7 @@ VSCore::VSCore(int flags) :
     cpuLevel(INT_MAX),
     memory(new vs::MemoryUse()),
     enableGraphInspection(flags & ccfEnableGraphInspection) {
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
         logFatal("Bad SSE state detected when creating new core");
 #endif
@@ -2163,7 +2163,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     else
         pluginInit3(configPlugin3, vs_internal_vsapi3.registerFunction, this);
 
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
         core->logFatal("Bad SSE state detected after loading " + filename);
 #endif
