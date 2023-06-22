@@ -154,7 +154,13 @@ Linux and OS X Compilation
 **************************
 
 These are the requirements:
-   * Autoconf, Automake, and Libtool, probably recent versions
+   - With make:
+      * Autoconf, Automake
+      * Libtool
+
+   - With meson-ninja:
+      * Meson 0.60.0 or later
+      * ninja-buld
 
    * pkg-config
 
@@ -201,12 +207,52 @@ Or if you already have a copy of the source, update it with::
 
    git pull
 
-Enter the VapourSynth directory and run these commands to compile and install::
-   
+Enter the VapourSynth directory and run these commands to compile and install:
+
+* With make::
+
    ./autogen.sh
    ./configure
    make
    make install
+
+* With meson-ninja::
+
+   meson setup build
+   ninja -C build
+   ninja -C build install
+
+      
+.. note::
+   With meson-ninja you are able to set the following options::
+      
+      meson setup build -Doption=true/false
+
+   ``enable_guard_pattern``
+      Add 32 bytes on the left and the right sides of each frame, fills them with a certain value,
+      and checks their integrity after each filter.
+      It can be used to detect buggy filters that write a little outside the frame.
+
+   ``enable_x86_asm``
+      Enable assembler code for x86 CPUs.
+
+   ``enable_vsscript``
+      Build VSScript. Requires Python 3.
+
+   ``enable_vspipe``
+      Build vspipe. Requires VSScript.
+
+   ``enable_python_module``
+      Build the Python module. Requires Cython, Python, and the core.
+
+   ``plugindir``
+      The default value for the configuration option SystemPluginDir in vapoursynth.conf.
+
+   ``python3_bin``
+      Find a python installation matching python3_bin. It can be: a name "python-3.11", a path "/usr/local/bin/python3.11m", or just "python3".
+
+   ``cython3_bin``
+      Find a cython executable matching cython3_bin.
    
 Depending on your operating system's configuration, VapourSynth may not
 work out of the box with the default prefix of /usr/local. Two errors
@@ -324,8 +370,9 @@ To provide your own path to the config file, you can use $VAPOURSYNTH_CONF_PATH.
 
 Two configuration options may be used: **UserPluginDir**, empty by default,
 and **SystemPluginDir**, whose default value is set at compile time to
-``$libdir/vapoursynth``, or to the location passed to the ``--with-plugindir``
-argument to ``configure``.
+``$libdir/vapoursynth``, or to the location passed to the build system.
+- With make: `--with-plugindir` argument to `configure`.
+- With meson: `plugindir` option to `meson`. (See Compilation step.)
 
 UserPluginDir is tried first, then SystemPluginDir.
 
