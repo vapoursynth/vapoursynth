@@ -564,7 +564,7 @@ class vszimg {
             lookup_enum_str_opt(in, "cpu_type", g_cpu_type_table, &m_params.cpu_type, vsapi);
 
             if (vsapi->mapNumElements(in, "prefer_props") >= 0)
-                vsapi->logMessage(mtWarning, "The deprecated argument prefer_props was passed to a resizer. Ignoring argument.", core);
+                vsapi->logMessage(mtDeprecation, "The deprecated argument prefer_props was passed to a resizer. Ignoring argument.", core);
 
             m_src_left = propGetScalarDef<double>(in, "src_left", NAN, vsapi);
             m_src_top = propGetScalarDef<double>(in, "src_top", NAN, vsapi);
