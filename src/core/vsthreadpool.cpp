@@ -67,7 +67,7 @@ void VSThreadPool::runTasksWrapper(VSThreadPool *owner, std::atomic<bool> &stop)
 }
 
 void VSThreadPool::runTasks(std::atomic<bool> &stop) {
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
         core->logFatal("Bad SSE state detected after creating new thread");
 #endif
