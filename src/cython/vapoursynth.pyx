@@ -788,10 +788,11 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNod
                     error = errormsg.decode('utf-8')
                 error = Error(error)
             else:
-                result = Error("This should not happen. Add your own node-implementation to the frameDoneCallback code.")
+                result = createConstFrame(f, d.funcs, d.node.core.core)
 
             try:
-                d.receive(n, result)
+                with use_environment(d.env).use():
+                    d.callback(result, error)
             except:
                 traceback.print_exc()
         finally:
