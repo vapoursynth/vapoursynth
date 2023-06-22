@@ -614,6 +614,8 @@ enum VSMessageType
 
    * mtFatal
 
+   * mtDeprecation
+
 
 .. _VSCoreCreationFlags:
 

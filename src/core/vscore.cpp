@@ -1278,6 +1278,7 @@ void VSCore::logMessage(VSMessageType type, const char *msg) {
         case mtDebug:
             vsLog3(vs3::mtDebug, "%s", msg);
             break;
+        case mtDeprecation:
         case mtInformation:
         case mtWarning:
             vsLog3(vs3::mtWarning, "%s", msg);

@@ -152,6 +152,7 @@ cdef class StandaloneEnvironmentPolicy:
             MessageType.MESSAGE_TYPE_DEBUG: logging.DEBUG,
             MessageType.MESSAGE_TYPE_INFORMATION: logging.INFO,
             MessageType.MESSAGE_TYPE_WARNING: logging.WARN,
+            MessageType.MESSAGE_TYPE_DEPRECATION: logging.WARN,
             MessageType.MESSAGE_TYPE_CRITICAL: logging.ERROR,
             MessageType.MESSAGE_TYPE_FATAL: logging.FATAL
         }

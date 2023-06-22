@@ -221,6 +221,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         MESSAGE_TYPE_WARNING "mtWarning"
         MESSAGE_TYPE_CRITICAL "mtCritical"
         MESSAGE_TYPE_FATAL "mtFatal"
+        MESSAGE_TYPE_DEPRECATION "mtDeprecation"
 
     cpdef enum CoreCreationFlags "VSCoreCreationFlags":
         ccfEnableGraphInspection
