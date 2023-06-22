@@ -290,15 +290,8 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 throw std::runtime_error("All inputs must have the same number of planes and the same dimensions, subsampling included");
             }
 
-            if (EXPR_F16C_TEST) {
-                if ((vi[i]->format.bitsPerSample > 16 && vi[i]->format.sampleType == stInteger)
-                    || (vi[i]->format.bitsPerSample != 16 && vi[i]->format.bitsPerSample != 32 && vi[i]->format.sampleType == stFloat))
-                    throw std::runtime_error("Input clips must be 8-16 bit integer or 16/32 bit float format");
-            } else {
-                if ((vi[i]->format.bitsPerSample > 16 && vi[i]->format.sampleType == stInteger)
-                    || (vi[i]->format.bitsPerSample != 32 && vi[i]->format.sampleType == stFloat))
-                    throw std::runtime_error("Input clips must be 8-16 bit integer or 32 bit float format");
-            }
+            if (!is8to16orFloatFormat(vi[i]->format, EXPR_F16C_TEST))
+                throw std::runtime_error(invalidVideoFormatMessage(vi[i]->format, vsapi, nullptr, EXPR_F16C_TEST));
         }
 
         d->vi = *vi[0];

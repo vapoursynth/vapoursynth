@@ -151,7 +151,7 @@ static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, voi
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
         if (!is8to16orFloatFormat(*fi)) {
-            vsapi->setFilterError((d->name + ": frame must be constant format and of integer 8-16 bit type or 32 bit float, passed "s + videoFormatToName(*fi, vsapi)).c_str(), frameCtx);
+            vsapi->setFilterError(invalidVideoFormatMessage(*fi, vsapi, d->name, false, false, true).c_str(), frameCtx);
             vsapi->freeFrame(src);
             return nullptr;
         }
@@ -201,8 +201,8 @@ static void templateInit(T& d, const char *name, bool allowVariableFormat, const
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
 
-    if (!is8to16orFloatFormat(d->vi->format, allowVariableFormat))
-        throw std::runtime_error("Clip must be constant format and of integer 8-16 bit type or 32 bit float, passed " + videoFormatToName(d->vi->format, vsapi) + ".");
+    if (!is8to16orFloatFormat(d->vi->format, false, allowVariableFormat))
+        throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi));
 
     getPlanesArg(in, d->process, vsapi);
 }
@@ -447,7 +447,7 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
 
         try {
             if (!is8to16orFloatFormat(*fi))
-                throw std::runtime_error("Frame must be constant format and of integer 8-16 bit type or 32 bit float, passed " + videoFormatToName(*fi, vsapi) + ".");
+                throw std::runtime_error(invalidVideoFormatMessage(*fi, vsapi, nullptr, false, false, true));
             if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
                 throw std::runtime_error("Width must be bigger than convolution radius.");
             if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
@@ -519,7 +519,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     try {
         if (!is8to16orFloatFormat(d->vi->format))
-            throw std::runtime_error("Clip must be constant format and of integer 8-16 bit type or 32 bit float, passed " + videoFormatToName(d->vi->format, vsapi) + ".");
+            throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi));
 
         if (d->vi->height && d->vi->width)
             if (planeWidth(d->vi, d->vi->format.numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format.numPlanes - 1) < 4)

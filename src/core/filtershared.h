@@ -25,6 +25,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <sstream>
 #include <vector>
 #include <limits>
 
@@ -155,14 +156,38 @@ static inline bool getProcessPlanesArg(const VSMap *in, VSMap *out, const char *
     return true;
 }
 
-static bool is8to16orFloatFormat(const VSVideoFormat &fi, bool allowVariable = false) {
+static bool is8to16orFloatFormat(const VSVideoFormat &fi, bool allowHalfFloat = false, bool allowVariable = false) {
     if (fi.colorFamily == cfUndefined && !allowVariable)
         return false;
 
-    if ((fi.sampleType == stInteger && fi.bitsPerSample > 16) || (fi.sampleType == stFloat && fi.bitsPerSample != 32))
+    if ((fi.sampleType == stInteger && fi.bitsPerSample > 16) || (fi.sampleType == stFloat && !(fi.bitsPerSample == 32 || (allowHalfFloat && fi.bitsPerSample == 16))))
         return false;
 
     return true;
+}
+
+static std::string invalidVideoFormatMessage(
+    const VSVideoFormat &fi, const VSAPI *vsapi, const char * filterName = nullptr, bool allowHalfFloat = false, bool allowVariable = false,
+    bool isFrame = false
+) {
+    std::ostringstream errorMessage;
+
+    if (filterName)
+        errorMessage << filterName << ": ";
+
+    errorMessage << "Input " << (isFrame ? "frame" : "clip") << " must be";
+
+    if (!allowVariable)
+        errorMessage << " constant format";
+
+    errorMessage << " 8..16 bit integer or ";
+
+    if (allowHalfFloat)
+        errorMessage << "16-";
+
+    errorMessage << "32 bit float, passed " << videoFormatToName(fi, vsapi) << ".";
+
+    return errorMessage.str();
 }
 
 template<typename T>
