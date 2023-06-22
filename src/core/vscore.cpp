@@ -2209,6 +2209,9 @@ bool VSPlugin::configPlugin(const std::string &identifier, const std::string &pl
     if (fnamespace.empty())
         fnamespace = pluginNamespace;
 
+    if (pluginVersion <= 0)
+        core->logMessage(mtDeprecation, "Plugin " + identifier + " has invalid version, and will be unsupported in the future: " + std::to_string(pluginVersion) + "!");
+
     this->pluginVersion = pluginVersion;
     this->fullname = fullname;
 
@@ -2217,6 +2220,9 @@ bool VSPlugin::configPlugin(const std::string &identifier, const std::string &pl
         apiMinor = (apiMajor & 0xFFFF);
         apiMajor >>= 16;
     }
+
+    if (apiMajor <= 3)
+        core->logMessage(mtDeprecation, "Plugin " + identifier + " uses an old API version, and will be unsupported in the future: APIv" + std::to_string(apiMajor) + "!");
 
     readOnlySet = !(flags & pcModifiable);
     hasConfig = true;
