@@ -44,6 +44,7 @@ copy ..\sdk\vsscript_example.c buildp64\sdk\examples
 copy "%MVSCRedistPath%\%RedistVersion%\x64\Microsoft.VC%RedistShortVersion%.CRT\*" buildp64
 copy pfm-192-vapoursynth-win.exe buildp64
 copy .\setup.py buildp64
+copy .\VAPOURSYNTH_VERSION buildp64
 copy .\MANIFEST.in buildp64
 xcopy /E ..\doc\_build\html\* buildp64\doc
 type nul >buildp64\portable.vs
@@ -98,6 +99,7 @@ copy ..\sdk\vsscript_example.c buildp32\sdk\examples
 copy "%MVSCRedistPath%\%RedistVersion%\x86\Microsoft.VC%RedistShortVersion%.CRT\*" buildp32
 copy pfm-192-vapoursynth-win.exe buildp32
 copy .\setup.py buildp32
+copy .\VAPOURSYNTH_VERSION buildp32
 copy .\MANIFEST.in buildp32
 xcopy /E ..\doc\_build\html\* buildp32\doc
 type nul >buildp32\portable.vs

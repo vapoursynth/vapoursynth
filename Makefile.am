@@ -4,7 +4,7 @@ AM_CXXFLAGS = -std=c++17 $(commoncflags)
 AM_CFLAGS = -std=c99 $(commoncflags)
 ACLOCAL_AMFLAGS = -I m4
 
-VSCURRENTRELEASE := $(shell cat VERSION | cut -d '-' -f1)
+VSCURRENTRELEASE := $(shell cat VAPOURSYNTH_VERSION | cut -d '-' -f1)
 
 
 cython_verbose = $(cython_verbose_$(V))
@@ -155,6 +155,7 @@ vspipe_SOURCES = src/vspipe/vspipe.cpp \
 
 vspipe_LDADD = libvapoursynth-script.la
 vspipe_LDFLAGS = $(UNICODELDFLAGS)
+vspipe_CPPFLAGS = $(PYTHON3_CFLAGS) -DVS_CURRENT_RELEASE='$(VSCURRENTRELEASE)'
 endif # VSPIPE
 endif # VSSCRIPT
 

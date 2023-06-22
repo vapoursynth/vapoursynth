@@ -11,12 +11,13 @@ from setuptools import Extension, setup
 is_win = (architecture()[1] == "WindowsPE")
 is_64 = (architecture()[0] == "64bit")
 
-extra_data = {}
+data_files = ['VAPOURSYNTH_VERSION']
 
 library_dirs = [curdir, "build"]
 
 is_portable = False
-CURRENT_RELEASE = Path(__file__).resolve().with_name('VERSION').read_text('utf8').strip().split('-')[0]
+self_path = Path(__file__).resolve()
+CURRENT_RELEASE = next(path for path in (self_path.with_name('VAPOURSYNTH_VERSION'), *(folder / 'VAPOURSYNTH_VERSION' for folder in self_path.parents)) if path.exists()).read_text('utf8').strip().split('-')[0]
 
 if is_win:
     if is_64:
@@ -83,8 +84,8 @@ if is_win:
     # Make sure the setup process copies the VapourSynth.dll into the site-package folder
     print("Found VapourSynth.dll at:", dll_path)
     
-    extra_data["data_files"] = [(r"Lib\site-packages", [dll_path])]
-        
+    data_files.extend([(r"Lib\site-packages", [dll_path])])
+ 
         
 setup(
     name="VapourSynth",
@@ -114,6 +115,5 @@ setup(
         'setuptools>=18.0',
         "Cython",
     ],
-    
-    **extra_data
+    data_files=data_files
 )

@@ -63,7 +63,7 @@ jobs:
 
     - name: Get version number
       run: |
-        echo "VS_CURRENT_RELEASE=v$(python -c "from pathlib import Path; print(Path('VERSION').resolve().read_text().split('-')[0])")" >> $GITHUB_ENV
+        echo "VS_CURRENT_RELEASE=$(python -c "from pathlib import Path; print((Path.cwd() / 'VAPOURSYNTH_VERSION').resolve().read_text().split('-')[0])")" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Compile
       run: |
@@ -71,7 +71,7 @@ jobs:
         $env:VSPYTHON3832_PATH="${{ env.PYTHON38_PATH }}"
         $env:VSPYTHON_PATH="${{ env.PYTHON_PATH }}"
         $env:VSPYTHON32_PATH="${{ env.PYTHON_PATH }}"
-        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }} /p:CurrentVersion=%VS_CURRENT_RELEASE%
+        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }} /p:CurrentVersion=${{ env.VS_CURRENT_RELEASE }}
         pip install . --no-deps
 
         pushd installer

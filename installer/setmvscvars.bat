@@ -1,8 +1,8 @@
-@REM @echo off
+@echo off
 
 SET CURRENT_VERSION=
 SET CURRENT_VERSION_EXTRA=
-SET /p VERSION_STRING=<../version
+SET /p VERSION_STRING=<../VAPOURSYNTH_VERSION
 
 FOR /f "tokens=1,2 delims=-" %%a in ("%VERSION_STRING%") do (
     SET CURRENT_VERSION=%%a
