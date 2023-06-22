@@ -1,11 +1,8 @@
 @echo off
 
-rem extract version string
-for /F "tokens=2 delims='" %%a in ('findstr /C:"#define Version " vsinstaller.iss') do set v=%%a
-for /F "tokens=2 delims='" %%a in ('findstr /C:"#define VersionExtra " vsinstaller.iss') do set w=%%a
-@echo %v%%w%
-
 call setmvscvars.bat
+
+@echo %VERSION_STRING%
 
 rem 64bit build
 mkdir buildp64\vapoursynth64\coreplugins
@@ -47,16 +44,17 @@ copy ..\sdk\vsscript_example.c buildp64\sdk\examples
 copy "%MVSCRedistPath%\%RedistVersion%\x64\Microsoft.VC%RedistShortVersion%.CRT\*" buildp64
 copy pfm-192-vapoursynth-win.exe buildp64
 copy .\setup.py buildp64
+copy .\VAPOURSYNTH_VERSION buildp64
 copy .\MANIFEST.in buildp64
 xcopy /E ..\doc\_build\html\* buildp64\doc
 type nul >buildp64\portable.vs
 type nul >buildp64\vapoursynth64\plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
-  IF EXIST "Compiled\vapoursynth64-portable-R%v%%w%.7z" (
-    del Compiled\vapoursynth64-portable-R%v%%w%.7z
+  IF EXIST "Compiled\vapoursynth64-portable-R%VERSION_STRING%.7z" (
+    del Compiled\vapoursynth64-portable-R%VERSION_STRING%.7z
   )
   cd buildp64
-  7z.exe a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
+  7z.exe a ..\Compiled\VapourSynth64-Portable-R%VERSION_STRING%.7z *
   cd ..
   rmdir /s /q buildp64
 )
@@ -101,16 +99,17 @@ copy ..\sdk\vsscript_example.c buildp32\sdk\examples
 copy "%MVSCRedistPath%\%RedistVersion%\x86\Microsoft.VC%RedistShortVersion%.CRT\*" buildp32
 copy pfm-192-vapoursynth-win.exe buildp32
 copy .\setup.py buildp32
+copy .\VAPOURSYNTH_VERSION buildp32
 copy .\MANIFEST.in buildp32
 xcopy /E ..\doc\_build\html\* buildp32\doc
 type nul >buildp32\portable.vs
 type nul >buildp32\vapoursynth32\plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
-  IF EXIST "Compiled\vapoursynth32-portable-R%v%%w%.7z" (
-    del Compiled\vapoursynth32-portable-R%v%%w%.7z
+  IF EXIST "Compiled\vapoursynth32-portable-R%VERSION_STRING%.7z" (
+    del Compiled\vapoursynth32-portable-R%VERSION_STRING%.7z
   )
   cd buildp32
-  7z.exe a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
+  7z.exe a ..\Compiled\VapourSynth32-Portable-R%VERSION_STRING%.7z *
   cd ..
   rmdir /s /q buildp32
 )

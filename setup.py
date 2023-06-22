@@ -1,19 +1,24 @@
 #!/usr/bin/env python
 
+from os import curdir
+from os.path import dirname, exists, join
+from pathlib import Path
 from platform import architecture
 from shutil import which
-from os import curdir
-from os.path import join, exists, dirname
-from setuptools import setup, Extension
+
+from setuptools import Extension, setup
 
 is_win = (architecture()[1] == "WindowsPE")
 is_64 = (architecture()[0] == "64bit")
 
-extra_data = {}
+data_files = ['VAPOURSYNTH_VERSION']
 
 library_dirs = [curdir, "build"]
 
 is_portable = False
+self_path = Path(__file__).resolve()
+CURRENT_RELEASE = next(path for path in (self_path.with_name('VAPOURSYNTH_VERSION'), *(folder / 'VAPOURSYNTH_VERSION' for folder in self_path.parents)) if path.exists()).read_text('utf8').strip().split('-')[0]
+
 if is_win:
     if is_64:
         library_dirs.append(join("msvc_project", "x64", "Release"))
@@ -79,33 +84,36 @@ if is_win:
     # Make sure the setup process copies the VapourSynth.dll into the site-package folder
     print("Found VapourSynth.dll at:", dll_path)
     
-    extra_data["data_files"] = [(r"Lib\site-packages", [dll_path])]
-        
+    data_files.extend([(r"Lib\site-packages", [dll_path])])
+ 
         
 setup(
-    name = "VapourSynth",
-    description = "A frameserver for the 21st century",
-    url = "http://www.vapoursynth.com/",
-    download_url = "https://github.com/vapoursynth/vapoursynth",
-    author = "Fredrik Mellbin",
-    author_email = "fredrik.mellbin@gmail.com",
-    license = "LGPL 2.1 or later",
-    version = "63",
-    long_description = "A portable replacement for Avisynth" if is_portable else "A modern replacement for Avisynth",
-    platforms = "All",
-    ext_modules = [Extension("vapoursynth", [join("src", "cython", "vapoursynth.pyx")],
-                             define_macros = [ ("VS_GRAPH_API", None) ],
-                             libraries = ["vapoursynth"],
-                             library_dirs = library_dirs,
-                             include_dirs = [
-                                 curdir,
-                                 join("src", "cython"),
-                                 join("src", "vsscript")
-                            ])],
+    name="VapourSynth",
+    description="A frameserver for the 21st century",
+    url="https://www.vapoursynth.com/",
+    download_url="https://github.com/vapoursynth/vapoursynth",
+    author="Fredrik Mellbin",
+    author_email="fredrik.mellbin@gmail.com",
+    license="LGPL 2.1 or later",
+    version=CURRENT_RELEASE,
+    long_description="A portable replacement for Avisynth" if is_portable else "A modern replacement for Avisynth",
+    platforms="All",
+    ext_modules=[
+        Extension(
+            "vapoursynth", [join("src", "cython", "vapoursynth.pyx")],
+            define_macros=[("VS_GRAPH_API", None), ("VS_CURRENT_RELEASE", CURRENT_RELEASE)],
+            libraries=["vapoursynth"],
+            library_dirs=library_dirs,
+            include_dirs=[
+                curdir,
+                join("src", "cython"),
+                join("src", "vsscript")
+            ]
+        )
+    ],
     setup_requires=[
         'setuptools>=18.0',
         "Cython",
     ],
-    
-    **extra_data
+    data_files=data_files
 )

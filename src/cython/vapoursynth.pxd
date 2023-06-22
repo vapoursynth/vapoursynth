@@ -24,6 +24,7 @@ from libc.stddef cimport ptrdiff_t
 
 cdef extern from "include/VapourSynth4.h" nogil:
     enum:
+        VS_CURRENT_RELEASE
         VAPOURSYNTH_API_MAJOR
         VAPOURSYNTH_API_MINOR
         VAPOURSYNTH_API_VERSION
