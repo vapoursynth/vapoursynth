@@ -1334,13 +1334,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     tmp2 = vsapi->mapGetInt(in, "varformat", 0, &err);
     if (!err && tmp2) {
-        deliveredInfo.format.colorFamily = cfUndefined;
-        deliveredInfo.format.sampleType = stInteger;
-        deliveredInfo.format.bitsPerSample = 0;
-        deliveredInfo.format.bytesPerSample = 0;
-        deliveredInfo.format.subSamplingW = 0;
-        deliveredInfo.format.subSamplingH = 0;
-        deliveredInfo.format.numPlanes = 0;
+        deliveredInfo.format = {};
     }
 
     vsapi->createVideoFilter(out, "BlankClip", &deliveredInfo, blankClipGetframe, blankClipFree, d->keep ? fmUnordered : fmParallel, nullptr, 0, d.get(), core);
