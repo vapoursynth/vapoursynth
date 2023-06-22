@@ -21,21 +21,14 @@
 #include "VapourSynth4.h"
 #include "VapourSynth3.h"
 
-/*
+#ifndef VS_CURRENT_RELEASE
+#error VS_CURRENT_RELEASE not defined!
+#endif
 
-    Note that the version is stored in several places, in addition to version.h it's also in:
-    src/cython/vapoursynth.pyx (__version__)
-    setup.py (version = "" near the bottom)
-    configure.ac (number on first line in [])
-    installer/vsinstaller.iss (Version define at top)
-    installer/setup.py (CURRENT_RELEASE at the top)
-    doc/conf.py (version = '' near the top)
-
-*/
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
-#define VAPOURSYNTH_CORE_VERSION 63
+#define VAPOURSYNTH_CORE_VERSION VS_CURRENT_RELEASE
 #define VAPOURSYNTH_INTERNAL_PLUGIN_VERSION VS_MAKE_VERSION(VAPOURSYNTH_CORE_VERSION, 0)
 #if defined(VS_FRAME_GUARD) && !defined(NDEBUG)
 #define VS_OPTIONS_TEXT "Options: Frame Guard + Extra Assertions\n"

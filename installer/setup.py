@@ -1,12 +1,13 @@
-CURRENT_RELEASE = "63"
-
 # Always prefer setuptools over distutils
-from setuptools import setup, find_packages
+from setuptools import setup
 from platform import architecture
-from codecs import open
 
 import os
-from os import listdir, path
+from os import path
+from pathlib import Path
+
+self_path = Path(__file__).resolve()
+CURRENT_RELEASE = next(path for path in (self_path.with_name('VAPOURSYNTH_VERSION'), *(folder / 'VAPOURSYNTH_VERSION' for folder in self_path.parents)) if path.exists()).read_text('utf8').strip().split('-')[0]
 
 try:
     from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
