@@ -6,19 +6,6 @@ jobs:
   build-msvc:
     runs-on: windows-latest
 
-    strategy:
-      matrix:
-        arch: [x86, x64]
-        include:
-          - arch: x86
-            platform: Win32
-            # unable to diagnose this error during `import vapoursynth`
-            # ImportError: DLL load failed while importing vapoursynth: A dynamic link library (DLL) initialization routine failed.
-            test: false
-          - arch: x64
-            platform: x64
-            test: true
-
     steps:
     - uses: actions/checkout@v3
 
@@ -37,8 +24,6 @@ jobs:
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: 3.8
-        # The target architecture (x86, x64) of the Python interpreter.
-        architecture: ${{ matrix.arch }}
 
     - name: Install cython
       run: |
@@ -54,7 +39,6 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-        architecture: ${{ matrix.arch }}
 
     - name: Install cython
       run: |
@@ -73,10 +57,8 @@ jobs:
     - name: Compile
       run: |
         $env:VSPYTHON38_PATH="${{ env.PYTHON38_PATH }}"
-        $env:VSPYTHON3832_PATH="${{ env.PYTHON38_PATH }}"
         $env:VSPYTHON_PATH="${{ env.PYTHON_PATH }}"
-        $env:VSPYTHON32_PATH="${{ env.PYTHON_PATH }}"
-        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }} /p:CurrentVersion=${{ env.VS_CURRENT_RELEASE }}
+        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=x64 /p:CurrentVersion=${{ env.VS_CURRENT_RELEASE }}
         pip install . --no-deps
 
         pushd installer
@@ -84,11 +66,7 @@ jobs:
         $env:SKIP_WAIT="yes"
         & ".\make_portable.bat"
 
-        if ("${{ matrix.arch }}" -eq "x64") {
-          pushd buildp64
-        } else {
-          pushd buildp32
-        }
+        pushd buildp64
         pip install . --no-deps
         popd
         popd
@@ -101,14 +79,8 @@ jobs:
         python setup.py sdist -d ./wheels --format=zip
 
         pushd installer
-        if ("${{ matrix.arch }}" -eq "x64") {
-          pushd buildp64
-        } else {
-          pushd buildp32
-        }
-
+        pushd buildp64
         python setup.py bdist_wheel -d ../../wheels
-
         popd
         popd
 
@@ -117,8 +89,6 @@ jobs:
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: 3.8
-        # The target architecture (x86, x64) of the Python interpreter.
-        architecture: ${{ matrix.arch }}
 
     - name: Building for Python 3.8
       run: |
@@ -135,11 +105,7 @@ jobs:
         $env:SKIP_WAIT="yes"
         & ".\make_portable.bat"
 
-        if ("${{ matrix.arch }}" -eq "x64") {
-          pushd buildp64
-        } else {
-          pushd buildp32
-        }
+        pushd buildp64
         pip install . --no-deps
         popd
         popd
@@ -151,14 +117,8 @@ jobs:
         python setup.py sdist -d ./wheels --format=zip
 
         pushd installer
-        if ("${{ matrix.arch }}" -eq "x64") {
-          pushd buildp64
-        } else {
-          pushd buildp32
-        }
-
+        pushd buildp64
         python setup.py bdist_wheel -d ../../wheels
-
         popd
         popd
 
@@ -173,7 +133,6 @@ jobs:
           wheels/*.zip
 
     - name: Run test
-      if: ${{ matrix.test }}
       run: python -m unittest discover -s test -p "*test.py"
 
   test-windows:
@@ -181,7 +140,6 @@ jobs:
     needs: build-msvc
     strategy:
       matrix:
-        arch: [x86, x64]
         python: ["3.8", "3.11"]
 
     steps:
@@ -189,7 +147,6 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python }}
-        architecture: ${{ matrix.arch }}
 
     - name: Download build artifacts
       uses: actions/download-artifact@v3
