@@ -5,36 +5,22 @@
   #define VSRuntimeVersion '14.32.31326'
 #endif
 
-#ifndef InstallerBits
-  #define InstallerBits '64'
-#endif
-#define InstallerBitsInt = Int(InstallerBits)
-
-#if InstallerBitsInt == 64
-  #define AppName 'VapourSynth (64-bits)'
-  #define AppId 'VapourSynth'
-  #define RegistryPath 'SOFTWARE\VapourSynth'
-  #define SourceBinaryPath '..\msvc_project\x64\Release'
-  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win_amd64.whl'
-  #define WheelFilenamePython38(Version) 'VapourSynth-' + Version + '-cp38-cp38-win_amd64.whl'
-#else
-  #define AppName 'VapourSynth (32-bits)'
-  #define AppId 'VapourSynth-32'
-  #define RegistryPath 'SOFTWARE\VapourSynth-32'
-  #define SourceBinaryPath '..\msvc_project\Release'
-  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win32.whl'
-  #define WheelFilenamePython38(Version) 'VapourSynth-' + Version + '-cp38-cp38-win32.whl'
-#endif
+#define AppName 'VapourSynth (64-bits)'
+#define AppId 'VapourSynth'
+#define RegistryPath 'SOFTWARE\VapourSynth'
+#define SourceBinaryPath '..\msvc_project\x64\Release'
+#define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win_amd64.whl'
+#define WheelFilenamePython38(Version) 'VapourSynth-' + Version + '-cp38-cp38-win_amd64.whl'
 
 #define Dependency_NoExampleSetup
 #include "CodeDependencies.iss"
 
 [Setup]
 OutputDir=Compiled
-OutputBaseFilename=VapourSynth{#= InstallerBits}-R{#= Version}{#= VersionExtra}
+OutputBaseFilename=VapourSynth-x64-R{#= Version}{#= VersionExtra}
 Compression=lzma2/max
 SolidCompression=yes
-VersionInfoDescription={#= AppName} R{#= Version}{#= VersionExtra} Installer
+VersionInfoDescription={#= AppName} x64 R{#= Version}{#= VersionExtra} Installer
 AppId={#= AppId}
 AppName={#= AppName} R{#= Version}{#= VersionExtra}
 AppVersion=R{#= Version}{#= VersionExtra}
@@ -56,10 +42,8 @@ PrivilegesRequiredOverridesAllowed=dialog
 WizardStyle=modern
 FlatComponentsList=yes
 ChangesEnvironment=yes
-#if InstallerBitsInt == 64
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
-#endif
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"
@@ -68,7 +52,7 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 Name: Full; Description: Full installation; Flags: iscustom
 
 [Components]
-Name: "vscore"; Description: "VapourSynth {#= InstallerBits}-bit R{#= Version}{#= VersionExtra}"; Types: Full; Flags: fixed disablenouninstallwarning
+Name: "vscore"; Description: "VapourSynth x64 R{#= Version}{#= VersionExtra}"; Types: Full; Flags: fixed disablenouninstallwarning
 Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disablenouninstallwarning
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
@@ -148,7 +132,7 @@ Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/; Compon
 Name: {group}\Documentation (Local); Filename: {app}\docs\index.html; Components: docs
 Name: {group}\Documentation (Online); Filename: http://www.vapoursynth.com/doc/
 Name: {group}\Global Autoload Directory; Filename: {app}\plugins; Check: IsAdminInstallMode; Components: vscore
-Name: {group}\User Autoload Directory; Filename: %APPDATA%\VapourSynth\plugins{#= InstallerBits}; Components: vscore
+Name: {group}\User Autoload Directory; Filename: %APPDATA%\VapourSynth\plugins64; Components: vscore
 Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
 
 [Registry]
@@ -244,7 +228,7 @@ begin
               Bitness := 64;              
           end;
 
-          if Bitness = {#InstallerBitsInt} then
+          if Bitness = 64 then
           begin
             if RegQueryStringValue(RegRoot, RegPathTemp, 'DisplayName', DisplayName)
               and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', '', InstallPath)
@@ -268,9 +252,9 @@ end;
 procedure GetPythonInstallations;
 begin
   GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '{#PythonVersion}', 0);
-  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '{#PythonVersion}', {#InstallerBitsInt}); 
+  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '{#PythonVersion}', 64); 
   GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '3.8', 0);
-  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '3.8', {#InstallerBitsInt}); 
+  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '3.8', 64); 
 end;
 
 procedure PopulatePythonInstallations(List: TNewCheckListBox);
@@ -281,7 +265,7 @@ begin
   List.Items.Clear;
   First := True;
   for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
-    if PythonInstallations[Counter].Bitness = {#InstallerBitsInt} then
+    if PythonInstallations[Counter].Bitness = 64 then
       with PythonInstallations[Counter] do
       begin
         List.AddRadioButton(DisplayName, '(' + InstallPath + ')', 0, First, True, TObject(Counter));
@@ -356,11 +340,11 @@ begin
   Result := GetArrayLength(PythonInstallations) > 0; 
 
   if not Result and not HasOtherPython then
-      MsgBox('No suitable Python {#PythonVersion} or 3.8 ({#InstallerBits}-bit) installation found. The installer will now exit.', mbCriticalError, MB_OK)
+      MsgBox('No suitable Python {#PythonVersion} or 3.8 64-bit installation found. The installer will now exit.', mbCriticalError, MB_OK)
   else if not Result and IsAdminInstallMode then
-      MsgBox('Python {#PythonVersion} or 3.8 ({#InstallerBits}-bit) is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
+      MsgBox('Python {#PythonVersion} or 3.8 64-bit is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
   else if not Result and not IsAdminInstallMode then
-      MsgBox('Python {#PythonVersion} or 3.8 ({#InstallerBits}-bit) is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
+      MsgBox('Python {#PythonVersion} or 3.8 64-bit is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
     
   // fixme  
   //if not IsAdminInstallMode and not vcredist2017installed(VSRuntimeVersion) then

@@ -59,61 +59,6 @@ if "%SKIP_COMPRESS%" EQU "" (
   rmdir /s /q buildp64
 )
 
-rem 32bit build
-mkdir buildp32\vapoursynth32\coreplugins
-mkdir buildp32\vapoursynth32\plugins
-mkdir buildp32\sdk\include
-mkdir buildp32\sdk\examples
-mkdir buildp32\sdk\lib32
-mkdir buildp32\sdk\lib64
-mkdir buildp32\doc
-mkdir buildp32\vsgenstubs4
-copy ..\vsrepo\vsrepo.py buildp32
-copy ..\vsrepo\vsgenstubs.py buildp32
-copy ..\vsrepo\vsgenstubs4 buildp32\vsgenstubs4
-copy vs-detect-python.bat buildp32
-copy 7z.exe buildp32
-copy 7z.dll buildp32
-copy ..\vapoursynth.cp3*-win32.pyd buildp32
-copy ..\msvc_project\Release\VapourSynth.dll buildp32
-copy ..\msvc_project\Release\vsscript.dll buildp32
-copy ..\msvc_project\Release\vsscriptpython38.dll buildp32
-copy ..\msvc_project\Release\avfs.exe buildp32
-copy ..\msvc_project\Release\vsvfw.dll buildp32
-copy ..\msvc_project\Release\vspipe.exe buildp32
-copy ..\msvc_project\Release\AvsCompat.dll buildp32\vapoursynth32\coreplugins
-copy ..\include\VapourSynth.h buildp32\sdk\include
-copy ..\include\VSHelper.h buildp32\sdk\include
-copy ..\include\VSScript.h buildp32\sdk\include
-copy ..\include\VapourSynth4.h buildp32\sdk\include
-copy ..\include\VSHelper4.h buildp32\sdk\include
-copy ..\include\VSScript4.h buildp32\sdk\include
-copy ..\include\VSConstants4.h buildp32\sdk\include
-copy ..\msvc_project\Release\vapoursynth.lib buildp32\sdk\lib32
-copy ..\msvc_project\Release\vsscript.lib buildp32\sdk\lib32
-copy ..\msvc_project\x64\Release\vapoursynth.lib buildp32\sdk\lib64
-copy ..\msvc_project\x64\Release\vsscript.lib buildp32\sdk\lib64
-copy ..\sdk\filter_skeleton.c buildp32\sdk\examples
-copy ..\sdk\invert_example.c buildp32\sdk\examples
-copy ..\sdk\vsscript_example.c buildp32\sdk\examples
-copy "%MVSCRedistPath%\%RedistVersion%\x86\Microsoft.VC%RedistShortVersion%.CRT\*" buildp32
-copy pfm-192-vapoursynth-win.exe buildp32
-copy .\setup.py buildp32
-copy .\VAPOURSYNTH_VERSION buildp32
-copy .\MANIFEST.in buildp32
-xcopy /E ..\doc\_build\html\* buildp32\doc
-type nul >buildp32\portable.vs
-type nul >buildp32\vapoursynth32\plugins\.keep
-if "%SKIP_COMPRESS%" EQU "" (
-  IF EXIST "Compiled\vapoursynth32-portable-R%VERSION_STRING%.7z" (
-    del Compiled\vapoursynth32-portable-R%VERSION_STRING%.7z
-  )
-  cd buildp32
-  7z.exe a ..\Compiled\VapourSynth32-Portable-R%VERSION_STRING%.7z *
-  cd ..
-  rmdir /s /q buildp32
-)
-
 :endc
 
 if "%SKIP_WAIT%" EQU "" (
