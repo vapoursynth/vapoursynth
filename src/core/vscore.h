@@ -333,9 +333,10 @@ public:
     }
 
     void clear() {
-        if (data->unique())
+        if (data->unique()) {
             data->data.clear();
-        else
+            data->error = false;
+        } else
             data = new VSMapStorage();
     }
 
