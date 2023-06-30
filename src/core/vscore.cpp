@@ -1926,7 +1926,7 @@ VSCore::VSCore(int flags) :
 
         if (autoloadSystemPluginDir) {
             if (!loadAllPluginsInPath(systemPluginDir, filter)) {
-                logMessage(mtCritical, "Autoloading the system plugin dir '" + systemPluginDir + "' failed. Directory doesn't exist?");
+                logMessage(mtDebug, "Autoloading the system plugin dir '" + systemPluginDir + "' failed. Directory doesn't exist?");
             }
         }
     }
