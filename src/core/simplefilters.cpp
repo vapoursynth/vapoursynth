@@ -1428,7 +1428,7 @@ static const VSFrame *VS_CC frameEvalGetFrameWithProps(int n, int activationReas
     if (activationReason == arInitial) {
         for (auto iter : d->propsrc)
             vsapi->requestFrameFilter(n, iter, frameCtx);
-    } else if (activationReason == arAllFramesReady && !*frameData) {
+    } else if (activationReason == arAllFramesReady && !frameData[0]) {
         int err;
         vsapi->mapSetInt(d->in, "n", n, maAppend);
         for (auto iter : d->propsrc) {

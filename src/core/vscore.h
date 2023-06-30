@@ -245,6 +245,11 @@ public:
     explicit VSMapStorage(const VSMapStorage &s) : refcount(1), data(s.data), error(s.error) {
     }
 
+    void clear() noexcept {
+        data.clear();
+        error = false;
+    }
+
     bool unique() noexcept {
         return (refcount == 1);
     };
@@ -334,7 +339,7 @@ public:
 
     void clear() {
         if (data->unique())
-            data->data.clear();
+            data->clear();
         else
             data = new VSMapStorage();
     }
