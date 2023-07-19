@@ -127,9 +127,7 @@ Preparing the Python Project
 ----------------------------
 
 * Run ``py -3.11 -m pip install -r python-requirements.txt`` for 64bit.
-* Run ``py -3.11-32 -m pip install -r python-requirements.txt`` for 32bit.
 * Run ``py -3.8 -m pip install -r python-requirements.txt`` for 64bit.
-* Run ``py -3.8-32 -m pip install -r python-requirements.txt`` for 32bit.
 * Run ``cython_build.bat`` to compile the Python modules
 * Run ``docs_build.bat`` to compile the documentation
 
@@ -138,10 +136,8 @@ Distribution
 
 All the above steps are necessary to create the installer
 
-You also need 7z.exe and 7z.dll from
-the 32 bit version of `7-zip <https://www.7-zip.org/>`_
+You also need 7z.exe and 7z.dll from `7-zip <https://www.7-zip.org/>`_
 Both need to be placed in the "installer" dir.
-(if you only plan to make 64 bit builds then the 64 bit version is ok to use instead)
 
 You'll also have to grab the file ``pfm-192-vapoursynth-win.exe``
 which is only available from installations/portable releases.
