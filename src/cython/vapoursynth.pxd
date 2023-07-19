@@ -18,6 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 #
 #cython: language_level=3
+#cython: legacy_implicit_noexcept=True
 
 from libc.stdint cimport uint8_t, uint32_t, int64_t, uint64_t, uintptr_t
 from libc.stddef cimport ptrdiff_t
