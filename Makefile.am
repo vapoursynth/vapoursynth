@@ -4,7 +4,7 @@ AM_CXXFLAGS = -std=c++17 $(commoncflags)
 AM_CFLAGS = -std=c99 $(commoncflags)
 ACLOCAL_AMFLAGS = -I m4
 
-VSCURRENTRELEASE := $(shell cat VAPOURSYNTH_VERSION | cut -d '-' -f1)
+VSCURRENTRELEASE := $(shell cat VAPOURSYNTH_VERSION | cut -d ' ' -f3  | cut -d '-' -f1)
 
 
 cython_verbose = $(cython_verbose_$(V))

@@ -17,7 +17,7 @@ library_dirs = [curdir, "build"]
 
 is_portable = False
 self_path = Path(__file__).resolve()
-CURRENT_RELEASE = next(path for path in (self_path.with_name('VAPOURSYNTH_VERSION'), *(folder / 'VAPOURSYNTH_VERSION' for folder in self_path.parents)) if path.exists()).read_text('utf8').strip().split('-')[0]
+CURRENT_RELEASE = next(path for path in (self_path.with_name(' '), *(folder / 'VAPOURSYNTH_VERSION' for folder in self_path.parents)) if path.exists()).read_text('utf8').split(' ')[-1].strip().split('-')[0]
 
 if is_win:
     if is_64:

@@ -20,11 +20,7 @@
 
 #include "VapourSynth4.h"
 #include "VapourSynth3.h"
-
-#ifndef VS_CURRENT_RELEASE
-#error VS_CURRENT_RELEASE not defined!
-#endif
-
+#include "VAPOURSYNTH_VERSION"
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
