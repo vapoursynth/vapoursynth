@@ -1,4 +1,4 @@
-AC_INIT([vapoursynth], m4_bregexp(m4_quote(m4_include([VAPOURSYNTH_VERSION])), [.*\s\(.*\)], [\1]), [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
+AC_INIT([vapoursynth], m4_esyscmd([sed -e 's/.*\s\(.*\)/\1/' VAPOURSYNTH_VERSION]), [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
 
 : ${CFLAGS=""}
 : ${CXXFLAGS=""}
