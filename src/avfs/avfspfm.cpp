@@ -56,8 +56,8 @@
 #include "include/pfmapi.h"
 #include "include/pfmmarshaller.h"
 #include "avfspfm.h"
-#include "avfs.rc"
 #include "../common/vsutf16.h"
+#include "../../src/core/version.h"
 #include <VSScript4.h>
 
 #define CCALL __cdecl
@@ -1499,9 +1499,9 @@ int wmain(int argc,const wchar_t*const* argv)
     {
         error = -2;
         fprintf(fstatus,
-            VER_DESCRIPTION "\n"
+            "Avisynth Virtual File System with VapourSynth support\n"
             "Version R" XSTR(VAPOURSYNTH_CORE_VERSION) "\n"
-            VER_COPYRIGHT "\n"
+            "Copyright 2008-2015 Ben Rudiak-Gould et al.\n"
             "For help run: avfs -h\n");
     }
     else if(showHelp)

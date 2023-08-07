@@ -20,7 +20,7 @@
 
 #include "VapourSynth4.h"
 #include "VapourSynth3.h"
-#include "VAPOURSYNTH_VERSION"
+#include "../../VAPOURSYNTH_VERSION"
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
