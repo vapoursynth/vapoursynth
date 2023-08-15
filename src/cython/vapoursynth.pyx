@@ -198,12 +198,12 @@ cdef void _unset_logger(EnvironmentData env):
     env.log = NULL
 
 
-cdef void __stdcall _logCb(int msgType, const char *msg, void *userData) nogil:
+cdef void __stdcall _logCb(int msgType, const char *msg, void *userData) noexcept nogil:
     with gil:
         message = msg.decode("utf-8")
         (<object>userData)(MessageType(msgType), message)
 
-cdef void __stdcall _logFree(void* userData) nogil:
+cdef void __stdcall _logFree(void* userData) noexcept nogil:
     with gil:
         Py_DECREF(<object>userData)
 
@@ -776,7 +776,7 @@ cdef FramePtr createFramePtr(const VSFrame *f, const VSAPI *funcs):
     return instance
 
 
-cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNode *node, const char *errormsg) nogil:
+cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNode *node, const char *errormsg) noexcept nogil:
     with gil:
         result = error = None
         d = <CallbackData>data
@@ -2428,11 +2428,11 @@ cdef LogHandle createLogHandle(object handler_func):
     instance.handle = NULL
     return instance
 
-cdef void __stdcall log_handler_wrapper(int msgType, const char *msg, void *userData) nogil:
+cdef void __stdcall log_handler_wrapper(int msgType, const char *msg, void *userData) noexcept nogil:
     with gil:
         (<LogHandle>userData).handler_func(MessageType(msgType), msg.decode('utf-8'))
 
-cdef void __stdcall log_handler_free(void *userData) nogil:
+cdef void __stdcall log_handler_free(void *userData) noexcept nogil:
     with gil:
         Py_DECREF(<LogHandle>userData)
 
@@ -2936,14 +2936,14 @@ class PythonVSScriptLoggingBridge(logging.Handler):
 
         core.log_message(mt, message)
 
-cdef void __stdcall freeFunc(void *pobj) nogil:
+cdef void __stdcall freeFunc(void *pobj) noexcept nogil:
     with gil:
         fobj = <FuncData>pobj
         Py_DECREF(fobj)
         fobj = None
 
 
-cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData, VSCore *core, const VSAPI *vsapi) nogil:
+cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData, VSCore *core, const VSAPI *vsapi) noexcept nogil:
     with gil:
         d = <FuncData>userData
         try:
