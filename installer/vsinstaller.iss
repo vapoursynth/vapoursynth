@@ -72,7 +72,7 @@ Filename: "{app}\pismo\pfm-192-vapoursynth-win.exe"; Parameters: "install"; Chec
 Filename: {code:GetPythonExecutable}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden runasoriginaluser; Components: vsrepo
 
 [UninstallRun]
-Filename: {code:GetPythonExecutable}; Parameters: "-m pip uninstall -y VapourSynth"; Flags: runhidden; Components: vscore
+Filename: {code:GetPythonExecutable}; Parameters: "-m pip uninstall -y VapourSynth"; Flags: runhidden; RunOnceId: "VSUninstallPyModule";Components: vscore
 
 [Files]
 ;core binaries

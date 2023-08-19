@@ -857,7 +857,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
                 val = [val]
 
         for v in val:
-            if isinstance(v, int):
+            if isinstance(v, (int, enum.Flag)):
                 if funcs.mapSetInt(inm, ckey, int(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, float):
@@ -896,7 +896,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
         if val is None:
             continue
 
-        if isinstance(val, (str, bytes, bytearray, RawNode, RawFrame)) or not isinstance(val, Iterable):
+        if isinstance(val, (str, bytes, bytearray, enum.Flag, RawNode, RawFrame)) or not isinstance(val, Iterable):
             val = [val]
 
         for v in val:
@@ -1118,7 +1118,7 @@ cdef class FrameProps(object):
                     tf = createFuncPython(v, self.core, self.funcs)
                     if funcs.mapSetFunction(m, b, tf.ref, 1) != 0:
                         raise Error('Not all values are of the same type')
-                elif isinstance(v, int):
+                elif isinstance(v, (int, enum.Flag)):
                     if funcs.mapSetInt(m, b, int(v), 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, float):

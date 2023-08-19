@@ -1,5 +1,5 @@
 r64:
-fixed clearMap function, previously it would forget to properly clear the error state in maps whcih could cause crashes in frameeval and other filters
+fixed clearMap function, previously it would forget to properly clear the error state in maps which could cause crashes in frameeval and other filters
 32 bit binaries are no longer provided for windows
 updated zimg to fix issues on zen4 cpus
 added support for cython 3.x
