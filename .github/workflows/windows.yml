@@ -9,8 +9,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1.1
+    - uses: microsoft/setup-msbuild@v1
 
     - name: Clone Dependencies
       run: |
@@ -23,12 +22,12 @@ jobs:
       uses: actions/setup-python@v4
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
-        python-version: 3.8
+        python-version: '3.8'
 
-    - name: Install cython
+    - name: Install required Python packages
       run: |
         python -m pip install -U pip
-        pip install -U cython setuptools
+        pip install -U cython setuptools wheel
 
     - name: Get Python 3.8 Install Path
       run: |
@@ -40,10 +39,10 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install cython
+    - name: Install required Python packages
       run: |
         python -m pip install -U pip
-        pip install -U cython setuptools
+        pip install -U cython setuptools wheel
 
     - name: Get Python 3.11 Install Path
       run: |
@@ -74,7 +73,6 @@ jobs:
     - name: Package for Python 3.11
       run: |
         mkdir wheels
-        pip install -U wheel
         python setup.py bdist_wheel -d ./wheels
         python setup.py sdist -d ./wheels --format=zip
 
@@ -84,11 +82,14 @@ jobs:
         popd
         popd
 
+    - name: Run test with Python 3.11
+      run: |
+        python -m unittest discover -s test -p "*test.py"
+
     - name: Setup Python 3.8 a second time
       uses: actions/setup-python@v4
       with:
-        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
-        python-version: 3.8
+        python-version: '3.8'
 
     - name: Building for Python 3.8
       run: |
@@ -112,7 +113,6 @@ jobs:
 
     - name: Package for Python 3.8
       run: |
-        pip install -U wheel
         python setup.py bdist_wheel -d ./wheels
         python setup.py sdist -d ./wheels --format=zip
 
@@ -122,8 +122,11 @@ jobs:
         popd
         popd
 
-    - name: Upload build artefacts
-      uses: actions/upload-artifact@v3
+    - name: Run test with Python 3.8
+      run: |
+        python -m unittest discover -s test -p "*test.py"
+
+    - uses: actions/upload-artifact@v3
       with:
         name: Wheels
         path: |
@@ -131,9 +134,6 @@ jobs:
           wheels/*.whl
           wheels/**/*.zip
           wheels/*.zip
-
-    - name: Run test
-      run: python -m unittest discover -s test -p "*test.py"
 
   test-windows:
     runs-on: windows-latest
@@ -148,8 +148,7 @@ jobs:
       with:
         python-version: ${{ matrix.python }}
 
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v3
       with:
         name: Wheels
 
@@ -166,13 +165,11 @@ jobs:
     if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
 
     steps:
-    - name: Setup Python 3.11
-      uses: actions/setup-python@v4
+    - uses: actions/setup-python@v4
       with:
-        python-version: "3.11"
+        python-version: '3.11'
 
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v3
       with:
         name: Wheels
 
