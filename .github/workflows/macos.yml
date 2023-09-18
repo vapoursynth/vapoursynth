@@ -17,10 +17,11 @@ jobs:
     - name: Print compiler version
       run: ${{ env.CC }} --version
 
-    - name: Install automake
+    - name: Install required packages
       run: |
         brew update
-        brew install automake
+        brew install automake gnu-sed
+        echo "PATH=$(brew --prefix gnu-sed)/libexec/gnubin:$PATH" >> $GITHUB_ENV
 
     - name: Install zimg
       run: |
