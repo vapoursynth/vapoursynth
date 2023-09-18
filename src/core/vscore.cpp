@@ -949,7 +949,15 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     if (enableGraphInspection)
         startTime = std::chrono::high_resolution_clock::now();
 
+#ifdef VS_DEBUG_FRAME_REQUESTS
+    core->logMessage(mtInformation, "Started processing of frame: " + std::to_string(n) + " ar: " + std::to_string(activationReason) + " filter: " + this->name + " (" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ")");
+#endif
+
     const VSFrame *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi3);
+
+#ifdef VS_DEBUG_FRAME_REQUESTS
+    core->logMessage(mtInformation, "Finished processing of frame: " + std::to_string(n) + " ar: " + std::to_string(activationReason) + " filter: " + this->name + " (" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ")");
+#endif
 
     if (enableGraphInspection) {
         std::chrono::nanoseconds duration = std::chrono::high_resolution_clock::now() - startTime;

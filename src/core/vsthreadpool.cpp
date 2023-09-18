@@ -93,6 +93,9 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                 PVSFrame f = node->getCachedFrameInternal(frameContext->key.second);
 
                 if (f) {
+#ifdef VS_DEBUG_FRAME_REQUESTS
+                    core->logMessage(mtInformation, "Found requested frame: " + std::to_string(frameContext->key.second) + " filter: " + node->getName() + " (" + std::to_string(reinterpret_cast<uintptr_t>(node)) + ") in cache, skipping processing");
+#endif
                     bool needsSort = false;
 
                     for (size_t i = 0; i < frameContext->notifyCtxList.size(); i++) {
@@ -318,6 +321,9 @@ void VSThreadPool::startExternal(const PVSFrameContext &context) {
     assert(context);
     std::lock_guard<std::mutex> l(taskLock);
     context->reqOrder = ++reqCounter;
+#ifdef VS_DEBUG_FRAME_REQUESTS
+    core->logMessage(mtInformation, "External request for frame: " + std::to_string(context->key.second) + " filter: " + context->key.first->getName() + " (" + std::to_string(reinterpret_cast<uintptr_t>(context->key.first)) + ") reqorder: " + std::to_string(context->reqOrder));
+#endif
     assert(context);
     tasks.push_back(context); // external requests can't be combined so just add to queue
     wakeThread();
@@ -329,9 +335,13 @@ void VSThreadPool::returnFrame(const VSFrameContext *rCtx, const PVSFrame &f) {
     // we need to unlock here so the callback may request more frames without causing a deadlock
     // AND so that slow callbacks will only block operations in this thread, not all the others
     taskLock.unlock();
+#ifdef VS_DEBUG_FRAME_REQUESTS
+    core->logMessage(mtInformation, "Returning external request for frame: " + std::to_string(rCtx->key.second) + " filter: " + rCtx->key.first->getName() + " (" + std::to_string(reinterpret_cast<uintptr_t>(rCtx->key.first)) + ") reqorder: " + std::to_string(rCtx->reqOrder) + " lock: " + std::to_string(outputLock));
+#endif
     if (rCtx->hasError()) {
         if (outputLock)
             callbackLock.lock();
+
         rCtx->frameDone(rCtx->userData, nullptr, rCtx->key.second, rCtx->key.first, rCtx->errorMessage.c_str());
         if (outputLock)
             callbackLock.unlock();
@@ -339,10 +349,14 @@ void VSThreadPool::returnFrame(const VSFrameContext *rCtx, const PVSFrame &f) {
         f->add_ref();
         if (outputLock)
             callbackLock.lock();
+
         rCtx->frameDone(rCtx->userData, f.get(), rCtx->key.second, rCtx->key.first, nullptr);
         if (outputLock)
             callbackLock.unlock();
     }
+#ifdef VS_DEBUG_FRAME_REQUESTS
+    core->logMessage(mtInformation, "Completed external request for frame: " + std::to_string(rCtx->key.second) + " filter: " + rCtx->key.first->getName() + " (" + std::to_string(reinterpret_cast<uintptr_t>(rCtx->key.first)) + ") reqorder: " + std::to_string(rCtx->reqOrder) + " lock: " + std::to_string(outputLock));
+#endif
     taskLock.lock();
 }
 
