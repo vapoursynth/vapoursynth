@@ -27,6 +27,9 @@
     <ClCompile Include="..\..\src\vspipe\md5.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\vspipe\vsjson.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\common\vsutf16.h">
@@ -48,6 +51,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\vspipe\md5.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\vspipe\vsjson.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

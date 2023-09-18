@@ -159,6 +159,7 @@
     <ClCompile Include="..\..\src\common\wave.cpp" />
     <ClCompile Include="..\..\src\vspipe\md5.c" />
     <ClCompile Include="..\..\src\vspipe\printgraph.cpp" />
+    <ClCompile Include="..\..\src\vspipe\vsjson.cpp" />
     <ClCompile Include="..\..\src\vspipe\vspipe.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -169,6 +170,7 @@
     <ClInclude Include="..\..\src\common\wave.h" />
     <ClInclude Include="..\..\src\vspipe\md5.h" />
     <ClInclude Include="..\..\src\vspipe\printgraph.h" />
+    <ClInclude Include="..\..\src\vspipe\vsjson.h" />
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="..\..\src\vspipe\vspipe.manifest" />
