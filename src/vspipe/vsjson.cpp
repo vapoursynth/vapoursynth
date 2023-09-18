@@ -21,6 +21,13 @@
 #include "vsjson.h"
 #include "clocale"
 
+static bool isAsciiPrintable(const std::string &s) {
+    for (const auto c : s)
+        if (c < 0x20 || c > 0x7E)
+            return false;
+    return true;
+}
+
 static std::string doubleToString(double v) {
     std::string result = std::to_string(v);
     char point = *localeconv()->decimal_point;
@@ -90,7 +97,7 @@ std::string convertVSMapToJSON(const VSMap *map, const VSAPI *vsapi) {
                 for (int j = 0; j < numElems; j++) {
                     int typeHint = vsapi->mapGetDataTypeHint(map, key, j, nullptr);
                     jsonStr += (j ? ", " : "");
-                    if (typeHint == dtUtf8)
+                    if (typeHint == dtUtf8 || (typeHint == dtUnknown && vsapi->mapGetDataSize(map, key, j, nullptr) < 200 && isAsciiPrintable(std::string(vsapi->mapGetData(map, key, j, nullptr), vsapi->mapGetDataSize(map, key, j, nullptr)))))
                         jsonStr += escapeJSONString(vsapi->mapGetData(map, key, j, nullptr));
                     else
                         jsonStr += "\"[binary data size: " + std::to_string(vsapi->mapGetDataSize(map, key, j, nullptr)) + "]\"";
