@@ -681,10 +681,14 @@ static void printHelp() {
         "  -t, --timecodes FILE             Write timecodes v2 file\n"
         "  -j, --json FILE                  Write properties of output frames to JSON file\n"
         "  -p, --progress                   Print progress to stderr\n"
-        "      --filter-time                Prints time spent in individual filters after processing\n"
-        "  -i, --info                       Show output node info and exit\n"
+        "      --filter-time                Print time spent in individual filters after processing\n"
+        "  -i, --info                       Print output node info and exit\n"
         "  -g  --graph <simple/full>        Print output node filter graph in dot format and exit\n"
         "  -v, --version                    Show version info and exit\n"
+        "\n"
+        "Special output options for <outfile>:\n"
+        "  -                                Write to stdout\n"
+        "  -- or .                          No output\n"
         "\n"
         "Examples:\n"
         "  Show script info:\n"
@@ -692,7 +696,7 @@ static void printHelp() {
         "  Write to stdout:\n"
         "    vspipe [options] script.vpy -\n"
         "  Request all frames but don't output them:\n"
-        "    vspipe [options] script.vpy .\n"
+        "    vspipe [options] script.vpy --\n"
         "  Write frames 5-100 to file:\n"
         "    vspipe --start 5 --end 100 script.vpy output.raw\n"
         "  Pass values to a script:\n"
@@ -929,7 +933,7 @@ int main(int argc, char **argv) {
 
     if (opts.outputFilename.empty() || opts.outputFilename == NSTRING("-")) {
         outFile = stdout;
-    } else if (opts.outputFilename == NSTRING(".")) {
+    } else if (opts.outputFilename == NSTRING(".") || opts.outputFilename == NSTRING("--")) {
         // do nothing
     } else {
 #ifdef VS_TARGET_OS_WINDOWS
