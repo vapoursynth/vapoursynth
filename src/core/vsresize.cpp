@@ -330,8 +330,15 @@ void propagate_sar(const VSMap *src_props, VSMap *dst_props, const zimg_image_fo
         vsapi->mapDeleteKey(dst_props, "_SARNum");
         vsapi->mapDeleteKey(dst_props, "_SARDen");
     } else {
-        muldivRational(&sar_num, &sar_den, src_format.width, dst_format.width);
-        muldivRational(&sar_num, &sar_den, dst_format.height, src_format.height);
+        if (!std::isnan(src_format.active_region.width) && src_format.active_region.width != src_format.width)
+            muldivRational(&sar_num, &sar_den, std::llround(src_format.active_region.width * 16), static_cast<int64_t>(dst_format.width) * 16);
+        else
+            muldivRational(&sar_num, &sar_den, src_format.width, dst_format.width);
+
+        if (!std::isnan(src_format.active_region.height) && src_format.active_region.height != src_format.height)
+            muldivRational(&sar_num, &sar_den, std::llround(src_format.active_region.height * 16), static_cast<int64_t>(dst_format.height) * 16);
+        else
+            muldivRational(&sar_num, &sar_den, dst_format.height, src_format.height);
 
         vsapi->mapSetInt(dst_props, "_SARNum", sar_num, maReplace);
         vsapi->mapSetInt(dst_props, "_SARDen", sar_den, maReplace);
