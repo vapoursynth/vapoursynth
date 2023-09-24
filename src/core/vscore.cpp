@@ -890,7 +890,7 @@ int VSNode::setLinear() {
     cacheOverride = true;
     cacheEnabled = true;
     cache.setFixedSize(true);
-    cache.setMaxFrames(core->threadPool->threadCount() * 2 + 20);
+    cache.setMaxFrames(static_cast<int>(core->threadPool->threadCount()) * 2 + 20);
     registerCache(cacheEnabled);
     return cache.getMaxFrames() / 2;
 }

@@ -1578,7 +1578,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
         deps.push_back({d->propsrc[i], rpGeneral}); // FIXME, propsrc could be strict spatial
     for (int i = 0; i < numclipsrc; i++)
         deps.push_back({clipsrc[i], rpGeneral});
-    vsapi->createVideoFilter(out, "FrameEval", &d->vi, (d->propsrc.size() > 0) ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree, (d->propsrc.size() > 0) ? fmParallelRequests : fmUnordered, deps.data(), deps.size(), d.get(), core);
+    vsapi->createVideoFilter(out, "FrameEval", &d->vi, (d->propsrc.size() > 0) ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree, (d->propsrc.size() > 0) ? fmParallelRequests : fmUnordered, deps.data(), static_cast<int>(deps.size()), d.get(), core);
     d.release();
 
     for (auto &iter : clipsrc)
