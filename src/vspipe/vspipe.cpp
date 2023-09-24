@@ -873,7 +873,7 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             arg++;
         } else if (opts.scriptFilename.empty() && !argString.empty() && argString.substr(0, 1) != NSTRING("-")) {
             opts.scriptFilename = argString;
-        } else if (opts.outputFilename.empty() && !argString.empty() && (argString == NSTRING("-") || (argString.substr(0, 1) != NSTRING("-")))) {
+        } else if (opts.outputFilename.empty() && !argString.empty() && (argString == NSTRING("-") || argString == NSTRING("--") || (argString.substr(0, 1) != NSTRING("-")))) {
             opts.outputFilename = argString;
         } else {
             fprintf(stderr, "Unknown argument: %s\n", nstringToUtf8(argString).c_str());
