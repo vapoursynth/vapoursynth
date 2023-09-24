@@ -1,4 +1,5 @@
 r64:
+fixed SAR adjustment in resizer when source cropping is used
 added -- as an alternate to . to indicate no output in vspipe since shells have a tendency to expand .
 added json output of video frame properties to vspipe
 fixed clearMap function, previously it would forget to properly clear the error state in maps which could cause crashes in frameeval and other filters
