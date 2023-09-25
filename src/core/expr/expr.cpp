@@ -202,12 +202,14 @@ ExprOp decodeToken(std::string_view token)
             throw std::runtime_error("illegal token: " + std::string{ token });
         return{ token[0] == 'd' ? ExprOpType::DUP : ExprOpType::SWAP, idx };
     } else {
-        float f;
-        auto result = std::from_chars(token.data(), token.data() + token.size(), f);
-        if (result.ec == std::errc::invalid_argument)
+        char *str_end = const_cast<char *>(token.data()) + token.size();
+        float f = strtof(token.data(), &str_end);
+        if (str_end == token.data())
             throw std::runtime_error("failed to convert '" + std::string{ token } + "' to float");
-        if (result.ptr != token.data() + token.size())
+        if (str_end != token.data() + token.size())
             throw std::runtime_error("failed to convert '" + std::string{ token } + "' to float, not the whole token could be converted");
+        if (f == HUGE_VALF)
+            throw std::runtime_error("failed to convert '" + std::string{ token } + "' to float, number out of range");
         return{ ExprOpType::CONSTANT, f };
     }
 }
