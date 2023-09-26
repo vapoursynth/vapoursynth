@@ -13,6 +13,8 @@ jobs:
       run: |
         echo "CC=$(brew --prefix llvm@15)/bin/clang" >> $GITHUB_ENV
         echo "CXX=$(brew --prefix llvm@15)/bin/clang++" >> $GITHUB_ENV
+        echo "CPATH=/usr/local/include:$CPATH" >> $GITHUB_ENV
+        echo "LIBRARY_PATH=/usr/local/lib:$LIBRARY_PATH" >> $GITHUB_ENV
 
     - name: Print compiler version
       run: ${{ env.CC }} --version
