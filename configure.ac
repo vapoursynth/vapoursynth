@@ -1,4 +1,10 @@
-AC_INIT([vapoursynth], m4_esyscmd([sed -e 's/.*\s\(.*\)/\1/' VAPOURSYNTH_VERSION]), [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
+AC_INIT(
+        [vapoursynth],
+        m4_esyscmd_s([sed -e 's/.* \(.*\)/\1/' VAPOURSYNTH_VERSION]),
+        [https://github.com/vapoursynth/vapoursynth/issues],
+        [vapoursynth],
+        [http://www.vapoursynth.com/]
+)
 
 : ${CFLAGS=""}
 : ${CXXFLAGS=""}

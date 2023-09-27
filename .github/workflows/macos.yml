@@ -22,8 +22,7 @@ jobs:
     - name: Install required packages
       run: |
         brew update
-        brew install automake gnu-sed
-        echo "PATH=$(brew --prefix gnu-sed)/libexec/gnubin:$PATH" >> $GITHUB_ENV
+        brew install automake
 
     - name: Install zimg
       run: |
