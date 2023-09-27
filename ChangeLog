@@ -1,3 +1,6 @@
+r65:
+fixed the sar adjustment for real this time
+
 r64:
 fixed compilation on osx where the default standard library doesn't have a full implementation of std::from_chars
 fixed SAR adjustment in resizer when source cropping is used

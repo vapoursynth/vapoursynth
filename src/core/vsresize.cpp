@@ -336,7 +336,7 @@ void propagate_sar(const VSMap *src_props, VSMap *dst_props, const zimg_image_fo
             muldivRational(&sar_num, &sar_den, src_format.width, dst_format.width);
 
         if (!std::isnan(src_format.active_region.height) && src_format.active_region.height != src_format.height)
-            muldivRational(&sar_num, &sar_den, std::llround(src_format.active_region.height * 16), static_cast<int64_t>(dst_format.height) * 16);
+            muldivRational(&sar_num, &sar_den, static_cast<int64_t>(dst_format.height) * 16, std::llround(src_format.active_region.height * 16));
         else
             muldivRational(&sar_num, &sar_den, dst_format.height, src_format.height);
 
