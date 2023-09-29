@@ -11,7 +11,7 @@ from setuptools import Extension, setup
 is_win = (architecture()[1] == "WindowsPE")
 is_64 = (architecture()[0] == "64bit")
 
-data_files = ['VAPOURSYNTH_VERSION']
+extra_data = {}
 
 library_dirs = [curdir, "build"]
 
@@ -83,8 +83,8 @@ if is_win:
 
     # Make sure the setup process copies the VapourSynth.dll into the site-package folder
     print("Found VapourSynth.dll at:", dll_path)
-    
-    data_files.extend([(r"Lib\site-packages", [dll_path])])
+
+    extra_data["data_files"] = [(r"Lib\site-packages", [dll_path])]
  
         
 setup(
@@ -115,5 +115,6 @@ setup(
         'setuptools>=18.0',
         "Cython",
     ],
-    data_files=data_files
+    exclude_package_data={"": ("VAPOURSYNTH_VERSION",)},
+    **extra_data
 )
