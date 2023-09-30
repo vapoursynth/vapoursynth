@@ -22,6 +22,8 @@
 #include <cassert>
 #include <charconv>
 #include <cmath>
+#include <iostream>
+#include <locale>
 #include <map>
 #include <memory>
 #include <set>
@@ -202,14 +204,15 @@ ExprOp decodeToken(std::string_view token)
             throw std::runtime_error("illegal token: " + std::string{ token });
         return{ token[0] == 'd' ? ExprOpType::DUP : ExprOpType::SWAP, idx };
     } else {
-        char *str_end = const_cast<char *>(token.data()) + token.size();
-        float f = strtof(token.data(), &str_end);
-        if (str_end == token.data())
-            throw std::runtime_error("failed to convert '" + std::string{ token } + "' to float");
-        if (str_end != token.data() + token.size())
-            throw std::runtime_error("failed to convert '" + std::string{ token } + "' to float, not the whole token could be converted");
-        if (f == HUGE_VALF)
-            throw std::runtime_error("failed to convert '" + std::string{ token } + "' to float, number out of range");
+        float f;
+        std::string s;
+        std::string stoken(token);
+        std::istringstream numStream(stoken);
+        numStream.imbue(std::locale::classic());
+        if (!(numStream >> f))
+            throw std::runtime_error("failed to convert '" + stoken + "' to float");
+        if (numStream >> s)
+            throw std::runtime_error("failed to convert '" + stoken + "' to float, not the whole token could be converted");
         return{ ExprOpType::CONSTANT, f };
     }
 }
