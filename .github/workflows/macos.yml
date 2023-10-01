@@ -9,20 +9,22 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Set CC and CXX to use Clang/LLVM 15
+    - name: Install Homebrew packages
       run: |
-        echo "CC=$(brew --prefix llvm@15)/bin/clang" >> $GITHUB_ENV
-        echo "CXX=$(brew --prefix llvm@15)/bin/clang++" >> $GITHUB_ENV
+        brew update
+        brew install automake llvm
+
+    - name: Set environment variables for Clang/LLVM
+      run: |
+        echo "CC=/usr/local/opt/llvm/bin/clang" >> $GITHUB_ENV
+        echo "CXX=/usr/local/opt/llvm/bin/clang++" >> $GITHUB_ENV
+        echo "LDFLAGS=-fuse-ld=lld -L/usr/local/opt/llvm/lib/c++ -Wl,-rpath,/usr/local/opt/llvm/lib/c++" >> $GITHUB_ENV
+        echo "PATH=/usr/local/opt/llvm/bin:$PATH" >> $GITHUB_ENV
         echo "CPATH=/usr/local/include:$CPATH" >> $GITHUB_ENV
         echo "LIBRARY_PATH=/usr/local/lib:$LIBRARY_PATH" >> $GITHUB_ENV
 
     - name: Print compiler version
       run: ${{ env.CC }} --version
-
-    - name: Install required packages
-      run: |
-        brew update
-        brew install automake
 
     - name: Install zimg
       run: |
@@ -40,7 +42,7 @@ jobs:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: '3.11'
 
-    - name: Install/upgrade required Python packages
+    - name: Install Python packages
       run: |
         python -m pip install -U pip
         pip install -U cython setuptools wheel
