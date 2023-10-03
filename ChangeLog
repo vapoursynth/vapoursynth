@@ -1,4 +1,6 @@
 r65:
+fixed a bug in the avx2 maskedmerge float premultiplied code path that would switch the two input clips
+reverted the from_chars code a bit more to make no locale affects float parsing
 fixed the sar adjustment for real this time
 
 r64:
