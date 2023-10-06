@@ -815,7 +815,7 @@ cdef object mapToDict(const VSMap *map, bint flatten):
             elif proptype == ptFloat:
                 newval = funcs.mapGetFloat(map, retkey, y, NULL)
             elif proptype == ptData:
-                newval = funcs.mapGetData(map, retkey, y, NULL)
+                newval = funcs.mapGetData(map, retkey, y, NULL)[:funcs.mapGetDataSize(map, retkey, y, NULL)]
                 if funcs.mapGetDataTypeHint(map, retkey, y, NULL) == dtUtf8:
                     newval = newval.decode('utf-8')
             elif proptype == ptVideoNode or proptype == ptAudioNode:
@@ -1071,7 +1071,10 @@ cdef class FrameProps(object):
         elif t == ptData:
             for i in range(numelem):
                 data = self.funcs.mapGetData(m, b, i, NULL)
-                ol.append(data[:self.funcs.mapGetDataSize(m, b, i, NULL)])
+                aval = data[:self.funcs.mapGetDataSize(m, b, i, NULL)]
+                if self.funcs.mapGetDataTypeHint(m, b, i, NULL) == dtUtf8:
+                    aval = aval.decode('utf-8')
+                ol.append(aval)
         elif t == ptVideoNode or t == ptAudioNode:
             for i in range(numelem):
                 ol.append(createNode(self.funcs.mapGetNode(m, b, i, NULL), self.funcs, _get_core()))
@@ -1511,7 +1514,7 @@ cdef VideoFrame createVideoFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
 cdef class _frame:
 
     @staticmethod
-    cdef void* getdata(VSFrame* frame, int index, unsigned* flags, const VSAPI* lib) nogil:
+    cdef void* getdata(VSFrame* frame, int index, unsigned* flags, const VSAPI* lib) noexcept nogil:
         cdef:
             unsigned mask
 
@@ -3236,7 +3239,7 @@ cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename) 
             se.errstr = <void *>errstr
             return 1
 
-cdef public api void vpy4_freeScript(VSScript *se) nogil:
+cdef public api void vpy4_freeScript(VSScript *se) noexcept nogil:
     with gil:
         vpy_clearEnvironment(se)
         if se.pyenvdict:
@@ -3370,7 +3373,7 @@ cdef public api int vpy_clearVariable(VSScript *se, const char *name) nogil:
             return 1
         return 0
 
-cdef public api void vpy_clearEnvironment(VSScript *se) nogil:
+cdef public api void vpy_clearEnvironment(VSScript *se) noexcept nogil:
     with gil:
         pyenvdict = <dict>se.pyenvdict
         for key in pyenvdict:

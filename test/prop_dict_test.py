@@ -80,7 +80,7 @@ class PropDictTest(unittest.TestCase):
         self.assertEqual(self.props_rw.setdefault("_NonExistent1"), 0)
         self.assertEqual(self.props_rw["_NonExistent1"], 0)
 
-        self.assertEqual(self.props_rw.setdefault("_NonExistent2", "Testificate"), b"Testificate")
+        self.assertEqual(self.props_rw.setdefault("_NonExistent2", b"Testificate"), b"Testificate")
         self.assertEqual(self.props_rw["_NonExistent2"], b"Testificate")
 
     def test_attr_access(self):
@@ -101,6 +101,12 @@ class PropDictTest(unittest.TestCase):
         self.assertEqual(self.props_rw._DurationDen, 1)
         del self.props_rw._DurationDen
         self.assertFalse(hasattr(self.props_rw, '_DurationDen'))
+        
+    def test_data_props(self):
+        self.props_rw.DataPropStr = 'hello'
+        self.props_rw.DataPropBytes = b'hello'
+        self.assertEqual(type(self.props_rw.DataPropStr), str)
+        self.assertEqual(type(self.props_rw.DataPropBytes), bytes)
 
 
 if __name__ == '__main__':
