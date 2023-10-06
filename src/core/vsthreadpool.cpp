@@ -109,7 +109,6 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                         }
                     }
 
-                    PVSFrameContext mainContextRef = std::move(*iter);
                     tasks.erase(iter);
                     allContexts.erase(frameContext->key);
 
