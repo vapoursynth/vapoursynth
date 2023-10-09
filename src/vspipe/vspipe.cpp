@@ -735,7 +735,7 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             }
 
             arg++;
-        } else if (argString == NSTRING("-y") || argString == NSTRING("--y4m")) { // secret option for comaptibility with V3
+        } else if (argString == NSTRING("-y") || argString == NSTRING("--y4m")) { // secret option for compatibility with V3
             fprintf(stderr, "Deprecated option --y4m specified, use -c y4m instead\n");
             opts.outputHeaders = VSPipeHeaders::Y4M;
         } else if (argString == NSTRING("-p") || argString == NSTRING("--progress")) {
