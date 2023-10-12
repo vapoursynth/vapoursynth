@@ -1,9 +1,10 @@
 warningflags = -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-ignored-attributes
 commoncflags = -O3 -fvisibility=hidden $(warningflags) -I$(srcdir)/include $(DEBUGCFLAGS) $(MFLAGS) $(UNICODECFLAGS) $(STACKREALIGN)
-AM_CXXFLAGS = -std=c++14 $(commoncflags)
+AM_CXXFLAGS = -std=c++17 $(commoncflags)
 AM_CFLAGS = -std=c99 $(commoncflags)
 ACLOCAL_AMFLAGS = -I m4
 
+VSCURRENTRELEASE := $(shell cat VAPOURSYNTH_VERSION | cut -d ' ' -f3  | cut -d '-' -f1)
 
 
 cython_verbose = $(cython_verbose_$(V))
@@ -89,7 +90,7 @@ pkginclude_HEADERS = include/VapourSynth.h \
 pkgconfig_DATA += pc/vapoursynth.pc
 
 libvapoursynth_la_LDFLAGS = -no-undefined -avoid-version $(UNDEFINEDLDFLAGS)
-libvapoursynth_la_CPPFLAGS = $(PTHREAD_CFLAGS) $(ZIMG_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"'
+libvapoursynth_la_CPPFLAGS = $(PTHREAD_CFLAGS) $(ZIMG_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"' -DVS_CURRENT_RELEASE='$(VSCURRENTRELEASE)'
 libvapoursynth_la_LIBADD = $(PTHREAD_LIBS) $(ZIMG_LIBS) $(DLOPENLIB)
 
 
@@ -120,7 +121,7 @@ pyexec_LTLIBRARIES = vapoursynth.la
 
 vapoursynth_la_SOURCES = src/cython/vapoursynth.pyx
 vapoursynth_la_CFLAGS= $(AM_CFLAGS) -fvisibility=default -Wno-implicit-fallthrough
-vapoursynth_la_CPPFLAGS = $(PYTHON3_CFLAGS)
+vapoursynth_la_CPPFLAGS = $(PYTHON3_CFLAGS) -DVS_CURRENT_RELEASE='$(VSCURRENTRELEASE)'
 vapoursynth_la_LIBADD = $(MAYBE_PYTHON3_LIBS) libvapoursynth.la
 vapoursynth_la_LDFLAGS = $(PYTHON_MODULE_UNDEFINED) -avoid-version -module
 vapoursynth_la_LIBTOOLFLAGS = $(commonlibtoolflags)
@@ -140,7 +141,7 @@ pkgconfig_DATA += pc/vapoursynth-script.pc
 
 libvapoursynth_script_la_SOURCES = src/vsscript/vsscript.cpp
 libvapoursynth_script_la_LDFLAGS = -no-undefined -version-info 0 $(UNDEFINEDLDFLAGS)
-libvapoursynth_script_la_CPPFLAGS = $(PYTHON3_CFLAGS)
+libvapoursynth_script_la_CPPFLAGS = $(PYTHON3_CFLAGS) -DVS_CURRENT_RELEASE='$(VSCURRENTRELEASE)'
 libvapoursynth_script_la_LIBADD = $(PYTHON3_LIBS)
 
 
@@ -148,12 +149,14 @@ if VSPIPE
 bin_PROGRAMS = vspipe
 
 vspipe_SOURCES = src/vspipe/vspipe.cpp \
-                 src/vspipe/printgraph.cpp \
-                 src/vspipe/md5.c \
+				 src/vspipe/printgraph.cpp \
+				 src/vspipe/md5.c \
+				 src/vspipe/vsjson.cpp \
 				 src/common/wave.cpp
 
 vspipe_LDADD = libvapoursynth-script.la
 vspipe_LDFLAGS = $(UNICODELDFLAGS)
+vspipe_CPPFLAGS = $(PYTHON3_CFLAGS) -DVS_CURRENT_RELEASE='$(VSCURRENTRELEASE)'
 endif # VSPIPE
 endif # VSSCRIPT
 

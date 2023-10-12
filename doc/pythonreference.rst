@@ -39,7 +39,7 @@ Here are a few examples.
 +---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
 | Operation                       | Description                                                   | Equivalent                                             |
 +=================================+===============================================================+========================================================+
-| clip = clip[5]                  | Make a single frame clip containing frame number 5            |                                                        |
+| clip = clip[5]                  | Make a single frame clip containing frame number 5            | clip = core.std.Trim(clip, first=5, last=5)                                                      |
 +---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
 | clip = clip[5:11]               | Make a clip containing frames 5 to 10 [#f1]_                  | clip = core.std.Trim(clip, first=5, last=10)           |
 |                                 |                                                               |                                                        |
@@ -74,6 +74,22 @@ Filters can be chained with a dot::
 Which is quivalent to::
 
    clip = core.std.FlipVertical(core.std.Trim(clip, first=100, last=2000))
+   
+Function Arguments, Return Types and Property Type Deduction in Python
+**********************************************************************
+
+VapourSynth internally uses a very simple map of key-value pairs to pass values to and from functions.
+As a result of this every key is actually a one dimensional array of values of a single type. The Python bindings
+try to hide this as best as possible to make things less annoying. For example a function returning only a single key
+will have the only the array itself returned and an array with a single value will in turn only have the single value returned.
+
+Similarly function arguments are first converted to the appropriate type specified by the function's argument string or fails if this isn't possible.
+There is however one quirk where the data type's type hint (utf-8/non-printable raw data) is set based on whether a *str* or a *bytes*/*bytearray*
+object is passed. Likewise a *str* object will be returned for all utf-8 hinted data and a bytes object for all other types.
+
+Frame properties and "anything goes" function arguments have much stricter type requirements since the underlying type has to be possible to deduce from them.
+When using this type of functions, such as SetFrameProps, or property assignment it may be necessary to convert to int, float, str or bytes explicitly
+to make things works.
 
 Python Keywords as Filter Arguments
 ***********************************
@@ -1071,6 +1087,7 @@ Matrix Coefficients
    MATRIX_FCC
    MATRIX_BT470_BG
    MATRIX_ST170_M
+   MATRIX_ST240_M
    MATRIX_YCGCO
    MATRIX_BT2020_NCL
    MATRIX_BT2020_CL

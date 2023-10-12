@@ -35,7 +35,7 @@ const int margin_h = 16;
 const int margin_v = 16;
 
 namespace {
-std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
+using namespace std::string_literals;
 
 typedef std::vector<std::string> stringlist;
 } // namespace
@@ -497,11 +497,10 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
 
         const VSVideoFormat *frame_format = vsapi->getVideoFrameFormat(src);
-        if ((frame_format->sampleType == stInteger && frame_format->bitsPerSample > 16) ||
-            (frame_format->sampleType == stFloat && frame_format->bitsPerSample != 32)) {
-                vsapi->freeFrame(src);
-                vsapi->setFilterError((d->instanceName + ": Only 8..16 bit integer and 32 bit float formats supported").c_str(), frameCtx);
-                return nullptr;
+        if (!is8to16orFloatFormat(*frame_format)) {
+            vsapi->freeFrame(src);
+            vsapi->setFilterError(invalidVideoFormatMessage(*frame_format, vsapi, d->instanceName.c_str()).c_str(), frameCtx);
+            return nullptr;
         }
 
         int width = vsapi->getFrameWidth(src, 0);
@@ -574,10 +573,10 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
             char nameBuffer[32];
             vsapi->getVideoFormatName(&d->vi->format, nameBuffer);
 
-            text += "Format name: "_s + std::string(nameBuffer) + (d->vi->format.colorFamily == cfUndefined ? "\n" : " (may vary)\n");
+            text += "Format name: "s + std::string(nameBuffer) + (d->vi->format.colorFamily == cfUndefined ? "\n" : " (may vary)\n");
 
             text += "Color family: " + colorFamilyToString(frame_format->colorFamily) + "\n";
-            text += "Sample type: "_s + (frame_format->sampleType == stInteger ? "Integer" : "Float") + "\n";
+            text += "Sample type: "s + (frame_format->sampleType == stInteger ? "Integer" : "Float") + "\n";
             text += "Bits per sample: " + std::to_string(frame_format->bitsPerSample) + "\n";
             text += "Subsampling Height/Width: " + std::to_string(1 << frame_format->subSamplingH) + "x/" + std::to_string(1 << frame_format->subSamplingW) + "x\n";
 
@@ -609,7 +608,7 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
             text += "Range: " + rangeToString(range) + "\n";
             text += "Chroma Location: " + chromaLocationToString(location) + "\n";
             text += "Field handling: " + fieldBasedToString(field) + "\n";
-            text += "Picture type: "_s + (picttype ? picttype : "Unknown") + "\n";
+            text += "Picture type: "s + (picttype ? picttype : "Unknown") + "\n";
 
             if (d->vi->fpsNum && d->vi->fpsDen) {
                 text += "Fps: " + std::to_string(d->vi->fpsNum) + "/" + std::to_string(d->vi->fpsDen) + " (" + std::to_string(static_cast<double>(d->vi->fpsNum) / d->vi->fpsDen) + ")\n";
@@ -670,11 +669,10 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
     d->vi = vsapi->getVideoInfo(d->node);
 
-    if (d->vi->format.colorFamily != cfUndefined && ((d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample > 16) ||
-        (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample != 32))) {
-            vsapi->mapSetError(out, "Text: Only 8-16 bit integer and 32 bit float formats supported");
-            vsapi->freeNode(d->node);
-            return;
+    if (!is8to16orFloatFormat(d->vi->format, false, true)) {
+        vsapi->mapSetError(out, invalidVideoFormatMessage(d->vi->format, vsapi, "Text", false, true).c_str());
+        vsapi->freeNode(d->node);
+        return;
     }
 
     d->alignment = vsapi->mapGetIntSaturated(in, "alignment", 0, &err);

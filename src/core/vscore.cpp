@@ -746,7 +746,7 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame 
         throw VSException("The VSAudioInfo structure passed by " + name + " is invalid.");
 
     this->ai = *ai;
-    int64_t maxSamples =  std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
+    constexpr int64_t maxSamples = std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
     if (this->ai.numSamples > maxSamples)
         throw VSException("Filter " + name + " specified " + std::to_string(this->ai.numSamples) + " output samples but " + std::to_string(maxSamples) + " samples is the upper limit");
     this->ai.numFrames = static_cast<int>((this->ai.numSamples + VS_AUDIO_FRAME_SAMPLES - 1) / VS_AUDIO_FRAME_SAMPLES);
@@ -890,7 +890,7 @@ int VSNode::setLinear() {
     cacheOverride = true;
     cacheEnabled = true;
     cache.setFixedSize(true);
-    cache.setMaxFrames(core->threadPool->threadCount() * 2 + 20);
+    cache.setMaxFrames(static_cast<int>(core->threadPool->threadCount()) * 2 + 20);
     registerCache(cacheEnabled);
     return cache.getMaxFrames() / 2;
 }
@@ -949,13 +949,21 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     if (enableGraphInspection)
         startTime = std::chrono::high_resolution_clock::now();
 
+#ifdef VS_DEBUG_FRAME_REQUESTS
+    core->logMessage(mtInformation, "Started processing of frame: " + std::to_string(n) + " ar: " + std::to_string(activationReason) + " filter: " + this->name + " (" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ")");
+#endif
+
     const VSFrame *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi3);
+
+#ifdef VS_DEBUG_FRAME_REQUESTS
+    core->logMessage(mtInformation, "Finished processing of frame: " + std::to_string(n) + " ar: " + std::to_string(activationReason) + " filter: " + this->name + " (" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ")");
+#endif
 
     if (enableGraphInspection) {
         std::chrono::nanoseconds duration = std::chrono::high_resolution_clock::now() - startTime;
         processingTime.fetch_add(duration.count(), std::memory_order_relaxed);
     }
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
         core->logFatal("Bad SSE state detected after return from "+ name);
 #endif
@@ -1767,7 +1775,7 @@ VSCore::VSCore(int flags) :
     cpuLevel(INT_MAX),
     memory(new vs::MemoryUse()),
     enableGraphInspection(flags & ccfEnableGraphInspection) {
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
         logFatal("Bad SSE state detected when creating new core");
 #endif
@@ -1926,7 +1934,7 @@ VSCore::VSCore(int flags) :
 
         if (autoloadSystemPluginDir) {
             if (!loadAllPluginsInPath(systemPluginDir, filter)) {
-                logMessage(mtCritical, "Autoloading the system plugin dir '" + systemPluginDir + "' failed. Directory doesn't exist?");
+                logMessage(mtDebug, "Autoloading the system plugin dir '" + systemPluginDir + "' failed. Directory doesn't exist?");
             }
         }
     }
@@ -2163,7 +2171,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     else
         pluginInit3(configPlugin3, vs_internal_vsapi3.registerFunction, this);
 
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
         core->logFatal("Bad SSE state detected after loading " + filename);
 #endif

@@ -5,26 +5,12 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   build-msvc:
     runs-on: windows-latest
-    
-    strategy:
-      matrix:
-        arch: [x86, x64]
-        include:
-          - arch: x86
-            platform: Win32
-            # unable to diagnose this error during `import vapoursynth`
-            # ImportError: DLL load failed while importing vapoursynth: A dynamic link library (DLL) initialization routine failed.
-            test: false
-          - arch: x64
-            platform: x64
-            test: true
 
     steps:
     - uses: actions/checkout@v3
 
-    - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1.1
-  
+    - uses: microsoft/setup-msbuild@v1
+
     - name: Clone Dependencies
       run: |
         git clone https://github.com/vapoursynth/vsrepo --depth 1
@@ -33,12 +19,15 @@ jobs:
         git clone https://github.com/sekrit-twc/libp2p --depth 1
 
     - name: Setup Python 3.8
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
-        python-version: 3.8
-        # The target architecture (x86, x64) of the Python interpreter.
-        architecture: ${{ matrix.arch }}
+        python-version: '3.8'
+
+    - name: Install required Python packages
+      run: |
+        python -m pip install -U pip
+        pip install -U cython setuptools wheel
 
     - name: Get Python 3.8 Install Path
       run: |
@@ -46,116 +35,98 @@ jobs:
         echo "PYTHON38_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Setup Python 3.11
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-        architecture: ${{ matrix.arch }}
 
-    - name: Install cython
+    - name: Install required Python packages
       run: |
-        python -m pip install --upgrade pip
-        pip install cython
-        
+        python -m pip install -U pip
+        pip install -U cython setuptools wheel
+
     - name: Get Python 3.11 Install Path
       run: |
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
         echo "PYTHON_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+    - name: Get version number
+      run: |
+        echo "VS_CURRENT_RELEASE=$(python -c "from pathlib import Path; print((Path.cwd() / 'VAPOURSYNTH_VERSION').resolve().read_text().split(' ')[-1].strip().split('-')[0])")" | Out-File -FilePath $env:GITHUB_ENV -Append
+
     - name: Compile
       run: |
         $env:VSPYTHON38_PATH="${{ env.PYTHON38_PATH }}"
-        $env:VSPYTHON3832_PATH="${{ env.PYTHON38_PATH }}"
         $env:VSPYTHON_PATH="${{ env.PYTHON_PATH }}"
-        $env:VSPYTHON32_PATH="${{ env.PYTHON_PATH }}"
-        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}        
+        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=x64 /p:CurrentVersion=${{ env.VS_CURRENT_RELEASE }}
         pip install . --no-deps
-        
+
         pushd installer
         $env:SKIP_COMPRESS="yes"
         $env:SKIP_WAIT="yes"
         & ".\make_portable.bat"
-        
-        if ("${{ matrix.arch }}" -eq "x64") {
-          pushd buildp64
-        } else {
-          pushd buildp32
-        }
+
+        pushd buildp64
         pip install . --no-deps
         popd
         popd
 
-        
     - name: Package for Python 3.11
       run: |
         mkdir wheels
-        pip install wheel
         python setup.py bdist_wheel -d ./wheels
         python setup.py sdist -d ./wheels --format=zip
-        
+
         pushd installer
-        if ("${{ matrix.arch }}" -eq "x64") {
-          pushd buildp64
-        } else {
-          pushd buildp32
-        }
-        
+        pushd buildp64
         python setup.py bdist_wheel -d ../../wheels
-        
         popd
         popd
-        
+
+    - name: Run test with Python 3.11
+      run: |
+        python -m unittest discover -s test -p "*test.py"
+
     - name: Setup Python 3.8 a second time
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
-        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
-        python-version: 3.8
-        # The target architecture (x86, x64) of the Python interpreter.
-        architecture: ${{ matrix.arch }}
+        python-version: '3.8'
+
     - name: Building for Python 3.8
       run: |
         pip install . --no-deps
-  
+
         pushd installer
         if ("x64" -eq "x64") {
           Remove-Item 'buildp64' -Recurse
         } else {
           Remove-Item 'buildp32' -Recurse
         }
-        
+
         $env:SKIP_COMPRESS="yes"
         $env:SKIP_WAIT="yes"
         & ".\make_portable.bat"
-  
-  
-        if ("${{ matrix.arch }}" -eq "x64") {
-          pushd buildp64
-        } else {
-          pushd buildp32
-        }
+
+        pushd buildp64
         pip install . --no-deps
         popd
         popd
 
     - name: Package for Python 3.8
       run: |
-        pip install wheel
         python setup.py bdist_wheel -d ./wheels
         python setup.py sdist -d ./wheels --format=zip
-        
+
         pushd installer
-        if ("${{ matrix.arch }}" -eq "x64") {
-          pushd buildp64
-        } else {
-          pushd buildp32
-        }
-        
+        pushd buildp64
         python setup.py bdist_wheel -d ../../wheels
-        
         popd
         popd
-      
-    - name: Upload build artefacts
-      uses: actions/upload-artifact@v2
+
+    - name: Run test with Python 3.8
+      run: |
+        python -m unittest discover -s test -p "*test.py"
+
+    - uses: actions/upload-artifact@v3
       with:
         name: Wheels
         path: |
@@ -164,35 +135,28 @@ jobs:
           wheels/**/*.zip
           wheels/*.zip
 
-    - name: Run test
-      if: ${{ matrix.test }}
-      run: python -m unittest discover -s test -p "*test.py"
-      
   test-windows:
     runs-on: windows-latest
     needs: build-msvc
     strategy:
       matrix:
-        arch: [x86, x64]
         python: ["3.8", "3.11"]
-        
+
     steps:
     - name: Setup Python ${{ matrix.python }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python }}
-        architecture: ${{ matrix.arch }}
 
-    - name: Download build artifacts
-      uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: Wheels
-    
+
     - name: Try installing
       run: |
         pip install --no-index --find-links . vapoursynth
         pip install --no-index --find-links . vapoursynth_portable
-        
+
         python -c "from vapoursynth import core; print(core.std.BlankClip())"
 
   public:
@@ -201,19 +165,17 @@ jobs:
     if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
 
     steps:
-    - name: Setup Python 3.11
-      uses: actions/setup-python@v3
+    - uses: actions/setup-python@v4
       with:
-        python-version: "3.11"
+        python-version: '3.11'
 
-    - name: Download build artifacts
-      uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: Wheels
 
     - name: Install twine
       run: |
-        pip install twine
+        pip install -U twine
 
     - name: Upload VapourSynth
       env:
@@ -228,4 +190,3 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PORTABLE }}
       run: |
         twine upload VapourSynth_portable-*
-

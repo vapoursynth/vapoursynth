@@ -57,3 +57,6 @@ Release
 msvc_project/.vs
 
 .ccls-cache/
+configure~
+m4/
+!m4/ax_pthread.m4

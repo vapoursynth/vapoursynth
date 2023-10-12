@@ -159,7 +159,7 @@ typedef vs_intrusive_ptr<VSArrayBase> PVSArrayBase;
 template<typename T, VSPropertyType propType>
 class VSArray final : public VSArrayBase {
 private:
-    T singleData;
+    T singleData = {};
     std::vector<T> data;
 public:
     explicit VSArray() noexcept : VSArrayBase(propType) {}
@@ -243,6 +243,11 @@ public:
     explicit VSMapStorage() : refcount(1), error(false) {}
 
     explicit VSMapStorage(const VSMapStorage &s) : refcount(1), data(s.data), error(s.error) {
+    }
+
+    void clear() noexcept {
+        data.clear();
+        error = false;
     }
 
     bool unique() noexcept {
@@ -334,7 +339,7 @@ public:
 
     void clear() {
         if (data->unique())
-            data->data.clear();
+            data->clear();
         else
             data = new VSMapStorage();
     }

@@ -1,3 +1,26 @@
+r65:
+frame properties in python are now return as str type instead of bytes when hinted as utf8 printable
+fixed how unprintable data is returned from plugin functions in python, previously it would leak a ctypes pointer with no length instead of returning a bytes object
+fixed a bug in the avx2 maskedmerge float premultiplied code path that would switch the two input clips
+reverted the from_chars code a bit more to make no locale affects float parsing
+fixed the sar adjustment for real this time
+
+r64:
+fixed compilation on osx where the default standard library doesn't have a full implementation of std::from_chars
+fixed SAR adjustment in resizer when source cropping is used
+added -- as an alternate to . to indicate no output in vspipe since shells have a tendency to expand .
+added json output of video frame properties to vspipe
+fixed clearMap function, previously it would forget to properly clear the error state in maps which could cause crashes in frameeval and other filters
+32 bit binaries are no longer provided for windows
+updated zimg to fix issues on zen4 cpus
+added support for cython 3.x
+
+r63:
+updated all api documentation for api4
+switched to C++17 for the entire project
+added a warning every time the deprecated cache filter is instantiated and ignored
+fixed a regression with alpha nodes in vspipe introduced in r62
+
 r62:
 updated the supported python versions to 3.11 and 3.8
 now up to 500 log messages are cached when no log handler is attached

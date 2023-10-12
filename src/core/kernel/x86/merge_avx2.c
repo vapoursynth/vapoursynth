@@ -316,7 +316,7 @@ void vs_mask_merge_premul_float_avx2(const void *src1, const void *src2, const v
         __m256 v1 = _mm256_load_ps(srcp1 + i);
         __m256 v2 = _mm256_load_ps(srcp2 + i);
         __m256 w1 = _mm256_sub_ps(_mm256_set1_ps(1.0f), _mm256_load_ps(maskp + i));
-        __m256 result = _mm256_fmadd_ps(v2, w1, v1);
+        __m256 result = _mm256_fmadd_ps(v1, w1, v2);
         _mm256_store_ps(dstp + i, result);
     }
 }

@@ -140,6 +140,12 @@ static inline uint16_t doubleToHalfPixelValue(double v, int *err) {
 // Cache compatibility filter, does nothing
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    int err;
+    bool makeLinear = !!vsapi->mapGetInt(in, "make_linear", 0, &err);
+    if (makeLinear)
+        vsapi->logMessage(mtCritical, "Explicitly instantiated a Cache with make_linear set. This is no longer possible and the original clip has been passed through instead which may cause severe issues.", core);
+    else
+        vsapi->logMessage(mtWarning, "Explicitly instantiated a Cache. This is no longer possible and the original clip has been passed through instead.", core);
     vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clip", 0, nullptr), maAppend);
 }
 
@@ -1328,12 +1334,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     tmp2 = vsapi->mapGetInt(in, "varformat", 0, &err);
     if (!err && tmp2) {
-        deliveredInfo.format.colorFamily = cfUndefined;
-        deliveredInfo.format.bitsPerSample = 0;
-        deliveredInfo.format.bytesPerSample = 0;
-        deliveredInfo.format.subSamplingW = 0;
-        deliveredInfo.format.subSamplingH = 0;
-        deliveredInfo.format.numPlanes = 0;
+        deliveredInfo.format = {};
     }
 
     vsapi->createVideoFilter(out, "BlankClip", &deliveredInfo, blankClipGetframe, blankClipFree, d->keep ? fmUnordered : fmParallel, nullptr, 0, d.get(), core);
@@ -1427,7 +1428,7 @@ static const VSFrame *VS_CC frameEvalGetFrameWithProps(int n, int activationReas
     if (activationReason == arInitial) {
         for (auto iter : d->propsrc)
             vsapi->requestFrameFilter(n, iter, frameCtx);
-    } else if (activationReason == arAllFramesReady && !*frameData) {
+    } else if (activationReason == arAllFramesReady && !frameData[0]) {
         int err;
         vsapi->mapSetInt(d->in, "n", n, maAppend);
         for (auto iter : d->propsrc) {
@@ -1577,7 +1578,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
         deps.push_back({d->propsrc[i], rpGeneral}); // FIXME, propsrc could be strict spatial
     for (int i = 0; i < numclipsrc; i++)
         deps.push_back({clipsrc[i], rpGeneral});
-    vsapi->createVideoFilter(out, "FrameEval", &d->vi, (d->propsrc.size() > 0) ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree, (d->propsrc.size() > 0) ? fmParallelRequests : fmUnordered, deps.data(), deps.size(), d.get(), core);
+    vsapi->createVideoFilter(out, "FrameEval", &d->vi, (d->propsrc.size() > 0) ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree, (d->propsrc.size() > 0) ? fmParallelRequests : fmUnordered, deps.data(), static_cast<int>(deps.size()), d.get(), core);
     d.release();
 
     for (auto &iter : clipsrc)
@@ -1851,7 +1852,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
 
     if (!is8to16orFloatFormat(vi->format))
-        RETERROR(("PEMVerifier: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(vi->format, vsapi)).c_str());
+        RETERROR(invalidVideoFormatMessage(vi->format, vsapi, "PEMVerifier").c_str());
 
     if (numlower < 0) {
         for (int i = 0; i < vi->format.numPlanes; i++) {
@@ -2027,7 +2028,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node1);
 
     if (!is8to16orFloatFormat(vi->format))
-        RETERROR(("PlaneStats: only 8-16 bit integer and 32 bit float input supported, passed " + videoFormatToName(vi->format, vsapi)).c_str());
+        RETERROR(invalidVideoFormatMessage(vi->format, vsapi, "PlaneStats").c_str());
 
     d->plane = vsapi->mapGetIntSaturated(in, "plane", 0, &err);
     if (d->plane < 0 || d->plane >= vi->format.numPlanes)

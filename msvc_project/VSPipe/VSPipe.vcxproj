@@ -89,7 +89,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NOMINMAX;VS_TARGET_OS_WINDOWS;_CRT_SECURE_NO_WARNINGS;VS_GRAPH_API;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -105,7 +105,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NOMINMAX;VS_TARGET_OS_WINDOWS;_CRT_SECURE_NO_WARNINGS;VS_GRAPH_API;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -124,7 +124,7 @@
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -145,7 +145,7 @@
       <PreprocessorDefinitions>NOMINMAX;VS_TARGET_OS_WINDOWS;_CRT_SECURE_NO_WARNINGS;VS_GRAPH_API;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -159,6 +159,7 @@
     <ClCompile Include="..\..\src\common\wave.cpp" />
     <ClCompile Include="..\..\src\vspipe\md5.c" />
     <ClCompile Include="..\..\src\vspipe\printgraph.cpp" />
+    <ClCompile Include="..\..\src\vspipe\vsjson.cpp" />
     <ClCompile Include="..\..\src\vspipe\vspipe.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -169,6 +170,7 @@
     <ClInclude Include="..\..\src\common\wave.h" />
     <ClInclude Include="..\..\src\vspipe\md5.h" />
     <ClInclude Include="..\..\src\vspipe\printgraph.h" />
+    <ClInclude Include="..\..\src\vspipe\vsjson.h" />
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="..\..\src\vspipe\vspipe.manifest" />

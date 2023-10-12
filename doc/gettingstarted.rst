@@ -13,22 +13,22 @@ Example Script
 ##############
 
 It all starts with a *.vpy* script.
-Here's a sample script to be inspired by, it assumes that `FFMS2 <https://github.com/FFMS/ffms2>`_
+Here's a sample script to be inspired by, it assumes that `BestSource <https://github.com/vapoursynth/bestsource>`_
 is installed and :doc:`auto-loaded <installation>`.
 
 .. code-block:: python
 
    from vapoursynth import core                     # Get an instance of the core
-   clip = core.ffms2.Source(source='filename.mkv')  # Load a video track in mkv file
+   clip = core.bs.VideoSource(source='filename.mkv')  # Load a video track in mkv file
    clip = core.std.FlipHorizontal(clip)             # Flip the video clip in the horizontal direction
    clip.set_output()                                # Set the video clip to be accessible for output
 
-Audio is also supported, use `BestAudioSource <https://github.com/vapoursynth/bestaudiosource>`_ to load your audio file.
+Audio is also supported, use `BestSource <https://github.com/vapoursynth/bestsource>`_ to load your audio file.
 
 .. code-block:: python
 
    from vapoursynth import core                     # Get an instance of the core
-   clip = core.bas.Source(source='filename.mkv')    # Load an audio track in mkv file
+   clip = core.bs.AudioSource(source='filename.mkv')    # Load an audio track in mkv file
    clip = core.std.AudioGain(clip,gain=2.0)         # Gain all channels 2x
    clip.set_output()                                # Set the audio clip to be accessible for output
 
@@ -37,8 +37,8 @@ You can combine 2 operations in one script.
 .. code-block:: python
 
    from vapoursynth import core
-   video = core.ffms2.Source(source='filename.mkv')
-   audio = core.bas.Source(source='filename.mkv')
+   video = core.bs.VideoSource(source='filename.mkv')
+   audio = core.bs.AudioSource(source='filename.mkv')
    video = core.std.FlipHorizontal(video)
    audio = core.std.AudioGain(audio,gain=2.0)
    video.set_output(index=0)

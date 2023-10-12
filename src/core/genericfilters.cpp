@@ -43,9 +43,7 @@
 #define FORCE_INLINE inline __attribute__((always_inline))
 #endif
 
-namespace {
-std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
-} // namespace
+using namespace std::string_literals;
 
 enum RangeArgumentHandling {
     RangeLower,
@@ -153,7 +151,7 @@ static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, voi
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
         if (!is8to16orFloatFormat(*fi)) {
-            vsapi->setFilterError((d->name + ": frame must be constant format and of integer 8-16 bit type or 32 bit float, passed "_s + videoFormatToName(*fi, vsapi)).c_str(), frameCtx);
+            vsapi->setFilterError(invalidVideoFormatMessage(*fi, vsapi, d->name, false, false, true).c_str(), frameCtx);
             vsapi->freeFrame(src);
             return nullptr;
         }
@@ -203,8 +201,8 @@ static void templateInit(T& d, const char *name, bool allowVariableFormat, const
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
 
-    if (!is8to16orFloatFormat(d->vi->format, allowVariableFormat))
-        throw std::runtime_error("Clip must be constant format and of integer 8-16 bit type or 32 bit float, passed " + videoFormatToName(d->vi->format, vsapi) + ".");
+    if (!is8to16orFloatFormat(d->vi->format, false, allowVariableFormat))
+        throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi));
 
     getPlanesArg(in, d->process, vsapi);
 }
@@ -449,13 +447,13 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
 
         try {
             if (!is8to16orFloatFormat(*fi))
-                throw std::runtime_error("Frame must be constant format and of integer 8-16 bit type or 32 bit float, passed " + videoFormatToName(*fi, vsapi) + ".");
+                throw std::runtime_error(invalidVideoFormatMessage(*fi, vsapi, nullptr, false, false, true));
             if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
                 throw std::runtime_error("Width must be bigger than convolution radius.");
             if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
                 throw std::runtime_error("Height must be bigger than convolution radius.");
         } catch (const std::runtime_error &error) {
-            vsapi->setFilterError((d->filter_name + ": "_s + error.what()).c_str(), frameCtx);
+            vsapi->setFilterError((d->filter_name + ": "s + error.what()).c_str(), frameCtx);
             vsapi->freeFrame(src);
             return 0;
         }
@@ -521,7 +519,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     try {
         if (!is8to16orFloatFormat(d->vi->format))
-            throw std::runtime_error("Clip must be constant format and of integer 8-16 bit type or 32 bit float, passed " + videoFormatToName(d->vi->format, vsapi) + ".");
+            throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi));
 
         if (d->vi->height && d->vi->width)
             if (planeWidth(d->vi, d->vi->format.numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format.numPlanes - 1) < 4)
@@ -583,15 +581,15 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             d->matrix_elements = vsapi->mapNumElements(in, "matrix");
 
             const char *mode = vsapi->mapGetData(in, "mode", 0, &err);
-            if (err || mode == "s"_s) {
+            if (err || mode == "s"s) {
                 d->convolution_type = ConvolutionSquare;
 
                 if (d->matrix_elements != 9 && d->matrix_elements != 25)
                     throw std::runtime_error("When mode starts with 's', matrix must contain exactly 9 or exactly 25 numbers.");
-            } else if (mode == "h"_s || mode == "v"_s || mode == "hv"_s || mode == "vh"_s) {
-                if (mode == "h"_s)
+            } else if (mode == "h"s || mode == "v"s || mode == "hv"s || mode == "vh"s) {
+                if (mode == "h"s)
                     d->convolution_type = ConvolutionHorizontal;
-                else if (mode == "v"_s)
+                else if (mode == "v"s)
                     d->convolution_type = ConvolutionVertical;
                 else
                     d->convolution_type = ConvolutionSeparable;
@@ -640,7 +638,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
         d->cpulevel = vs_get_cpulevel(core);
     } catch (const std::runtime_error &error) {
-        vsapi->mapSetError(out, (d->filter_name + ": "_s + error.what()).c_str());
+        vsapi->mapSetError(out, (d->filter_name + ": "s + error.what()).c_str());
         return;
     }
 
@@ -695,7 +693,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         templateInit(d, userData ? "InvertMask" : "Invert", true, in, out, vsapi);
         d->mask = !!userData;
     } catch (const std::runtime_error &error) {
-        vsapi->mapSetError(out, (d->name + ": "_s + error.what()).c_str());
+        vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
         return;
     }
 
@@ -751,7 +749,7 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             if (((d->vi->format.sampleType == stInteger) && (d->min[i] > d->max[i])) || ((d->vi->format.sampleType == stFloat) && (d->minf[i] > d->maxf[i])))
                 throw std::runtime_error("min bigger than max");
     } catch (const std::runtime_error &error) {
-        vsapi->mapSetError(out, (d->name + ": "_s + error.what()).c_str());
+        vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
         return;
     }
 
@@ -813,7 +811,7 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         getPlanePixelRangeArgs(d->vi->format, in, "v1", d->v1, d->v1f, RangeUpper, !!userData, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, RangeMiddle, !!userData, vsapi);
     } catch (const std::runtime_error &error) {
-        vsapi->mapSetError(out, (d->name + ": "_s + error.what()).c_str());
+        vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
         return;
     }
 
@@ -941,7 +939,7 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     try {
         templateInit(d, "Levels", false, in, out, vsapi);
     } catch (const std::runtime_error &error) {
-        vsapi->mapSetError(out, (d->name + ": "_s + error.what()).c_str());
+        vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
         return;
     }
 
