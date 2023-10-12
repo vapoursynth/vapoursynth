@@ -9,7 +9,6 @@ mkdir buildp64\vapoursynth64\coreplugins
 mkdir buildp64\vapoursynth64\plugins
 mkdir buildp64\sdk\include
 mkdir buildp64\sdk\examples
-mkdir buildp64\sdk\lib32
 mkdir buildp64\sdk\lib64
 mkdir buildp64\doc
 mkdir buildp64\vsgenstubs4
@@ -34,8 +33,6 @@ copy ..\include\VapourSynth4.h buildp64\sdk\include
 copy ..\include\VSHelper4.h buildp64\sdk\include
 copy ..\include\VSScript4.h buildp64\sdk\include
 copy ..\include\VSConstants4.h buildp64\sdk\include
-copy ..\msvc_project\Release\vapoursynth.lib buildp64\sdk\lib32
-copy ..\msvc_project\Release\vsscript.lib buildp64\sdk\lib32
 copy ..\msvc_project\x64\Release\vapoursynth.lib buildp64\sdk\lib64
 copy ..\msvc_project\x64\Release\vsscript.lib buildp64\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp64\sdk\examples
