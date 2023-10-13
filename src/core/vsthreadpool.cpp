@@ -109,6 +109,8 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                         }
                     }
 
+                    // this is needed in order to prevent more tasks latching on to a context in the final stages of completion, holds a reference to frameContext
+                    PVSFrameContext mainContextRef = std::move(*iter);  
                     tasks.erase(iter);
                     allContexts.erase(frameContext->key);
 
