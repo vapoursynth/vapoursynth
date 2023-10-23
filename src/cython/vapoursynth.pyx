@@ -1970,7 +1970,7 @@ cdef class RawNode(object):
             raise Error("This node is not inspectable")
 
         return tuple(
-            createNode(self.funcs.getNodeDependencies(self.node)[idx].source, self.funcs, self.core)
+            createNode(self.funcs.addNodeRef(self.funcs.getNodeDependencies(self.node)[idx].source), self.funcs, self.core)
             for idx in range(self.funcs.getNumNodeDependencies(self.node))
         )
 
