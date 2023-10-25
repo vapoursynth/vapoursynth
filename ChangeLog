@@ -1,4 +1,5 @@
 r65:
+fixed inspection api sometimes causing memory corruption when used from python
 frame properties in python are now return as str type instead of bytes when hinted as utf8 printable
 fixed how unprintable data is returned from plugin functions in python, previously it would leak a ctypes pointer with no length instead of returning a bytes object
 fixed a bug in the avx2 maskedmerge float premultiplied code path that would switch the two input clips
