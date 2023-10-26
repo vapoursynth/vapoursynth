@@ -13,10 +13,10 @@ jobs:
 
     - name: Clone Dependencies
       run: |
-        git clone https://github.com/vapoursynth/vsrepo --depth 1
-        git clone https://github.com/sekrit-twc/zimg --depth 1 --shallow-submodules --recurse-submodules
         git clone https://github.com/AviSynth/AviSynthPlus.git --depth 1
-        git clone https://github.com/sekrit-twc/libp2p --depth 1
+        git clone https://github.com/sekrit-twc/libp2p.git --depth 1
+        git clone https://github.com/vapoursynth/vsrepo.git --depth 1
+        git clone https://bitbucket.org/the-sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules
 
     - name: Setup Python 3.8
       uses: actions/setup-python@v4

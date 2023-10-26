@@ -4,7 +4,7 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build-clang:
-    runs-on: macos-latest
+    runs-on: macos-13
 
     steps:
     - uses: actions/checkout@v3
@@ -28,18 +28,17 @@ jobs:
 
     - name: Install zimg
       run: |
-        git clone https://github.com/sekrit-twc/zimg --depth 1 --shallow-submodules --recurse-submodules
+        git clone https://bitbucket.org/the-sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules
         pushd zimg
         ./autogen.sh
         ./configure
-        make -j3
-        sudo make install -j3
+        make -j4
+        sudo make install -j4
         popd
         rm -rf zimg
 
     - uses: actions/setup-python@v4
       with:
-        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: '3.11'
 
     - name: Install Python packages
@@ -53,11 +52,11 @@ jobs:
         ./configure
 
     - name: make
-      run: make -j3
+      run: make -j4
 
     - name: make install
       run: |
-        sudo make install -j3
+        sudo make install -j4
         pip install .
 
     - name: Run test
