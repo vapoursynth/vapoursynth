@@ -39,7 +39,7 @@ Here are a few examples.
 +---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
 | Operation                       | Description                                                   | Equivalent                                             |
 +=================================+===============================================================+========================================================+
-| clip = clip[5]                  | Make a single frame clip containing frame number 5            | clip = core.std.Trim(clip, first=5, last=5)                                                      |
+| clip = clip[5]                  | Make a single frame clip containing frame number 5            | clip = core.std.Trim(clip, first=5, last=5)            |
 +---------------------------------+---------------------------------------------------------------+--------------------------------------------------------+
 | clip = clip[5:11]               | Make a clip containing frames 5 to 10 [#f1]_                  | clip = core.std.Trim(clip, first=5, last=10)           |
 |                                 |                                                               |                                                        |
