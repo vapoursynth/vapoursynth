@@ -2464,6 +2464,7 @@ static void VS_CC setCache(const VSMap *in, VSMap *out, void *userData, VSCore *
     if (err)
         maxhistory = -1;
     vsapi->setCacheOptions(node, fixedsize, maxsize, maxhistory);
+    vsapi->freeNode(node);
 }
 
 //////////////////////////////////////////
