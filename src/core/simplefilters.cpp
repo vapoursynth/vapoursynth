@@ -1590,7 +1590,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
 
 typedef struct {
     std::vector<VSNode *> node;
-    const VSVideoInfo *vi;
+    VSVideoInfo vi;
     VSFunction *func;
     VSMap *in;
     VSMap *out;
@@ -1630,13 +1630,13 @@ static const VSFrame *VS_CC modifyFrameGetFrame(int n, int activationReason, voi
             return nullptr;
         }
 
-        if (d->vi->format.colorFamily != cfUndefined && !isSameVideoFormat(&d->vi->format, vsapi->getVideoFrameFormat(f))) {
+        if (d->vi.format.colorFamily != cfUndefined && !isSameVideoFormat(&d->vi.format, vsapi->getVideoFrameFormat(f))) {
             vsapi->freeFrame(f);
             vsapi->setFilterError("ModifyFrame: Returned frame has the wrong format", frameCtx);
             return nullptr;
         }
 
-        if ((d->vi->width || d->vi->height) && (d->vi->width != vsapi->getFrameWidth(f, 0) || d->vi->height != vsapi->getFrameHeight(f, 0))) {
+        if ((d->vi.width || d->vi.height) && (d->vi.width != vsapi->getFrameWidth(f, 0) || d->vi.height != vsapi->getFrameHeight(f, 0))) {
             vsapi->freeFrame(f);
             vsapi->setFilterError("ModifyFrame: Returned frame has the wrong dimensions", frameCtx);
             return nullptr;
@@ -1661,7 +1661,7 @@ static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI 
 static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<ModifyFrameData> d(new ModifyFrameData());
     VSNode *formatnode = vsapi->mapGetNode(in, "clip", 0, 0);
-    d->vi = vsapi->getVideoInfo(formatnode);
+    d->vi = *vsapi->getVideoInfo(formatnode);
     vsapi->freeNode(formatnode);
 
     int numnode = vsapi->mapNumElements(in, "clips");
@@ -1676,7 +1676,7 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
     std::vector<VSFilterDependency> deps;
     for (int i = 0; i < numnode; i++)
         deps.push_back({d->node[i], rpStrictSpatial});
-    vsapi->createVideoFilter(out, "ModifyFrame", d->vi, modifyFrameGetFrame, modifyFrameFree, fmParallelRequests, deps.data(), numnode, d.get(), core);
+    vsapi->createVideoFilter(out, "ModifyFrame", &d->vi, modifyFrameGetFrame, modifyFrameFree, fmParallelRequests, deps.data(), numnode, d.get(), core);
     d.release();
 }
 
