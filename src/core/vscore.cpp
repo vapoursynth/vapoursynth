@@ -105,6 +105,13 @@ bool VSFrameContext::setError(const std::string &errorMsg) {
     return prevState;
 }
 
+bool VSFrameContext::clearError() {
+    bool prevState = error;
+    error = false;
+    errorMessage = "";
+    return prevState;
+}
+
 ///////////////
 
 bool VSMap::isV3Compatible() const noexcept {
