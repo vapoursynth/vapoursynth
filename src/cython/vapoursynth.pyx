@@ -83,8 +83,25 @@ __all__ = [
   'core',
 ]
 
-__version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(VS_CURRENT_RELEASE, 0)
-__api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
+class VapourSynthVersion(typing.NamedTuple):
+    release_major: int
+    release_minor: int
+
+    def __str__(self):
+        if self.release_minor:
+            return f'R{self.release_major}.{self.release_minor}'
+        return f'R{self.release_major}'
+
+class VapourSynthAPIVersion(typing.NamedTuple):
+    api_major: int
+    api_minor: int
+
+    def __str__(self):
+        return f'R{self.api_major}.{self.api_minor}'
+
+
+__version__ = VapourSynthVersion(VS_CURRENT_RELEASE, 0)
+__api_version__ = VapourSynthAPIVersion(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 
 @final
@@ -2654,8 +2671,8 @@ cdef class _CoreProxy(object):
         if _env_current() is None:
             return (
                 'Uninitialized Environment:\n'
-                f'\tCore R{__version__[0]}\n'
-                f'\tAPI R{__api_version__[0]}.{__api_version__[1]}\n'
+                f'\tCore {__version__:s}\n'
+                f'\tAPI {__api_version__:s}\n'
                 '\tOptions: Unknown\n'
                 '\tNumber of Threads: Unknown\n'
                 '\tMax Cache Size: Unknown\n'
