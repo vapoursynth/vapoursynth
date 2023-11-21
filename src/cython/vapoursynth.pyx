@@ -1767,19 +1767,32 @@ cdef class _audio:
         view.len = view.shape[0] * view.itemsize
         view.buf = _frame.getdata(frame, channel, flags, lib)
 
-cdef _get_handle_future():
-    fut = Future()
-    fut.set_running_or_notify_cancel()
 
-    def _handle_future(result, exception):
+cdef class _FrameFuture:
+    cdef readonly object fut
+    cdef object env
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    def __call__(self, result, exception):
         if exception is not None:
-            fut.set_exception(exception)
+            self.fut.set_exception(exception)
         else:
-            fut.set_result(result)
+            self.fut.set_result(result)
 
-    _handle_future.fut = fut
+        self.env = None
 
-    return _handle_future
+
+cdef createFrameFuture(env):
+    cdef _FrameFuture instance = _FrameFuture.__new__(_FrameFuture)
+
+    instance.fut = Future()
+    instance.fut.set_running_or_notify_cancel()
+    instance.env = env
+
+    return instance
+
 
 cdef class RawNode(object):
     cdef VSNode *node
@@ -1796,14 +1809,14 @@ cdef class RawNode(object):
 
     def get_frame_async(self, int n, object cb = None):
         if cb is None:
-            _handle_future = _get_handle_future()
+            handle_future = createFrameFuture(_env_current())
 
             try:
-                self.get_frame_async(n, _handle_future)
+                self.get_frame_async(n, handle_future)
             except Exception as e:
-                _handle_future.fut.set_exception(e)
+                handle_future.fut.set_exception(e)
 
-            return _handle_future.fut
+            return handle_future.fut
 
         cdef CallbackData data = createCallbackData(self.funcs, self, cb)
         Py_INCREF(data)
@@ -1821,13 +1834,15 @@ cdef class RawNode(object):
             backlog = prefetch
 
         def _get_enum_fut():
-            get_frame_async = self.get_frame_async
+            get_frame_async, env = self.get_frame_async, _env_current()
 
             for n in range(self.num_frames):
-                handle_future = _get_handle_future()
+                handle_future = createFrameFuture(env)
                 get_frame_async(n, handle_future)
 
                 yield n, handle_future.fut
+
+            env = None
 
             return None
 
