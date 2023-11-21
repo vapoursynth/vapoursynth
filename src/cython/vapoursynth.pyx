@@ -268,6 +268,10 @@ cdef class EnvironmentPolicyAPI:
         if not env.alive:
             return
 
+        if any(type(obj) is _FrameFuture for obj in gc.get_referrers(env)):
+            warnings.warn('Tried to destroy environment while a frame is still being rendered!', RuntimeWarning)
+            return
+
         callbacks = env.on_destroy
         env.on_destroy = None
 
