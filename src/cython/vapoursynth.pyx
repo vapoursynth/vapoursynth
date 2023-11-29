@@ -2496,6 +2496,12 @@ cdef class Core(object):
             self.funcs.setMaxCacheSize(new_size, self.core)
 
     @property
+    def used_cache_size(self):
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo(self.core, &v)
+        return v.usedFramebufferSize
+
+    @property
     def flags(self):
         return self.creationFlags
 
@@ -2585,7 +2591,8 @@ cdef class Core(object):
     def __repr__(self):
         return _construct_repr(
             self, core_version=self.core_version, api_version=self.api_version,
-            num_threads=self.num_threads, max_cache_size=self.max_cache_size
+            num_threads=self.num_threads, max_cache_size=self.max_cache_size,
+            used_cache_size=self.used_cache_size
         )
 
     def __str__(self):
