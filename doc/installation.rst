@@ -13,7 +13,7 @@ After you completed the second step, you can test it by opening a Python command
 and type this::
 
    from vapoursynth import core
-   print(core.version())
+   print(str(core))
 
 After pressing return at the final line, you should see the version printed along with a
 few other lines describing the options used when instantiating the Core object.
