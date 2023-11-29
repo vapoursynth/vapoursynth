@@ -83,8 +83,25 @@ __all__ = [
   'core',
 ]
 
-__version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(VS_CURRENT_RELEASE, 0)
-__api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
+class VapourSynthVersion(typing.NamedTuple):
+    release_major: int
+    release_minor: int
+
+    def __str__(self):
+        if self.release_minor:
+            return f'R{self.release_major}.{self.release_minor}'
+        return f'R{self.release_major}'
+
+class VapourSynthAPIVersion(typing.NamedTuple):
+    api_major: int
+    api_minor: int
+
+    def __str__(self):
+        return f'R{self.api_major}.{self.api_minor}'
+
+
+__version__ = VapourSynthVersion(VS_CURRENT_RELEASE, 0)
+__api_version__ = VapourSynthAPIVersion(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 
 @final
@@ -2479,6 +2496,12 @@ cdef class Core(object):
             self.funcs.setMaxCacheSize(new_size, self.core)
 
     @property
+    def used_cache_size(self):
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo(self.core, &v)
+        return v.usedFramebufferSize
+
+    @property
     def flags(self):
         return self.creationFlags
 
@@ -2534,15 +2557,30 @@ cdef class Core(object):
     def remove_log_handler(self, LogHandle handle):
         return self.funcs.removeLogHandler(handle.handle, self.core)
 
-    def version(self):
+    @property
+    def core_version(self):
         cdef VSCoreInfo v
         self.funcs.getCoreInfo(self.core, &v)
-        return (<const char *>v.versionString).decode('utf-8')
+
+        return VapourSynthVersion(v.core, 0)
+
+    @property
+    def api_version(self):
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo(self.core, &v)
+
+        api_major = (v.api >> 16)
+        api_minor = v.api - (api_major << 16)
+
+        return VapourSynthAPIVersion(api_major, api_minor)
+
+    def version(self):
+        warnings.warn('core.version() is deprecated, use str(core)!', DeprecationWarning)
+        return str(self)
 
     def version_number(self):
-        cdef VSCoreInfo v
-        self.funcs.getCoreInfo(self.core, &v)
-        return v.core
+        warnings.warn('core.version_number() is deprecated, use core.core_version.release_major!', DeprecationWarning)
+        return self.core_version.release_major
 
     def __dir__(self):
         plugins = []
@@ -2551,26 +2589,25 @@ cdef class Core(object):
         return super(Core, self).__dir__() + plugins
 
     def __repr__(self):
-        cdef VSCoreInfo v
-        self.funcs.getCoreInfo(self.core, &v)
-
-        api_major = (v.api >> 16)
-        api_minor = v.api - (api_major << 16)
-
-        api_v = api_major + api_minor / 10
-
         return _construct_repr(
-            self, core_version=v.core, api_version=api_v, num_threads=v.numThreads,
-            max_cache_size=(<int64_t>v.maxFramebufferSize + 1024 * 1024 - 1) // <int64_t>(1024 * 1024)
+            self, core_version=self.core_version, api_version=self.api_version,
+            num_threads=self.num_threads, max_cache_size=self.max_cache_size,
+            used_cache_size=self.used_cache_size
         )
 
     def __str__(self):
-        version_lines = [x.strip() for x in self.version().splitlines()]
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo(self.core, &v)
+
+        versionString = (<const char *>v.versionString).decode('utf-8')
+
+        version_lines = [x.strip() for x in versionString.splitlines()]
         copyright = '\n'.join(version_lines[:2])
         version = '\n\t'.join(version_lines[2:])
 
         return (
-            f'{copyright}\n\t{version}\n'
+            f'{copyright}\n'
+            f'\t{version}\n'
             f'\tNumber of Threads: {self.num_threads:d}\n'
             f'\tMax Cache Size: {self.max_cache_size:d}\n'
         )
@@ -2625,8 +2662,21 @@ cdef class _CoreProxy(object):
     def core(self):
         return _get_core()
 
+    @property
+    def core_version(self):
+        return __version__
+
+    @property
+    def api_version(self):
+        return __api_version__
+
+    def version(self):
+        warnings.warn('core.version() is deprecated, use str(core)!', DeprecationWarning)
+        return str(self)
+
     def version_number(self):
-        return __version__[0]
+        warnings.warn('core.version_number() is deprecated, use core.core_version.release_major!', DeprecationWarning)
+        return self.core_version.release_major
 
     def __dir__(self):
         d = dir(self.core)
@@ -2649,13 +2699,12 @@ cdef class _CoreProxy(object):
 
         return _construct_repr(self, core=core_repr)
 
-
     def __str__(self):
         if _env_current() is None:
             return (
                 'Uninitialized Environment:\n'
-                f'\tCore R{__version__[0]}\n'
-                f'\tAPI R{__api_version__[0]}.{__api_version__[1]}\n'
+                f'\tCore {__version__:s}\n'
+                f'\tAPI {__api_version__:s}\n'
                 '\tOptions: Unknown\n'
                 '\tNumber of Threads: Unknown\n'
                 '\tMax Cache Size: Unknown\n'

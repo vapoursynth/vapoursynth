@@ -232,6 +232,30 @@ Classes and Functions
       Set the upper framebuffer cache size after which memory is aggressively
       freed. The value is in megabytes.
 
+   .. py:attribute:: used_cache_size
+
+      The size of the core's current cache. The value is in bytes.
+
+   .. py:attribute:: core_version
+
+      Returns the core version as VapourSynthVersion tuple.
+
+      .. note::
+
+         If you are writing a library, and are not retrieving this from the proxy,
+         you should consider using *vapoursynth.__version__* instead not to have to
+         unnecessarily fetch the core and lock inside an environment.
+
+   .. py:attribute:: api_version
+
+      Returns the api version as VapourSynthAPIVersion tuple.
+
+      .. note::
+
+         If you are writing a library, and are not retrieving this from the proxy,
+         you should consider using *vapoursynth.__api_version__* instead not to have to
+         unnecessarily fetch the core and lock inside an environment.
+
    .. py:method:: plugins()
 
       Containing all loaded plugins.
@@ -263,18 +287,6 @@ Classes and Functions
    .. py:method:: log_message(message_type, message)
 
       Send a message through VapourSynth’s logging framework.
-
-   .. py:method:: version()
-
-      Returns version information as a string.
-
-   .. py:method:: version_number()
-
-      Returns the core version as a number.
-
-      .. note::
-
-         If you are writing a library, you should use *vapoursynth.__version__* or *vapoursynth.__api_version__* instead.
 
    .. py:method:: rule6()
 
