@@ -1,5 +1,7 @@
 r66:
+expose number of bytes used by cache in python and clean up version and str representations of things (setsugennoao)
 fix modifyframe filter not properly copying its own videoinfo which may cause crashes if nothing else references the format node (jsaowji)
+fix setcache function leaking a node reference (jsaowji)
 
 r65:
 fixed inspection api sometimes causing memory corruption when used from python (jsaowji)
