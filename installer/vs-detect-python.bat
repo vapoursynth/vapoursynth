@@ -1,7 +1,7 @@
 @echo off
 
-IF EXIST "Python311.dll" (
-    ECHO Python 3.11 detected
+IF EXIST "Python312.dll" (
+    ECHO Python 3.12 detected
     GOTO end
 )
 
@@ -13,7 +13,7 @@ IF EXIST "Python38.dll" (
     GOTO end
 )
 
-ECHO Neither Python 3.11 nor Python 3.8 is supported
+ECHO Neither Python 3.12 nor Python 3.8 is supported
 GOTO end
 
 :end

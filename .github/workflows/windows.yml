@@ -34,17 +34,17 @@ jobs:
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
         echo "PYTHON38_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-    - name: Setup Python 3.11
+    - name: Setup Python 3.12
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: '3.12'
 
     - name: Install required Python packages
       run: |
         python -m pip install -U pip
         pip install -U cython setuptools wheel
 
-    - name: Get Python 3.11 Install Path
+    - name: Get Python 3.12 Install Path
       run: |
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
         echo "PYTHON_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -70,7 +70,7 @@ jobs:
         popd
         popd
 
-    - name: Package for Python 3.11
+    - name: Package for Python 3.12
       run: |
         mkdir wheels
         python setup.py bdist_wheel -d ./wheels
@@ -82,7 +82,7 @@ jobs:
         popd
         popd
 
-    - name: Run test with Python 3.11
+    - name: Run test with Python 3.12
       run: |
         python -m unittest discover -s test -p "*test.py"
 
@@ -140,7 +140,7 @@ jobs:
     needs: build-msvc
     strategy:
       matrix:
-        python: ["3.8", "3.11"]
+        python: ["3.8", "3.12"]
 
     steps:
     - name: Setup Python ${{ matrix.python }}
@@ -167,7 +167,7 @@ jobs:
     steps:
     - uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: '3.12'
 
     - uses: actions/download-artifact@v3
       with:

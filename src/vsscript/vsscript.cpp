@@ -51,7 +51,7 @@ static void real_init(void) VS_NOEXCEPT {
 #ifdef VSSCRIPT_PYTHON38
     const std::wstring pythonDllName = L"python38.dll";
 #else
-    const std::wstring pythonDllName = L"python311.dll";
+    const std::wstring pythonDllName = L"python312.dll";
 #endif
 
     // portable
