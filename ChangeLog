@@ -30,7 +30,7 @@ added a warning every time the deprecated cache filter is instantiated and ignor
 fixed a regression with alpha nodes in vspipe introduced in r62
 
 r62:
-updated the supported python versions to 3.11 and 3.8
+updated the supported python versions to 3.12 and 3.8
 now up to 500 log messages are cached when no log handler is attached
 improvements to repr, audio channel handling and other python fixes (setsugennoao)
 added a class Local for environment-local values

@@ -1,5 +1,5 @@
-#define PythonVersion '3.11'
-#define PythonCompactVersion '311'
+#define PythonVersion '3.12'
+#define PythonCompactVersion '312'
 
 #ifndef VSRuntimeVersion
   #define VSRuntimeVersion '14.32.31326'

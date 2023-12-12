@@ -24,9 +24,9 @@ IF NOT EXIST zimg (
     echo zimg: & pushd zimg & git pull & popd
 )
 
-py -3.11 -m ensurepip
-py -3.11 -m pip install --upgrade pip --no-warn-script-location
-py -3.11 -m pip install --upgrade -r python-requirements.txt
+py -3.12 -m ensurepip
+py -3.12 -m pip install --upgrade pip --no-warn-script-location
+py -3.12 -m pip install --upgrade -r python-requirements.txt
 
 py -3.8 -m ensurepip
 py -3.8 -m pip install --upgrade pip --no-warn-script-location
