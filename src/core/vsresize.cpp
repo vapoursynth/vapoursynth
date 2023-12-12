@@ -109,6 +109,7 @@ const std::unordered_map<std::string, zimg_transfer_characteristics_e> g_transfe
     { "log316",  ZIMG_TRANSFER_LOG_316 },
     { "st2084",  ZIMG_TRANSFER_ST2084 },
     { "std-b67", ZIMG_TRANSFER_ARIB_B67 },
+    { "st428",   ZIMG_TRANSFER_ST428 },
     { "srgb",    ZIMG_TRANSFER_IEC_61966_2_1 },
     { "xvycc",   ZIMG_TRANSFER_IEC_61966_2_4 },
 };

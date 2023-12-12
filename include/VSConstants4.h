@@ -72,6 +72,7 @@ typedef enum VSTransferCharacteristics {
 	VSC_TRANSFER_BT2020_10 = 14, /* Equivalent to 1. */
 	VSC_TRANSFER_BT2020_12 = 15, /* Equivalent to 1. */
 	VSC_TRANSFER_ST2084 = 16,
+	VSC_TRANSFER_ST428 = 17,
 	VSC_TRANSFER_ARIB_B67 = 18
 } VSTransferCharacteristics;
 

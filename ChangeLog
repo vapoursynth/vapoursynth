@@ -1,4 +1,5 @@
 r66:
+added missing st428 transfer characteristics to resize
 made most graph information functions part of the stable api and bumped the version to 4.1
 added new api functions for cache clearing
 expose number of bytes used by cache in python and clean up version and str representations of things (setsugennoao)
