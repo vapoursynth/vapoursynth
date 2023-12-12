@@ -874,7 +874,7 @@ public:
     int64_t getProcessingTime(bool reset) {
         int64_t tmp = processingTime;
         if (reset)
-            tmp = 0;
+            processingTime = 0;
         return tmp;
     }
 
@@ -1039,6 +1039,7 @@ private:
     std::atomic<long> numFunctionInstances;
     bool coreFreed = false;
     bool enableFilterTiming = false;
+    std::atomic<int64_t> freedNodeProcessingTime;
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
@@ -1130,13 +1131,14 @@ public:
     static bool getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept;
     static bool getVideoFormatName(const VSVideoFormat &format, char *buffer) noexcept;
 
-    void functionInstanceCreated();
-    void functionInstanceDestroyed();
-    void filterInstanceCreated();
-    void filterInstanceDestroyed();
+    void functionInstanceCreated() noexcept;
+    void functionInstanceDestroyed() noexcept;
+    void filterInstanceCreated() noexcept;
+    void filterInstanceDestroyed() noexcept;
     void destroyFilterInstance(VSNode *node);
     void clearCaches();
-    void setNodeTiming(bool enable);
+    void setNodeTiming(bool enable) noexcept;
+    int64_t getFreedNodeProcessingTime(bool reset) noexcept;
 
     explicit VSCore(int flags);
     void freeCore();

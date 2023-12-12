@@ -406,7 +406,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         # Node timing functions
         void setCoreNodeTiming(VSCore *core, int enable) nogil
         int64_t getNodeProcessingTime(VSNode *node, int reset) nogil
-        
+        int64_t getFreedNodeProcessingTime(VSCore *core, int reset) nogil
+
         # Unstable API, has no set place.
         const char *getNodeCreationFunctionName(VSNode *node, int level) nogil
         const VSMap *getNodeCreationFunctionArguments(VSNode *node, int level) nogil

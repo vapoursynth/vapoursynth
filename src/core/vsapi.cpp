@@ -1045,6 +1045,11 @@ static int64_t VS_CC getNodeProcessingTime(VSNode *node, int reset) VS_NOEXCEPT 
     return node->getProcessingTime(!!reset);
 }
 
+static int64_t VS_CC getFreedNodeProcessingTime(VSCore *core, int reset) VS_NOEXCEPT {
+    assert(core);
+    return core->getFreedNodeProcessingTime(!!reset);
+}
+
 static int VS_CC getNumNodeDependencies(VSNode *node) VS_NOEXCEPT {
     assert(node);
     return static_cast<int>(node->getNumDependencies());
@@ -1212,6 +1217,7 @@ const VSAPI vs_internal_vsapi = {
 
     &setCoreNodeTiming,
     &getNodeProcessingTime,
+    &getFreedNodeProcessingTime,
 
     &getNodeCreationFunctionName,
     &getNodeCreationFunctionArguments

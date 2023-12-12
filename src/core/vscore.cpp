@@ -1722,19 +1722,19 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     return true;
 }
 
-void VSCore::functionInstanceCreated() {
+void VSCore::functionInstanceCreated() noexcept {
     ++numFunctionInstances;
 }
 
-void VSCore::functionInstanceDestroyed() {
+void VSCore::functionInstanceDestroyed() noexcept {
     --numFunctionInstances;
 }
 
-void VSCore::filterInstanceCreated() {
+void VSCore::filterInstanceCreated() noexcept {
     ++numFilterInstances;
 }
 
-void VSCore::filterInstanceDestroyed() {
+void VSCore::filterInstanceDestroyed() noexcept {
     if (!--numFilterInstances) {
         assert(coreFreed);
         delete this;
@@ -1752,6 +1752,9 @@ void VSCore::destroyFilterInstance(VSNode *node) {
     static thread_local int freeDepth = 0;
     static thread_local VSCoreShittyFreeList *nodeFreeList = nullptr;
     freeDepth++;
+
+    if (enableFilterTiming)
+        freedNodeProcessingTime += node->processingTime;
 
     if (node->freeFunc) {
         nodeFreeList = new VSCoreShittyFreeList({ node->freeFunc, node->instanceData, node->apiMajor, nodeFreeList });
@@ -1778,13 +1781,21 @@ void VSCore::clearCaches() {
         iter->clearCache();
 }
 
-void VSCore::setNodeTiming(bool enable) {
+void VSCore::setNodeTiming(bool enable) noexcept {
     enableFilterTiming = enable;
+}
+
+int64_t VSCore::getFreedNodeProcessingTime(bool reset) noexcept {
+    int64_t tmp = freedNodeProcessingTime;
+    if (reset)
+        freedNodeProcessingTime = 0;
+    return tmp;
 }
 
 VSCore::VSCore(int flags) :
     numFilterInstances(1),
     numFunctionInstances(0),
+    freedNodeProcessingTime(0),
     videoFormatIdOffset(1000),
     cpuLevel(INT_MAX),
     memory(new vs::MemoryUse()),
