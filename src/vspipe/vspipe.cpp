@@ -983,8 +983,9 @@ int main(int argc, char **argv) {
     std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
     
 
-    VSCore *core = vsapi->createCore((opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph || opts.printFilterTime) ? ccfEnableGraphInspection : 0);
+    VSCore *core = vsapi->createCore((opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph) ? ccfEnableGraphInspection : 0);
     vsapi->addLogHandler(logMessageHandler, nullptr, nullptr, core);
+    vsapi->setCoreFilterTiming(core, opts.printFilterTime);
     VSScript *se = vssapi->createScript(core);
     vssapi->evalSetWorkingDir(se, 1);
     if (!opts.scriptArgs.empty()) {

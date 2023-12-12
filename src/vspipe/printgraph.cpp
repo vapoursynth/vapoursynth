@@ -120,11 +120,11 @@ static void printNodeGraphHelper(bool simple, std::set<std::string> &lines, std:
     nodes[simple ? baseFrame : thisFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\", shape=oval]");
 
     int numDeps = vsapi->getNumNodeDependencies(node);
-    const VSFilterDependency *deps = vsapi->getNodeDependencies(node);
 
     for (int i = 0; i < numDeps; i++) {
-        lines.insert(mangleNode(deps[i].source, vsapi) + " -> " + thisNode);
-        printNodeGraphHelper(simple, lines, nodes, visited, deps[i].source, vsapi);
+        VSNode *source = vsapi->getNodeDependency(node, i)->source;
+        lines.insert(mangleNode(source, vsapi) + " -> " + thisNode);
+        printNodeGraphHelper(simple, lines, nodes, visited, source, vsapi);
     }
 }
 
@@ -166,13 +166,12 @@ static void printNodeTimesHelper(std::list<NodeTimeRecord> &lines, std::set<VSNo
     if (!visited.insert(node).second)
         return;
 
-    lines.push_back(NodeTimeRecord{ vsapi->getNodeName(node), vsapi->getNodeFilterMode(node), vsapi->getNodeFilterTime(node) } );
+    lines.push_back(NodeTimeRecord{ vsapi->getNodeName(node), vsapi->getNodeFilterMode(node), vsapi->getNodeProcessingTime(node, 0) } );
 
     int numDeps = vsapi->getNumNodeDependencies(node);
-    const VSFilterDependency *deps = vsapi->getNodeDependencies(node);
 
     for (int i = 0; i < numDeps; i++)
-        printNodeTimesHelper(lines, visited, deps[i].source, vsapi);
+        printNodeTimesHelper(lines, visited, vsapi->getNodeDependency(node, i)->source, vsapi);
 }
 
 static std::string extendStringRight(const std::string &s, size_t length) {

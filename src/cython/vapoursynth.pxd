@@ -393,15 +393,22 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VSLogHandle *addLogHandler(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) nogil
         bint removeLogHandler(VSLogHandle *handle, VSCore *core) nogil
 
+        # Additional cache management to free memory */
+        void clearNodeCache(VSNode *node) nogil
+        void clearCoreCaches(VSCore *core) nogil
 
-
+        # Basic node information
+        const char *getNodeName(VSNode *node) nogil
+        int getNodeFilterMode(VSNode *node) nogil
+        int getNumNodeDependencies(VSNode *node) nogil
+        const VSFilterDependency *getNodeDependency(VSNode *node, int index) nogil
+        
+        # Node timing functions
+        void setCoreNodeTiming(VSCore *core, int enable) nogil
+        int64_t getNodeProcessingTime(VSNode *node, int reset) nogil
+        
         # Unstable API, has no set place.
         const char *getNodeCreationFunctionName(VSNode *node, int level) nogil
         const VSMap *getNodeCreationFunctionArguments(VSNode *node, int level) nogil
-        const char *getNodeName(VSNode *node) nogil
-        int getNodeFilterMode(VSNode *node) nogil
-        int64_t getNodeFilterTime(VSNode *node) nogil
-        const VSFilterDependency *getNodeDependencies(VSNode *node) nogil
-        int getNumNodeDependencies(VSNode *node) nogil
 
     const VSAPI *getVapourSynthAPI(int version) nogil

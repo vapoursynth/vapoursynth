@@ -1040,19 +1040,33 @@ static int VS_CC getNodeFilterMode(VSNode *node) VS_NOEXCEPT {
     return node->getFilterMode();
 }
 
-static int64_t VS_CC getNodeFilterTime(VSNode *node) VS_NOEXCEPT {
+static int64_t VS_CC getNodeProcessingTime(VSNode *node, int reset) VS_NOEXCEPT {
     assert(node);
-    return node->getFilterTime();
-}
-
-static const VSFilterDependency *VS_CC getNodeDependencies(VSNode *node) VS_NOEXCEPT {
-    assert(node);
-    return node->getDependencies();
+    return node->getProcessingTime(!!reset);
 }
 
 static int VS_CC getNumNodeDependencies(VSNode *node) VS_NOEXCEPT {
     assert(node);
     return static_cast<int>(node->getNumDependencies());
+}
+
+static const VSFilterDependency *VS_CC getNodeDependency(VSNode *node, int index) VS_NOEXCEPT {
+    return node->getDependency(index);
+}
+
+static void VS_CC clearNodeCache(VSNode *node) VS_NOEXCEPT {
+    assert(node);
+    node->clearCache();
+}
+
+static void VS_CC clearCoreCaches(VSCore *core) VS_NOEXCEPT {
+    assert(core);
+    core->clearCaches();
+}
+
+static void VS_CC setCoreNodeTiming(VSCore *core, int enable) VS_NOEXCEPT {
+    assert(core);
+    core->setNodeTiming(!!enable);
 }
 
 const VSPLUGINAPI vs_internal_vspapi {
@@ -1188,13 +1202,19 @@ const VSAPI vs_internal_vsapi = {
     &addLogHandler,
     &removeLogHandler,
 
-    &getNodeCreationFunctionName,
-    &getNodeCreationFunctionArguments,
+    &clearNodeCache,
+    &clearCoreCaches,
+
     &getNodeName,
     &getNodeFilterMode,
-    &getNodeFilterTime,
-    &getNodeDependencies,
-    &getNumNodeDependencies
+    &getNumNodeDependencies,
+    &getNodeDependency,
+
+    &setCoreNodeTiming,
+    &getNodeProcessingTime,
+
+    &getNodeCreationFunctionName,
+    &getNodeCreationFunctionArguments
 };
 
 const vs3::VSAPI3 vs_internal_vsapi3 = {

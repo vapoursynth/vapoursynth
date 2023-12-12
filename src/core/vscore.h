@@ -871,12 +871,17 @@ public:
         return filterMode;
     }
 
-    int64_t getFilterTime() const {
-        return processingTime;
+    int64_t getProcessingTime(bool reset) {
+        int64_t tmp = processingTime;
+        if (reset)
+            tmp = 0;
+        return tmp;
     }
 
-    const VSFilterDependency *getDependencies() const {
-        return dependencies.data();
+    const VSFilterDependency *getDependency(int index) const {
+        if (index < 0 || index >= dependencies.size())
+            return nullptr;
+        return &dependencies.at(index);
     }
 
     size_t getNumDependencies() const {
@@ -906,6 +911,7 @@ public:
     void setCacheMode(int mode);
     void setCacheOptions(int fixedSize, int maxSize, int maxHistorySize);
     void cacheFrame(const VSFrame *frame, int n);
+    void clearCache();
 
     // to get around encapsulation a bit, more elegant than making everything friends in this case
     void reserveThread();
@@ -1031,7 +1037,8 @@ private:
     // the core will be freed once it reaches 0
     std::atomic<long> numFilterInstances;
     std::atomic<long> numFunctionInstances;
-    bool coreFreed;
+    bool coreFreed = false;
+    bool enableFilterTiming = false;
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
@@ -1128,6 +1135,8 @@ public:
     void filterInstanceCreated();
     void filterInstanceDestroyed();
     void destroyFilterInstance(VSNode *node);
+    void clearCaches();
+    void setNodeTiming(bool enable);
 
     explicit VSCore(int flags);
     void freeCore();

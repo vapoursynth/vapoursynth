@@ -945,8 +945,8 @@ PVSFrame VSNode::getCachedFrameInternal(int n) {
 
 PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx) {
     std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
-    bool enableGraphInspection = core->enableGraphInspection;
-    if (enableGraphInspection)
+    bool enableFilterTiming = core->enableFilterTiming;
+    if (enableFilterTiming)
         startTime = std::chrono::high_resolution_clock::now();
 
 #ifdef VS_DEBUG_FRAME_REQUESTS
@@ -959,7 +959,7 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     core->logMessage(mtInformation, "Finished processing of frame: " + std::to_string(n) + " ar: " + std::to_string(activationReason) + " filter: " + this->name + " (" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ")");
 #endif
 
-    if (enableGraphInspection) {
+    if (enableFilterTiming) {
         std::chrono::nanoseconds duration = std::chrono::high_resolution_clock::now() - startTime;
         processingTime.fetch_add(duration.count(), std::memory_order_relaxed);
     }
@@ -1044,6 +1044,11 @@ void VSNode::cacheFrame(const VSFrame *frame, int n) {
     std::lock_guard<std::mutex> lock(cacheMutex);
     assert(cacheLinear);
     cache.insert(n, {const_cast<VSFrame *>(frame), true});
+}
+
+void VSNode::clearCache() {
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    cache.clear();
 }
 
 void VSNode::reserveThread() {
@@ -1767,10 +1772,19 @@ void VSCore::destroyFilterInstance(VSNode *node) {
     freeDepth--;
 }
 
+void VSCore::clearCaches() {
+    std::lock_guard<std::mutex> lock(cacheLock);
+    for (const auto &iter : caches)
+        iter->clearCache();
+}
+
+void VSCore::setNodeTiming(bool enable) {
+    enableFilterTiming = enable;
+}
+
 VSCore::VSCore(int flags) :
     numFilterInstances(1),
     numFunctionInstances(0),
-    coreFreed(false),
     videoFormatIdOffset(1000),
     cpuLevel(INT_MAX),
     memory(new vs::MemoryUse()),
