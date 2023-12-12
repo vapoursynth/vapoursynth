@@ -25,6 +25,6 @@
 #include <string>
 
 std::string printNodeGraph(bool simple, VSNode *node, const VSAPI *vsapi);
-std::string printNodeTimes(VSNode *node, double processingTime, const VSAPI *vsapi);
+std::string printNodeTimes(VSNode *node, double processingTime, int64_t freedTime, const VSAPI *vsapi);
 
 #endif

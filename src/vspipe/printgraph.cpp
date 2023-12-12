@@ -207,7 +207,7 @@ static std::string filterModeToString(int fm) {
         return "unordered";
 }
 
-std::string printNodeTimes(VSNode *node, double processingTime, const VSAPI *vsapi) {
+std::string printNodeTimes(VSNode *node, double processingTime, int64_t freedTime, const VSAPI *vsapi) {
     std::list<NodeTimeRecord> lines;
     std::set<VSNode *> visited;
     std::string s;
@@ -220,6 +220,8 @@ std::string printNodeTimes(VSNode *node, double processingTime, const VSAPI *vsa
 
     for (const auto & it : lines)
         s += extendStringRight(it.filterName, 20) + " " + extendStringRight(filterModeToString(it.filterMode), 10) + " " + extendStringLeft(printWithTwoDecimals((it.nanoSeconds) / (processingTime * 10000000)), 10) + " " + extendStringLeft(printWithTwoDecimals(it.nanoSeconds / 1000000000.), 10) + "\n";
+
+    s += extendStringRight("<Destroyed>", 20) + " " + extendStringRight("<unknown>", 10) + " " + extendStringLeft(printWithTwoDecimals((freedTime) / (processingTime * 10000000)), 10) + " " + extendStringLeft(printWithTwoDecimals(freedTime / 1000000000.), 10) + "\n";
 
     return s;
 }

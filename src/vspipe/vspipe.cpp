@@ -985,7 +985,7 @@ int main(int argc, char **argv) {
 
     VSCore *core = vsapi->createCore((opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph) ? ccfEnableGraphInspection : 0);
     vsapi->addLogHandler(logMessageHandler, nullptr, nullptr, core);
-    vsapi->setCoreFilterTiming(core, opts.printFilterTime);
+    vsapi->setCoreNodeTiming(core, opts.printFilterTime);
     VSScript *se = vssapi->createScript(core);
     vssapi->evalSetWorkingDir(se, 1);
     if (!opts.scriptArgs.empty()) {
@@ -1202,7 +1202,7 @@ int main(int argc, char **argv) {
         }
 
         if (opts.printFilterTime)
-            fprintf(stderr, "%s", printNodeTimes(node, elapsedSeconds.count(), vsapi).c_str());
+            fprintf(stderr, "%s", printNodeTimes(node, elapsedSeconds.count(), vsapi->getFreedNodeProcessingTime(core, 0), vsapi).c_str());
     }
 
     if (outFile && closeOutFile)
