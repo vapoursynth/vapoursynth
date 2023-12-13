@@ -1781,6 +1781,10 @@ void VSCore::clearCaches() {
         iter->clearCache();
 }
 
+bool VSCore::getNodeTiming() noexcept {
+    return enableFilterTiming;
+}
+
 void VSCore::setNodeTiming(bool enable) noexcept {
     enableFilterTiming = enable;
 }

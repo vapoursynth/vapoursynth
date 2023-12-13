@@ -1069,6 +1069,11 @@ static void VS_CC clearCoreCaches(VSCore *core) VS_NOEXCEPT {
     core->clearCaches();
 }
 
+static int VS_CC getCoreNodeTiming(VSCore *core) VS_NOEXCEPT {
+    assert(core);
+    return core->getNodeTiming();
+}
+
 static void VS_CC setCoreNodeTiming(VSCore *core, int enable) VS_NOEXCEPT {
     assert(core);
     core->setNodeTiming(!!enable);
@@ -1215,6 +1220,7 @@ const VSAPI vs_internal_vsapi = {
     &getNumNodeDependencies,
     &getNodeDependency,
 
+    &getCoreNodeTiming,
     &setCoreNodeTiming,
     &getNodeProcessingTime,
     &getFreedNodeProcessingTime,

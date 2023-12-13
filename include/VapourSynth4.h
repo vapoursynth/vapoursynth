@@ -477,6 +477,7 @@ struct VSAPI {
     const VSFilterDependency *(VS_CC *getNodeDependency)(VSNode *node, int index) VS_NOEXCEPT;
 
     /* Node timing functions */
+    int (VS_CC *getCoreNodeTiming)(VSCore *core) VS_NOEXCEPT; /* non-zero when filter timing is enabled */
     void (VS_CC *setCoreNodeTiming)(VSCore *core, int enable) VS_NOEXCEPT; /* non-zero enables filter timing, note that disabling simply stops the counters from incrementing */
     int64_t (VS_CC *getNodeProcessingTime)(VSNode *node, int reset) VS_NOEXCEPT; /* time spent processing frames in nanoseconds, reset sets the counter to 0 again */
     int64_t (VS_CC *getFreedNodeProcessingTime)(VSCore *core, int reset) VS_NOEXCEPT; /* time spent processing frames in nanoseconds in all destroyed nodes, reset sets the counter to 0 again */
