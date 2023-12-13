@@ -1938,6 +1938,9 @@ cdef class RawNode(object):
 
             gc.collect()
 
+    def clear_cache(self):
+        self.funcs.clearNodeCache(self.node)
+
     # Inspect API
     cdef bint _inspectable(self):
         if self.funcs.getAPIVersion() != VAPOURSYNTH_API_VERSION:
@@ -2547,6 +2550,9 @@ cdef class Core(object):
 
     def remove_log_handler(self, LogHandle handle):
         return self.funcs.removeLogHandler(handle.handle, self.core)
+
+    def clear_cache(self):
+        self.funcs.clearCoreCaches(self.core)
 
     @property
     def core_version(self):
