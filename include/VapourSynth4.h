@@ -468,7 +468,7 @@ struct VSAPI {
 #if VAPOURSYNTH_API_MINOR >= 1
     /* Additional cache management to free memory */
     void (VS_CC *clearNodeCache)(VSNode *node) VS_NOEXCEPT; /* clears the cache of the specified node */
-    void (VS_CC *clearCoreCaches)(VSCore *core) VS_NOEXCEPT; /* clears all caches belonging to the specified core *
+    void (VS_CC *clearCoreCaches)(VSCore *core) VS_NOEXCEPT; /* clears all caches belonging to the specified core */
 
     /* Basic node information */
     const char *(VS_CC *getNodeName)(VSNode *node) VS_NOEXCEPT; /* the name passed to create*Filter */

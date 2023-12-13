@@ -402,7 +402,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int getNodeFilterMode(VSNode *node) nogil
         int getNumNodeDependencies(VSNode *node) nogil
         const VSFilterDependency *getNodeDependency(VSNode *node, int index) nogil
-        
+
         # Node timing functions
         void setCoreNodeTiming(VSCore *core, int enable) nogil
         int64_t getNodeProcessingTime(VSNode *node, int reset) nogil
