@@ -2450,10 +2450,57 @@ cdef void __stdcall log_handler_free(void *userData) noexcept nogil:
     with gil:
         Py_DECREF(<LogHandle>userData)
 
+
+cdef class CoreTimings(object):
+    cdef Core core
+
+    cdef object __weakref__
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    property enabled:
+        def __get__(self):
+            return bool(self.core.funcs.getCoreNodeTiming(self.core.core))
+
+        def __set__(self, bint enabled):
+            self.core.funcs.setCoreNodeTiming(self.core.core, enabled)
+
+    property freed_nodes:
+        def __get__(self):
+            return self.core.funcs.getFreedNodeProcessingTime(self.core.core, False)
+        
+        def __set__(self, bint value):
+            if value != 0:
+                raise ValueError('You can only set freed_nodes to 0, to reset its counter!')
+
+            self.core.funcs.getFreedNodeProcessingTime(self.core.core, True)
+
+    def __repr__(self):
+        return _construct_repr(
+            self, enabled=self.enabled, freed_nodes=self.freed_nodes
+        )
+
+    def __str__(self):
+        return (
+            'CoreTimings\n'
+            f'\tEnabled: {self.enabled}\n'
+            f'\tFreed Nodes Time: {self.freed_nodes}\n'
+        )
+
+cdef CoreTimings createCoreTimings(Core core):
+    cdef CoreTimings instance = CoreTimings.__new__(CoreTimings)
+    instance.core = core
+
+    return instance
+
+
 cdef class Core(object):
     cdef int creationFlags
     cdef VSCore *core
     cdef const VSAPI *funcs
+
+    cdef readonly object timings
 
     cdef object __weakref__
 
@@ -2627,6 +2674,7 @@ cdef Core createCore(EnvironmentData env):
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = instance.funcs.createCore(env.coreCreationFlags)
+    instance.timings = createCoreTimings(instance)
     instance.creationFlags = env.coreCreationFlags
     return instance
 
@@ -2636,6 +2684,7 @@ cdef Core createCore2(VSCore *core):
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = core
+    instance.timings = createCoreTimings(instance)
     return instance
 
 cdef Core _get_core(threads = None):
