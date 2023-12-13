@@ -1950,10 +1950,32 @@ cdef class RawNode(object):
         return self._inspectable()
 
     @property
-    def _node_name(self):
+    def node_name(self):
         if not self._inspectable():
             raise Error("This node is not inspectable")
         return self.funcs.getNodeName(self.node).decode("utf-8")
+
+    @property
+    def timings(self):
+        if not self._inspectable():
+            raise Error("This node is not inspectable")
+        return self.funcs.getNodeProcessingTime(self.node, 0)
+
+    @property
+    def mode(self):
+        if not self._inspectable():
+            raise Error("This node is not inspectable")
+        return FilterMode(self.funcs.getNodeFilterMode(self.node))
+
+    @property
+    def dependencies(self):
+        if not self._inspectable():
+            raise Error("This node is not inspectable")
+
+        return tuple(
+            createNode(self.funcs.addNodeRef(self.funcs.getNodeDependency(self.node, idx).source), self.funcs, self.core)
+            for idx in range(self.funcs.getNumNodeDependencies(self.node))
+        )
 
     @property
     def _name(self):
@@ -1968,28 +1990,6 @@ cdef class RawNode(object):
             raise Error("This node is not inspectable.")
 
         return mapToDict(self.funcs.getNodeCreationFunctionArguments(self.node, 0), False)
-
-    @property
-    def _timings(self):
-        if not self._inspectable():
-            raise Error("This node is not inspectable")
-        return self.funcs.getNodeProcessingTime(self.node, 0)
-
-    @property
-    def _mode(self):
-        if not self._inspectable():
-            raise Error("This node is not inspectable")
-        return FilterMode(self.funcs.getNodeFilterMode(self.node))
-
-    @property
-    def _dependencies(self):
-        if not self._inspectable():
-            raise Error("This node is not inspectable")
-
-        return tuple(
-            createNode(self.funcs.addNodeRef(self.funcs.getNodeDependency(self.node, idx).source), self.funcs, self.core)
-            for idx in range(self.funcs.getNumNodeDependencies(self.node))
-        )
 
     def __eq__(self, other):
         if other is self:
