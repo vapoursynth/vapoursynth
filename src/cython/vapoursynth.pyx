@@ -1956,9 +1956,15 @@ cdef class RawNode(object):
     def node_name(self):
         return self.funcs.getNodeName(self.node).decode("utf-8")
 
-    @property
-    def timings(self):
-        return self.funcs.getNodeProcessingTime(self.node, 0)
+    property timings:
+        def __get__(self):
+            return self.funcs.getNodeProcessingTime(self.node, False)
+        
+        def __set__(self, bint value):
+            if value != 0:
+                raise ValueError('You can only set timings to 0, to reset its counter!')
+
+            self.funcs.getNodeProcessingTime(self.node, True)
 
     @property
     def mode(self):
