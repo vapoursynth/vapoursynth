@@ -1938,6 +1938,9 @@ cdef class RawNode(object):
 
             gc.collect()
 
+    def clear_cache(self):
+        self.funcs.clearNodeCache(self.node)
+
     # Inspect API
     cdef bint _inspectable(self):
         if self.funcs.getAPIVersion() != VAPOURSYNTH_API_VERSION:
@@ -1950,10 +1953,29 @@ cdef class RawNode(object):
         return self._inspectable()
 
     @property
-    def _node_name(self):
-        if not self._inspectable():
-            raise Error("This node is not inspectable")
+    def node_name(self):
         return self.funcs.getNodeName(self.node).decode("utf-8")
+
+    property timings:
+        def __get__(self):
+            return self.funcs.getNodeProcessingTime(self.node, False)
+        
+        def __set__(self, bint value):
+            if value != 0:
+                raise ValueError('You can only set timings to 0, to reset its counter!')
+
+            self.funcs.getNodeProcessingTime(self.node, True)
+
+    @property
+    def mode(self):
+        return FilterMode(self.funcs.getNodeFilterMode(self.node))
+
+    @property
+    def dependencies(self):
+        return tuple(
+            createNode(self.funcs.addNodeRef(self.funcs.getNodeDependency(self.node, idx).source), self.funcs, self.core)
+            for idx in range(self.funcs.getNumNodeDependencies(self.node))
+        )
 
     @property
     def _name(self):
@@ -1968,28 +1990,6 @@ cdef class RawNode(object):
             raise Error("This node is not inspectable.")
 
         return mapToDict(self.funcs.getNodeCreationFunctionArguments(self.node, 0), False)
-
-    @property
-    def _timings(self):
-        if not self._inspectable():
-            raise Error("This node is not inspectable")
-        return self.funcs.getNodeProcessingTime(self.node, 0)
-
-    @property
-    def _mode(self):
-        if not self._inspectable():
-            raise Error("This node is not inspectable")
-        return FilterMode(self.funcs.getNodeFilterMode(self.node))
-
-    @property
-    def _dependencies(self):
-        if not self._inspectable():
-            raise Error("This node is not inspectable")
-
-        return tuple(
-            createNode(self.funcs.addNodeRef(self.funcs.getNodeDependency(self.node, idx).source), self.funcs, self.core)
-            for idx in range(self.funcs.getNumNodeDependencies(self.node))
-        )
 
     def __eq__(self, other):
         if other is self:
@@ -2456,10 +2456,57 @@ cdef void __stdcall log_handler_free(void *userData) noexcept nogil:
     with gil:
         Py_DECREF(<LogHandle>userData)
 
+
+cdef class CoreTimings(object):
+    cdef Core core
+
+    cdef object __weakref__
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    property enabled:
+        def __get__(self):
+            return bool(self.core.funcs.getCoreNodeTiming(self.core.core))
+
+        def __set__(self, bint enabled):
+            self.core.funcs.setCoreNodeTiming(self.core.core, enabled)
+
+    property freed_nodes:
+        def __get__(self):
+            return self.core.funcs.getFreedNodeProcessingTime(self.core.core, False)
+        
+        def __set__(self, bint value):
+            if value != 0:
+                raise ValueError('You can only set freed_nodes to 0, to reset its counter!')
+
+            self.core.funcs.getFreedNodeProcessingTime(self.core.core, True)
+
+    def __repr__(self):
+        return _construct_repr(
+            self, enabled=self.enabled, freed_nodes=self.freed_nodes
+        )
+
+    def __str__(self):
+        return (
+            'CoreTimings\n'
+            f'\tEnabled: {self.enabled}\n'
+            f'\tFreed Nodes Time: {self.freed_nodes}\n'
+        )
+
+cdef CoreTimings createCoreTimings(Core core):
+    cdef CoreTimings instance = CoreTimings.__new__(CoreTimings)
+    instance.core = core
+
+    return instance
+
+
 cdef class Core(object):
     cdef int creationFlags
     cdef VSCore *core
     cdef const VSAPI *funcs
+
+    cdef readonly object timings
 
     cdef object __weakref__
 
@@ -2557,6 +2604,9 @@ cdef class Core(object):
     def remove_log_handler(self, LogHandle handle):
         return self.funcs.removeLogHandler(handle.handle, self.core)
 
+    def clear_cache(self):
+        self.funcs.clearCoreCaches(self.core)
+
     @property
     def core_version(self):
         cdef VSCoreInfo v
@@ -2630,6 +2680,7 @@ cdef Core createCore(EnvironmentData env):
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = instance.funcs.createCore(env.coreCreationFlags)
+    instance.timings = createCoreTimings(instance)
     instance.creationFlags = env.coreCreationFlags
     return instance
 
@@ -2639,6 +2690,7 @@ cdef Core createCore2(VSCore *core):
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = core
+    instance.timings = createCoreTimings(instance)
     return instance
 
 cdef Core _get_core(threads = None):

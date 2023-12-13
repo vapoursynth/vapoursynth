@@ -1137,6 +1137,7 @@ public:
     void filterInstanceDestroyed() noexcept;
     void destroyFilterInstance(VSNode *node);
     void clearCaches();
+    bool getNodeTiming() noexcept;
     void setNodeTiming(bool enable) noexcept;
     int64_t getFreedNodeProcessingTime(bool reset) noexcept;
 
