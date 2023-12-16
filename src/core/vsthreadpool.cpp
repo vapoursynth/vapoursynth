@@ -96,6 +96,8 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
 #ifdef VS_DEBUG_FRAME_REQUESTS
                     core->logMessage(mtInformation, "Found requested frame: " + std::to_string(frameContext->key.second) + " filter: " + node->getName() + " (" + std::to_string(reinterpret_cast<uintptr_t>(node)) + ") in cache, skipping processing");
 #endif
+                    node->notifyRequestDebugHandlers(frameContext, true);
+
                     bool needsSort = false;
 
                     for (size_t i = 0; i < frameContext->notifyCtxList.size(); i++) {
@@ -177,6 +179,8 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
 
             PVSFrame f = node->getFrameInternal(frameContext->key.second, ar, frameContext);
             ranTask = true;
+
+            node->notifyRequestDebugHandlers(frameContext, false);
 
             bool frameProcessingDone = f || frameContext->hasError();
             if (frameContext->hasError() && f)

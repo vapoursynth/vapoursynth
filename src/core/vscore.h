@@ -607,6 +607,8 @@ public:
         return errorMessage;
     }
 
+    void runNodeDebugHandler(VSRequestDebugHandle *handle, bool cacheHit);
+
     bool setError(const std::string &errorMsg);
     VSFrameContext(NodeOutputKey key, const PVSFrameContext &notify);
     VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput);
@@ -621,6 +623,16 @@ struct VSFunctionFrame {
     VSFunctionFrame(const std::string &name, const VSMap *args, PVSFunctionFrame next) : name(name), args(args), next(next) {};
     ~VSFunctionFrame() { delete args; }
     PVSFunctionFrame next;
+};
+
+struct VSRequestDebugHandle {
+    VSRequestDebugHandler handler;
+    VSRequestDebugHandlerFree freeFunc;
+    void *userData;
+    ~VSRequestDebugHandle() {
+        if (freeFunc)
+            freeFunc(userData);
+    }
 };
 
 
@@ -828,6 +840,9 @@ private:
 
     std::atomic<int64_t> processingTime;
 
+    std::mutex reqDebugMutex;
+    std::set<VSRequestDebugHandle *> reqDebugHandlers;
+
     std::mutex cacheMutex;
     bool cacheLinear = false;
     bool cacheOverride = false;
@@ -840,6 +855,8 @@ private:
     void registerCache(bool add);
     PVSFrame getCachedFrameInternal(int n);
     PVSFrame getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
+
+    void notifyRequestDebugHandlers(VSFrameContext *frameContext, bool cacheHit);
 public:
     VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
     VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core);
@@ -906,6 +923,9 @@ public:
 
     const char *getCreationFunctionName(int level) const;
     const VSMap *getCreationFunctionArguments(int level) const;
+
+    VSRequestDebugHandle *addRequestDebugHandler(VSRequestDebugHandler handler, VSRequestDebugHandlerFree free, void *userData);
+    bool removeRequestDebugHandler(VSRequestDebugHandle *rec);
 
     int setLinear();
     void setCacheMode(int mode);

@@ -105,6 +105,10 @@ bool VSFrameContext::setError(const std::string &errorMsg) {
     return prevState;
 }
 
+void VSFrameContext::runNodeDebugHandler(VSRequestDebugHandle *handle, bool cacheHit) {
+    handle->handler(key.second, (int) reqOrder, cacheHit, handle->userData);
+}
+
 ///////////////
 
 bool VSMap::isV3Compatible() const noexcept {
@@ -882,6 +886,32 @@ const VSMap *VSNode::getCreationFunctionArguments(int level) const {
             return frame->args;
     }
     return nullptr;
+}
+
+void VSNode::notifyRequestDebugHandlers(VSFrameContext *frameContext, bool cacheHit) {
+    if (reqDebugHandlers.empty())
+        return;
+
+    std::lock_guard<std::mutex> lock(reqDebugMutex);
+    for (auto iter : reqDebugHandlers)
+        frameContext->runNodeDebugHandler(iter, cacheHit);
+}
+
+VSRequestDebugHandle *VSNode::addRequestDebugHandler(VSRequestDebugHandler handler, VSRequestDebugHandlerFree freeFunc, void *userData) {
+    std::lock_guard<std::mutex> lock(reqDebugMutex);
+    return *(reqDebugHandlers.insert(new VSRequestDebugHandle{ handler, freeFunc, userData }).first);
+}
+
+bool VSNode::removeRequestDebugHandler(VSRequestDebugHandle *rec) {
+    std::lock_guard<std::mutex> lock(reqDebugMutex);
+    auto f = reqDebugHandlers.find(rec);
+    if (f != reqDebugHandlers.end()) {
+        delete rec;
+        reqDebugHandlers.erase(f);
+        return true;
+    } else {
+        return false;
+    }
 }
 
 int VSNode::setLinear() {

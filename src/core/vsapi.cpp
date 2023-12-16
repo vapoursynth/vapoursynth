@@ -1050,6 +1050,16 @@ static int64_t VS_CC getFreedNodeProcessingTime(VSCore *core, int reset) VS_NOEX
     return core->getFreedNodeProcessingTime(!!reset);
 }
 
+static VSRequestDebugHandle *VS_CC addNodeRequestDebugHandler(VSRequestDebugHandler handler, VSRequestDebugHandlerFree free, void *userData, VSNode *node) VS_NOEXCEPT {
+    assert(handler && node);
+    return node->addRequestDebugHandler(handler, free, userData);
+}
+
+static int VS_CC removeNodeRequestDebugHandler(VSRequestDebugHandle *handle, VSNode *node) VS_NOEXCEPT {
+    assert(handle && node);
+    return node->removeRequestDebugHandler(reinterpret_cast<VSRequestDebugHandle *>(handle));
+}
+
 static int VS_CC getNumNodeDependencies(VSNode *node) VS_NOEXCEPT {
     assert(node);
     return static_cast<int>(node->getNumDependencies());
@@ -1224,6 +1234,9 @@ const VSAPI vs_internal_vsapi = {
     &setCoreNodeTiming,
     &getNodeProcessingTime,
     &getFreedNodeProcessingTime,
+
+    &addNodeRequestDebugHandler,
+    &removeNodeRequestDebugHandler,
 
     &getNodeCreationFunctionName,
     &getNodeCreationFunctionArguments

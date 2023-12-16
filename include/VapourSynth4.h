@@ -73,6 +73,7 @@ typedef struct VSPluginFunction VSPluginFunction;
 typedef struct VSFunction VSFunction;
 typedef struct VSMap VSMap;
 typedef struct VSLogHandle VSLogHandle;
+typedef struct VSRequestDebugHandle VSRequestDebugHandle;
 typedef struct VSFrameContext VSFrameContext;
 typedef struct VSPLUGINAPI VSPLUGINAPI;
 typedef struct VSAPI VSAPI;
@@ -316,6 +317,8 @@ typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI
 typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrame *f, int n, VSNode *node, const char *errorMsg);
 typedef void (VS_CC *VSLogHandler)(int msgType, const char *msg, void *userData);
 typedef void (VS_CC *VSLogHandlerFree)(void *userData);
+typedef void (VS_CC *VSRequestDebugHandler)(int n, int reqOrder, int cacheHit, void *userData);
+typedef void (VS_CC *VSRequestDebugHandlerFree)(void *userData);
 
 typedef struct VSPLUGINAPI {
     int (VS_CC *getAPIVersion)(void) VS_NOEXCEPT; /* returns VAPOURSYNTH_API_VERSION of the library */
@@ -481,6 +484,10 @@ struct VSAPI {
     void (VS_CC *setCoreNodeTiming)(VSCore *core, int enable) VS_NOEXCEPT; /* non-zero enables filter timing, note that disabling simply stops the counters from incrementing */
     int64_t (VS_CC *getNodeProcessingTime)(VSNode *node, int reset) VS_NOEXCEPT; /* time spent processing frames in nanoseconds, reset sets the counter to 0 again */
     int64_t (VS_CC *getFreedNodeProcessingTime)(VSCore *core, int reset) VS_NOEXCEPT; /* time spent processing frames in nanoseconds in all destroyed nodes, reset sets the counter to 0 again */
+
+    /* Node debug functions */
+    VSRequestDebugHandle *(VS_CC *addNodeRequestDebugHandler)(VSRequestDebugHandler handler, VSRequestDebugHandlerFree free, void *userData, VSNode *node) VS_NOEXCEPT; /* free and userData can be NULL, returns a handle that can be passed to removeNodeRequestDebugHandler */
+    int (VS_CC *removeNodeRequestDebugHandler)(VSRequestDebugHandle *handle, VSNode *node) VS_NOEXCEPT; /* returns non-zero if successfully removed */
 
 #if defined(VS_GRAPH_API)
     /* !!! Experimental/expensive graph information, these function require both the major and minor version to match exactly when using them !!!
