@@ -1798,6 +1798,27 @@ cdef _get_handle_future():
 
     return _handle_future
 
+cdef class RequestDebugHandle(object):
+    cdef VSRequestDebugHandle *handle
+    cdef object handler_func
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+cdef RequestDebugHandle createRequestDebugHandle(object handler_func):
+    cdef RequestDebugHandle instance = RequestDebugHandle.__new__(RequestDebugHandle)
+    instance.handler_func = handler_func
+    instance.handle = NULL
+    return instance
+
+cdef void __stdcall request_debug_handler_wrapper(int n, int reqOrder, int cacheHit, void *userData) noexcept nogil:
+    with gil:
+        (<RequestDebugHandle>userData).handler_func(n, reqOrder, bool(cacheHit))
+
+cdef void __stdcall request_debug_handler_free(void *userData) noexcept nogil:
+    with gil:
+        Py_DECREF(<RequestDebugHandle>userData)
+
 cdef class RawNode(object):
     cdef VSNode *node
     cdef const VSAPI *funcs
@@ -1976,6 +1997,17 @@ cdef class RawNode(object):
             createNode(self.funcs.addNodeRef(self.funcs.getNodeDependency(self.node, idx).source), self.funcs, self.core)
             for idx in range(self.funcs.getNumNodeDependencies(self.node))
         )
+
+    def add_request_debug_handler(self, handler_func):
+        cdef RequestDebugHandle rqdh = createRequestDebugHandle(handler_func)
+        Py_INCREF(rqdh)
+        rqdh.handle = self.funcs.addNodeRequestDebugHandler(
+            request_debug_handler_wrapper, request_debug_handler_free, <void *>rqdh, self.node
+        )
+        return rqdh
+
+    def remove_request_debug_handler(self, RequestDebugHandle handle):
+        return self.funcs.removeNodeRequestDebugHandler(handle.handle, self.node)
 
     @property
     def _name(self):

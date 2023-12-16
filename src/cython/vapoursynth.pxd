@@ -45,6 +45,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         pass
     ctypedef struct VSLogHandle:
         pass
+    ctypedef struct VSRequestDebugHandle:
+        pass
     ctypedef struct VSFrameContext:
         pass
 
@@ -253,6 +255,9 @@ cdef extern from "include/VapourSynth4.h" nogil:
     ctypedef void (__stdcall *VSLogHandler)(int msgType, const char *msg, void *userData)
     ctypedef void (__stdcall *VSLogHandlerFree)(void *userData)
 
+    ctypedef void (__stdcall *VSRequestDebugHandler)(int n, int reqOrder, int cacheHit, void *userData)
+    ctypedef void (__stdcall *VSRequestDebugHandlerFree)(void *userData)
+
     ctypedef struct VSPLUGINAPI:
         int getAPIVersion() nogil
         bint configPlugin(const char *identifier, const char *pluginNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) nogil
@@ -408,6 +413,10 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void setCoreNodeTiming(VSCore *core, int enable) nogil
         int64_t getNodeProcessingTime(VSNode *node, int reset) nogil
         int64_t getFreedNodeProcessingTime(VSCore *core, int reset) nogil
+
+        # Node debug functions
+        VSRequestDebugHandle *addNodeRequestDebugHandler(VSRequestDebugHandler handler, VSRequestDebugHandlerFree free, void *userData, VSNode *node) nogil
+        bint removeNodeRequestDebugHandler(VSRequestDebugHandle *handle, VSNode *node) nogil
 
         # Unstable API, has no set place.
         const char *getNodeCreationFunctionName(VSNode *node, int level) nogil
