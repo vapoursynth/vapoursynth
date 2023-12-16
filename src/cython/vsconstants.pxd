@@ -19,9 +19,9 @@
 #
 
 cdef extern from "include/VSConstants4.h" nogil:
-    cpdef enum ColorRange "VSColorRange":
-        RANGE_FULL "VSC_RANGE_FULL"
-        RANGE_LIMITED "VSC_RANGE_LIMITED"
+    cpdef enum:
+        VSC_RANGE_FULL "VSC_RANGE_FULL"
+        VSC_RANGE_LIMITED "VSC_RANGE_LIMITED"
 
     cpdef enum ChromaLocation "VSChromaLocation":
         CHROMA_LEFT "VSC_CHROMA_LEFT"

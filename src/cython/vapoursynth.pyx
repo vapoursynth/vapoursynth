@@ -104,6 +104,17 @@ __version__ = VapourSynthVersion(VS_CURRENT_RELEASE, 0)
 __api_version__ = VapourSynthAPIVersion(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 
+class ColorRange(enum.Flag):
+    RANGE_FULL = VSC_RANGE_FULL
+    RANGE_LIMITED = VSC_RANGE_LIMITED
+
+    @property
+    def value_zimg(self):
+        return ~self.value + 2
+
+RANGE_FULL = ColorRange.RANGE_FULL
+RANGE_LIMITED = ColorRange.RANGE_LIMITED
+
 @final
 cdef class EnvironmentData(object):
     cdef bint alive
