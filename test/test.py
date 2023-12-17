@@ -289,6 +289,29 @@ class CoreTestSequence(unittest.TestCase):
         with self.assertRaises(vs.Error):
             self.core.std.ShufflePlanes(clip, planes=[0, 1, 2], colorfamily=vs.YUV, prop_src=[clip, clip])
 
+    def test_splitplanes_arg1(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8)
+
+        planes = self.core.std.SplitPlanes(clip, prop_src=[clip.std.SetFrameProps(Plane=i) for i in range(3)])
+
+        for i, plane in enumerate(planes):
+            self.assertEqual(plane.get_frame(0).props.Plane, i)
+
+    def test_splitplanes_arg2(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8)
+
+        with self.assertRaises(vs.Error):
+            self.core.std.SplitPlanes(clip, prop_src=[clip, clip, clip, clip])
+
+    def test_splitplanes_arg3(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8).std.SetFrameProps(RemoveMe=1)
+
+        planes = self.core.std.SplitPlanes(clip, prop_src=[])
+
+        for plane in planes:
+            with self.assertRaises(KeyError):
+                plane.get_frame(0).props['RemoveMe']
+
 #clamp tests
     def test_levels_clamp(self):
         for i in range(1024):
