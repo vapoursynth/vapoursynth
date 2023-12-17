@@ -912,12 +912,30 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
     }
 }
 
+static bool IsSimpleAudio(const VSAudioInfo *ai) {
+    if (((ai->format.sampleType == stInteger && (ai->format.bitsPerSample == 16 || ai->format.bitsPerSample == 24 || ai->format.bitsPerSample == 32)) || (ai->format.sampleType == stFloat && ai->format.bitsPerSample == 32))) {
+        if (ai->format.numChannels == 1)
+            return true;
+        else if (ai->format.numChannels == 2 && ai->format.channelLayout == ((1 << acFrontLeft) | (1 << acFrontRight)))
+            return true;
+        else if (ai->format.numChannels == 2 && ai->format.channelLayout == ((1 << acStereoLeft) | (1 << acStereoRight)))
+            return true;
+    }
+    return false;
+}
+
 STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpcbFormat) noexcept {
+    static_assert(sizeof(WAVEFORMATEXTENSIBLE) == sizeof(WaveFormatExtensible));
+    
     if (!lpcbFormat)
         return E_POINTER;
 
     if (!lpFormat) {
-        *lpcbFormat = fAudio ? sizeof(WaveFormatExtensible)  : sizeof(BITMAPINFOHEADER);
+        if (fAudio) {
+            *lpcbFormat = IsSimpleAudio(parent->ai) ? sizeof(WAVEFORMATEX) : sizeof(WaveFormatExtensible);
+        } else {
+            *lpcbFormat = sizeof(BITMAPINFOHEADER);
+        }
         return S_OK;
     }
 
@@ -928,7 +946,13 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
         WaveFormatExtensible wfxt;
         if (!CreateWaveFormatExtensible(wfxt, ai->format.sampleType == stFloat, ai->format.bitsPerSample, ai->sampleRate, ai->format.channelLayout))
             return E_FAIL;
-        *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(wfxt));
+        if (IsSimpleAudio(ai)) {
+            wfxt.wFormatTag = (ai->format.sampleType == stFloat) ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM;
+            wfxt.cbSize = 0;
+            *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(WAVEFORMATEX));
+        } else {
+            *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(wfxt));
+        }
         memcpy(lpFormat, &wfxt, size_t(*lpcbFormat));
     } else {
         const VSVideoInfo *const vi = parent->vi;

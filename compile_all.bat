@@ -1,4 +1,4 @@
-@echo | call install_deps.bat
+rem @echo | call install_deps.bat
 
 pushd installer
 call setmvscvars.bat

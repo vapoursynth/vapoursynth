@@ -1,4 +1,7 @@
 r66:
+updated the supported python versions to 3.12 and 3.8
+the vfw wrapper now provides simple waveformatex information automatically if the audio is mono or flagged as plain stereo and samples contain no padding bits
+increased the get_frame error message buffer size in python, fewer messages should be truncated now
 added missing st428 transfer characteristics to resize
 made most graph information functions part of the stable api and bumped the version to 4.1
 added new api functions for cache clearing
@@ -8,7 +11,7 @@ fixed setcache function leaking a node reference (jsaowji)
 
 r65:
 fixed inspection api sometimes causing memory corruption when used from python (jsaowji)
-frame properties in python are now return as str type instead of bytes when hinted as utf8 printable
+frame properties in python are now returned as str type instead of bytes when hinted as utf8 printable
 fixed how unprintable data is returned from plugin functions in python, previously it would leak a ctypes pointer with no length instead of returning a bytes object
 fixed a bug in the avx2 maskedmerge float premultiplied code path that would switch the two input clips
 reverted the from_chars code a bit more to make no locale affects float parsing
@@ -31,7 +34,7 @@ added a warning every time the deprecated cache filter is instantiated and ignor
 fixed a regression with alpha nodes in vspipe introduced in r62
 
 r62:
-updated the supported python versions to 3.12 and 3.8
+updated the supported python versions to 3.11 and 3.8
 now up to 500 log messages are cached when no log handler is attached
 improvements to repr, audio channel handling and other python fixes (setsugennoao)
 added a class Local for environment-local values

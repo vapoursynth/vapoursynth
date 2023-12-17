@@ -2,7 +2,7 @@
 #define PythonCompactVersion '312'
 
 #ifndef VSRuntimeVersion
-  #define VSRuntimeVersion '14.32.31326'
+  #define VSRuntimeVersion '14.38.33130'
 #endif
 
 #define AppName 'VapourSynth (64-bits)'
