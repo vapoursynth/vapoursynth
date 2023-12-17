@@ -266,6 +266,29 @@ class CoreTestSequence(unittest.TestCase):
         with self.assertRaises(vs.Error):
             self.core.std.ShufflePlanes([clip1, clip2, clip1], planes=[0, 1, 2], colorfamily=vs.RGB)               
 
+    def test_suffleplanes_arg7(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8)
+        clip1 = clip.std.SetFrameProps(Test=1)
+        clip2 = self.core.std.ShufflePlanes(clip, planes=[0, 1, 2], colorfamily=vs.YUV, prop_src=clip1)
+        self.assertEqual(clip2.get_frame(0).props.Test, 1)
+
+    def test_suffleplanes_arg8(self):
+        clip = self.core.std.BlankClip(format=vs.GRAY8)
+        clip1 = clip.std.SetFrameProps(Test=1)
+        clip2 = self.core.std.ShufflePlanes(clip, planes=0, colorfamily=vs.GRAY, prop_src=clip1)
+        self.assertEqual(clip2.get_frame(0).props.Test, 1)
+
+    def test_suffleplanes_arg9(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8).std.SetFrameProps(RemoveMe=1)
+        clip1 = self.core.std.ShufflePlanes(clip, planes=[0, 1, 2], colorfamily=vs.YUV, prop_src=[])
+        with self.assertRaises(KeyError):
+            clip1.get_frame(0).props['RemoveMe']
+
+    def test_suffleplanes_arg10(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8)
+        with self.assertRaises(vs.Error):
+            self.core.std.ShufflePlanes(clip, planes=[0, 1, 2], colorfamily=vs.YUV, prop_src=[clip, clip])
+
 #clamp tests
     def test_levels_clamp(self):
         for i in range(1024):
