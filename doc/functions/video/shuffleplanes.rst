@@ -1,7 +1,7 @@
 ShufflePlanes
 =============
 
-.. function::   ShufflePlanes(vnode[] clips, int[] planes, int colorfamily)
+.. function::   ShufflePlanes(vnode[] clips, int[] planes, int colorfamily[, vnode[] prop_src=clips[0]])
    :module: std
 
    ShufflePlanes can extract and combine planes from different clips in the most
@@ -25,6 +25,10 @@ ShufflePlanes
    Properties such as subsampling are determined from the relative size of the
    given planes to combine.
 
+   The argument *prop_src* is used to specify the output props of the clip.
+   By default it will grab the first node of *clips*. You can pass an empty array
+   to remove the props entirely from the output clip.
+
    ShufflePlanes accepts clips with variable format and dimensions only when
    extracting a single plane.
 
@@ -46,3 +50,13 @@ ShufflePlanes
    Cast a YUV clip to RGB::
 
       ShufflePlanes(clips=[YUVclip], planes=[0, 1, 2], colorfamily=vs.RGB)
+
+   Note that in any example that mixes color families, if the clip has correct colorspace
+   information specified in its frame props, when you try to pass it to functions that
+   access and check frame props, it will error;
+   For example any function in the *resize* plugin will throw an error saying that an RGB clip
+   can't have GRAY/YUV colorspace information and vice-versa.
+
+   To avoid this you can set prop_src to an empty array to remove said props::
+
+      ShufflePlanes(clips=[YUVclip], planes=[0, 1, 2], colorfamily=vs.RGB, prop_src=[])
