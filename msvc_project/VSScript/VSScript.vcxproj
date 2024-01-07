@@ -24,12 +24,12 @@
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup Label="Globals" Condition="'$(VSPYTHON_PATH)' == ''">
-    <VSPYTHON_PATH Condition="exists('$(ProgramFiles)\..\Python') == 'true' ">$(ProgramFiles)\..\Python\Python311</VSPYTHON_PATH>
-    <VSPYTHON_PATH Condition="exists('$(ProgramFiles)\..\Python') == 'false' ">$(ProgramFiles)\Python311</VSPYTHON_PATH>
+    <VSPYTHON_PATH Condition="exists('$(ProgramFiles)\..\Python') == 'true' ">$(ProgramFiles)\..\Python\Python312</VSPYTHON_PATH>
+    <VSPYTHON_PATH Condition="exists('$(ProgramFiles)\..\Python') == 'false' ">$(ProgramFiles)\Python312</VSPYTHON_PATH>
   </PropertyGroup>
   <PropertyGroup Label="Globals" Condition="'$(VSPYTHON32_PATH)' == ''">
-    <VSPYTHON32_PATH Condition="exists('$(ProgramFiles)\..\Python') == 'true' ">$(ProgramFiles)\..\Python\Python311-32</VSPYTHON32_PATH>
-    <VSPYTHON32_PATH Condition="exists('$(ProgramFiles)\..\Python') == 'false' ">$(ProgramFiles)\..\Program Files %28x86%29\Python311-32</VSPYTHON32_PATH>
+    <VSPYTHON32_PATH Condition="exists('$(ProgramFiles)\..\Python') == 'true' ">$(ProgramFiles)\..\Python\Python312-32</VSPYTHON32_PATH>
+    <VSPYTHON32_PATH Condition="exists('$(ProgramFiles)\..\Python') == 'false' ">$(ProgramFiles)\..\Program Files %28x86%29\Python312-32</VSPYTHON32_PATH>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
