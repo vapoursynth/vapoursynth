@@ -13,7 +13,7 @@ IF EXIST "Python38.dll" (
     GOTO end
 )
 
-ECHO Neither Python 3.12 nor Python 3.8 is supported
+ECHO Neither Python 3.12 nor Python 3.8 found. Installation failed.
 GOTO end
 
 :end

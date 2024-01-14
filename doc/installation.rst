@@ -26,7 +26,7 @@ Prerequisites
 -------------
 
 First download and install the prerequisites:
-   * `Python 3.12.x <http://www.python.org/>`_ or Python 3.8.x -- 32 or 64 bit version depending on which version of VapourSynth you want to install
+   * `Python 3.12.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit version
    
 Note that VapourSynth and Python have to be matched so both are either installed
 for all users or for only for the current user.
@@ -47,7 +47,7 @@ Windows Installation (Portable)
 *******************************
 
 First download and decompress the prerequisites:
-   * `Python 3.12.x <http://www.python.org/>`_ or Python 3.8.x -- 32 or 64 bit embeddable version
+   * `Python 3.12.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit embeddable version
    
 Simply decompress the `portable VapourSynth archive <https://github.com/vapoursynth/vapoursynth/releases>`_
 into the Python dir and overwrite all existing files.Run ``vs-detect-python.bat``
