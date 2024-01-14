@@ -12,13 +12,15 @@ mkdir buildp64\sdk\examples
 mkdir buildp64\sdk\lib64
 mkdir buildp64\doc
 mkdir buildp64\vsgenstubs4
+mkdir buildp64\wheel
 copy ..\vsrepo\vsrepo.py buildp64
 copy ..\vsrepo\vsgenstubs.py buildp64
 copy ..\vsrepo\vsgenstubs4 buildp64\vsgenstubs4
 copy vs-detect-python.bat buildp64
 copy 7z.exe buildp64
 copy 7z.dll buildp64
-copy ..\vapoursynth.cp3*-win_amd64.pyd buildp64
+copy ..\dist\VapourSynth-%VERSION_STRING%-cp312-cp312-win_amd64.whl buildp64\wheel
+copy ..\dist\VapourSynth-%VERSION_STRING%-cp38-cp38-win_amd64.whl buildp64\wheel
 copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
 copy ..\msvc_project\x64\Release\vsscriptpython38.dll buildp64
