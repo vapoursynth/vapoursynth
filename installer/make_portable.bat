@@ -49,11 +49,11 @@ xcopy /E ..\doc\_build\html\* buildp64\doc
 type nul >buildp64\portable.vs
 type nul >buildp64\vapoursynth64\plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
-  IF EXIST "Compiled\vapoursynth64-portable-R%VERSION_STRING%.7z" (
-    del Compiled\vapoursynth64-portable-R%VERSION_STRING%.7z
+  IF EXIST "Compiled\vapoursynth64-portable-R%VERSION_STRING%.zip" (
+    del Compiled\vapoursynth64-portable-R%VERSION_STRING%.zip
   )
   cd buildp64
-  7z.exe a ..\Compiled\VapourSynth64-Portable-R%VERSION_STRING%.7z *
+  7z.exe a ..\Compiled\VapourSynth64-Portable-R%VERSION_STRING%.zip *
   cd ..
   rmdir /s /q buildp64
 )
