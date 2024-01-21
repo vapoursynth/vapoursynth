@@ -1,7 +1,7 @@
 Resize
 ======
 
-.. function::   Bilinear(vnode clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type="none", string cpu_type, float src_left, float src_top, float src_width, float src_height, float nominal_luminance])
+.. function::   Bilinear(vnode clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type="none", string cpu_type, float src_left, float src_top, float src_width, float src_height, float nominal_luminance, bint approximate_gamma=True])
                 Bicubic(vnode clip[, ...])
                 Point(vnode clip[, ...])
                 Lanczos(vnode clip[, ...])
@@ -130,6 +130,10 @@ Resize
    *nominal_luminance*:
    
       Determines the physical brightness of the value 1.0. The unit is in cd/m^2.
+      
+   *approximate_gamma*:
+
+      Use LUT to evaluate transfer functions. Defaults to True.
       
    To convert to YV12::
 
