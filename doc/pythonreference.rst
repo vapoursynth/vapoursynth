@@ -731,6 +731,14 @@ Classes and Functions
    .. py:attribute:: name
 
       The name string of the plugin.
+      
+   .. py:attribute:: version
+
+      The version of the plugin returned as a PluginVersion tuple.
+      
+   .. py:attribute:: plugin_path
+
+      The main library location of the plugin. Note that internal functions don't have a plugin path and instead return None.
 
    .. py:attribute:: identifier
 

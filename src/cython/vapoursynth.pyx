@@ -2806,6 +2806,14 @@ cdef class Plugin(object):
         ver_minor = (ver_major > -1) and (ver - (ver_major << 16)) or 0
 
         return PluginVersion(ver_major, ver_minor)
+        
+    @property
+    def plugin_path(self):
+        cdef const char *ppath = self.funcs.getPluginPath(self.plugin)
+        if ppath:
+            return ppath.decode('utf-8')
+        else:
+            return None
 
     def __dir__(self):
         attrs = []
