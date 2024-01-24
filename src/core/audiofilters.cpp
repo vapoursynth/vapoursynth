@@ -431,14 +431,105 @@ static void VS_CC audioReverseCreate(const VSMap *in, VSMap *out, void *userData
 // AudioGain
 
 struct AudioGainDataExtra {
-    std::vector<float> gain;
+    std::vector<double> gain;
     const VSAudioInfo *ai;
+    bool overflowError;
+    std::atomic<bool> overflowWarned = false;
 };
 
 typedef SingleNodeData<AudioGainDataExtra> AudioGainData;
 
-template<typename T>
-static const VSFrame *VS_CC audioGainGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC audioGainGetFrame16(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioGainData *d = reinterpret_cast<AudioGainData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        int length = vsapi->getFrameLength(src);
+        VSFrame *dst = vsapi->newAudioFrame(&d->ai->format, length, src, core);
+        bool error = false;
+
+        for (int p = 0; p < d->ai->format.numChannels; p++) {
+            float gain = d->gain[(d->gain.size() > 1) ? p : 0];
+            const int16_t *srcPtr = reinterpret_cast<const int16_t *>(vsapi->getReadPtr(src, p));
+            int16_t *dstPtr = reinterpret_cast<int16_t *>(vsapi->getWritePtr(dst, p));
+            
+            for (int i = 0; i < length; i++) {
+                long vclamped = std::lround(std::clamp<float>(srcPtr[i] * gain, std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::min()));
+                long vrounded = std::lround(srcPtr[i] * gain);
+                if (vclamped != vrounded) {
+                    if (d->overflowError) {
+                        vsapi->setFilterError(("AudioGain: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + length - 1)).c_str(), frameCtx);
+                        error = true;
+                    } else if (!d->overflowWarned.exchange(true)) {
+                        vsapi->logMessage(mtWarning, ("AudioGain: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES  + length - 1) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
+                    }
+                }
+
+                dstPtr[i] = static_cast<int16_t>(vclamped);
+            }           
+        }
+
+        vsapi->freeFrame(src);
+
+        if (error)
+            vsapi->freeFrame(dst);
+        else
+            return dst;
+    }
+
+    return nullptr;
+}
+
+
+static const VSFrame *VS_CC audioGainGetFrame32(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioGainData *d = reinterpret_cast<AudioGainData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        int length = vsapi->getFrameLength(src);
+        VSFrame *dst = vsapi->newAudioFrame(&d->ai->format, length, src, core);
+        bool error = false;
+
+        double maxV = ((1 << (d->ai->format.bitsPerSample - 1)) - 1);
+        double minV = -((1 << (d->ai->format.bitsPerSample - 1)));
+
+        for (int p = 0; p < d->ai->format.numChannels; p++) {
+            double gain = d->gain[(d->gain.size() > 1) ? p : 0];
+            const int32_t *srcPtr = reinterpret_cast<const int32_t *>(vsapi->getReadPtr(src, p));
+            int32_t *dstPtr = reinterpret_cast<int32_t *>(vsapi->getWritePtr(dst, p));
+
+            for (int i = 0; i < length; i++) {
+                long vclamped = std::lround(std::clamp(srcPtr[i] *gain, maxV, minV));
+                long vrounded = std::lround(srcPtr[i] * gain);
+                if (vclamped != vrounded) {
+                    if (d->overflowError) {
+                        vsapi->setFilterError(("AudioGain: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + length - 1)).c_str(), frameCtx);
+                        error = true;
+                    } else if (!d->overflowWarned.exchange(true)) {
+                        vsapi->logMessage(mtWarning, ("AudioGain: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + length - 1) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
+                    }
+                }
+
+                dstPtr[i] = static_cast<int32_t>(vclamped);
+            }
+        }
+
+        vsapi->freeFrame(src);
+
+        if (error)
+            vsapi->freeFrame(dst);
+        else
+            return dst;
+    }
+
+    return nullptr;
+}
+
+static const VSFrame *VS_CC audioGainGetFrameF(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AudioGainData *d = reinterpret_cast<AudioGainData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -450,10 +541,10 @@ static const VSFrame *VS_CC audioGainGetFrame(int n, int activationReason, void 
 
         for (int p = 0; p < d->ai->format.numChannels; p++) {
             float gain = d->gain[(d->gain.size() > 1) ? p : 0];
-            const T *srcPtr = reinterpret_cast<const T *>(vsapi->getReadPtr(src, p));
-            T *dstPtr = reinterpret_cast<T *>(vsapi->getWritePtr(dst, p));
+            const float *srcPtr = reinterpret_cast<const float *>(vsapi->getReadPtr(src, p));
+            float *dstPtr = reinterpret_cast<float *>(vsapi->getWritePtr(dst, p));
             for (int i = 0; i < length; i++)
-                dstPtr[i] = static_cast<T>(srcPtr[i] * gain);
+                dstPtr[i] = srcPtr[i] * gain;
         }
 
         vsapi->freeFrame(src);
@@ -465,23 +556,25 @@ static const VSFrame *VS_CC audioGainGetFrame(int n, int activationReason, void 
 
 static void VS_CC audioGainCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<AudioGainData> d(new AudioGainData(vsapi));
+    int err;
     int numGainValues = vsapi->mapNumElements(in, "gain");
     for (int i = 0; i < numGainValues; i++)
-        d->gain.push_back(vsapi->mapGetFloatSaturated(in, "gain", i, nullptr));
+        d->gain.push_back(vsapi->mapGetFloat(in, "gain", i, nullptr));
 
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->ai = vsapi->getAudioInfo(d->node);
+    d->overflowError = !!vsapi->mapGetInt(in, "overflow_error", 0, &err);
 
     if (numGainValues != 1 && numGainValues != d->ai->format.numChannels)
         RETERROR("AudioGain: must provide one gain value per channel or a single value used for all channels");
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     if (d->ai->format.bytesPerSample == 4 && d->ai->format.sampleType == stFloat)
-        vsapi->createAudioFilter(out, "AudioGain", d->ai, audioGainGetFrame<float>, filterFree<AudioGainData>, fmParallel, deps, 1, d.get(), core);
+        vsapi->createAudioFilter(out, "AudioGain", d->ai, audioGainGetFrameF, filterFree<AudioGainData>, fmParallel, deps, 1, d.get(), core);
     else if (d->ai->format.bytesPerSample == 2)
-        vsapi->createAudioFilter(out, "AudioGain", d->ai, audioGainGetFrame<int16_t>, filterFree<AudioGainData>, fmParallel, deps, 1, d.get(), core);
+        vsapi->createAudioFilter(out, "AudioGain", d->ai, audioGainGetFrame16, filterFree<AudioGainData>, fmParallel, deps, 1, d.get(), core);
     else
-        vsapi->createAudioFilter(out, "AudioGain", d->ai, audioGainGetFrame<int32_t>, filterFree<AudioGainData>, fmParallel, deps, 1, d.get(), core);
+        vsapi->createAudioFilter(out, "AudioGain", d->ai, audioGainGetFrame32, filterFree<AudioGainData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
 
@@ -500,34 +593,101 @@ struct AudioMixData {
     std::vector<AudioMixDataNode> sourceNodes;
     std::vector<int> outputIdx;
     VSAudioInfo ai;
+    bool overflowError;
+    std::atomic<bool> overflowWarned = false;
 };
 
-template<typename T>
-static const VSFrame *VS_CC audioMixGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrame *VS_CC audioMixGetFrame16(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AudioMixData *d = reinterpret_cast<AudioMixData *>(instanceData);
 
     if (activationReason == arInitial) {
         for (const auto &iter : d->reqNodes)
             vsapi->requestFrameFilter(n, iter, frameCtx);
-    } else if (activationReason == arAllFramesReady) {     
+    } else if (activationReason == arAllFramesReady) {
         int numOutChannels = d->ai.format.numChannels;
-        std::vector<const T *> srcPtrs;
+        std::vector<const int16_t *> srcPtrs;
         std::vector<const VSFrame *> srcFrames;
         srcPtrs.reserve(d->sourceNodes.size());
         srcFrames.reserve(d->sourceNodes.size());
+        bool error = false;
+
         for (size_t idx = 0; idx < d->sourceNodes.size(); idx++) {
-            const VSFrame *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);                
-            srcPtrs.push_back(reinterpret_cast<const T *>(vsapi->getReadPtr(src, d->sourceNodes[idx].idx)));
+            const VSFrame *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);
+            srcPtrs.push_back(reinterpret_cast<const int16_t *>(vsapi->getReadPtr(src, d->sourceNodes[idx].idx)));
             srcFrames.push_back(src);
         }
 
         int srcLength = vsapi->getFrameLength(srcFrames[0]);
         VSFrame *dst = vsapi->newAudioFrame(&d->ai.format, srcLength, srcFrames[0], core);
 
-        std::vector<T *> dstPtrs;
+        std::vector<int16_t *> dstPtrs;
         dstPtrs.resize(numOutChannels);
         for (int idx = 0; idx < numOutChannels; idx++)
-            dstPtrs[idx] = reinterpret_cast<T *>(vsapi->getWritePtr(dst, d->outputIdx[idx]));
+            dstPtrs[idx] = reinterpret_cast<int16_t *>(vsapi->getWritePtr(dst, d->outputIdx[idx]));
+
+        for (int i = 0; i < srcLength; i++) {
+            for (size_t dstIdx = 0; dstIdx < static_cast<size_t>(numOutChannels); dstIdx++) {
+                double tmp = 0;
+                for (size_t srcIdx = 0; srcIdx < srcPtrs.size(); srcIdx++)
+                    tmp += srcPtrs[srcIdx][i] * d->sourceNodes[srcIdx].weights[dstIdx];
+
+                long vclamped = std::lround(std::clamp<float>(tmp, std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::min()));
+                long vrounded = std::lround(tmp);
+                if (vclamped != vrounded) {
+                    if (d->overflowError) {
+                        vsapi->setFilterError(("AudioMix: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + srcLength - 1)).c_str(), frameCtx);
+                        error = true;
+                    } else if (!d->overflowWarned.exchange(true)) {
+                        vsapi->logMessage(mtWarning, ("AudioMix: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + srcLength - 1) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
+                    }
+                }
+
+                dstPtrs[dstIdx][i] = static_cast<int16_t>(tmp);
+            }
+        }
+
+        for (auto iter : srcFrames)
+            vsapi->freeFrame(iter);
+
+        if (error)
+            vsapi->freeFrame(dst);
+        else
+            return dst;
+    }
+
+    return nullptr;
+}
+
+static const VSFrame *VS_CC audioMixGetFrame32(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioMixData *d = reinterpret_cast<AudioMixData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        for (const auto &iter : d->reqNodes)
+            vsapi->requestFrameFilter(n, iter, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        int numOutChannels = d->ai.format.numChannels;
+        std::vector<const int32_t *> srcPtrs;
+        std::vector<const VSFrame *> srcFrames;
+        srcPtrs.reserve(d->sourceNodes.size());
+        srcFrames.reserve(d->sourceNodes.size());
+        bool error = false;
+
+        double maxV = ((1 << (d->ai.format.bitsPerSample - 1)) - 1);
+        double minV = -((1 << (d->ai.format.bitsPerSample - 1)));
+
+        for (size_t idx = 0; idx < d->sourceNodes.size(); idx++) {
+            const VSFrame *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);
+            srcPtrs.push_back(reinterpret_cast<const int32_t *>(vsapi->getReadPtr(src, d->sourceNodes[idx].idx)));
+            srcFrames.push_back(src);
+        }
+
+        int srcLength = vsapi->getFrameLength(srcFrames[0]);
+        VSFrame *dst = vsapi->newAudioFrame(&d->ai.format, srcLength, srcFrames[0], core);
+
+        std::vector<int32_t *> dstPtrs;
+        dstPtrs.resize(numOutChannels);
+        for (int idx = 0; idx < numOutChannels; idx++)
+            dstPtrs[idx] = reinterpret_cast<int32_t *>(vsapi->getWritePtr(dst, d->outputIdx[idx]));
 
         for (int i = 0; i < srcLength; i++) {
             for (size_t dstIdx = 0; dstIdx < static_cast<size_t>(numOutChannels); dstIdx++) {
@@ -535,7 +695,66 @@ static const VSFrame *VS_CC audioMixGetFrame(int n, int activationReason, void *
                 for (size_t srcIdx = 0; srcIdx < srcPtrs.size(); srcIdx++)
                     tmp += static_cast<double>(srcPtrs[srcIdx][i]) * d->sourceNodes[srcIdx].weights[dstIdx];
 
-                dstPtrs[dstIdx][i] = static_cast<T>(tmp);
+                long vclamped = std::lround(std::clamp(tmp, maxV, minV));
+                long vrounded = std::lround(tmp);
+                if (vclamped != vrounded) {
+                    if (d->overflowError) {
+                        vsapi->setFilterError(("AudioMix: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + srcLength - 1)).c_str(), frameCtx);
+                        error = true;
+                    } else if (!d->overflowWarned.exchange(true)) {
+                        vsapi->logMessage(mtWarning, ("AudioMix: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + srcLength - 1) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
+                    }
+                }
+
+                dstPtrs[dstIdx][i] = static_cast<int32_t>(vclamped);
+            }
+        }
+
+        for (auto iter : srcFrames)
+            vsapi->freeFrame(iter);
+
+        if (error)
+            vsapi->freeFrame(dst);
+        else
+            return dst;
+    }
+
+    return nullptr;
+}
+
+static const VSFrame *VS_CC audioMixGetFrameF(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioMixData *d = reinterpret_cast<AudioMixData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        for (const auto &iter : d->reqNodes)
+            vsapi->requestFrameFilter(n, iter, frameCtx);
+    } else if (activationReason == arAllFramesReady) {     
+        int numOutChannels = d->ai.format.numChannels;
+        std::vector<const float *> srcPtrs;
+        std::vector<const VSFrame *> srcFrames;
+        srcPtrs.reserve(d->sourceNodes.size());
+        srcFrames.reserve(d->sourceNodes.size());
+        for (size_t idx = 0; idx < d->sourceNodes.size(); idx++) {
+            const VSFrame *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);                
+            srcPtrs.push_back(reinterpret_cast<const float *>(vsapi->getReadPtr(src, d->sourceNodes[idx].idx)));
+            srcFrames.push_back(src);
+        }
+
+        int srcLength = vsapi->getFrameLength(srcFrames[0]);
+        VSFrame *dst = vsapi->newAudioFrame(&d->ai.format, srcLength, srcFrames[0], core);
+
+        std::vector<float *> dstPtrs;
+        dstPtrs.resize(numOutChannels);
+        for (int idx = 0; idx < numOutChannels; idx++)
+            dstPtrs[idx] = reinterpret_cast<float *>(vsapi->getWritePtr(dst, d->outputIdx[idx]));
+
+        for (int i = 0; i < srcLength; i++) {
+            for (size_t dstIdx = 0; dstIdx < static_cast<size_t>(numOutChannels); dstIdx++) {
+                double tmp = 0;
+                for (size_t srcIdx = 0; srcIdx < srcPtrs.size(); srcIdx++)
+                    tmp += srcPtrs[srcIdx][i] * d->sourceNodes[srcIdx].weights[dstIdx];
+
+                dstPtrs[dstIdx][i] = static_cast<float>(tmp);
             }
         }
 
@@ -600,6 +819,9 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
         RETERROR("AudioMix: the number of matrix weights must equal (input channels * output channels)");
     }
 
+    int mapErr;
+    d->overflowError = !!vsapi->mapGetInt(in, "overflow_error", 0, &mapErr);
+
     const char *err = nullptr;
 
     d->ai = *vsapi->getAudioInfo(d->sourceNodes[0].node);
@@ -638,11 +860,11 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
     for (const auto &iter : d->reqNodes)
         deps.push_back({iter, rpStrictSpatial});
     if (d->ai.format.sampleType == stFloat)
-        vsapi->createAudioFilter(out, "AudioMix", &d->ai, audioMixGetFrame<float>, audioMixFree, fmParallel, deps.data(), static_cast<int>(deps.size()), d.get(), core);
+        vsapi->createAudioFilter(out, "AudioMix", &d->ai, audioMixGetFrameF, audioMixFree, fmParallel, deps.data(), static_cast<int>(deps.size()), d.get(), core);
     else if (d->ai.format.bytesPerSample == 2)
-        vsapi->createAudioFilter(out, "AudioMix", &d->ai, audioMixGetFrame<int16_t>, audioMixFree, fmParallel, deps.data(), static_cast<int>(deps.size()), d.get(), core);
+        vsapi->createAudioFilter(out, "AudioMix", &d->ai, audioMixGetFrame16, audioMixFree, fmParallel, deps.data(), static_cast<int>(deps.size()), d.get(), core);
     else
-        vsapi->createAudioFilter(out, "AudioMix", &d->ai, audioMixGetFrame<int32_t>, audioMixFree, fmParallel, deps.data(), static_cast<int>(deps.size()), d.get(), core);
+        vsapi->createAudioFilter(out, "AudioMix", &d->ai, audioMixGetFrame32, audioMixFree, fmParallel, deps.data(), static_cast<int>(deps.size()), d.get(), core);
     d.release();
 }
 
@@ -1067,8 +1289,8 @@ void audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("AudioSplice", "clips:anode[];", "clip:anode;", audioSpliceCreate, 0, plugin);
     vspapi->registerFunction("AudioLoop", "clip:anode;times:int:opt;", "clip:anode;", audioLoopCreate, 0, plugin);
     vspapi->registerFunction("AudioReverse", "clip:anode;", "clip:anode;", audioReverseCreate, 0, plugin);
-    vspapi->registerFunction("AudioGain", "clip:anode;gain:float[]:opt;", "clip:anode;", audioGainCreate, 0, plugin);
-    vspapi->registerFunction("AudioMix", "clips:anode[];matrix:float[];channels_out:int[];", "clip:anode;", audioMixCreate, 0, plugin);
+    vspapi->registerFunction("AudioGain", "clip:anode;gain:float[]:opt;overflow_error:int:opt;", "clip:anode;", audioGainCreate, 0, plugin);
+    vspapi->registerFunction("AudioMix", "clips:anode[];matrix:float[];channels_out:int[];overflow_error:int:opt;", "clip:anode;", audioMixCreate, 0, plugin);
     vspapi->registerFunction("ShuffleChannels", "clips:anode[];channels_in:int[];channels_out:int[];", "clip:anode;", shuffleChannelsCreate, 0, plugin);
     vspapi->registerFunction("SplitChannels", "clip:anode;", "clip:anode[];", splitChannelsCreate, 0, plugin);
     vspapi->registerFunction("AssumeSampleRate", "clip:anode;src:anode:opt;samplerate:int:opt;", "clip:anode;", assumeSampleRateCreate, 0, plugin);

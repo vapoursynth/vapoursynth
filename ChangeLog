@@ -1,5 +1,6 @@
 r66:
 updated the supported python versions to 3.12 and 3.8
+audio is now clamped instead of wrapped around in audiomix and audiogain, these functions can also now warn when clipping happens
 the vfw wrapper now provides simple waveformatex information automatically if the audio is mono or flagged as plain stereo and samples contain no padding bits
 increased the get_frame error message buffer size in python, fewer messages should be truncated now
 added missing st428 transfer characteristics to resize

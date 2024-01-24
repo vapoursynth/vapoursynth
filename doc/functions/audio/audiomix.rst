@@ -1,7 +1,7 @@
 AudioMix
 ========
 
-.. function::   AudioMix(anode[] clips, float[] matrix, int[] channels_out)
+.. function::   AudioMix(anode[] clips, float[] matrix, int[] channels_out, bint overflow_error = False)
    :module: std
 
    AudioMix can mix and combine channels from different clips in the most
@@ -20,6 +20,9 @@ AudioMix
    Output channels and order is determined by the *channels_out* array
    between input index and output channel happens on the order of lowest output channel
    identifier to the highest.
+   
+   Will stop processing with an error if clipping is detected if *overflow_error*
+   is set. If it's false a warning will be printed for the first audio block with clipping.
    
    
 
