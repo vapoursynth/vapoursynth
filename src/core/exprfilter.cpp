@@ -350,7 +350,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     std::vector<VSFilterDependency> deps;
     for (int i = 0; i < d->numInputs; i++)
-        deps.push_back({d->node[i], (d->vi.numFrames <= vsapi->getVideoInfo(d->node[i])->numFrames) ? rpStrictSpatial : rpGeneral});
+        deps.push_back({d->node[i], (d->vi.numFrames <= vsapi->getVideoInfo(d->node[i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
     vsapi->createVideoFilter(out, "Expr", &d->vi, exprGetFrame, exprFree, fmParallel, deps.data(), d->numInputs, d.get(), core);
     d.release();
 }

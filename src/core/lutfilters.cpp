@@ -418,7 +418,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std:
         }
     }
 
-    VSFilterDependency deps[] = {{ d->node1, rpStrictSpatial }, { d->node2, (d->vi[0]->numFrames <= d->vi[1]->numFrames) ? rpStrictSpatial : rpGeneral }};
+    VSFilterDependency deps[] = {{ d->node1, rpStrictSpatial }, { d->node2, (d->vi[0]->numFrames <= d->vi[1]->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }};
     vsapi->createVideoFilter(out, "Lut2", &d->vi_out, lut2Getframe<T, U, V>, filterFree<Lut2Data>, fmParallel, deps, 2, d.get(), core);
     d.release();
 }

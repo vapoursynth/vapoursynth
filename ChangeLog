@@ -1,12 +1,16 @@
 r66:
 updated the supported python versions to 3.12 and 3.8
+added approximate_gamma option to resizers (saindriches)
 added plugin_path property to plugin object in python
 audio is now clamped instead of wrapped around in audiomix and audiogain, these functions can also now warn when clipping happens
 the vfw wrapper now provides simple waveformatex information automatically if the audio is mono or flagged as plain stereo and samples contain no padding bits
 increased the get_frame error message buffer size in python, fewer messages should be truncated now
 added missing st428 transfer characteristics to resize
 made most graph information functions part of the stable api and bumped the version to 4.1
+added new frame request patterns where only the first and/or last frame may be requested multiple times to further improve cache usage
 added new api functions for cache clearing
+fixed request pattern set for selectevery with multiple identical offsets
+fixed request pattern set for premultiply
 expose number of bytes used by cache in python and clean up version and str representations of things (setsugennoao)
 fixed modifyframe filter not properly copying its own videoinfo which may cause crashes if nothing else references the format node (jsaowji)
 fixed setcache function leaking a node reference (jsaowji)

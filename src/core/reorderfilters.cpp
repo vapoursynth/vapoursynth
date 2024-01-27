@@ -167,7 +167,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     vi.numFrames = trimlen;
 
-    VSFilterDependency deps[] = {{d->node, rpNoFrameReuse}};
+    VSFilterDependency deps[] = {{d->node, (d->first == 0) ? rpStrictSpatial : rpNoFrameReuse}};
     vsapi->createVideoFilter(out, "Trim", &vi, trimGetframe, filterFree<TrimData>, fmParallel, deps, 1, d.release(), core);
 }
 
@@ -260,7 +260,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < d->numclips; i++)
-            deps.push_back({d->nodes[i], (maxNumFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames) ? rpStrictSpatial : rpGeneral});
+            deps.push_back({d->nodes[i], (maxNumFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly});
         vsapi->createVideoFilter(out, "Interleave", &d->vi, interleaveGetframe, filterFree<InterleaveData>, fmParallel, deps.data(), d->numclips, d.get(), core);
         d.release();
     }
@@ -406,6 +406,16 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
             RETERROR("SelectEvery: invalid offset specified");
     }
 
+    bool duplicateOffset = false;
+    for (int i = 0; i < d->num; i++) {
+        for (int j = i + 1; j < d->num; j++) {
+            if (d->offsets[i] == d->offsets[j]) {
+                duplicateOffset = true;
+                break;
+            }
+        }
+    }
+
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
 
     VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
@@ -423,7 +433,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     if (d->modifyDuration)
         muldivRational(&vi.fpsNum, &vi.fpsDen, d->num, d->cycle);
 
-    VSFilterDependency deps[] = {{d->node, rpNoFrameReuse}};
+    VSFilterDependency deps[] = {{d->node, duplicateOffset ? rpGeneral : rpNoFrameReuse}};
     vsapi->createVideoFilter(out, "SelectEvery", &vi, selectEveryGetframe, filterFree<SelectEveryData>, fmParallel, deps, 1, d.release(), core);
 }
 
