@@ -2444,9 +2444,13 @@ static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userDat
 //////////////////////////////////////////
 // CopyFrameProps
 
-typedef DualNodeData<NoExtraData> CopyFramePropsData;
+typedef struct {
+    std::vector<std::string> copyProps;
+} CopyFramePropsDataExtra;
 
-static const VSFrame *VS_CC copyFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+typedef DualNodeData<CopyFramePropsDataExtra> CopyFramePropsData;
+
+static const VSFrame *VS_CC copyFramePropsAllGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     CopyFramePropsData *d = reinterpret_cast<CopyFramePropsData *>(instanceData);
 
     if (activationReason == arInitial) {
@@ -2467,14 +2471,72 @@ static const VSFrame *VS_CC copyFramePropsGetFrame(int n, int activationReason, 
     return nullptr;
 }
 
+static const VSFrame *VS_CC copyFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    CopyFramePropsData *d = reinterpret_cast<CopyFramePropsData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node1, frameCtx);
+        vsapi->requestFrameFilter(n, d->node2, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrame *dst_src = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        VSFrame *dst = vsapi->copyFrame(dst_src, core);
+        vsapi->freeFrame(dst_src);
+
+        const VSMap *srcprops = vsapi->getFramePropertiesRO(src);
+        VSMap *dstprops = vsapi->getFramePropertiesRW(dst);
+        for (const auto &iter : d->copyProps) {
+            vsapi->mapDeleteKey(dstprops, iter.c_str());
+
+            // Here's the quite long code to copy any property type from one map to another
+
+            int num = vsapi->mapNumElements(srcprops, iter.c_str());
+            int ptype = vsapi->mapGetType(srcprops, iter.c_str());
+            if (num == 0) {
+                vsapi->mapSetEmpty(dstprops, iter.c_str(), ptype);
+            } else if (num > 0) {
+                if (ptype == ptInt) {
+                    vsapi->mapSetIntArray(dstprops, iter.c_str(), vsapi->mapGetIntArray(srcprops, iter.c_str(), nullptr), num);
+                } else if (ptype == ptFloat) {
+                    vsapi->mapSetFloatArray(dstprops, iter.c_str(), vsapi->mapGetFloatArray(srcprops, iter.c_str(), nullptr), num);
+                } else if (ptype == ptData) {
+                    for (int i = 0; i < num; i++)
+                        vsapi->mapSetData(dstprops, iter.c_str(), vsapi->mapGetData(srcprops, iter.c_str(), i, nullptr), vsapi->mapGetDataSize(srcprops, iter.c_str(), i, nullptr), vsapi->mapGetDataTypeHint(srcprops, iter.c_str(), i, nullptr), maAppend);
+                } else if (ptype == ptAudioNode || ptype == ptVideoNode) {
+                    for (int i = 0; i < num; i++)
+                        vsapi->mapConsumeNode(dstprops, iter.c_str(), vsapi->mapGetNode(srcprops, iter.c_str(), i, nullptr), maAppend);
+                } else if (ptype == ptAudioFrame || ptype == ptVideoFrame) {
+                    for (int i = 0; i < num; i++)
+                        vsapi->mapConsumeFrame(dstprops, iter.c_str(), vsapi->mapGetFrame(srcprops, iter.c_str(), i, nullptr), maAppend);
+                } else if (ptype == ptFunction) {
+                    for (int i = 0; i < num; i++)
+                        vsapi->mapConsumeFunction(dstprops, iter.c_str(), vsapi->mapGetFunction(srcprops, iter.c_str(), i, nullptr), maAppend);
+                }
+            }
+        }
+
+        vsapi->clearMap(dstprops);
+        vsapi->copyMap(vsapi->getFramePropertiesRO(src), dstprops);
+        vsapi->freeFrame(src);
+        return dst;
+    }
+
+    return nullptr;
+}
+
 static void VS_CC copyFramePropsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<CopyFramePropsData> d(new CopyFramePropsData(vsapi));
+
+    int num_props = vsapi->mapNumElements(in, "props");
+    
+    for (int i = 0; i < num_props; i++)
+        d->copyProps.push_back(vsapi->mapGetData(in, "props", i, nullptr));
 
     d->node1 = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->node2 = vsapi->mapGetNode(in, "prop_src", 0, nullptr);
 
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (vsapi->getVideoInfo(d->node1)->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
-    vsapi->createVideoFilter(out, "CopyFrameProps", vsapi->getVideoInfo(d->node1), copyFramePropsGetFrame, filterFree<CopyFramePropsData>, fmParallel, deps, 2, d.get(), core);
+    vsapi->createVideoFilter(out, "CopyFrameProps", vsapi->getVideoInfo(d->node1), d->copyProps.empty() ? copyFramePropsAllGetFrame : copyFramePropsGetFrame, filterFree<CopyFramePropsData>, fmParallel, deps, 2, d.get(), core);
     d.release();
 }
 
@@ -2542,7 +2604,7 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("SetFrameProps", "clip:vnode;any", "clip:vnode;", setFramePropsCreate, 0, plugin);
     vspapi->registerFunction("RemoveFrameProps", "clip:vnode;props:data[]:opt;", "clip:vnode;", removeFramePropsCreate, 0, plugin);
     vspapi->registerFunction("SetFieldBased", "clip:vnode;value:int;", "clip:vnode;", setFieldBasedCreate, 0, plugin);
-    vspapi->registerFunction("CopyFrameProps", "clip:vnode;prop_src:vnode;", "clip:vnode;", copyFramePropsCreate, 0, plugin);
+    vspapi->registerFunction("CopyFrameProps", "clip:vnode;prop_src:vnode;props:data[]:opt;", "clip:vnode;", copyFramePropsCreate, 0, plugin);
     vspapi->registerFunction("SetAudioCache", "clip:anode;mode:int:opt;fixedsize:int:opt;maxsize:int:opt;maxhistory:int:opt;", "", setCache, 0, plugin);
     vspapi->registerFunction("SetVideoCache", "clip:vnode;mode:int:opt;fixedsize:int:opt;maxsize:int:opt;maxhistory:int:opt;", "", setCache, 0, plugin);
     vspapi->registerFunction("SetMaxCPU", "cpu:data;", "cpu:data;", setMaxCpu, 0, plugin);
