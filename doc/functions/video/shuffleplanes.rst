@@ -1,7 +1,7 @@
 ShufflePlanes
 =============
 
-.. function::   ShufflePlanes(vnode[] clips, int[] planes, int colorfamily)
+.. function::   ShufflePlanes(vnode[] clips, int[] planes, int colorfamily[ vnode prop_src=clips[0]])
    :module: std
 
    ShufflePlanes can extract and combine planes from different clips in the most
@@ -9,7 +9,7 @@ ShufflePlanes
    This is both good and bad, as there are almost no error checks.
 
    Most of the returned clip's properties are implicitly determined from the
-   first clip given to *clips*.
+   first clip given to *clips* but can also be changed by using *prop_src*.
 
    The *clips* parameter takes between one and three clips for color families
    with three planes. In this case clips=[A] is equivalent to clips=[A, A, A]

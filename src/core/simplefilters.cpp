@@ -514,23 +514,27 @@ static const VSFrame *VS_CC shufflePlanesGetframe(int n, int activationReason, v
 
         if (d->nodes[2] && d->nodes[2] != d->nodes[0] && d->nodes[2] != d->nodes[1])
             vsapi->requestFrameFilter(n, d->nodes[2], frameCtx);
+
+        if (d->nodes[3] && d->nodes[3] != d->nodes[0] && d->nodes[3] != d->nodes[1] && d->nodes[3] != d->nodes[2])
+            vsapi->requestFrameFilter(n, d->nodes[3], frameCtx);
     } else if (activationReason == arAllFramesReady) {
         if (d->vi.format.colorFamily != cfGray) {
-            const VSFrame *src[3];
+            const VSFrame *src[4];
             VSFrame *dst;
 
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 4; i++)
                 src[i] = vsapi->getFrameFilter(n, d->nodes[i], frameCtx);
 
-            dst = vsapi->newVideoFrame2(&d->vi.format, d->vi.width, d->vi.height, src, d->plane, src[0], core);
+            dst = vsapi->newVideoFrame2(&d->vi.format, d->vi.width, d->vi.height, src, d->plane, src[3], core);
 
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 4; i++)
                 vsapi->freeFrame(src[i]);
 
             return dst;
         } else {
             VSFrame *dst;
             const VSFrame *src = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
+
             const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
             if (d->plane[0] >= fi->numPlanes) {
@@ -539,9 +543,12 @@ static const VSFrame *VS_CC shufflePlanesGetframe(int n, int activationReason, v
                 return nullptr;
             }
 
-            dst = vsapi->newVideoFrame2(&d->vi.format, vsapi->getFrameWidth(src, d->plane[0]), vsapi->getFrameHeight(src, d->plane[0]), &src, d->plane, src, core);
+            const VSFrame *prop_src = vsapi->getFrameFilter(n, d->nodes[3], frameCtx);
+
+            dst = vsapi->newVideoFrame2(&d->vi.format, vsapi->getFrameWidth(src, d->plane[0]), vsapi->getFrameHeight(src, d->plane[0]), &src, d->plane, prop_src, core);
 
             vsapi->freeFrame(src);
+            vsapi->freeFrame(prop_src);
             return dst;
         }
     }
@@ -562,7 +569,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     int nplanes = vsapi->mapNumElements(in, "planes");
     int err;
 
-    d->nodes.resize(3);
+    d->nodes.resize(4);
     assert(d->plane[0] == 0);
 
     d->format = vsapi->mapGetIntSaturated(in, "colorfamily", 0, 0);
@@ -603,6 +610,10 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     } else if (d->format != cfGray && nclips == 2) {
         d->nodes[2] = vsapi->addNodeRef(d->nodes[1]);
     }
+
+    d->nodes[3] = vsapi->mapGetNode(in, "prop_src", 0, &err);
+    if (err)
+        d->nodes[3] = vsapi->addNodeRef(d->nodes[0]);
 
     for (int i = 0; i < outplanes; i++) {
         if (d->plane[i] < 0 || (vsapi->getVideoInfo(d->nodes[i])->format.colorFamily != cfUndefined && d->plane[i] >= vsapi->getVideoInfo(d->nodes[i])->format.numPlanes))
@@ -661,7 +672,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         VSFilterDependency deps1[] = {{ d->nodes[0], rpStrictSpatial }};
         vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, deps1, 1, d.get(), core);
     } else {
-        VSFilterDependency deps3[] = {{ d->nodes[0], rpStrictSpatial}, { d->nodes[1], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }, { d->nodes[2], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly } };
+        VSFilterDependency deps3[] = {{ d->nodes[0], rpStrictSpatial}, { d->nodes[1], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }, { d->nodes[2], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }, { d->nodes[3], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[3])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly } };
         vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, deps3, 3, d.get(), core);
     }
 
@@ -2487,7 +2498,7 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("CropRel", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode;", cropRelCreate, 0, plugin);
     vspapi->registerFunction("Crop", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode;", cropRelCreate, 0, plugin);
     vspapi->registerFunction("AddBorders", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", "clip:vnode;", addBordersCreate, 0, plugin);
-    vspapi->registerFunction("ShufflePlanes", "clips:vnode[];planes:int[];colorfamily:int;", "clip:vnode;", shufflePlanesCreate, 0, plugin);
+    vspapi->registerFunction("ShufflePlanes", "clips:vnode[];planes:int[];colorfamily:int;prop_src:vnode:opt;", "clip:vnode;", shufflePlanesCreate, 0, plugin);
     vspapi->registerFunction("SplitPlanes", "clip:vnode;", "clip:vnode[];", splitPlanesCreate, 0, plugin);
     vspapi->registerFunction("SeparateFields", "clip:vnode;tff:int:opt;modify_duration:int:opt;", "clip:vnode;", separateFieldsCreate, 0, plugin);
     vspapi->registerFunction("DoubleWeave", "clip:vnode;tff:int:opt;", "clip:vnode;", doubleWeaveCreate, 0, plugin);
