@@ -1,5 +1,6 @@
 r66:
 updated the supported python versions to 3.12 and 3.8
+added an access pattern mode when only repeatedly requesting the last frame of a clip
 added approximate_gamma option to resizers (saindriches)
 added plugin_path property to plugin object in python
 audio is now clamped instead of wrapped around in audiomix and audiogain, these functions can also now warn when clipping happens

@@ -786,13 +786,24 @@ void VSNode::registerCache(bool add) {
         core->caches.erase(this);
 }
 
+void VSNode::updateCacheState() {
+    if (!cacheOverride) {
+        cacheEnabled = (consumers.size() != 1) || (consumers.size() == 1 && consumers[0].requestPattern != rpStrictSpatial && consumers[0].requestPattern != rpNoFrameReuse);
+        cacheLastOnly = (consumers.size() > 0);
+        for (const auto &iter : consumers)
+            cacheLastOnly = cacheLastOnly && (iter.requestPattern == rpFrameReuseLastOnly);
+
+        if (!cacheEnabled) //FIXME, is it worth optimizing and partially clearing the cache for certain cache type transistions?
+            cache.clear();
+    }
+}
+
 void VSNode::addConsumer(VSNode *consumer, int strictSpatial) {
     {
         std::lock_guard<std::mutex> lock(cacheMutex);
         consumers.push_back({consumer, strictSpatial});
 
-        if (!cacheOverride)
-            cacheEnabled = (consumers.size() != 1) || (consumers.size() == 1 && !consumers[0].requestPattern);
+        updateCacheState();
     }
     registerCache(cacheEnabled);
 }
@@ -807,11 +818,7 @@ void VSNode::removeConsumer(VSNode *consumer, int strictSpatial) {
             }
         }
 
-        if (!cacheOverride)
-            cacheEnabled = (consumers.size() != 1) || (consumers.size() == 1 && !consumers[0].requestPattern);
-
-        if (!cacheEnabled)
-            cache.clear();
+        updateCacheState();
     }
     registerCache(cacheEnabled);
 }
@@ -889,6 +896,7 @@ int VSNode::setLinear() {
     cacheLinear = true;
     cacheOverride = true;
     cacheEnabled = true;
+    cacheLastOnly = false;
     cache.setFixedSize(true);
     cache.setMaxFrames(static_cast<int>(core->threadPool->threadCount()) * 2 + 20);
     registerCache(cacheEnabled);
@@ -906,13 +914,15 @@ void VSNode::setCacheMode(int mode) {
 
         if (mode == -1) {
             cacheOverride = false;
-            cacheEnabled = (consumers.size() > 1) || (consumers.size() == 1 && !consumers[0].requestPattern);
+            updateCacheState();
         } else if (mode == 0) {
             cacheOverride = true;
             cacheEnabled = false;
+            cacheLastOnly = false;
         } else if (mode == 1) {
             cacheOverride = true;
             cacheEnabled = true;
+            cacheLastOnly = false;
         }
 
         // always reset to defaults on mode change
@@ -999,7 +1009,7 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
 
         if (cacheEnabled) {
             std::lock_guard<std::mutex> lock(cacheMutex);
-            if (cacheEnabled)
+            if (cacheEnabled && (!cacheLastOnly || n == vi.numFrames - 1))
                 cache.insert(n, ref);
         }
 
