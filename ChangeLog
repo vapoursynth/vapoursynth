@@ -1,5 +1,6 @@
 r66:
 updated the supported python versions to 3.12 and 3.8
+removeframeprops function now accepts wildcards in property names
 added prop_src argument to shuffleplanes
 added an access pattern mode when only repeatedly requesting the last frame of a clip
 added approximate_gamma option to resizers (saindriches)

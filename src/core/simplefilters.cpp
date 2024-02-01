@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <regex>
 #include <algorithm>
 #include "VSHelper4.h"
 #include "VSConstants4.h"
@@ -2328,7 +2329,7 @@ static void VS_CC setFramePropsCreate(const VSMap *in, VSMap *out, void *userDat
 // RemoveFrameProps
 
 typedef struct {
-    std::vector<std::string> props;
+    std::vector<std::regex> delProps;
     bool all;
 } RemoveFramePropsDataExtra;
 
@@ -2349,8 +2350,19 @@ static const VSFrame *VS_CC removeFramePropsGetFrame(int n, int activationReason
         if (d->all) {
             vsapi->clearMap(props);
         } else {
-            for (const auto &iter : d->props)
-                vsapi->mapDeleteKey(props, iter.c_str());
+            int numKeys = vsapi->mapNumKeys(props);
+     
+            for (int i = 0; i < numKeys; i++) {
+                for (const auto &iter : d->delProps) {
+                    // implementation detail that may change: all keys are stored in a std::map internally which means they're sorted and this won't skip anything
+                    const char *key = vsapi->mapGetKey(props, i);
+                    if (std::regex_match(key, iter)) {
+                        vsapi->mapDeleteKey(props, key);
+                        i--;
+                        break;
+                    }
+                }
+            }                
         }
 
         return dst;
@@ -2359,16 +2371,26 @@ static const VSFrame *VS_CC removeFramePropsGetFrame(int n, int activationReason
     return nullptr;
 }
 
+static std::string replaceAll(const std::string &s, const std::string &from, const std::string &to) {
+    std::string r(s);
+    size_t found_pos;
+    size_t last_pos = 0;
+    while ((found_pos = r.find(from, last_pos)) != std::string::npos) {
+        r.replace(found_pos, from.length(), to);
+        last_pos = found_pos + to.length();
+    }
+
+    return r;
+}
+
 static void VS_CC removeFramePropsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<RemoveFramePropsData> d(new RemoveFramePropsData(vsapi));
 
     int num_props = vsapi->mapNumElements(in, "props");
     d->all = (num_props < 0);
 
-    if (!d->all) {
-        for (int i = 0; i < num_props; i++)
-            d->props.push_back(vsapi->mapGetData(in, "props", i, nullptr));
-    }
+    for (int i = 0; i < num_props; i++)
+        d->delProps.push_back(std::regex("^" + replaceAll(replaceAll(vsapi->mapGetData(in, "props", i, nullptr), "*", "(.*)"), "?", ".") + "$", std::regex::ECMAScript));
 
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
