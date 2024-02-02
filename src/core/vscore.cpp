@@ -793,7 +793,7 @@ void VSNode::updateCacheState() {
         for (const auto &iter : consumers)
             cacheLastOnly = cacheLastOnly && (iter.requestPattern == rpFrameReuseLastOnly);
 
-        if (!cacheEnabled) //FIXME, is it worth optimizing and partially clearing the cache for certain cache type transistions?
+        if (!cacheEnabled) //FIXME, is it worth optimizing and partially clearing the cache for certain cache type transitions?
             cache.clear();
     }
 }
