@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <vector>
 #include <set>
+#include <atomic>
 #include "internalfilters.h"
 #include "VSHelper4.h"
 #include "filtershared.h"
