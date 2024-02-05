@@ -44,3 +44,6 @@ class ZimgTest(unittest.TestCase):
                 clip.get_frame(0)
             except vs.Error as e:
                 raise RuntimeError(f"Failed to convert from {informat} to {outformat}") from e
+
+if __name__ == '__main__':
+    unittest.main()

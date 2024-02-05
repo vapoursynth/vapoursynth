@@ -274,3 +274,6 @@ class EnvironmentTest(unittest.TestCase):
             gc.collect()
             
             self.assertIsNone(wr())
+
+if __name__ == '__main__':
+    unittest.main()
