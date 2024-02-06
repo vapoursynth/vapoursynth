@@ -158,9 +158,9 @@ These are the requirements:
 
    * `zimg <https://github.com/sekrit-twc/zimg>`_
 
-   * Python 3
+   * Python 3.8 or later (may work on earlier versions but these are never fully tested)
 
-   * Cython 0.28 or later installed in your Python 3 environment
+   * Cython 3.x or later installed in your Python 3 environment
 
    * Sphinx for the documentation (optional)
 
