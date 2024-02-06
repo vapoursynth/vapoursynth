@@ -457,7 +457,7 @@ static const VSFrame *VS_CC audioGainGetFrame16(int n, int activationReason, voi
             int16_t *dstPtr = reinterpret_cast<int16_t *>(vsapi->getWritePtr(dst, p));
             
             for (int i = 0; i < length; i++) {
-                long vclamped = std::lround(std::clamp<float>(srcPtr[i] * gain, std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::min()));
+                long vclamped = std::lround(std::clamp<float>(srcPtr[i] * gain, std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max()));
                 long vrounded = std::lround(srcPtr[i] * gain);
                 if (vclamped != vrounded) {
                     if (d->overflowError) {
@@ -504,7 +504,7 @@ static const VSFrame *VS_CC audioGainGetFrame32(int n, int activationReason, voi
             int32_t *dstPtr = reinterpret_cast<int32_t *>(vsapi->getWritePtr(dst, p));
 
             for (int i = 0; i < length; i++) {
-                long vclamped = std::lround(std::clamp(srcPtr[i] *gain, maxV, minV));
+                long vclamped = std::lround(std::clamp(srcPtr[i] *gain, minV, maxV));
                 long vrounded = std::lround(srcPtr[i] * gain);
                 if (vclamped != vrounded) {
                     if (d->overflowError) {
@@ -632,7 +632,7 @@ static const VSFrame *VS_CC audioMixGetFrame16(int n, int activationReason, void
                 for (size_t srcIdx = 0; srcIdx < srcPtrs.size(); srcIdx++)
                     tmp += srcPtrs[srcIdx][i] * d->sourceNodes[srcIdx].weights[dstIdx];
 
-                long vclamped = std::lround(std::clamp<float>(tmp, std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::min()));
+                long vclamped = std::lround(std::clamp<float>(tmp, std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max()));
                 long vrounded = std::lround(tmp);
                 if (vclamped != vrounded) {
                     if (d->overflowError) {
@@ -696,7 +696,7 @@ static const VSFrame *VS_CC audioMixGetFrame32(int n, int activationReason, void
                 for (size_t srcIdx = 0; srcIdx < srcPtrs.size(); srcIdx++)
                     tmp += static_cast<double>(srcPtrs[srcIdx][i]) * d->sourceNodes[srcIdx].weights[dstIdx];
 
-                long vclamped = std::lround(std::clamp(tmp, maxV, minV));
+                long vclamped = std::lround(std::clamp(tmp, minV, maxV));
                 long vrounded = std::lround(tmp);
                 if (vclamped != vrounded) {
                     if (d->overflowError) {
