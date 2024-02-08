@@ -296,7 +296,7 @@ typedef enum VSRequestPattern {
     rpStrictSpatial = 2 /* Always (and only) requests frame n from the input clip when generating output frame n, never requests frames beyond the end of the clip */
 #if VAPOURSYNTH_API_MINOR >= 1   
     ,
-    rpFrameReuseLastOnly = 3 /* Added in API 4.1, This modes is basically identical rpNoFrameReuse except that the last frame to or last frame may be requested multiple times */
+    rpFrameReuseLastOnly = 3 /* Added in API 4.1, This modes is basically identical rpNoFrameReuse except that it hints the last frame may be requested multiple times */
 #endif
 } VSRequestPattern;
 

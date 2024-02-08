@@ -11,7 +11,7 @@ the vfw wrapper now provides simple waveformatex information automatically if th
 increased the get_frame error message buffer size in python, fewer messages should be truncated now
 added missing st428 transfer characteristics to resize
 made most graph information functions part of the stable api and bumped the version to 4.1
-added new frame request patterns where only the first and/or last frame may be requested multiple times to further improve cache usage
+added new frame request pattern where only the last frame is requested multiple times to further improve cache usage
 added new api functions for cache clearing
 fixed request pattern set for selectevery with multiple identical offsets
 fixed request pattern set for premultiply

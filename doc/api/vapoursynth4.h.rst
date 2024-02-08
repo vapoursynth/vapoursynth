@@ -684,6 +684,10 @@ enum VSRequestPattern
    
      Only requests frame N to output frame N. The main difference to *rpNoFrameReuse* is that the requested frame is always fixed and known ahead of time. Filter examples Lut, Expr (conditionally, see *rpGeneral* note) and similar.
 
+   * rpFrameReuseLastOnly
+   
+     Similar to *rpNoFrameReuse* but the last frame is cached in case it's requested multiple times.
+
    
 .. _VSCacheMode:
 
