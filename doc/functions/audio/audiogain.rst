@@ -1,7 +1,7 @@
 AudioGain
 =========
 
-.. function::   AudioGain(anode clip, float[] gain, bint overflow_error = False, bint overflow_error = False)
+.. function::   AudioGain(anode clip, float[] gain, bint overflow_error = False)
    :module: std
 
    AudioGain can either change the volume of individual channels
