@@ -2253,7 +2253,7 @@ struct VSAPI
 
    .. _mapGetFunction:
 
-   VSFunctionRef \*mapGetFunc(const VSMap_ \*map, const char \*key, int index, int \*error)
+   VSFunctionRef \*mapGetFunction(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves a function from a map.
 
