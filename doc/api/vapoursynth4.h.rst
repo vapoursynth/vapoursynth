@@ -2218,7 +2218,7 @@ struct VSAPI
 
    .. _mapGetFrame:
 
-   const VSFrame_ \*propGetFrame(const VSMap_ \*map, const char \*key, int index, int \*error)
+   const VSFrame_ \*mapGetFrame(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves a frame from a map.
 
