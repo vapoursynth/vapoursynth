@@ -1,5 +1,6 @@
 r66:
 updated the supported python versions to 3.12 and 3.8
+fixed backslashes not being properly escaped in dot graph output
 copyframeprops can now optionally copy only a subset of properties
 removeframeprops function now accepts wildcards in property names
 added prop_src argument to shuffleplanes

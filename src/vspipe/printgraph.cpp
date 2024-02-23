@@ -42,6 +42,18 @@ static int getMaxLevel(VSNode *node, const VSAPI *vsapi) {
     return 0;
 }
 
+static std::string replaceAll(const std::string &s, const std::string &from, const std::string &to) {
+    std::string r(s);
+    size_t found_pos;
+    size_t last_pos = 0;
+    while ((found_pos = r.find(from, last_pos)) != std::string::npos) {
+        r.replace(found_pos, from.length(), to);
+        last_pos = found_pos + to.length();
+    }
+
+    return r;
+}
+
 static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI *vsapi) {
     int numKeys = vsapi->mapNumKeys(args);
     std::string setArgsStr;
@@ -68,7 +80,7 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
                 break;
             case ptData:
                 for (int j = 0; j < std::min(maxPrintLength, numElems); j++)
-                    setArgsStr += std::string(j ? ", " : "") + (vsapi->mapGetDataTypeHint(args, key, j, nullptr) == dtUtf8 ? vsapi->mapGetData(args, key, j, nullptr) : ("[binary data " + std::to_string(vsapi->mapGetDataSize(args, key, j, nullptr)) + " bytes]"));
+                    setArgsStr += std::string(j ? ", " : "") + (vsapi->mapGetDataTypeHint(args, key, j, nullptr) == dtUtf8 ? replaceAll(vsapi->mapGetData(args, key, j, nullptr), "\\", "\\\\") : ("[binary data " + std::to_string(vsapi->mapGetDataSize(args, key, j, nullptr)) + " bytes]"));
                 if (numElems > maxPrintLength)
                     setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
                 break;
@@ -78,7 +90,7 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
                     const VSVideoInfo *vi = vsapi->getVideoInfo(ref);
                     char formatName[32];
                     vsapi->getVideoFormatName(&vi->format, formatName);
-                    setArgsStr += (j ? ", [" : " [") + std::string(formatName) + ":" + std::to_string(vi->width) + "x" + std::to_string(vi->height) + "]";
+                    setArgsStr += (j ? ", [" : "[") + std::string(formatName) + ":" + std::to_string(vi->width) + "x" + std::to_string(vi->height) + "]";
                     vsapi->freeNode(ref);
                 }
                 if (numElems > maxPrintLength)
@@ -90,7 +102,7 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
                     const VSAudioInfo *ai = vsapi->getAudioInfo(ref);
                     char formatName[32];
                     vsapi->getAudioFormatName(&ai->format, formatName);
-                    setArgsStr += (j ? ", [" : " [") + std::string(formatName) + ":" + std::to_string(ai->sampleRate) + ":" + std::to_string(ai->format.channelLayout) + "]";
+                    setArgsStr += (j ? ", [" : "[") + std::string(formatName) + ":" + std::to_string(ai->sampleRate) + ":" + std::to_string(ai->format.channelLayout) + "]";
                     vsapi->freeNode(ref);
                 }
                 if (numElems > maxPrintLength)
@@ -116,7 +128,7 @@ static void printNodeGraphHelper(bool simple, std::set<std::string> &lines, std:
     std::string thisFrame = mangleFrame(node, 0, vsapi);
     std::string baseFrame = mangleFrame(node, maxLevel, vsapi);
 
-    nodes[simple ? baseFrame: thisFrame].insert("label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, simple ? maxLevel : 0)) + setArgsStr + "\"");
+    nodes[simple ? baseFrame : thisFrame].insert("label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, simple ? maxLevel : 0)) + setArgsStr + "\"");
     nodes[simple ? baseFrame : thisFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\", shape=oval]");
 
     int numDeps = vsapi->getNumNodeDependencies(node);
