@@ -126,11 +126,11 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     int trimlen;
 
     d->first = vsapi->mapGetIntSaturated(in, "first", 0, &err);
-    int firstset = !err;
+    bool firstset = !err;
     int last = vsapi->mapGetIntSaturated(in, "last", 0, &err);
-    int lastset = !err;
+    bool lastset = !err;
     int length = vsapi->mapGetIntSaturated(in, "length", 0, &err);
-    int lengthset = !err;
+    bool lengthset = !err;
 
     if (lastset && lengthset)
         RETERROR("Trim: both last frame and length specified");
