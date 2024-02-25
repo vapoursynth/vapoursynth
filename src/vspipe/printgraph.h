@@ -24,7 +24,13 @@
 #include <VapourSynth4.h>
 #include <string>
 
-std::string printNodeGraph(bool simple, VSNode *node, const VSAPI *vsapi);
+enum class NodePrintMode {
+    Simple,
+    Full,
+    FullWithTimes
+};
+
+std::string printNodeGraph(NodePrintMode mode, VSNode *node, double processingTime, const VSAPI *vsapi);
 std::string printNodeTimes(VSNode *node, double processingTime, int64_t freedTime, const VSAPI *vsapi);
 
 #endif

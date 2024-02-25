@@ -26,20 +26,37 @@
 #include <cstring>
 #include <climits>
 
-static std::string mangleNode(VSNode *node, const VSAPI *vsapi) {
-    return "n" + std::to_string(reinterpret_cast<uintptr_t>(node));
+static std::string extendStringRight(const std::string &s, size_t length) {
+    if (s.length() >= length)
+        return s;
+    else
+        return s + std::string(length - s.length(), ' ');
 }
 
-static std::string mangleFrame(VSNode *node, int level, const VSAPI *vsapi) {
-    return "s" + std::to_string(reinterpret_cast<uintptr_t>(vsapi->getNodeCreationFunctionArguments(node, level)));
+static std::string extendStringLeft(const std::string &s, size_t length) {
+    if (s.length() >= length)
+        return s;
+    else
+        return std::string(length - s.length(), ' ') + s;
 }
 
-static int getMaxLevel(VSNode *node, const VSAPI *vsapi) {
-    for (int i = 0; i < INT_MAX; i++) {
-        if (!vsapi->getNodeCreationFunctionArguments(node, i))
-            return i - 1;
-    }
-    return 0;
+static std::string printWithTwoDecimals(double d) {
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "%.2f", d);
+    return buffer;
+}
+
+static std::string filterModeToString(int fm) {
+    if (fm == fmParallel)
+        return "parallel";
+    else if (fm == fmParallelRequests)
+        return "parreq";
+    else if (fm == fmUnordered)
+        return "unordered";
+    else if (fm == fmFrameState)
+        return "fstate";
+    else
+        return "unordered";
 }
 
 static std::string replaceAll(const std::string &s, const std::string &from, const std::string &to) {
@@ -56,6 +73,22 @@ static std::string replaceAll(const std::string &s, const std::string &from, con
 
 static std::string escapeDotString(const std::string &s) {
     return replaceAll(replaceAll(replaceAll(replaceAll(s, "\\", "\\\\"), "\r\n", "\\n"), "\r", "\\n"), "\n", "\\n");
+}
+
+static std::string mangleNode(VSNode *node, const VSAPI *vsapi) {
+    return "n" + std::to_string(reinterpret_cast<uintptr_t>(node));
+}
+
+static std::string mangleFrame(VSNode *node, int level, const VSAPI *vsapi) {
+    return "s" + std::to_string(reinterpret_cast<uintptr_t>(vsapi->getNodeCreationFunctionArguments(node, level)));
+}
+
+static int getMaxLevel(VSNode *node, const VSAPI *vsapi) {
+    for (int i = 0; i < INT_MAX; i++) {
+        if (!vsapi->getNodeCreationFunctionArguments(node, i))
+            return i - 1;
+    }
+    return 0;
 }
 
 static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI *vsapi) {
@@ -119,7 +152,7 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
     return setArgsStr;
 }
 
-static void printNodeGraphHelper(bool simple, std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, std::set<VSNode *> &visited, VSNode *node, const VSAPI *vsapi) {
+static void printNodeGraphHelper(NodePrintMode mode, std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, std::set<VSNode *> &visited, double processingTime, VSNode *node, const VSAPI *vsapi) {
     if (!visited.insert(node).second)
         return;
 
@@ -132,24 +165,29 @@ static void printNodeGraphHelper(bool simple, std::set<std::string> &lines, std:
     std::string thisFrame = mangleFrame(node, 0, vsapi);
     std::string baseFrame = mangleFrame(node, maxLevel, vsapi);
 
+    bool simple = (mode == NodePrintMode::Simple);
+
     nodes[simple ? baseFrame : thisFrame].insert("label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, simple ? maxLevel : 0)) + setArgsStr + "\"");
-    nodes[simple ? baseFrame : thisFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\", shape=oval]");
+    if (mode == NodePrintMode::FullWithTimes)
+        nodes[simple ? baseFrame : thisFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\\nMode: " + filterModeToString(vsapi->getNodeFilterMode(node)) + "\\nTime (%): " + printWithTwoDecimals((vsapi->getNodeProcessingTime(node, 0)) / (processingTime * 10000000)) + "\\nTime (s): " + printWithTwoDecimals(vsapi->getNodeProcessingTime(node, 0) / 1000000000.) + "\", shape=oval]");
+    else
+        nodes[simple ? baseFrame : thisFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\", shape=oval]");
 
     int numDeps = vsapi->getNumNodeDependencies(node);
 
     for (int i = 0; i < numDeps; i++) {
         VSNode *source = vsapi->getNodeDependency(node, i)->source;
         lines.insert(mangleNode(source, vsapi) + " -> " + thisNode);
-        printNodeGraphHelper(simple, lines, nodes, visited, source, vsapi);
+        printNodeGraphHelper(mode, lines, nodes, visited, processingTime, source, vsapi);
     }
 }
 
-std::string printNodeGraph(bool simple, VSNode *node, const VSAPI *vsapi) {
+std::string printNodeGraph(NodePrintMode mode, VSNode *node, double processingTime, const VSAPI *vsapi) {
     std::map<std::string, std::set<std::string>> nodes;
     std::set<std::string> lines;
     std::set<VSNode *> visited;
     std::string s = "digraph {\n";
-    printNodeGraphHelper(simple, lines, nodes, visited, node, vsapi);
+    printNodeGraphHelper(mode, lines, nodes, visited, processingTime, node, vsapi);
     for (const auto &iter : nodes) {
         if (iter.second.size() > 1) {
             s += "  subgraph cluster_" + iter.first  + " {\n";
@@ -188,39 +226,6 @@ static void printNodeTimesHelper(std::list<NodeTimeRecord> &lines, std::set<VSNo
 
     for (int i = 0; i < numDeps; i++)
         printNodeTimesHelper(lines, visited, vsapi->getNodeDependency(node, i)->source, vsapi);
-}
-
-static std::string extendStringRight(const std::string &s, size_t length) {
-    if (s.length() >= length)
-        return s;
-    else
-        return s + std::string(length - s.length(), ' ');
-}
-
-static std::string extendStringLeft(const std::string &s, size_t length) {
-    if (s.length() >= length)
-        return s;
-    else
-        return std::string(length - s.length(), ' ') + s;
-}
-
-static std::string printWithTwoDecimals(double d) {
-    char buffer[32];
-    snprintf(buffer, sizeof(buffer), "%.2f", d);
-    return buffer;
-}
-
-static std::string filterModeToString(int fm) {
-    if (fm == fmParallel)
-        return "parallel";
-    else if (fm == fmParallelRequests)
-        return "parreq";
-    else if (fm == fmUnordered)
-        return "unordered";
-    else if (fm == fmFrameState)
-        return "fstate";
-    else
-        return "unordered";
 }
 
 std::string printNodeTimes(VSNode *node, double processingTime, int64_t freedTime, const VSAPI *vsapi) {

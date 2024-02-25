@@ -114,6 +114,7 @@ struct VSPipeOptions {
     nstring outputFilename;
     nstring timecodesFilename;
     nstring jsonFilename;
+    nstring filterTimeGraphFilename;
     std::map<std::string, std::string> scriptArgs;
 };
 
@@ -679,11 +680,12 @@ static void printHelp() {
         "  -r, --requests N                 Set number of concurrent frame requests\n"
         "  -c, --container <y4m/wav/w64>    Add headers for the specified format to the output\n"
         "  -t, --timecodes FILE             Write timecodes v2 file\n"
-        "  -j, --json FILE                  Write properties of output frames to JSON file\n"
+        "  -j, --json FILE                  Write properties of output frames in json format to file\n"
         "  -p, --progress                   Print progress to stderr\n"
-        "      --filter-time                Print time spent in individual filters after processing\n"
-        "  -i, --info                       Print output node info and exit\n"
-        "  -g  --graph <simple/full>        Print output node filter graph in dot format and exit\n"
+        "      --filter-time                Print time spent in individual filters to stderr after processing\n"
+        "      --filter-time-graph FILE     Write output node's filter graph in dot format with time information after processing\n"
+        "  -i, --info                       Print output node's info to <outfile> and exit\n"
+        "  -g  --graph <simple/full>        Print output node's filter graph in dot format to <outfile> and exit\n"
         "  -v, --version                    Show version info and exit\n"
         "\n"
         "Special output options for <outfile>:\n"
@@ -735,15 +737,21 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             }
 
             arg++;
-        } else if (argString == NSTRING("-y") || argString == NSTRING("--y4m")) { // secret option for compatibility with V3
-            fprintf(stderr, "Deprecated option --y4m specified, use -c y4m instead\n");
-            opts.outputHeaders = VSPipeHeaders::Y4M;
         } else if (argString == NSTRING("-p") || argString == NSTRING("--progress")) {
             opts.printProgress = true;
         } else if (argString == NSTRING("--md5")) {
             opts.calculateMD5 = true;
         } else if (argString == NSTRING("--filter-time")) {
             opts.printFilterTime = true;
+        } else if (argString == NSTRING("--filter-time-graph")) {
+            if (argc <= arg + 1) {
+                fprintf(stderr, "No filter time graph file specified\n");
+                return 1;
+            }
+
+            opts.filterTimeGraphFilename = argv[arg + 1];
+
+            arg++;
         } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
             if (opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph) {
                 fprintf(stderr, "Cannot combine graph and info arguments\n");
@@ -974,6 +982,19 @@ int main(int argc, char **argv) {
         }
     }
 
+    FILE *filterTimeGraphFile = nullptr;
+    if (opts.mode == VSPipeMode::Output && !opts.filterTimeGraphFilename.empty()) {
+#ifdef VS_TARGET_OS_WINDOWS
+        filterTimeGraphFile = _wfopen(opts.filterTimeGraphFilename.c_str(), L"wb");
+#else
+        filterTimeGraphFile = fopen(opts.filterTimeGraphFilename.c_str(), "wb");
+#endif
+        if (!filterTimeGraphFile) {
+            fprintf(stderr, "Failed to open filter time graph file for writing\n");
+            return 1;
+        }
+    }
+
     vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
@@ -981,11 +1002,10 @@ int main(int argc, char **argv) {
     }
 
     std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
-    
 
-    VSCore *core = vsapi->createCore((opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph) ? ccfEnableGraphInspection : 0);
+    VSCore *core = vsapi->createCore((opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph || filterTimeGraphFile) ? ccfEnableGraphInspection : 0);
     vsapi->addLogHandler(logMessageHandler, nullptr, nullptr, core);
-    vsapi->setCoreNodeTiming(core, opts.printFilterTime);
+    vsapi->setCoreNodeTiming(core, opts.printFilterTime || filterTimeGraphFile);
     VSScript *se = vssapi->createScript(core);
     vssapi->evalSetWorkingDir(se, 1);
     if (!opts.scriptArgs.empty()) {
@@ -1026,11 +1046,11 @@ int main(int argc, char **argv) {
     bool success = true;
 
     if (opts.mode == VSPipeMode::PrintSimpleGraph) {
-        std::string graph = printNodeGraph(true, node, vsapi);
+        std::string graph = printNodeGraph(NodePrintMode::Simple, node, 0, vsapi);
         if (outFile)
             fprintf(outFile, "%s\n", graph.c_str());
     } else if (opts.mode == VSPipeMode::PrintFullGraph) {
-        std::string graph = printNodeGraph(false, node, vsapi);
+        std::string graph = printNodeGraph(NodePrintMode::Full, node, 0, vsapi);
         if (outFile)
             fprintf(outFile, "%s\n", graph.c_str());
     } else {
@@ -1192,7 +1212,7 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", data->totalSamples, elapsedSeconds.count(), (data->totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
         }
 
-        if (opts.calculateMD5 && outFile) {
+        if (opts.calculateMD5 && opts.mode == VSPipeMode::Output && outFile) {
             fprintf(stderr, "MD5: ");
             for (int i = 0; i < 16; i++)
                 fprintf(stderr, "%02x", (int)md5[i]);
@@ -1203,6 +1223,10 @@ int main(int argc, char **argv) {
 
         if (opts.printFilterTime)
             fprintf(stderr, "%s", printNodeTimes(node, elapsedSeconds.count(), vsapi->getFreedNodeProcessingTime(core, 0), vsapi).c_str());
+        if (filterTimeGraphFile) {
+            std::string graph = printNodeGraph(NodePrintMode::FullWithTimes, node, elapsedSeconds.count(), vsapi);
+            fprintf(filterTimeGraphFile, "%s", graph.c_str());
+        }
     }
 
     if (outFile && closeOutFile)
@@ -1211,6 +1235,8 @@ int main(int argc, char **argv) {
         fclose(timecodesFile);
     if (jsonFile)
         fclose(jsonFile);
+    if (filterTimeGraphFile)
+        fclose(filterTimeGraphFile);
 
     vsapi->freeNode(node);
     vsapi->freeNode(alphaNode);
