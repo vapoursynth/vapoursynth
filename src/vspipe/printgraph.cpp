@@ -54,6 +54,10 @@ static std::string replaceAll(const std::string &s, const std::string &from, con
     return r;
 }
 
+static std::string escapeDotString(const std::string &s) {
+    return replaceAll(replaceAll(replaceAll(replaceAll(s, "\\", "\\\\"), "\r\n", "\\n"), "\r", "\\n"), "\n", "\\n");
+}
+
 static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI *vsapi) {
     int numKeys = vsapi->mapNumKeys(args);
     std::string setArgsStr;
@@ -80,7 +84,7 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
                 break;
             case ptData:
                 for (int j = 0; j < std::min(maxPrintLength, numElems); j++)
-                    setArgsStr += std::string(j ? ", " : "") + (vsapi->mapGetDataTypeHint(args, key, j, nullptr) == dtUtf8 ? replaceAll(vsapi->mapGetData(args, key, j, nullptr), "\\", "\\\\") : ("[binary data " + std::to_string(vsapi->mapGetDataSize(args, key, j, nullptr)) + " bytes]"));
+                    setArgsStr += std::string(j ? ", " : "") + (vsapi->mapGetDataTypeHint(args, key, j, nullptr) == dtUtf8 ? escapeDotString(vsapi->mapGetData(args, key, j, nullptr)) : ("[binary data " + std::to_string(vsapi->mapGetDataSize(args, key, j, nullptr)) + " bytes]"));
                 if (numElems > maxPrintLength)
                     setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
                 break;
