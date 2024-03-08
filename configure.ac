@@ -139,7 +139,7 @@ AS_IF(
        AC_DEFINE([VS_CORE_EXPORTS])
        AC_DEFINE([VS_GRAPH_API])
 
-       PKG_CHECK_MODULES([ZIMG], [zimg])
+       PKG_CHECK_MODULES([ZIMG], [zimg >= 3.0.5])
 
        AC_LANG_PUSH([C++])
        saved_cppflags="$CPPFLAGS"
