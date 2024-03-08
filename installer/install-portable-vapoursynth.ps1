@@ -84,9 +84,9 @@ Add-Content -Path ".\python$PythonVersionMajor$PythonVersionMid._pth" -Encoding 
 Write-Host "Installing Pip..."
 & ".\python.exe" ".\Downloads\get-pip.py" "--no-warn-script-location"
 Remove-Item -Path ".\Scripts\*.exe"
-Remove-Item -Path ".\VSScriptPython38.dll"
 Write-Host "Extracting VapourSynth..."
 Expand-Archive -LiteralPath ".\Downloads\VapourSynth64-Portable-R$VSVersion.zip" -DestinationPath ".\" -Force
+Remove-Item -Path ".\VSScriptPython38.dll"
 Write-Host "Installing VapourSynth..."
 & ".\python.exe" "-m" "pip" "install" ".\wheel\VapourSynth-$VSVersion-cp$PythonVersionMajor$PythonVersionMid-cp$PythonVersionMajor$PythonVersionMid-win_amd64.whl"
 
