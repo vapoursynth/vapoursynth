@@ -789,11 +789,9 @@ void VSNode::registerCache(bool add) {
 void VSNode::updateCacheState() {
     if (!cacheOverride) {
         cacheEnabled = (consumers.size() != 1) || (consumers.size() == 1 && consumers[0].requestPattern != rpStrictSpatial && consumers[0].requestPattern != rpNoFrameReuse);
-        cacheLastOnly = (consumers.size() > 0);
-        for (const auto &iter : consumers)
-            cacheLastOnly = cacheLastOnly && (iter.requestPattern == rpFrameReuseLastOnly);
+        cacheLastOnly = (consumers.size() == 1) && (consumers[0].requestPattern == rpFrameReuseLastOnly);
 
-        if (!cacheEnabled) //FIXME, is it worth optimizing and partially clearing the cache for certain cache type transitions?
+        if (!cacheEnabled)
             cache.clear();
     }
 }
