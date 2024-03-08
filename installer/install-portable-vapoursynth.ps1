@@ -1,6 +1,6 @@
 $PythonVersionMajor = 3
 $PythonVersionMid = 12
-$PythonVersionMinor = 1
+$PythonVersionMinor = 2
 
 $Answer = "y"
 $ProgressPreference = 'SilentlyContinue'
