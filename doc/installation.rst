@@ -46,14 +46,15 @@ old copies of vapoursynth.pyd and vapoursynth.dll lying around.
 Windows Installation (Portable)
 *******************************
 
-First download and decompress the prerequisites:
-   * `Python 3.12.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit embeddable version
-   
-Simply decompress the `portable VapourSynth archive <https://github.com/vapoursynth/vapoursynth/releases>`_
-into the Python dir and overwrite all existing files.Run ``vs-detect-python.bat``
-to configure it for the current Python version. Done.
+By far the easiest way is to download and run the automatic script called *Install-Portable-VapourSynth-RXX.ps1*.
+It will then automatically download and set up embedded Python, pip and VapourSynth in the directory it was run from.
 
-You can also use the VapourSynth Editor by decompressing it into the same directory.
+Or if you want to do it the manual and not recommended way follow these steps:
+   * Download and decompress `Python 3.12.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit embeddable version
+   * Decompress the `portable VapourSynth archive <https://github.com/vapoursynth/vapoursynth/releases>`_ into the Python dir and overwrite all existing files.
+   * Install pip using `get-pip.py <https://bootstrap.pypa.io/get-pip.py>`_ or any other method.
+   * Install the wheel from the *wheel* directory for the chosen Python version.
+   * If using Python 3.8 rename *vsscriptpython38.dll* to *vsscript.dll* and delete the original file.
 
 OS X Installation
 *****************
