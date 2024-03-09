@@ -18,7 +18,6 @@ mkdir buildp64\wheel
 copy ..\vsrepo\vsrepo.py buildp64
 copy ..\vsrepo\vsgenstubs.py buildp64
 copy ..\vsrepo\vsgenstubs4 buildp64\vsgenstubs4
-copy vs-detect-python.bat buildp64
 copy 7z.exe buildp64
 copy 7z.dll buildp64
 copy ..\dist\VapourSynth-%VERSION_STRING%-cp312-cp312-win_amd64.whl buildp64\wheel
