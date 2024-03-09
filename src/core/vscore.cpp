@@ -1867,26 +1867,29 @@ VSCore::VSCore(int flags) :
     GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&vs_internal_vsapi, &module);
     std::vector<wchar_t> pathBuf(65536);
     GetModuleFileName(module, pathBuf.data(), (DWORD)pathBuf.size());
-    std::wstring dllPath = pathBuf.data();
-    dllPath.resize(dllPath.find_last_of('\\') + 1);
-    std::wstring portableFilePath = dllPath + L"portable.vs";
-    FILE *portableFile = _wfopen(portableFilePath.c_str(), L"rb");
-    bool isPortable = !!portableFile;
-    if (portableFile)
-        fclose(portableFile);
+    std::wstring basePath = pathBuf.data();
+    bool isPortable = false;
+    do {
+        basePath.resize(basePath.find_last_of('\\'));
+        std::wstring portableFilePath = basePath + L"\\portable.vs";
+        FILE *portableFile = _wfopen(portableFilePath.c_str(), L"rb");
+        isPortable = !!portableFile;
+        if (portableFile)
+            fclose(portableFile);
+    } while (!isPortable && basePath.find_last_of('\\') != std::string::npos);
 
     if (isPortable) {
         // Use alternative search strategy relative to dll path
 
         // Autoload bundled plugins
-        std::wstring corePluginPath = dllPath + L"vapoursynth" + bits + L"\\coreplugins";
+        std::wstring corePluginPath = basePath + L"\\vs-coreplugins";
         if (!loadAllPluginsInPath(corePluginPath, filter))
             logMessage(mtCritical, "Core plugin autoloading failed. Installation is broken?");
 
         if (!disableAutoLoading) {
             // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
             // and accidentally block updated bundled versions
-            std::wstring globalPluginPath = dllPath + L"vapoursynth" + bits + L"\\plugins";
+            std::wstring globalPluginPath = basePath + L"\\vs-plugins";
             loadAllPluginsInPath(globalPluginPath, filter);
         }
     } else {

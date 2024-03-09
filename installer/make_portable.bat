@@ -7,8 +7,8 @@ call setmvscvars.bat
 rem 64bit build
 echo $VSVersion = %VERSION_STRING% > Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
 type install-portable-vapoursynth.ps1 >> Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
-mkdir buildp64\vapoursynth64\coreplugins
-mkdir buildp64\vapoursynth64\plugins
+mkdir buildp64\vs-coreplugins
+mkdir buildp64\vs-plugins
 mkdir buildp64\sdk\include
 mkdir buildp64\sdk\examples
 mkdir buildp64\sdk\lib64
@@ -22,13 +22,12 @@ copy 7z.exe buildp64
 copy 7z.dll buildp64
 copy ..\dist\VapourSynth-%VERSION_STRING%-cp312-cp312-win_amd64.whl buildp64\wheel
 copy ..\dist\VapourSynth-%VERSION_STRING%-cp38-cp38-win_amd64.whl buildp64\wheel
-copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
 copy ..\msvc_project\x64\Release\vsscriptpython38.dll buildp64
 copy ..\msvc_project\x64\Release\avfs.exe buildp64
 copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
 copy ..\msvc_project\x64\Release\vspipe.exe buildp64
-copy ..\msvc_project\x64\Release\AvsCompat.dll buildp64\vapoursynth64\coreplugins
+copy ..\msvc_project\x64\Release\AvsCompat.dll buildp64\vs-coreplugins
 copy ..\include\VapourSynth.h buildp64\sdk\include
 copy ..\include\VSHelper.h buildp64\sdk\include
 copy ..\include\VSScript.h buildp64\sdk\include
@@ -48,7 +47,7 @@ copy .\VAPOURSYNTH_VERSION buildp64
 copy .\MANIFEST.in buildp64
 xcopy /E ..\doc\_build\html\* buildp64\doc
 type nul >buildp64\portable.vs
-type nul >buildp64\vapoursynth64\plugins\.keep
+type nul >buildp64\vs-plugins\.keep
 if "%SKIP_COMPRESS%" EQU "" (
   IF EXIST "Compiled\vapoursynth64-portable-R%VERSION_STRING%.zip" (
     del Compiled\vapoursynth64-portable-R%VERSION_STRING%.zip

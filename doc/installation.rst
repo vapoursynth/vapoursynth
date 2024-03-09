@@ -304,8 +304,7 @@ Windows Portable
 
 The searched paths are:
 
-#. *<VapourSynth.dll path>*\\vapoursynth32\\coreplugins or *<VapourSynth.dll path>*\\vapoursynth64\\coreplugins
-#. *<VapourSynth.dll path>*\\vapoursynth32\\plugins or *<VapourSynth.dll path>*\\vapoursynth64\\plugins
+#. *<base path (portable.vs location)>*\\vs-plugins
 
 User plugins should never be put into the *coreplugins* directory.
 
