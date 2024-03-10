@@ -1,14 +1,21 @@
 param(
     [string]$TargetFolder = ".\vapoursynth-portable",
     [string]$DownloadFolder = ".\Downloads",
+    [switch]$Python38,
     [switch]$Unattended
 )
 
-$VSVersion =
+$VSVersion = 66
 
 $PythonVersionMajor = 3
 $PythonVersionMid = 12
 $PythonVersionMinor = 2
+
+if ($Python38 -or ([System.Environment]::OSVersion.Version.Major -lt 10)) {
+    $Python38 = $true
+    $PythonVersionMid = 8
+    $PythonVersionMinor = 10
+}
 
 $Answer = "y"
 $ProgressPreference = 'SilentlyContinue'
@@ -101,7 +108,11 @@ Write-Host "Installing Pip..."
 Remove-Item -Path "$TargetFolder\Scripts\*.exe"
 Write-Host "Extracting VapourSynth..."
 Expand-Archive -LiteralPath "$DownloadFolder\VapourSynth64-Portable-R$VSVersion.zip" -DestinationPath "$TargetFolder" -Force
-Remove-Item -Path "$TargetFolder\VSScriptPython38.dll"
+if ($Python38) {
+    Move-Item -Path "$TargetFolder\VSScriptPython38.dll" -Destination "$TargetFolder\VSScript.dll" -Force
+} else {
+    Remove-Item -Path "$TargetFolder\VSScriptPython38.dll"
+}
 Write-Host "Installing VapourSynth..."
 & "$TargetFolder\python.exe" "-m" "pip" "install" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp$PythonVersionMajor$PythonVersionMid-cp$PythonVersionMajor$PythonVersionMid-win_amd64.whl"
 
