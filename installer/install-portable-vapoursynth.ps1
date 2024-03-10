@@ -1,11 +1,8 @@
-param(
     [string]$TargetFolder = ".\vapoursynth-portable",
     [string]$DownloadFolder = ".\Downloads",
     [switch]$Python38,
     [switch]$Unattended
 )
-
-$VSVersion = 66
 
 $PythonVersionMajor = 3
 $PythonVersionMid = 12

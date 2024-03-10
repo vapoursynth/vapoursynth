@@ -4,8 +4,8 @@ call setmvscvars.bat
 
 @echo %VERSION_STRING%
 
-rem 64bit build
-echo $VSVersion = %VERSION_STRING% > Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
+echo param(> Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
+echo     [int]$VSVersion = %VERSION_STRING%,>> Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
 type install-portable-vapoursynth.ps1 >> Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
 mkdir buildp64\vs-coreplugins
 mkdir buildp64\vs-plugins
