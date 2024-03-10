@@ -2,6 +2,7 @@ $PythonVersionMajor = 3
 $PythonVersionMid = 12
 $PythonVersionMinor = 2
 
+$TargetFolder = "vapoursynth-portable"
 $Answer = "y"
 $ProgressPreference = 'SilentlyContinue'
 $VSGithubVersion = "Unknown"
@@ -46,6 +47,14 @@ if ($Answer -eq "y") {
     exit 0
 }
 
+New-Item -Path ".\" -Name "$TargetFolder" -ItemType Directory -Force | Out-Null
+if (-Not (Test-Path ".\$TargetFolder")) {
+    Write-Host "Could not create '$TargetFolder' folder, aboring"
+    exit 1
+}
+
+cd ".\$TargetFolder"
+
 Write-Host "Determining latest Python $PythonVersionMajor.$PythonVersionMid.x version..."
 
 for ($i = $PythonVersionMinor + 1; $i -le 10; $i++) {
@@ -89,6 +98,9 @@ Expand-Archive -LiteralPath ".\Downloads\VapourSynth64-Portable-R$VSVersion.zip"
 Remove-Item -Path ".\VSScriptPython38.dll"
 Write-Host "Installing VapourSynth..."
 & ".\python.exe" "-m" "pip" "install" ".\wheel\VapourSynth-$VSVersion-cp$PythonVersionMajor$PythonVersionMid-cp$PythonVersionMajor$PythonVersionMid-win_amd64.whl"
+
+Write-Host "Deleting downloaded files..."
+Remove-Item -Path ".\Downloads" -Recurse
 
 Write-Host "Installation complete" -ForegroundColor Green
 
