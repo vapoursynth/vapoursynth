@@ -1,16 +1,21 @@
+param(
+    [string]$TargetFolder = ".\vapoursynth-portable",
+    [string]$DownloadFolder = ".\Downloads",
+    [switch]$Unattended
+)
+
+$VSVersion =
+
 $PythonVersionMajor = 3
 $PythonVersionMid = 12
 $PythonVersionMinor = 2
 
-$TargetFolder = "vapoursynth-portable"
-$DownloadFolder = "Downloads"
 $Answer = "y"
 $ProgressPreference = 'SilentlyContinue'
 $VSGithubVersion = "Unknown"
 
-$InstallExists = Test-Path -Path @(".\$TargetFolder\portable.vs") -PathType Leaf
-if ($InstallExists) {
-    $Answer = Read-Host "There appears to already exist a portable VapourSynth install in the current directory.`nProceed and overwrite? (y/n)"
+if (!$Unattended -and (Test-Path -Path @("$TargetFolder\portable.vs") -PathType Leaf)) {
+    $Answer = Read-Host "There appears to already exist a portable VapourSynth install in the target directory.`nProceed and overwrite? (y/n)"
 }
 
 if ($Answer -ne "y") {
@@ -33,12 +38,14 @@ foreach ($Version in $GithubVersion) {
 
 $ErrorActionPreference = "Continue"
 
-if ($VSGithubVersion -eq "Unknown") {
-    $Answer = Read-Host "Failed to retrieve VapourSynth version information from GitHub.`nProceed with install of R$VSVersion anyway? (y/n)"
-} elseif ($VSGithubVersion -eq "R$VSVersion") {
-    $Answer = Read-Host "Script will install the latest VapourSynth version.`nProceed with install of R$VSVersion`? (y/n)"
-} else {
-    $Answer = Read-Host "Script is for VapourSynth R$VSVersion but the latest version available is $VSGithubVersion.`nProceed with install of R$VSVersion anyway? (y/n)"
+if (!$Unattended) {
+    if ($VSGithubVersion -eq "Unknown") {
+        $Answer = Read-Host "Failed to retrieve VapourSynth version information from GitHub.`nProceed with install of R$VSVersion anyway? (y/n)"
+    } elseif ($VSGithubVersion -eq "R$VSVersion") {
+        $Answer = Read-Host "Script will install the latest VapourSynth version.`nProceed with install of R$VSVersion`? (y/n)"
+    } else {
+        $Answer = Read-Host "Script is for VapourSynth R$VSVersion but the latest version available is $VSGithubVersion.`nProceed with install of R$VSVersion anyway? (y/n)"
+    }
 }
 
 if ($Answer -eq "y") {
@@ -49,7 +56,7 @@ if ($Answer -eq "y") {
 }
 
 New-Item -Path ".\" -Name "$TargetFolder" -ItemType Directory -Force | Out-Null
-if (-Not (Test-Path ".\$TargetFolder")) {
+if (-Not (Test-Path "$TargetFolder")) {
     Write-Host "Could not create '$TargetFolder' folder, aboring"
     exit 1
 }
@@ -75,31 +82,31 @@ New-Item -Path ".\" -Name "$DownloadFolder" -ItemType Directory -Force | Out-Nul
 $ProgressPreference = 'Continue'
 
 Write-Host "Downloading Python..."
-Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor/python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip" -OutFile ".\$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip"
+Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor/python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip" -OutFile "$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip"
 Write-Host "Downloading VapourSynth..."
-Invoke-WebRequest -Uri "https://github.com/vapoursynth/vapoursynth/releases/download/R$VSVersion/VapourSynth64-Portable-R$VSVersion.zip" -OutFile ".\$DownloadFolder\VapourSynth64-Portable-R$VSVersion.zip"
+Invoke-WebRequest -Uri "https://github.com/vapoursynth/vapoursynth/releases/download/R$VSVersion/VapourSynth64-Portable-R$VSVersion.zip" -OutFile "$DownloadFolder\VapourSynth64-Portable-R$VSVersion.zip"
 Write-Host "Downloading Pip..."
-Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile ".\$DownloadFolder\get-pip.py"
+Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$DownloadFolder\get-pip.py"
 
 # Expand-Archive requires the global scope variable to be set and not just the local one because why not?
 $global:ProgressPreference = 'SilentlyContinue'
 
 Write-Host "Extracting Python..."
-Expand-Archive -LiteralPath ".\$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip" -DestinationPath ".\$TargetFolder" -Force
-Add-Content -Path ".\$TargetFolder\python$PythonVersionMajor$PythonVersionMid._pth" -Encoding UTF8 -Value "..\Scripts" | Out-Null
-Add-Content -Path ".\$TargetFolder\python$PythonVersionMajor$PythonVersionMid._pth" -Encoding UTF8 -Value "Scripts" | Out-Null
-Add-Content -Path ".\$TargetFolder\python$PythonVersionMajor$PythonVersionMid._pth" -Encoding UTF8 -Value "Lib\site-packages" | Out-Null
+Expand-Archive -LiteralPath "$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip" -DestinationPath "$TargetFolder" -Force
+Add-Content -Path "$TargetFolder\python$PythonVersionMajor$PythonVersionMid._pth" -Encoding UTF8 -Value "..\Scripts" | Out-Null
+Add-Content -Path "$TargetFolder\python$PythonVersionMajor$PythonVersionMid._pth" -Encoding UTF8 -Value "Scripts" | Out-Null
+Add-Content -Path "$TargetFolder\python$PythonVersionMajor$PythonVersionMid._pth" -Encoding UTF8 -Value "Lib\site-packages" | Out-Null
 Write-Host "Installing Pip..."
-& ".\$TargetFolder\python.exe" ".\$DownloadFolder\get-pip.py" "--no-warn-script-location"
-Remove-Item -Path ".\$TargetFolder\Scripts\*.exe"
+& "$TargetFolder\python.exe" "$DownloadFolder\get-pip.py" "--no-warn-script-location"
+Remove-Item -Path "$TargetFolder\Scripts\*.exe"
 Write-Host "Extracting VapourSynth..."
-Expand-Archive -LiteralPath ".\$DownloadFolder\VapourSynth64-Portable-R$VSVersion.zip" -DestinationPath ".\$TargetFolder" -Force
-Remove-Item -Path ".\$TargetFolder\VSScriptPython38.dll"
+Expand-Archive -LiteralPath "$DownloadFolder\VapourSynth64-Portable-R$VSVersion.zip" -DestinationPath "$TargetFolder" -Force
+Remove-Item -Path "$TargetFolder\VSScriptPython38.dll"
 Write-Host "Installing VapourSynth..."
-& ".\$TargetFolder\python.exe" "-m" "pip" "install" ".\$TargetFolder\wheel\VapourSynth-$VSVersion-cp$PythonVersionMajor$PythonVersionMid-cp$PythonVersionMajor$PythonVersionMid-win_amd64.whl"
+& "$TargetFolder\python.exe" "-m" "pip" "install" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp$PythonVersionMajor$PythonVersionMid-cp$PythonVersionMajor$PythonVersionMid-win_amd64.whl"
 
 Write-Host "Deleting downloaded files..."
-Remove-Item -Path ".\$DownloadFolder" -Recurse
+Remove-Item -Path "$DownloadFolder" -Recurse
 
 Write-Host "Installation complete" -ForegroundColor Green
 
