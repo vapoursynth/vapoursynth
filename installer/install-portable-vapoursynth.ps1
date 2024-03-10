@@ -8,7 +8,7 @@ $Answer = "y"
 $ProgressPreference = 'SilentlyContinue'
 $VSGithubVersion = "Unknown"
 
-$InstallExists = Test-Path -Path @(".\portable.vs") -PathType Leaf
+$InstallExists = Test-Path -Path @(".\$TargetFolder\portable.vs") -PathType Leaf
 if ($InstallExists) {
     $Answer = Read-Host "There appears to already exist a portable VapourSynth install in the current directory.`nProceed and overwrite? (y/n)"
 }
