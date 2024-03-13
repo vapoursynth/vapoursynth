@@ -1051,9 +1051,13 @@ private:
     VSCoreInfo coreInfo; // API3 compatibility
     std::set<VSNode *> caches;
     std::mutex cacheLock;
+    static bool m_isPortable;
+    static std::wstring m_basePath;
+    static std::once_flag m_portableOnceFlag;
 
     std::atomic<int> cpuLevel;
 
+    static void isPortableInit();
     ~VSCore();
 
     void registerFormats();

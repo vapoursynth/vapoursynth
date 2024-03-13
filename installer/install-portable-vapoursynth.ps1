@@ -99,8 +99,8 @@ Write-Host "Extracting Python..."
 Expand-Archive -LiteralPath "$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip" -DestinationPath "$TargetFolder" -Force
 Add-Content -Path "$TargetFolder\python$PythonVersionMajor$PythonVersionMid._pth" -Encoding UTF8 -Value "vs-scripts" | Out-Null
 Add-Content -Path "$TargetFolder\python$PythonVersionMajor$PythonVersionMid._pth" -Encoding UTF8 -Value "Lib\site-packages" | Out-Null
-New-Item -ItemType Directory -Path "$TargetFolder\vs-plugins"
-New-Item -ItemType Directory -Path "$TargetFolder\vs-scripts"
+New-Item -Path "$TargetFolder\vs-plugins" -ItemType Directory -Force | Out-Null
+New-Item -Path "$TargetFolder\vs-scripts" -ItemType Directory -Force | Out-Null
 Write-Host "Installing Pip..."
 & "$TargetFolder\python.exe" "$DownloadFolder\get-pip.py" "--no-warn-script-location"
 Remove-Item -Path "$TargetFolder\Scripts\*.exe"
