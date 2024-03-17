@@ -1804,6 +1804,7 @@ int64_t VSCore::getFreedNodeProcessingTime(bool reset) noexcept {
     return tmp;
 }
 
+#ifdef VS_TARGET_OS_WINDOWS
 void VSCore::isPortableInit() {
     HMODULE module;
     GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&vs_internal_vsapi, &module);
@@ -1820,6 +1821,7 @@ void VSCore::isPortableInit() {
             fclose(portableFile);
     } while (!m_isPortable && --levels > 0 && m_basePath.find_last_of('\\') != std::string::npos);
 }
+#endif
 
 VSCore::VSCore(int flags) :
     numFilterInstances(1),

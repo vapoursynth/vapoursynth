@@ -1057,7 +1057,10 @@ private:
 
     std::atomic<int> cpuLevel;
 
+#ifdef VS_TARGET_OS_WINDOWS
     static void isPortableInit();
+#endif
+
     ~VSCore();
 
     void registerFormats();
