@@ -47,7 +47,7 @@ Windows Installation (Portable)
 *******************************
 
 By far the easiest way is to download and run the automatic script called *Install-Portable-VapourSynth-RXX.ps1*.
-It will then automatically download and set up embedded Python, pip and VapourSynth in the directory it was run from.
+It will then automatically download and set up embedded Python, pip and VapourSynth in a subdirectorey called *vapoursynth-portable* by default.
 
 Or if you want to do it the manual and not recommended way follow these steps:
    * Download and decompress `Python 3.12.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit embeddable version
@@ -306,7 +306,7 @@ The searched paths are:
 
 #. *<base path (portable.vs location)>*\\vs-plugins
 
-User plugins should never be put into the *coreplugins* directory.
+User plugins should never be put into the *vs-coreplugins* directory.
 
 Linux
 -----

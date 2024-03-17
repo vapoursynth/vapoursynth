@@ -1,5 +1,4 @@
     [string]$TargetFolder = ".\vapoursynth-portable",
-    [string]$DownloadFolder = ".\Downloads",
     [switch]$Python38,
     [switch]$Unattended
 )
@@ -13,6 +12,8 @@ if ($Python38 -or ([System.Environment]::OSVersion.Version.Major -lt 10)) {
     $PythonVersionMid = 8
     $PythonVersionMinor = 10
 }
+
+$DownloadFolder = "$TargetFolder\temp-dl"
 
 $Answer = "y"
 $ProgressPreference = 'SilentlyContinue'
@@ -59,7 +60,7 @@ if ($Answer -eq "y") {
     exit 0
 }
 
-New-Item -Path ".\" -Name "$TargetFolder" -ItemType Directory -Force | Out-Null
+New-Item -Path "$TargetFolder" -ItemType Directory -Force | Out-Null
 if (-Not (Test-Path "$TargetFolder")) {
     Write-Host "Could not create '$TargetFolder' folder, aboring"
     exit 1
@@ -81,7 +82,7 @@ Write-Host "Python version $PythonVersionMajor.$PythonVersionMid.$PythonVersionM
 
 Start-Sleep -Second 2
 
-New-Item -Path ".\" -Name "$DownloadFolder" -ItemType Directory -Force | Out-Null
+New-Item -Path "$DownloadFolder" -ItemType Directory -Force | Out-Null
 
 $ProgressPreference = 'Continue'
 
@@ -119,4 +120,6 @@ Remove-Item -Path "$DownloadFolder" -Recurse
 
 Write-Host "Installation complete" -ForegroundColor Green
 
-pause
+if (!$Unattended) {
+    pause
+}
