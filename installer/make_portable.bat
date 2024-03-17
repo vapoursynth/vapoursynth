@@ -22,6 +22,7 @@ copy 7z.exe buildp64
 copy 7z.dll buildp64
 copy ..\dist\VapourSynth-%VERSION_STRING%-cp312-cp312-win_amd64.whl buildp64\wheel
 copy ..\dist\VapourSynth-%VERSION_STRING%-cp38-cp38-win_amd64.whl buildp64\wheel
+copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
 copy ..\msvc_project\x64\Release\vsscriptpython38.dll buildp64
 copy ..\msvc_project\x64\Release\avfs.exe buildp64
