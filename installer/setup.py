@@ -45,12 +45,6 @@ else:
     subdir = "."
     build_dir = here
 
-if is_64:
-    plugin_subdir = 'vapoursynth64'
-else:
-    plugin_subdir = 'vapoursynth32'
-plugin_dir = os.path.join(subdir, plugin_subdir)
-
 setup(
     name = "VapourSynth-portable",
     version=CURRENT_RELEASE,
@@ -78,15 +72,15 @@ setup(
             os.path.join(build_dir, "portable.vs")
         ]),
 
-        ("Lib\\site-packages\\%s\\coreplugins"%plugin_subdir, [
-            os.path.join(plugin_dir, 'coreplugins', p)
-            for p in os.listdir(os.path.join(plugin_dir, 'coreplugins'))
+        ("Lib\\site-packages\\vs-coreplugins", [
+            os.path.join(subdir, 'vs-coreplugins', p)
+            for p in os.listdir(os.path.join(subdir, 'vs-coreplugins'))
             if p.endswith(".dll")
         ]),
 
-        ("Lib\\site-packages\\%s\\plugins"%plugin_subdir, [
-            os.path.join(plugin_dir, 'plugins', p)
-            for p in os.listdir(os.path.join(plugin_dir, 'plugins'))
+        ("Lib\\site-packages\\vs-plugins", [
+            os.path.join(subdir, 'vs-plugins', p)
+            for p in os.listdir(os.path.join(subdir, 'vs-plugins'))
             if p.endswith(".dll") or p.endswith(".keep")
         ])
     ]
