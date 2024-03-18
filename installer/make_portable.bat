@@ -42,7 +42,6 @@ copy ..\sdk\invert_example.c buildp64\sdk\examples
 copy ..\sdk\vsscript_example.c buildp64\sdk\examples
 copy "%MVSCRedistPath%\%RedistVersion%\x64\Microsoft.VC%RedistShortVersion%.CRT\*" buildp64
 copy pfm-192-vapoursynth-win.exe buildp64
-copy .\setup.py buildp64
 copy .\VAPOURSYNTH_VERSION buildp64
 copy .\MANIFEST.in buildp64
 xcopy /E ..\doc\_build\html\* buildp64\doc

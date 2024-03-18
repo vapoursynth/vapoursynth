@@ -13,7 +13,7 @@ if ($Python38 -or ([System.Environment]::OSVersion.Version.Major -lt 10)) {
     $PythonVersionMinor = 10
 }
 
-$DownloadFolder = "$TargetFolder\temp-dl"
+$DownloadFolder = "$TargetFolder\vs-temp-dl"
 
 $Answer = "y"
 $ProgressPreference = 'SilentlyContinue'
@@ -114,9 +114,6 @@ if ($Python38) {
 }
 Write-Host "Installing VapourSynth..."
 & "$TargetFolder\python.exe" "-m" "pip" "install" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp$PythonVersionMajor$PythonVersionMid-cp$PythonVersionMajor$PythonVersionMid-win_amd64.whl"
-
-Write-Host "Deleting downloaded files..."
-Remove-Item -Path "$DownloadFolder" -Recurse
 
 Write-Host "Installation complete" -ForegroundColor Green
 
