@@ -109,43 +109,30 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 
 Required languages and applications:
 
-* Needs `Visual Studio 2019 <https://visualstudio.microsoft.com/de/vs/>`_
-* It also needs both `32bit <https://www.python.org/>`_ and `64bit <https://www.python.org/>`_ Python 3.8.x and 3.12.x (the msvc project assumes that you installed python for all users.)
+* Needs `Visual Studio 2022 <https://visualstudio.microsoft.com/de/vs/>`_
+* It also needs `64bit <https://www.python.org/>`_ Python 3.8.x and 3.12.x (the msvc project assumes that you installed python for all users.)
 * `InnoSetup <http://www.jrsoftware.org/isdl.php>`_ is needed to create the installer (default installation path assumed)
 * `7-zip <https://www.7-zip.org/>`_ is needed to compress the portable version (default installation path assumed)
 
-Preparing the C++ Project
--------------------------
+Preparing things
+----------------
 
 * Clone VapourSynth
 * Clone VSRepo into the VapourSynth dir (``git clone https://github.com/vapoursynth/vsrepo``)
 * Clone zimg into the VapourSynth dir (``git clone https://github.com/sekrit-twc/zimg.git --recurse-submodules``)
 * Clone avs+ into the VapourSynth dir (``git clone https://github.com/AviSynth/AviSynthPlus.git``)
 * Clone libp2p into the VapourSynth dir (``git clone https://github.com/sekrit-twc/libp2p.git``)
-* Compile 32 and 64 bit releases using the VapourSynth solution
+* Place 7z.exe and 7z.dll from `7-zip <https://www.7-zip.org/>`_ into the ``installer`` dir
+* Place ``pfm-192-vapoursynth-win.exe`` into the ``installer`` dir. You can get this file from the embedded zip or an existing VapourSynth install.
+* Run ``install_deps.bat``
 
-Preparing the Python Project
-----------------------------
+Compilation
+-----------
 
-* Run ``py -3.12 -m pip install -r python-requirements.txt`` for 64bit.
-* Run ``py -3.8 -m pip install -r python-requirements.txt`` for 64bit.
-* Run ``cython_build.bat`` to compile the Python modules
-* Run ``docs_build.bat`` to compile the documentation
-
-Distribution
-------------
-
-All the above steps are necessary to create the installer
-
-You also need 7z.exe and 7z.dll from `7-zip <https://www.7-zip.org/>`_
-Both need to be placed in the "installer" dir.
-
-You'll also have to grab the file ``pfm-192-vapoursynth-win.exe``
-which is only available from installations/portable releases.
-
-Run ``make_portable.bat`` and ``make_installers.bat`` to package things.
+* Run ``compile_all.bat`` for 64bit.
 
 .. note:: Note that the Avisynth side of AVFS won't work properly in debug builds (memory allocation and exceptions across module boundaries trolololol)
+
 
 Linux and OS X Compilation
 **************************
