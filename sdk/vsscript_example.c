@@ -13,12 +13,27 @@
 #include <stdio.h>
 #include <assert.h>
 
+static const char *messageTypeToString(int msgType) {
+    switch (msgType) {
+    case mtDebug: return "Debug";
+    case mtInformation: return "Information";
+    case mtWarning: return "Warning";
+    case mtCritical: return "Critical";
+    case mtFatal: return "Fatal";
+    default: return "";
+    }
+}
 
+static void VS_CC logMessageHandler(int msgType, const char *msg, void *userData) {
+    if (msgType >= mtInformation)
+        fprintf(stderr, "%s: %s\n", messageTypeToString(msgType), msg);
+}
 
 int main(int argc, char **argv) {
     const VSAPI *vsapi = NULL;
     const VSSCRIPTAPI *vssapi = NULL;
     VSScript *se = NULL;
+    VSCore *core = NULL;
     FILE *outFile = NULL;
 
     if (argc != 3) {
@@ -48,7 +63,18 @@ int main(int argc, char **argv) {
     vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
     assert(vsapi);
 
-    // This line does the actual script evaluation. If se = NULL it will create a new environment
+    // You need to manually create a core if you want to set construction options or attach a log handler
+    // before script evaluation. This is useful to print indexing progress to users among other things.
+    core = vsapi->createCore(0);
+    vsapi->addLogHandler(logMessageHandler, NULL, NULL, core);
+
+    // Keep track of how much processing time filters consume
+    vsapi->setCoreNodeTiming(core, 1);
+
+    // If you pass NULL as the core value it will create a core with the default options for you
+    se = vssapi->createScript(core);
+
+    // This line does the actual script evaluation
     if (vssapi->evaluateFile(se, argv[1])) {
         fprintf(stderr, "Script evaluation failed:\n%s", vssapi->getError(se));
         vssapi->freeScript(se);
