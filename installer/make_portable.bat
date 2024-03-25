@@ -9,7 +9,7 @@ echo     [int]$VSVersion = %VERSION_STRING%,>> Compiled\Install-Portable-VapourS
 type install-portable-vapoursynth.ps1 >> Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
 mkdir buildp64\vs-coreplugins
 mkdir buildp64\vs-plugins
-mkdir buildp64\sdk\include
+mkdir buildp64\sdk\include\vapoursynth
 mkdir buildp64\sdk\examples
 mkdir buildp64\sdk\lib64
 mkdir buildp64\doc
@@ -28,13 +28,13 @@ copy ..\msvc_project\x64\Release\avfs.exe buildp64
 copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
 copy ..\msvc_project\x64\Release\vspipe.exe buildp64
 copy ..\msvc_project\x64\Release\AvsCompat.dll buildp64\vs-coreplugins
-copy ..\include\VapourSynth.h buildp64\sdk\include
-copy ..\include\VSHelper.h buildp64\sdk\include
-copy ..\include\VSScript.h buildp64\sdk\include
-copy ..\include\VapourSynth4.h buildp64\sdk\include
-copy ..\include\VSHelper4.h buildp64\sdk\include
-copy ..\include\VSScript4.h buildp64\sdk\include
-copy ..\include\VSConstants4.h buildp64\sdk\include
+copy ..\include\VapourSynth.h buildp64\sdk\include\vapoursynth
+copy ..\include\VSHelper.h buildp64\sdk\include\vapoursynth
+copy ..\include\VSScript.h buildp64\sdk\include\vapoursynth
+copy ..\include\VapourSynth4.h buildp64\sdk\include\vapoursynth
+copy ..\include\VSHelper4.h buildp64\sdk\include\vapoursynth
+copy ..\include\VSScript4.h buildp64\sdk\include\vapoursynth
+copy ..\include\VSConstants4.h buildp64\sdk\include\vapoursynth
 copy ..\msvc_project\x64\Release\vapoursynth.lib buildp64\sdk\lib64
 copy ..\msvc_project\x64\Release\vsscript.lib buildp64\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp64\sdk\examples
