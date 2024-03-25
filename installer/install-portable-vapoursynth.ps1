@@ -1,7 +1,17 @@
+param(
     [string]$TargetFolder = ".\vapoursynth-portable",
+    [int]$VSVersion = ((Invoke-RestMethod https://api.github.com/repos/vapoursynth/vapoursynth/releases -UseBasicParsing)[0].tag_name -replace 'R'),
     [switch]$Python38,
     [switch]$Unattended
 )
+
+
+if ($Host.Version.Major -eq 5)
+{
+	# Progress bar can significantly impact cmdlet performance
+	# https://github.com/PowerShell/PowerShell/issues/2138
+	$Script:ProgressPreference = "SilentlyContinue"
+}
 
 $PythonVersionMajor = 3
 $PythonVersionMid = 12
