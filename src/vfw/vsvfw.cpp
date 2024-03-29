@@ -862,7 +862,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
             size_t offset = 0;
             size_t copyLength = VS_AUDIO_FRAME_SAMPLES;
             if (firstFrameSample < lStart) {
-                offset = (lStart - firstFrameSample) * bytesPerOutputSample;
+                offset = (lStart - firstFrameSample) * ai->format.bytesPerSample;
                 copyLength -= (lStart - firstFrameSample);
             }
             if (lSamples < copyLength)

@@ -1,3 +1,7 @@
+r67:
+fixed 19-24 bit audio output in vfw
+improved the portable install script
+
 r66:
 updated the supported python versions to 3.12 and 3.8
 added an option to write a full filter graph with time information to file when done processing in vspipe
