@@ -1,4 +1,4 @@
-#  Copyright (c) 2012-2021 Fredrik Mellbin
+#  Copyright (c) 2012-2024 Fredrik Mellbin
 #
 #  This file is part of VapourSynth.
 #
@@ -82,6 +82,103 @@ __all__ = [
 
   'core',
 ]
+
+class MediaType(IntEnum):
+    VIDEO = mtVideo
+    AUDIO = mtAudio
+
+class PresetVideoFormat(IntEnum):
+    NONE = pfNone
+
+    GRAY8 = pfGray8
+    GRAY9 = pfGray9
+    GRAY10 = pfGray10
+    GRAY12 = pfGray12
+    GRAY14 = pfGray14
+    GRAY16 = pfGray16
+    GRAY32 = pfGray32
+
+    GRAYH = pfGrayH
+    GRAYS = pfGrayS
+
+    YUV410P8 = pfYUV410P8
+    YUV411P8 = pfYUV411P8
+    YUV440P8 = pfYUV440P8
+
+    YUV420P8 = pfYUV420P8
+    YUV422P8 = pfYUV422P8
+    YUV444P8 = pfYUV444P8
+
+    YUV420P9 = pfYUV420P9
+    YUV422P9 = pfYUV422P9
+    YUV444P9 = pfYUV444P9
+
+    YUV420P10 = pfYUV420P10
+    YUV422P10 = pfYUV422P10
+    YUV444P10 = pfYUV444P10
+
+    YUV420P12 = pfYUV420P12
+    YUV422P12 = pfYUV422P12
+    YUV444P12 = pfYUV444P12
+
+    YUV420P14 = pfYUV420P14
+    YUV422P14 = pfYUV422P14
+    YUV444P14 = pfYUV444P14
+
+    YUV420P16 = pfYUV420P16
+    YUV422P16 = pfYUV422P16
+    YUV444P16 = pfYUV444P16
+
+    YUV444PH = pfYUV444PH
+    YUV444PS = pfYUV444PS
+
+    RGB24 = pfRGB24
+    RGB27 = pfRGB27
+    RGB30 = pfRGB30
+    RGB36 = pfRGB36
+    RGB42 = pfRGB42
+    RGB48 = pfRGB48
+
+    RGBH = pfRGBH
+    RGBS = pfRGBS
+
+class FilterMode(IntEnum):
+    PARALLEL = fmParallel
+    PARALLEL_REQUESTS = fmParallelRequests
+    UNORDERED = fmUnordered
+    FRAME_STATE = fmFrameState 
+
+class AudioChannels(IntEnum):
+    FRONT_LEFT = acFrontLeft
+    FRONT_RIGHT = acFrontRight
+    FRONT_CENTER = acFrontCenter
+    LOW_FREQUENCY = acLowFrequency
+    BACK_LEFT = acBackLeft
+    BACK_RIGHT = acBackRight
+    FRONT_LEFT_OF_CENTER = acFrontLeftOFCenter
+    FRONT_RIGHT_OF_CENTER = acFrontRightOFCenter
+    BACK_CENTER = acBackCenter
+    SIDE_LEFT = acSideLeft
+    SIDE_RIGHT = acSideRight
+    TOP_CENTER = acTopCenter
+    TOP_FRONT_LEFT = acTopFrontLeft
+    TOP_FRONT_CENTER = acTopFrontCenter
+    TOP_FRONT_RIGHT = acTopFrontRight
+    TOP_BACK_LEFT = acTopBackLeft
+    TOP_BACK_CENTER = acTopBackCenter
+    TOP_BACK_RIGHT = acTopBackRight
+    STEREO_LEFT = acStereoLeft
+    STEREO_RIGHT = acStereoRight
+    WIDE_LEFT = acWideLeft
+    WIDE_RIGHT = acWideRight
+    SURROUND_DIRECT_LEFT = acSurroundDirectLeft
+    SURROUND_DIRECT_RIGHT = acSurroundDirectRight
+    LOW_FREQUENCY2 = acLowFrequency2
+
+class CoreCreationFlags(IntFlag):
+    ENABLE_GRAPH_INSPECTION = ccfEnableGraphInspection
+    DISABLE_AUTO_LOADING = ccfDisableAutoLoading
+    DISABLE_LIBRARY_UNLOADING = ccfDisableLibraryUnloading
 
 class VapourSynthVersion(typing.NamedTuple):
     release_major: int
@@ -343,7 +440,7 @@ def _try_enable_introspection(version=None):
         return False
 
     cdef StandaloneEnvironmentPolicy standalone_policy = StandaloneEnvironmentPolicy.__new__(StandaloneEnvironmentPolicy)
-    standalone_policy._flags = int(CoreCreationFlags.ccfEnableGraphInspection)
+    standalone_policy._flags = ccfEnableGraphInspection;
     register_policy(standalone_policy)
 
     return True
@@ -1535,7 +1632,7 @@ cdef class _frame:
         cdef:
             unsigned mask
 
-        if lib.getFrameType(frame) is VIDEO:
+        if lib.getFrameType(frame) == mtVideo:
             mask = 1 << index+1
         else:
             mask = ~1  # there's only one plane in audio frames
@@ -1945,7 +2042,7 @@ cdef class RawNode(object):
     cdef bint _inspectable(self):
         if self.funcs.getAPIVersion() != VAPOURSYNTH_API_VERSION:
             return False
-        return bool(self.core.flags & CoreCreationFlags.ccfEnableGraphInspection)
+        return bool(self.core.flags & CoreCreationFlags.EnableGraphInspection)
 
     def is_inspectable(self, version=None):
         if version != 0:
@@ -2663,13 +2760,13 @@ cdef class Core(object):
         )
 
 cdef object createNode(VSNode *node, const VSAPI *funcs, Core core):
-    if funcs.getNodeType(node) == VIDEO:
+    if funcs.getNodeType(node) == mtVideo:
         return createVideoNode(node, funcs, core)
     else:
         return createAudioNode(node, funcs, core)
 
 cdef object createConstFrame(const VSFrame *f, const VSAPI *funcs, VSCore *core):
-    if funcs.getFrameType(f) == VIDEO:
+    if funcs.getFrameType(f) == mtVideo:
         return createConstVideoFrame(f, funcs, core)
     else:
         return createConstAudioFrame(f, funcs, core)
