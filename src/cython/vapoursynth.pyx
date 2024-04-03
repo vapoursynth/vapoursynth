@@ -83,120 +83,6 @@ __all__ = [
   'core',
 ]
 
-class MediaType(IntEnum):
-    VIDEO = mtVideo
-    AUDIO = mtAudio
-
-class ColorFamily(IntEnum):
-    UNDEFINED = cfUndefined
-    GRAY = cfGray
-    RGB = cfRGB
-    YUV = cfYUV
-
-class SampleType(IntEnum):
-    INTEGER = stInteger
-    FLOAT = stFloat
-
-class PresetVideoFormat(IntEnum):
-    NONE = pfNone
-
-    GRAY8 = pfGray8
-    GRAY9 = pfGray9
-    GRAY10 = pfGray10
-    GRAY12 = pfGray12
-    GRAY14 = pfGray14
-    GRAY16 = pfGray16
-    GRAY32 = pfGray32
-
-    GRAYH = pfGrayH
-    GRAYS = pfGrayS
-
-    YUV410P8 = pfYUV410P8
-    YUV411P8 = pfYUV411P8
-    YUV440P8 = pfYUV440P8
-
-    YUV420P8 = pfYUV420P8
-    YUV422P8 = pfYUV422P8
-    YUV444P8 = pfYUV444P8
-
-    YUV420P9 = pfYUV420P9
-    YUV422P9 = pfYUV422P9
-    YUV444P9 = pfYUV444P9
-
-    YUV420P10 = pfYUV420P10
-    YUV422P10 = pfYUV422P10
-    YUV444P10 = pfYUV444P10
-
-    YUV420P12 = pfYUV420P12
-    YUV422P12 = pfYUV422P12
-    YUV444P12 = pfYUV444P12
-
-    YUV420P14 = pfYUV420P14
-    YUV422P14 = pfYUV422P14
-    YUV444P14 = pfYUV444P14
-
-    YUV420P16 = pfYUV420P16
-    YUV422P16 = pfYUV422P16
-    YUV444P16 = pfYUV444P16
-
-    YUV444PH = pfYUV444PH
-    YUV444PS = pfYUV444PS
-
-    RGB24 = pfRGB24
-    RGB27 = pfRGB27
-    RGB30 = pfRGB30
-    RGB36 = pfRGB36
-    RGB42 = pfRGB42
-    RGB48 = pfRGB48
-
-    RGBH = pfRGBH
-    RGBS = pfRGBS
-
-class FilterMode(IntEnum):
-    PARALLEL = fmParallel
-    PARALLEL_REQUESTS = fmParallelRequests
-    UNORDERED = fmUnordered
-    FRAME_STATE = fmFrameState 
-
-class AudioChannels(IntEnum):
-    FRONT_LEFT = acFrontLeft
-    FRONT_RIGHT = acFrontRight
-    FRONT_CENTER = acFrontCenter
-    LOW_FREQUENCY = acLowFrequency
-    BACK_LEFT = acBackLeft
-    BACK_RIGHT = acBackRight
-    FRONT_LEFT_OF_CENTER = acFrontLeftOFCenter
-    FRONT_RIGHT_OF_CENTER = acFrontRightOFCenter
-    BACK_CENTER = acBackCenter
-    SIDE_LEFT = acSideLeft
-    SIDE_RIGHT = acSideRight
-    TOP_CENTER = acTopCenter
-    TOP_FRONT_LEFT = acTopFrontLeft
-    TOP_FRONT_CENTER = acTopFrontCenter
-    TOP_FRONT_RIGHT = acTopFrontRight
-    TOP_BACK_LEFT = acTopBackLeft
-    TOP_BACK_CENTER = acTopBackCenter
-    TOP_BACK_RIGHT = acTopBackRight
-    STEREO_LEFT = acStereoLeft
-    STEREO_RIGHT = acStereoRight
-    WIDE_LEFT = acWideLeft
-    WIDE_RIGHT = acWideRight
-    SURROUND_DIRECT_LEFT = acSurroundDirectLeft
-    SURROUND_DIRECT_RIGHT = acSurroundDirectRight
-    LOW_FREQUENCY2 = acLowFrequency2
-
-class MessageType(IntFlag):
-    MESSAGE_TYPE_DEBUG = mtDebug
-    MESSAGE_TYPE_INFORMATION = mtInformation
-    MESSAGE_TYPE_WARNING = mtWarning
-    MESSAGE_TYPE_CRITICAL = mtCritical
-    MESSAGE_TYPE_FATAL = mtFatal
-
-class CoreCreationFlags(IntFlag):
-    ENABLE_GRAPH_INSPECTION = ccfEnableGraphInspection
-    DISABLE_AUTO_LOADING = ccfDisableAutoLoading
-    DISABLE_LIBRARY_UNLOADING = ccfDisableLibraryUnloading
-
 class VapourSynthVersion(typing.NamedTuple):
     release_major: int
     release_minor: int
@@ -332,7 +218,7 @@ cdef void _unset_logger(EnvironmentData env):
 cdef void __stdcall _logCb(int msgType, const char *msg, void *userData) noexcept nogil:
     with gil:
         message = msg.decode("utf-8")
-        (<object>userData)(msgType, message)
+        (<object>userData)(MessageType(msgType), message)
 
 cdef void __stdcall _logFree(void* userData) noexcept nogil:
     with gil:
@@ -457,7 +343,7 @@ def _try_enable_introspection(version=None):
         return False
 
     cdef StandaloneEnvironmentPolicy standalone_policy = StandaloneEnvironmentPolicy.__new__(StandaloneEnvironmentPolicy)
-    standalone_policy._flags = ccfEnableGraphInspection;
+    standalone_policy._flags = int(CoreCreationFlags.ccfEnableGraphInspection)
     register_policy(standalone_policy)
 
     return True
@@ -1649,7 +1535,7 @@ cdef class _frame:
         cdef:
             unsigned mask
 
-        if lib.getFrameType(frame) == mtVideo:
+        if lib.getFrameType(frame) is VIDEO:
             mask = 1 << index+1
         else:
             mask = ~1  # there's only one plane in audio frames
@@ -1709,14 +1595,14 @@ cdef class _video:
         self.base.itemsize = format.bytesPerSample
         self.base.strides[1] = format.bytesPerSample
 
-        if format.sampleType == stInteger:
+        if format.sampleType == INTEGER:
             if format.bytesPerSample == 1:
                 self.base.format = 'B'
             elif format.bytesPerSample == 2:
                 self.base.format = 'H'
             elif format.bytesPerSample == 4:
                 self.base.format = 'I'
-        elif format.sampleType == stFloat:
+        elif format.sampleType == FLOAT:
             if format.bytesPerSample == 2:
                 self.base.format = 'e'
             elif format.bytesPerSample == 4:
@@ -1881,12 +1767,12 @@ cdef class _audio:
         self = _1dview_contig.__new__(_1dview_contig)
         self.base.itemsize = format.bytesPerSample
 
-        if format.sampleType == stInteger:
+        if format.sampleType == INTEGER:
             if format.bytesPerSample == 2:
                 self.base.format = 'H'
             elif format.bytesPerSample == 4:
                 self.base.format = 'I'
-        elif format.sampleType == stFloat:
+        elif format.sampleType == FLOAT:
             if format.bytesPerSample == 4:
                 self.base.format = 'f'
 
@@ -2059,7 +1945,7 @@ cdef class RawNode(object):
     cdef bint _inspectable(self):
         if self.funcs.getAPIVersion() != VAPOURSYNTH_API_VERSION:
             return False
-        return bool(self.core.flags & CoreCreationFlags.EnableGraphInspection)
+        return bool(self.core.flags & CoreCreationFlags.ccfEnableGraphInspection)
 
     def is_inspectable(self, version=None):
         if version != 0:
@@ -2180,10 +2066,10 @@ cdef class VideoNode(RawNode):
                 raise Error('Alpha clip dimensions must match the main video')
             if (self.num_frames != alpha.num_frames):
                 raise Error('Alpha clip length must match the main video')
-            if (self.vi.format.colorFamily != cfUndefined) and (alpha.vi.format.colorFamily != cfUndefined):
-                if (alpha.vi.format.colorFamily != cfGray) or (alpha.vi.format.sampleType != self.vi.format.sampleType) or (alpha.vi.format.bitsPerSample != self.vi.format.bitsPerSample):
+            if (self.vi.format.colorFamily != UNDEFINED) and (alpha.vi.format.colorFamily != UNDEFINED):
+                if (alpha.vi.format.colorFamily != GRAY) or (alpha.vi.format.sampleType != self.vi.format.sampleType) or (alpha.vi.format.bitsPerSample != self.vi.format.bitsPerSample):
                     raise Error('Alpha clip format must match the main video')
-            elif (self.vi.format.colorFamily != cfUndefined) or (alpha.vi.format.colorFamily != cfUndefined):
+            elif (self.vi.format.colorFamily != UNDEFINED) or (alpha.vi.format.colorFamily != UNDEFINED):
                 raise Error('Format must be either known or unknown for both alpha and main clip')
 
         _get_output_dict("set_output")[index] = VideoOutputTuple(self, alpha, alt_output)
@@ -2202,11 +2088,11 @@ cdef class VideoNode(RawNode):
             progress_update(0, len(self))
 
         if y4m:
-            if self.format.color_family == cfGray:
+            if self.format.color_family == GRAY:
                 y4mformat = 'mono'
                 if self.format.bits_per_sample > 8:
                     y4mformat = y4mformat + str(self.format.bits_per_sample)
-            elif self.format.color_family == cfYUV:
+            elif self.format.color_family == YUV:
                 if self.format.subsampling_w == 1 and self.format.subsampling_h == 1:
                     y4mformat = '420'
                 elif self.format.subsampling_w == 1 and self.format.subsampling_h == 0:
@@ -2359,7 +2245,7 @@ cdef VideoNode createVideoNode(VSNode *node, const VSAPI *funcs, Core core):
     instance.funcs = funcs
     instance.vi = funcs.getVideoInfo(node)
 
-    if (instance.vi.format.colorFamily != cfUndefined):
+    if (instance.vi.format.colorFamily != UNDEFINED):
         instance.format = createVideoFormat(&instance.vi.format, funcs, core.core)
     else:
         instance.format = None
@@ -2564,7 +2450,7 @@ cdef LogHandle createLogHandle(object handler_func):
 
 cdef void __stdcall log_handler_wrapper(int msgType, const char *msg, void *userData) noexcept nogil:
     with gil:
-        (<LogHandle>userData).handler_func(msgType, msg.decode('utf-8'))
+        (<LogHandle>userData).handler_func(MessageType(msgType), msg.decode('utf-8'))
 
 cdef void __stdcall log_handler_free(void *userData) noexcept nogil:
     with gil:
@@ -2684,7 +2570,7 @@ cdef class Core(object):
             plugin = self.funcs.getNextPlugin(plugin, self.core)
             yield tmp
 
-    def query_video_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w = 0, int subsampling_h = 0):
+    def query_video_format(self, ColorFamily color_family, SampleType sample_type, int bits_per_sample, int subsampling_w = 0, int subsampling_h = 0):
         cdef VSVideoFormat fmt
         if not self.funcs.queryVideoFormat(&fmt, color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core):
             raise Error('Invalid format specified')
@@ -2705,11 +2591,11 @@ cdef class Core(object):
         cdef VSFrame* ref = self.funcs.newVideoFrame(&fmt, width, height, NULL, self.core)
         return createVideoFrame(ref, self.funcs, self.core)
 
-    def log_message(self, int message_type, str message):
+    def log_message(self, MessageType message_type, str message):
         self.funcs.logMessage(message_type, message.encode('utf-8'), self.core)
 
     def add_log_handler(self, handler_func):
-        handler_func(mtDebug, 'New message handler installed from python')
+        handler_func(MESSAGE_TYPE_DEBUG, 'New message handler installed from python')
         cdef LogHandle lh = createLogHandle(handler_func)
         Py_INCREF(lh)
         lh.handle = self.funcs.addLogHandler(log_handler_wrapper, log_handler_free, <void *>lh, self.core)
@@ -2777,13 +2663,13 @@ cdef class Core(object):
         )
 
 cdef object createNode(VSNode *node, const VSAPI *funcs, Core core):
-    if funcs.getNodeType(node) == mtVideo:
+    if funcs.getNodeType(node) == VIDEO:
         return createVideoNode(node, funcs, core)
     else:
         return createAudioNode(node, funcs, core)
 
 cdef object createConstFrame(const VSFrame *f, const VSAPI *funcs, VSCore *core):
-    if funcs.getFrameType(f) == mtVideo:
+    if funcs.getFrameType(f) == VIDEO:
         return createConstVideoFrame(f, funcs, core)
     else:
         return createConstAudioFrame(f, funcs, core)
@@ -3131,7 +3017,7 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
 
         s = warnings.formatwarning(message, category, filename, lineno, line)
         core = vsscript_get_core_internal(env)
-        core.log_message(mtWarning, s)
+        core.log_message(MESSAGE_TYPE_WARNING, s)
 
 class PythonVSScriptLoggingBridge(logging.Handler):
 

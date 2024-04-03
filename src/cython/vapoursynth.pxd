@@ -21,7 +21,6 @@
 
 from libc.stdint cimport uint8_t, uint32_t, int64_t, uint64_t, uintptr_t
 from libc.stddef cimport ptrdiff_t
-from enum import IntEnum, IntFlag
 
 cdef extern from "include/VapourSynth4.h" nogil:
     enum:
@@ -49,76 +48,76 @@ cdef extern from "include/VapourSynth4.h" nogil:
     ctypedef struct VSFrameContext:
         pass
 
-    enum:
-        mtVideo
-        mtAudio
+    cpdef enum MediaType "VSMediaType":
+        VIDEO "mtVideo"
+        AUDIO "mtAudio"
 
-    enum:
-        cfUndefined
-        cfGray
-        cfRGB
-        cfYUV
+    cpdef enum ColorFamily "VSColorFamily":
+        UNDEFINED "cfUndefined"
+        GRAY "cfGray"
+        RGB "cfRGB"
+        YUV "cfYUV"
 
-    enum:
-        stInteger
-        stFloat
+    cpdef enum SampleType "VSSampleType":
+        INTEGER "stInteger"
+        FLOAT "stFloat"
 
-    enum:
-        pfNone
+    cpdef enum PresetVideoFormat "VSPresetVideoFormat":
+        NONE "pfNone"
 
-        pfGray8
-        pfGray9
-        pfGray10
-        pfGray12
-        pfGray14
-        pfGray16
-        pfGray32
+        GRAY8 "pfGray8"
+        GRAY9 "pfGray9"
+        GRAY10 "pfGray10"
+        GRAY12 "pfGray12"
+        GRAY14 "pfGray14"
+        GRAY16 "pfGray16"
+        GRAY32 "pfGray32"
 
-        pfGrayH
-        pfGrayS
+        GRAYH "pfGrayH"
+        GRAYS "pfGrayS"
 
-        pfYUV410P8
-        pfYUV411P8
-        pfYUV440P8
+        YUV410P8 "pfYUV410P8"
+        YUV411P8 "pfYUV411P8"
+        YUV440P8 "pfYUV440P8"
 
-        pfYUV420P8
-        pfYUV422P8
-        pfYUV444P8
+        YUV420P8 "pfYUV420P8"
+        YUV422P8 "pfYUV422P8"
+        YUV444P8 "pfYUV444P8"
 
-        pfYUV420P9
-        pfYUV422P9
-        pfYUV444P9
+        YUV420P9 "pfYUV420P9"
+        YUV422P9 "pfYUV422P9"
+        YUV444P9 "pfYUV444P9"
 
-        pfYUV420P10
-        pfYUV422P10
-        pfYUV444P10
+        YUV420P10 "pfYUV420P10"
+        YUV422P10 "pfYUV422P10"
+        YUV444P10 "pfYUV444P10"
 
-        pfYUV420P12
-        pfYUV422P12
-        pfYUV444P12
+        YUV420P12 "pfYUV420P12"
+        YUV422P12 "pfYUV422P12"
+        YUV444P12 "pfYUV444P12"
 
-        pfYUV420P14
-        pfYUV422P14
-        pfYUV444P14
+        YUV420P14 "pfYUV420P14"
+        YUV422P14 "pfYUV422P14"
+        YUV444P14 "pfYUV444P14"
 
-        pfYUV420P16
-        pfYUV422P16
-        pfYUV444P16
+        YUV420P16 "pfYUV420P16"
+        YUV422P16 "pfYUV422P16"
+        YUV444P16 "pfYUV444P16"
 
-        pfYUV444PH
-        pfYUV444PS
+        YUV444PH "pfYUV444PH"
+        YUV444PS "pfYUV444PS"
 
-        pfRGB24
-        pfRGB27
-        pfRGB30
-        pfRGB36
-        pfRGB42
-        pfRGB48
+        RGB24 "pfRGB24"
+        RGB27 "pfRGB27"
+        RGB30 "pfRGB30"
+        RGB36 "pfRGB36"
+        RGB42 "pfRGB42"
+        RGB48 "pfRGB48"
 
-        pfRGBH
-        pfRGBS
+        RGBH "pfRGBH"
+        RGBS "pfRGBS"
 
-    enum:
+    cpdef enum FilterMode "VSFilterMode":
         fmParallel
         fmParallelRequests
         fmUnordered
@@ -133,32 +132,32 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int subSamplingH
         int numPlanes
 
-    enum:
-        acFrontLeft
-        acFrontRight
-        acFrontCenter
-        acLowFrequency
-        acBackLeft
-        acBackRight
-        acFrontLeftOFCenter
-        acFrontRightOFCenter
-        acBackCenter
-        acSideLeft
-        acSideRight
-        acTopCenter
-        acTopFrontLeft
-        acTopFrontCenter
-        acTopFrontRight
-        acTopBackLeft
-        acTopBackCenter
-        acTopBackRight
-        acStereoLeft
-        acStereoRight
-        acWideLeft
-        acWideRight
-        acSurroundDirectLeft
-        acSurroundDirectRight
-        acLowFrequency2
+    cpdef enum AudioChannels "VSAudioChannels":
+        FRONT_LEFT "acFrontLeft"
+        FRONT_RIGHT "acFrontRight"
+        FRONT_CENTER "acFrontCenter"
+        LOW_FREQUENCY "acLowFrequency"
+        BACK_LEFT "acBackLeft"
+        BACK_RIGHT "acBackRight"
+        FRONT_LEFT_OF_CENTER "acFrontLeftOFCenter"
+        FRONT_RIGHT_OF_CENTER "acFrontRightOFCenter"
+        BACK_CENTER "acBackCenter"
+        SIDE_LEFT "acSideLeft"
+        SIDE_RIGHT "acSideRight"
+        TOP_CENTER "acTopCenter"
+        TOP_FRONT_LEFT "acTopFrontLeft"
+        TOP_FRONT_CENTER "acTopFrontCenter"
+        TOP_FRONT_RIGHT "acTopFrontRight"
+        TOP_BACK_LEFT "acTopBackLeft"
+        TOP_BACK_CENTER "acTopBackCenter"
+        TOP_BACK_RIGHT "acTopBackRight"
+        STEREO_LEFT "acStereoLeft"
+        STEREO_RIGHT "acStereoRight"
+        WIDE_LEFT "acWideLeft"
+        WIDE_RIGHT "acWideRight"
+        SURROUND_DIRECT_LEFT "acSurroundDirectLeft"
+        SURROUND_DIRECT_RIGHT "acSurroundDirectRight"
+        LOW_FREQUENCY2 "acLowFrequency2"
 
     ctypedef struct VSAudioFormat:
         int sampleType
@@ -216,14 +215,14 @@ cdef extern from "include/VapourSynth4.h" nogil:
         arAllFramesReady
         arError
 
-    enum:
-        mtDebug
-        mtInformation
-        mtWarning
-        mtCritical
-        mtFatal
+    cpdef enum MessageType "VSMessageType":
+        MESSAGE_TYPE_DEBUG "mtDebug"
+        MESSAGE_TYPE_INFORMATION "mtInformation"
+        MESSAGE_TYPE_WARNING "mtWarning"
+        MESSAGE_TYPE_CRITICAL "mtCritical"
+        MESSAGE_TYPE_FATAL "mtFatal"
 
-    enum:
+    cpdef enum CoreCreationFlags "VSCoreCreationFlags":
         ccfEnableGraphInspection
         ccfDisableAutoLoading
         ccfDisableLibraryUnloading
