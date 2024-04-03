@@ -185,6 +185,13 @@ class AudioChannels(IntEnum):
     SURROUND_DIRECT_RIGHT = acSurroundDirectRight
     LOW_FREQUENCY2 = acLowFrequency2
 
+class MessageType(IntFlag):
+    MESSAGE_TYPE_DEBUG = mtDebug
+    MESSAGE_TYPE_INFORMATION = mtInformation
+    MESSAGE_TYPE_WARNING = mtWarning
+    MESSAGE_TYPE_CRITICAL = mtCritical
+    MESSAGE_TYPE_FATAL = mtFatal
+
 class CoreCreationFlags(IntFlag):
     ENABLE_GRAPH_INSPECTION = ccfEnableGraphInspection
     DISABLE_AUTO_LOADING = ccfDisableAutoLoading
@@ -325,7 +332,7 @@ cdef void _unset_logger(EnvironmentData env):
 cdef void __stdcall _logCb(int msgType, const char *msg, void *userData) noexcept nogil:
     with gil:
         message = msg.decode("utf-8")
-        (<object>userData)(MessageType(msgType), message)
+        (<object>userData)(msgType, message)
 
 cdef void __stdcall _logFree(void* userData) noexcept nogil:
     with gil:
@@ -2557,7 +2564,7 @@ cdef LogHandle createLogHandle(object handler_func):
 
 cdef void __stdcall log_handler_wrapper(int msgType, const char *msg, void *userData) noexcept nogil:
     with gil:
-        (<LogHandle>userData).handler_func(MessageType(msgType), msg.decode('utf-8'))
+        (<LogHandle>userData).handler_func(msgType, msg.decode('utf-8'))
 
 cdef void __stdcall log_handler_free(void *userData) noexcept nogil:
     with gil:
@@ -2698,11 +2705,11 @@ cdef class Core(object):
         cdef VSFrame* ref = self.funcs.newVideoFrame(&fmt, width, height, NULL, self.core)
         return createVideoFrame(ref, self.funcs, self.core)
 
-    def log_message(self, MessageType message_type, str message):
+    def log_message(self, int message_type, str message):
         self.funcs.logMessage(message_type, message.encode('utf-8'), self.core)
 
     def add_log_handler(self, handler_func):
-        handler_func(MESSAGE_TYPE_DEBUG, 'New message handler installed from python')
+        handler_func(mtDebug, 'New message handler installed from python')
         cdef LogHandle lh = createLogHandle(handler_func)
         Py_INCREF(lh)
         lh.handle = self.funcs.addLogHandler(log_handler_wrapper, log_handler_free, <void *>lh, self.core)
@@ -3124,7 +3131,7 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
 
         s = warnings.formatwarning(message, category, filename, lineno, line)
         core = vsscript_get_core_internal(env)
-        core.log_message(MESSAGE_TYPE_WARNING, s)
+        core.log_message(mtWarning, s)
 
 class PythonVSScriptLoggingBridge(logging.Handler):
 

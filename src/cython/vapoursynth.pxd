@@ -216,12 +216,12 @@ cdef extern from "include/VapourSynth4.h" nogil:
         arAllFramesReady
         arError
 
-    cpdef enum MessageType "VSMessageType":
-        MESSAGE_TYPE_DEBUG "mtDebug"
-        MESSAGE_TYPE_INFORMATION "mtInformation"
-        MESSAGE_TYPE_WARNING "mtWarning"
-        MESSAGE_TYPE_CRITICAL "mtCritical"
-        MESSAGE_TYPE_FATAL "mtFatal"
+    enum:
+        mtDebug
+        mtInformation
+        mtWarning
+        mtCritical
+        mtFatal
 
     enum:
         ccfEnableGraphInspection
