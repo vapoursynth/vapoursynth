@@ -1,4 +1,5 @@
 r67:
+fixed constants in vapoursynth module not being correctly coerced to int type when used passed to plugin functions due to cython 3.x changes
 fixed 19-24 bit audio output in vfw
 improved the portable install script
 
