@@ -7,9 +7,9 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    - uses: microsoft/setup-msbuild@v1
+    - uses: microsoft/setup-msbuild@v2
 
     - name: Clone Dependencies
       run: |
@@ -19,7 +19,7 @@ jobs:
         git clone https://bitbucket.org/the-sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules
 
     - name: Setup Python 3.8
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: '3.8'
@@ -35,7 +35,7 @@ jobs:
         echo "PYTHON38_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Setup Python 3.12
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.12'
 
@@ -87,7 +87,7 @@ jobs:
         python -m unittest discover -s test -p "*test.py"
 
     - name: Setup Python 3.8 a second time
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.8'
 
@@ -126,7 +126,7 @@ jobs:
       run: |
         python -m unittest discover -s test -p "*test.py"
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: Wheels
         path: |
@@ -144,11 +144,11 @@ jobs:
 
     steps:
     - name: Setup Python ${{ matrix.python }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python }}
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: Wheels
 
@@ -165,11 +165,11 @@ jobs:
     if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
 
     steps:
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: '3.12'
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: Wheels
 
