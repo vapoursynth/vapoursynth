@@ -24,7 +24,8 @@ jobs:
         echo "LIBRARY_PATH=/usr/local/lib:$LIBRARY_PATH" >> $GITHUB_ENV
 
     - name: Print compiler version
-      run: ${{ env.CC }} --version
+      run: |
+        ${{ env.CXX }} --version
 
     - name: Install zimg
       run: |
@@ -32,8 +33,8 @@ jobs:
         pushd zimg
         ./autogen.sh
         ./configure
-        make -j4
-        sudo make install -j4
+        make -j$(nproc)
+        sudo make install -j$(nproc)
         popd
         rm -rf zimg
 
@@ -52,12 +53,14 @@ jobs:
         ./configure
 
     - name: make
-      run: make -j4
+      run: |
+        make -j$(nproc)
 
     - name: make install
       run: |
-        sudo make install -j4
+        sudo make install -j$(nproc)
         pip install .
 
     - name: Run test
-      run: python -m unittest discover -s test -p "*test.py"
+      run: |
+        python -m unittest discover -s test -p "*test.py"
