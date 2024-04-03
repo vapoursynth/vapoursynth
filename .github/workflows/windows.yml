@@ -7,11 +7,11 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    - uses: microsoft/setup-msbuild@v1
+    - uses: microsoft/setup-msbuild@v2
 
-    - name: Clone Dependencies
+    - name: Clone dependencies
       run: |
         git clone https://github.com/AviSynth/AviSynthPlus.git --depth 1
         git clone https://github.com/sekrit-twc/libp2p.git --depth 1
@@ -19,32 +19,31 @@ jobs:
         git clone https://bitbucket.org/the-sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules
 
     - name: Setup Python 3.8
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: '3.8'
 
-    - name: Install required Python packages
+    - name: Install Python 3.8 packages
       run: |
         python -m pip install -U pip
         pip install -U cython setuptools wheel
 
-    - name: Get Python 3.8 Install Path
+    - name: Get Python 3.8 install path
       run: |
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
         echo "PYTHON38_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Setup Python 3.12
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.12'
 
-    - name: Install required Python packages
+    - name: Install Python 3.12 packages
       run: |
         python -m pip install -U pip
         pip install -U cython setuptools wheel
 
-    - name: Get Python 3.12 Install Path
+    - name: Get Python 3.12 install path
       run: |
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
         echo "PYTHON_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -53,22 +52,11 @@ jobs:
       run: |
         echo "VS_CURRENT_RELEASE=$(python -c "from pathlib import Path; print((Path.cwd() / 'VAPOURSYNTH_VERSION').resolve().read_text().split(' ')[-1].strip().split('-')[0])")" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-    - name: Compile
+    - name: Build
       run: |
         $env:VSPYTHON38_PATH="${{ env.PYTHON38_PATH }}"
         $env:VSPYTHON_PATH="${{ env.PYTHON_PATH }}"
-        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=x64 /p:CurrentVersion=${{ env.VS_CURRENT_RELEASE }}
-        pip install . --no-deps
-
-        pushd installer
-        $env:SKIP_COMPRESS="yes"
-        $env:SKIP_WAIT="yes"
-        & ".\make_portable.bat"
-
-        pushd buildp64
-        pip install . --no-deps
-        popd
-        popd
+        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=x64 /p:CurrentVersion=${{ env.VS_CURRENT_RELEASE }} /m
 
     - name: Package for Python 3.12
       run: |
@@ -76,57 +64,27 @@ jobs:
         python setup.py bdist_wheel -d ./wheels
         python setup.py sdist -d ./wheels --format=zip
 
-        pushd installer
-        pushd buildp64
-        python setup.py bdist_wheel -d ../../wheels
-        popd
-        popd
-
     - name: Run test with Python 3.12
       run: |
+        pip install .
         python -m unittest discover -s test -p "*test.py"
 
     - name: Setup Python 3.8 a second time
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.8'
-
-    - name: Building for Python 3.8
-      run: |
-        pip install . --no-deps
-
-        pushd installer
-        if ("x64" -eq "x64") {
-          Remove-Item 'buildp64' -Recurse
-        } else {
-          Remove-Item 'buildp32' -Recurse
-        }
-
-        $env:SKIP_COMPRESS="yes"
-        $env:SKIP_WAIT="yes"
-        & ".\make_portable.bat"
-
-        pushd buildp64
-        pip install . --no-deps
-        popd
-        popd
 
     - name: Package for Python 3.8
       run: |
         python setup.py bdist_wheel -d ./wheels
         python setup.py sdist -d ./wheels --format=zip
 
-        pushd installer
-        pushd buildp64
-        python setup.py bdist_wheel -d ../../wheels
-        popd
-        popd
-
     - name: Run test with Python 3.8
       run: |
+        pip install .
         python -m unittest discover -s test -p "*test.py"
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: Wheels
         path: |
@@ -144,19 +102,17 @@ jobs:
 
     steps:
     - name: Setup Python ${{ matrix.python }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python }}
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: Wheels
 
     - name: Try installing
       run: |
         pip install --no-index --find-links . vapoursynth
-        pip install --no-index --find-links . vapoursynth_portable
-
         python -c "from vapoursynth import core; print(core.std.BlankClip())"
 
   public:
@@ -165,11 +121,11 @@ jobs:
     if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
 
     steps:
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: '3.12'
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: Wheels
 
@@ -183,10 +139,3 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_NOT_PORTABLE }}
       run: |
         twine upload VapourSynth-*
-
-    - name: Upload VapourSynth Portable
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PORTABLE }}
-      run: |
-        twine upload VapourSynth_portable-*

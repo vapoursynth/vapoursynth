@@ -11,10 +11,11 @@ jobs:
       CXX: g++-13
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Print compiler version
-      run: ${{ env.CC }} --version
+      run: |
+        ${{ env.CXX }} --version
 
     - name: Install zimg
       run: |
@@ -22,12 +23,12 @@ jobs:
         pushd zimg
         ./autogen.sh
         ./configure --prefix=/usr
-        make -j2
-        sudo make install -j2
+        make -j$(nproc)
+        sudo make install -j$(nproc)
         popd
         rm -rf zimg
 
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: '3.12'
 
@@ -42,11 +43,12 @@ jobs:
         ./configure --prefix=/usr
 
     - name: make
-      run: make -j2
+      run: |
+        make -j$(nproc)
 
     - name: make install
       run: |
-        sudo make install -j2
+        sudo make install -j$(nproc)
         python setup.py sdist -d sdist
         mkdir empty
         pushd empty
@@ -54,4 +56,5 @@ jobs:
         popd
 
     - name: Run test
-      run: python -m unittest discover -s test -p "*test.py"
+      run: |
+        python -m unittest discover -s test -p "*test.py"
