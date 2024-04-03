@@ -87,6 +87,16 @@ class MediaType(IntEnum):
     VIDEO = mtVideo
     AUDIO = mtAudio
 
+class ColorFamily(IntEnum):
+    UNDEFINED = cfUndefined
+    GRAY = cfGray
+    RGB = cfRGB
+    YUV = cfYUV
+
+class SampleType(IntEnum):
+    INTEGER = stInteger
+    FLOAT = stFloat
+
 class PresetVideoFormat(IntEnum):
     NONE = pfNone
 
@@ -1692,14 +1702,14 @@ cdef class _video:
         self.base.itemsize = format.bytesPerSample
         self.base.strides[1] = format.bytesPerSample
 
-        if format.sampleType == INTEGER:
+        if format.sampleType == stInteger:
             if format.bytesPerSample == 1:
                 self.base.format = 'B'
             elif format.bytesPerSample == 2:
                 self.base.format = 'H'
             elif format.bytesPerSample == 4:
                 self.base.format = 'I'
-        elif format.sampleType == FLOAT:
+        elif format.sampleType == stFloat:
             if format.bytesPerSample == 2:
                 self.base.format = 'e'
             elif format.bytesPerSample == 4:
@@ -1864,12 +1874,12 @@ cdef class _audio:
         self = _1dview_contig.__new__(_1dview_contig)
         self.base.itemsize = format.bytesPerSample
 
-        if format.sampleType == INTEGER:
+        if format.sampleType == stInteger:
             if format.bytesPerSample == 2:
                 self.base.format = 'H'
             elif format.bytesPerSample == 4:
                 self.base.format = 'I'
-        elif format.sampleType == FLOAT:
+        elif format.sampleType == stFloat:
             if format.bytesPerSample == 4:
                 self.base.format = 'f'
 
@@ -2163,10 +2173,10 @@ cdef class VideoNode(RawNode):
                 raise Error('Alpha clip dimensions must match the main video')
             if (self.num_frames != alpha.num_frames):
                 raise Error('Alpha clip length must match the main video')
-            if (self.vi.format.colorFamily != UNDEFINED) and (alpha.vi.format.colorFamily != UNDEFINED):
-                if (alpha.vi.format.colorFamily != GRAY) or (alpha.vi.format.sampleType != self.vi.format.sampleType) or (alpha.vi.format.bitsPerSample != self.vi.format.bitsPerSample):
+            if (self.vi.format.colorFamily != cfUndefined) and (alpha.vi.format.colorFamily != cfUndefined):
+                if (alpha.vi.format.colorFamily != cfGray) or (alpha.vi.format.sampleType != self.vi.format.sampleType) or (alpha.vi.format.bitsPerSample != self.vi.format.bitsPerSample):
                     raise Error('Alpha clip format must match the main video')
-            elif (self.vi.format.colorFamily != UNDEFINED) or (alpha.vi.format.colorFamily != UNDEFINED):
+            elif (self.vi.format.colorFamily != cfUndefined) or (alpha.vi.format.colorFamily != cfUndefined):
                 raise Error('Format must be either known or unknown for both alpha and main clip')
 
         _get_output_dict("set_output")[index] = VideoOutputTuple(self, alpha, alt_output)
@@ -2185,11 +2195,11 @@ cdef class VideoNode(RawNode):
             progress_update(0, len(self))
 
         if y4m:
-            if self.format.color_family == GRAY:
+            if self.format.color_family == cfGray:
                 y4mformat = 'mono'
                 if self.format.bits_per_sample > 8:
                     y4mformat = y4mformat + str(self.format.bits_per_sample)
-            elif self.format.color_family == YUV:
+            elif self.format.color_family == cfYUV:
                 if self.format.subsampling_w == 1 and self.format.subsampling_h == 1:
                     y4mformat = '420'
                 elif self.format.subsampling_w == 1 and self.format.subsampling_h == 0:
@@ -2342,7 +2352,7 @@ cdef VideoNode createVideoNode(VSNode *node, const VSAPI *funcs, Core core):
     instance.funcs = funcs
     instance.vi = funcs.getVideoInfo(node)
 
-    if (instance.vi.format.colorFamily != UNDEFINED):
+    if (instance.vi.format.colorFamily != cfUndefined):
         instance.format = createVideoFormat(&instance.vi.format, funcs, core.core)
     else:
         instance.format = None
@@ -2667,7 +2677,7 @@ cdef class Core(object):
             plugin = self.funcs.getNextPlugin(plugin, self.core)
             yield tmp
 
-    def query_video_format(self, ColorFamily color_family, SampleType sample_type, int bits_per_sample, int subsampling_w = 0, int subsampling_h = 0):
+    def query_video_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w = 0, int subsampling_h = 0):
         cdef VSVideoFormat fmt
         if not self.funcs.queryVideoFormat(&fmt, color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core):
             raise Error('Invalid format specified')

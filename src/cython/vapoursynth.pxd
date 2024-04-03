@@ -53,15 +53,15 @@ cdef extern from "include/VapourSynth4.h" nogil:
         mtVideo
         mtAudio
 
-    cpdef enum ColorFamily "VSColorFamily":
-        UNDEFINED "cfUndefined"
-        GRAY "cfGray"
-        RGB "cfRGB"
-        YUV "cfYUV"
+    enum:
+        cfUndefined
+        cfGray
+        cfRGB
+        cfYUV
 
-    cpdef enum SampleType "VSSampleType":
-        INTEGER "stInteger"
-        FLOAT "stFloat"
+    enum:
+        stInteger
+        stFloat
 
     enum:
         pfNone
