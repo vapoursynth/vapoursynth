@@ -27,6 +27,7 @@
 #include <cstdarg>
 #include <cstddef>
 #include <limits>
+#include <filesystem>
 #include "../common/vsutf16.h"
 #include "p2p_api.h"
 
@@ -1292,10 +1293,9 @@ PVideoFrame FakeAvisynth::SubframePlanarA(PVideoFrame src, int rel_offset, int n
 }
 
 static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::string rawPath = vsapi->mapGetData(in, "path", 0, nullptr);
-    std::wstring wPath = utf16_from_utf8(rawPath);
+    std::filesystem::path fsPath = std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr));
 
-    HMODULE plugin = LoadLibraryW(wPath.c_str());
+    HMODULE plugin = LoadLibraryW(fsPath.c_str());
 
     typedef const char *(__stdcall *AvisynthPluginInit2Func)(IScriptEnvironment *env);
     typedef const char *(__stdcall *AvisynthPluginInit3Func)(IScriptEnvironment *env, const AVS_Linkage *const vectors);
@@ -1304,9 +1304,9 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
         DWORD lastError = GetLastError();
 
         if (lastError == 126)
-            vsapi->mapSetError(out, ("Failed to load " + rawPath + ". GetLastError() returned " + std::to_string(lastError) + ". The file you tried to load or one of its dependencies is probably missing.").c_str());
+            vsapi->mapSetError(out, ("Failed to load " + fsPath.u8string() + ". GetLastError() returned " + std::to_string(lastError) + ". The file you tried to load or one of its dependencies is probably missing.").c_str());
         else
-            vsapi->mapSetError(out, ("Failed to load " + rawPath + ". GetLastError() returned " + std::to_string(lastError) + ".").c_str());
+            vsapi->mapSetError(out, ("Failed to load " + fsPath.u8string() + ". GetLastError() returned " + std::to_string(lastError) + ".").c_str());
 
         return;
     }
@@ -1347,7 +1347,7 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
 
 #ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
-        vsapi->logMessage(mtFatal, ("Bad SSE state detected after loading "s + rawPath).c_str(), core);
+        vsapi->logMessage(mtFatal, ("Bad SSE state detected after loading " + fsPath.u8string()).c_str(), core);
 #endif
 }
 

@@ -44,6 +44,7 @@
 #include <condition_variable>
 #include <algorithm>
 #include <tuple>
+#include <filesystem>
 #include <chrono>
 
 #ifdef VS_TARGET_OS_WINDOWS
@@ -1006,7 +1007,7 @@ private:
     VSCore *core;
 public:
     explicit VSPlugin(VSCore *core);
-    VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core);
+    VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core);
     ~VSPlugin();
     void lock() { readOnly = true; }
     bool configPlugin(const std::string &identifier, const std::string &pluginsNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags);
@@ -1112,13 +1113,8 @@ public:
     vs3::VSVideoInfo VideoInfoToV3(const VSVideoInfo &vi) noexcept;
     VSVideoInfo VideoInfoFromV3(const vs3::VSVideoInfo &vi) noexcept;
 
-    void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
-
-#ifdef VS_TARGET_OS_WINDOWS
-    bool loadAllPluginsInPath(const std::wstring &path, const std::wstring &filter);
-#else
-    bool loadAllPluginsInPath(const std::string &path, const std::string &filter);
-#endif
+    void loadPlugin(const std::filesystem::path &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
+    bool loadAllPluginsInPath(const std::filesystem::path &path, const std::string &filter);
 
     void createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
     void createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);

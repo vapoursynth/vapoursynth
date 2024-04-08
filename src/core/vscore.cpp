@@ -1579,7 +1579,6 @@ bool VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexc
     return true;
 }
 
-
 static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
         int err;
@@ -1590,7 +1589,7 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
         if (!forceid)
             forceid = "";
         bool altSearchPath = !!vsapi->mapGetInt(in, "altsearchpath", 0, &err);
-        core->loadPlugin(vsapi->mapGetData(in, "path", 0, nullptr), forcens, forceid, altSearchPath);
+        core->loadPlugin(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)), forcens, forceid, altSearchPath);
     } catch (VSException &e) {
         vsapi->mapSetError(out, e.what());
     }
@@ -1599,12 +1598,12 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
 static void VS_CC loadAllPlugins(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
 #ifdef VS_TARGET_OS_WINDOWS
-        core->loadAllPluginsInPath(utf16_from_utf8(vsapi->mapGetData(in, "path", 0, nullptr)), L".dll");
+        core->loadAllPluginsInPath(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)), ".dll");
 #else
     #ifdef VS_TARGET_OS_DARWIN
-        core->loadAllPluginsInPath(vsapi->mapGetData(in, "path", 0, nullptr), ".dylib");
+        core->loadAllPluginsInPath(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)), ".dylib");
     #else
-        core->loadAllPluginsInPath(vsapi->mapGetData(in, "path", 0, nullptr), ".so");
+        core->loadAllPluginsInPath(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)), ".so");
     #endif
 #endif
     } catch (VSException &e) {
@@ -1668,23 +1667,23 @@ void VSCore::registerFormats() {
 }
 
 
-#ifdef VS_TARGET_OS_WINDOWS
-bool VSCore::loadAllPluginsInPath(const std::wstring &path, const std::wstring &filter) {
-#else
-bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &filter) {
-#endif
+
+bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path, const std::string &filter) {
     if (path.empty())
         return false;
 
 #ifdef VS_TARGET_OS_WINDOWS
-    std::wstring wPath = path + L"\\" + filter;
+    std::filesystem::path wPath = path;
+    wPath /= filter;
     WIN32_FIND_DATA findData;
     HANDLE findHandle = FindFirstFile(wPath.c_str(), &findData);
     if (findHandle == INVALID_HANDLE_VALUE)
         return false;
     do {
         try {
-            loadPlugin(utf16_to_utf8(path + L"\\" + findData.cFileName));
+            std::filesystem::path pPath = path;
+            pPath /= findData.cFileName;
+            loadPlugin(pPath.c_str());
         } catch (VSNoEntryPointException &) {
             // do nothing since we may encounter supporting dlls without an entry point
         } catch (VSException &e) {
@@ -2057,14 +2056,14 @@ VSPlugin *VSCore::getNextPlugin(VSPlugin *plugin) {
     }
 }
 
-void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath) {
+void VSCore::loadPlugin(const std::filesystem::path &filename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath) {
     std::unique_ptr<VSPlugin> p(new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, this));
 
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
 
     VSPlugin *already_loaded_plugin = getPluginByID(p->getID());
     if (already_loaded_plugin) {
-        std::string error = "Plugin " + filename + " already loaded (" + p->getID() + ")";
+        std::string error = "Plugin " + filename.u8string() + " already loaded (" + p->getID() + ")";
         if (already_loaded_plugin->getFilename().size())
             error += " from " + already_loaded_plugin->getFilename();
         throw VSException(error);
@@ -2072,7 +2071,7 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
 
     already_loaded_plugin = getPluginByNamespace(p->getNamespace());
     if (already_loaded_plugin) {
-        std::string error = "Plugin load of " + filename + " failed, namespace " + p->getNamespace() + " already populated";
+        std::string error = "Plugin load of " + filename.u8string() + " failed, namespace " + p->getNamespace() + " already populated";
         if (already_loaded_plugin->getFilename().size())
             error += " by " + already_loaded_plugin->getFilename();
         throw VSException(error);
@@ -2142,26 +2141,18 @@ static void VS_CC configPlugin3(const char *identifier, const char *defaultNames
     plugin->configPlugin(identifier, defaultNamespace, name, -1, apiVersion, readOnly ? 0 : pcModifiable);
 }
 
-VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core)
+VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core)
     : fnamespace(forcedNamespace), id(forcedId), core(core) {
+    std::filesystem::path fullPath = std::filesystem::absolute(relFilename);
 #ifdef VS_TARGET_OS_WINDOWS
-    std::wstring wPath = utf16_from_utf8(relFilename);
-    std::vector<wchar_t> fullPathBuffer(32767 + 1); // add 1 since msdn sucks at mentioning whether or not it includes the final null
-    GetFullPathNameW(wPath.c_str(), static_cast<DWORD>(fullPathBuffer.size()), fullPathBuffer.data(), nullptr);
-    wPath = fullPathBuffer.data();
-    filename = utf16_to_utf8(wPath);
-    for (auto &iter : filename)
-        if (iter == '\\')
-            iter = '/';
-
-    libHandle = LoadLibraryEx(wPath.c_str(), nullptr, altSearchPath ? 0 : (LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR));
+    libHandle = LoadLibraryEx(fullPath.c_str(), nullptr, altSearchPath ? 0 : (LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR));
 
     if (libHandle == nullptr) {
         DWORD lastError = GetLastError();
 
         if (lastError == 126)
-            throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ". The file you tried to load or one of its dependencies is probably missing.");
-        throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ".");
+            throw VSException("Failed to load " + relFilename.u8string() + ". GetLastError() returned " + std::to_string(lastError) + ". The file you tried to load or one of its dependencies is probably missing.");
+        throw VSException("Failed to load " + relFilename.u8string() + ". GetLastError() returned " + std::to_string(lastError) + ".");
     }
 
     VSInitPlugin pluginInit = reinterpret_cast<VSInitPlugin>(GetProcAddress(libHandle, "VapourSynthPluginInit2"));
@@ -2179,23 +2170,17 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     if (!pluginInit && !pluginInit3) {
         if (!core->disableLibraryUnloading)
             FreeLibrary(libHandle);
-        throw VSNoEntryPointException("No entry point found in " + relFilename);
+        throw VSNoEntryPointException("No entry point found in " + relFilename.u8string());
     }
 #else
-    std::vector<char> fullPathBuffer(PATH_MAX + 1);
-    if (realpath(relFilename.c_str(), fullPathBuffer.data()))
-        filename = fullPathBuffer.data();
-    else
-        filename = relFilename;
-
-    libHandle = dlopen(filename.c_str(), RTLD_LAZY);
+    libHandle = dlopen(fullPath.c_str(), RTLD_LAZY);
 
     if (!libHandle) {
         const char *dlError = dlerror();
         if (dlError)
-            throw VSException("Failed to load " + relFilename + ". Error given: " + dlError);
+            throw VSException("Failed to load " + relFilename.u8string() + ". Error given: " + dlError);
         else
-            throw VSException("Failed to load " + relFilename);
+            throw VSException("Failed to load " + relFilename.u8string());
     }
 
     VSInitPlugin pluginInit = reinterpret_cast<VSInitPlugin>(dlsym(libHandle, "VapourSynthPluginInit2"));
@@ -2206,7 +2191,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     if (!pluginInit && !pluginInit3) {
         if (!core->disableLibraryUnloading)
             dlclose(libHandle);
-        throw VSException("No entry point found in " + relFilename);
+        throw VSException("No entry point found in " + relFilename.u8string());
     }
 
 
@@ -2234,7 +2219,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
         if (!core->disableLibraryUnloading)
             dlclose(libHandle);
 #endif
-        throw VSException("Core only supports API R" + std::to_string(VAPOURSYNTH_API_MAJOR) + "." + std::to_string(VAPOURSYNTH_API_MINOR) + " but the loaded plugin requires API R" + std::to_string(apiMajor) + "." + std::to_string(apiMinor) + "; Filename: " + relFilename + "; Name: " + fullname);
+        throw VSException("Core only supports API R" + std::to_string(VAPOURSYNTH_API_MAJOR) + "." + std::to_string(VAPOURSYNTH_API_MINOR) + " but the loaded plugin requires API R" + std::to_string(apiMajor) + "." + std::to_string(apiMinor) + "; Filename: " + relFilename.u8string() + "; Name: " + fullname);
     }
 }
 
