@@ -120,7 +120,7 @@ struct VSPipeOptions {
     bool printFilterTime = false;
     bool calculateMD5 = false;
     std::filesystem::path scriptFilename;
-    std::filesystem::path outputFilename;
+    nstring outputFilename;
     std::filesystem::path timecodesFilename;
     std::filesystem::path jsonFilename;
     std::filesystem::path filterTimeGraphFilename;
@@ -1006,7 +1006,7 @@ int main(int argc, char **argv) {
         vssapi->setVariables(se, foldedArgs);
         vsapi->freeMap(foldedArgs);
     }
-    vssapi->evaluateFile(se, nstringToUtf8(opts.scriptFilename).c_str());
+    vssapi->evaluateFile(se, opts.scriptFilename.u8string().c_str());
 
     if (vssapi->getError(se)) {
         int code = vssapi->getExitCode(se);
