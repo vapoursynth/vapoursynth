@@ -1053,7 +1053,7 @@ private:
     std::set<VSNode *> caches;
     std::mutex cacheLock;
     static bool m_isPortable;
-    static std::wstring m_basePath;
+    static std::filesystem::path m_basePath;
     static std::once_flag m_portableOnceFlag;
 
     std::atomic<int> cpuLevel;
@@ -1114,7 +1114,7 @@ public:
     VSVideoInfo VideoInfoFromV3(const vs3::VSVideoInfo &vi) noexcept;
 
     void loadPlugin(const std::filesystem::path &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
-    bool loadAllPluginsInPath(const std::filesystem::path &path, const std::string &filter);
+    bool loadAllPluginsInPath(const std::filesystem::path &path);
 
     void createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
     void createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);

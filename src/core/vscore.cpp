@@ -1597,15 +1597,7 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
 
 static void VS_CC loadAllPlugins(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
-#ifdef VS_TARGET_OS_WINDOWS
-        core->loadAllPluginsInPath(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)), ".dll");
-#else
-    #ifdef VS_TARGET_OS_DARWIN
-        core->loadAllPluginsInPath(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)), ".dylib");
-    #else
-        core->loadAllPluginsInPath(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)), ".so");
-    #endif
-#endif
+        core->loadAllPluginsInPath(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)));
     } catch (VSException &e) {
         vsapi->mapSetError(out, e.what());
     }
@@ -1668,51 +1660,23 @@ void VSCore::registerFormats() {
 
 
 
-bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path, const std::string &filter) {
+bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path) {
     if (path.empty())
         return false;
 
 #ifdef VS_TARGET_OS_WINDOWS
-    std::filesystem::path wPath = path;
-    wPath /= filter;
-    WIN32_FIND_DATA findData;
-    HANDLE findHandle = FindFirstFile(wPath.c_str(), &findData);
-    if (findHandle == INVALID_HANDLE_VALUE)
-        return false;
-    do {
-        try {
-            std::filesystem::path pPath = path;
-            pPath /= findData.cFileName;
-            loadPlugin(pPath.c_str());
-        } catch (VSNoEntryPointException &) {
-            // do nothing since we may encounter supporting dlls without an entry point
-        } catch (VSException &e) {
-            logMessage(mtWarning, e.what());
-        }
-    } while (FindNextFile(findHandle, &findData));
-    FindClose(findHandle);
+    const std::string filter = ".dll";
+#elif defined(VS_TARGET_OS_DARWIN)
+    const std::string filter = ".dylib";
 #else
-    DIR *dir = opendir(path.c_str());
-    if (!dir)
-        return false;
+    const std::string filter = ".so";
+#endif
 
-    int name_max = pathconf(path.c_str(), _PC_NAME_MAX);
-    if (name_max == -1)
-        name_max = 255;
-
-    while (true) {
-        struct dirent *result = readdir(dir);
-        if (!result) {
-            break;
-        }
-
-        std::string name(result->d_name);
-        // If name ends with filter
-        if (name.size() >= filter.size() && name.compare(name.size() - filter.size(), filter.size(), filter) == 0) {
+    for (const auto &iter : std::filesystem::directory_iterator(path)) {
+        std::error_code ec;
+        if (iter.is_regular_file(ec) && !ec && iter.path().extension() == filter) {
             try {
-                std::string fullname;
-                fullname.append(path).append("/").append(name);
-                loadPlugin(fullname);
+                loadPlugin(iter.path());
             } catch (VSNoEntryPointException &) {
                 // do nothing since we may encounter supporting dlls without an entry point
             } catch (VSException &e) {
@@ -1720,11 +1684,6 @@ bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path, const std::
             }
         }
     }
-
-    if (closedir(dir)) {
-        // Shouldn't happen
-    }
-#endif
 
     return true;
 }
@@ -1812,13 +1771,9 @@ void VSCore::isPortableInit() {
     m_basePath = pathBuf.data();
     int levels = 4;
     do {
-        m_basePath.resize(m_basePath.find_last_of('\\'));
-        std::wstring portableFilePath = m_basePath + L"\\portable.vs";
-        FILE *portableFile = _wfopen(portableFilePath.c_str(), L"rb");
-        m_isPortable = !!portableFile;
-        if (portableFile)
-            fclose(portableFile);
-    } while (!m_isPortable && --levels > 0 && m_basePath.find_last_of('\\') != std::string::npos);
+        m_basePath = m_basePath.parent_path();
+        m_isPortable = std::filesystem::exists(m_basePath / L"portable.vs");
+    } while (!m_isPortable && --levels > 0 && m_basePath.empty());
 }
 #endif
 
@@ -1870,7 +1825,6 @@ VSCore::VSCore(int flags) :
     plugins.insert(std::make_pair(p->getID(), p));
 
 #ifdef VS_TARGET_OS_WINDOWS
-    const std::string filter = "*.dll";
 
 #ifdef _WIN64
     #define VS_INSTALL_REGKEY L"Software\\VapourSynth"
@@ -1885,15 +1839,13 @@ VSCore::VSCore(int flags) :
         // Use alternative search strategy relative to dll path
 
         // Autoload bundled plugins
-        std::wstring corePluginPath = m_basePath + L"\\vs-coreplugins";
-        if (!loadAllPluginsInPath(corePluginPath, filter))
+        if (!loadAllPluginsInPath(m_basePath / L"vs-coreplugins"))
             logMessage(mtCritical, "Core plugin autoloading failed. Installation is broken?");
 
         if (!disableAutoLoading) {
             // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
             // and accidentally block updated bundled versions
-            std::wstring globalPluginPath = m_basePath + L"\\vs-plugins";
-            loadAllPluginsInPath(globalPluginPath, filter);
+            loadAllPluginsInPath(m_basePath / L"vs-plugins");
         }
     } else {
         // Autoload user specific plugins first so a user can always override
@@ -1901,31 +1853,27 @@ VSCore::VSCore(int flags) :
         if (SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appDataBuffer.data()) != S_OK)
             SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_DEFAULT, appDataBuffer.data());
 
-        std::wstring appDataPath = std::wstring(appDataBuffer.data()) + L"\\VapourSynth\\plugins" + bits;
+        std::filesystem::path appDataPath = appDataBuffer.data();
+        appDataPath /= L"VapourSynth\\plugins" + bits;
 
         // Autoload bundled plugins
         std::wstring corePluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"CorePlugins");
-        if (!loadAllPluginsInPath(corePluginPath, filter))
+        if (!loadAllPluginsInPath(corePluginPath))
             logMessage(mtCritical, "Core plugin autoloading failed. Installation is broken!");
 
         if (!disableAutoLoading) {
             // Autoload per user plugins
-            loadAllPluginsInPath(appDataPath, filter);
+            loadAllPluginsInPath(appDataPath);
 
             // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
             // and accidentally block user installed ones
             std::wstring globalPluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"Plugins");
-            loadAllPluginsInPath(globalPluginPath, filter);
+            loadAllPluginsInPath(globalPluginPath);
         }
     }
 
 #else
     std::string configFile;
-#ifdef VS_TARGET_OS_DARWIN
-    const std::string filter = ".dylib";
-#else
-    const std::string filter = ".so";
-#endif
     
     const char *override = getenv("VAPOURSYNTH_CONF_PATH");
 
@@ -1934,12 +1882,10 @@ VSCore::VSCore(int flags) :
     } else {
         const char *home = getenv("HOME");
 #ifdef VS_TARGET_OS_DARWIN
-        std::string filter = ".dylib";
         if (home) {
             configFile.append(home).append("/Library/Application Support/VapourSynth/vapoursynth.conf");
         }
 #else
-        std::string filter = ".so";
         const char *xdg_config_home = getenv("XDG_CONFIG_HOME");
         if (xdg_config_home) {
             configFile.append(xdg_config_home).append("/vapoursynth/vapoursynth.conf");
@@ -2143,6 +2089,7 @@ static void VS_CC configPlugin3(const char *identifier, const char *defaultNames
 VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core)
     : fnamespace(forcedNamespace), id(forcedId), core(core) {
     std::filesystem::path fullPath = std::filesystem::absolute(relFilename);
+    filename = fullPath.u8string();
 #ifdef VS_TARGET_OS_WINDOWS
     libHandle = LoadLibraryEx(fullPath.c_str(), nullptr, altSearchPath ? 0 : (LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR));
 
@@ -2475,5 +2422,5 @@ int VSFrame::alignment = 32;
 
 thread_local PVSFunctionFrame VSCore::functionFrame;
 bool VSCore::m_isPortable = false;
-std::wstring VSCore::m_basePath;
+std::filesystem::path VSCore::m_basePath;
 std::once_flag VSCore::m_portableOnceFlag;
