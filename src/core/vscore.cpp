@@ -1916,13 +1916,13 @@ VSCore::VSCore(int flags) :
         bool autoloadSystemPluginDir = tmp ? std::string(tmp) == "true" : true;
 
         if (!disableAutoLoading && autoloadUserPluginDir && !userPluginDir.empty()) {
-            if (!loadAllPluginsInPath(userPluginDir, filter)) {
+            if (!loadAllPluginsInPath(userPluginDir)) {
                 logMessage(mtWarning, "Autoloading the user plugin dir '" + userPluginDir + "' failed. Directory doesn't exist?");
             }
         }
 
         if (autoloadSystemPluginDir) {
-            if (!loadAllPluginsInPath(systemPluginDir, filter)) {
+            if (!loadAllPluginsInPath(systemPluginDir)) {
                 logMessage(mtDebug, "Autoloading the system plugin dir '" + systemPluginDir + "' failed. Directory doesn't exist?");
             }
         }
