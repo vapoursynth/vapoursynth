@@ -120,7 +120,7 @@ struct VSPipeOptions {
     bool printFilterTime = false;
     bool calculateMD5 = false;
     std::filesystem::path scriptFilename;
-    nstring outputFilename;
+    std::filesystem::path outputFilename;
     std::filesystem::path timecodesFilename;
     std::filesystem::path jsonFilename;
     std::filesystem::path filterTimeGraphFilename;
