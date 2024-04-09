@@ -36,6 +36,7 @@ extern "C" {
 #include <chrono>
 #include <locale>
 #include <sstream>
+#include <filesystem>
 #include "../common/wave.h"
 #ifdef VS_TARGET_OS_WINDOWS
 #include <io.h>
@@ -81,6 +82,14 @@ std::string nstringToUtf8(const nstring &s) {
 
 using namespace vsh;
 
+static FILE *OpenFile(const std::filesystem::path &Path) {
+#ifdef VS_TARGET_OS_WINDOWS
+    return _wfopen(Path.c_str(), L"wb");
+#else
+    return fopen(Path.c_str(), "wb");
+#endif
+}
+
 /////////////////////////////////////////////
 
 enum class VSPipeMode {
@@ -110,11 +119,11 @@ struct VSPipeOptions {
     bool printProgress = false;
     bool printFilterTime = false;
     bool calculateMD5 = false;
-    nstring scriptFilename;
-    nstring outputFilename;
-    nstring timecodesFilename;
-    nstring jsonFilename;
-    nstring filterTimeGraphFilename;
+    std::filesystem::path scriptFilename;
+    std::filesystem::path outputFilename;
+    std::filesystem::path timecodesFilename;
+    std::filesystem::path jsonFilename;
+    std::filesystem::path filterTimeGraphFilename;
     std::map<std::string, std::string> scriptArgs;
 };
 
@@ -627,9 +636,8 @@ static const char *colorFamilyToString(int colorFamily) {
     return "Error";
 }
 
-static bool nstringToInt64(const nstring &ns, int64_t &result) {
+static bool nstringToInt64(const nstring &s, int64_t &result) {
     size_t pos = 0;
-    std::string s = nstringToUtf8(ns);
     try {
         result = std::stoll(s, &pos);
     } catch (std::invalid_argument &) {
@@ -640,9 +648,8 @@ static bool nstringToInt64(const nstring &ns, int64_t &result) {
     return pos == s.length();
 }
 
-static bool nstringToInt(const nstring &ns, int &result) {
+static bool nstringToInt(const nstring &s, int &result) {
     size_t pos = 0;
-    std::string s = nstringToUtf8(ns);
     try {
         result = std::stoi(s, &pos);
     } catch (std::invalid_argument &) {
@@ -944,11 +951,7 @@ int main(int argc, char **argv) {
     } else if (opts.outputFilename == NSTRING(".") || opts.outputFilename == NSTRING("--")) {
         // do nothing
     } else {
-#ifdef VS_TARGET_OS_WINDOWS
-        outFile = _wfopen(opts.outputFilename.c_str(), L"wb");
-#else
-        outFile = fopen(opts.outputFilename.c_str(), "wb");
-#endif
+        outFile = OpenFile(opts.outputFilename);
         if (!outFile) {
             fprintf(stderr, "Failed to open output for writing\n");
             return 1;
@@ -958,11 +961,7 @@ int main(int argc, char **argv) {
 
     FILE *timecodesFile = nullptr;
     if (opts.mode == VSPipeMode::Output && !opts.timecodesFilename.empty()) {
-#ifdef VS_TARGET_OS_WINDOWS
-        timecodesFile = _wfopen(opts.timecodesFilename.c_str(), L"wb");
-#else
-        timecodesFile = fopen(opts.timecodesFilename.c_str(), "wb");
-#endif
+        timecodesFile = OpenFile(opts.timecodesFilename);
         if (!timecodesFile) {
             fprintf(stderr, "Failed to open timecodes file for writing\n");
             return 1;
@@ -971,11 +970,7 @@ int main(int argc, char **argv) {
 
     FILE *jsonFile = nullptr;
     if (opts.mode == VSPipeMode::Output && !opts.jsonFilename.empty()) {
-#ifdef VS_TARGET_OS_WINDOWS
-        jsonFile = _wfopen(opts.jsonFilename.c_str(), L"wb");
-#else
-        jsonFile = fopen(opts.jsonFilename.c_str(), "wb");
-#endif
+        jsonFile = OpenFile(opts.jsonFilename);
         if (!jsonFile) {
             fprintf(stderr, "Failed to open JSON file for writing\n");
             return 1;
@@ -984,11 +979,7 @@ int main(int argc, char **argv) {
 
     FILE *filterTimeGraphFile = nullptr;
     if (opts.mode == VSPipeMode::Output && !opts.filterTimeGraphFilename.empty()) {
-#ifdef VS_TARGET_OS_WINDOWS
-        filterTimeGraphFile = _wfopen(opts.filterTimeGraphFilename.c_str(), L"wb");
-#else
-        filterTimeGraphFile = fopen(opts.filterTimeGraphFilename.c_str(), "wb");
-#endif
+        filterTimeGraphFile = OpenFile(opts.filterTimeGraphFilename);
         if (!filterTimeGraphFile) {
             fprintf(stderr, "Failed to open filter time graph file for writing\n");
             return 1;

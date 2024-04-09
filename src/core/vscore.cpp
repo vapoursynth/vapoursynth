@@ -1870,8 +1870,7 @@ VSCore::VSCore(int flags) :
     plugins.insert(std::make_pair(p->getID(), p));
 
 #ifdef VS_TARGET_OS_WINDOWS
-
-    const std::wstring filter = L"*.dll";
+    const std::string filter = "*.dll";
 
 #ifdef _WIN64
     #define VS_INSTALL_REGKEY L"Software\\VapourSynth"
