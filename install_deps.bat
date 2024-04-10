@@ -7,7 +7,7 @@ IF NOT EXIST AviSynthPlus (
 )
 
 IF NOT EXIST libp2p (
-    git clone https://github.com/sekrit-twc/libp2p
+    git clone https://bitbucket.org/the-sekrit-twc/libp2p.git
 ) ELSE (
     echo libp2p: & pushd libp2p & git pull &popd
 )
