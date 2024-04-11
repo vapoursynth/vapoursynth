@@ -1672,17 +1672,21 @@ bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path) {
     const std::string filter = ".so";
 #endif
 
-    for (const auto &iter : std::filesystem::directory_iterator(path)) {
-        std::error_code ec;
-        if (iter.is_regular_file(ec) && !ec && iter.path().extension() == filter) {
-            try {
-                loadPlugin(iter.path());
-            } catch (VSNoEntryPointException &) {
-                // do nothing since we may encounter supporting dlls without an entry point
-            } catch (VSException &e) {
-                logMessage(mtWarning, e.what());
+    try {
+        for (const auto &iter : std::filesystem::directory_iterator(path)) {
+            std::error_code ec;
+            if (iter.is_regular_file(ec) && !ec && iter.path().extension() == filter) {
+                try {
+                    loadPlugin(iter.path());
+                } catch (VSNoEntryPointException &) {
+                    // do nothing since we may encounter supporting dlls without an entry point
+                } catch (VSException &e) {
+                    logMessage(mtWarning, e.what());
+                }
             }
         }
+    } catch (std::filesystem::filesystem_error &) {
+        return false;
     }
 
     return true;
