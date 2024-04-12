@@ -858,6 +858,8 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
 
         for (int i = startFrame; i <= endFrame; i++) {
             const VSFrame *f = vsapi->getFrame(i, parent->audioNode, nullptr, 0);
+            if (!f)
+                return E_FAIL;
             int64_t firstFrameSample = i * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
             size_t offset = 0;
             size_t copyLength = VS_AUDIO_FRAME_SAMPLES;
