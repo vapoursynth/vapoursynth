@@ -1,0 +1,14 @@
+diff --git a/src/core/vscore.cpp b/src/core/vscore.cpp
+index f901ec46..1eff32ca 100644
+--- a/src/core/vscore.cpp
++++ b/src/core/vscore.cpp
+@@ -1898,7 +1898,8 @@ VSCore::VSCore(int flags) :
+         std::string userPluginDir(tmp ? tmp : "");
+ 
+         tmp = vs_internal_vsapi.mapGetData(settings, "SystemPluginDir", 0, &err);
+-        std::string systemPluginDir(tmp ? tmp : VS_PATH_PLUGINDIR);
++        const char * volatile vs_path_plugindir_cvstr= VS_PATH_PLUGINDIR;
++        std::string systemPluginDir(tmp ? tmp : vs_path_plugindir_cvstr);
+ 
+         tmp = vs_internal_vsapi.mapGetData(settings, "AutoloadUserPluginDir", 0, &err);
+         bool autoloadUserPluginDir = tmp ? std::string(tmp) == "true" : true;

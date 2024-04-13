@@ -1,0 +1,16 @@
+c_compiler:
+  - vs2022
+channel_sources:
+  - defaults conda-forge
+channel_targets:
+  - sdy623 conda-forge
+cxx_compiler:
+  - vs2022
+pin_run_as_build:
+  python:
+    min_pin: x.x
+    max_pin: x.x
+python:
+  - 3.11
+target_platform:
+  - win-64

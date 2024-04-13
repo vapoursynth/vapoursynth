@@ -1,0 +1,24 @@
+diff --git a/msvc_project/Core/Core.vcxproj b/msvc_project/Core/Core.vcxproj
+index 55a797d3..f0b10569 100644
+--- a/msvc_project/Core/Core.vcxproj
++++ b/msvc_project/Core/Core.vcxproj
+@@ -79,8 +79,8 @@
+     <LibraryPath>$(SolutionDir)$(Configuration);$(LibraryPath)</LibraryPath>
+   </PropertyGroup>
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+-    <IncludePath>../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
+-    <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
++    <IncludePath>../../include;$(LIBRARY_INC);$(IncludePath)</IncludePath>
++    <LibraryPath>$(LIBRARY_LIB);$(SolutionDir)$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
+   </PropertyGroup>
+   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+     <ClCompile>
+@@ -157,7 +157,7 @@
+       <GenerateDebugInformation>true</GenerateDebugInformation>
+       <EnableCOMDATFolding>true</EnableCOMDATFolding>
+       <OptimizeReferences>true</OptimizeReferences>
+-      <AdditionalDependencies>z.lib;Advapi32.lib;Shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
++      <AdditionalDependencies>zimg.lib;Advapi32.lib;Shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+       <IgnoreSpecificDefaultLibraries>
+       </IgnoreSpecificDefaultLibraries>
+       <AdditionalOptions>/FORCE:MULTIPLE %(AdditionalOptions)</AdditionalOptions>

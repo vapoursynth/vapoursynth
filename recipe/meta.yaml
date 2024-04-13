@@ -1,0 +1,91 @@
+package:
+  name: vapoursynth
+  version: "{{ environ.get('GIT_TAG') }}+{{ environ.get('GIT_DESCRIBE_HASH') }}"
+
+source:
+  - git_url: https://github.com/sdy623/vapoursynth
+    patches:
+      # Prevent optimization use the length of placeholder path
+      - patches/autoload-system-path-relocatable.patch  # [not win]
+      # Link to zimg library
+      - patches/link-to-zimg-library.patch  # [win]
+      # Do not use fixed python path / version
+      - patches/script-fix-python-path.patch  # [win]
+      # Do not install vapoursynth.dll to site-packages
+      - patches/do-not-install-vapoursynth-dll.patch  # [win]
+  - url: https://github.com/sekrit-twc/libp2p/archive/5e65679ae54d0f9fa412ab36289eb2255e341625.tar.gz  # [win]
+    folder: libp2p  # [win]
+    sha256: c60bd912cbf8923322000529678f03c279b2d36176cd5242ef2640f5bc30bb78  # [win]
+  - url: https://github.com/AviSynth/AviSynthPlus/archive/refs/tags/v3.7.2.tar.gz  # [win]
+    folder: AviSynthPlus  # [win]
+    sha256: 6159fd976dffa62d5db5277cbb0b3b7f7a4ee92fc8667edd32da9840a669ccc1  # [win]
+
+build:
+  number: 0
+  string: py{{ py }}_win64 # [win]
+
+requirements:
+  build:
+    - git
+    - vc14_runtime>=14.29.30139
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+    - autoconf  # [not win]
+    - automake  # [not win]
+    - pkg-config  # [not win]
+    - libtool  # [not win]
+    - make  # [not win]
+    - m2-patch  # [win]
+    - cross-python_{{ target_platform }}  # [build_platform != target_platform]
+    - python  # [build_platform != target_platform]
+    - cython >=0.28 
+  host:
+    - python
+    - cython >=0.28
+    - pip
+    - setuptools
+    - wheel
+    - six
+    - pywin32>=306
+    - zimg =3.0
+
+  run:
+    - python
+
+test:
+  requires:
+    - {{ compiler('c') }}
+  imports:
+    - vapoursynth
+  files:
+    - test_autoload.sh  # [not win]
+    - test_autoload.bat  # [win]
+    - crash-plugin.c
+  source_files:
+    - test
+  commands:
+    - vspipe --version
+    - '"$PYTHON" -c "from vapoursynth import core; print(core.version())"'  # [not win]
+    - '"%PYTHON%" -c "from vapoursynth import core; print(core.version())"'  # [win]
+    - '"%PYTHON%" -m unittest discover -s test -p "*test.py"' # [win]
+    - '"$PYTHON" -m unittest discover -s test -p "*test.py"' # [not win]
+    - bash test_autoload.sh  # [not win]
+    - test_autoload.bat  # [win]
+
+about:
+  home: https://www.vapoursynth.com/
+  summary: A video processing framework with simplicity in mind
+  description: |
+    VapourSynth is an application for video manipulation. Or a plugin. Or a library.
+    It's hard to tell because it has a core library written in C++
+    and a Python module to allow video scripts to be created.
+  license: LGPL-2.1-only
+  license_family: LGPL
+  license_file: COPYING.LESSER
+  doc_url: https://vapoursynth.com/doc/
+  dev_url: https://github.com/vapoursynth/vapoursynth
+
+extra:
+  copy_test_source_files: true
+  recipe-maintainers:
+    - sdy623

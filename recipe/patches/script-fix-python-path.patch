@@ -1,0 +1,35 @@
+diff --git a/msvc_project/VSScript/VSScript.vcxproj b/msvc_project/VSScript/VSScript.vcxproj
+index 7432af58..d004d088 100644
+--- a/msvc_project/VSScript/VSScript.vcxproj
++++ b/msvc_project/VSScript/VSScript.vcxproj
+@@ -146,7 +146,7 @@
+       <FunctionLevelLinking>true</FunctionLevelLinking>
+       <IntrinsicFunctions>true</IntrinsicFunctions>
+       <SDLCheck>false</SDLCheck>
+-      <PreprocessorDefinitions>NOMINMAX;VS_CORE_EXPORTS;VS_TARGET_OS_WINDOWS;_CRT_SECURE_NO_WARNINGS;HAVE_ROUND;NDEBUG</PreprocessorDefinitions>
++      <PreprocessorDefinitions>NOMINMAX;VS_CORE_EXPORTS;VS_TARGET_OS_WINDOWS;_CRT_SECURE_NO_WARNINGS;HAVE_ROUND;NDEBUG;VS_PYTHON_VERSION="$(CONDA_PY)"</PreprocessorDefinitions>
+       <BufferSecurityCheck>false</BufferSecurityCheck>
+       <ConformanceMode>true</ConformanceMode>
+       <LanguageStandard>stdcpp14</LanguageStandard>
+@@ -155,7 +155,7 @@
+       <GenerateDebugInformation>true</GenerateDebugInformation>
+       <EnableCOMDATFolding>true</EnableCOMDATFolding>
+       <OptimizeReferences>true</OptimizeReferences>
+-      <DelayLoadDLLs>python312.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
++      <DelayLoadDLLs>python$(CONDA_PY).dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+     </Link>
+   </ItemDefinitionGroup>
+   <ItemGroup>
+diff --git a/src/vsscript/vsscript.cpp b/src/vsscript/vsscript.cpp
+index 247ff6a6..3a9f6fd7 100644
+--- a/src/vsscript/vsscript.cpp
++++ b/src/vsscript/vsscript.cpp
+@@ -51,7 +51,7 @@ static void real_init(void) VS_NOEXCEPT {
+ #ifdef VSSCRIPT_PYTHON38
+     const std::wstring pythonDllName = L"python38.dll";
+ #else
+-    const std::wstring pythonDllName = L"python312.dll";
++    const std::wstring pythonDllName = L"python" VS_PYTHON_VERSION ".dll";
+ #endif
+ 
+     // portable

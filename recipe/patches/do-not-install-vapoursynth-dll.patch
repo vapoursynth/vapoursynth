@@ -1,0 +1,22 @@
+diff --git a/setup.py b/setup.py
+index 7b5893ac..fa38dc4e 100644
+--- a/setup.py
++++ b/setup.py
+@@ -19,7 +19,7 @@ is_portable = False
+ self_path = Path(__file__).resolve()
+ CURRENT_RELEASE = self_path.parent.joinpath('VAPOURSYNTH_VERSION').read_text('utf8').split(' ')[-1].strip().split('-')[0]
+ 
+-if is_win:
++if False:
+     if is_64:
+         library_dirs.append(join("msvc_project", "x64", "Release"))
+         lib_suffix = "lib64"
+@@ -96,7 +96,7 @@ setup(
+     author_email="fredrik.mellbin@gmail.com",
+     license="LGPL 2.1 or later",
+     version=CURRENT_RELEASE,
+-    long_description="A portable replacement for Avisynth" if is_portable else "A modern replacement for Avisynth",
++    long_description="A modern replacement for Avisynth",
+     platforms="All",
+     ext_modules=[
+         Extension(
