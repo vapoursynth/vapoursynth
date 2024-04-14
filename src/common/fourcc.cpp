@@ -28,16 +28,16 @@
 
 namespace {
 
-constexpr VSColorFamily cfPackedRGB = static_cast<VSColorFamily>(-static_cast<int>(cfRGB));
-constexpr VSColorFamily cfPackedYUV = static_cast<VSColorFamily>(-static_cast<int>(cfYUV));
+constexpr int cfPackedRGB = -static_cast<int>(cfRGB);
+constexpr int cfPackedYUV = -static_cast<int>(cfYUV);
 
 constexpr unsigned UPSIDE_DOWN = 1;
 constexpr unsigned SWAP_UV = 2;
 constexpr unsigned NV_PACKED = 4;
-constexpr p2p_packing PLANAR = static_cast<p2p_packing>(-1);
+constexpr p2p_packing PLANAR = p2p_packing_max;
 
 struct Traits {
-    unsigned colorFamily;
+    int colorFamily;
     unsigned sampleType;
     unsigned bitsPerSample;
     unsigned subSamplingW;
