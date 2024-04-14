@@ -24,7 +24,7 @@
 #include <string>
 #include <windows.h>
 
-static std::string utf16_to_utf8(const std::wstring &wstr) {
+static inline std::string utf16_to_utf8(const std::wstring &wstr) {
     int required_size = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
     std::string buffer;
     buffer.resize(required_size - 1);
@@ -32,7 +32,7 @@ static std::string utf16_to_utf8(const std::wstring &wstr) {
     return buffer;
 }
 
-static std::wstring utf16_from_utf8(const std::string &str) {
+static inline std::wstring utf16_from_utf8(const std::string &str) {
     int required_size = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
     std::wstring wbuffer;
     wbuffer.resize(required_size - 1);

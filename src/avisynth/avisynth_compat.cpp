@@ -931,7 +931,6 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
     size_t paramLength = strlen(params);
     size_t paramPos = 0;
     int argNum = 1;
-    int numArgs = 0;
     std::vector<AvisynthArgs> parsedArgs;
     std::string newArgs;
     std::string fname(name);
@@ -971,8 +970,6 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
             paramPos++;
             argNum++;
         }
-
-        numArgs++;
     }
 
     newArgs += "compatpack:int:opt;";
@@ -1134,7 +1131,6 @@ PVideoFrame FakeAvisynth::Subframe(PVideoFrame src, int rel_offset, int new_pitc
         vsapi->logMessage(mtFatal, "Subframe only partially implemented (row_size != new_row_size)", core);
     // not pretty at all, but the underlying frame has to be fished out to have any idea what the input really is
     const VSFrame *f = avsToVSFrame((VideoFrame *)(void *)src);
-    const VSVideoFormat *fi = vsapi->getVideoFrameFormat(f);
     VideoInfo vi;
     vi.height = new_height;
     vi.width = vsapi->getFrameWidth(f, 0);

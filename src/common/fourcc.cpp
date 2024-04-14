@@ -97,10 +97,6 @@ const Traits *find_traits(const VSVideoFormat &fi, int alt_output) {
 
 } // namespace
 
-static bool IsSameVideoFormat(const VSVideoFormat &f, unsigned colorFamily, unsigned sampleType, unsigned bitsPerSample, unsigned subSamplingW = 0, unsigned subSamplingH = 0) noexcept {
-    return f.colorFamily == colorFamily && f.sampleType == sampleType && f.bitsPerSample == bitsPerSample && f.subSamplingW == subSamplingW && f.subSamplingH == subSamplingH;
-}
-
 bool GetFourCC(const VSVideoFormat &fi, int alt_output, unsigned long &fourcc) {
     const Traits *traits = find_traits(fi, alt_output);
     fourcc = traits ? traits->fourcc : VS_FCC('UNKN');

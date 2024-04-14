@@ -582,7 +582,6 @@ bool/*success*/ AvfsAvi2File::Init(
   Avi2SuperIndxEntry* vidIndxEnts = 0;
   Avi2SuperIndxEntry* audIndxEnts = 0;
   Avi2OldIndxEntry* oldIndxEnts = 0;
-  uint64_t frameStartSample;
   unsigned frameSampleCount;
   unsigned frameAudDataSize;
   unsigned oldi;
@@ -1006,8 +1005,8 @@ bool/*success*/ AvfsAvi2File::Init(
         seg->frameIndx[segFrame] = segDataSize;
 
         if (segFrame < segAudFrameCount) {
-          frameStartSample = LocateFrameSamples(segStartFrame+segFrame,
-                                                (segFrame+1 == segAudFrameCount) ? segLastAudFramePackCount+1 : 1,
+          LocateFrameSamples(segStartFrame+segFrame,
+              (segFrame+1 == segAudFrameCount) ? segLastAudFramePackCount+1 : 1,
                                                 &frameSampleCount);
           ASSERT(frameSampleCount);
           frameAudDataSize = frameSampleCount*sampleSize;
@@ -1297,7 +1296,6 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
   unsigned segi = 0;
   size_t offset = 0;
   unsigned b;
-  unsigned check;
   RiffTag riffTag;
   Seg* seg;
 
@@ -1347,7 +1345,6 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
 
     // Binary search for frame containing start of needed data.
     unsigned segFrame = 0;
-    check = 0;
     if (offset >= seg->dataSize) {
       offset -= seg->dataSize;
       segFrame = UINT_MAX;
@@ -1368,8 +1365,6 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
     }
 
     while (remainingSize && segFrame < seg->frameCount) {
-      check = 0;
-
       if(segFrame < seg->audFrameCount) {
         // Last audio frame may get extra samples if in interleave
         // disabled.
@@ -1382,7 +1377,6 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         unsigned audAlignSize = RiffAlignUp(audDataSize)-audDataSize;
 
         // Copy any needed portion of frame audio header.
-        check += sizeof(riffTag);
         if (offset >= sizeof(riffTag)) {
           offset -= sizeof(riffTag);
         }
@@ -1403,7 +1397,6 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         }
 
         // Copy any needed frame audio data.
-        check += audDataSize;
         if (offset >= audDataSize) {
           offset -= audDataSize;
         }
@@ -1450,7 +1443,6 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         }
 
         // Pad audio data up to riff alignment.
-        check += audAlignSize;
         if (offset >= audAlignSize) {
           offset -= audAlignSize;
         }
@@ -1470,7 +1462,6 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
 
       if (segFrame < seg->vidFrameCount) {
         // Copy any needed portion of frame video header.
-        check += sizeof(riffTag);
         if (offset >= sizeof(riffTag)) {
           offset -= sizeof(riffTag);
         }
@@ -1491,7 +1482,6 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         }
 
         // Copy needed portion of frame video data.
-        check += frameVidDataSize;
         if (offset >= frameVidDataSize) {
           offset -= frameVidDataSize;
         }
@@ -1510,7 +1500,6 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         }
 
         // Pad video data up to riff alignment.
-        check += frameVidAlignSize;
         if (offset >= frameVidAlignSize) {
           offset -= frameVidAlignSize;
         }

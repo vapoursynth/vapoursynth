@@ -156,7 +156,7 @@ static inline bool getProcessPlanesArg(const VSMap *in, VSMap *out, const char *
     return true;
 }
 
-static bool is8to16orFloatFormat(const VSVideoFormat &fi, bool allowHalfFloat = false, bool allowVariable = false) {
+static inline bool is8to16orFloatFormat(const VSVideoFormat &fi, bool allowHalfFloat = false, bool allowVariable = false) {
     if (fi.colorFamily == cfUndefined && !allowVariable)
         return false;
 
@@ -166,7 +166,7 @@ static bool is8to16orFloatFormat(const VSVideoFormat &fi, bool allowHalfFloat = 
     return true;
 }
 
-static std::string invalidVideoFormatMessage(
+static inline std::string invalidVideoFormatMessage(
     const VSVideoFormat &fi, const VSAPI *vsapi, const char * filterName = nullptr, bool allowHalfFloat = false, bool allowVariable = false,
     bool isFrame = false
 ) {
