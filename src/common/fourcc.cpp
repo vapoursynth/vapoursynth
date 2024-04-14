@@ -68,9 +68,11 @@ constexpr Traits fourcc_traits[] = {
     { cfYUV,  stInteger,  8, 1, 0, 2, VS_FCC('UYVY'), p2p_uyvy,       2 },
     { cfYUV,  stInteger,  8, 2, 2, 0, VS_FCC('YVU9'), PLANAR,         1 },
     { cfYUV,  stInteger, 10, 1, 1, 0, VS_FCC('P010'), p2p_p010_le,    2, 1,  0, NV_PACKED },
+    { cfYUV,  stInteger, 12, 1, 1, 0, VS_FCC('P016'), p2p_p012_le,    2, 1,  0, NV_PACKED }, // Adjust fourcc if P012 ever becomes a thing
     { cfYUV,  stInteger, 16, 1, 1, 0, VS_FCC('P016'), p2p_p016_le,    2, 1,  0, NV_PACKED },
     { cfYUV,  stInteger, 10, 1, 0, 0, VS_FCC('P210'), p2p_p210_le,    2, 1,  0, NV_PACKED },
     { cfYUV,  stInteger, 10, 1, 0, 1, VS_FCC('v210'), p2p_v210_le,   16, 6, 20, 0, 128 },
+    { cfYUV,  stInteger, 12, 1, 0, 0, VS_FCC('P216'), p2p_p212_le,    2, 1,  0, NV_PACKED }, // Adjust fourcc if P212 ever becomes a thing
     { cfYUV,  stInteger, 16, 1, 0, 0, VS_FCC('P216'), p2p_p216_le,    2, 1,  0, NV_PACKED },
     { cfYUV,  stInteger, 10, 0, 0, 0, VS_FCC('Y410'), p2p_y410_le,    4, 1, 32 },
     { cfYUV,  stInteger, 16, 0, 0, 0, VS_FCC('Y416'), p2p_y416_le,    8, 1, 64 },
