@@ -119,7 +119,7 @@ Preparing things
 
 * Clone VapourSynth
 * Clone VSRepo into the VapourSynth dir (``git clone https://github.com/vapoursynth/vsrepo``)
-* Clone zimg into the VapourSynth dir (``git clone https://github.com/sekrit-twc/zimg.git --recurse-submodules``)
+* Clone zimg into the VapourSynth dir (``git clone https://bitbucket.org/the-sekrit-twc/zimg.git --recurse-submodules``)
 * Clone avs+ into the VapourSynth dir (``git clone https://github.com/AviSynth/AviSynthPlus.git``)
 * Clone libp2p into the VapourSynth dir (``git clone https://bitbucket.org/the-sekrit-twc/libp2p.git``)
 * Place 7z.exe and 7z.dll from `7-zip <https://www.7-zip.org/>`_ into the ``installer`` dir
