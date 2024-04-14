@@ -31,12 +31,15 @@
 namespace expr {
 namespace {
 
+// Technically we only want to avoid clang-cl
+#if !defined(__clang__)
 static_assert(static_cast<int>(ComparisonType::EQ) == _CMP_EQ_OQ, "");
 static_assert(static_cast<int>(ComparisonType::LT) == _CMP_LT_OS, "");
 static_assert(static_cast<int>(ComparisonType::LE) == _CMP_LE_OS, "");
 static_assert(static_cast<int>(ComparisonType::NEQ) == _CMP_NEQ_UQ, "");
 static_assert(static_cast<int>(ComparisonType::NLT) == _CMP_NLT_US, "");
 static_assert(static_cast<int>(ComparisonType::NLE) == _CMP_NLE_US, "");
+#endif
 
 class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t> {
     typedef jitasm::function<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t> jit;
@@ -537,8 +540,8 @@ do { \
             auto t2 = bytecodeRegs[insn.dst];
             XmmReg r1;
             VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
-            VEX2IMM(cmpps, t2.first, t1.first, zero, _CMP_LE_OS);
-            VEX2IMM(cmpps, t2.second, t1.second, zero, _CMP_LE_OS);
+            VEX2IMM(cmpps, t2.first, t1.first, zero, static_cast<int>(ComparisonType::LE));
+            VEX2IMM(cmpps, t2.second, t1.second, zero, static_cast<int>(ComparisonType::LE));
             VEX2(andps, t2.first, t2.first, r1);
             VEX2(andps, t2.second, t2.second, r1);
         });
@@ -551,10 +554,10 @@ do { \
   auto t3 = bytecodeRegs[insn.dst]; \
   XmmReg r1, tmp1, tmp2; \
   VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]); \
-  VEX2IMM(cmpps, tmp1, t1.first, zero, _CMP_NLE_US); \
-  VEX2IMM(cmpps, tmp2, t1.second, zero, _CMP_NLE_US); \
-  VEX2IMM(cmpps, t3.first, t2.first, zero, _CMP_NLE_US); \
-  VEX2IMM(cmpps, t3.second, t2.second, zero, _CMP_NLE_US); \
+  VEX2IMM(cmpps, tmp1, t1.first, zero, static_cast<int>(ComparisonType::NLE)); \
+  VEX2IMM(cmpps, tmp2, t1.second, zero, static_cast<int>(ComparisonType::NLE)); \
+  VEX2IMM(cmpps, t3.first, t2.first, zero, static_cast<int>(ComparisonType::NLE)); \
+  VEX2IMM(cmpps, t3.second, t2.second, zero, static_cast<int>(ComparisonType::NLE)); \
   VEX2(op, t3.first, t3.first, tmp1); \
   VEX2(op, t3.second, t3.second, tmp2); \
   VEX2(andps, t3.first, t3.first, r1); \
@@ -612,8 +615,8 @@ do { \
             auto t4 = bytecodeRegs[insn.dst];
 
             XmmReg r1, r2;
-            VEX2IMM(cmpps, r1, t1.first, zero, _CMP_NLE_US);
-            VEX2IMM(cmpps, r2, t1.second, zero, _CMP_NLE_US);
+            VEX2IMM(cmpps, r1, t1.first, zero, static_cast<int>(ComparisonType::NLE));
+            VEX2IMM(cmpps, r2, t1.second, zero, static_cast<int>(ComparisonType::NLE));
 
             if (cpuFeatures.sse4_1) {
                 VEX2IMM(blendvps, t4.first, t3.first, t2.first, r1);
@@ -638,7 +641,7 @@ do { \
         VEX2(addps, fx, fx, xmmword_ptr[constants + ConstantIndex::float_half * 16]);
         VEX1(cvttps2dq, emm0, fx);
         VEX1(cvtdq2ps, etmp, emm0);
-        VEX2IMM(cmpps, mask, etmp, fx, _CMP_NLE_US);
+        VEX2IMM(cmpps, mask, etmp, fx, static_cast<int>(ComparisonType::NLE));
         VEX2(andps, mask, mask, one);
         VEX2(subps, fx, etmp, mask);
         VEX2(mulps, etmp, fx, xmmword_ptr[constants + ConstantIndex::exp_c1 * 16]);
@@ -675,7 +678,7 @@ do { \
         VEX2(psubd, emm0, emm0, xmmword_ptr[constants + ConstantIndex::x7F * 16]);
         VEX1(cvtdq2ps, emm0, emm0);
         VEX2(addps, emm0, emm0, one);
-        VEX2IMM(cmpps, mask, x, xmmword_ptr[constants + ConstantIndex::sqrt_1_2 * 16], _CMP_LT_OS);
+        VEX2IMM(cmpps, mask, x, xmmword_ptr[constants + ConstantIndex::sqrt_1_2 * 16], static_cast<int>(ComparisonType::LT));
         VEX2(andps, etmp, x, mask);
         VEX2(subps, x, x, one);
         VEX2(andps, mask, mask, one);
@@ -1370,7 +1373,7 @@ do { \
             auto t1 = bytecodeRegs[insn.src1];
             auto t2 = bytecodeRegs[insn.dst];
             YmmReg r1;
-            vcmpps(t2, t1, zero, _CMP_LE_OS);
+            vcmpps(t2, t1, zero, static_cast<int>(ComparisonType::LE));
             vandps(t2, t2, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
         });
     }
@@ -1381,8 +1384,8 @@ do { \
   auto t2 = bytecodeRegs[insn.src2]; \
   auto t3 = bytecodeRegs[insn.dst]; \
   YmmReg tmp; \
-  vcmpps(tmp, t1, zero, _CMP_NLE_US); \
-  vcmpps(t3, t2, zero, _CMP_NLE_US); \
+  vcmpps(tmp, t1, zero, static_cast<int>(ComparisonType::NLE)); \
+  vcmpps(t3, t2, zero, static_cast<int>(ComparisonType::NLE)); \
   op(t3, t3, tmp); \
   vandps(t3, t3, ymmword_ptr[constants + ConstantIndex::float_one * 32]); \
 } while (0)
@@ -1433,7 +1436,7 @@ do { \
             auto t3 = bytecodeRegs[insn.src3];
             auto t4 = bytecodeRegs[insn.dst];
             YmmReg r1;
-            vcmpps(r1, t1, zero, _CMP_NLE_US);
+            vcmpps(r1, t1, zero, static_cast<int>(ComparisonType::NLE));
             vblendvps(t4, t3, t2, r1);
         });
     }
@@ -1447,7 +1450,7 @@ do { \
         vfmadd213ps(fx, x, ymmword_ptr[constants + ConstantIndex::float_half * 32]);
         vcvttps2dq(emm0, fx);
         vcvtdq2ps(etmp, emm0);
-        vcmpps(mask, etmp, fx, _CMP_NLE_US);
+        vcmpps(mask, etmp, fx, static_cast<int>(ComparisonType::NLE));
         vandps(mask, mask, one);
         vsubps(fx, etmp, mask);
         vfnmadd231ps(x, fx, ymmword_ptr[constants + ConstantIndex::exp_c1 * 32]);
@@ -1477,7 +1480,7 @@ do { \
         vpsubd(emm0, emm0, ymmword_ptr[constants + ConstantIndex::x7F * 32]);
         vcvtdq2ps(emm0, emm0);
         vaddps(emm0, emm0, one);
-        vcmpps(mask, x, ymmword_ptr[constants + ConstantIndex::sqrt_1_2 * 32], _CMP_LT_OS);
+        vcmpps(mask, x, ymmword_ptr[constants + ConstantIndex::sqrt_1_2 * 32], static_cast<int>(ComparisonType::LT));
         vandps(etmp, x, mask);
         vsubps(x, x, one);
         vandps(mask, mask, one);
