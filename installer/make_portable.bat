@@ -7,6 +7,7 @@ mkdir Compiled
 echo param(> Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
 echo     [int]$VSVersion = %VERSION_STRING%,>> Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
 type install-portable-vapoursynth.ps1 >> Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
+echo powershell.exe -executionpolicy bypass -file Install-Portable-VapourSynth-R%VERSION_STRING%.ps1 %%* > Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.bat
 mkdir buildp64\vs-coreplugins
 mkdir buildp64\vs-plugins
 mkdir buildp64\sdk\include\vapoursynth
