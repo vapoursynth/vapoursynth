@@ -101,7 +101,7 @@ setup(
     ext_modules=[
         Extension(
             "vapoursynth", [join("src", "cython", "vapoursynth.pyx")],
-            define_macros=[("VS_GRAPH_API", None), ("VS_CURRENT_RELEASE", CURRENT_RELEASE)],
+            define_macros=[("VS_USE_LATEST_API", None), ("VS_GRAPH_API", None), ("VS_CURRENT_RELEASE", CURRENT_RELEASE)],
             libraries=["vapoursynth"],
             library_dirs=library_dirs,
             include_dirs=[
