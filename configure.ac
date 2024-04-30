@@ -136,7 +136,8 @@ AC_ARG_ENABLE([core], AS_HELP_STRING([--enable-core], [Build the VapourSynth cor
 AS_IF(
       [test "x$enable_core" != "xno"],
       [
-       AC_DEFINE([VS_CORE_EXPORTS])
+       AC_DEFINE([VS_CORE_EXPORTS])    
+       AC_DEFINE([VS_USE_LATEST_API])
        AC_DEFINE([VS_GRAPH_API])
 
        PKG_CHECK_MODULES([ZIMG], [zimg >= 3.0.5])
