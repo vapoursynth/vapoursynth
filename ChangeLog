@@ -1,4 +1,6 @@
 r67:
+since most plugins don't need api 4.1 you now have to define VS_USE_LATEST_API or VS_USE_API_41 to actually require it
+fixed a minor performance issue
 all suitable constants are now IntEnum type instead of IntFlag when compiled with cython 3.x
 fixed constants in vapoursynth module not being correctly coerced to int type when used passed to plugin functions due to cython 3.x changes
 vfw and avfs will now output YUV420P12 and YUV422P12 as P016 and P216 fourcc (16 bit) to make things more convenient
