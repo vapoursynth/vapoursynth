@@ -2077,7 +2077,7 @@ cdef class RawNode(object):
     cdef bint _inspectable(self):
         if self.funcs.getAPIVersion() != VAPOURSYNTH_API_VERSION:
             return False
-        return bool(self.core.flags & CoreCreationFlags.EnableGraphInspection)
+        return bool(self.core.flags & ccfEnableGraphInspection)
 
     def is_inspectable(self, version=None):
         if version != 0:
