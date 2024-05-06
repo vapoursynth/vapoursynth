@@ -32,12 +32,12 @@
 #include <vector>
 #include <chrono>
 #include <thread>
+#include <filesystem>
 
 #include "VSScript4.h"
 #include "VSHelper4.h"
 #include "../common/fourcc.h"
 #include "../common/wave.h"
-#include "../common/vsutf16.h"
 
 using namespace vsh;
 
@@ -66,7 +66,7 @@ private:
     VSNode *videoNode = nullptr;
     VSNode *audioNode = nullptr;
     std::atomic<long> m_refs;
-    std::string szScriptName;
+    std::filesystem::path szScriptName;
     const VSVideoInfo *vi = nullptr;
     const VSAudioInfo* ai = nullptr;
     std::string error_msg;
@@ -114,11 +114,6 @@ public:
     STDMETHODIMP EndRecord() noexcept;
     STDMETHODIMP GetStream(PAVISTREAM *ppStream, DWORD fccType, LONG lParam) noexcept;
     STDMETHODIMP Info(AVIFILEINFOW *psi, LONG lSize) noexcept;
-
-    STDMETHODIMP Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName);
-    STDMETHODIMP Save(LPCSTR szFile, AVICOMPRESSOPTIONS FAR *lpOptions,
-        AVISAVECALLBACK lpfnCallback);
-
     STDMETHODIMP ReadData(DWORD fcc, LPVOID lp, LONG *lpcb) noexcept;
     STDMETHODIMP WriteData(DWORD fcc, LPVOID lpBuffer, LONG cbBuffer) noexcept;
     STDMETHODIMP DeleteStream(DWORD fccType, LONG lParam) noexcept;
@@ -225,7 +220,10 @@ STDMETHODIMP VapourSynthFile::IsDirty() {
 }
 
 STDMETHODIMP VapourSynthFile::Load(LPCOLESTR lpszFileName, DWORD grfMode) {
-    return Open(utf16_to_utf8(lpszFileName).c_str(), grfMode, lpszFileName);
+    if (grfMode & (OF_CREATE | OF_WRITE))
+        return E_FAIL;
+    szScriptName = lpszFileName;
+    return S_OK;
 }
 
 STDMETHODIMP VapourSynthFile::Save(LPCOLESTR lpszFileName, BOOL fRemember) {
@@ -355,11 +353,6 @@ STDMETHODIMP VapourSynthFile::EndRecord() noexcept {
     return AVIERR_READONLY;
 }
 
-STDMETHODIMP VapourSynthFile::Save(LPCSTR szFile, AVICOMPRESSOPTIONS FAR *lpOptions,
-    AVISAVECALLBACK lpfnCallback) {
-    return AVIERR_READONLY;
-}
-
 STDMETHODIMP VapourSynthFile::ReadData(DWORD fcc, LPVOID lp, LONG *lpcb) noexcept {
     return AVIERR_NODATA;
 }
@@ -403,13 +396,6 @@ VapourSynthFile::~VapourSynthFile() {
     Unlock();
 }
 
-STDMETHODIMP VapourSynthFile::Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName) {
-    if (mode & (OF_CREATE | OF_WRITE))
-        return E_FAIL;
-    szScriptName = szFile;
-    return S_OK;
-}
-
 bool VapourSynthFile::DelayInit() {
     Lock();
     bool result = DelayInit2();
@@ -436,7 +422,7 @@ bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
         se = vssapi->createScript(nullptr);
         vssapi->evalSetWorkingDir(se, 1);
-        vssapi->evaluateFile(se, szScriptName.c_str());
+        vssapi->evaluateFile(se, szScriptName.u8string().c_str());
 
         if (!vssapi->getError(se)) {
             error_msg.clear();

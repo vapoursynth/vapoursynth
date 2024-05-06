@@ -166,7 +166,6 @@
     <ClInclude Include="..\..\include\VSHelper4.h" />
     <ClInclude Include="..\..\include\VSScript4.h" />
     <ClInclude Include="..\..\src\common\fourcc.h" />
-    <ClInclude Include="..\..\src\common\vsutf16.h" />
     <ClInclude Include="..\..\src\common\wave.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
