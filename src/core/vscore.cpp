@@ -1772,11 +1772,11 @@ void VSCore::isPortableInit() {
     std::vector<wchar_t> pathBuf(65536);
     GetModuleFileName(module, pathBuf.data(), (DWORD)pathBuf.size());
     m_basePath = pathBuf.data();
-    int levels = 4;
+    int level = 4;
     do {
         m_basePath = m_basePath.parent_path();
         m_isPortable = std::filesystem::exists(m_basePath / L"portable.vs");
-    } while (!m_isPortable && --levels > 0 && m_basePath.empty());
+    } while (!m_isPortable && --level > 0 && !m_basePath.empty());
 }
 #endif
 
@@ -1839,17 +1839,12 @@ VSCore::VSCore(int flags) :
     std::call_once(m_portableOnceFlag, isPortableInit);
 
     if (m_isPortable) {
-        // Use alternative search strategy relative to dll path
-
         // Autoload bundled plugins
         if (!loadAllPluginsInPath(m_basePath / L"vs-coreplugins"))
             logMessage(mtCritical, "Core plugin autoloading failed. Installation is broken?");
 
-        if (!disableAutoLoading) {
-            // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
-            // and accidentally block updated bundled versions
+        if (!disableAutoLoading)
             loadAllPluginsInPath(m_basePath / L"vs-plugins");
-        }
     } else {
         // Autoload user specific plugins first so a user can always override
         std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
@@ -1868,8 +1863,6 @@ VSCore::VSCore(int flags) :
             // Autoload per user plugins
             loadAllPluginsInPath(appDataPath);
 
-            // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
-            // and accidentally block user installed ones
             std::wstring globalPluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"Plugins");
             loadAllPluginsInPath(globalPluginPath);
         }
