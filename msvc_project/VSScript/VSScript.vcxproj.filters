@@ -20,9 +20,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\common\vsutf16.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\VapourSynth4.h">
       <Filter>Header Files</Filter>
     </ClInclude>

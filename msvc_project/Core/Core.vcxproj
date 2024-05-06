@@ -250,7 +250,6 @@
     <ClInclude Include="..\..\include\VapourSynth4.h" />
     <ClInclude Include="..\..\include\VSHelper.h" />
     <ClInclude Include="..\..\include\VSHelper4.h" />
-    <ClInclude Include="..\..\src\common\vsutf16.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
     <ClInclude Include="..\..\src\core\expr\expr.h" />
     <ClInclude Include="..\..\src\core\expr\jitasm.h" />

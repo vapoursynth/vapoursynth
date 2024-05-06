@@ -39,7 +39,6 @@
 #ifdef VS_TARGET_OS_WINDOWS
 #include <shlobj.h>
 #include <locale>
-#include "../common/vsutf16.h"
 #endif
 
 // Internal filter headers

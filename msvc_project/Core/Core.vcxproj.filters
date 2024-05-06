@@ -182,9 +182,6 @@
     <ClInclude Include="..\..\src\core\internalfilters.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\common\vsutf16.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\core\kernel\transpose.h">
       <Filter>Header Files\kernel</Filter>
     </ClInclude>

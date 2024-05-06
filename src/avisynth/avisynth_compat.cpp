@@ -28,7 +28,6 @@
 #include <cstddef>
 #include <limits>
 #include <filesystem>
-#include "../common/vsutf16.h"
 #include "p2p_api.h"
 
 #include <Windows.h>
