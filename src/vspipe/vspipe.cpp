@@ -233,11 +233,7 @@ static void VS_CC logMessageHandler(int msgType, const char *msg, void *userData
 #else
     if (msgType >= mtDebug)
 #endif
-#ifdef VS_TARGET_OS_WINDOWS
-        fwprintf(stderr, L"%s: %s\n", utf16_from_utf8(messageTypeToString(msgType)).c_str(), utf16_from_utf8(msg).c_str());
-#else
         fprintf(stderr, "%s: %s\n", messageTypeToString(msgType), msg);
-#endif
 }
 
 static bool isCompletedFrame(const std::pair<const VSFrame *, const VSFrame *> &f, bool hasAlpha) {
@@ -1015,11 +1011,7 @@ int main(int argc, char **argv) {
     if (vssapi->getError(se)) {
         int code = vssapi->getExitCode(se);
         if (code == 0) code = 1;
-#ifdef VS_TARGET_OS_WINDOWS
-        fwprintf(stderr, L"Script evaluation failed:\n%s\n", utf16_from_utf8(vssapi->getError(se)).c_str());
-#else
         fprintf(stderr, "Script evaluation failed:\n%s\n", vssapi->getError(se));
-#endif
         vssapi->freeScript(se);
         return code;
     }
@@ -1082,11 +1074,7 @@ int main(int argc, char **argv) {
             }
 
             if (mapError) {
-#ifdef VS_TARGET_OS_WINDOWS
-                fwprintf(stderr, L"%s\n", utf16_from_utf8(vsapi->mapGetError(mapError)).c_str());
-#else
                 fprintf(stderr, "%s\n", vsapi->mapGetError(mapError));
-#endif
                 vsapi->freeMap(mapError);
                 vsapi->freeMap(result);
                 vsapi->freeMap(alphaResult);

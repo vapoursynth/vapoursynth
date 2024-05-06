@@ -19,7 +19,7 @@
 */
 
 #include "vsjson.h"
-#include "clocale"
+#include <clocale>
 
 static bool isAsciiPrintable(const std::string &s) {
     for (const auto c : s)
