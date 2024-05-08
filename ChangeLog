@@ -1,3 +1,8 @@
+r68:
+fixed portable base path detection, was broken in r67
+fixed is_inspectable, was broken in r67
+reverted widestring print changes in vspipe from r67
+
 r67:
 since most plugins don't need api 4.1 you now have to define VS_USE_LATEST_API or VS_USE_API_41 to actually require it
 fixed a minor performance issue
