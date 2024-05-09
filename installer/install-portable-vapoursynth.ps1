@@ -84,7 +84,7 @@ Start-Sleep -Second 2
 
 New-Item -Path "$DownloadFolder" -ItemType Directory -Force | Out-Null
 
-$ProgressPreference = 'Continue'
+$ProgressPreference = 'SilentlyContinue'
 
 Write-Host "Downloading Python..."
 Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor/python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip" -OutFile "$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip"
