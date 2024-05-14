@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Copyright (c) 2013-2021 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
@@ -914,6 +914,8 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
 #ifdef VS_TARGET_OS_WINDOWS
 int wmain(int argc, wchar_t **argv) {
     SetConsoleCtrlHandler(HandlerRoutine, TRUE);
+    if (GetConsoleOutputCP() != CP_UTF8 && !SetConsoleOutputCP(CP_UTF8))
+        fprintf(stderr, "Failed to set UTF-8 console codepage, some characters may not be correctly displayed\n");
 #else
 int main(int argc, char **argv) {
 #endif
