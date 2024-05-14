@@ -1,3 +1,6 @@
+r69
+now always sets console output codepage to utf8 in windows
+
 r68:
 fixed portable base path detection, was broken in r67
 fixed is_inspectable, was broken in r67

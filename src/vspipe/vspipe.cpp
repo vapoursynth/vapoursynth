@@ -688,7 +688,7 @@ static void printHelp() {
         );
 }
 
-static int parseOptions(VSPipeOptions &opts, int argc, const char **argv) {
+static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
     for (int arg = 1; arg < argc; arg++) {
         std::string_view argString = argv[arg];
         if (argString == "-v" || argString == "--version") {
@@ -886,19 +886,19 @@ static int parseOptions(VSPipeOptions &opts, int argc, const char **argv) {
 }
 
 #ifdef VS_TARGET_OS_WINDOWS
-int main8(int argc, const char **argv);
+int main8(int argc, char **argv);
 
 int wmain(int argc, wchar_t **argv) {
     std::vector<std::string> argv8storage;
-    std::vector<const char *> argv8;
+    std::vector<char *> argv8;
     for (int i = 0; i < argc; i++)
         argv8storage.push_back(utf16_to_utf8(argv[i]));
     for (int i = 0; i < argc; i++)
-        argv8.push_back(argv8storage[i].c_str());
+        argv8.push_back(const_cast<char *>(argv8storage[i].c_str()));
     return main8(argc, argv8.data());
 }
 
-static int main8(int argc, const char **argv) {
+static int main8(int argc, char **argv) {
     SetConsoleCtrlHandler(HandlerRoutine, TRUE);
     if (GetConsoleOutputCP() != CP_UTF8 && !SetConsoleOutputCP(CP_UTF8))
         fprintf(stderr, "Failed to set UTF-8 console codepage, some characters may not be correctly displayed\n");
