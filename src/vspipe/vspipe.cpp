@@ -34,8 +34,7 @@ extern "C" {
 #include <condition_variable>
 #include <algorithm>
 #include <chrono>
-#include <locale>
-#include <sstream>
+#include <charconv>
 #include <filesystem>
 #include "../common/wave.h"
 #ifdef VS_TARGET_OS_WINDOWS
@@ -63,20 +62,6 @@ static BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
     default:
         return FALSE;
     }
-}
-#endif
-
-#ifdef VS_TARGET_OS_WINDOWS
-typedef std::wstring nstring;
-#define NSTRING(x) L##x
-std::string nstringToUtf8(const nstring &s) {
-    return utf16_to_utf8(s);
-}
-#else
-typedef std::string nstring;
-#define NSTRING(x) x
-std::string nstringToUtf8(const nstring &s) {
-    return s;
 }
 #endif
 
@@ -302,6 +287,12 @@ static void outputFrame(const VSFrame *frame, VSPipeOutputData *data) {
     }
 }
 
+static std::string doubleToString(double v) {
+    char buffer[100];
+    auto res = std::to_chars(buffer, buffer + sizeof(buffer), v, std::chars_format::fixed);
+    return std::string(buffer, res.ptr - buffer);
+}
+
 static void VS_CC frameDoneCallback(void *userData, const VSFrame *f, int n, VSNode *rnode, const char *errorMsg) {
     VSPipeOutputData *data = reinterpret_cast<VSPipeOutputData *>(userData);
 
@@ -370,11 +361,7 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrame *f, int n, VSN
                     outputFrame(alphaFrame, data);
 
                 if (data->timecodesFile && !data->outputError) {
-                    std::ostringstream stream;
-                    stream.imbue(std::locale("C"));
-                    stream.setf(std::ios::fixed, std::ios::floatfield);
-                    stream << (data->currentTimecodeNum * 1000 / static_cast<double>(data->currentTimecodeDen));
-                    if (fprintf(data->timecodesFile, "%s\n", stream.str().c_str()) < 0) {
+                    if (fprintf(data->timecodesFile, "%s\n", doubleToString(data->currentTimecodeNum * 1000 / static_cast<double>(data->currentTimecodeDen)).c_str()) < 0) {
                         if (data->errorMessage.empty())
                             data->errorMessage = "Error: failed to write timecode for frame " + std::to_string(data->outputFrames) + ". errno: " + std::to_string(errno);
                         data->totalFrames = data->requestedFrames;
@@ -636,28 +623,14 @@ static const char *colorFamilyToString(int colorFamily) {
     return "Error";
 }
 
-static bool nstringToInt64(const nstring &s, int64_t &result) {
-    size_t pos = 0;
-    try {
-        result = std::stoll(s, &pos);
-    } catch (std::invalid_argument &) {
-        return false;
-    } catch (std::out_of_range &) {
-        return false;
-    }
-    return pos == s.length();
+static bool svToInt64(const std::string_view &s, int64_t &result) {
+    auto res = std::from_chars(s.data(), s.data() + s.size(), result);
+    return (res.ptr == s.data() + s.size());
 }
 
-static bool nstringToInt(const nstring &s, int &result) {
-    size_t pos = 0;
-    try {
-        result = std::stoi(s, &pos);
-    } catch (std::invalid_argument &) {
-        return false;
-    } catch (std::out_of_range &) {
-        return false;
-    }
-    return pos == s.length();
+static bool svToInt(const std::string_view &s, int &result) {
+    auto res = std::from_chars(s.data(), s.data() + s.size(), result);
+    return (res.ptr == s.data() + s.size());
 }
 
 static bool printVersion(const VSAPI *vsapi) {
@@ -715,58 +688,58 @@ static void printHelp() {
         );
 }
 
-template<typename T>
-static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
+static int parseOptions(VSPipeOptions &opts, int argc, const char **argv) {
     for (int arg = 1; arg < argc; arg++) {
-        nstring argString = argv[arg];
-        if (argString == NSTRING("-v") || argString == NSTRING("--version")) {
+        std::string_view argString = argv[arg];
+        if (argString == "-v" || argString == "--version") {
             if (argc > 2) {
                 fprintf(stderr, "Cannot combine version information with other options\n");
                 return 1;
             }
 
             opts.mode = VSPipeMode::PrintVersion;
-        } else if (argString == NSTRING("-c") || argString == NSTRING("--container")) {
+        } else if (argString == "-c" || argString == "--container") {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No container type specified\n");
                 return 1;
             }
 
-            if (nstringToUtf8(argv[arg + 1]) == "y4m") {
+            std::string_view optString = argv[arg + 1];
+            if (optString == "y4m") {
                 opts.outputHeaders = VSPipeHeaders::Y4M;
-            } else if (nstringToUtf8(argv[arg + 1]) == "wav") {
+            } else if (optString == "wav") {
                 opts.outputHeaders = VSPipeHeaders::WAVE;
-            } else if (nstringToUtf8(argv[arg + 1]) == "w64") {
+            } else if (optString == "w64") {
                 opts.outputHeaders = VSPipeHeaders::WAVE64;
             } else {
-                fprintf(stderr, "Unknown container type specified: %s\n", nstringToUtf8(argv[arg + 1]).c_str());
+                fprintf(stderr, "Unknown container type specified: %s\n", argv[arg + 1]);
                 return 1;
             }
 
             arg++;
-        } else if (argString == NSTRING("-p") || argString == NSTRING("--progress")) {
+        } else if (argString == "-p" || argString == "--progress") {
             opts.printProgress = true;
-        } else if (argString == NSTRING("--md5")) {
+        } else if (argString == "--md5") {
             opts.calculateMD5 = true;
-        } else if (argString == NSTRING("--filter-time")) {
+        } else if (argString == "--filter-time") {
             opts.printFilterTime = true;
-        } else if (argString == NSTRING("--filter-time-graph")) {
+        } else if (argString == "--filter-time-graph") {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No filter time graph file specified\n");
                 return 1;
             }
 
-            opts.filterTimeGraphFilename = argv[arg + 1];
+            opts.filterTimeGraphFilename = std::filesystem::u8path(argv[arg + 1]);
 
             arg++;
-        } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
+        } else if (argString == "-i" || argString == "--info") {
             if (opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph) {
                 fprintf(stderr, "Cannot combine graph and info arguments\n");
                 return 1;
             }
 
             opts.mode = VSPipeMode::PrintInfo;
-        } else if (argString == NSTRING("-g") || argString == NSTRING("--graph")) {
+        } else if (argString == "-g" || argString == "--graph") {
             if (opts.mode == VSPipeMode::PrintInfo) {
                 fprintf(stderr, "Cannot combine graph and info arguments\n");
                 return 1;
@@ -777,31 +750,32 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
                 return 1;
             }
 
-            if (nstringToUtf8(argv[arg + 1]) == "simple") {
+            std::string_view optString = argv[arg + 1];
+            if (optString == "simple") {
                 opts.mode = VSPipeMode::PrintSimpleGraph;
-            } else if (nstringToUtf8(argv[arg + 1]) == "full") {
+            } else if (optString == "full") {
                 opts.mode = VSPipeMode::PrintFullGraph;
             } else {
-                fprintf(stderr, "Unknown graph type specified: %s\n", nstringToUtf8(argv[arg + 1]).c_str());
+                fprintf(stderr, "Unknown graph type specified: %s\n", argv[arg + 1]);
                 return 1;
             }
 
             arg++;
-        } else if (argString == NSTRING("-h") || argString == NSTRING("--help")) {
+        } else if (argString == "-h" || argString == "--help") {
             if (argc > 2) {
                 fprintf(stderr, "Cannot combine help with other options\n");
                 return 1;
             }
 
             opts.mode = VSPipeMode::PrintHelp;
-        } else if (argString == NSTRING("-s") || argString == NSTRING("--start")) {
+        } else if (argString == "-s" || argString == "--start") {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No start frame specified\n");
                 return 1;
             }
 
-            if (!nstringToInt64(argv[arg + 1], opts.startPos)) {
-                fprintf(stderr, "Couldn't convert %s to an integer (start)\n", nstringToUtf8(argv[arg + 1]).c_str());
+            if (!svToInt64(argv[arg + 1], opts.startPos)) {
+                fprintf(stderr, "Couldn't convert %s to an integer (start)\n", argv[arg + 1]);
                 return 1;
             }
 
@@ -811,14 +785,14 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             }
 
             arg++;
-        } else if (argString == NSTRING("-e") || argString == NSTRING("--end")) {
+        } else if (argString == "-e" || argString == "--end") {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No end frame specified\n");
                 return 1;
             }
 
-            if (!nstringToInt64(argv[arg + 1], opts.endPos)) {
-                fprintf(stderr, "Couldn't convert %s to an integer (end)\n", nstringToUtf8(argv[arg + 1]).c_str());
+            if (!svToInt64(argv[arg + 1], opts.endPos)) {
+                fprintf(stderr, "Couldn't convert %s to an integer (end)\n", argv[arg + 1]);
                 return 1;
             }
 
@@ -828,70 +802,70 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             }
 
             arg++;
-        } else if (argString == NSTRING("-o") || argString == NSTRING("--outputindex")) {
+        } else if (argString == "-o" || argString == "--outputindex") {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No output index specified\n");
                 return 1;
             }
 
-            if (!nstringToInt(argv[arg + 1], opts.outputIndex)) {
-                fprintf(stderr, "Couldn't convert %s to an integer (index)\n", nstringToUtf8(argv[arg + 1]).c_str());
+            if (!svToInt(argv[arg + 1], opts.outputIndex)) {
+                fprintf(stderr, "Couldn't convert %s to an integer (index)\n", argv[arg + 1]);
                 return 1;
             }
 
             arg++;
-        } else if (argString == NSTRING("-r") || argString == NSTRING("--requests")) {
+        } else if (argString == "-r" || argString == "--requests") {
             if (argc <= arg + 1) {
                 fprintf(stderr, "Number of requests not specified\n");
                 return 1;
             }
 
-            if (!nstringToInt(argv[arg + 1], opts.requests)) {
-                fprintf(stderr, "Couldn't convert %s to an integer (requests)\n", nstringToUtf8(argv[arg + 1]).c_str());
+            if (!svToInt(argv[arg + 1], opts.requests)) {
+                fprintf(stderr, "Couldn't convert %s to an integer (requests)\n", argv[arg + 1]);
                 return 1;
             }
 
             arg++;
-        } else if (argString == NSTRING("-a") || argString == NSTRING("--arg")) {
+        } else if (argString == "-a" || argString == "--arg") {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No argument specified\n");
                 return 1;
             }
 
-            std::string aLine = nstringToUtf8(argv[arg + 1]).c_str();
-            size_t equalsPos = aLine.find("=");
+            std::string_view optString = argv[arg + 1];
+            size_t equalsPos = optString.find("=");
             if (equalsPos == std::string::npos) {
-                fprintf(stderr, "No value specified for argument: %s\n", aLine.c_str());
+                fprintf(stderr, "No value specified for argument: %s\n", argv[arg + 1]);
                 return 1;
             }
 
-            opts.scriptArgs[aLine.substr(0, equalsPos)] = aLine.substr(equalsPos + 1);
+            opts.scriptArgs[std::string(optString.substr(0, equalsPos))] = optString.substr(equalsPos + 1);
 
             arg++;
-        } else if (argString == NSTRING("-t") || argString == NSTRING("--timecodes")) {
+        } else if (argString == "-t" || argString == "--timecodes") {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No timecodes file specified\n");
                 return 1;
             }
 
-            opts.timecodesFilename = argv[arg + 1];
+            opts.timecodesFilename = std::filesystem::u8path(argv[arg + 1]);
 
             arg++;
-        } else if (argString == NSTRING("-j") || argString == NSTRING("--json")) {
+        } else if (argString == "-j" || argString == "--json") {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No JSON file specified\n");
                 return 1;
             }
 
-            opts.jsonFilename = argv[arg + 1];
+            opts.jsonFilename = std::filesystem::u8path(argv[arg + 1]);
 
             arg++;
-        } else if (opts.scriptFilename.empty() && !argString.empty() && argString.substr(0, 1) != NSTRING("-")) {
-            opts.scriptFilename = argString;
-        } else if (opts.outputFilename.empty() && !argString.empty() && (argString == NSTRING("-") || argString == NSTRING("--") || (argString.substr(0, 1) != NSTRING("-")))) {
-            opts.outputFilename = argString;
+        } else if (opts.scriptFilename.empty() && !argString.empty() && argString.substr(0, 1) != "-") {
+            opts.scriptFilename = std::filesystem::u8path(argString);
+        } else if (opts.outputFilename.empty() && !argString.empty() && (argString == "-" || argString == "--" || (argString.substr(0, 1) != "-"))) {
+            opts.outputFilename = std::filesystem::u8path(argString);
         } else {
-            fprintf(stderr, "Unknown argument: %s\n", nstringToUtf8(argString).c_str());
+            fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
             return 1;
         }
     }
@@ -912,7 +886,19 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
 }
 
 #ifdef VS_TARGET_OS_WINDOWS
+int main8(int argc, const char **argv);
+
 int wmain(int argc, wchar_t **argv) {
+    std::vector<std::string> argv8storage;
+    std::vector<const char *> argv8;
+    for (int i = 0; i < argc; i++)
+        argv8storage.push_back(utf16_to_utf8(argv[i]));
+    for (int i = 0; i < argc; i++)
+        argv8.push_back(argv8storage[i].c_str());
+    return main8(argc, argv8.data());
+}
+
+static int main8(int argc, const char **argv) {
     SetConsoleCtrlHandler(HandlerRoutine, TRUE);
     if (GetConsoleOutputCP() != CP_UTF8 && !SetConsoleOutputCP(CP_UTF8))
         fprintf(stderr, "Failed to set UTF-8 console codepage, some characters may not be correctly displayed\n");
@@ -946,9 +932,9 @@ int main(int argc, char **argv) {
     FILE *outFile = nullptr;
     bool closeOutFile = false;
 
-    if (opts.outputFilename.empty() || opts.outputFilename == NSTRING("-")) {
+    if (opts.outputFilename.empty() || opts.outputFilename == "-") {
         outFile = stdout;
-    } else if (opts.outputFilename == NSTRING(".") || opts.outputFilename == NSTRING("--")) {
+    } else if (opts.outputFilename == "." || opts.outputFilename == "--") {
         // do nothing
     } else {
         outFile = OpenFile(opts.outputFilename);

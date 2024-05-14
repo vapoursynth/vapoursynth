@@ -19,7 +19,7 @@
 */
 
 #include "vsjson.h"
-#include <clocale>
+#include <charconv>
 
 static bool isAsciiPrintable(const std::string &s) {
     for (const auto c : s)
@@ -29,14 +29,9 @@ static bool isAsciiPrintable(const std::string &s) {
 }
 
 static std::string doubleToString(double v) {
-    std::string result = std::to_string(v);
-    char point = *localeconv()->decimal_point;
-    if (point != '.') {
-        size_t pos = result.find(point);
-        if (pos != std::string::npos)
-            result[pos] = '.';
-    }
-    return result;
+    char buffer[100];
+    auto res = std::to_chars(buffer, buffer + sizeof(buffer), v, std::chars_format::fixed);
+    return std::string(buffer, res.ptr - buffer);
 }
 
 std::string escapeJSONString(const std::string &s) {
