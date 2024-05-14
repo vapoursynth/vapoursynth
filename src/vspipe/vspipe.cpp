@@ -913,8 +913,6 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
 
 #ifdef VS_TARGET_OS_WINDOWS
 int wmain(int argc, wchar_t **argv) {
-    if (_setmode(_fileno(stdout), _O_BINARY) == -1)
-        fprintf(stderr, "Failed to set stdout to binary mode\n");
     SetConsoleCtrlHandler(HandlerRoutine, TRUE);
 #else
 int main(int argc, char **argv) {
@@ -1045,6 +1043,13 @@ int main(int argc, char **argv) {
         if (outFile)
             fprintf(outFile, "%s\n", graph.c_str());
     } else {
+#ifdef VS_TARGET_OS_WINDOWS
+        if (outFile == stdout) {
+            if (_setmode(_fileno(stdout), _O_BINARY) == -1)
+                fprintf(stderr, "Failed to set stdout to binary mode\n");
+        }
+#endif
+
         int nodeType = vsapi->getNodeType(node);
 
         if (opts.startPos != 0 || opts.endPos != -1) {
