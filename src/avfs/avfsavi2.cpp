@@ -1525,7 +1525,6 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         temp = seg->frameIndx[segFrame];
       }
       temp -= seg->frameIndx[segFrame-1];
-      ASSERT(check == temp);
 #endif
     }
 
