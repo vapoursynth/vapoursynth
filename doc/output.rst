@@ -74,7 +74,7 @@ Write frames 5-100 to file:
     ``vspipe --start 5 --end 100 script.vpy output.raw``
 
 Pipe to x264 and write timecodes file:
-    ``vspipe script.vpy - --y4m --timecodes timecodes.txt | x264 --demuxer y4m -o script.mkv -``
+    ``vspipe script.vpy - -c y4m --timecodes timecodes.txt | x264 --demuxer y4m -o script.mkv -``
 
 Pass values to a script:
     ``vspipe --arg deinterlace=yes --arg "message=fluffy kittens" script.vpy output.raw``
