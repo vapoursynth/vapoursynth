@@ -4,7 +4,7 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build-clang:
-    runs-on: macos-13
+    runs-on: macos-latest
 
     steps:
     - uses: actions/checkout@v4
@@ -12,16 +12,17 @@ jobs:
     - name: Install Homebrew packages
       run: |
         brew update
-        brew install automake llvm
+        brew install automake libtool llvm
 
     - name: Set environment variables for Clang/LLVM
       run: |
-        echo "CC=/usr/local/opt/llvm/bin/clang" >> $GITHUB_ENV
-        echo "CXX=/usr/local/opt/llvm/bin/clang++" >> $GITHUB_ENV
-        echo "LDFLAGS=-fuse-ld=lld -L/usr/local/opt/llvm/lib/c++ -Wl,-rpath,/usr/local/opt/llvm/lib/c++" >> $GITHUB_ENV
-        echo "PATH=/usr/local/opt/llvm/bin:$PATH" >> $GITHUB_ENV
+        echo "CC=/opt/homebrew/opt/llvm/bin/clang" >> $GITHUB_ENV
+        echo "CXX=/opt/homebrew/opt/llvm/bin/clang++" >> $GITHUB_ENV
+        echo "LDFLAGS=-fuse-ld=lld -L/opt/homebrew/opt/llvm/lib/c++ -Wl,-rpath,/opt/homebrew/opt/llvm/lib/c++" >> $GITHUB_ENV
+        echo "PATH=/opt/homebrew/opt/llvm/bin:$PATH" >> $GITHUB_ENV
         echo "CPATH=/usr/local/include:$CPATH" >> $GITHUB_ENV
         echo "LIBRARY_PATH=/usr/local/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+        echo "nproc=$(sysctl -n hw.logicalcpu)" >> $GITHUB_ENV
 
     - name: Print compiler version
       run: |
@@ -33,8 +34,8 @@ jobs:
         pushd zimg
         ./autogen.sh
         ./configure
-        make -j$(nproc)
-        sudo make install -j$(nproc)
+        make -j${{ env.nproc }}
+        sudo make install -j${{ env.nproc }}
         popd
         rm -rf zimg
 
@@ -54,11 +55,11 @@ jobs:
 
     - name: make
       run: |
-        make -j$(nproc)
+        make -j${{ env.nproc }}
 
     - name: make install
       run: |
-        sudo make install -j$(nproc)
+        sudo make install -j${{ env.nproc }}
         pip install .
 
     - name: Run test
