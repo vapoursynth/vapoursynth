@@ -235,7 +235,6 @@ class VapourSynthAPIVersion(typing.NamedTuple):
 __version__ = VapourSynthVersion(VS_CURRENT_RELEASE, 0)
 __api_version__ = VapourSynthAPIVersion(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
-
 @final
 cdef class EnvironmentData(object):
     cdef bint alive
@@ -2814,6 +2813,8 @@ cdef Core createCore(EnvironmentData env):
     instance.core = instance.funcs.createCore(env.coreCreationFlags)
     instance.timings = createCoreTimings(instance)
     instance.creationFlags = env.coreCreationFlags
+    if instance.core_version.release_major <> VS_CURRENT_RELEASE:
+        instance.log_message(mtWarning, f'Version mismatch: The VapourSynth Python module version is R{__version__.release_major:d} but the VapourSynth core library is R{instance.core_version.release_major:d}. This usually indicates a broken install.')
     return instance
 
 cdef Core createCore2(VSCore *core):
@@ -2823,6 +2824,8 @@ cdef Core createCore2(VSCore *core):
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = core
     instance.timings = createCoreTimings(instance)
+    if instance.core_version.release_major <> VS_CURRENT_RELEASE:
+        instance.log_message(mtWarning, f'Version mismatch: The VapourSynth Python module version is R{__version__.release_major:d} but the VapourSynth core library is R{instance.core_version.release_major:d}. This usually indicates a broken install.')
     return instance
 
 cdef Core _get_core(threads = None):

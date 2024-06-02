@@ -1,4 +1,6 @@
 r69
+the python module will now warn if it doesn't match the core library version when creating a core
+updated zimg to fix a rare resizing bug that only happens around 0.5x scaling with avx512 optimizations
 now always sets console output codepage to utf8 in windows
 
 r68:
