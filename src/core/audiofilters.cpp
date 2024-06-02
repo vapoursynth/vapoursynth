@@ -389,8 +389,8 @@ static const VSFrame *VS_CC audioReverseGetFrame(int n, int activationReason, vo
         VSFrame *dst = vsapi->newAudioFrame(&d->ai->format, dstLength, src1, core);
 
         for (int p = 0; p < d->ai->format.numChannels; p++) {
-            const T *src1Ptr = reinterpret_cast<const T *>(vsapi->getReadPtr(src1, p));
-            T *dstPtr = reinterpret_cast<T *>(vsapi->getWritePtr(dst, p));
+            const T * VS_RESTRICT src1Ptr = reinterpret_cast<const T *>(vsapi->getReadPtr(src1, p));
+            T * VS_RESTRICT dstPtr = reinterpret_cast<T *>(vsapi->getWritePtr(dst, p));
             for (size_t i = 0; i < s1samples; i++)
                 dstPtr[i] = src1Ptr[l1 - i - 1 - s1offset];
         }
@@ -402,8 +402,8 @@ static const VSFrame *VS_CC audioReverseGetFrame(int n, int activationReason, vo
             const VSFrame *src2 = vsapi->getFrameFilter(n2, d->node, frameCtx);
             size_t l2 = vsapi->getFrameLength(src2);
             for (int p = 0; p < d->ai->format.numChannels; p++) {
-                const T *src2Ptr = reinterpret_cast<const T *>(vsapi->getReadPtr(src2, p));
-                T *dstPtr = reinterpret_cast<T *>(vsapi->getWritePtr(dst, p)) + s1samples;
+                const T * VS_RESTRICT src2Ptr = reinterpret_cast<const T *>(vsapi->getReadPtr(src2, p));
+                T * VS_RESTRICT dstPtr = reinterpret_cast<T *>(vsapi->getWritePtr(dst, p)) + s1samples;
                 for (size_t i = 0; i < remaining; i++)
                     dstPtr[i] = src2Ptr[l2 - i - 1];
             }
@@ -454,8 +454,8 @@ static const VSFrame *VS_CC audioGainGetFrame16(int n, int activationReason, voi
 
         for (int p = 0; p < d->ai->format.numChannels; p++) {
             float gain = d->gain[(d->gain.size() > 1) ? p : 0];
-            const int16_t *srcPtr = reinterpret_cast<const int16_t *>(vsapi->getReadPtr(src, p));
-            int16_t *dstPtr = reinterpret_cast<int16_t *>(vsapi->getWritePtr(dst, p));
+            const int16_t * VS_RESTRICT srcPtr = reinterpret_cast<const int16_t *>(vsapi->getReadPtr(src, p));
+            int16_t * VS_RESTRICT dstPtr = reinterpret_cast<int16_t *>(vsapi->getWritePtr(dst, p));
             
             for (int i = 0; i < length; i++) {
                 long vclamped = std::lround(std::clamp<float>(srcPtr[i] * gain, std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max()));
@@ -501,8 +501,8 @@ static const VSFrame *VS_CC audioGainGetFrame32(int n, int activationReason, voi
 
         for (int p = 0; p < d->ai->format.numChannels; p++) {
             double gain = d->gain[(d->gain.size() > 1) ? p : 0];
-            const int32_t *srcPtr = reinterpret_cast<const int32_t *>(vsapi->getReadPtr(src, p));
-            int32_t *dstPtr = reinterpret_cast<int32_t *>(vsapi->getWritePtr(dst, p));
+            const int32_t * VS_RESTRICT srcPtr = reinterpret_cast<const int32_t *>(vsapi->getReadPtr(src, p));
+            int32_t * VS_RESTRICT dstPtr = reinterpret_cast<int32_t *>(vsapi->getWritePtr(dst, p));
 
             for (int i = 0; i < length; i++) {
                 long vclamped = std::lround(std::clamp(srcPtr[i] *gain, minV, maxV));
@@ -543,8 +543,8 @@ static const VSFrame *VS_CC audioGainGetFrameF(int n, int activationReason, void
 
         for (int p = 0; p < d->ai->format.numChannels; p++) {
             float gain = d->gain[(d->gain.size() > 1) ? p : 0];
-            const float *srcPtr = reinterpret_cast<const float *>(vsapi->getReadPtr(src, p));
-            float *dstPtr = reinterpret_cast<float *>(vsapi->getWritePtr(dst, p));
+            const float * VS_RESTRICT srcPtr = reinterpret_cast<const float *>(vsapi->getReadPtr(src, p));
+            float * VS_RESTRICT dstPtr = reinterpret_cast<float *>(vsapi->getWritePtr(dst, p));
             for (int i = 0; i < length; i++)
                 dstPtr[i] = srcPtr[i] * gain;
         }
@@ -607,7 +607,7 @@ static const VSFrame *VS_CC audioMixGetFrame16(int n, int activationReason, void
             vsapi->requestFrameFilter(n, iter, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         int numOutChannels = d->ai.format.numChannels;
-        std::vector<const int16_t *> srcPtrs;
+        std::vector<const int16_t * VS_RESTRICT> srcPtrs;
         std::vector<const VSFrame *> srcFrames;
         srcPtrs.reserve(d->sourceNodes.size());
         srcFrames.reserve(d->sourceNodes.size());
@@ -622,7 +622,7 @@ static const VSFrame *VS_CC audioMixGetFrame16(int n, int activationReason, void
         int srcLength = vsapi->getFrameLength(srcFrames[0]);
         VSFrame *dst = vsapi->newAudioFrame(&d->ai.format, srcLength, srcFrames[0], core);
 
-        std::vector<int16_t *> dstPtrs;
+        std::vector<int16_t * VS_RESTRICT> dstPtrs;
         dstPtrs.resize(numOutChannels);
         for (int idx = 0; idx < numOutChannels; idx++)
             dstPtrs[idx] = reinterpret_cast<int16_t *>(vsapi->getWritePtr(dst, d->outputIdx[idx]));
@@ -668,7 +668,7 @@ static const VSFrame *VS_CC audioMixGetFrame32(int n, int activationReason, void
             vsapi->requestFrameFilter(n, iter, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         int numOutChannels = d->ai.format.numChannels;
-        std::vector<const int32_t *> srcPtrs;
+        std::vector<const int32_t * VS_RESTRICT> srcPtrs;
         std::vector<const VSFrame *> srcFrames;
         srcPtrs.reserve(d->sourceNodes.size());
         srcFrames.reserve(d->sourceNodes.size());
@@ -686,7 +686,7 @@ static const VSFrame *VS_CC audioMixGetFrame32(int n, int activationReason, void
         int srcLength = vsapi->getFrameLength(srcFrames[0]);
         VSFrame *dst = vsapi->newAudioFrame(&d->ai.format, srcLength, srcFrames[0], core);
 
-        std::vector<int32_t *> dstPtrs;
+        std::vector<int32_t * VS_RESTRICT> dstPtrs;
         dstPtrs.resize(numOutChannels);
         for (int idx = 0; idx < numOutChannels; idx++)
             dstPtrs[idx] = reinterpret_cast<int32_t *>(vsapi->getWritePtr(dst, d->outputIdx[idx]));
@@ -732,7 +732,7 @@ static const VSFrame *VS_CC audioMixGetFrameF(int n, int activationReason, void 
             vsapi->requestFrameFilter(n, iter, frameCtx);
     } else if (activationReason == arAllFramesReady) {     
         int numOutChannels = d->ai.format.numChannels;
-        std::vector<const float *> srcPtrs;
+        std::vector<const float * VS_RESTRICT> srcPtrs;
         std::vector<const VSFrame *> srcFrames;
         srcPtrs.reserve(d->sourceNodes.size());
         srcFrames.reserve(d->sourceNodes.size());
@@ -745,7 +745,7 @@ static const VSFrame *VS_CC audioMixGetFrameF(int n, int activationReason, void 
         int srcLength = vsapi->getFrameLength(srcFrames[0]);
         VSFrame *dst = vsapi->newAudioFrame(&d->ai.format, srcLength, srcFrames[0], core);
 
-        std::vector<float *> dstPtrs;
+        std::vector<float * VS_RESTRICT> dstPtrs;
         dstPtrs.resize(numOutChannels);
         for (int idx = 0; idx < numOutChannels; idx++)
             dstPtrs[idx] = reinterpret_cast<float *>(vsapi->getWritePtr(dst, d->outputIdx[idx]));
