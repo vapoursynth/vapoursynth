@@ -1,7 +1,7 @@
 r69
 added YUV420PS/H and YUV422PS/H constants for convenience
 vspipe --info will now output information for all set output nodes
-added a new fucntion to to the vsscript api to get a list of all set output indices, since most users don't need vsscript api 4.2 you now have to define VSSCRIPT_USE_LATEST_API or VSSCRIPT_USE_API_42 to actually require it
+added a new function to to the vsscript api to get a list of all set output indices, since most users don't need vsscript api 4.2 you now have to define VSSCRIPT_USE_LATEST_API or VSSCRIPT_USE_API_42 to actually require it
 the python module will now warn if it doesn't match the core library version when creating a core
 updated zimg to fix a rare resizing bug that only happens around 0.5x scaling with avx512 optimizations
 now always sets console output codepage to utf8 in windows

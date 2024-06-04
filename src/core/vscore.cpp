@@ -2286,7 +2286,7 @@ VSNode::VSCache::CacheAction VSNode::VSCache::recommendSize() {
         return CacheAction::NoChange; // not enough requests to know what to do so keep it this way
     }
 
-    bool shrink = (nearMiss == 0 && hits == 0); // shrink if there were no hits or even close to hittin
+    bool shrink = (nearMiss == 0 && hits == 0); // shrink if there were no hits or even close to hitting
     bool grow = ((nearMiss * 20) >= total); // grow if 5% or more are near misses
 #ifdef VS_CACHE_DEBUG
     fprintf(stderr, "Cache (%p) stats (%s): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, shrink ? "shrink" : (grow ? "grow" : "keep"), total, farMiss, nearMiss, hits, maxSize);
