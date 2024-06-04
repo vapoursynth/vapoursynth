@@ -244,6 +244,9 @@ AC_ARG_ENABLE([vsscript], AS_HELP_STRING([--enable-vsscript], [Enable VSScript. 
 AS_IF(
       [test "x$enable_vsscript" != "xno"],
       [
+       AC_DEFINE([VS_USE_LATEST_API])
+       AC_DEFINE([VSSCRIPT_USE_LATEST_API])
+      
        AM_PATH_PYTHON([3])
 
        PKG_CHECK_MODULES([PYTHON3],
@@ -265,7 +268,9 @@ AC_ARG_ENABLE([vspipe], AS_HELP_STRING([--enable-vspipe], [Build vspipe. Require
 AS_IF(
       [test "x$enable_vsscript" = "xno"],
       [
+       AC_DEFINE([VS_USE_LATEST_API])
        AC_DEFINE([VS_GRAPH_API])
+       AC_DEFINE([VSSCRIPT_USE_LATEST_API])
        AS_IF(
              [test "x$enable_vspipe" = "xyes"],
              [AC_MSG_ERROR([Cannot build vspipe when VSScript is disabled.])],
