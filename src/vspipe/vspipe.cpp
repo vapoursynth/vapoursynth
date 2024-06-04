@@ -24,9 +24,6 @@
 #include "../core/version.h"
 #include "printgraph.h"
 #include "vsjson.h"
-extern "C" {
-#include "md5.h"
-}
 #include <string>
 #include <map>
 #include <vector>
@@ -145,8 +142,6 @@ struct VSPipeOutputData {
     std::vector<uint8_t> buffer;
 
     /* Statistics */
-    bool calculateMD5 = false;
-    MD5_CTX md5Ctx = {};
     bool printProgress = false;
     std::chrono::time_point<std::chrono::steady_clock> startTime;
     std::chrono::time_point<std::chrono::steady_clock> lastFPSReportTime;
@@ -242,9 +237,6 @@ static void outputFrame(const VSFrame *frame, VSPipeOutputData *data) {
                     readPtr = data->buffer.data();
                 }
 
-                if (data->calculateMD5)
-                    MD5_Update(&data->md5Ctx, readPtr, rowSize * height);
-
                 if (fwrite(readPtr, 1, rowSize * height, data->outFile) != static_cast<size_t>(rowSize * height)) {
                     if (data->errorMessage.empty())
                         data->errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(data->outputFrames) + ", plane: " + std::to_string(p) +
@@ -273,9 +265,6 @@ static void outputFrame(const VSFrame *frame, VSPipeOutputData *data) {
                 PackChannels32to24le(srcPtrs.data(), data->buffer.data(), numSamples, numChannels);
             else if (bytesPerOutputSample == 4)
                 PackChannels32to32le(srcPtrs.data(), data->buffer.data(), numSamples, numChannels);
-
-            if (data->calculateMD5)
-                MD5_Update(&data->md5Ctx, data->buffer.data(), static_cast<unsigned long>(toOutput));
 
             if (fwrite(data->buffer.data(), 1, toOutput, data->outFile) != toOutput) {
                 if (data->errorMessage.empty())
@@ -664,7 +653,7 @@ static void printHelp() {
         "  -p, --progress                   Print progress to stderr\n"
         "      --filter-time                Print time spent in individual filters to stderr after processing\n"
         "      --filter-time-graph FILE     Write output node's filter graph in dot format with time information after processing\n"
-        "  -i, --info                       Print output node's info to <outfile> and exit\n"
+        "  -i, --info                       Print all set output node info to <outfile> and exit\n"
         "  -g  --graph <simple/full>        Print output node's filter graph in dot format to <outfile> and exit\n"
         "  -v, --version                    Show version info and exit\n"
         "\n"
@@ -719,8 +708,6 @@ static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
             arg++;
         } else if (argString == "-p" || argString == "--progress") {
             opts.printProgress = true;
-        } else if (argString == "--md5") {
-            opts.calculateMD5 = true;
         } else if (argString == "--filter-time") {
             opts.printFilterTime = true;
         } else if (argString == "--filter-time-graph") {
@@ -1002,6 +989,86 @@ int main(int argc, char **argv) {
         return code;
     }
 
+    std::chrono::duration<double> scriptEvaluationTime = std::chrono::steady_clock::now() - scriptEvaluationStart;
+    if (opts.printProgress)
+        fprintf(stderr, "Script evaluation done in %.2f seconds\n", scriptEvaluationTime.count());
+
+    if (opts.mode == VSPipeMode::PrintInfo) {
+        int numOutputs = vssapi->getAvailableOutputNodes(se, 0, nullptr);
+        std::vector<int> setIdx;
+        setIdx.resize(numOutputs);
+        vssapi->getAvailableOutputNodes(se, numOutputs, setIdx.data());
+        bool first = true;
+        for (const auto &iter : setIdx) {
+            VSNode *mainNode = vssapi->getOutputNode(se, iter);
+            assert(mainNode);
+
+            if (!first)
+                fprintf(outFile, "\n");
+            first = false;
+
+            if (vsapi->getNodeType(mainNode) == mtVideo) {
+                VSNode *alphaNode = vssapi->getOutputAlphaNode(se, iter);
+                const VSVideoInfo *vi = vsapi->getVideoInfo(mainNode);
+
+                if (outFile) {
+                    fprintf(outFile, "Output Index: %d\n", iter);
+                    fprintf(outFile, "Type: Video\n");
+
+                    if (vi->width && vi->height) {
+                        fprintf(outFile, "Width: %d\n", vi->width);
+                        fprintf(outFile, "Height: %d\n", vi->height);
+                    } else {
+                        fprintf(outFile, "Width: Variable\n");
+                        fprintf(outFile, "Height: Variable\n");
+                    }
+                    fprintf(outFile, "Frames: %d\n", vi->numFrames);
+                    if (vi->fpsNum && vi->fpsDen)
+                        fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum / static_cast<double>(vi->fpsDen));
+                    else
+                        fprintf(outFile, "FPS: Variable\n");
+
+                    if (vi->format.colorFamily != cfUndefined) {
+                        char nameBuffer[32];
+                        vsapi->getVideoFormatName(&vi->format, nameBuffer);
+                        fprintf(outFile, "Format Name: %s\n", nameBuffer);
+                        fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format.colorFamily));
+                        fprintf(outFile, "Alpha: %s\n", alphaNode ? "Yes" : "No");
+                        fprintf(outFile, "Sample Type: %s\n", (vi->format.sampleType == stInteger) ? "Integer" : "Float");
+                        fprintf(outFile, "Bits: %d\n", vi->format.bitsPerSample);
+                        fprintf(outFile, "SubSampling W: %d\n", vi->format.subSamplingW);
+                        fprintf(outFile, "SubSampling H: %d\n", vi->format.subSamplingH);
+                    } else {
+                        fprintf(outFile, "Format Name: Variable\n");
+                    }
+                }
+
+                vsapi->freeNode(alphaNode);
+            } else {
+                if (outFile) {
+                    fprintf(outFile, "Output Index: %d\n", iter);
+                    fprintf(outFile, "Type: Audio\n");
+
+                    const VSAudioInfo *ai = vsapi->getAudioInfo(mainNode);
+
+                    char nameBuffer[32];
+                    vsapi->getAudioFormatName(&ai->format, nameBuffer);
+                    fprintf(outFile, "Samples: %" PRId64 "\n", ai->numSamples);
+                    fprintf(outFile, "Sample Rate: %d\n", ai->sampleRate);
+                    fprintf(outFile, "Format Name: %s\n", nameBuffer);
+                    fprintf(outFile, "Sample Type: %s\n", (ai->format.sampleType == stInteger) ? "Integer" : "Float");
+                    fprintf(outFile, "Bits: %d\n", ai->format.bitsPerSample);
+                    fprintf(outFile, "Channels: %d\n", ai->format.numChannels);
+                    fprintf(outFile, "Layout: %s\n", channelMaskToName(ai->format.channelLayout).c_str());
+                }
+            }
+
+            vsapi->freeNode(mainNode);
+        }
+        vssapi->freeScript(se);
+        return 0;
+    }
+
     VSNode *node = vssapi->getOutputNode(se, opts.outputIndex);
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
@@ -1015,10 +1082,6 @@ int main(int argc, char **argv) {
     vsapi->setCacheMode(node, cmForceDisable);
     if (alphaNode)
         vsapi->setCacheMode(alphaNode, cmForceDisable);
-
-    std::chrono::duration<double> scriptEvaluationTime = std::chrono::steady_clock::now() - scriptEvaluationStart;
-    if (opts.printProgress)
-        fprintf(stderr, "Script evaluation done in %.2f seconds\n", scriptEvaluationTime.count());
 
     bool success = true;
 
@@ -1089,8 +1152,6 @@ int main(int argc, char **argv) {
 
         data->vsapi = vsapi;
         data->outputHeaders = opts.outputHeaders;
-        data->calculateMD5 = opts.calculateMD5;
-        MD5_Init(&data->md5Ctx);
         data->printProgress = opts.printProgress;
         data->node = node;
         data->alphaNode = alphaNode;
@@ -1102,84 +1163,35 @@ int main(int argc, char **argv) {
 
             const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-            if (opts.mode == VSPipeMode::PrintInfo) {
-                if (outFile) {
-                    if (vi->width && vi->height) {
-                        fprintf(outFile, "Width: %d\n", vi->width);
-                        fprintf(outFile, "Height: %d\n", vi->height);
-                    } else {
-                        fprintf(outFile, "Width: Variable\n");
-                        fprintf(outFile, "Height: Variable\n");
-                    }
-                    fprintf(outFile, "Frames: %d\n", vi->numFrames);
-                    if (vi->fpsNum && vi->fpsDen)
-                        fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum / static_cast<double>(vi->fpsDen));
-                    else
-                        fprintf(outFile, "FPS: Variable\n");
-
-                    if (vi->format.colorFamily != cfUndefined) {
-                        char nameBuffer[32];
-                        vsapi->getVideoFormatName(&vi->format, nameBuffer);
-                        fprintf(outFile, "Format Name: %s\n", nameBuffer);
-                        fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format.colorFamily));
-                        fprintf(outFile, "Alpha: %s\n", alphaNode ? "Yes" : "No");
-                        fprintf(outFile, "Sample Type: %s\n", (vi->format.sampleType == stInteger) ? "Integer" : "Float");
-                        fprintf(outFile, "Bits: %d\n", vi->format.bitsPerSample);
-                        fprintf(outFile, "SubSampling W: %d\n", vi->format.subSamplingW);
-                        fprintf(outFile, "SubSampling H: %d\n", vi->format.subSamplingH);
-                    } else {
-                        fprintf(outFile, "Format Name: Variable\n");
-                    }
-                }
-            } else {
-                if (!isConstantVideoFormat(vi)) {
-                    fprintf(stderr, "Cannot output clips with varying dimensions\n");
-                    vsapi->freeNode(node);
-                    vsapi->freeNode(alphaNode);
-                    vssapi->freeScript(se);
-                    return 1;
-                }
-
-                data->totalFrames = vi->numFrames;
-
-                success = initializeVideoOutput(data.get());
-                if (success) {
-                    data->lastFPSReportTime = std::chrono::steady_clock::now();
-                    success = !outputNode(opts, data.get(), vssapi->getCore(se));
-                }
-                if (success)
-                    success = finalizeVideoOutput(data.get());
+            if (!isConstantVideoFormat(vi)) {
+                fprintf(stderr, "Cannot output clips with varying dimensions\n");
+                vsapi->freeNode(node);
+                vsapi->freeNode(alphaNode);
+                vssapi->freeScript(se);
+                return 1;
             }
+
+            data->totalFrames = vi->numFrames;
+
+            success = initializeVideoOutput(data.get());
+            if (success) {
+                data->lastFPSReportTime = std::chrono::steady_clock::now();
+                success = !outputNode(opts, data.get(), vssapi->getCore(se));
+            }
+            if (success)
+                success = finalizeVideoOutput(data.get());
+            
         } else if (nodeType == mtAudio) {
 
             const VSAudioInfo *ai = vsapi->getAudioInfo(node);
 
-            if (opts.mode == VSPipeMode::PrintInfo) {
-                if (outFile) {
-                    char nameBuffer[32];
-                    vsapi->getAudioFormatName(&ai->format, nameBuffer);
-                    fprintf(outFile, "Samples: %" PRId64 "\n", ai->numSamples);
-                    fprintf(outFile, "Sample Rate: %d\n", ai->sampleRate);
-                    fprintf(outFile, "Format Name: %s\n", nameBuffer);
-                    fprintf(outFile, "Sample Type: %s\n", (ai->format.sampleType == stInteger) ? "Integer" : "Float");
-                    fprintf(outFile, "Bits: %d\n", ai->format.bitsPerSample);
-                    fprintf(outFile, "Channels: %d\n", ai->format.numChannels);
-                    fprintf(outFile, "Layout: %s\n", channelMaskToName(ai->format.channelLayout).c_str());
-                }
-            } else {
-                data->totalFrames = ai->numFrames;
-                data->totalSamples = ai->numSamples;
+            data->totalFrames = ai->numFrames;
+            data->totalSamples = ai->numSamples;
 
-                success = initializeAudioOutput(data.get());
-                if (success) {
-                    
-                    success = !outputNode(opts, data.get(), vssapi->getCore(se));
-                }
-            }
+            success = initializeAudioOutput(data.get());
+            if (success)                
+                success = !outputNode(opts, data.get(), vssapi->getCore(se));
         }
-
-        unsigned char md5[16];
-        MD5_Final(md5, &data->md5Ctx);
 
         if (outFile)
             fflush(outFile);
@@ -1194,15 +1206,6 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", data->totalFrames, elapsedSeconds.count(), data->totalFrames / elapsedSeconds.count());
             else
                 fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", data->totalSamples, elapsedSeconds.count(), (data->totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
-        }
-
-        if (opts.calculateMD5 && opts.mode == VSPipeMode::Output && outFile) {
-            fprintf(stderr, "MD5: ");
-            for (int i = 0; i < 16; i++)
-                fprintf(stderr, "%02x", (int)md5[i]);
-            fprintf(stderr, "\n");
-        } else if (opts.calculateMD5) {
-            fprintf(stderr, "MD5: OUTPUT REQUIRED");
         }
 
         if (opts.printFilterTime)

@@ -3556,6 +3556,25 @@ cdef public api int vpy4_getAltOutputMode(VSScript *se, int index) nogil:
         if isinstance(output, VideoOutputTuple):
             return output[2]
         return 0
+        
+cdef public api int vpy4_getAvailableOutputNodes(VSScript *se, int size, int *dst) nogil:
+    cdef int dstidx = 0
+    with gil:
+        pyenvdict = <dict>se.pyenvdict
+        nodes = None
+        try:
+            nodes = _get_vsscript_policy().get_environment(se.id).outputs
+        except:
+            return 0
+    
+        if size > 0:
+            for key in nodes:
+                dst[dstidx] = key
+                dstidx = dstidx + 1
+                if size - dstidx <= 0:
+                    break
+        
+        return len(nodes)
 
 cdef public api int vpy_clearOutput(VSScript *se, int index) nogil:
     with gil:

@@ -23,8 +23,13 @@
 
 #include "VapourSynth4.h"
 
+/* Note that the base version of the API is 4.1 due to that change happening very soon after the API4 release */
 #define VSSCRIPT_API_MAJOR 4
+#if defined(VSSCRIPT_USE_LATEST_API) || defined(VSSCRIPT_USE_API_42)
+#define VSSCRIPT_API_MINOR 2
+#else
 #define VSSCRIPT_API_MINOR 1
+#endif
 #define VSSCRIPT_API_VERSION VS_MAKE_VERSION(VSSCRIPT_API_MAJOR, VSSCRIPT_API_MINOR)
 
 typedef struct VSScript VSScript;
@@ -90,6 +95,13 @@ struct VSSCRIPTAPI {
     */
     void (VS_CC *evalSetWorkingDir)(VSScript *handle, int setCWD) VS_NOEXCEPT;
 
+#if defined(VSSCRIPT_USE_LATEST_API) || defined(VSSCRIPT_USE_API_42)
+    /*
+    * Write a list of set output index values to dst but at most size values.
+    * Always returns the total number of available output index values.
+    */
+    int (VS_CC *getAvailableOutputNodes)(VSScript *handle, int size, int *dst) VS_NOEXCEPT;
+#endif
 };
 
 VS_API(const VSSCRIPTAPI *) getVSScriptAPI(int version) VS_NOEXCEPT;

@@ -308,6 +308,11 @@ static void VS_CC evalSetWorkingDir(VSScript *handle, int setCWD) VS_NOEXCEPT {
     handle->setCWD = setCWD;
 }
 
+static int VS_CC getAvailableOutputNodes(VSScript *handle, int size, int *dst) VS_NOEXCEPT {
+    assert(size <= 0 || dst);
+    return vpy4_getAvailableOutputNodes(handle, size, dst);
+}
+
 // V3 API compatibility
 VS_API(int) vsscript_clearVariable(VSScript *handle, const char *name) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
@@ -335,7 +340,8 @@ static VSSCRIPTAPI vsscript_api = {
     &getOutputAlphaNode,
     &getAltOutputMode,
     &vsscript_freeScript,
-    &evalSetWorkingDir
+    &evalSetWorkingDir,
+    &getAvailableOutputNodes
 };
 
 const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {
