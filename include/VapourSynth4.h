@@ -137,6 +137,10 @@ typedef enum VSPresetVideoFormat {
     pfYUV422P16 = VS_MAKE_VIDEO_ID(cfYUV, stInteger, 16, 1, 0),
     pfYUV444P16 = VS_MAKE_VIDEO_ID(cfYUV, stInteger, 16, 0, 0),
 
+    pfYUV420PH = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 16, 1, 1),
+    pfYUV420PS = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 32, 1, 1),
+    pfYUV422PH = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 16, 1, 0),
+    pfYUV422PS = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 32, 1, 0),
     pfYUV444PH = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 16, 0, 0),
     pfYUV444PS = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 32, 0, 0),
 
