@@ -26,6 +26,7 @@
 #include <atomic>
 #include <filesystem>
 #include <vector>
+#include <algorithm>
 
 #ifdef VS_TARGET_OS_WINDOWS
 #define WIN32_LEAN_AND_MEAN
