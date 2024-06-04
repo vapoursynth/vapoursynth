@@ -310,7 +310,10 @@ static void VS_CC evalSetWorkingDir(VSScript *handle, int setCWD) VS_NOEXCEPT {
 
 static int VS_CC getAvailableOutputNodes(VSScript *handle, int size, int *dst) VS_NOEXCEPT {
     assert(size <= 0 || dst);
-    return vpy4_getAvailableOutputNodes(handle, size, dst);
+    std::lock_guard<std::mutex> lock(vsscriptlock);
+    int count = vpy4_getAvailableOutputNodes(handle, size, dst);
+    std::sort(dst, dst + std::min(size, count));
+    return count;
 }
 
 // V3 API compatibility
