@@ -42,8 +42,8 @@ PrivilegesRequiredOverridesAllowed=dialog
 WizardStyle=modern
 FlatComponentsList=yes
 ChangesEnvironment=yes
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"
