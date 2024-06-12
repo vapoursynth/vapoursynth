@@ -2173,7 +2173,7 @@ cdef class VideoNode(RawNode):
                 (<Plugin>obj).injected_arg = self
             return obj
         except AttributeError:
-            raise AttributeError(f'There is no attribute or namespace named {name}') from None
+            raise AttributeError(f'There is no attribute or namespace named {name}. Did you mistype a plugin namespace or forget to install a plugin?') from None
 
     cdef ensure_valid_frame_number(self, int n):
         if n < 0:
@@ -2424,7 +2424,7 @@ cdef class AudioNode(RawNode):
         except AttributeError:
             err = True
         if err:
-            raise AttributeError('There is no attribute or namespace named ' + name)
+            raise AttributeError(f'There is no attribute or namespace named {name}. Did you mistype a plugin namespace or forget to install a plugin?')
 
     cdef ensure_valid_frame_number(self, int n):
         if n < 0:
