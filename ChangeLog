@@ -1,4 +1,7 @@
-r69
+r70:
+fixed a potential crash that could happen when more than 2 audio clips are spliced at the same time
+
+r69:
 added YUV420PS/H and YUV422PS/H constants for convenience
 vspipe --info will now output information for all set output nodes
 added a new function to to the vsscript api to get a list of all set output indices, since most users don't need vsscript api 4.2 you now have to define VSSCRIPT_USE_LATEST_API or VSSCRIPT_USE_API_42 to actually require it
