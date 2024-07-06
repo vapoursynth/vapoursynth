@@ -873,7 +873,7 @@ static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
 }
 
 #ifdef VS_TARGET_OS_WINDOWS
-int main8(int argc, char **argv);
+static int main8(int argc, char **argv);
 
 int wmain(int argc, wchar_t **argv) {
     std::vector<std::string> argv8storage;
