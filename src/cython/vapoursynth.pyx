@@ -2815,7 +2815,7 @@ cdef Core createCore(EnvironmentData env):
     cdef Core instance = Core.__new__(Core)
     instance.funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     if instance.funcs == NULL:
-        raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
+        raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
     instance.core = instance.funcs.createCore(env.coreCreationFlags)
     instance.timings = createCoreTimings(instance)
     instance.creationFlags = env.coreCreationFlags
@@ -2825,13 +2825,26 @@ cdef Core createCore(EnvironmentData env):
 
 cdef Core createCore2(VSCore *core):
     cdef Core instance = Core.__new__(Core)
+    cdef VSMap *min
+    cdef VSMap *mout
+    cdef VSPlugin *plugin
+    cdef VSNode *node
     instance.funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     if instance.funcs == NULL:
-        raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
+        raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
     instance.core = core
     instance.timings = createCoreTimings(instance)
     if instance.core_version.release_major <> VS_CURRENT_RELEASE:
         instance.log_message(mtWarning, f'Version mismatch: The VapourSynth Python module version is R{__version__.release_major:d} but the VapourSynth core library is R{instance.core_version.release_major:d}. This usually indicates a broken install.')
+    plugin = instance.funcs.getPluginByID('com.vapoursynth.std', core)
+    min = instance.funcs.createMap()
+    mout = instance.funcs.invoke(plugin, "BlankClip", min)
+    instance.funcs.freeMap(min)
+    node = instance.funcs.mapGetNode(mout, "clip", 0, NULL)
+    instance.funcs.freeMap(mout)
+    if instance.funcs.getNodeCreationFunctionName(node, 0) <> NULL:
+        instance.creationFlags = ccfEnableGraphInspection
+    instance.funcs.freeNode(node)
     return instance
 
 cdef Core _get_core(threads = None):
