@@ -19,7 +19,6 @@
 */
 
 #include "VapourSynth4.h"
-#include "VapourSynth3.h"
 #include "../../VAPOURSYNTH_VERSION"
 
 #define XSTR(x) STR(x)
@@ -39,5 +38,4 @@
     "Copyright (c) 2012-2024 Fredrik Mellbin\n" \
     "Core R" XSTR(VAPOURSYNTH_CORE_VERSION) "\n" \
     "API R" XSTR(VAPOURSYNTH_API_MAJOR) "." XSTR(VAPOURSYNTH_API_MINOR) "\n" \
-    "API R" XSTR(VAPOURSYNTH3_API_MAJOR) "." XSTR(VAPOURSYNTH3_API_MINOR) "\n" \
     VS_OPTIONS_TEXT

@@ -24,10 +24,12 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <vulkan/vulkan.h>
+
 #define VS_MAKE_VERSION(major, minor) (((major) << 16) | (minor))
 #define VAPOURSYNTH_API_MAJOR 4
-#if defined(VS_USE_LATEST_API) || defined(VS_USE_API_41)
-#define VAPOURSYNTH_API_MINOR 1
+#if defined(VS_USE_LATEST_API) || defined(VS_USE_API_42)
+#define VAPOURSYNTH_API_MINOR 2
 #else
 #define VAPOURSYNTH_API_MINOR 0
 #endif
@@ -285,7 +287,10 @@ typedef enum VSMessageType {
 typedef enum VSCoreCreationFlags {
     ccfEnableGraphInspection = 1,
     ccfDisableAutoLoading = 2,
-    ccfDisableLibraryUnloading = 4
+    ccfDisableLibraryUnloading = 4,
+    ccfEnableVulkan = 0x100,
+    ccfPreferIntegratedGPU = 0x200,
+    ccfUseVulkanCPU = 0x400
 } VSCoreCreationFlags;
 
 typedef enum VSPluginConfigFlags {
@@ -494,6 +499,13 @@ struct VSAPI {
     int64_t (VS_CC *getNodeProcessingTime)(VSNode *node, int reset) VS_NOEXCEPT; /* time spent processing frames in nanoseconds, reset sets the counter to 0 again */
     int64_t (VS_CC *getFreedNodeProcessingTime)(VSCore *core, int reset) VS_NOEXCEPT; /* time spent processing frames in nanoseconds in all destroyed nodes, reset sets the counter to 0 again */
 
+#if VAPOURSYNTH_API_MINOR >= 2
+    const VkBuffer *(VS_CC *getVkReadPtr)(const VSFrame *f, int plane) VS_NOEXCEPT;
+    VkBuffer *(VS_CC *getVkWritePtr)(const VSFrame *f, int plane) VS_NOEXCEPT;
+    int64_t (VS_CC *setMaxGPUCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT; /* the absolute maximum memory pre-allocated for GPU frame cache, rounded up to nearest GB internally */
+
+    // maybe needs createcore function with better device selection? a separate device lookup function or two and a byte in the flags reserved only for device index?
+
 #if defined(VS_GRAPH_API)
     /* !!! Experimental/expensive graph information, these function require both the major and minor version to match exactly when using them !!!
      * 
@@ -505,6 +517,7 @@ struct VSAPI {
 
     const char *(VS_CC *getNodeCreationFunctionName)(VSNode *node, int level) VS_NOEXCEPT; /* level=0 returns the name of the function that created the filter, specifying a higher level will retrieve the function above that invoked it or NULL if a non-existent level is requested */
     const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNode *node, int level) VS_NOEXCEPT; /* level=0 returns a copy of the arguments passed to the function that created the filter, returns NULL if a non-existent level is requested */
+#endif
 #endif
 #endif
 };

@@ -20,7 +20,6 @@
 
 #include "vscore.h"
 #include "cpufeatures.h"
-#include "vslog.h"
 #include "VSHelper4.h"
 #include <cassert>
 #include <cstring>
@@ -38,21 +37,6 @@ static int VS_CC registerFunction(const char *name, const char *args, const char
     return plugin->registerFunction(name, args, returnType, argsFunc, functionData);
 }
 
-static void VS_CC registerFunction3(const char *name, const char *args, vs3::VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT {
-    assert(name && args && argsFunc && plugin);
-    plugin->registerFunction(name, args, "any", reinterpret_cast<VSPublicFunction>(argsFunc), functionData);
-}
-
-static const vs3::VSVideoFormat *VS_CC getFormatPreset3(int id, VSCore *core) VS_NOEXCEPT {
-    assert(core);
-    return core->getVideoFormat3(id);
-}
-
-static const vs3::VSVideoFormat *VS_CC registerFormat3(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT {
-    assert(core);
-    return core->queryVideoFormat3(static_cast<vs3::VSColorFamily>(colorFamily), static_cast<VSSampleType>(sampleType), bitsPerSample, subSamplingW, subSamplingH);
-}
-
 static const VSFrame *VS_CC addFrameRef(const VSFrame *frame) VS_NOEXCEPT {
     assert(frame);
     const_cast<VSFrame *>(frame)->add_ref();
@@ -68,11 +52,6 @@ static VSNode *VS_CC addNodeRef(VSNode *node) VS_NOEXCEPT {
 static ptrdiff_t VS_CC getStride(const VSFrame *frame, int plane) VS_NOEXCEPT {
     assert(frame);
     return frame->getStride(plane);
-}
-
-static int VS_CC getStride3(const VSFrame *frame, int plane) VS_NOEXCEPT {
-    assert(frame);
-    return static_cast<int>(frame->getStride(plane));
 }
 
 static const uint8_t *VS_CC getReadPtr(const VSFrame *frame, int plane) VS_NOEXCEPT {
@@ -185,60 +164,14 @@ static VSFrame *VS_CC newVideoFrame(const VSVideoFormat *format, int width, int 
     return new VSFrame(*format, width, height, propSrc, core);
 }
 
-static VSFrame *VS_CC newVideoFrame3(const vs3::VSVideoFormat *format, int width, int height, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
-    assert(format && core);
-    VSVideoFormat v4;
-    if (core->VideoFormatFromV3(v4, format))
-        return new VSFrame(v4, width, height, propSrc, core);
-    else
-        return nullptr;
-}
-
 static VSFrame *VS_CC newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
     return new VSFrame(*format, width, height, planeSrc, planes, propSrc, core);
 }
 
-static VSFrame *VS_CC newVideoFrame23(const vs3::VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
-    assert(format && core);
-    VSVideoFormat v4;
-    if (core->VideoFormatFromV3(v4, format))
-        return new VSFrame(v4, width, height, planeSrc, planes, propSrc, core);
-    else
-        return nullptr;
-}
-
 static VSFrame *VS_CC copyFrame(const VSFrame *frame, VSCore *core) VS_NOEXCEPT {
     assert(frame && core);
     return new VSFrame(*frame);
-}
-
-static void VS_CC copyFrameProps3(const VSFrame *src, VSFrame *dst, VSCore *core) VS_NOEXCEPT {
-    assert(src && dst && core);
-    dst->setProperties(src->getConstProperties());
-}
-
-static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, vs3::VSFilterInit init, vs3::VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
-    assert(in && out && name && init && getFrame && core);
-
-    VSFilterMode fm;
-    switch (filterMode) {
-        case vs3::fmParallel:
-            fm = fmParallel;
-            break;
-        case vs3::fmParallelRequests:
-            fm = fmParallelRequests;
-            break;
-        case vs3::fmUnordered:
-            fm = fmUnordered;
-            break;
-        case vs3::fmFrameState:
-            fm = fmFrameState;
-            break;
-        default:
-            core->logFatal("Invalid filter mode specified for " + std::string(name));
-    }
-    core->createFilter3(in, out, name, init, reinterpret_cast<VSFilterGetFrame>(getFrame), free, fm, flags, instanceData, VAPOURSYNTH3_API_MAJOR);
 }
 
 static void VS_CC mapSetError(VSMap *map, const char *errorMessage) VS_NOEXCEPT {
@@ -261,24 +194,9 @@ static const VSVideoInfo *VS_CC getVideoInfo(VSNode *node) VS_NOEXCEPT {
     return &node->getVideoInfo();
 }
 
-static const vs3::VSVideoInfo *VS_CC getVideoInfo3(VSNode *c) VS_NOEXCEPT {
-    assert(c);
-    return &c->getVideoInfo3();
-}
-
-static void VS_CC setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs, VSNode *c) VS_NOEXCEPT {
-    assert(vi && numOutputs > 0 && c);
-    c->setVideoInfo3(vi, numOutputs);
-}
-
 static const VSVideoFormat *VS_CC getVideoFrameFormat(const VSFrame *f) VS_NOEXCEPT {
     assert(f);
     return f->getVideoFormat();
-}
-
-static const vs3::VSVideoFormat *VS_CC getFrameFormat3(const VSFrame *f) VS_NOEXCEPT {
-    assert(f);
-    return f->getVideoFormatV3();
 }
 
 static int VS_CC getFrameWidth(const VSFrame *f, int plane) VS_NOEXCEPT {
@@ -323,28 +241,6 @@ static int VS_CC mapGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
     VSArrayBase *val = map->find(key);
     return val ? val->type() : ptUnset;
-}
-
-static char VS_CC propGetType3(const VSMap *map, const char *key) VS_NOEXCEPT {
-    assert(map && key);
-    VSArrayBase *val = map->find(key);
-    VSPropertyType pt = val ? val->type() : ptUnset;
-    switch (pt) {
-        case ptInt:
-            return vs3::ptInt;
-        case ptFloat:
-            return vs3::ptFloat;
-        case ptData:
-            return vs3::ptData;
-        case ptVideoNode:
-            return vs3::ptNode;
-        case ptVideoFrame:
-            return vs3::ptFrame;
-        case ptFunction:
-            return vs3::ptFunction;
-        default:
-            return vs3::ptUnset;
-    }
 }
 
 static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, int *error, VSPropertyType propType) noexcept {
@@ -551,7 +447,7 @@ static int VS_CC mapSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT 
 template<typename T, VSPropertyType propType>
 bool propSetShared(VSMap *map, const char *key, const T &val, int append) {
     assert(map && key);
-    if (append != maReplace && append != maAppend && append != vs3::paTouch)
+    if (append != maReplace && append != maAppend)
         VS_FATAL_ERROR(("Invalid prop append mode given when setting key '" + std::string(key) + "'").c_str());
 
     if (!isValidVSMapKey(key))
@@ -577,8 +473,8 @@ bool propSetShared(VSMap *map, const char *key, const T &val, int append) {
             map->insert(key, v);
             return true;
         }
-    } else /* if (append == vs3::paTouch) */ {
-        return !mapSetEmpty(map, key, propType);
+    } else {
+        return false;
     }
 }
 
@@ -592,10 +488,6 @@ static int VS_CC mapSetFloat(VSMap *map, const char *key, double d, int append) 
 
 static int VS_CC mapSetData(VSMap *map, const char *key, const char *d, int length, int type, int append) VS_NOEXCEPT {
     return !propSetShared<VSMapData, ptData>(map, key, { static_cast<VSDataTypeHint>(type), (length >= 0) ? std::string(d, length) : std::string(d) }, append);
-}
-
-static int VS_CC propSetData3(VSMap *map, const char *key, const char *d, int length, int append) VS_NOEXCEPT {
-    return mapSetData(map, key, d, length, dtUnknown, append);
 }
 
 static int VS_CC mapSetNode(VSMap *map, const char *key, VSNode *node, int append) VS_NOEXCEPT {
@@ -651,13 +543,6 @@ static void VS_CC copyMap(const VSMap *src, VSMap *dst) VS_NOEXCEPT {
 
 static VSCore *VS_CC createCore(int flags) VS_NOEXCEPT {
     return new VSCore(flags);
-}
-
-static VSCore *VS_CC createCore3(int threads) VS_NOEXCEPT {
-    VSCore *core = new VSCore(0);
-    if (core)
-        core->threadPool->setThreadCount(threads);
-    return core;
 }
 
 static void VS_CC freeCore(VSCore *core) VS_NOEXCEPT {
@@ -720,23 +605,6 @@ static const char *VS_CC getPluginFunctionReturnType(VSPluginFunction *func) VS_
     return func->getReturnType().c_str();
 }
 
-static VSMap *VS_CC getPlugins3(VSCore *core) VS_NOEXCEPT {
-    assert(core);
-    return core->getPlugins3();
-}
-
-static VSMap *VS_CC getFunctions3(VSPlugin *plugin) VS_NOEXCEPT {
-    assert(plugin);
-    VSMap *m = new VSMap();
-    plugin->getFunctions3(m);
-    return m;
-}
-
-static const VSCoreInfo *VS_CC getCoreInfo3(VSCore *core) VS_NOEXCEPT {
-    assert(core);
-    return &core->getCoreInfo3();
-}
-
 static VSFunction *VS_CC mapGetFunction(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     const VSArrayBase *arr = propGetShared(map, key, index, error, ptFunction);
     if (arr) {
@@ -761,31 +629,14 @@ static void VS_CC callFunction(VSFunction *func, const VSMap *in, VSMap *out) VS
     func->call(in, out);
 }
 
-static void VS_CC callFunction3(VSFunction *func, const VSMap *in, VSMap *out, VSCore *core, const vs3::VSAPI3 *vsapi) VS_NOEXCEPT {
-    assert(func && in && out);
-    func->call(in, out);
-}
-
 static VSFunction *VS_CC createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core) VS_NOEXCEPT {
     assert(func && core);
     return new VSFunction(func, userData, free, core, VAPOURSYNTH_API_MAJOR);
 }
 
-static VSFunction *VS_CC createFunction3(vs3::VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core, const vs3::VSAPI3 *vsapi) VS_NOEXCEPT {
-    assert(func && core && vsapi);
-    return new VSFunction(reinterpret_cast<VSPublicFunction>(func), userData, free, core, VAPOURSYNTH3_API_MAJOR);
-}
-
 static void VS_CC freeFunction(VSFunction *f) VS_NOEXCEPT {
     if (f)
         f->release();
-}
-
-static void VS_CC queryCompletedFrame3(VSNode **node, int *n, VSFrameContext *frameCtx) VS_NOEXCEPT {
-    assert(node && n && frameCtx);
-    assert(false);
-    *node = nullptr;
-    *n = -1;
 }
 
 static void VS_CC releaseFrameEarly(VSNode *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
@@ -820,10 +671,6 @@ static int VS_CC getOutputIndex(VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(frameCtx);
     assert(false);
     return 0;
-}
-
-static void VS_CC setMessageHandler(VSLogHandler handler, void *userData) VS_NOEXCEPT {
-    vsSetMessageHandler3(handler, userData);
 }
 
 static int VS_CC setThreadCount(int threads, VSCore *core) VS_NOEXCEPT {
@@ -899,18 +746,6 @@ static VSLogHandle *VS_CC addLogHandler(VSLogHandler handler, VSLogHandlerFree f
 static int VS_CC removeLogHandler(VSLogHandle *handle, VSCore *core) VS_NOEXCEPT {
     assert(handle && core);
     return core->removeLogHandler(reinterpret_cast<VSLogHandle *>(handle));
-}
-
-static void VS_CC logMessage3(int msgType, const char *msg) VS_NOEXCEPT {
-    vsLog3(static_cast<vs3::VSMessageType>(msgType), "%s", msg);
-}
-
-static int VS_CC addMessageHandler3(VSLogHandler handler, VSLogHandlerFree free, void *userData) VS_NOEXCEPT {
-    return vsAddMessageHandler3(handler, free, userData);
-}
-
-static int VS_CC removeMessageHandler3(int id) VS_NOEXCEPT {
-    return vsRemoveMessageHandler3(id);
 }
 
 static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
@@ -1225,101 +1060,12 @@ const VSAPI vs_internal_vsapi = {
     &getNodeProcessingTime,
     &getFreedNodeProcessingTime,
 
+    nullptr,
+    nullptr,
+    nullptr,
+
     &getNodeCreationFunctionName,
     &getNodeCreationFunctionArguments
-};
-
-const vs3::VSAPI3 vs_internal_vsapi3 = {
-    &createCore3,
-    &freeCore,
-    &getCoreInfo3,
-
-    &addFrameRef,
-    &addNodeRef,
-    &addFunctionRef,
-
-    &freeFrame,
-    &freeNode,
-    &freeFunction,
-
-    &newVideoFrame3,
-    &copyFrame,
-    &copyFrameProps3,
-    &registerFunction3,
-    &getPluginByID,
-    &getPluginByNamespace,
-    &getPlugins3,
-    &getFunctions3,
-    &createFilter3,
-    &mapSetError,
-    &mapGetError,
-    &setFilterError,
-    &invoke,
-    &getFormatPreset3,
-    &registerFormat3,
-    &getFrame,
-    &getFrameAsync,
-    &getFrameFilter,
-    &requestFrameFilter,
-    &queryCompletedFrame3,
-    &releaseFrameEarly,
-
-    &getStride3,
-    &getReadPtr,
-    &getWritePtr,
-
-    &createFunction3,
-    &callFunction3,
-
-    &createMap,
-    &freeMap,
-    &clearMap,
-
-    &getVideoInfo3,
-    &setVideoInfo3,
-    &getFrameFormat3,
-    &getFrameWidth,
-    &getFrameHeight,
-    &getFramePropertiesRO,
-    &getFramePropertiesRW,
-
-    &mapNumKeys,
-    &mapGetKey,
-    &mapNumElements,
-    &propGetType3,
-    &mapGetInt,
-    &mapGetFloat,
-    &mapGetData,
-    &mapGetDataSize,
-    &mapGetNode,
-    &mapGetFrame,
-    &mapGetFunction,
-    &mapDeleteKey,
-    &mapSetInt,
-    &mapSetFloat,
-    &propSetData3,
-    &mapSetNode,
-    &mapSetFrame,
-    &mapSetFunction,
-
-    &setMaxCacheSize,
-    &getOutputIndex,
-    &newVideoFrame23,
-
-    &setMessageHandler,
-    &setThreadCount,
-
-    &getPluginPath,
-
-    &mapGetIntArray,
-    &mapGetFloatArray,
-    &mapSetIntArray,
-    &mapSetFloatArray,
-
-    &logMessage3,
-    &addMessageHandler3,
-    &removeMessageHandler3,
-    &getCoreInfo2
 };
 
 ///////////////////////////////
@@ -1327,8 +1073,6 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
 const VSAPI *getVSAPIInternal(int apiMajor) {
     if (apiMajor == VAPOURSYNTH_API_MAJOR) {
         return &vs_internal_vsapi;
-    }  else if (apiMajor == VAPOURSYNTH3_API_MAJOR) {
-            return reinterpret_cast<const VSAPI *>(&vs_internal_vsapi3);
     } else {
         assert(false);
         return nullptr;
@@ -1347,8 +1091,6 @@ const VSAPI *VS_CC getVapourSynthAPI(int version) VS_NOEXCEPT {
         return nullptr;
     } else if (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_MINOR) {
         return &vs_internal_vsapi;
-    } else if (apiMajor == VAPOURSYNTH3_API_MAJOR && apiMinor <= VAPOURSYNTH3_API_MINOR) {
-        return reinterpret_cast<const VSAPI *>(&vs_internal_vsapi3);
     } else {
         return nullptr;
     }

@@ -34,7 +34,6 @@
 #include "kernel/cpulevel.h"
 #include "kernel/planestats.h"
 #include "kernel/transpose.h"
-#include "VapourSynth3.h" // only used for old colorfamily constant conversion in ShufflePlanes
 
 using namespace vsh;
 
@@ -574,13 +573,6 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     assert(d->plane[0] == 0);
 
     d->format = vsapi->mapGetIntSaturated(in, "colorfamily", 0, 0);
-    
-    if (d->format == vs3::cmGray)
-        d->format = cfGray;
-    else if (d->format == vs3::cmYUV || d->format == vs3::cmYCoCg)
-        d->format = cfYUV;
-    else if (d->format == vs3::cmRGB)
-        d->format = cfRGB;
 
     if (d->format != cfRGB && d->format != cfYUV && d->format != cfGray)
         RETERROR("ShufflePlanes: invalid output colorfamily");

@@ -3422,37 +3422,6 @@ cdef public api int vpy4_createScript(VSScript *se) nogil:
             return 1
         return 0
 
-cdef public api int vpy_evaluateScript(VSScript *se, const char *script, const char *scriptFilename, int flags) nogil:
-    with gil:
-        fn = scriptFilename.decode('utf-8')
-        with __chdir(fn, flags):
-            return _vpy_evaluate(se, script, fn)
-        return 0
-
-cdef public api int vpy_evaluateFile(VSScript *se, const char *scriptFilename, int flags) nogil:
-    with gil:
-        if not se.pyenvdict:
-            pyenvdict = {}
-            Py_INCREF(pyenvdict)
-            se.pyenvdict = <void *>pyenvdict
-            _get_vsscript_policy().get_environment(se.id).outputs.clear()
-        try:
-            with open(scriptFilename.decode('utf-8'), 'rb') as f:
-                script = f.read(1024*1024*16)
-            return vpy_evaluateScript(se, script, scriptFilename, flags)
-        except BaseException, e:
-            errstr = 'File reading exception:\n' + str(e)
-            errstr = errstr.encode('utf-8')
-            Py_INCREF(errstr)
-            se.errstr = <void *>errstr
-            return 2
-        except:
-            errstr = 'Unspecified file reading exception'
-            errstr = errstr.encode('utf-8')
-            Py_INCREF(errstr)
-            se.errstr = <void *>errstr
-            return 1
-
 cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const char *scriptFilename) nogil:
     with gil:
         try:
@@ -3504,7 +3473,7 @@ cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename) 
 
 cdef public api void vpy4_freeScript(VSScript *se) noexcept nogil:
     with gil:
-        vpy_clearEnvironment(se)
+        vpy4_clearEnvironment(se)
         if se.pyenvdict:
             pyenvdict = <dict>se.pyenvdict
             se.pyenvdict = NULL
@@ -3595,14 +3564,6 @@ cdef public api int vpy4_getAvailableOutputNodes(VSScript *se, int size, int *ds
         
         return len(nodes)
 
-cdef public api int vpy_clearOutput(VSScript *se, int index) nogil:
-    with gil:
-        try:
-            del _get_vsscript_policy().get_environment(se.id).outputs[index]
-        except:
-            return 1
-        return 0
-
 cdef public api VSCore *vpy4_getCore(VSScript *se) nogil:
     with gil:
         try:
@@ -3646,16 +3607,7 @@ cdef public api int vpy4_setVariables(VSScript *se, const VSMap *vars) nogil:
             except:
                 return 1
 
-cdef public api int vpy_clearVariable(VSScript *se, const char *name) nogil:
-    with gil:
-        pyenvdict = <dict>se.pyenvdict
-        try:
-            del pyenvdict[name.decode('utf-8')]
-        except:
-            return 1
-        return 0
-
-cdef public api void vpy_clearEnvironment(VSScript *se) noexcept nogil:
+cdef public api void vpy4_clearEnvironment(VSScript *se) noexcept nogil:
     with gil:
         pyenvdict = <dict>se.pyenvdict
         for key in pyenvdict:

@@ -67,19 +67,19 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
+    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
+    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
+    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
+    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -242,13 +242,11 @@
     <ClCompile Include="..\..\src\core\textfilter.cpp" />
     <ClCompile Include="..\..\src\core\vsapi.cpp" />
     <ClCompile Include="..\..\src\core\vscore.cpp" />
-    <ClCompile Include="..\..\src\core\vslog.cpp" />
     <ClCompile Include="..\..\src\core\vsresize.cpp" />
     <ClCompile Include="..\..\src\core\vsthreadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth4.h" />
-    <ClInclude Include="..\..\include\VSHelper.h" />
     <ClInclude Include="..\..\include\VSHelper4.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
     <ClInclude Include="..\..\src\core\expr\expr.h" />
@@ -271,10 +269,8 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClInclude>
     <ClInclude Include="..\..\src\core\ter-116n.h" />
-    <ClInclude Include="..\..\src\core\VapourSynth3.h" />
     <ClInclude Include="..\..\src\core\version.h" />
     <ClInclude Include="..\..\src\core\vscore.h" />
-    <ClInclude Include="..\..\src\core\vslog.h" />
     <ClInclude Include="..\..\src\core\x86utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
