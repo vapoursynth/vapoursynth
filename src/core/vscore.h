@@ -44,6 +44,8 @@
 #include <tuple>
 #include <filesystem>
 #include <chrono>
+#include <vulkan/vulkan.hpp>
+#include <vma/vk_mem_alloc.h>
 
 #ifdef VS_TARGET_OS_WINDOWS
 #    define WIN32_LEAN_AND_MEAN
@@ -1016,8 +1018,18 @@ struct VSLogHandle {
     }
 };
 
+// FIXME, shovel into memoryuse class as a subclass or something
+// also needs to hold on to handles until last allocation is freed
+class VkMemoryUse {
+private:
+    VmaAllocator alloc;
+public:
+    VkMemoryUse(VSCore *core);
+};
+
 struct VSCore {
     friend struct VSNode;
+    friend class VkMemoryUse;
 private:
     //number of filter instances plus one, freeing the core reduces it by one
     // the core will be freed once it reaches 0
@@ -1031,6 +1043,14 @@ private:
     std::recursive_mutex pluginLock;
     std::set<VSNode *> caches;
     std::mutex cacheLock;
+
+    // GPU section
+    bool vkEnabled = false;
+    vk::Instance vkInstance;
+    vk::PhysicalDevice vkPhysicalDevice;
+    vk::Device vkDevice;
+    //
+
     static bool m_isPortable;
     static std::filesystem::path m_basePath;
     static std::once_flag m_portableOnceFlag;
@@ -1050,6 +1070,7 @@ private:
 public:
     VSThreadPool *threadPool;
     vs::MemoryUse *memory;
+    VkMemoryUse *vkMemory = nullptr;
 
     bool disableLibraryUnloading;
 

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2021 Fredrik Mellbin
+* Copyright (c) 2012-2024 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -289,8 +289,8 @@ typedef enum VSCoreCreationFlags {
     ccfDisableAutoLoading = 2,
     ccfDisableLibraryUnloading = 4,
     ccfEnableVulkan = 0x100,
-    ccfPreferIntegratedGPU = 0x200,
-    ccfUseVulkanCPU = 0x400
+    ccfUseVulkanOnCPU = 0x200,
+    ccfPreferIntegratedGPU = 0x400
 } VSCoreCreationFlags;
 
 typedef enum VSPluginConfigFlags {
@@ -500,9 +500,11 @@ struct VSAPI {
     int64_t (VS_CC *getFreedNodeProcessingTime)(VSCore *core, int reset) VS_NOEXCEPT; /* time spent processing frames in nanoseconds in all destroyed nodes, reset sets the counter to 0 again */
 
 #if VAPOURSYNTH_API_MINOR >= 2
+    VkDevice *(VS_CC *getVkDevice)(VSCore *core) VS_NOEXCEPT;
+    int (VS_CC *getNumVkQueue)(VSCore *core, int queueType) VS_NOEXCEPT;
+    int64_t (VS_CC *setMaxGPUCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT; /* the absolute maximum memory pre-allocated for GPU frame cache, rounded up to nearest GB internally */
     const VkBuffer *(VS_CC *getVkReadPtr)(const VSFrame *f, int plane) VS_NOEXCEPT;
     VkBuffer *(VS_CC *getVkWritePtr)(const VSFrame *f, int plane) VS_NOEXCEPT;
-    int64_t (VS_CC *setMaxGPUCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT; /* the absolute maximum memory pre-allocated for GPU frame cache, rounded up to nearest GB internally */
 
     // maybe needs createcore function with better device selection? a separate device lookup function or two and a byte in the flags reserved only for device index?
 

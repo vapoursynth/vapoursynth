@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2020 Fredrik Mellbin
+* Copyright (c) 2012-2024 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -1062,6 +1062,8 @@ const VSAPI vs_internal_vsapi = {
 
     nullptr,
     nullptr,
+    nullptr,
+    nullptr, 
     nullptr,
 
     &getNodeCreationFunctionName,

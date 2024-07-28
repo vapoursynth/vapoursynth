@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2020 Fredrik Mellbin
+* Copyright (c) 2012-2024 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -924,6 +924,18 @@ void VSNode::notifyCache(bool needMemory) {
     cache.adjustSize(needMemory);
 }
 
+VkMemoryUse::VkMemoryUse(VSCore *core) {
+    VmaAllocatorCreateInfo cInfo = {};
+    cInfo.physicalDevice = core->vkPhysicalDevice;
+    cInfo.device = core->vkDevice;
+    cInfo.preferredLargeHeapBlockSize = 1024 * 1024 * 1024;
+    cInfo.instance = core->vkInstance;
+    cInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+    VkResult res = vmaCreateAllocator(&cInfo, &alloc);
+    assert(res == VK_SUCCESS);
+};
+
+
 void VSCore::notifyCaches(bool needMemory) {
     std::lock_guard<std::mutex> lock(cacheLock);
     for (auto &cache : caches)
@@ -1373,6 +1385,83 @@ VSCore::VSCore(int flags) :
 
     disableLibraryUnloading = !!(flags & ccfDisableLibraryUnloading);
     bool disableAutoLoading = !!(flags & ccfDisableAutoLoading);
+
+    vkEnabled = !!(flags & ccfEnableVulkan);
+    if (vkEnabled) {
+        bool preferIntegratedGPU = !!(flags & ccfPreferIntegratedGPU);
+        bool useCPUDevice = !!(flags & ccfUseVulkanOnCPU);
+
+        vk::ApplicationInfo appInfo("VapourSynth", VAPOURSYNTH_CORE_VERSION, nullptr, 0, VK_API_VERSION_1_3);
+        const std::vector<const char *> layers = { "VK_LAYER_KHRONOS_validation" }; // FIXME, only enable for debug builds later
+        vk::InstanceCreateInfo instanceCreateInfo(vk::InstanceCreateFlags(), &appInfo, layers, {});
+        vkInstance = vk::createInstance(instanceCreateInfo);
+
+        if (useCPUDevice) {
+            for (auto &iter : vkInstance.enumeratePhysicalDevices()) {
+                vk::PhysicalDeviceProperties deviceProps = iter.getProperties();
+                if (deviceProps.apiVersion < VK_API_VERSION_1_3)
+                    continue;
+                if (deviceProps.deviceType == vk::PhysicalDeviceType::eCpu && useCPUDevice) {
+                    vkPhysicalDevice = iter;
+                    break;
+                }
+            }
+        } else if (preferIntegratedGPU) {
+            for (auto &iter : vkInstance.enumeratePhysicalDevices()) {
+                vk::PhysicalDeviceProperties deviceProps = iter.getProperties();
+                if (deviceProps.apiVersion < VK_API_VERSION_1_3)
+                    continue;
+                if (deviceProps.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
+                    vkPhysicalDevice = iter;
+                    break;
+                } else if (!vkPhysicalDevice && deviceProps.deviceType == vk::PhysicalDeviceType::eIntegratedGpu) {
+                    vkPhysicalDevice = iter;
+                }
+            }
+        } else {
+            for (auto &iter : vkInstance.enumeratePhysicalDevices()) {
+                vk::PhysicalDeviceProperties deviceProps = iter.getProperties();
+                if (deviceProps.apiVersion < VK_API_VERSION_1_3)
+                    continue;
+                if (deviceProps.deviceType == vk::PhysicalDeviceType::eIntegratedGpu) {
+                    vkPhysicalDevice = iter;
+                    break;
+                } else if (!vkPhysicalDevice && deviceProps.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
+                    vkPhysicalDevice = iter;
+                }
+            }
+        }
+
+        if (!vkPhysicalDevice) {
+            logMessage(mtWarning, "No suitable GPU could be located");
+            vkEnabled = false;
+            // exit here
+        }
+
+        vk::PhysicalDeviceProperties deviceProps = vkPhysicalDevice.getProperties();
+        logMessage(mtInformation, "Selected GPU: " + std::string(deviceProps.deviceName.data(), deviceProps.deviceName.size()));
+
+        std::vector<vk::QueueFamilyProperties> QueueFamilyProps = vkPhysicalDevice.getQueueFamilyProperties();
+
+        uint32_t computeQueueIdx = UINT32_MAX;
+        uint32_t graphicsQueueIdx = UINT32_MAX;
+        for (size_t i = 0; i < QueueFamilyProps.size(); i++) {
+            if (QueueFamilyProps[i].queueFlags & vk::QueueFlagBits::eCompute)
+                computeQueueIdx = i;
+            else if (QueueFamilyProps[i].queueFlags & vk::QueueFlagBits::eGraphics)
+                graphicsQueueIdx = i;
+        }
+
+        // The standard requires at least one graphics queue to be present, the rest is optional but very common
+        assert(computeQueueIdx != UINT32_MAX);
+
+        vk::DeviceQueueCreateInfo DeviceQueueCreateInfo[2] = { { vk::DeviceQueueCreateFlags(), graphicsQueueIdx, 1 }, { vk::DeviceQueueCreateFlags(), computeQueueIdx, 1 } };
+        vk::DeviceCreateInfo DeviceCreateInfo(vk::DeviceCreateFlags(), DeviceQueueCreateInfo);
+        vkDevice = vkPhysicalDevice.createDevice(DeviceCreateInfo);
+
+        vkMemory = new VkMemoryUse(this);
+    }
+
     threadPool = new VSThreadPool(this);
 
     // The internal plugin units, the loading is a bit special so they can get special flags
