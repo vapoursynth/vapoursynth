@@ -18,6 +18,9 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#define VMA_IMPLEMENTATION
+#include <vma/vk_mem_alloc.h>
+
 #include "vscore.h"
 #include "VSHelper4.h"
 #include "version.h"

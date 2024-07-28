@@ -67,19 +67,19 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;../../libp2p;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../libp2p;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Configuration)\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;../../libp2p;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../libp2p;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration)\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;../../libp2p;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../libp2p;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Configuration)\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;../../libp2p;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../libp2p;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration)\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">

@@ -75,19 +75,19 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;$(VSPYTHON3832_PATH)\include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;$(VSPYTHON3832_PATH)\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(VSPYTHON3832_PATH)\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;$(VSPYTHON38_PATH)\include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;$(VSPYTHON38_PATH)\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(VSPYTHON38_PATH)\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;$(VSPYTHON3832_PATH)\include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;$(VSPYTHON3832_PATH)\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(VSPYTHON3832_PATH)\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>C:\VulkanSDK\1.3.290.0\Include;../../include;$(VSPYTHON38_PATH)\include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;$(VSPYTHON38_PATH)\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(VSPYTHON38_PATH)\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
