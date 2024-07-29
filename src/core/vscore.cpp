@@ -1390,6 +1390,7 @@ VSCore::VSCore(int flags) :
     bool disableAutoLoading = !!(flags & ccfDisableAutoLoading);
 
     vkEnabled = !!(flags & ccfEnableVulkan);
+    vkEnabled = true;
     if (vkEnabled) {
         bool preferIntegratedGPU = !!(flags & ccfPreferIntegratedGPU);
         bool useCPUDevice = !!(flags & ccfUseVulkanOnCPU);
@@ -1414,10 +1415,10 @@ VSCore::VSCore(int flags) :
                 vk::PhysicalDeviceProperties deviceProps = iter.getProperties();
                 if (deviceProps.apiVersion < VK_API_VERSION_1_3)
                     continue;
-                if (deviceProps.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
+                if (deviceProps.deviceType == vk::PhysicalDeviceType::eIntegratedGpu) {
                     vkPhysicalDevice = iter;
                     break;
-                } else if (!vkPhysicalDevice && deviceProps.deviceType == vk::PhysicalDeviceType::eIntegratedGpu) {
+                } else if (!vkPhysicalDevice && deviceProps.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
                     vkPhysicalDevice = iter;
                 }
             }
@@ -1426,10 +1427,10 @@ VSCore::VSCore(int flags) :
                 vk::PhysicalDeviceProperties deviceProps = iter.getProperties();
                 if (deviceProps.apiVersion < VK_API_VERSION_1_3)
                     continue;
-                if (deviceProps.deviceType == vk::PhysicalDeviceType::eIntegratedGpu) {
+                if (deviceProps.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
                     vkPhysicalDevice = iter;
                     break;
-                } else if (!vkPhysicalDevice && deviceProps.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
+                } else if (!vkPhysicalDevice && deviceProps.deviceType == vk::PhysicalDeviceType::eIntegratedGpu) {
                     vkPhysicalDevice = iter;
                 }
             }
@@ -1444,21 +1445,19 @@ VSCore::VSCore(int flags) :
         vk::PhysicalDeviceProperties deviceProps = vkPhysicalDevice.getProperties();
         logMessage(mtInformation, "Selected GPU: " + std::string(deviceProps.deviceName.data(), deviceProps.deviceName.size()));
 
-        std::vector<vk::QueueFamilyProperties> QueueFamilyProps = vkPhysicalDevice.getQueueFamilyProperties();
+        std::vector<vk::QueueFamilyProperties> queueFamilyProps = vkPhysicalDevice.getQueueFamilyProperties();
 
-        uint32_t computeQueueIdx = UINT32_MAX;
         uint32_t graphicsQueueIdx = UINT32_MAX;
-        for (size_t i = 0; i < QueueFamilyProps.size(); i++) {
-            if (QueueFamilyProps[i].queueFlags & vk::QueueFlagBits::eCompute)
-                computeQueueIdx = i;
-            else if (QueueFamilyProps[i].queueFlags & vk::QueueFlagBits::eGraphics)
+        for (size_t i = 0; i < queueFamilyProps.size(); i++) {
+            if (graphicsQueueIdx == UINT32_MAX && (queueFamilyProps[i].queueFlags & (vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute))) {
                 graphicsQueueIdx = i;
+                break;
+            }
         }
 
-        // The standard requires at least one graphics queue to be present, the rest is optional but very common
-        assert(computeQueueIdx != UINT32_MAX);
+        assert(graphicsQueueIdx != UINT32_MAX);
 
-        vk::DeviceQueueCreateInfo DeviceQueueCreateInfo[2] = { { vk::DeviceQueueCreateFlags(), graphicsQueueIdx, 1 }, { vk::DeviceQueueCreateFlags(), computeQueueIdx, 1 } };
+        vk::DeviceQueueCreateInfo DeviceQueueCreateInfo= { vk::DeviceQueueCreateFlags(), graphicsQueueIdx, 1 };
         vk::DeviceCreateInfo DeviceCreateInfo(vk::DeviceCreateFlags(), DeviceQueueCreateInfo);
         vkDevice = vkPhysicalDevice.createDevice(DeviceCreateInfo);
 
