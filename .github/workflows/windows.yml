@@ -113,25 +113,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: test-windows
     if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
+    permissions:
+      id-token: write
 
     steps:
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-
     - uses: actions/download-artifact@v4
       with:
         name: vapoursynth
         path: dist
 
-    - name: Install twine
-      run: |
-        pip install -U twine
-
-    - name: Publish Python packages on PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_NOT_PORTABLE }}
-      run: |
-        twine check dist/*
-        twine upload dist/*
+    - uses: pypa/gh-action-pypi-publish@release/v1
