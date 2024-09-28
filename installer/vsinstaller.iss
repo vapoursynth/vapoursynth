@@ -1,10 +1,6 @@
 #define PythonVersion '3.12'
 #define PythonCompactVersion '312'
 
-#ifndef VSRuntimeVersion
-  #define VSRuntimeVersion '14.40.33810'
-#endif
-
 #define AppName 'VapourSynth (64-bits)'
 #define AppId 'VapourSynth'
 #define RegistryPath 'SOFTWARE\VapourSynth'
@@ -343,11 +339,6 @@ begin
       MsgBox('Python {#PythonVersion} or 3.8 64-bit is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
   else if not Result and not IsAdminInstallMode then
       MsgBox('Python {#PythonVersion} or 3.8 64-bit is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
-    
-  // fixme  
-  //if not IsAdminInstallMode and not vcredist2017installed(VSRuntimeVersion) then
-  //    if MsgBox('No recent Visual Studio 2019 Runtime installed.If you proceed with the install it is very likely the installation won''t work.'#13#10#13#10'Go to the download website now?', mbError, MB_YESNO) = IDYES then
-  //        ShellExec('open', 'https://visualstudio.microsoft.com/downloads/?q=redistributable', '', '', SW_SHOW, ewNoWait, ErrCode);
 end;
 
 procedure WizardFormOnResize(Sender: TObject);
