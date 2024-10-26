@@ -7,7 +7,7 @@ IF NOT EXIST AviSynthPlus (
 )
 
 IF NOT EXIST libp2p (
-    git clone https://bitbucket.org/the-sekrit-twc/libp2p.git
+    git clone https://github.com/sekrit-twc/libp2p
 ) ELSE (
     echo libp2p: & pushd libp2p & git pull &popd
 )
@@ -19,7 +19,7 @@ IF NOT EXIST vsrepo (
 )
 
 IF NOT EXIST zimg (
-    git clone https://bitbucket.org/the-sekrit-twc/zimg.git --shallow-submodules --recurse-submodules
+    git clone https://github.com/sekrit-twc/zimg --shallow-submodules --recurse-submodules
 ) ELSE (
     echo zimg: & pushd zimg & git pull & popd
 )

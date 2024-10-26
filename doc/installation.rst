@@ -119,9 +119,9 @@ Preparing things
 
 * Clone VapourSynth
 * Clone VSRepo into the VapourSynth dir (``git clone https://github.com/vapoursynth/vsrepo``)
-* Clone zimg into the VapourSynth dir (``git clone https://bitbucket.org/the-sekrit-twc/zimg.git --recurse-submodules``)
-* Clone avs+ into the VapourSynth dir (``git clone https://github.com/AviSynth/AviSynthPlus.git``)
-* Clone libp2p into the VapourSynth dir (``git clone https://bitbucket.org/the-sekrit-twc/libp2p.git``)
+* Clone zimg into the VapourSynth dir (``git clone https://github.com/sekrit-twc/zimg --recurse-submodules``)
+* Clone avs+ into the VapourSynth dir (``git clone https://github.com/AviSynth/AviSynthPlus``)
+* Clone libp2p into the VapourSynth dir (``git clone https://github.com/sekrit-twc/libp2p``)
 * Place 7z.exe and 7z.dll from `7-zip <https://www.7-zip.org/>`_ into the ``installer`` dir
 * Place ``pfm-192-vapoursynth-win.exe`` into the ``installer`` dir. You can get this file from the embedded zip or an existing VapourSynth install.
 * Run ``install_deps.bat``

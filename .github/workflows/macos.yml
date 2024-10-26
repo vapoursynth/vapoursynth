@@ -30,7 +30,7 @@ jobs:
 
     - name: Install zimg
       run: |
-        git clone https://bitbucket.org/the-sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules
+        git clone https://github.com/sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules
         pushd zimg
         ./autogen.sh
         ./configure
