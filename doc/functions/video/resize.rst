@@ -24,7 +24,7 @@ Resize
    *Bob* can be used as a rudimentary deinterlacer.
 
    Arguments denoted as type *enum* may be specified by numerical index (see
-   ITU-T H.265 Annex E.3) or by name. Enums specified by name have their
+   ITU-T H.273, Video Code Points) or by name. Enums specified by name have their
    argument name suffixed with "_s". For example, a destination matrix of
    BT 709 can be specified either with ``matrix=1`` or with ``matrix_s="709"``.
 
@@ -86,7 +86,7 @@ Resize
    
       Output chroma location. For subsampled formats, specifies the chroma location. If
       the input format is 4:4:4 or RGB and the output is subsampled, the default location
-      is left-aligned, as per MPEG. Possible chroma locations (ITU-T H.265 Figure E.1):
+      is left-aligned, as per MPEG. Possible chroma locations (ITU-T H.273 Figure 10):
       *left*, *center*, *top_left*, *top*, *bottom_left*, *bottom*
       
    *matrix_in*, *transfer_in*, *primaries_in*, *range_in*, *chromaloc_in*:
@@ -149,9 +149,9 @@ Resize
 
    The following tables list values of selected colorspace enumerations and
    their abbreviated names. (Numerical value in parentheses.) For all possible values,
-   see ITU-T H.265.
-   
-      Matrix coefficients (ITU-T H.265 Table E.5)::
+   see ITU-T H.273.
+
+      Matrix coefficients (ITU-T H.273 Table 4)::
         
         rgb (0)        Identity
                        The identity matrix.
@@ -159,18 +159,19 @@ Resize
                        however, may also be used for YZX (often referred to as
                        XYZ);
         709 (1)        KR = 0.2126; KB = 0.0722
-                       ITU-R Rec. BT.709-5
+                       ITU-R Rec. BT.709-6
         unspec (2)     Unspecified
                        Image characteristics are unknown or are determined by the
                        application.
-        fcc (4)
+        fcc (4)        KR = 0.30; KB = 0.11
         470bg (5)      KR = 0.299; KB = 0.114
                        ITU-R Rec. BT.470-6 System B, G (historical)
                        (functionally the same as the value 6 (170m))
         170m (6)       KR = 0.299; KB = 0.114
-                       SMPTE 170M (2004)
+                       SMPTE ST 170
                        (functionally the same as the value 5 (470bg))
-        240m (7)       SMPTE 240M
+        240m (7)       KR = 0.212; KB = 0.087
+                       SMPTE ST 240
         ycgco (8)      YCgCo
         2020ncl (9)    KR = 0.2627; KB = 0.0593
                        Rec. ITU-R BT.2020 non-constant luminance system
@@ -178,26 +179,26 @@ Resize
                        Rec. ITU-R BT.2020 constant luminance system
         chromancl (12) Chromaticity derived non-constant luminance system
         chromacl (13)  Chromaticity derived constant luminance system
-        ictcp (14)     ICtCp
+        ictcp (14)     Rec. ITU-R BT.2100-2 ICtCp
 
-      Transfer characteristics (ITU-T H.265 Table E.4)::
+      Transfer characteristics (ITU-T H.273 Table 3)::
         
         709 (1)        V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
                        V = 4.500 * Lc for b > Lc >= 0
-                       Rec. ITU-R BT.709-5
+                       Rec. ITU-R BT.709-6
                        (functionally the same as the values 6 (601),
                        14 (2020_10) and 15 (2020_12))
         unspec (2)     Unspecified
                        Image characteristics are unknown or are determined by the
                        application.
-        470m (4)       ITU-R Rec. BT.470-6 System M       
+        470m (4)       ITU-R Rec. BT.470-6 System M (historical)
         470bg (5)      ITU-R Rec. BT.470-6 System B, G (historical)
         601 (6)        V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
                        V = 4.500 * Lc for b > Lc >= 0
-                       Rec. ITU-R BT.601-6 525 or 625
+                       Rec. ITU-R BT.601-7 525 or 625
                        (functionally the same as the values 1 (709),
                        14 (2020_10) and 15 (2020_12))
-        240m (7)       SMPTE 240M       
+        240m (7)       SMPTE ST 240
         linear (8)     V = Lc for all values of Lc
                        Linear transfer characteristics
         log100 (9)     Log 1:100 contrast
@@ -215,16 +216,17 @@ Resize
                        (functionally the same as the values 1 (709),
                        6 (601) and 14 (2020_10))
         st2084 (16)    SMPTE ST 2084
+        st428 (17)     SMPTE ST 428-1
         std-b67 (18)   ARIB std-b67
 
-      Color primaries (ITU-T H.265 Table E.3)::
+      Color primaries (ITU-T H.273 Table 2)::
       
         709 (1)        primary x y
                        green 0.300 0.600
                        blue 0.150 0.060
                        red 0.640 0.330
                        white D65 0.3127 0.3290
-                       Rec. ITU-R BT.709-5
+                       Rec. ITU-R BT.709-6
         unspec (2)     Unspecified
                        Image characteristics are unknown or are determined by the
                        application.
@@ -235,14 +237,14 @@ Resize
                        blue 0.155 0.070
                        red 0.630 0.340
                        white D65 0.3127 0.3290
-                       SMPTE 170M (2004)
+                       SMPTE ST 170
                        (functionally the same as the value 7 (240m))
         240m (7)       primary x y
                        green 0.310 0.595
                        blue 0.155 0.070
                        red 0.630 0.340
                        white D65 0.3127 0.3290
-                       SMPTE 240M (1999)
+                       SMPTE ST 240
                        (functionally the same as the value 6 (170m))
         film (8)
         2020 (9)       primary x y
@@ -258,32 +260,32 @@ Resize
         jedec-p22 (22) E.B.U. STANDARD FOR CHROMATICITY TOLERANCES FOR STUDIO MONITORS (3213-E)
                        Also known as JEDEC P22
 
-      Pixel range (ITU-T H.265 Eq E-4 to E-15)::
+      Pixel range (ITU-T H.273 equations for matrix coefficients)::
       
         limited (0) Studio (TV) legal range, 16-235 in 8 bits.
                     Y = Clip1Y( Round( ( 1 << ( BitDepthY - 8 ) ) *
-                                              ( 219 * E'Y + 16 ) ) )
+                                              ( 219 * E′Y + 16 ) ) )
                     Cb = Clip1C( Round( ( 1 << ( BitDepthC - 8 ) ) *
-                                               ( 224 * E'PB + 128 ) ) )
+                                               ( 224 * E′PB + 128 ) ) )
                     Cr = Clip1C( Round( ( 1 << ( BitDepthC - 8 ) ) *
-                                               ( 224 * E'PR + 128 ) ) )
+                                               ( 224 * E′PR + 128 ) ) )
 
                     R = Clip1Y( ( 1 << ( BitDepthY - 8 ) ) *
-                                       ( 219 * E'R + 16 ) )
+                                       ( 219 * E′R + 16 ) )
                     G = Clip1Y( ( 1 << ( BitDepthY - 8 ) ) *
-                                       ( 219 * E'G + 16 ) )
+                                       ( 219 * E′G + 16 ) )
                     B = Clip1Y( ( 1 << ( BitDepthY - 8 ) ) *
-                                       ( 219 * E'B + 16 ) )
+                                       ( 219 * E′B + 16 ) )
         full (1)    Full (PC) dynamic range, 0-255 in 8 bits.
-                    Y = Clip1Y( Round( ( ( 1 << BitDepthY ) - 1 ) * E'Y ) )
-                    Cb = Clip1C( Round( ( ( 1 << BitDepthC ) - 1 ) * E'PB +
+                    Y = Clip1Y( Round( ( ( 1 << BitDepthY ) - 1 ) * E′Y ) )
+                    Cb = Clip1C( Round( ( ( 1 << BitDepthC ) - 1 ) * E′PB +
                                           ( 1 << ( BitDepthC - 1 ) ) ) )
-                    Cr = Clip1C( Round( ( ( 1 << BitDepthC ) - 1 ) * E'PR +
+                    Cr = Clip1C( Round( ( ( 1 << BitDepthC ) - 1 ) * E′PR +
                                           ( 1 << ( BitDepthC - 1 ) ) ) )
 
-                    R = Clip1Y( ( ( 1 << BitDepthY ) - 1 ) * E'R )
-                    G = Clip1Y( ( ( 1 << BitDepthY ) - 1 ) * E'G )
-                    B = Clip1Y( ( ( 1 << BitDepthY ) - 1 ) * E'B )
+                    R = Clip1Y( ( ( 1 << BitDepthY ) - 1 ) * E′R )
+                    G = Clip1Y( ( ( 1 << BitDepthY ) - 1 ) * E′G )
+                    B = Clip1Y( ( ( 1 << BitDepthY ) - 1 ) * E′B )
 
 
 

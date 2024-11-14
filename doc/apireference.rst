@@ -53,15 +53,15 @@ int _ColorRange
  
 int _Primaries
 
-   Color primaries as specified in ITU-T H.265 Table E.3.
+   Color primaries as specified in ITU-T H.273 Table 2.
    
 int _Matrix
 
-   Matrix coefficients as specified in ITU-T H.265 Table E.5.
+   Matrix coefficients as specified in ITU-T H.273 Table 4.
    
 int _Transfer
 
-   Transfer characteristics as specified in ITU-T H.265 Table E.4.
+   Transfer characteristics as specified in ITU-T H.273 Table 3.
    
 int _FieldBased
 

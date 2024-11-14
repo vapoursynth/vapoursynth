@@ -433,19 +433,19 @@ static std::string primariesToString(int primaries) {
     else if (primaries == VSC_PRIMARIES_BT470_BG)
         s = "BT.470BG";
     else if (primaries == VSC_PRIMARIES_ST170_M)
-        s = "SMPTE 170M";
+        s = "SMPTE ST 170";
     else if (primaries == VSC_PRIMARIES_ST240_M)
-        s = "SMPTE 240M";
+        s = "SMPTE ST 240";
     else if (primaries == VSC_PRIMARIES_FILM)
         s = "FILM";
     else if (primaries == VSC_PRIMARIES_BT2020)
         s = "BT.2020";
     else if (primaries == VSC_PRIMARIES_ST428)
-        s = "SMPTE 428";
+        s = "SMPTE ST 428-1";
     else if (primaries == VSC_PRIMARIES_ST431_2)
-        s = "SMPTE 431";
+        s = "SMPTE RP 431-2";
     else if (primaries == VSC_PRIMARIES_ST432_1)
-        s = "SMPTE 432";
+        s = "SMPTE EG 432-1";
     else if (primaries == VSC_PRIMARIES_EBU3213_E)
         s = "JEDEC P22";
     return s;
@@ -460,9 +460,9 @@ static std::string transferToString(int transfer) {
         else if (transfer == VSC_TRANSFER_BT470_BG)
             s = "Gamma 2.8";
         else if (transfer == VSC_TRANSFER_BT601)
-            s = "SMPTE 170M";
+            s = "SMPTE ST 170";
         else if (transfer == VSC_TRANSFER_ST240_M)
-            s = "SMPTE 240M";
+            s = "SMPTE ST 240";
         else if (transfer == VSC_TRANSFER_LINEAR)
             s = "Linear";
         else if (transfer == VSC_TRANSFER_LOG_100)
@@ -480,9 +480,9 @@ static std::string transferToString(int transfer) {
         else if (transfer == VSC_TRANSFER_BT2020_12)
             s = "BT.2020 for 12 bit system";
         else if (transfer == VSC_TRANSFER_ST2084)
-            s = "SMPTE 2084";
-        else if (transfer == 17)
-            s = "SMPTE 428";
+            s = "SMPTE ST 2084";
+        else if (transfer == VSC_TRANSFER_ST428)
+            s = "SMPTE ST 428-1";
         else if (transfer == VSC_TRANSFER_ARIB_B67)
             s = "ARIB STD-B67";
         return s;
