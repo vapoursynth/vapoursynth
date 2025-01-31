@@ -1,5 +1,5 @@
-#define PythonVersion '3.12'
-#define PythonCompactVersion '312'
+#define PythonVersion '3.13'
+#define PythonCompactVersion '313'
 
 #define AppName 'VapourSynth (64-bits)'
 #define AppId 'VapourSynth'

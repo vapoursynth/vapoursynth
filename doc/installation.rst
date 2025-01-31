@@ -26,7 +26,7 @@ Prerequisites
 -------------
 
 First download and install the prerequisites:
-   * `Python 3.12.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit version
+   * `Python 3.13.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit version
    
 Note that VapourSynth and Python have to be matched so both are either installed
 for all users or for only for the current user.
@@ -50,7 +50,7 @@ By far the easiest way is to download and run the automatic script called *Insta
 It will then automatically download and set up embedded Python, pip and VapourSynth in a subdirectorey called *vapoursynth-portable* by default.
 
 Or if you want to do it the manual and not recommended way follow these steps:
-   * Download and decompress `Python 3.12.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit embeddable version
+   * Download and decompress `Python 3.13.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit embeddable version
    * Decompress the `portable VapourSynth archive <https://github.com/vapoursynth/vapoursynth/releases>`_ into the Python dir and overwrite all existing files.
    * Install pip using `get-pip.py <https://bootstrap.pypa.io/get-pip.py>`_ or any other method.
    * Install the wheel from the *wheel* directory for the chosen Python version.
@@ -110,7 +110,7 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 Required languages and applications:
 
 * Needs `Visual Studio 2022 <https://visualstudio.microsoft.com/de/vs/>`_
-* It also needs `64bit <https://www.python.org/>`_ Python 3.8.x and 3.12.x (the msvc project assumes that you installed python for all users.)
+* It also needs `64bit <https://www.python.org/>`_ Python 3.8.x and 3.13.x (the msvc project assumes that you installed python for all users.)
 * `InnoSetup <http://www.jrsoftware.org/isdl.php>`_ is needed to create the installer (default installation path assumed)
 * `7-zip <https://www.7-zip.org/>`_ is needed to compress the portable version (default installation path assumed)
 

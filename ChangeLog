@@ -1,3 +1,7 @@
+r71:
+updated the supported python versions to 3.13 and 3.8 on windows
+updated visual studio 2022 runtime version
+
 r70:
 the inspectable core flag is now correctly detected by the vsscript python environment when an external core is supplied
 fixed a potential crash that could happen when more than 2 audio clips are spliced at the same time

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2020 Fredrik Mellbin
+* Copyright (c) 2013-2025 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -53,7 +53,7 @@ static void real_init(void) VS_NOEXCEPT {
 #ifdef VSSCRIPT_PYTHON38
     const std::wstring pythonDllName = L"python38.dll";
 #else
-    const std::wstring pythonDllName = L"python312.dll";
+    const std::wstring pythonDllName = L"python313.dll";
 #endif
 
     // portable
