@@ -1,4 +1,5 @@
 r71:
+improved trim and audiotrim error messages
 updated the supported python versions to 3.13 and 3.8 on windows
 updated visual studio 2022 runtime version
 

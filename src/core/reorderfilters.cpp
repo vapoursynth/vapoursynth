@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2020 Fredrik Mellbin
+* Copyright (c) 2012-2025 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -132,6 +132,15 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     int length = vsapi->mapGetIntSaturated(in, "length", 0, &err);
     bool lengthset = !err;
 
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
+    VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
+
+    if (d->first < 0)
+        RETERROR("Trim: invalid first frame specified (less than 0)");
+
+    if (d->first >= vi.numFrames)
+        RETERROR("Trim: invalid first frame specified (beyond clip end)");
+
     if (lastset && lengthset)
         RETERROR("Trim: both last frame and length specified");
 
@@ -141,14 +150,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     if (lengthset && length < 1)
         RETERROR("Trim: invalid length specified (less than 1)");
 
-    if (d->first < 0)
-        RETERROR("Trim: invalid first frame specified (less than 0)");
-
-    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
-
-    VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
-
-    if ((lastset && last >= vi.numFrames) || (lengthset && (d->first + length) > vi.numFrames) || (vi.numFrames <= d->first))
+    if ((lastset && last >= vi.numFrames) || (lengthset && (d->first + length) > vi.numFrames))
         RETERROR("Trim: last frame beyond clip end");
 
     if (lastset) {

@@ -105,6 +105,15 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
     int64_t length = vsapi->mapGetIntSaturated(in, "length", 0, &err);
     bool lengthset = !err;
 
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
+    d->ai = *vsapi->getAudioInfo(d->node);
+
+    if (d->first < 0)
+        RETERROR("AudioTrim: invalid first sample specified (less than 0)");
+
+    if (d->first >= d->ai.numSamples)
+        RETERROR("AudioTrim: invalid first sample specified (beyond clip end)");
+
     if (lastset && lengthset)
         RETERROR("AudioTrim: both last sample and length specified");
 
@@ -114,14 +123,7 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
     if (lengthset && length < 1)
         RETERROR("AudioTrim: invalid length specified (less than 1)");
 
-    if (d->first < 0)
-        RETERROR("AudioTrim: invalid first frame specified (less than 0)");
-
-    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
-
-    d->ai = *vsapi->getAudioInfo(d->node);
-
-    if ((lastset && last >= d->ai.numSamples) || (lengthset && (d->first + length) > d->ai.numSamples) || (d->ai.numSamples <= d->first))
+    if ((lastset && last >= d->ai.numSamples) || (lengthset && (d->first + length) > d->ai.numSamples))
         RETERROR("AudioTrim: last sample beyond clip end");
 
     if (lastset) {
