@@ -71,7 +71,7 @@ Filters can be chained with a dot::
 
    clip = clip.std.Trim(first=100, last=2000).std.FlipVertical()
 
-Which is quivalent to::
+Which is equivalent to::
 
    clip = core.std.FlipVertical(core.std.Trim(clip, first=100, last=2000))
    
