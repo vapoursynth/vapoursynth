@@ -21,7 +21,7 @@
 // ptr,size argument pairs.
 //
 // The interfaces defined here are expected to be used as privimitives
-// in other interfaces, and so must indefinately maintain ABI
+// in other interfaces, and so must indefinitely maintain ABI
 // compatibility. Source compatibility may change over time.
 //---------------------------------------------------------------------------
 #ifndef PTBLOB_H

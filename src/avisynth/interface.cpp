@@ -229,7 +229,7 @@ int VideoInfo::BitsPerPixel() const {
 // Remark:
 // - total bitsize for interleaved/packed types, e.g. RGB48 = 48 = 3x16
 // - byte size corrected with U-V subsampling factor for Planar YUV/YUVA
-// - external softwares may use it for calculating buffer size
+// - external software may use it for calculating buffer size
 // - use BitsPerComponent instead for returning the pixel component format 8/10/12/14/16/32 bits
     switch (pixel_type) {
       case CS_BGR24:
@@ -1053,15 +1053,15 @@ extern __declspec(dllexport) const AVS_Linkage* const AVS_linkage = &avs_linkage
 
 #include "avisynth.h"
 
-/* New 2.6 requirment!!! */
+/* New 2.6 requirement!!! */
 // Declare and initialise server pointers static storage.
 const AVS_Linkage *AVS_linkage = 0;
 
-/* New 2.6 requirment!!! */
+/* New 2.6 requirement!!! */
 // DLL entry point called from LoadPlugin() to setup a user plugin.
 extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit3(IScriptEnvironment* env, const AVS_Linkage* const vectors) {
 
-  /* New 2.6 requirment!!! */
+  /* New 2.6 requirement!!! */
   // Save the server pointers.
   AVS_linkage = vectors;
 

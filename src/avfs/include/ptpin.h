@@ -19,7 +19,7 @@
 // ptsync.h provides a flexible implementation.
 //
 // The interfaces defined here are expected to be used as primitives
-// in other interfaces, and so must indefinately maintain ABI
+// in other interfaces, and so must indefinitely maintain ABI
 // compatibility. Source compatibility may change over time.
 //---------------------------------------------------------------------------
 #ifndef PTPIN_H

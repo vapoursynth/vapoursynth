@@ -6715,7 +6715,7 @@ namespace compiler
 				bucket[p].clear();
 			}
 
-			// Explicity compute immediate dominator
+			// Explicitly compute immediate dominator
 			for (size_t w = 1; w < num_of_nodes; ++w) {
 				if (dom[w] != sdom_[w])
 					dom[w] = dom[dom[w]];
@@ -6952,7 +6952,7 @@ namespace compiler
 				}
 			}
 
-			// Make depth first orderd list
+			// Make depth first ordered list
 			MakeDepthFirstBlocks(*get_block(0));
 
 			// Numbering depth

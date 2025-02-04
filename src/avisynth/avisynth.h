@@ -845,8 +845,8 @@ enum CachePolicyHint {
 
   CACHE_AUDIO=50, // Explicitly cache audio, X byte cache.
   CACHE_AUDIO_NOTHING=51, // Explicitly do not cache audio.
-  CACHE_AUDIO_NONE=52, // Audio cache off (auto mode), X byte intial cache.
-  CACHE_AUDIO_AUTO=53, // Audio cache on (auto mode), X byte intial cache.
+  CACHE_AUDIO_NONE=52, // Audio cache off (auto mode), X byte initial cache.
+  CACHE_AUDIO_AUTO=53, // Audio cache on (auto mode), X byte initial cache.
 
   CACHE_GET_AUDIO_POLICY=70, // Get the current audio policy.
   CACHE_GET_AUDIO_SIZE=71, // Get the current audio cache size.
