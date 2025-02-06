@@ -402,11 +402,11 @@ void conv_scanline_h(const void *src, void *dst, const vs_generic_params &params
         Accum accum = 0;
 
         for (unsigned k = 0; k < support; ++k) {
-            unsigned idx = j < support - k ? std::min(support - k - j, width - 1) : j - support + k;
+            unsigned idx = j < support - k ? std::min(support - k - j - 1, width - 1) : j - support + k;
             accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
         }
         for (unsigned k = support; k < fwidth; ++k) {
-            unsigned idx = dist_from_right < k - support ? j - std::min(k - support - dist_from_right, j) : j - support + k;
+            unsigned idx = dist_from_right < k - support ? width - std::min(k - support - dist_from_right, width) : j - support + k;
             accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
         }
 
@@ -433,11 +433,11 @@ void conv_scanline_h(const void *src, void *dst, const vs_generic_params &params
         Accum accum = 0;
 
         for (unsigned k = 0; k < support; ++k) {
-            unsigned idx = j < support - k ? std::min(support - k - j, width - 1) : j - support + k;
+            unsigned idx = j < support - k ? std::min(support - k - j - 1, width - 1) : j - support + k;
             accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
         }
         for (unsigned k = support; k < fwidth; ++k) {
-            unsigned idx = dist_from_right < k - support ? j - std::min(k - support - dist_from_right, j) : j - support + k;
+            unsigned idx = dist_from_right < k - support ? width - std::min(k - support - dist_from_right, width) : j - support + k;
             accum += coeffs[k] * static_cast<Accum>(srcp[idx]);
         }
 
@@ -500,7 +500,7 @@ void conv_plane_v(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
         unsigned dist_from_bottom = height - 1 - i;
 
         for (unsigned k = 0; k < support; ++k) {
-            unsigned row = i < support - k ? std::min(support - k - i, height - 1) : i - support + k;
+            unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
             srcp[k] = line_ptr(src, row, src_stride);
         }
         for (unsigned k = support; k < fwidth; ++k) {
@@ -526,7 +526,7 @@ void conv_plane_x(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
         unsigned dist_from_bottom = height - 1 - i;
 
         for (unsigned k = 0; k < support; ++k) {
-            unsigned row = i < support - k ? std::min(support - k - i, height - 1) : i - support + k;
+            unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
             srcp[k] = line_ptr(src, row, src_stride);
         }
         for (unsigned k = support; k < fwidth; ++k) {

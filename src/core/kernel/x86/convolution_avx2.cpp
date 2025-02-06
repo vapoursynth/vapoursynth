@@ -703,7 +703,7 @@ void conv_plane_v(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
         unsigned dist_from_bottom = height - 1 - i;
 
         for (unsigned k = 0; k < support; ++k) {
-            unsigned row = i < support - k ? std::min(support - k - i, height - 1) : i - support + k;
+            unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
             srcp[k] = line_ptr(src, row, src_stride);
         }
         for (unsigned k = support; k < fwidth; ++k) {
@@ -736,7 +736,7 @@ void conv_plane_x(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
         unsigned dist_from_bottom = height - 1 - i;
 
         for (unsigned k = 0; k < support; ++k) {
-            unsigned row = i < support - k ? std::min(support - k - i, height - 1) : i - support + k;
+            unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
             srcp[k] = line_ptr(src, row, src_stride);
         }
         for (unsigned k = support; k < fwidth; ++k) {
