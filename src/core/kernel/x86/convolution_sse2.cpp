@@ -656,7 +656,7 @@ void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
 
     // Multi-pass threshold = 13.
     auto kernel = select_conv_scanline_h<T>(params.matrixsize);
-    void *tmp = (params.matrixsize > 13 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc((width + 8) * sizeof(int32_t), 16) : nullptr;
+    void *tmp = (params.matrixsize > 13 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc((width + 16) * sizeof(int32_t), 32) : nullptr;
 
     for (unsigned i = 0; i < height; ++i) {
         const T *srcp = static_cast<const T *>(line_ptr(src, i, src_stride));
