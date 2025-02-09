@@ -649,14 +649,14 @@ SELECT(v, float, float)
 template <class T>
 void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
 {
-    unsigned width_aligned = (width + 15U) & ~15U;
+    unsigned vec_end = std::max((std::max(width, 13U) - 13) & ~15U, 16U);
 
-    // Max support = 12. Max buffering = 12 before, 16 window, 12 after.
-    alignas(16) T padded[48];
+    // Max support = 12. Max buffering = 12 before, 32 window, 12 after.
+    alignas(32) T padded[64];
 
     // Multi-pass threshold = 13.
     auto kernel = select_conv_scanline_h<T>(params.matrixsize);
-    void *tmp = (params.matrixsize > 13 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc((width + 8) * sizeof(int32_t), 16) : nullptr;
+    void *tmp = (params.matrixsize > 13 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc((width + 16) * sizeof(int32_t), 32) : nullptr;
 
     for (unsigned i = 0; i < height; ++i) {
         const T *srcp = static_cast<const T *>(line_ptr(src, i, src_stride));
@@ -665,23 +665,23 @@ void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
         // Pixels 0...15.
         {
             // Center.
-            std::copy_n(srcp, std::min(width_aligned, 32U), padded + 16);
+            std::copy_n(srcp, std::min(width, 28U), padded + 16);
             flip_left(padded + 16, 12);
             if (width < 28U)
                 flip_right(padded + 16 + width, std::min(28U - width, 12U));
             kernel(padded + 16, dstp, tmp, params, 16U);
         }
 
-        // Pixels 16...N-16-1.
-        if (width_aligned >= 32U) {
-            kernel(srcp + 16, dstp + 16, tmp, params, width_aligned - 32);
+        // Pixels 16...vec_end-1.
+        if (vec_end > 16U) {
+            kernel(srcp + 16, dstp + 16, tmp, params, vec_end - 16U);
         }
 
-        // Pixels N-16...N-1
-        if (width_aligned >= 32U) {
-            std::copy_n(srcp + width_aligned - 32, 32, padded);
-            flip_right(padded + 16 + (width - (width_aligned - 16)), 12U);
-            kernel(padded + 16, dstp + width_aligned - 16, tmp, params, width - (width_aligned - 16));
+        // Pixels vec_end...N-1
+        if (width > 16U) {
+            std::copy_n(srcp + vec_end - 12U, width - vec_end + 12U, padded + 4U);
+            flip_right(padded + 16U + (width - vec_end), 12U);
+            kernel(padded + 16, dstp + vec_end, tmp, params, width - vec_end);
         }
     }
 
