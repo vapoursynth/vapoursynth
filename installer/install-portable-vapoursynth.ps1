@@ -5,7 +5,7 @@
 
 $PythonVersionMajor = 3
 $PythonVersionMid = 13
-$PythonVersionMinor = 1
+$PythonVersionMinor = 2
 
 if ($Python38 -or ([System.Environment]::OSVersion.Version.Major -lt 10)) {
     $Python38 = $true
