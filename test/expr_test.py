@@ -385,6 +385,11 @@ class CoreTestSequence(unittest.TestCase):
         self.helper_sincos('sin', lambda x: math.sin(x))
     def test_expr_cos65(self):
         self.helper_sincos('cos', lambda x: math.cos(x))
+    
+    def test_expr_op66(self):
+        clip = self.core.std.BlankClip(format=vs.GRAYS, color=-0.25)
+        clip = self.core.std.Expr(clip, "x sqrt")
+        self.assertEqual(get_pixel_value(clip), 0.0)
 
         
 if __name__ == '__main__':
