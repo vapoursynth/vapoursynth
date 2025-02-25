@@ -141,7 +141,7 @@ AS_IF(
               # Check common system include paths for sse2neon.h
               AS_IF([test "x$have_sse2neon" = "xno"],
                     [
-                     for dir in /usr/include /usr/local/include; do
+                     for dir in /usr/include /usr/local/include /opt/homebrew/include; do
                          AC_CHECK_FILE([$dir/sse2neon.h],
                                      [
                                       AC_SUBST([SSE2NEON_CFLAGS], ["-I$dir"])
