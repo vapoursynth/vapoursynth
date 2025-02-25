@@ -12,7 +12,7 @@ jobs:
     - name: Install Homebrew packages
       run: |
         brew update
-        brew install automake libtool lld llvm
+        brew install automake libtool lld llvm sse2neon
 
     - name: Set environment variables for Clang/LLVM
       run: |
