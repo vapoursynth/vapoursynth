@@ -239,7 +239,7 @@ DECL(1d_conv_v, float, neon)
 DECL(2d_conv_sep, byte, neon)
 DECL(2d_conv_sep, word, neon)
 DECL(2d_conv_sep, float, neon)
-#endif
+#endif /*VS_TARGET_CPU_X86*/
 
 #undef DECL_3x3
 #undef DECL

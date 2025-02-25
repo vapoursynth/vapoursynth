@@ -333,9 +333,10 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 continue;
 
             d->bytecode[i] = compile(expr[i], vi, d->numInputs, d->vi);
-
+#ifdef VS_TARGET_CPU_X86
             if (cpulevel > VS_CPU_LEVEL_NONE)
                 std::tie(d->proc[i], d->procSize[i]) = expr::compile_jit(d->bytecode[i].data(), d->bytecode[i].size(), d->numInputs, cpulevel);
+#endif
         }
 #ifdef VS_TARGET_OS_WINDOWS
         FlushInstructionCache(GetCurrentProcess(), nullptr, 0);

@@ -541,7 +541,7 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
         if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2)
             func = genericSelectSSE2<op>(fi, d);
 #elif defined(VS_TARGET_CPU_ARM)
-        if (!func)
+        if (d->cpulevel >= VS_CPU_LEVEL_NEON)
             func = genericSelectNEON<op>(fi, d);
 #endif
         if (!func)

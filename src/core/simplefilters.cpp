@@ -1966,7 +1966,7 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
                 }
             }
 #elif defined (VS_TARGET_CPU_ARM)
-            if (!func && d->cpulevel >= VS_CPU_LEVEL_NEON) { // TODO
+            if (d->cpulevel >= VS_CPU_LEVEL_NEON) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_2_byte_neon; break;
                 case 2: func = vs_plane_stats_2_word_neon; break;
@@ -2002,8 +2002,8 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
                 case 4: func = vs_plane_stats_1_float_sse2; break;
                 }
             }
-#elif defined(__ARM_NEON__)
-            if (!func && d->cpulevel >= VS_CPU_LEVEL_NEON) {
+#elif defined(VS_TARGET_CPU_ARM)
+            if (d->cpulevel >= VS_CPU_LEVEL_NEON) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_1_byte_neon; break;
                 case 2: func = vs_plane_stats_1_word_neon; break;
