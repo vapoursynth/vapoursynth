@@ -17,7 +17,6 @@
 * License along with VapourSynth; if not, write to the Free Software
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
-
 #include <cstring>
 
 #include "cpufeatures.h"
@@ -102,11 +101,87 @@ static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
         }
     }
 }
-#else
+
+#elif defined(VS_TARGET_CPU_ARM)
+
+#if defined(__APPLE__)
+    #include <sys/sysctl.h>
+    static inline bool have_feature(const char *feature) {
+        int64_t feature_present = 0;
+        size_t size = sizeof(feature_present);
+        if (sysctlbyname(feature, &feature_present, &size, NULL, 0) != 0) {
+            return false;
+        }
+        return feature_present;
+    }
+#elif defined(_WIN32)
+    #include <windows.h>
+#elif defined(__linux__)
+    #include <sys/auxv.h>
+    #define VS_HWCAP_NEON (1 << 12)
+    #define VS_HWCAP_ASIMDDP (1 << 20)
+    #define VS_HWCAP_SVE (1 << 22)
+    #define VS_HWCAP2_SVE2 (1 << 1)
+    #define VS_HWCAP2_I8MM (1 << 13)
+#endif
+
+static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
+    memset(cpuFeatures, 0, sizeof(CPUFeatures));
+    cpuFeatures->can_run_vs = 1;
+
+#ifdef __aarch64__
+    // NEON is mandatory for AArch64
+    cpuFeatures->neon = 1;
+
+    #if defined(__APPLE__)
+        cpuFeatures->neon_dotprod = have_feature("hw.optional.arm.FEAT_DotProd");
+        cpuFeatures->neon_i8mm = have_feature("hw.optional.arm.FEAT_I8MM");
+    #elif defined(_WIN32)
+        #if defined(PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE)
+            cpuFeatures->neon_dotprod = IsProcessorFeaturePresent(PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE);
+        #endif
+        #if defined(PF_ARM_SVE_I8MM_INSTRUCTIONS_AVAILABLE)
+            cpuFeatures->neon_i8mm = IsProcessorFeaturePresent(PF_ARM_SVE_I8MM_INSTRUCTIONS_AVAILABLE);
+        #endif
+        #if defined(PF_ARM_SVE_INSTRUCTIONS_AVAILABLE)
+            cpuFeatures->sve = IsProcessorFeaturePresent(PF_ARM_SVE_INSTRUCTIONS_AVAILABLE);
+        #endif
+        #if defined(PF_ARM_SVE2_INSTRUCTIONS_AVAILABLE)
+            cpuFeatures->sve2 = IsProcessorFeaturePresent(PF_ARM_SVE2_INSTRUCTIONS_AVAILABLE);
+        #endif
+    #elif defined(__linux__)
+        unsigned long hwcap = getauxval(AT_HWCAP);
+        unsigned long hwcap2 = getauxval(AT_HWCAP2);
+        
+        cpuFeatures->neon_dotprod = !!(hwcap & VS_HWCAP_ASIMDDP);
+        cpuFeatures->neon_i8mm = !!(hwcap2 & VS_HWCAP2_I8MM);
+        cpuFeatures->sve = !!(hwcap & VS_HWCAP_SVE);
+        cpuFeatures->sve2 = !!(hwcap2 & VS_HWCAP2_SVE2);
+    #endif
+
+#else // 32-bit ARM
+    #if defined(__APPLE__)
+        // Modern Apple 32-bit ARM devices all support NEON
+        cpuFeatures->neon = 1;
+    #elif defined(_WIN32)
+        cpuFeatures->neon = IsProcessorFeaturePresent(PF_ARM_NEON_INSTRUCTIONS_AVAILABLE);
+    #elif defined(__linux__)
+        cpuFeatures->neon = !!(getauxval(AT_HWCAP) & VS_HWCAP_NEON);
+    #else
+        #if defined(__ARM_NEON) || defined(__ARM_NEON__)
+            cpuFeatures->neon = 1;
+        #endif
+    #endif
+#endif
+}
+
+#else // Other architectures
+
 static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
     memset(cpuFeatures, 0, sizeof(CPUFeatures));
     cpuFeatures->can_run_vs = 1;
 }
+
 #endif
 
 const CPUFeatures *getCPUFeatures(void) {

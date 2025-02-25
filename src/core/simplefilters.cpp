@@ -1728,7 +1728,7 @@ static const VSFrame *VS_CC transposeGetFrame(int n, int activationReason, void 
             }
         }
 #elif defined(VS_TARGET_CPU_ARM)
-        if (true) {
+        if (d->cpulevel >= VS_CPU_LEVEL_NEON) {
             switch (d->vi.format.bytesPerSample) {
             case 1: func = vs_transpose_plane_byte_neon; break;
             case 2: func = vs_transpose_plane_word_neon; break;
@@ -1966,7 +1966,7 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
                 }
             }
 #elif defined (VS_TARGET_CPU_ARM)
-            if (true) { // TODO
+            if (!func && d->cpulevel >= VS_CPU_LEVEL_NEON) { // TODO
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_2_byte_neon; break;
                 case 2: func = vs_plane_stats_2_word_neon; break;
@@ -2003,7 +2003,7 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
                 }
             }
 #elif defined(__ARM_NEON__)
-            if (true) {
+            if (!func && d->cpulevel >= VS_CPU_LEVEL_NEON) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_1_byte_neon; break;
                 case 2: func = vs_plane_stats_1_word_neon; break;

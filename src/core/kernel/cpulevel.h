@@ -33,6 +33,9 @@ enum {
     VS_CPU_LEVEL_SSE2 = 1,
     VS_CPU_LEVEL_AVX2 = 2,
 #endif
+#ifdef VS_TARGET_CPU_ARM
+    VS_CPU_LEVEL_NEON = 1,
+#endif
     VS_CPU_LEVEL_MAX = INT_MAX
 };
 

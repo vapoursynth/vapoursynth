@@ -198,7 +198,7 @@ static const VSFrame *VS_CC mergeGetFrame(int n, int activationReason, void *ins
                         func = vs_merge_float_sse2;
                 }
 #elif defined(VS_TARGET_CPU_ARM)
-                if (true) {
+                if (!func && d->cpulevel >= VS_CPU_LEVEL_NEON) {
                     if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
                         func = vs_merge_byte_neon;
                     else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)

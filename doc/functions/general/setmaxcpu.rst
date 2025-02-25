@@ -8,6 +8,8 @@ SetMaxCPU
    and sets the maximum used instruction set for optimized functions.
    
    Possible values for x86: "avx2", "sse2", "none"
+
+   Possible values for arm: "neon"
    
    Other platforms: "none"
    
