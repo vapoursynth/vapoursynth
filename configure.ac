@@ -144,7 +144,7 @@ AS_IF(
                      for dir in /usr/include /usr/local/include /opt/homebrew/include; do
                          AC_CHECK_FILE([$dir/sse2neon.h],
                                      [
-                                      AC_SUBST([SSE2NEON_CFLAGS], ["-I$dir"])
+                                      AC_SUBST([SSE2NEON_CFLAGS], ["-I$dir -DSSE2NEON_PRECISE_MINMAX=1 -DSSE2NEON_PRECISE_DIV=1 -DSSE2NEON_PRECISE_SQRT=1 -DSSE2NEON_PRECISE_DP=1"])
                                       have_sse2neon=yes
                                       break
                                      ])
