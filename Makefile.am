@@ -3,6 +3,7 @@ commoncflags = -O3 -fvisibility=hidden $(warningflags) -I$(srcdir)/include $(DEB
 AM_CXXFLAGS = -std=c++17 $(commoncflags)
 AM_CFLAGS = -std=c99 $(commoncflags)
 ACLOCAL_AMFLAGS = -I m4
+commonarmflags = $(SSE2NEON_CFLAGS)
 
 VSCURRENTRELEASE := $(shell cat VAPOURSYNTH_VERSION | cut -d ' ' -f3  | cut -d '-' -f1)
 
@@ -33,6 +34,9 @@ lib_LTLIBRARIES =
 if VSCORE
 noinst_LTLIBRARIES =
 lib_LTLIBRARIES += libvapoursynth.la
+
+libvapoursynth_la_CFLAGS = $(AM_CFLAGS)
+libvapoursynth_la_CXXFLAGS = $(AM_CXXFLAGS)
 
 libvapoursynth_la_SOURCES = src/core/audiofilters.cpp \
 							src/core/averageframesfilter.cpp \
@@ -123,6 +127,9 @@ libvapoursynth_la_SOURCES += src/core/kernel/arm_neon/average_neon.c \
 							 src/core/kernel/arm_neon/transpose_neon.c \
 							 src/core/kernel/arm_neon/convolution_neon.cpp \
 							 src/core/kernel/arm_neon/generic_neon.cpp
+
+libvapoursynth_la_CFLAGS += $(commonarmflags)
+libvapoursynth_la_CXXFLAGS += $(commonarmflags)
 endif # ARMASM
 
 if PYTHONMODULE

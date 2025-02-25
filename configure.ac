@@ -127,10 +127,43 @@ AS_IF(
 
 AS_IF(
       [test "x$ARM" = "xtrue"],
-      [AC_DEFINE([VS_TARGET_CPU_ARM])]
+      [
+       AC_ARG_ENABLE([arm-asm], AS_HELP_STRING([--enable-arm-asm], [Enable assembler code for ARM CPUs. (default=yes)]))
+
+       AS_IF(
+             [test "x$enable_arm_asm" != "xno"],
+             [
+              # Check for sse2neon.h
+              AC_CHECK_HEADERS([sse2neon.h], 
+                             [have_sse2neon=yes],
+                             [have_sse2neon=no])
+
+              # Check common system include paths for sse2neon.h
+              AS_IF([test "x$have_sse2neon" = "xno"],
+                    [
+                     for dir in /usr/include /usr/local/include; do
+                         AC_CHECK_FILE([$dir/sse2neon.h],
+                                     [
+                                      AC_SUBST([SSE2NEON_CFLAGS], ["-I$dir"])
+                                      have_sse2neon=yes
+                                      break
+                                     ])
+                     done
+                    ])
+
+              AS_IF([test "x$have_sse2neon" = "xyes"],
+                    [
+                     AC_DEFINE([VS_TARGET_CPU_ARM])
+                     enable_arm_asm="yes"
+                    ],
+                    [
+                     AC_MSG_WARN([sse2neon.h not found. ARM optimizations will be disabled.])
+                     enable_arm_asm="no"
+                    ])
+             ]
+       )
+      ]
 )
-
-
 
 AC_ARG_ENABLE([core], AS_HELP_STRING([--enable-core], [Build the VapourSynth core library. (default=yes)]))
 AS_IF(
@@ -237,7 +270,7 @@ int count = CPU_COUNT(&affinity);
 )
 AM_CONDITIONAL([VSCORE], [test "x$enable_core" != "xno"])
 AM_CONDITIONAL([X86ASM], [test "x$X86" = "xtrue" -a "x$enable_x86_asm" != "xno"])
-AM_CONDITIONAL([ARMASM], [test "x$ARM" = "xtrue" -a "x$enable_arm_asm" != "xno"])
+AM_CONDITIONAL([ARMASM], [test "x$enable_arm_asm" = "xyes" -a "x$have_sse2neon" = "xyes"])
 
 
 
