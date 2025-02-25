@@ -9,7 +9,7 @@ SetMaxCPU
    
    Possible values for x86: "avx2", "sse2", "none"
 
-   Possible values for arm: "neon"
+   Possible values for arm: "neon", "none"
    
    Other platforms: "none"
    
