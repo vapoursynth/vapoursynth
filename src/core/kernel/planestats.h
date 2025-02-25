@@ -71,6 +71,16 @@ DECL_1(float, avx2)
 DECL_2(byte, avx2)
 DECL_2(word, avx2)
 DECL_2(float, avx2)
+
+#elif defined(VS_TARGET_CPU_ARM)
+DECL_1(byte, neon)
+DECL_1(word, neon)
+DECL_1(float, neon)
+
+DECL_2(byte, neon)
+DECL_2(word, neon)
+DECL_2(float, neon)
+
 #endif /* VS_TARGET_CPU_X86 */
 
 #undef DECL_2

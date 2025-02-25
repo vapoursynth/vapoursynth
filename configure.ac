@@ -237,6 +237,7 @@ int count = CPU_COUNT(&affinity);
 )
 AM_CONDITIONAL([VSCORE], [test "x$enable_core" != "xno"])
 AM_CONDITIONAL([X86ASM], [test "x$X86" = "xtrue" -a "x$enable_x86_asm" != "xno"])
+AM_CONDITIONAL([ARMASM], [test "x$ARM" = "xtrue" -a "x$enable_arm_asm" != "xno"])
 
 
 

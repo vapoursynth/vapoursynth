@@ -171,6 +171,15 @@ static const VSFrame *VS_CC averageFramesGetFrame(int n, int activationReason, v
                 else
                     func = vs_average_plane_float_sse2;
             }
+#elif defined(VS_TARGET_CPU_ARM)
+            if (true) {
+                if (fi->bytesPerSample == 1)
+                    func = chroma ? vs_average_plane_byte_chroma_neon : vs_average_plane_byte_luma_neon;
+                else if (fi->bytesPerSample == 2)
+                    func = chroma ? vs_average_plane_word_chroma_neon : vs_average_plane_word_luma_neon;
+                else
+                    func = vs_average_plane_float_neon;
+            }
 #endif
             if (!func) {
                 if (fi->bytesPerSample == 1)

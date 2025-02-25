@@ -60,3 +60,5 @@ msvc_project/.vs
 configure~
 m4/
 !m4/ax_pthread.m4
+
+.DS_Store

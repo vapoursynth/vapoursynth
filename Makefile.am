@@ -116,6 +116,15 @@ libvapoursynth_la_SOURCES += src/core/expr/jitasm.h \
 libvapoursynth_la_LIBADD += libvapoursynth_avx2.la
 endif # X86ASM
 
+if ARMASM
+libvapoursynth_la_SOURCES += src/core/kernel/arm_neon/average_neon.c \
+							 src/core/kernel/arm_neon/merge_neon.c \
+							 src/core/kernel/arm_neon/planestats_neon.c \
+							 src/core/kernel/arm_neon/transpose_neon.c \
+							 src/core/kernel/arm_neon/convolution_neon.cpp \
+							 src/core/kernel/arm_neon/generic_neon.cpp
+endif # ARMASM
+
 if PYTHONMODULE
 pyexec_LTLIBRARIES = vapoursynth.la
 

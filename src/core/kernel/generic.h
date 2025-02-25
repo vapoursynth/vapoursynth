@@ -190,7 +190,56 @@ DECL(2d_conv_sep, byte, avx2)
 DECL(2d_conv_sep, word, avx2)
 DECL(2d_conv_sep, float, avx2)
 
-#endif /* VS_TARGET_CPU_X86 */
+#elif defined(VS_TARGET_CPU_ARM)
+
+DECL_3x3(prewitt, byte, neon)
+DECL_3x3(prewitt, word, neon)
+DECL_3x3(prewitt, float, neon)
+
+DECL_3x3(sobel, byte, neon)
+DECL_3x3(sobel, word, neon)
+DECL_3x3(sobel, float, neon)
+
+DECL_3x3(min, byte, neon)
+DECL_3x3(min, word, neon)
+DECL_3x3(min, float, neon)
+
+DECL_3x3(max, byte, neon)
+DECL_3x3(max, word, neon)
+DECL_3x3(max, float, neon)
+
+DECL_3x3(median, byte, neon)
+DECL_3x3(median, word, neon)
+DECL_3x3(median, float, neon)
+
+DECL_3x3(deflate, byte, neon)
+DECL_3x3(deflate, word, neon)
+DECL_3x3(deflate, float, neon)
+
+DECL_3x3(inflate, byte, neon)
+DECL_3x3(inflate, word, neon)
+DECL_3x3(inflate, float, neon)
+
+DECL_3x3(conv, byte, neon)
+DECL_3x3(conv, word, neon)
+DECL_3x3(conv, float, neon)
+
+DECL(5x5_conv, byte, neon)
+DECL(5x5_conv, word, neon)
+DECL(5x5_conv, float, neon)
+
+DECL(1d_conv_h, byte, neon)
+DECL(1d_conv_h, word, neon)
+DECL(1d_conv_h, float, neon)
+
+DECL(1d_conv_v, byte, neon)
+DECL(1d_conv_v, word, neon)
+DECL(1d_conv_v, float, neon)
+
+DECL(2d_conv_sep, byte, neon)
+DECL(2d_conv_sep, word, neon)
+DECL(2d_conv_sep, float, neon)
+#endif
 
 #undef DECL_3x3
 #undef DECL

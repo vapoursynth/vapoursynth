@@ -361,6 +361,72 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
     }
     return nullptr;
 }
+#elif VS_TARGET_CPU_ARM
+template <GenericOperations op>
+static decltype(&vs_generic_3x3_conv_byte_c) genericSelectNEON(const VSVideoFormat *fi, GenericData *d) {
+    if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_byte_neon;
+        case GenericSobel: return vs_generic_3x3_sobel_byte_neon;
+        case GenericMinimum: return vs_generic_3x3_min_byte_neon;
+        case GenericMaximum: return vs_generic_3x3_max_byte_neon;
+        case GenericMedian: return vs_generic_3x3_median_byte_neon;
+        case GenericDeflate: return vs_generic_3x3_deflate_byte_neon;
+        case GenericInflate: return vs_generic_3x3_inflate_byte_neon;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_byte_neon;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_byte_neon;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_byte_neon;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_byte_neon;
+            break;
+        }
+    } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_word_neon;
+        case GenericSobel: return vs_generic_3x3_sobel_word_neon;
+        case GenericMinimum: return vs_generic_3x3_min_word_neon;
+        case GenericMaximum: return vs_generic_3x3_max_word_neon;
+        case GenericMedian: return vs_generic_3x3_median_word_neon;
+        case GenericDeflate: return vs_generic_3x3_deflate_word_neon;
+        case GenericInflate: return vs_generic_3x3_inflate_word_neon;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_word_neon;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_word_neon;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_word_neon;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_word_neon;
+            break;
+        }
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_float_neon;
+        case GenericSobel: return vs_generic_3x3_sobel_float_neon;
+        case GenericMinimum: return vs_generic_3x3_min_float_neon;
+        case GenericMaximum: return vs_generic_3x3_max_float_neon;
+        case GenericMedian: return vs_generic_3x3_median_float_neon;
+        case GenericDeflate: return vs_generic_3x3_deflate_float_neon;
+        case GenericInflate: return vs_generic_3x3_inflate_float_neon;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_float_neon;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_float_neon;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_float_neon;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_float_neon;
+            break;
+        }
+    }
+    return nullptr;
+}
 #endif
 
 template <GenericOperations op>
@@ -474,6 +540,9 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
             func = genericSelectAVX2<op>(fi, d);
         if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2)
             func = genericSelectSSE2<op>(fi, d);
+#elif defined(VS_TARGET_CPU_ARM)
+        if (!func)
+            func = genericSelectNEON<op>(fi, d);
 #endif
         if (!func)
             func = genericSelectC<op>(fi, d);
