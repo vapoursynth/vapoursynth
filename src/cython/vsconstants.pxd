@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2024 Fredrik Mellbin
+# Copyright (c) 2021-2025 Fredrik Mellbin
 #
 # This file is part of VapourSynth.
 #
