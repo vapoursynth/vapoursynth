@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2024 Fredrik Mellbin
+* Copyright (c) 2012-2025 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -36,7 +36,7 @@
 #define VS_OPTIONS_TEXT "Options: -\n"
 #endif
 #define VAPOURSYNTH_VERSION_STRING "VapourSynth Video Processing Library\n" \
-    "Copyright (c) 2012-2024 Fredrik Mellbin\n" \
+    "Copyright (c) 2012-2025 Fredrik Mellbin\n" \
     "Core R" XSTR(VAPOURSYNTH_CORE_VERSION) "\n" \
     "API R" XSTR(VAPOURSYNTH_API_MAJOR) "." XSTR(VAPOURSYNTH_API_MINOR) "\n" \
     "API R" XSTR(VAPOURSYNTH3_API_MAJOR) "." XSTR(VAPOURSYNTH3_API_MINOR) "\n" \
