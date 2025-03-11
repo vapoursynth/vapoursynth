@@ -277,8 +277,6 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         getPlanesArg(in, d->process, vsapi);
 
     } catch (const std::runtime_error &e) {
-        for (auto iter : d->nodes)
-            vsapi->freeNode(iter);
         vsapi->mapSetError(out, ("AverageFrames: "s + e.what()).c_str());
         return;
     }
