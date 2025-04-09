@@ -24,8 +24,8 @@
 #include <cstdint>
 #include <cstddef>
 
-#if !defined(UUID_T_DEFINED) && !defined(uuid_t)
-struct uuid_t {
+#if !defined(wave_uuid_t)
+struct wave_uuid_t {
     uint32_t data1;
     uint16_t data2;
     uint16_t data3;
@@ -46,7 +46,7 @@ struct WaveFormatExtensible {
     uint16_t cbSize;
     uint16_t wValidBitsPerSample;
     uint32_t dwChannelMask;
-    uuid_t  SubFormat;
+    wave_uuid_t  SubFormat;
 };
 
 struct WaveHeader {
@@ -61,13 +61,13 @@ struct WaveHeader {
 };
 
 struct Wave64Header {
-    uuid_t riffUuid;
+    wave_uuid_t riffUuid;
     uint64_t riffSize;
-    uuid_t waveUuid;
-    uuid_t fmtUuid;
+    wave_uuid_t waveUuid;
+    wave_uuid_t fmtUuid;
     uint64_t fmtSize;
     WaveFormatExtensible wfx;
-    uuid_t dataUuid;
+    wave_uuid_t dataUuid;
     uint64_t dataSize;
 };
 
