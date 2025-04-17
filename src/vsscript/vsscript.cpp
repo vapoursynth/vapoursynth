@@ -53,7 +53,7 @@ static void real_init(void) VS_NOEXCEPT {
 #ifdef VSSCRIPT_PYTHON38
     const std::wstring pythonDllName = L"python38.dll";
 #else
-    const std::wstring pythonDllName = L"python313.dll";
+    const std::wstring pythonDllName = L"python3.dll";
 #endif
 
     // portable
@@ -66,14 +66,6 @@ static void real_init(void) VS_NOEXCEPT {
     bool isPortable = std::filesystem::exists(dllPath / L"portable.vs");
 
     HMODULE pythonDll = nullptr;
-
-/*
-#ifdef VS_TARGET_OS_WINDOWS
-    _wputenv(L"PYTHONMALLOC=malloc");
-#else
-    setenv("PYTHONMALLOC", "malloc", 1);
-#endif
-*/
 
     if (isPortable) {
         pythonDll = LoadLibraryExW((dllPath / pythonDllName).c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);

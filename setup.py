@@ -5,13 +5,19 @@ from os.path import dirname, exists, join
 from pathlib import Path
 from platform import architecture
 from shutil import which
+from sys import version_info
 
 from setuptools import Extension, setup
 
 is_win = (architecture()[1] == "WindowsPE")
 is_64 = (architecture()[0] == "64bit")
 
+limited_api_build = (version_info.minor >= 12 and is_win)
+
 extra_data = {}
+
+if (limited_api_build):
+    extra_data["options"] = {'bdist_wheel': {'py_limited_api' : 'cp312'}}
 
 library_dirs = [curdir, "build"]
 
@@ -85,8 +91,8 @@ if is_win:
     print("Found VapourSynth.dll at:", dll_path)
 
     extra_data["data_files"] = [(r"Lib\site-packages", [dll_path])]
- 
-        
+
+
 setup(
     name="VapourSynth",
     description="A frameserver for the 21st century",
@@ -101,7 +107,8 @@ setup(
     ext_modules=[
         Extension(
             "vapoursynth", [join("src", "cython", "vapoursynth.pyx")],
-            define_macros=[("VS_USE_LATEST_API", None), ("VS_GRAPH_API", None), ("VS_CURRENT_RELEASE", CURRENT_RELEASE)],
+            define_macros=[("Py_LIMITED_API" if limited_api_build else "VS_UNUSED_CYTHON_BUILD_MACRO", 0x030C0000), ("VS_USE_LATEST_API", None), ("VS_GRAPH_API", None), ("VS_CURRENT_RELEASE", CURRENT_RELEASE)],
+            py_limited_api=limited_api_build,
             libraries=["vapoursynth"],
             library_dirs=library_dirs,
             include_dirs=[

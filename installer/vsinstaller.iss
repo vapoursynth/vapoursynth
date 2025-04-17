@@ -1,11 +1,11 @@
-#define PythonVersion '3.13'
-#define PythonCompactVersion '313'
+#define PythonVersionMinorLow 12
+#define PythonVersionMinorHigh 30
 
 #define AppName 'VapourSynth (64-bits)'
 #define AppId 'VapourSynth'
 #define RegistryPath 'SOFTWARE\VapourSynth'
 #define SourceBinaryPath '..\msvc_project\x64\Release'
-#define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win_amd64.whl'
+#define WheelFilename(Version) 'VapourSynth-' + Version + '-cp312-abi3-win_amd64.whl'
 #define WheelFilenamePython38(Version) 'VapourSynth-' + Version + '-cp38-cp38-win_amd64.whl'
 
 #define Dependency_NoExampleSetup
@@ -184,8 +184,17 @@ var
 
     
 function IsPython3: Boolean;
+var Counter : Integer;
 begin
-  Result := PythonVersion = '{#PythonVersion}';
+  Result := False;
+  for Counter := {#PythonVersionMinorLow} to {#PythonVersionMinorHigh} do
+  begin
+    if PythonVersion = '3.' + IntToStr(Counter) then
+    begin
+      Result := True;
+      break;
+    end;
+  end;
 end;
 
 function IsPython38: Boolean;
@@ -244,9 +253,13 @@ begin
 end;
 
 procedure GetPythonInstallations;
+var Counter: Integer;
 begin
-  GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '{#PythonVersion}', 0);
-  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '{#PythonVersion}', 64); 
+  for Counter := {#PythonVersionMinorHigh} downto {#PythonVersionMinorLow} do
+  begin
+    GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '3.' + IntToStr(Counter), 0);
+    GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '3.' + IntToStr(Counter), 64); 
+  end;
   GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '3.8', 0);
   GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '3.8', 64); 
 end;
@@ -334,11 +347,11 @@ begin
   Result := GetArrayLength(PythonInstallations) > 0; 
 
   if not Result and not HasOtherPython then
-      MsgBox('No suitable Python {#PythonVersion} or 3.8 64-bit installation found. The installer will now exit.', mbCriticalError, MB_OK)
+      MsgBox('No suitable Python 3.{#PythonVersionMinorLow}+ or 3.8 64-bit installation found. The installer will now exit.', mbCriticalError, MB_OK)
   else if not Result and IsAdminInstallMode then
-      MsgBox('Python {#PythonVersion} or 3.8 64-bit is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
+      MsgBox('Python 3.{#PythonVersionMinorLow}+ or 3.8 64-bit is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
   else if not Result and not IsAdminInstallMode then
-      MsgBox('Python {#PythonVersion} or 3.8 64-bit is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
+      MsgBox('Python 3.{#PythonVersionMinorLow}+ or 3.8 64-bit is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
 end;
 
 procedure WizardFormOnResize(Sender: TObject);
