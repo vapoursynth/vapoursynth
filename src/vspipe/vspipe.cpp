@@ -38,6 +38,8 @@
 #include <io.h>
 #include <fcntl.h>
 #include "../common/vsutf16.h"
+#else
+#include <unistd.h>
 #endif
 
 #define __STDC_FORMAT_MACROS
@@ -917,10 +919,36 @@ int main(int argc, char **argv) {
     }
 
     FILE *outFile = nullptr;
+    FILE *realStdout = nullptr;
     bool closeOutFile = false;
 
     if (opts.outputFilename.empty() || opts.outputFilename == "-") {
-        outFile = stdout;
+#ifdef VS_TARGET_OS_WINDOWS
+        realStdout = OpenFile(std::filesystem::u8path("CON"));
+        if (!realStdout) {
+            fprintf(stderr, "Failed to open new stdout\n");
+            realStdout = stdout;
+        } else if (_dup2(_fileno(stdout), _fileno(realStdout)) == -1) {
+            fprintf(stderr, "Failed to redirect stdout to new stdout\n");
+            realStdout = stdout;
+        } else if (_dup2(_fileno(stderr), _fileno(stdout)) == -1) {
+            fprintf(stderr, "Failed to redirect old stdout to stderr\n");
+            realStdout = stdout;
+        }
+#else
+        realStdout = OpenFile(std::filesystem::u8path("/dev/tty"));
+        if (!realStdout) {
+            fprintf(stderr, "Failed to open new stdout\n");
+            realStdout = stdout;
+        } else if (dup2(fileno(stdout), fileno(realStdout)) == -1) {
+            fprintf(stderr, "Failed to redirect stdout to new stdout\n");
+            realStdout = stdout;
+        } else if (dup2(fileno(stderr), fileno(stdout)) == -1) {
+            fprintf(stderr, "Failed to redirect old stdout to stderr\n");
+            realStdout = stdout;
+        }
+#endif
+        outFile = realStdout;
     } else if (opts.outputFilename == "." || opts.outputFilename == "--") {
         // do nothing
     } else {
@@ -1095,8 +1123,8 @@ int main(int argc, char **argv) {
             fprintf(outFile, "%s\n", graph.c_str());
     } else {
 #ifdef VS_TARGET_OS_WINDOWS
-        if (outFile == stdout) {
-            if (_setmode(_fileno(stdout), _O_BINARY) == -1)
+        if (outFile && outFile == realStdout) {
+            if (_setmode(_fileno(realStdout), _O_BINARY) == -1)
                 fprintf(stderr, "Failed to set stdout to binary mode\n");
         }
 #endif
