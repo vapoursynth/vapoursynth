@@ -25,10 +25,8 @@ from cython cimport view, final
 from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t
 from cpython.buffer cimport PyBUF_SIMPLE
 from cpython.buffer cimport PyBuffer_FillInfo
-from cpython.buffer cimport PyBuffer_IsContiguous
 from cpython.buffer cimport PyBuffer_Release
 from cpython.memoryview cimport PyMemoryView_FromObject
-from cpython.memoryview cimport PyMemoryView_GET_BUFFER
 from cpython.number cimport PyIndex_Check
 from cpython.number cimport PyNumber_Index
 from cpython.ref cimport Py_INCREF, Py_DECREF
@@ -1562,28 +1560,14 @@ cdef class VideoFrame(RawFrame):
         view.base.obj = self
         view.base.readonly = not self.flags & 1
 
-        for x in range(format.numPlanes):
-            _video.fillinfo(&view.base, frame, x, &self.flags, lib)
-
-            data = PyMemoryView_FromObject(view)
-
-            if not PyBuffer_IsContiguous(&view.base, b'C'):
-                # write data line by line
-                tmp = PyMemoryView_GET_BUFFER(data)
-                tmp.ndim = 1
-                tmp.shape += 1
-                tmp.strides += 1
-                tmp.len = tmp.shape[0] * tmp.itemsize
-
-                lines = view.base.shape[0]
-                stride = view.base.strides[0]
-
-                for _ in range(lines):
-                    line = PyMemoryView_FromObject(data)
-                    yield line
-                    tmp.buf = &(<char*> tmp.buf)[stride]
+        for plane in range(format.numPlanes):
+            if lib.getStride(frame, plane) == lib.getFrameWidth(frame, plane) * format.bytesPerSample:
+                _video.fillinfo(&view.base, frame, plane, &self.flags, lib)
+                yield PyMemoryView_FromObject(view)
             else:
-                yield data
+                for row in range(lib.getFrameHeight(frame, plane)):
+                    _video.filllineinfo(&view.base, frame, plane, row, &self.flags, lib)
+                    yield PyMemoryView_FromObject(view)
 
     def __getitem__(self, index):
         self._ensure_open()
@@ -1754,7 +1738,14 @@ cdef class _video:
         view.strides[0] = lib.getStride(frame, plane)
         view.len = view.shape[0] * view.shape[1] * view.itemsize
         view.buf = _frame.getdata(frame, plane, flags, lib)
-
+        
+    @staticmethod
+    cdef void filllineinfo(Py_buffer* view, VSFrame* frame, int plane, int line, unsigned* flags, const VSAPI* lib) nogil:
+        view.shape[1] = lib.getFrameWidth(frame, plane)
+        view.shape[0] = 1
+        view.strides[0] = lib.getStride(frame, plane)
+        view.len = view.shape[0] * view.shape[1] * view.itemsize
+        view.buf = <void *>(<uint8_t *>_frame.getdata(frame, plane, flags, lib) + lib.getStride(frame, plane) * line)
 
 cdef class AudioFrame(RawFrame):
     cdef readonly object sample_type

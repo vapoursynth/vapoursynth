@@ -2,9 +2,15 @@
 
 #ifndef __PYX_HAVE_API__vapoursynth
 #define __PYX_HAVE_API__vapoursynth
+
 #ifdef __MINGW64__
 #define MS_WIN64
 #endif
+
+#ifndef VSSCRIPT_PYTHON38
+#define Py_LIMITED_API 0x03080000
+#endif
+
 #include "Python.h"
 #include "vapoursynth.h"
 

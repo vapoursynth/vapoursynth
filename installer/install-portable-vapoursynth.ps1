@@ -113,7 +113,12 @@ if ($Python38) {
     Remove-Item -Path "$TargetFolder\VSScriptPython38.dll"
 }
 Write-Host "Installing VapourSynth..."
+
+if ($Python38) {
 & "$TargetFolder\python.exe" "-m" "pip" "install" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp$PythonVersionMajor$PythonVersionMid-cp$PythonVersionMajor$PythonVersionMid-win_amd64.whl"
+} else {
+& "$TargetFolder\python.exe" "-m" "pip" "install" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp312-abi3-win_amd64.whl"
+}
 
 Write-Host "Installation complete" -ForegroundColor Green
 
