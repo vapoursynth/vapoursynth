@@ -4,13 +4,12 @@
 )
 
 $PythonVersionMajor = 3
-$PythonVersionMid = 13
-$PythonVersionMinor = 3
+$PythonVersionMinor = 13
+$PythonVersionPatch = 3
 
 if ($Python38 -or ([System.Environment]::OSVersion.Version.Major -lt 10)) {
-    $Python38 = $true
-    $PythonVersionMid = 8
-    $PythonVersionMinor = 10
+    $PythonVersionMinor = 8
+    $PythonVersionPatch = 10
 }
 
 $DownloadFolder = "$TargetFolder\vs-temp-dl"
@@ -66,19 +65,19 @@ if (-Not (Test-Path "$TargetFolder")) {
     exit 1
 }
 
-Write-Host "Determining latest Python $PythonVersionMajor.$PythonVersionMid.x version..."
+Write-Host "Determining latest Python $PythonVersionMajor.$PythonVersionMinor.x version..."
 
-for ($i = $PythonVersionMinor + 1; $i -le 10; $i++) {
-    $PyUri = "https://www.python.org/ftp/python/$PythonVersionMajor.$PythonVersionMid.$i/python-$PythonVersionMajor.$PythonVersionMid.$i-embed-amd64.zip"
+for ($i = $PythonVersionPatch + 1; $i -le 10; $i++) {
+    $PyUri = "https://www.python.org/ftp/python/$PythonVersionMajor.$PythonVersionMinor.$i/python-$PythonVersionMajor.$PythonVersionMinor.$i-embed-amd64.zip"
     try {
         $PythonReply = Invoke-WebRequest -Uri $PyUri -Method head
-        $PythonVersionMinor = $i
+        $PythonVersionPatch = $i
     } catch {
         break
     }
 }
 
-Write-Host "Python version $PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor will be used for installation"
+Write-Host "Python version $PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch will be used for installation"
 
 Start-Sleep -Second 2
 
@@ -87,7 +86,7 @@ New-Item -Path "$DownloadFolder" -ItemType Directory -Force | Out-Null
 $ProgressPreference = 'Continue'
 
 Write-Host "Downloading Python..."
-Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor/python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip" -OutFile "$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip"
+Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch/python-$PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch-embed-amd64.zip" -OutFile "$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch-embed-amd64.zip"
 Write-Host "Downloading VapourSynth..."
 Invoke-WebRequest -Uri "https://github.com/vapoursynth/vapoursynth/releases/download/R$VSVersion/VapourSynth64-Portable-R$VSVersion.zip" -OutFile "$DownloadFolder\VapourSynth64-Portable-R$VSVersion.zip"
 Write-Host "Downloading Pip..."
@@ -97,9 +96,9 @@ Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$Downloa
 $global:ProgressPreference = 'SilentlyContinue'
 
 Write-Host "Extracting Python..."
-Expand-Archive -LiteralPath "$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMid.$PythonVersionMinor-embed-amd64.zip" -DestinationPath "$TargetFolder" -Force
-Add-Content -Path "$TargetFolder\python$PythonVersionMajor$PythonVersionMid._pth" -Encoding UTF8 -Value "vs-scripts" | Out-Null
-Add-Content -Path "$TargetFolder\python$PythonVersionMajor$PythonVersionMid._pth" -Encoding UTF8 -Value "Lib\site-packages" | Out-Null
+Expand-Archive -LiteralPath "$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch-embed-amd64.zip" -DestinationPath "$TargetFolder" -Force
+Add-Content -Path "$TargetFolder\python$PythonVersionMajor$PythonVersionMinor._pth" -Encoding UTF8 -Value "vs-scripts" | Out-Null
+Add-Content -Path "$TargetFolder\python$PythonVersionMajor$PythonVersionMinor._pth" -Encoding UTF8 -Value "Lib\site-packages" | Out-Null
 New-Item -Path "$TargetFolder\vs-plugins" -ItemType Directory -Force | Out-Null
 New-Item -Path "$TargetFolder\vs-scripts" -ItemType Directory -Force | Out-Null
 Write-Host "Installing Pip..."
@@ -107,15 +106,15 @@ Write-Host "Installing Pip..."
 Remove-Item -Path "$TargetFolder\Scripts\*.exe"
 Write-Host "Extracting VapourSynth..."
 Expand-Archive -LiteralPath "$DownloadFolder\VapourSynth64-Portable-R$VSVersion.zip" -DestinationPath "$TargetFolder" -Force
-if ($Python38) {
+if ($PythonVersionMinor -eq 8) {
     Move-Item -Path "$TargetFolder\VSScriptPython38.dll" -Destination "$TargetFolder\VSScript.dll" -Force
 } else {
     Remove-Item -Path "$TargetFolder\VSScriptPython38.dll"
 }
 Write-Host "Installing VapourSynth..."
 
-if ($Python38) {
-& "$TargetFolder\python.exe" "-m" "pip" "install" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp$PythonVersionMajor$PythonVersionMid-cp$PythonVersionMajor$PythonVersionMid-win_amd64.whl"
+if ($PythonVersionMinor -eq 8) {
+& "$TargetFolder\python.exe" "-m" "pip" "install" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp$PythonVersionMajor$PythonVersionMinor-cp$PythonVersionMajor$PythonVersionMinor-win_amd64.whl"
 } else {
 & "$TargetFolder\python.exe" "-m" "pip" "install" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp312-abi3-win_amd64.whl"
 }
