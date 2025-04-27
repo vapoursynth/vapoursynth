@@ -1,15 +1,24 @@
     [string]$TargetFolder = ".\vapoursynth-portable",
-    [switch]$Python38,
+    [int]$PythonVersionMajor = 3,
+    [int]$PythonVersionMinor = 13,
     [switch]$Unattended
 )
 
-$PythonVersionMajor = 3
-$PythonVersionMinor = 13
-$PythonVersionPatch = 3
+$PythonVersionPatch = 0
 
-if ($Python38 -or ([System.Environment]::OSVersion.Version.Major -lt 10)) {
+if ($PythonVersionMinor -eq 8 -or ([System.Environment]::OSVersion.Version.Major -lt 10)) {
     $PythonVersionMinor = 8
     $PythonVersionPatch = 10
+}
+
+if ($PythonVersionMajor -ne 3) {
+    Write-Host "Only Python 3.x is supported"
+    exit 1
+}
+
+if ($PythonVersionMinor -ne 8 -and $PythonVersionMinor -lt 12) {
+    Write-Host "Only Python 3.8 and 3.12+ is supported"
+    exit 1
 }
 
 $DownloadFolder = "$TargetFolder\vs-temp-dl"

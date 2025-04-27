@@ -47,7 +47,7 @@ Windows Installation (Portable)
 *******************************
 
 By far the easiest way is to download and run the automatic script called *Install-Portable-VapourSynth-RXX.ps1*.
-It will then automatically download and set up embedded Python, pip and VapourSynth in a subdirectorey called *vapoursynth-portable* by default.
+It will then automatically download and set up embedded Python, pip and VapourSynth in a subdirectorey called *vapoursynth-portable* by default. It's possible to pass arguments to it to specify the installed Python version in addition to an option to run it in unattended mode.
 
 Or if you want to do it the manual and not recommended way follow these steps:
    * Download and decompress `Python 3.13.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit embeddable version
