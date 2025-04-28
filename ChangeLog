@@ -1,3 +1,7 @@
+r72:
+the portable install script now allows the installed python version to be specified using the PythonVersionMajor and PythonVersionMinor arguments
+now supports python 3.12 and later in addition to 3.8 on windows
+
 r71:
 fixed vertical mirroring at edges in convolution filters
 improved trim and audiotrim error messages
