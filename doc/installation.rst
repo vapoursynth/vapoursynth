@@ -26,13 +26,13 @@ Prerequisites
 -------------
 
 First download and install the prerequisites:
-   * `Python 3.13.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit version
-   
+   * `Python 64 bit version <http://www.python.org/>`_ -- There is universal support for Python 3.12 and all later versions, including 3.13 and the upcoming 3.14. There is also support for Python 3.8 for compatibility with Windows 7.
+
 Note that VapourSynth and Python have to be matched so both are either installed
 for all users or for only for the current user.
 
 Also note that per user installs will not install the required Visual Studio
-2019 runtimes.
+2022 runtimes.
 
 Installation
 ------------
