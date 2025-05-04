@@ -14,7 +14,7 @@ frames to a file.
 
 If *outfile* is a hyphen (``-``), vspipe will write to the standard output.
 
-If *outfile* is a dot (``.``), vspipe will do everything as usual, except it
+If *outfile* is a double hyphen (``--``), vspipe will do everything as usual, except it
 will not write the video frames anywhere.
 
 
@@ -67,8 +67,11 @@ Show script info:
 Write to stdout:
     ``vspipe [options] script.vpy -``
 
+Write to a named pipe (Windows only):
+    ``vspipe [options] script.vpy "\\\\.\\pipe\\<pipename>"
+
 Request all frames but don't output them:
-    ``vspipe [options] script.vpy .``
+    ``vspipe [options] script.vpy --``
 
 Write frames 5-100 to file:
     ``vspipe --start 5 --end 100 script.vpy output.raw``

@@ -45,7 +45,6 @@
 #include <cinttypes>
 
 // fixme, add a more verbose graph mode with filter times included
-// fixme, using a "." for no output is weird
 
 // Needed so windows doesn't drool on itself when ctrl-c is pressed
 #ifdef VS_TARGET_OS_WINDOWS
@@ -667,15 +666,17 @@ static void printHelp() {
         "\n"
         "Special output options for <outfile>:\n"
         "  -                                Write to stdout\n"
-        "  -- or .                          No output\n"
+        "  --                               No output\n"
         "\n"
         "Examples:\n"
         "  Show script info:\n"
         "    vspipe --info script.vpy\n"
         "  Write to stdout:\n"
         "    vspipe [options] script.vpy -\n"
-        "  Write to a named pipe:\n"
+#ifdef _WIN32
+        "  Write to a named pipe (Windows only):\n"
         "    vspipe [options] script.vpy \"\\\\.\\pipe\\<pipename>\n"
+#endif
         "  Request all frames but don't output them:\n"
         "    vspipe [options] script.vpy --\n"
         "  Write frames 5-100 to file:\n"
