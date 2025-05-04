@@ -20,7 +20,7 @@ if ($PythonVersionMinor -ne 8 -and $PythonVersionMinor -lt 12) {
     exit 1
 }
 
-if ($PythonVersionMinor -le 12)) {
+if ($PythonVersionMinor -le 12) {
     $PythonVersionPatch = 10
 }
 
