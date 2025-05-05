@@ -936,23 +936,22 @@ int main(int argc, char **argv) {
         // do nothing
 #ifdef _WIN32
     } else if (opts.outputFilename.u8string().substr(0, 9) == "\\\\.\\pipe\\") {
-        std::string pipename = opts.outputFilename.u8string().substr(9);
-        if (pipename.empty()) {
+        if (opts.outputFilename.u8string().length() <= 9) {
             fprintf(stderr, "Pipe name can't be empty\n");
             return 1;
         }
 
         HANDLE outFile2 = CreateNamedPipeW(opts.outputFilename.c_str(), PIPE_ACCESS_OUTBOUND, PIPE_TYPE_BYTE | PIPE_WAIT | PIPE_ACCEPT_REMOTE_CLIENTS, PIPE_UNLIMITED_INSTANCES, 1024 * 1024, 0, 0, nullptr);
         if (outFile2 == INVALID_HANDLE_VALUE) {
-            fprintf(stderr, "Failed to create pipe \"%s\"\n", pipename.c_str());
+            fprintf(stderr, "Failed to create pipe \"%s\"\n", opts.outputFilename.u8string().c_str());
             return 1;
         }
 
-        fprintf(stderr, "Waiting for client to connect to named pipe...");
+        fprintf(stderr, "Waiting for client to connect to named pipe...\n");
         if (ConnectNamedPipe(outFile2, nullptr) ? true : (GetLastError() == ERROR_PIPE_CONNECTED)) {
-            fprintf(stderr, "Client connected to named pipe");
+            fprintf(stderr, "Client connected to named pipe\n");
         } else {
-            fprintf(stderr, "Client failed to connect to pipe, error code: %d", static_cast<int>(GetLastError()));
+            fprintf(stderr, "Client failed to connect to pipe, error code: %d\n", static_cast<int>(GetLastError()));
             return 1;
         }
 
