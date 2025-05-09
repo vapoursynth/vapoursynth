@@ -12,7 +12,7 @@ from setuptools import Extension, setup
 is_win = (architecture()[1] == "WindowsPE")
 is_64 = (architecture()[0] == "64bit")
 
-limited_api_build = (version_info.minor >= 12 and is_win)
+limited_api_build = (version_info.minor >= 12)
 
 extra_data = {}
 
