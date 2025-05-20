@@ -22,6 +22,12 @@
 #include "VapourSynth3.h"
 #include "../../VAPOURSYNTH_VERSION"
 
+#if __has_include("../../VAPOURSYNTH_VERSION_EXTRA")
+    #include "../../VAPOURSYNTH_VERSION_EXTRA"
+#else
+    #define VS_CURRENT_RELEASE_EXTRA ""
+#endif 
+
 #define XSTR(x) STR(x)
 #define STR(x) #x
 #define VAPOURSYNTH_CORE_VERSION VS_CURRENT_RELEASE
@@ -37,7 +43,7 @@
 #endif
 #define VAPOURSYNTH_VERSION_STRING "VapourSynth Video Processing Library\n" \
     "Copyright (c) 2012-2025 Fredrik Mellbin\n" \
-    "Core R" XSTR(VAPOURSYNTH_CORE_VERSION) "\n" \
+    "Core R" XSTR(VAPOURSYNTH_CORE_VERSION) VS_CURRENT_RELEASE_EXTRA "\n" \
     "API R" XSTR(VAPOURSYNTH_API_MAJOR) "." XSTR(VAPOURSYNTH_API_MINOR) "\n" \
     "API R" XSTR(VAPOURSYNTH3_API_MAJOR) "." XSTR(VAPOURSYNTH3_API_MINOR) "\n" \
     VS_OPTIONS_TEXT

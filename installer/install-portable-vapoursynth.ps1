@@ -6,19 +6,22 @@
 
 $PythonVersionPatch = 0
 
-if ($PythonVersionMinor -eq 8 -or ([System.Environment]::OSVersion.Version.Major -lt 10)) {
-    $PythonVersionMinor = 8
-    $PythonVersionPatch = 10
-}
-
 if ($PythonVersionMajor -ne 3) {
     Write-Host "Only Python 3.x is supported"
     exit 1
 }
 
+if ([System.Environment]::OSVersion.Version.Major -lt 10) {
+    $PythonVersionMinor = 8
+}
+
 if ($PythonVersionMinor -ne 8 -and $PythonVersionMinor -lt 12) {
-    Write-Host "Only Python 3.8 and 3.12+ is supported"
+    Write-Host "Only Python 3.12+ and 3.8 is supported"
     exit 1
+}
+
+if ($PythonVersionMinor -le 12) {
+    $PythonVersionPatch = 10
 }
 
 $DownloadFolder = "$TargetFolder\vs-temp-dl"
@@ -53,11 +56,11 @@ $ErrorActionPreference = "Continue"
 
 if (!$Unattended) {
     if ($VSGithubVersion -eq "Unknown") {
-        $Answer = Read-Host "Failed to retrieve VapourSynth version information from GitHub.`nProceed with install of R$VSVersion anyway? (y/n)"
-    } elseif ($VSGithubVersion -eq "R$VSVersion") {
-        $Answer = Read-Host "Script will install the latest VapourSynth version.`nProceed with install of R$VSVersion`? (y/n)"
+        $Answer = Read-Host "Failed to retrieve VapourSynth version information from GitHub.`nProceed with install of R$VSVersion$VSVersionExtra anyway? (y/n)"
+    } elseif ($VSGithubVersion -eq "R$VSVersion$VSVersionExtra") {
+        $Answer = Read-Host "Script will install the latest VapourSynth version.`nProceed with install of R$VSVersion$VSVersionExtra`? (y/n)"
     } else {
-        $Answer = Read-Host "Script is for VapourSynth R$VSVersion but the latest version available is $VSGithubVersion.`nProceed with install of R$VSVersion anyway? (y/n)"
+        $Answer = Read-Host "Script is for VapourSynth R$VSVersion$VSVersionExtra but the latest stable release available is $VSGithubVersion.`nProceed with install of R$VSVersion$VSVersionExtra anyway? (y/n)"
     }
 }
 
@@ -97,7 +100,7 @@ $ProgressPreference = 'Continue'
 Write-Host "Downloading Python..."
 Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch/python-$PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch-embed-amd64.zip" -OutFile "$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch-embed-amd64.zip"
 Write-Host "Downloading VapourSynth..."
-Invoke-WebRequest -Uri "https://github.com/vapoursynth/vapoursynth/releases/download/R$VSVersion/VapourSynth64-Portable-R$VSVersion.zip" -OutFile "$DownloadFolder\VapourSynth64-Portable-R$VSVersion.zip"
+Invoke-WebRequest -Uri "https://github.com/vapoursynth/vapoursynth/releases/download/R$VSVersion$VSVersionExtra/VapourSynth64-Portable-R$VSVersion$VSVersionExtra.zip" -OutFile "$DownloadFolder\VapourSynth64-Portable-R$VSVersion$VSVersionExtra.zip"
 Write-Host "Downloading Pip..."
 Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$DownloadFolder\get-pip.py"
 
@@ -114,7 +117,7 @@ Write-Host "Installing Pip..."
 & "$TargetFolder\python.exe" "$DownloadFolder\get-pip.py" "--no-warn-script-location"
 Remove-Item -Path "$TargetFolder\Scripts\*.exe"
 Write-Host "Extracting VapourSynth..."
-Expand-Archive -LiteralPath "$DownloadFolder\VapourSynth64-Portable-R$VSVersion.zip" -DestinationPath "$TargetFolder" -Force
+Expand-Archive -LiteralPath "$DownloadFolder\VapourSynth64-Portable-R$VSVersion$VSVersionExtra.zip" -DestinationPath "$TargetFolder" -Force
 if ($PythonVersionMinor -eq 8) {
     Move-Item -Path "$TargetFolder\VSScriptPython38.dll" -Destination "$TargetFolder\VSScript.dll" -Force
 } else {
