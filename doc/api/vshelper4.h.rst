@@ -30,7 +30,7 @@ Functions_
 
    `vsh_aligned_free <vsh_aligned_free_cpp_>`_
 
-   isConstantFormat_
+   isConstantVideoFormat_
 
    isSameVideoFormat_
    
@@ -155,10 +155,10 @@ vsh_aligned_free
    This simply uses the `VSH_ALIGNED_FREE <VSH_ALIGNED_FREE_c_>`_ macro.
 
 
-isConstantFormat
+isConstantVideoFormat
 ----------------
 
-.. cpp:function:: static inline bool vsh::isConstantFormat(const VSVideoInfo *vi)
+.. cpp:function:: static inline bool vsh::isConstantVideoFormat(const VSVideoInfo *vi)
 
    Checks if a clip's format and dimensions are known (and therefore constant).
 
