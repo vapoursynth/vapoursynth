@@ -49,11 +49,7 @@ jobs:
     - name: make install
       run: |
         sudo make install -j$(nproc)
-        python -m build
-        mkdir empty
-        pushd empty
-        pip install vapoursynth --no-index --find-links ../sdist
-        popd
+        pip install .
 
     - name: Run test
       run: |
