@@ -1,6 +1,7 @@
 setuptools
 wheel
 cython
+build
 sphinx
 sphinx-intl
 sphinx-rtd-theme
