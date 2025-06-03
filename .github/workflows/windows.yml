@@ -74,6 +74,7 @@ jobs:
 
     - name: Package for Python 3.8
       run: |
+        del pyproject.toml
         python setup.py bdist_wheel
 
     - name: Run test with Python 3.8
