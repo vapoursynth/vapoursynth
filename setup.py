@@ -118,10 +118,6 @@ setup(
             ]
         )
     ],
-    setup_requires=[
-        'setuptools>=18.0',
-        "Cython",
-    ],
     exclude_package_data={"": ("VAPOURSYNTH_VERSION",)},
     **extra_data
 )
