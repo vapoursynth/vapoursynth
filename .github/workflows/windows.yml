@@ -60,7 +60,8 @@ jobs:
 
     - name: Package for Python 3.13
       run: |
-        python -m build
+        python -m build --sdist
+        python -m build --wheel
 
     - name: Run test with Python 3.13
       run: |
@@ -74,8 +75,7 @@ jobs:
 
     - name: Package for Python 3.8
       run: |
-        del pyproject.toml
-        python setup.py bdist_wheel
+        python -m build --wheel
 
     - name: Run test with Python 3.8
       run: |
