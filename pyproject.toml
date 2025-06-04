@@ -9,8 +9,7 @@ authors = [
 ]
 requires-python = ">=3.8"
 description = "A frameserver for the 21st century"
-license = "LGPL-2.1-or-later"
-license-files = ["COPYING.LESSER"]
+license = {text = "LGPL-2.1-or-later"}
 keywords = ["frameserver", "video", "audio"]
 dynamic = ["version"]
 readme = "README.md"
