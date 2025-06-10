@@ -1,3 +1,7 @@
+r73:
+release builds are now compiled with clang on windows which gives a speedup
+vsscript r3 api support has been removed since nobody has used it for 3+ years
+
 r72:
 added named pipe output support to vspipe in windows by specifying \\.\pipe\<pipename>
 fixed a bug that could lead to wrong timecodes being output by vspipe when a clip contains many different frame durations

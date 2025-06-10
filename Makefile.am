@@ -84,7 +84,6 @@ pkginclude_HEADERS = include/VapourSynth.h \
 					 include/VSConstants4.h \
 					 include/VSHelper.h \
 					 include/VSHelper4.h \
-					 include/VSScript.h \
 					 include/VSScript4.h
 
 pkgconfig_DATA += pc/vapoursynth.pc
