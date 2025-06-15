@@ -22,7 +22,7 @@ jobs:
         git clone https://github.com/sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules
         pushd zimg
         ./autogen.sh
-        ./configure --prefix=/usr
+        ./configure
         make -j$(nproc)
         sudo make install -j$(nproc)
         popd
@@ -40,7 +40,7 @@ jobs:
     - name: configure
       run: |
         ./autogen.sh
-        ./configure --prefix=/usr
+        ./configure
 
     - name: make
       run: |
@@ -50,6 +50,8 @@ jobs:
       run: |
         sudo make install -j$(nproc)
         pip install .
+        echo "LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        echo "PYTHONPATH=/usr/local/lib/python3.13/site-packages:$PYTHONPATH" >> $GITHUB_ENV
 
     - name: Run test
       run: |
