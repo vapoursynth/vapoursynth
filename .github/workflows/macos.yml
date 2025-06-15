@@ -64,4 +64,5 @@ jobs:
 
     - name: Run test
       run: |
+        vspipe --version
         python -m unittest discover -s test -p "*test.py"
