@@ -236,6 +236,10 @@ Classes and Functions
 
       The size of the core's current cache. The value is in bytes.
 
+   .. py:method:: clear_cache()
+
+      Frees all memory used by internal caches. Useful when suspending or switching between multiple core isntances.
+
    .. py:attribute:: core_version
 
       Returns the core version as VapourSynthVersion tuple.
