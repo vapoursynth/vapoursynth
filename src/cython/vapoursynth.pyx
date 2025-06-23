@@ -1169,8 +1169,11 @@ cdef class VideoFormat(object):
 cdef VideoFormat createVideoFormat(const VSVideoFormat *f, const VSAPI *funcs, VSCore *core):
     cdef VideoFormat instance = VideoFormat.__new__(VideoFormat)
     cdef char nameBuffer[32]
-    funcs.getVideoFormatName(f, nameBuffer)
-    instance.name = nameBuffer.decode('utf-8')
+    if f.colorFamily <> cfUndefined:
+        funcs.getVideoFormatName(f, nameBuffer)
+        instance.name = nameBuffer.decode('utf-8')
+    else:
+        instance.name = 'None'
     instance.color_family = ColorFamily(f.colorFamily)
     instance.sample_type = SampleType(f.sampleType)
     instance.bits_per_sample = f.bitsPerSample
@@ -2372,12 +2375,7 @@ cdef VideoNode createVideoNode(VSNode *node, const VSAPI *funcs, Core core):
     instance.node = node
     instance.funcs = funcs
     instance.vi = funcs.getVideoInfo(node)
-
-    if (instance.vi.format.colorFamily != cfUndefined):
-        instance.format = createVideoFormat(&instance.vi.format, funcs, core.core)
-    else:
-        instance.format = None
-
+    instance.format = createVideoFormat(&instance.vi.format, funcs, core.core)
     instance.width = instance.vi.width
     instance.height = instance.vi.height
     instance.num_frames = instance.vi.numFrames
