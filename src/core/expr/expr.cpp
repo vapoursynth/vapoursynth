@@ -906,9 +906,19 @@ bool combinePowerTerms(ExpressionTree &tree)
     {
         bool changed = false;
 
-        // sqrt(x) = x ** 0.5
+        // sqrt(x) = max(0, x) ** 0.5
         if (node.op == ExprOpType::SQRT) {
+            ExpressionTreeNode* input = node.left;
+            if (!(input->op.type == ExprOpType::MAX && 
+                  input->left->op.type == ExprOpType::CONSTANT && 
+                  input->left->op.imm.f == 0.0f)) {
+                ExpressionTreeNode* maxNode = tree.makeNode(ExprOpType::MAX);
+                maxNode->left = tree.makeNode({ ExprOpType::CONSTANT, 0.0f });
+                maxNode->right = input;
+                input = maxNode;
+            }
             node.op = ExprOpType::POW;
+            node.left = input;
             node.setRight(tree.makeNode({ ExprOpType::CONSTANT, 0.5f }));
             changed = true;
         }
