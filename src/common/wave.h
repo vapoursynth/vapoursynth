@@ -27,12 +27,13 @@
 
 typedef std::array<uint8_t, 16> wave_uuid_t;
 typedef std::array<uint8_t, 4> wave_tag_t;
+typedef std::array<uint8_t, 2> wave_fmt_tag_t;
 
 static constexpr uint64_t maxWaveFileSize = 0xFFFFFFFE;
 static constexpr uint64_t maxCompatWaveFileSize = 0x7FFFFFFE;
 
 struct WaveFormatExtensible {
-    std::array<uint8_t, 2> wFormatTag;
+    wave_fmt_tag_t wFormatTag;
     uint16_t nChannels;
     uint32_t nSamplesPerSec;
     uint32_t nAvgBytesPerSec;

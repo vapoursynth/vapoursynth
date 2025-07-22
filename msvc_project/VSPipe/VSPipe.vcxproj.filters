@@ -47,9 +47,6 @@
     <ClInclude Include="..\..\src\vspipe\printgraph.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\vspipe\md5.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\vspipe\vsjson.h">
       <Filter>Header Files</Filter>
     </ClInclude>

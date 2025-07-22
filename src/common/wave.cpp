@@ -80,7 +80,7 @@ void PackChannels32to24le(const uint8_t *const *const Src, uint8_t *Dst, size_t 
 }
 
 static_assert(sizeof(WaveFormatExtensible) - offsetof(WaveFormatExtensible, wValidBitsPerSample) == 22, "");
-static constexpr std::array<uint8_t, 2> waveFormatExtensible = { 0xFE, 0xFF };
+static constexpr wave_fmt_tag_t waveFormatExtensibleTag = { 0xFE, 0xFF };
 static constexpr wave_uuid_t ksDataformatSubtypePCM = { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71 };
 static constexpr wave_uuid_t ksDataformatSubtypeIEEEFloat = { 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71 };
 
@@ -106,7 +106,7 @@ bool CreateWaveFormatExtensible(WaveFormatExtensible &header, bool IsFloat, int 
     size_t NumChannels = tmp.count();
     size_t bytesPerOutputSample = (BitsPerSample + 7) / 8;
 
-    header.wFormatTag = waveFormatExtensible;
+    header.wFormatTag = waveFormatExtensibleTag;
     header.nChannels = WAVE_SWAP16_LE(static_cast<uint16_t>(NumChannels));
     header.nSamplesPerSec = WAVE_SWAP32_LE(SampleRate);
     header.nBlockAlign = WAVE_SWAP16_LE(static_cast<uint16_t>(NumChannels * bytesPerOutputSample));
