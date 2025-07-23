@@ -42,7 +42,7 @@ struct WaveFormatExtensible {
     uint16_t cbSize;
     uint16_t wValidBitsPerSample;
     uint32_t dwChannelMask;
-    wave_uuid_t  SubFormat;
+    wave_uuid_t SubFormat;
 };
 
 struct WaveHeader {
