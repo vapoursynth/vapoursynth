@@ -16,10 +16,6 @@
 
 static int (*__pyx_api_f_11vapoursynth_vpy4_createScript)(VSScript *) = 0;
 #define vpy4_createScript __pyx_api_f_11vapoursynth_vpy4_createScript
-static int (*__pyx_api_f_11vapoursynth_vpy_evaluateScript)(VSScript *, char const *, char const *, int) = 0;
-#define vpy_evaluateScript __pyx_api_f_11vapoursynth_vpy_evaluateScript
-static int (*__pyx_api_f_11vapoursynth_vpy_evaluateFile)(VSScript *, char const *, int) = 0;
-#define vpy_evaluateFile __pyx_api_f_11vapoursynth_vpy_evaluateFile
 static int (*__pyx_api_f_11vapoursynth_vpy4_evaluateBuffer)(VSScript *, char const *, char const *) = 0;
 #define vpy4_evaluateBuffer __pyx_api_f_11vapoursynth_vpy4_evaluateBuffer
 static int (*__pyx_api_f_11vapoursynth_vpy4_evaluateFile)(VSScript *, char const *) = 0;
@@ -36,8 +32,6 @@ static int (*__pyx_api_f_11vapoursynth_vpy4_getAltOutputMode)(VSScript *, int) =
 #define vpy4_getAltOutputMode __pyx_api_f_11vapoursynth_vpy4_getAltOutputMode
 static int (*__pyx_api_f_11vapoursynth_vpy4_getAvailableOutputNodes)(VSScript *, int, int *) = 0;
 #define vpy4_getAvailableOutputNodes __pyx_api_f_11vapoursynth_vpy4_getAvailableOutputNodes
-static int (*__pyx_api_f_11vapoursynth_vpy_clearOutput)(VSScript *, int) = 0;
-#define vpy_clearOutput __pyx_api_f_11vapoursynth_vpy_clearOutput
 static VSCore *(*__pyx_api_f_11vapoursynth_vpy4_getCore)(VSScript *) = 0;
 #define vpy4_getCore __pyx_api_f_11vapoursynth_vpy4_getCore
 static VSAPI const *(*__pyx_api_f_11vapoursynth_vpy4_getVSAPI)(int) = 0;
@@ -46,10 +40,6 @@ static int (*__pyx_api_f_11vapoursynth_vpy4_getVariable)(VSScript *, char const 
 #define vpy4_getVariable __pyx_api_f_11vapoursynth_vpy4_getVariable
 static int (*__pyx_api_f_11vapoursynth_vpy4_setVariables)(VSScript *, VSMap const *) = 0;
 #define vpy4_setVariables __pyx_api_f_11vapoursynth_vpy4_setVariables
-static int (*__pyx_api_f_11vapoursynth_vpy_clearVariable)(VSScript *, char const *) = 0;
-#define vpy_clearVariable __pyx_api_f_11vapoursynth_vpy_clearVariable
-static void (*__pyx_api_f_11vapoursynth_vpy_clearEnvironment)(VSScript *) = 0;
-#define vpy_clearEnvironment __pyx_api_f_11vapoursynth_vpy_clearEnvironment
 static int (*__pyx_api_f_11vapoursynth_vpy4_initVSScript)(void) = 0;
 #define vpy4_initVSScript __pyx_api_f_11vapoursynth_vpy4_initVSScript
 #if !defined(__Pyx_PyIdentifier_FromString)
@@ -125,8 +115,6 @@ static int import_vapoursynth(void) {
   module = PyImport_ImportModule("vapoursynth");
   if (!module) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_createScript", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_createScript, "int (VSScript *)") < 0) goto bad;
-  if (__Pyx_ImportFunction(module, "vpy_evaluateScript", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_evaluateScript, "int (VSScript *, char const *, char const *, int)") < 0) goto bad;
-  if (__Pyx_ImportFunction(module, "vpy_evaluateFile", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_evaluateFile, "int (VSScript *, char const *, int)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_evaluateBuffer", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_evaluateBuffer, "int (VSScript *, char const *, char const *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_evaluateFile", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_evaluateFile, "int (VSScript *, char const *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_freeScript", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_freeScript, "void (VSScript *)") < 0) goto bad;
@@ -135,13 +123,10 @@ static int import_vapoursynth(void) {
   if (__Pyx_ImportFunction(module, "vpy4_getAlphaOutput", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_getAlphaOutput, "VSNode *(VSScript *, int)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_getAltOutputMode", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_getAltOutputMode, "int (VSScript *, int)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_getAvailableOutputNodes", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_getAvailableOutputNodes, "int (VSScript *, int, int *)") < 0) goto bad;
-  if (__Pyx_ImportFunction(module, "vpy_clearOutput", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_clearOutput, "int (VSScript *, int)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_getCore", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_getCore, "VSCore *(VSScript *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_getVSAPI", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_getVSAPI, "VSAPI const *(int)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_getVariable", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_getVariable, "int (VSScript *, char const *, VSMap *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_setVariables", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_setVariables, "int (VSScript *, VSMap const *)") < 0) goto bad;
-  if (__Pyx_ImportFunction(module, "vpy_clearVariable", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_clearVariable, "int (VSScript *, char const *)") < 0) goto bad;
-  if (__Pyx_ImportFunction(module, "vpy_clearEnvironment", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_clearEnvironment, "void (VSScript *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_initVSScript", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_initVSScript, "int (void)") < 0) goto bad;
   Py_DECREF(module); module = 0;
   return 0;

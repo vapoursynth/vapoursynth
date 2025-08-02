@@ -29,8 +29,6 @@
 #endif
 
 __PYX_EXTERN_C int vpy4_createScript(VSScript *);
-__PYX_EXTERN_C int vpy_evaluateScript(VSScript *, char const *, char const *, int);
-__PYX_EXTERN_C int vpy_evaluateFile(VSScript *, char const *, int);
 __PYX_EXTERN_C int vpy4_evaluateBuffer(VSScript *, char const *, char const *);
 __PYX_EXTERN_C int vpy4_evaluateFile(VSScript *, char const *);
 __PYX_EXTERN_C void vpy4_freeScript(VSScript *);
@@ -39,13 +37,10 @@ __PYX_EXTERN_C VSNode *vpy4_getOutput(VSScript *, int);
 __PYX_EXTERN_C VSNode *vpy4_getAlphaOutput(VSScript *, int);
 __PYX_EXTERN_C int vpy4_getAltOutputMode(VSScript *, int);
 __PYX_EXTERN_C int vpy4_getAvailableOutputNodes(VSScript *, int, int *);
-__PYX_EXTERN_C int vpy_clearOutput(VSScript *, int);
 __PYX_EXTERN_C VSCore *vpy4_getCore(VSScript *);
 __PYX_EXTERN_C VSAPI const *vpy4_getVSAPI(int);
 __PYX_EXTERN_C int vpy4_getVariable(VSScript *, char const *, VSMap *);
 __PYX_EXTERN_C int vpy4_setVariables(VSScript *, VSMap const *);
-__PYX_EXTERN_C int vpy_clearVariable(VSScript *, char const *);
-__PYX_EXTERN_C void vpy_clearEnvironment(VSScript *);
 __PYX_EXTERN_C int vpy4_initVSScript(void);
 
 #endif /* !__PYX_HAVE_API__vapoursynth */

@@ -22,7 +22,7 @@ jobs:
         git clone https://github.com/sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules
         pushd zimg
         ./autogen.sh
-        ./configure --prefix=/usr
+        ./configure
         make -j$(nproc)
         sudo make install -j$(nproc)
         popd
@@ -35,12 +35,12 @@ jobs:
     - name: Install Python packages
       run: |
         python -m pip install -U pip
-        pip install -U cython setuptools wheel
+        pip install -U cython setuptools wheel build
 
     - name: configure
       run: |
         ./autogen.sh
-        ./configure --prefix=/usr
+        ./configure
 
     - name: make
       run: |
@@ -49,12 +49,11 @@ jobs:
     - name: make install
       run: |
         sudo make install -j$(nproc)
-        python setup.py sdist -d sdist
-        mkdir empty
-        pushd empty
-        pip install vapoursynth --no-index --find-links ../sdist
-        popd
+        pip install .
+        echo "LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        echo "PYTHONPATH=/usr/local/lib/python3.13/site-packages:$PYTHONPATH" >> $GITHUB_ENV
 
     - name: Run test
       run: |
+        vspipe --version
         python -m unittest discover -s test -p "*test.py"

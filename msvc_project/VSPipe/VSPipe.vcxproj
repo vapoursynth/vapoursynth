@@ -167,7 +167,6 @@
     <ClInclude Include="..\..\include\VSScript4.h" />
     <ClInclude Include="..\..\src\common\vsutf16.h" />
     <ClInclude Include="..\..\src\common\wave.h" />
-    <ClInclude Include="..\..\src\vspipe\md5.h" />
     <ClInclude Include="..\..\src\vspipe\printgraph.h" />
     <ClInclude Include="..\..\src\vspipe\vsjson.h" />
   </ItemGroup>

@@ -33,9 +33,6 @@ copy ..\msvc_project\x64\Release\avfs.exe buildp64
 copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
 copy ..\msvc_project\x64\Release\vspipe.exe buildp64
 copy ..\msvc_project\x64\Release\AvsCompat.dll buildp64\vs-coreplugins
-copy ..\include\VapourSynth.h buildp64\sdk\include\vapoursynth
-copy ..\include\VSHelper.h buildp64\sdk\include\vapoursynth
-copy ..\include\VSScript.h buildp64\sdk\include\vapoursynth
 copy ..\include\VapourSynth4.h buildp64\sdk\include\vapoursynth
 copy ..\include\VSHelper4.h buildp64\sdk\include\vapoursynth
 copy ..\include\VSScript4.h buildp64\sdk\include\vapoursynth

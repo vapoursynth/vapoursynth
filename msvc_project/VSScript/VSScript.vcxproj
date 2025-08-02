@@ -171,7 +171,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth4.h" />
-    <ClInclude Include="..\..\include\VSScript.h" />
     <ClInclude Include="..\..\include\VSScript4.h" />
     <ClInclude Include="..\..\src\vsscript\vsscript_internal.h" />
   </ItemGroup>

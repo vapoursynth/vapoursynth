@@ -120,7 +120,7 @@ class CoreTestSequence(unittest.TestCase):
         clip = self.core.std.BlankClip(format=vs.YUV444P8, color=[69, 242, 115], varformat=True, width=120, height=121)
         self.assertEqual(clip.width, 120)
         self.assertEqual(clip.height, 121)
-        self.assertEqual(clip.format, None)
+        self.assertEqual(clip.format.id, vs.PresetVideoFormat.NONE)
 
         frame = clip.get_frame(0)
         self.assertEqual(frame.width, 120)

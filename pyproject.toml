@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools", "wheel", "cython>=3.1.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "VapourSynth"
+authors = [
+    {name = "Fredrik Mellbin", email = "fredrik.mellbin@gmail.com"},
+]
+requires-python = ">=3.8"
+description = "A frameserver for the 21st century"
+keywords = ["frameserver", "video", "audio"]
+dynamic = ["version", "license"]
+readme = "README.md"
+
+[project.urls]
+Homepage = "https://www.vapoursynth.com/"
+Documentation = "https://www.vapoursynth.com/doc/"
+Repository = "https://github.com/vapoursynth/vapoursynth.git"
+Issues = "https://github.com/vapoursynth/vapoursynth/issues"
+Changelog = "https://github.com/vapoursynth/vapoursynth/blob/master/ChangeLog"

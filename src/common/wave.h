@@ -23,21 +23,17 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <array>
 
-#if !defined(UUID_T_DEFINED) && !defined(uuid_t)
-struct uuid_t {
-    uint32_t data1;
-    uint16_t data2;
-    uint16_t data3;
-    uint8_t data4[8];
-};
-#endif
+typedef std::array<uint8_t, 16> wave_uuid_t;
+typedef std::array<uint8_t, 4> wave_tag_t;
+typedef std::array<uint8_t, 2> wave_fmt_tag_t;
 
-static const uint64_t maxWaveFileSize = 0xFFFFFFFE;
-static const uint64_t maxCompatWaveFileSize = 0x7FFFFFFE;
+static constexpr uint64_t maxWaveFileSize = 0xFFFFFFFE;
+static constexpr uint64_t maxCompatWaveFileSize = 0x7FFFFFFE;
 
 struct WaveFormatExtensible {
-    uint16_t wFormatTag;
+    wave_fmt_tag_t wFormatTag;
     uint16_t nChannels;
     uint32_t nSamplesPerSec;
     uint32_t nAvgBytesPerSec;
@@ -46,28 +42,28 @@ struct WaveFormatExtensible {
     uint16_t cbSize;
     uint16_t wValidBitsPerSample;
     uint32_t dwChannelMask;
-    uuid_t  SubFormat;
+    wave_uuid_t SubFormat;
 };
 
 struct WaveHeader {
-    uint32_t riffTag;
+    wave_tag_t riffTag;
     uint32_t riffSize;
-    uint32_t waveTag;
-    uint32_t fmtTag;
+    wave_tag_t waveTag;
+    wave_tag_t fmtTag;
     uint32_t fmtSize;
     WaveFormatExtensible wfx;
-    uint32_t dataTag;
+    wave_tag_t dataTag;
     uint32_t dataSize;
 };
 
 struct Wave64Header {
-    uuid_t riffUuid;
+    wave_uuid_t riffUuid;
     uint64_t riffSize;
-    uuid_t waveUuid;
-    uuid_t fmtUuid;
+    wave_uuid_t waveUuid;
+    wave_uuid_t fmtUuid;
     uint64_t fmtSize;
     WaveFormatExtensible wfx;
-    uuid_t dataUuid;
+    wave_uuid_t dataUuid;
     uint64_t dataSize;
 };
 

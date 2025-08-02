@@ -99,7 +99,6 @@ struct VSPipeOptions {
     int requests = 0;
     bool printProgress = false;
     bool printFilterTime = false;
-    bool calculateMD5 = false;
     std::filesystem::path scriptFilename;
     std::filesystem::path outputFilename;
     std::filesystem::path timecodesFilename;
