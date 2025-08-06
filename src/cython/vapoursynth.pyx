@@ -46,6 +46,7 @@ import functools
 import typing
 import traceback
 import warnings
+import keyword
 from threading import local as ThreadLocal, Lock, RLock
 from types import MappingProxyType
 from collections import namedtuple
@@ -712,6 +713,10 @@ def _construct_parameter(signature):
         )
 
     name, signature = signature.split(":", 1)
+
+    if keyword.iskeyword(name):
+        name += "_"
+
     type = _construct_type(signature)
 
     __,*opt = signature.split(":")
