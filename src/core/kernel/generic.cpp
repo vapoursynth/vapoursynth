@@ -247,8 +247,8 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
     uint16_t maxval = params.maxval;
 
     for (unsigned i = 0; i < height; ++i) {
-        unsigned above_idx = i == 0 ? std::min(1U, height - 1) : i - 1;
-        unsigned below_idx = i == height - 1 ? height - std::min(2U, height) : i + 1;
+        unsigned above_idx = i == 0 ? 0 : i - 1;
+        unsigned below_idx = i == height - 1 ? height - 1 : i + 1;
 
         const T *srcp0 = static_cast<const T *>(line_ptr(src, above_idx, src_stride));
         const T *srcp1 = static_cast<const T *>(line_ptr(src, i, src_stride));
@@ -256,7 +256,7 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
         T *dstp = static_cast<T *>(line_ptr(dst, i, dst_stride));
 
         {
-            unsigned a = width > 1 ? 1 : 0;
+            unsigned a = 0;
             unsigned b = 0;
             unsigned c = width > 1 ? 1 : 0;
 
@@ -276,7 +276,7 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
         if (width > 1) {
             unsigned a = width - 2;
             unsigned b = width - 1;
-            unsigned c = width - 2;
+            unsigned c = width - 1;
             T x = traits.op(srcp0[a], srcp0[b], srcp0[c], srcp1[a], srcp1[b], srcp1[c], srcp2[a], srcp2[b], srcp2[c]);
             dstp[width - 1] = limit(x, maxval);
         }
@@ -298,10 +298,10 @@ void conv_plane_5x5(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t 
     for (unsigned i = 0; i < height; ++i) {
         unsigned dist_from_bottom = height - 1 - i;
 
-        unsigned above2_idx = i < 2 ? std::min(2 - i, height - 1) : i - 2;
-        unsigned above1_idx = i < 1 ? std::min(1 - i, height - 1) : i - 1;
-        unsigned below1_idx = dist_from_bottom < 1 ? i - std::min(1 - dist_from_bottom, i) : i + 1;
-        unsigned below2_idx = dist_from_bottom < 2 ? i - std::min(2 - dist_from_bottom, i) : i + 2;
+        unsigned above2_idx = i < 2 ? std::min(1 - i, height - 1) : i - 2;
+        unsigned above1_idx = i < 1 ? 0 : i - 1;
+        unsigned below1_idx = dist_from_bottom < 1 ? height - 1 : i + 1;
+        unsigned below2_idx = dist_from_bottom < 2 ? height - 1 - (1 - dist_from_bottom) : i + 2;
 
         const T *srcp0 = static_cast<const T *>(line_ptr(src, above2_idx, src_stride));
         const T *srcp1 = static_cast<const T *>(line_ptr(src, above1_idx, src_stride));
@@ -314,11 +314,11 @@ void conv_plane_5x5(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t 
             unsigned dist_from_right = width - 1 - i;
             unsigned idx[5];
 
-            idx[0] = j < 2 ? std::min(2 - j, width - 1) : j - 2;
-            idx[1] = j < 1 ? std::min(1 - j, width - 1) : j - 1;
+            idx[0] = j < 2 ? std::min(1 - j, width - 1) : j - 2;
+            idx[1] = j < 1 ? 0 : j - 1;
             idx[2] = j;
-            idx[3] = dist_from_right < 1 ? j - std::min(1 - dist_from_right, j) : j + 1;
-            idx[4] = dist_from_right < 2 ? j - std::min(2 - dist_from_right, j) : j + 2;
+            idx[3] = dist_from_right < 1 ? width - 1 : j + 1;
+            idx[4] = dist_from_right < 2 ? width - 1 - (1 - dist_from_right) : j + 2;
 
             Accum accum = 0;
 
@@ -355,11 +355,11 @@ void conv_plane_5x5(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t 
             unsigned dist_from_right = width - 1 - i;
             unsigned idx[5];
 
-            idx[0] = j < 2 ? std::min(2 - j, width - 1) : j - 2;
-            idx[1] = j < 1 ? std::min(1 - j, width - 1) : j - 1;
+            idx[0] = j < 2 ? std::min(1 - j, width - 1) : j - 2;
+            idx[1] = j < 1 ? 0 : j - 1;
             idx[2] = j;
-            idx[3] = dist_from_right < 1 ? j - std::min(1 - dist_from_right, j) : j + 1;
-            idx[4] = dist_from_right < 2 ? j - std::min(2 - dist_from_right, j) : j + 2;
+            idx[3] = dist_from_right < 1 ? width - 1 : j + 1;
+            idx[4] = dist_from_right < 2 ? width - 1 - (1 - dist_from_right) : j + 2;
 
             Accum accum = 0;
 

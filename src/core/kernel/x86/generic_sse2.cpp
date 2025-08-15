@@ -989,8 +989,8 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
 
 #define INVOKE(p0, p1, p2) (traits.op(Traits::loadu(p0 - 1), Traits::load(p0), Traits::loadu(p0 + 1), Traits::loadu(p1 - 1), Traits::load(p1), Traits::loadu(p1 + 1), Traits::loadu(p2 - 1), Traits::load(p2), Traits::loadu(p2 + 1)))
     for (unsigned i = 0; i < height; ++i) {
-        unsigned above_idx = i == 0 ? std::min(1U, height - 1) : i - 1;
-        unsigned below_idx = i == height - 1 ? height - std::min(2U, height) : i + 1;
+        unsigned above_idx = i == 0 ? 0 : i - 1;
+        unsigned below_idx = i == height - 1 ? height - 1 : i + 1;
 
         const T *srcp0 = static_cast<const T *>(line_ptr(src, above_idx, src_stride));
         const T *srcp1 = static_cast<const T *>(line_ptr(src, i, src_stride));
@@ -1002,9 +1002,9 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
             vec_type a11 = Traits::load(srcp1);
             vec_type a21 = Traits::load(srcp2);
 
-            vec_type a00 = Traits::shl_insert_lo(a01, srcp0[std::min(1U, width - 1)]);
-            vec_type a10 = Traits::shl_insert_lo(a11, srcp1[std::min(1U, width - 1)]);
-            vec_type a20 = Traits::shl_insert_lo(a21, srcp2[std::min(1U, width - 1)]);
+            vec_type a00 = Traits::shl_insert_lo(a01, srcp0[0]);
+            vec_type a10 = Traits::shl_insert_lo(a11, srcp1[0]);
+            vec_type a20 = Traits::shl_insert_lo(a21, srcp2[0]);
 
             vec_type a02, a12, a22;
             if (width > Traits::vec_len) {
@@ -1012,9 +1012,9 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
                 a12 = Traits::loadu(srcp1 + 1);
                 a22 = Traits::loadu(srcp2 + 1);
             } else {
-                a02 = Traits::shr_insert(a01, srcp0[width - std::min(2U, width)], width - 1);
-                a12 = Traits::shr_insert(a11, srcp1[width - std::min(2U, width)], width - 1);
-                a22 = Traits::shr_insert(a21, srcp2[width - std::min(2U, width)], width - 1);
+                a02 = Traits::shr_insert(a01, srcp0[width - 1], width - 1);
+                a12 = Traits::shr_insert(a11, srcp1[width - 1], width - 1);
+                a22 = Traits::shr_insert(a21, srcp2[width - 1], width - 1);
             }
 
             vec_type val = traits.op(a00, a01, a02, a10, a11, a12, a20, a21, a22);
@@ -1035,9 +1035,9 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
             vec_type a11 = Traits::load(srcp1 + vec_end);
             vec_type a21 = Traits::load(srcp2 + vec_end);
 
-            vec_type a02 = Traits::shr_insert(a01, srcp0[width - 2], width - vec_end - 1);
-            vec_type a12 = Traits::shr_insert(a11, srcp1[width - 2], width - vec_end - 1);
-            vec_type a22 = Traits::shr_insert(a21, srcp2[width - 2], width - vec_end - 1);
+            vec_type a02 = Traits::shr_insert(a01, srcp0[width - 1], width - vec_end - 1);
+            vec_type a12 = Traits::shr_insert(a11, srcp1[width - 1], width - vec_end - 1);
+            vec_type a22 = Traits::shr_insert(a21, srcp2[width - 1], width - vec_end - 1);
 
             vec_type val = traits.op(a00, a01, a02, a10, a11, a12, a20, a21, a22);
             Traits::store(dstp + vec_end, val);
