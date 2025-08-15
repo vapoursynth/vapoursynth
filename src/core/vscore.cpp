@@ -709,6 +709,8 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
         this->instanceData = reinterpret_cast<void *>(wrapper);
     }
 
+    updateCacheState();
+
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
     }
@@ -731,6 +733,8 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame 
         dependencies[i].source->add_ref();
         dependencies[i].source->addConsumer(this, dependencies[i].requestPattern);
     }
+
+    updateCacheState();
 
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
@@ -757,6 +761,8 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame 
         dependencies[i].source->add_ref();
         dependencies[i].source->addConsumer(this, dependencies[i].requestPattern);
     }
+
+    updateCacheState();
 
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
