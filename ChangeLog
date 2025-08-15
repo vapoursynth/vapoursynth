@@ -2,6 +2,8 @@ r73:
 release builds are now compiled with clang on windows which gives a speedup
 the api r3 headers are no longer distributed with the windows binaries, general api r3 support for plugins remains for now
 vsscript r3 api support has been completely removed since nobody has used it for 3+ years
+fixed mirroring fixes at edges in convolution filters to be more consistent
+fixed cache state not being updated properly for nodes with no consumers
 
 r72:
 added named pipe output support to vspipe in windows by specifying \\.\pipe\<pipename>

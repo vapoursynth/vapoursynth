@@ -816,8 +816,8 @@ private:
     int apiMajor;
     VSCore *core;
     PVSFunctionFrame functionFrame;
-    VSVideoInfo vi;
-    VSAudioInfo ai;
+    VSVideoInfo vi = {};
+    VSAudioInfo ai = {};
 
     // for keeping track of when a filter is busy in the exclusive section and with which frame
     // used for fmFrameState and fmParallel (mutex only)
@@ -837,7 +837,7 @@ private:
     VSCache cache;
 
     // api3
-    vs3::VSVideoInfo v3vi;
+    vs3::VSVideoInfo v3vi = {};
 
     void registerCache(bool add);
     PVSFrame getCachedFrameInternal(int n);
