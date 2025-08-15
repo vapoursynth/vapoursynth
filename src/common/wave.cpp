@@ -113,7 +113,7 @@ bool CreateWaveFormatExtensible(WaveFormatExtensible &header, bool IsFloat, int 
     header.nAvgBytesPerSec = WAVE_SWAP32_LE(static_cast<uint32_t>(NumChannels * bytesPerOutputSample * SampleRate));
     header.wBitsPerSample = WAVE_SWAP16_LE(static_cast<uint16_t>(bytesPerOutputSample * 8));
     header.cbSize = WAVE_SWAP16_LE(sizeof(WaveFormatExtensible) - offsetof(WaveFormatExtensible, wValidBitsPerSample));
-    header.wValidBitsPerSample = WAVE_SWAP16_LE(BitsPerSample);
+    header.wValidBitsPerSample = WAVE_SWAP16_LE(static_cast<uint16_t>(BitsPerSample));
     header.dwChannelMask = WAVE_SWAP32_LE(static_cast<uint32_t>(ChannelMask));
     header.SubFormat = (IsFloat ? ksDataformatSubtypeIEEEFloat : ksDataformatSubtypePCM);
     return true;

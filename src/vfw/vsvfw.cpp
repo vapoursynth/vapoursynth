@@ -936,6 +936,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
             return E_FAIL;
         if (IsSimpleAudio(ai)) {
             wfxt.wFormatTag[0] = (ai->format.sampleType == stFloat) ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM;
+            wfxt.wFormatTag[1] = 0;
             wfxt.cbSize = 0;
             *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(WAVEFORMATEX));
         } else {
