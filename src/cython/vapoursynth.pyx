@@ -2101,15 +2101,15 @@ cdef class RawNode(object):
     def node_name(self):
         return self.funcs.getNodeName(self.node).decode("utf-8")
 
-    property timings:
-        def __get__(self):
-            return self.funcs.getNodeProcessingTime(self.node, False)
-        
-        def __set__(self, bint value):
-            if value != 0:
-                raise ValueError('You can only set timings to 0, to reset its counter!')
+    @property
+    def timings(self):
+        return self.funcs.getNodeProcessingTime(self.node, False)
 
-            self.funcs.getNodeProcessingTime(self.node, True)
+    @timings.setter
+    def timings(self, bint value):
+        if value != 0:
+            raise ValueError("You can only set timings to 0, to reset its counter!")
+        self.funcs.getNodeProcessingTime(self.node, True)
 
     @property
     def mode(self):
@@ -2620,22 +2620,23 @@ cdef class CoreTimings(object):
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
-    property enabled:
-        def __get__(self):
-            return bool(self.core.funcs.getCoreNodeTiming(self.core.core))
+    @property
+    def enabled(self):
+        return bool(self.core.funcs.getCoreNodeTiming(self.core.core))
 
-        def __set__(self, bint enabled):
-            self.core.funcs.setCoreNodeTiming(self.core.core, enabled)
+    @enabled.setter
+    def enabled(self, bint enabled):
+        self.core.funcs.setCoreNodeTiming(self.core.core, enabled)
 
-    property freed_nodes:
-        def __get__(self):
-            return self.core.funcs.getFreedNodeProcessingTime(self.core.core, False)
-        
-        def __set__(self, bint value):
-            if value != 0:
-                raise ValueError('You can only set freed_nodes to 0, to reset its counter!')
+    @property
+    def freed_nodes(self):
+        return self.core.funcs.getFreedNodeProcessingTime(self.core.core, False)
 
-            self.core.funcs.getFreedNodeProcessingTime(self.core.core, True)
+    @freed_nodes.setter
+    def freed_nodes(self, bint value):
+        if value != 0:
+            raise ValueError("You can only set freed_nodes to 0, to reset its counter!")
+        self.core.funcs.getFreedNodeProcessingTime(self.core.core, True)
 
     def __repr__(self):
         return _construct_repr(
@@ -2672,30 +2673,30 @@ cdef class Core(object):
         if self.funcs:
             self.funcs.freeCore(self.core)
 
-    property num_threads:
-        def __get__(self):
-            cdef VSCoreInfo v
-            self.funcs.getCoreInfo(self.core, &v)
-            return v.numThreads
+    @property
+    def num_threads(self):
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo(self.core, &v)
+        return v.numThreads
 
-        def __set__(self, int value):
-            self.funcs.setThreadCount(value, self.core)
+    @num_threads.setter
+    def num_threads(self, int value):
+        self.funcs.setThreadCount(value, self.core)
 
-    property max_cache_size:
-        def __get__(self):
-            cdef VSCoreInfo v
-            self.funcs.getCoreInfo(self.core, &v)
-            cdef int64_t current_size = <int64_t>v.maxFramebufferSize
-            current_size = current_size + 1024 * 1024 - 1
-            current_size = current_size // <int64_t>(1024 * 1024)
-            return current_size
+    @property
+    def max_cache_size(self):
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo(self.core, &v)
+        cdef int64_t current_size = <int64_t>v.maxFramebufferSize
+        current_size = (current_size + 1024 * 1024 - 1) // <int64_t>(1024 * 1024)
+        return current_size
 
-        def __set__(self, int mb):
-            if mb <= 0:
-                raise ValueError('Maximum cache size must be a positive number')
-            cdef int64_t new_size = mb
-            new_size = new_size * 1024 * 1024
-            self.funcs.setMaxCacheSize(new_size, self.core)
+    @max_cache_size.setter
+    def max_cache_size(self, int mb):
+        if mb <= 0:
+            raise ValueError("Maximum cache size must be a positive number")
+        cdef int64_t new_size = mb * 1024 * 1024
+        self.funcs.setMaxCacheSize(new_size, self.core)
 
     @property
     def used_cache_size(self):
