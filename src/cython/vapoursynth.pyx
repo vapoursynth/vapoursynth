@@ -1950,6 +1950,12 @@ cdef class RawNode(object):
     cdef ensure_valid_frame_number(self, int n):
         raise NotImplementedError("Needs to be implemented by subclass.")
 
+    def get_frame(self, int n):
+        raise NotImplementedError
+
+    def set_output(self, int index = 0):
+        raise NotImplementedError
+
     def get_frame_async(self, int n, object cb = None):
         if cb is None:
             _handle_future = _get_handle_future()
@@ -2129,6 +2135,21 @@ cdef class RawNode(object):
             raise Error("This node is not inspectable.")
 
         return mapToDict(self.funcs.getNodeCreationFunctionArguments(self.node, 0), False)
+
+    def __add__(self, other):
+        raise NotImplementedError
+
+    def __mul__(self, other):
+        raise NotImplementedError
+
+    def __getattr__(self, str name):
+        raise NotImplementedError
+
+    def __getitem__(self, val):
+        raise NotImplementedError
+    
+    def __len__(self):
+        raise NotImplementedError
 
     def __eq__(self, other):
         if other is self:
