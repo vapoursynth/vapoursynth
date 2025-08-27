@@ -2299,18 +2299,18 @@ cdef class VideoNode(RawNode):
         if hasattr(fileobj, "flush"):
             fileobj.flush()
 
-    def __add__(x, y):
-        if not isinstance(x, VideoNode) or not isinstance(y, VideoNode):
+    def __add__(self, other):
+        if not isinstance(self, VideoNode) or not isinstance(other, VideoNode):
             return NotImplemented
-        return (<VideoNode>x).core.std.Splice(clips=[x, y])
+        return (<VideoNode>self).core.std.Splice(clips=[self, other])
 
-    def __mul__(a, b):
-        if isinstance(a, VideoNode):
-            node = a
-            val = b
+    def __mul__(self, other):
+        if isinstance(self, VideoNode):
+            node = self
+            val = other
         else:
-            node = b
-            val = a
+            node = other
+            val = self
 
         if not isinstance(val, int):
             raise TypeError('Clips may only be repeated by integer factors')
@@ -2473,18 +2473,18 @@ cdef class AudioNode(RawNode):
     def channels(self):
         return ChannelLayout(self.channel_layout)
 
-    def __add__(x, y):
-        if not isinstance(x, AudioNode) or not isinstance(y, AudioNode):
+    def __add__(self, other):
+        if not isinstance(self, AudioNode) or not isinstance(other, AudioNode):
             return NotImplemented
-        return (<AudioNode>x).core.std.AudioSplice(clips=[x, y])
+        return (<AudioNode>self).core.std.AudioSplice(clips=[self, other])
 
-    def __mul__(a, b):
-        if isinstance(a, AudioNode):
-            node = a
-            val = b
+    def __mul__(self, other):
+        if isinstance(self, AudioNode):
+            node = self
+            val = other
         else:
-            node = b
-            val = a
+            node = other
+            val = self
 
         if not isinstance(val, int):
             raise TypeError('Clips may only be repeated by integer factors')
