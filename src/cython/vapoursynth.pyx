@@ -1177,7 +1177,7 @@ cdef class VideoFormat(object):
 cdef VideoFormat createVideoFormat(const VSVideoFormat *f, const VSAPI *funcs, VSCore *core):
     cdef VideoFormat instance = VideoFormat.__new__(VideoFormat)
     cdef char nameBuffer[32]
-    if f.colorFamily <> cfUndefined:
+    if f.colorFamily != cfUndefined:
         funcs.getVideoFormatName(f, nameBuffer)
         instance.name = nameBuffer.decode('utf-8')
     else:
@@ -2496,7 +2496,7 @@ cdef class AudioNode(RawNode):
         if isinstance(val, slice):
             if val.step is not None and val.step == 0:
                 raise ValueError('Slice step cannot be zero')
-            if val.step is not None and abs(val.step) <> 1:
+            if val.step is not None and abs(val.step) != 1:
                 raise ValueError('Slice step must be 1')
 
             indices = val.indices(self.num_samples)
@@ -2838,7 +2838,7 @@ cdef Core createCore(EnvironmentData env):
     instance.core = instance.funcs.createCore(env.coreCreationFlags)
     instance.timings = createCoreTimings(instance)
     instance.creationFlags = env.coreCreationFlags
-    if instance.core_version.release_major <> VS_CURRENT_RELEASE:
+    if instance.core_version.release_major != VS_CURRENT_RELEASE:
         instance.log_message(mtWarning, f'Version mismatch: The VapourSynth Python module version is R{__version__.release_major:d} but the VapourSynth core library is R{instance.core_version.release_major:d}. This usually indicates a broken install.')
     return instance
 
@@ -2853,7 +2853,7 @@ cdef Core createCore2(VSCore *core):
         raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
     instance.core = core
     instance.timings = createCoreTimings(instance)
-    if instance.core_version.release_major <> VS_CURRENT_RELEASE:
+    if instance.core_version.release_major != VS_CURRENT_RELEASE:
         instance.log_message(mtWarning, f'Version mismatch: The VapourSynth Python module version is R{__version__.release_major:d} but the VapourSynth core library is R{instance.core_version.release_major:d}. This usually indicates a broken install.')
     plugin = instance.funcs.getPluginByID('com.vapoursynth.std', core)
     min = instance.funcs.createMap()
@@ -2861,7 +2861,7 @@ cdef Core createCore2(VSCore *core):
     instance.funcs.freeMap(min)
     node = instance.funcs.mapGetNode(mout, "clip", 0, NULL)
     instance.funcs.freeMap(mout)
-    if instance.funcs.getNodeCreationFunctionName(node, 0) <> NULL:
+    if instance.funcs.getNodeCreationFunctionName(node, 0) != NULL:
         instance.creationFlags = ccfEnableGraphInspection
     instance.funcs.freeNode(node)
     return instance
