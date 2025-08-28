@@ -50,7 +50,7 @@ import keyword
 from threading import local as ThreadLocal, Lock, RLock
 from types import MappingProxyType
 from collections import namedtuple
-from collections.abc import Iterable, Mapping
+from collections.abc import ItemsView, Iterable, KeysView, MutableMapping, ValuesView
 from concurrent.futures import Future
 from fractions import Fraction
 
@@ -1310,51 +1310,46 @@ cdef class FrameProps(object):
         cdef bytes b = name.encode('utf-8')
         self.funcs.mapDeleteKey(m, b)
 
-    def __setattr__(self, name, value):
+    def __iter__(self):
         self.frame._ensure_open()
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
+        cdef int numkeys = self.funcs.mapNumKeys(m)
+
+        for i in range(numkeys):
+            yield self.funcs.mapGetKey(m, i).decode('utf-8')
+
+    def __len__(self):
+        self.frame._ensure_open()
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
+        return self.funcs.mapNumKeys(m)
+
+    def __setattr__(self, str name, value):
         self[name] = value
 
-    def __delattr__(self, name):
-        self.frame._ensure_open()
+    def __delattr__(self, str name):
         del self[name]
 
-    # Only the methods __getattr__ and keys are required for the support of
-    #     >>> dict(frame.props)
-    # this can be shown at Objects/dictobject.c:static int dict_merge(PyObject *, PyObject *, int)
-    # in the generic code path.
-
-    def __getattr__(self, name):
-        self.frame._ensure_open()
+    def __getattr__(self, str name):
         try:
            return self[name]
         except KeyError as e:
            raise AttributeError from e
 
     def keys(self):
-        self.frame._ensure_open()
-        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
-        cdef int numkeys = self.funcs.mapNumKeys(m)
-        result = set()
-        for i in range(numkeys):
-            result.add(self.funcs.mapGetKey(m, i).decode('utf-8'))
-        return result
-
-    def values(self):
-        self.frame._ensure_open()
-        return {self[key] for key in self.keys()}
+        return KeysView(self)
 
     def items(self):
-        self.frame._ensure_open()
-        return {(key, self[key]) for key in self.keys()}
+        return ItemsView(self)
 
-    def get(self, key, default=None):
-        self.frame._ensure_open()
+    def values(self):
+        return ValuesView(self)
+
+    def get(self, key, /, default=None):
         if key in self:
             return self[key]
         return default
 
-    def pop(self, key, default=_EMPTY):
-        self.frame._ensure_open()
+    def pop(self, key, /, default=_EMPTY):
         if key in self:
             value = self[key]
             del self[key]
@@ -1368,24 +1363,16 @@ cdef class FrameProps(object):
         return default
 
     def popitem(self):
-        self.frame._ensure_open()
         if len(self) <= 0:
             raise KeyError
         key = next(iter(self.keys()))
         return (key, self.pop(key))
 
-    def setdefault(self, key, default=0):
-        """
-        Behaves like the dict.setdefault function but since setting None is not supported,
-        it will default to zero.
-        """
-        self.frame._ensure_open()
-        if key not in self:
-            self[key] = default
-        return self[key]
+    def clear(self):
+        for _ in range(len(self)):
+            self.popitem()
 
     def update(self, *args, **kwargs):
-        self.frame._ensure_open()
         # This code converts the positional argument into a dict which we then can update
         # with the kwargs.
         if 0 < len(args) < 2:
@@ -1402,26 +1389,14 @@ cdef class FrameProps(object):
         for k, v in args.items():
             self[k] = v
 
-    def clear(self):
-        self.frame._ensure_open()
-        for _ in range(len(self)):
-            self.popitem()
+    def setdefault(self, key, default=0, /):
+        if key not in self:
+            self[key] = default
+        return self[key]
 
     def copy(self):
-        """
-        We can't copy VideoFrames directly, so we're just gonna return a real dictionary.
-        """
-        self.frame._ensure_open()
+        # We can't copy VideoFrames directly, so we're just gonna return a real dictionary.
         return dict(self)
-
-    def __iter__(self):
-        self.frame._ensure_open()
-        yield from self.keys()
-
-    def __len__(self):
-        self.frame._ensure_open()
-        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
-        return self.funcs.mapNumKeys(m)
 
     def __dir__(self):
         self.frame._ensure_open()
@@ -1432,6 +1407,10 @@ cdef class FrameProps(object):
             return "<vapoursynth.FrameProps on closed frame>"
         return "<vapoursynth.FrameProps %r>" % dict(self)
 
+
+MutableMapping.register(FrameProps)
+
+
 cdef FrameProps createFrameProps(RawFrame f):
     cdef FrameProps instance = FrameProps.__new__(FrameProps)
     instance.frame = f
@@ -1440,8 +1419,6 @@ cdef FrameProps createFrameProps(RawFrame f):
     instance.readonly = f.readonly
     return instance
 
-# Make sure the FrameProps-Object quacks like a Mapping.
-Mapping.register(FrameProps)
 
 
 class ChannelLayout(int):
