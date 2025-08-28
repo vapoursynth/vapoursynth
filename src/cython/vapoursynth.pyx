@@ -1463,6 +1463,9 @@ cdef class RawFrame(object):
         if self.funcs:
             self.funcs.freeFrame(self.constf)
 
+    def copy(self):
+        raise NotImplementedError
+
     @property
     def closed(self):
         return self.constf == NULL
@@ -1478,6 +1481,12 @@ cdef class RawFrame(object):
         if self.funcs:
             self.funcs.freeFrame(self.constf)
         self.constf = NULL
+
+    def __getitem__(self, index):
+        raise NotImplementedError
+
+    def __len__(self):
+        raise NotImplementedError
 
     def __enter__(self):
         return self
