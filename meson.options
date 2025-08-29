@@ -1,0 +1,26 @@
+option('vs_debug', type: 'boolean', value: false,
+       description: 'Enable compilation options required for debugging')
+
+option('static_build', type: 'boolean', value: false,
+       description: 'Build static libraries instead of shared libraries')
+
+option('guard_pattern', type: 'boolean', value: false,
+       description: 'Adds 32 bytes on the left and right sides of each frame, fills them with a certain value, and checks their integrity after each filter')
+
+option('plugindir', type: 'string', value: '',
+       description: 'The default value for the configuration option SystemPluginDir in vapoursynth.conf (default: libdir/vapoursynth)')
+
+option('core', type: 'boolean', value: true,
+       description: 'Build the VapourSynth core library')
+
+option('x86_asm', type: 'boolean', value: true,
+       description: 'Enable assembler code for x86 CPUs')
+
+option('vsscript', type: 'boolean', value: true,
+       description: 'Enable VSScript (requires Python 3)')
+
+option('vspipe', type: 'boolean', value: true,
+       description: 'Build vspipe (requires VSScript)')
+
+option('python_module', type: 'boolean', value: true,
+       description: 'Build the Python module (requires Cython, Python, and the core)')
