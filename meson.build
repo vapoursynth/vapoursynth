@@ -3,6 +3,7 @@ project('vapoursynth', ['c', 'cpp'],
     'import re; print(re.search(r"#define VS_CURRENT_RELEASE (\\d+)", open("VAPOURSYNTH_VERSION").read()).group(1))', 
     check: true).stdout().strip(),
   license : 'LGPL-2.1+',
+  meson_version: '>= 1.1.0',
   default_options : [
     'warning_level=3',
     'cpp_std=c++17',
@@ -27,13 +28,11 @@ thread_dep = dependency('threads')
 cc = meson.get_compiler('c')
 cxx = meson.get_compiler('cpp')
 
-
 warning_flags = [
   '-Wno-unused-parameter',
   '-Wno-unused-function',
   '-Wno-ignored-attributes'
 ]
-
 
 common_flags = [
   '-fvisibility=hidden'
@@ -106,8 +105,45 @@ if plugindir == ''
   plugindir = get_option('libdir') / 'vapoursynth'
 endif
 
+# Move all add_project_arguments calls before any build target declarations
 add_project_arguments(common_flags + unicode_cflags + stackrealign_flags + debug_flags, 
                       language: ['c', 'cpp'])
+
+# Add core-specific arguments if core is enabled
+if core_enabled
+  add_project_arguments([
+    '-DVS_CORE_EXPORTS',
+    '-DVS_USE_LATEST_API', 
+    '-DVS_GRAPH_API',
+    '-DVS_PATH_PLUGINDIR="@0@"'.format(plugindir),
+    '-DVS_CURRENT_RELEASE=@0@'.format(current_release)
+  ], language: ['c', 'cpp'])
+endif
+
+# Add vsscript-specific arguments if vsscript is enabled
+if vsscript
+  add_project_arguments([
+    '-DVS_USE_LATEST_API',
+    '-DVSSCRIPT_USE_LATEST_API',
+    '-DVS_CURRENT_RELEASE=@0@'.format(current_release)
+  ], language: ['c', 'cpp'])
+endif
+
+# Add vspipe-specific arguments if vspipe is enabled but core is not
+if vspipe and not core_enabled
+  add_project_arguments([
+    '-DVS_USE_LATEST_API',
+    '-DVS_GRAPH_API', 
+    '-DVSSCRIPT_USE_LATEST_API'
+  ], language: ['c', 'cpp'])
+endif
+
+# Add python module-specific arguments if python_module is enabled
+if python_module and core_enabled
+  add_project_arguments([
+    '-DVS_CURRENT_RELEASE=@0@'.format(current_release)
+  ], language: ['c', 'cpp'])
+endif
 
 inc_dir = include_directories('include')
 
@@ -121,7 +157,6 @@ else
   python_dep_to_use = python3_dep
 endif
 
-
 dlopen_lib = []
 if host_system != 'windows'
   dlopen_lib = cc.find_library('dl', required: false)
@@ -129,7 +164,6 @@ if host_system != 'windows'
     dlopen_lib = cc.find_library('dld', required: true)
   endif
 endif
-
 
 have_sched_getaffinity = cxx.links('''
 #define _GNU_SOURCE
@@ -145,7 +179,6 @@ int main() {
 if have_sched_getaffinity
   add_project_arguments('-DHAVE_SCHED_GETAFFINITY', language: ['c', 'cpp'])
 endif
-
 
 have_cpuset_getaffinity = cxx.links('''
 #include <sys/param.h>
@@ -163,7 +196,6 @@ if have_cpuset_getaffinity
   add_project_arguments('-DHAVE_CPUSET_GETAFFINITY', language: ['c', 'cpp'])
 endif
 
-
 cython = find_program('cython3', 'cython', required: python_module)
 
 # Python version handling
@@ -177,14 +209,6 @@ endif
 
 vapoursynth_lib = []
 if core_enabled
-  add_project_arguments([
-    '-DVS_CORE_EXPORTS',
-    '-DVS_USE_LATEST_API', 
-    '-DVS_GRAPH_API',
-    '-DVS_PATH_PLUGINDIR="@0@"'.format(plugindir),
-    '-DVS_CURRENT_RELEASE=@0@'.format(current_release)
-  ], language: ['c', 'cpp'])
-
   if not meson.is_cross_build()
     zimg_version_check = cxx.run('''
 #include <zimg.h>
@@ -327,20 +351,23 @@ endif
 
 vsscript_lib = []
 if vsscript
-  add_project_arguments([
-    '-DVS_USE_LATEST_API',
-    '-DVSSCRIPT_USE_LATEST_API',
-    '-DVS_CURRENT_RELEASE=@0@'.format(current_release)
-  ], language: ['c', 'cpp'])
-
-  vsscript_lib = library('vapoursynth-script',
-    'src/vsscript/vsscript.cpp',
-    include_directories: inc_dir,
-    dependencies: [python_dep_to_use],
-    link_args: static_build ? [] : undefined_ldflags,
-    install: true,
-    version: static_build ? undefined : '0.0.0'
-  )
+  if static_build
+    vsscript_lib = static_library('vapoursynth-script',
+      'src/vsscript/vsscript.cpp',
+      include_directories: inc_dir,
+      dependencies: [python_dep_to_use],
+      install: true
+    )
+  else
+    vsscript_lib = shared_library('vapoursynth-script',
+      'src/vsscript/vsscript.cpp',
+      include_directories: inc_dir,
+      dependencies: [python_dep_to_use],
+      link_args: undefined_ldflags,
+      install: true,
+      version: '0.0.0'
+    )
+  endif
 
   pkg.generate(vsscript_lib,
     name: 'vapoursynth-script',
@@ -350,14 +377,6 @@ if vsscript
 endif
 
 if vspipe and vsscript
-  if not core_enabled
-    add_project_arguments([
-      '-DVS_USE_LATEST_API',
-      '-DVS_GRAPH_API', 
-      '-DVSSCRIPT_USE_LATEST_API'
-    ], language: ['c', 'cpp'])
-  endif
-
   vspipe_sources = [
     'src/vspipe/vspipe.cpp',
     'src/vspipe/printgraph.cpp',
@@ -377,10 +396,6 @@ if vspipe and vsscript
 endif
 
 if python_module and core_enabled
-  add_project_arguments([
-    '-DVS_CURRENT_RELEASE=@0@'.format(current_release)
-  ], language: ['c', 'cpp'])
-
   vapoursynth_c = custom_target('vapoursynth_c',
     input: 'src/cython/vapoursynth.pyx',
     output: 'vapoursynth.c',
