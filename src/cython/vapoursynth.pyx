@@ -50,7 +50,7 @@ import keyword
 from threading import local as ThreadLocal, Lock, RLock
 from types import MappingProxyType
 from collections import namedtuple
-from collections.abc import Iterable, Mapping
+from collections.abc import ItemsView, Iterable, KeysView, MutableMapping, ValuesView
 from concurrent.futures import Future
 from fractions import Fraction
 
@@ -1177,7 +1177,7 @@ cdef class VideoFormat(object):
 cdef VideoFormat createVideoFormat(const VSVideoFormat *f, const VSAPI *funcs, VSCore *core):
     cdef VideoFormat instance = VideoFormat.__new__(VideoFormat)
     cdef char nameBuffer[32]
-    if f.colorFamily <> cfUndefined:
+    if f.colorFamily != cfUndefined:
         funcs.getVideoFormatName(f, nameBuffer)
         instance.name = nameBuffer.decode('utf-8')
     else:
@@ -1310,51 +1310,46 @@ cdef class FrameProps(object):
         cdef bytes b = name.encode('utf-8')
         self.funcs.mapDeleteKey(m, b)
 
-    def __setattr__(self, name, value):
+    def __iter__(self):
         self.frame._ensure_open()
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
+        cdef int numkeys = self.funcs.mapNumKeys(m)
+
+        for i in range(numkeys):
+            yield self.funcs.mapGetKey(m, i).decode('utf-8')
+
+    def __len__(self):
+        self.frame._ensure_open()
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
+        return self.funcs.mapNumKeys(m)
+
+    def __setattr__(self, str name, value):
         self[name] = value
 
-    def __delattr__(self, name):
-        self.frame._ensure_open()
+    def __delattr__(self, str name):
         del self[name]
 
-    # Only the methods __getattr__ and keys are required for the support of
-    #     >>> dict(frame.props)
-    # this can be shown at Objects/dictobject.c:static int dict_merge(PyObject *, PyObject *, int)
-    # in the generic code path.
-
-    def __getattr__(self, name):
-        self.frame._ensure_open()
+    def __getattr__(self, str name):
         try:
            return self[name]
         except KeyError as e:
            raise AttributeError from e
 
     def keys(self):
-        self.frame._ensure_open()
-        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
-        cdef int numkeys = self.funcs.mapNumKeys(m)
-        result = set()
-        for i in range(numkeys):
-            result.add(self.funcs.mapGetKey(m, i).decode('utf-8'))
-        return result
-
-    def values(self):
-        self.frame._ensure_open()
-        return {self[key] for key in self.keys()}
+        return KeysView(self)
 
     def items(self):
-        self.frame._ensure_open()
-        return {(key, self[key]) for key in self.keys()}
+        return ItemsView(self)
 
-    def get(self, key, default=None):
-        self.frame._ensure_open()
+    def values(self):
+        return ValuesView(self)
+
+    def get(self, key, /, default=None):
         if key in self:
             return self[key]
         return default
 
-    def pop(self, key, default=_EMPTY):
-        self.frame._ensure_open()
+    def pop(self, key, /, default=_EMPTY):
         if key in self:
             value = self[key]
             del self[key]
@@ -1368,24 +1363,16 @@ cdef class FrameProps(object):
         return default
 
     def popitem(self):
-        self.frame._ensure_open()
         if len(self) <= 0:
             raise KeyError
         key = next(iter(self.keys()))
         return (key, self.pop(key))
 
-    def setdefault(self, key, default=0):
-        """
-        Behaves like the dict.setdefault function but since setting None is not supported,
-        it will default to zero.
-        """
-        self.frame._ensure_open()
-        if key not in self:
-            self[key] = default
-        return self[key]
+    def clear(self):
+        for _ in range(len(self)):
+            self.popitem()
 
     def update(self, *args, **kwargs):
-        self.frame._ensure_open()
         # This code converts the positional argument into a dict which we then can update
         # with the kwargs.
         if 0 < len(args) < 2:
@@ -1402,26 +1389,14 @@ cdef class FrameProps(object):
         for k, v in args.items():
             self[k] = v
 
-    def clear(self):
-        self.frame._ensure_open()
-        for _ in range(len(self)):
-            self.popitem()
+    def setdefault(self, key, default=0, /):
+        if key not in self:
+            self[key] = default
+        return self[key]
 
     def copy(self):
-        """
-        We can't copy VideoFrames directly, so we're just gonna return a real dictionary.
-        """
-        self.frame._ensure_open()
+        # We can't copy VideoFrames directly, so we're just gonna return a real dictionary.
         return dict(self)
-
-    def __iter__(self):
-        self.frame._ensure_open()
-        yield from self.keys()
-
-    def __len__(self):
-        self.frame._ensure_open()
-        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
-        return self.funcs.mapNumKeys(m)
 
     def __dir__(self):
         self.frame._ensure_open()
@@ -1432,6 +1407,10 @@ cdef class FrameProps(object):
             return "<vapoursynth.FrameProps on closed frame>"
         return "<vapoursynth.FrameProps %r>" % dict(self)
 
+
+MutableMapping.register(FrameProps)
+
+
 cdef FrameProps createFrameProps(RawFrame f):
     cdef FrameProps instance = FrameProps.__new__(FrameProps)
     instance.frame = f
@@ -1440,8 +1419,6 @@ cdef FrameProps createFrameProps(RawFrame f):
     instance.readonly = f.readonly
     return instance
 
-# Make sure the FrameProps-Object quacks like a Mapping.
-Mapping.register(FrameProps)
 
 
 class ChannelLayout(int):
@@ -1486,6 +1463,9 @@ cdef class RawFrame(object):
         if self.funcs:
             self.funcs.freeFrame(self.constf)
 
+    def copy(self):
+        raise NotImplementedError
+
     @property
     def closed(self):
         return self.constf == NULL
@@ -1501,6 +1481,12 @@ cdef class RawFrame(object):
         if self.funcs:
             self.funcs.freeFrame(self.constf)
         self.constf = NULL
+
+    def __getitem__(self, index):
+        raise NotImplementedError
+
+    def __len__(self):
+        raise NotImplementedError
 
     def __enter__(self):
         return self
@@ -1950,6 +1936,12 @@ cdef class RawNode(object):
     cdef ensure_valid_frame_number(self, int n):
         raise NotImplementedError("Needs to be implemented by subclass.")
 
+    def get_frame(self, int n):
+        raise NotImplementedError
+
+    def set_output(self, int index = 0):
+        raise NotImplementedError
+
     def get_frame_async(self, int n, object cb = None):
         if cb is None:
             _handle_future = _get_handle_future()
@@ -2095,15 +2087,15 @@ cdef class RawNode(object):
     def node_name(self):
         return self.funcs.getNodeName(self.node).decode("utf-8")
 
-    property timings:
-        def __get__(self):
-            return self.funcs.getNodeProcessingTime(self.node, False)
-        
-        def __set__(self, bint value):
-            if value != 0:
-                raise ValueError('You can only set timings to 0, to reset its counter!')
+    @property
+    def timings(self):
+        return self.funcs.getNodeProcessingTime(self.node, False)
 
-            self.funcs.getNodeProcessingTime(self.node, True)
+    @timings.setter
+    def timings(self, bint value):
+        if value != 0:
+            raise ValueError("You can only set timings to 0, to reset its counter!")
+        self.funcs.getNodeProcessingTime(self.node, True)
 
     @property
     def mode(self):
@@ -2129,6 +2121,21 @@ cdef class RawNode(object):
             raise Error("This node is not inspectable.")
 
         return mapToDict(self.funcs.getNodeCreationFunctionArguments(self.node, 0), False)
+
+    def __add__(self, other):
+        raise NotImplementedError
+
+    def __mul__(self, other):
+        raise NotImplementedError
+
+    def __getattr__(self, str name):
+        raise NotImplementedError
+
+    def __getitem__(self, val):
+        raise NotImplementedError
+    
+    def __len__(self):
+        raise NotImplementedError
 
     def __eq__(self, other):
         if other is self:
@@ -2278,18 +2285,18 @@ cdef class VideoNode(RawNode):
         if hasattr(fileobj, "flush"):
             fileobj.flush()
 
-    def __add__(x, y):
-        if not isinstance(x, VideoNode) or not isinstance(y, VideoNode):
+    def __add__(self, other):
+        if not isinstance(self, VideoNode) or not isinstance(other, VideoNode):
             return NotImplemented
-        return (<VideoNode>x).core.std.Splice(clips=[x, y])
+        return (<VideoNode>self).core.std.Splice(clips=[self, other])
 
-    def __mul__(a, b):
-        if isinstance(a, VideoNode):
-            node = a
-            val = b
+    def __mul__(self, other):
+        if isinstance(self, VideoNode):
+            node = self
+            val = other
         else:
-            node = b
-            val = a
+            node = other
+            val = self
 
         if not isinstance(val, int):
             raise TypeError('Clips may only be repeated by integer factors')
@@ -2452,18 +2459,18 @@ cdef class AudioNode(RawNode):
     def channels(self):
         return ChannelLayout(self.channel_layout)
 
-    def __add__(x, y):
-        if not isinstance(x, AudioNode) or not isinstance(y, AudioNode):
+    def __add__(self, other):
+        if not isinstance(self, AudioNode) or not isinstance(other, AudioNode):
             return NotImplemented
-        return (<AudioNode>x).core.std.AudioSplice(clips=[x, y])
+        return (<AudioNode>self).core.std.AudioSplice(clips=[self, other])
 
-    def __mul__(a, b):
-        if isinstance(a, AudioNode):
-            node = a
-            val = b
+    def __mul__(self, other):
+        if isinstance(self, AudioNode):
+            node = self
+            val = other
         else:
-            node = b
-            val = a
+            node = other
+            val = self
 
         if not isinstance(val, int):
             raise TypeError('Clips may only be repeated by integer factors')
@@ -2475,7 +2482,7 @@ cdef class AudioNode(RawNode):
         if isinstance(val, slice):
             if val.step is not None and val.step == 0:
                 raise ValueError('Slice step cannot be zero')
-            if val.step is not None and abs(val.step) <> 1:
+            if val.step is not None and abs(val.step) != 1:
                 raise ValueError('Slice step must be 1')
 
             indices = val.indices(self.num_samples)
@@ -2599,22 +2606,23 @@ cdef class CoreTimings(object):
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
-    property enabled:
-        def __get__(self):
-            return bool(self.core.funcs.getCoreNodeTiming(self.core.core))
+    @property
+    def enabled(self):
+        return bool(self.core.funcs.getCoreNodeTiming(self.core.core))
 
-        def __set__(self, bint enabled):
-            self.core.funcs.setCoreNodeTiming(self.core.core, enabled)
+    @enabled.setter
+    def enabled(self, bint enabled):
+        self.core.funcs.setCoreNodeTiming(self.core.core, enabled)
 
-    property freed_nodes:
-        def __get__(self):
-            return self.core.funcs.getFreedNodeProcessingTime(self.core.core, False)
-        
-        def __set__(self, bint value):
-            if value != 0:
-                raise ValueError('You can only set freed_nodes to 0, to reset its counter!')
+    @property
+    def freed_nodes(self):
+        return self.core.funcs.getFreedNodeProcessingTime(self.core.core, False)
 
-            self.core.funcs.getFreedNodeProcessingTime(self.core.core, True)
+    @freed_nodes.setter
+    def freed_nodes(self, bint value):
+        if value != 0:
+            raise ValueError("You can only set freed_nodes to 0, to reset its counter!")
+        self.core.funcs.getFreedNodeProcessingTime(self.core.core, True)
 
     def __repr__(self):
         return _construct_repr(
@@ -2651,30 +2659,30 @@ cdef class Core(object):
         if self.funcs:
             self.funcs.freeCore(self.core)
 
-    property num_threads:
-        def __get__(self):
-            cdef VSCoreInfo v
-            self.funcs.getCoreInfo(self.core, &v)
-            return v.numThreads
+    @property
+    def num_threads(self):
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo(self.core, &v)
+        return v.numThreads
 
-        def __set__(self, int value):
-            self.funcs.setThreadCount(value, self.core)
+    @num_threads.setter
+    def num_threads(self, int value):
+        self.funcs.setThreadCount(value, self.core)
 
-    property max_cache_size:
-        def __get__(self):
-            cdef VSCoreInfo v
-            self.funcs.getCoreInfo(self.core, &v)
-            cdef int64_t current_size = <int64_t>v.maxFramebufferSize
-            current_size = current_size + 1024 * 1024 - 1
-            current_size = current_size // <int64_t>(1024 * 1024)
-            return current_size
+    @property
+    def max_cache_size(self):
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo(self.core, &v)
+        cdef int64_t current_size = <int64_t>v.maxFramebufferSize
+        current_size = (current_size + 1024 * 1024 - 1) // <int64_t>(1024 * 1024)
+        return current_size
 
-        def __set__(self, int mb):
-            if mb <= 0:
-                raise ValueError('Maximum cache size must be a positive number')
-            cdef int64_t new_size = mb
-            new_size = new_size * 1024 * 1024
-            self.funcs.setMaxCacheSize(new_size, self.core)
+    @max_cache_size.setter
+    def max_cache_size(self, int mb):
+        if mb <= 0:
+            raise ValueError("Maximum cache size must be a positive number")
+        cdef int64_t new_size = mb * 1024 * 1024
+        self.funcs.setMaxCacheSize(new_size, self.core)
 
     @property
     def used_cache_size(self):
@@ -2816,7 +2824,7 @@ cdef Core createCore(EnvironmentData env):
     instance.core = instance.funcs.createCore(env.coreCreationFlags)
     instance.timings = createCoreTimings(instance)
     instance.creationFlags = env.coreCreationFlags
-    if instance.core_version.release_major <> VS_CURRENT_RELEASE:
+    if instance.core_version.release_major != VS_CURRENT_RELEASE:
         instance.log_message(mtWarning, f'Version mismatch: The VapourSynth Python module version is R{__version__.release_major:d} but the VapourSynth core library is R{instance.core_version.release_major:d}. This usually indicates a broken install.')
     return instance
 
@@ -2831,7 +2839,7 @@ cdef Core createCore2(VSCore *core):
         raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
     instance.core = core
     instance.timings = createCoreTimings(instance)
-    if instance.core_version.release_major <> VS_CURRENT_RELEASE:
+    if instance.core_version.release_major != VS_CURRENT_RELEASE:
         instance.log_message(mtWarning, f'Version mismatch: The VapourSynth Python module version is R{__version__.release_major:d} but the VapourSynth core library is R{instance.core_version.release_major:d}. This usually indicates a broken install.')
     plugin = instance.funcs.getPluginByID('com.vapoursynth.std', core)
     min = instance.funcs.createMap()
@@ -2839,7 +2847,7 @@ cdef Core createCore2(VSCore *core):
     instance.funcs.freeMap(min)
     node = instance.funcs.mapGetNode(mout, "clip", 0, NULL)
     instance.funcs.freeMap(mout)
-    if instance.funcs.getNodeCreationFunctionName(node, 0) <> NULL:
+    if instance.funcs.getNodeCreationFunctionName(node, 0) != NULL:
         instance.creationFlags = ccfEnableGraphInspection
     instance.funcs.freeNode(node)
     return instance
