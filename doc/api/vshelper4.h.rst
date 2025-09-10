@@ -156,7 +156,7 @@ vsh_aligned_free
 
 
 isConstantVideoFormat
-----------------
+---------------------
 
 .. cpp:function:: static inline bool vsh::isConstantVideoFormat(const VSVideoInfo *vi)
 
