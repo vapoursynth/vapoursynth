@@ -2681,7 +2681,8 @@ cdef class Core(object):
     def max_cache_size(self, int mb):
         if mb <= 0:
             raise ValueError("Maximum cache size must be a positive number")
-        cdef int64_t new_size = mb * 1024 * 1024
+        cdef int64_t new_size = mb
+        new_size = new_size * 1024 * 1024
         self.funcs.setMaxCacheSize(new_size, self.core)
 
     @property
