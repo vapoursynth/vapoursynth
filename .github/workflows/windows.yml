@@ -7,7 +7,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - uses: microsoft/setup-msbuild@v2
 
@@ -19,7 +19,7 @@ jobs:
         git clone https://github.com/sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules
 
     - name: Setup Python 3.8
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.8'
 
@@ -34,7 +34,7 @@ jobs:
         echo "PYTHON38_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Setup Python 3.13
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.13'
 
@@ -69,7 +69,7 @@ jobs:
         python -m unittest discover -s test -p "*test.py"
 
     - name: Setup Python 3.8 a second time
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.8'
 
@@ -82,7 +82,7 @@ jobs:
         pip install .
         python -m unittest discover -s test -p "*test.py"
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       with:
         name: vapoursynth
         path: dist
@@ -96,11 +96,11 @@ jobs:
 
     steps:
     - name: Setup Python ${{ matrix.python }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python }}
 
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v6
       with:
         name: vapoursynth
 
@@ -117,7 +117,7 @@ jobs:
       id-token: write
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v6
       with:
         name: vapoursynth
         path: dist

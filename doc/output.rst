@@ -68,7 +68,7 @@ Write to stdout:
     ``vspipe [options] script.vpy -``
 
 Write to a named pipe (Windows only):
-    ``vspipe [options] script.vpy "\\\\.\\pipe\\<pipename>"
+    ``vspipe [options] script.vpy "\\\\.\\pipe\\<pipename>"``
 
 Request all frames but don't output them:
     ``vspipe [options] script.vpy --``
