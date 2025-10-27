@@ -200,6 +200,11 @@ pkg.generate(libvapoursynth,
     subdirs: 'vapoursynth',
 )
 
+vapoursynth_dep = declare_dependency(
+    include_directories: incdir,
+    link_with: libvapoursynth,
+)
+
 if enable_vsscript
     libvsscript = library('vapoursynth-script',
         files('src/vsscript/vsscript.cpp'),
@@ -216,6 +221,11 @@ if enable_vsscript
         subdirs: 'vapoursynth',
     )
 
+    vapoursynth_script_dep = declare_dependency(
+        include_directories: incdir,
+        link_with: libvsscript,
+    )
+
     if enable_vspipe
         executable('vspipe',
             files(
@@ -224,11 +234,10 @@ if enable_vsscript
                 'src/vspipe/vsjson.cpp',
                 'src/vspipe/vspipe.cpp',
             ),
+            dependencies: vapoursynth_script_dep,
             gnu_symbol_visibility: 'hidden',
-            include_directories: incdir,
             install: true,
             link_args: vspipe_link_args,
-            link_with: libvsscript,
         )
     endif
 elif enable_vspipe
