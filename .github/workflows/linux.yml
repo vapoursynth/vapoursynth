@@ -13,9 +13,14 @@ jobs:
     steps:
     - uses: actions/checkout@v5
 
-    - name: Print compiler version
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.13'
+
+    - name: Install Python packages
       run: |
-        ${{ env.CXX }} --version
+        python -m pip install -U pip
+        pip install -U build cython meson ninja setuptools wheel
 
     - name: Install zimg
       run: |
@@ -28,30 +33,13 @@ jobs:
         popd
         rm -rf zimg
 
-    - uses: actions/setup-python@v6
-      with:
-        python-version: '3.13'
-
-    - name: Install Python packages
+    - name: Build
       run: |
-        python -m pip install -U pip
-        pip install -U cython setuptools wheel build
-
-    - name: configure
-      run: |
-        ./autogen.sh
-        ./configure
-
-    - name: make
-      run: |
-        make -j$(nproc)
-
-    - name: make install
-      run: |
-        sudo make install -j$(nproc)
+        meson setup build
+        ninja -C build
+        sudo ninja -C build install
+        sudo ldconfig
         pip install .
-        echo "LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-        echo "PYTHONPATH=/usr/local/lib/python3.13/site-packages:$PYTHONPATH" >> $GITHUB_ENV
 
     - name: Run test
       run: |

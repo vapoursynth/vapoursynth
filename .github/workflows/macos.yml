@@ -9,24 +9,27 @@ jobs:
     steps:
     - uses: actions/checkout@v5
 
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.13'
+
     - name: Install Homebrew packages
       run: |
         brew update
         brew install automake libtool lld llvm
+
+    - name: Install Python packages
+      run: |
+        python -m pip install -U pip
+        pip install -U build cython meson ninja setuptools wheel
 
     - name: Set environment variables for Clang/LLVM
       run: |
         echo "CC=/opt/homebrew/opt/llvm/bin/clang" >> $GITHUB_ENV
         echo "CXX=/opt/homebrew/opt/llvm/bin/clang++" >> $GITHUB_ENV
         echo "LDFLAGS=-fuse-ld=lld -L/opt/homebrew/opt/llvm/lib/c++" >> $GITHUB_ENV
-        echo "PATH=/opt/homebrew/opt/llvm/bin:$PATH" >> $GITHUB_ENV
-        echo "CPATH=/usr/local/include:$CPATH" >> $GITHUB_ENV
-        echo "LIBRARY_PATH=/usr/local/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+        echo "DYLD_LIBRARY_PATH=/usr/local/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
         echo "nproc=$(sysctl -n hw.logicalcpu)" >> $GITHUB_ENV
-
-    - name: Print compiler version
-      run: |
-        ${{ env.CXX }} --version
 
     - name: Install zimg
       run: |
@@ -39,27 +42,11 @@ jobs:
         popd
         rm -rf zimg
 
-    - uses: actions/setup-python@v6
-      with:
-        python-version: '3.13'
-
-    - name: Install Python packages
+    - name: Build
       run: |
-        python -m pip install -U pip
-        pip install -U cython setuptools wheel build
-
-    - name: configure
-      run: |
-        ./autogen.sh
-        ./configure
-
-    - name: make
-      run: |
-        make -j${{ env.nproc }}
-
-    - name: make install
-      run: |
-        sudo make install -j${{ env.nproc }}
+        meson setup build
+        ninja -C build
+        sudo ninja -C build install
         pip install .
 
     - name: Run test
