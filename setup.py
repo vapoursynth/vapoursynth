@@ -10,6 +10,7 @@ from sys import version_info
 from setuptools import Extension, setup
 
 is_win = (architecture()[1] == "WindowsPE")
+is_mac = (architecture()[1] == "Mach-O")
 is_64 = (architecture()[0] == "64bit")
 
 limited_api_build = (version_info.minor >= 12)
@@ -91,6 +92,8 @@ if is_win:
     print("Found VapourSynth.dll at:", dll_path)
 
     extra_data["data_files"] = [(r"Lib\site-packages", [dll_path])]
+elif is_mac:
+    library_dirs.append("/opt/homebrew/lib")
 
 
 setup(
