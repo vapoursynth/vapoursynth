@@ -1,5 +1,5 @@
 r73:
-many other minor python improvements (ichunjo)
+many minor python improvements (ichunjo)
 fixed max_cache_size setter (jsaowji)
 the api r3 headers are no longer distributed with the windows binaries, general api r3 support for plugins remains for now
 vsscript r3 api support has been completely removed since nobody has used it for 3+ years

@@ -59,6 +59,10 @@ Or if you want to do it the manual and not recommended way follow these steps:
 OS X Installation
 *****************
 
+Homebrew has VapourSynth packages maintained by other people that are generally kept up to date.
+
+REPORT ALL PACKAGING ISSUES TO THE RESPECTIVE MAINTAINERS AND NOT ON THE VAPOURSYNTH BUG TRACKER!
+
 First download and install the prerequisites:
    * Xcode -- Available from the AppStore
    * `Homebrew <http://brew.sh/>`_ -- A package manager
@@ -70,7 +74,9 @@ Simply run these commands in a terminal and wait for them to complete::
 Linux installation
 ******************
 
-Several distributions have VapourSynth packages. Note that those packages are usually OUT OF DATE.
+Several Linux distributions have VapourSynth packages maintained by other people. The ones listed here are generally kept up to date with fairly recent versions.
+
+REPORT ALL PACKAGING ISSUES TO THE RESPECTIVE MAINTAINERS AND NOT ON THE VAPOURSYNTH BUG TRACKER!
 
 Debian
 ------
