@@ -199,11 +199,13 @@ Or if you already have a copy of the source, update it with::
 Enter the VapourSynth directory and run these commands to compile and install::
 
 * with Meson:
+
    meson setup build
    ninja -C build
    ninja -C build install
 
-* with Autotools: (deprecated, will be removed in future releases)
+* with Autotools:
+
    ./autogen.sh
    ./configure
    make
