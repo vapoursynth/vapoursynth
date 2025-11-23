@@ -7,6 +7,6 @@ AudioSplice
    Returns a clip with all *clips* appended in the given order.
 
    Splicing clips with different formats or dimensions is
-   considered an error unless *mismatch* is true.
+   considered an error.
 
    In Python, std.AudioSplice can also be invoked :ref:`using the addition operator <pythonreference>`.
