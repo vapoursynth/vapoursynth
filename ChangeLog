@@ -1,9 +1,8 @@
 r73:
 many minor python improvements (ichunjo)
-fixed max_cache_size setter (jsaowji)
 the api r3 headers are no longer distributed with the windows binaries, general api r3 support for plugins remains for now
 vsscript r3 api support has been completely removed since nobody has used it for 3+ years
-fixed mirroring fixes at edges in convolution filters to be more consistent
+fixed mirroring at edges in convolution filters to be more consistent
 fixed cache state not being updated properly for nodes with no consumers ever and no calls to setcache
 
 r72:
