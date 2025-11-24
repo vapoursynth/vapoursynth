@@ -1,6 +1,6 @@
     [string]$TargetFolder = ".\vapoursynth-portable",
     [int]$PythonVersionMajor = 3,
-    [int]$PythonVersionMinor = 13,
+    [int]$PythonVersionMinor = 14,
     [switch]$Unattended
 )
 
@@ -11,12 +11,8 @@ if ($PythonVersionMajor -ne 3) {
     exit 1
 }
 
-if ([System.Environment]::OSVersion.Version.Major -lt 10) {
-    $PythonVersionMinor = 8
-}
-
-if ($PythonVersionMinor -ne 8 -and $PythonVersionMinor -lt 12) {
-    Write-Host "Only Python 3.12+ and 3.8 is supported"
+if ($PythonVersionMinor -lt 12) {
+    Write-Host "Only Python 3.12+ is supported"
     exit 1
 }
 
@@ -118,19 +114,8 @@ Write-Host "Installing Pip..."
 Remove-Item -Path "$TargetFolder\Scripts\*.exe"
 Write-Host "Extracting VapourSynth..."
 Expand-Archive -LiteralPath "$DownloadFolder\VapourSynth64-Portable-R$VSVersion$VSVersionExtra.zip" -DestinationPath "$TargetFolder" -Force
-if ($PythonVersionMinor -eq 8) {
-    Move-Item -Path "$TargetFolder\VSScriptPython38.dll" -Destination "$TargetFolder\VSScript.dll" -Force
-} else {
-    Remove-Item -Path "$TargetFolder\VSScriptPython38.dll"
-}
 Write-Host "Installing VapourSynth..."
-
-if ($PythonVersionMinor -eq 8) {
-& "$TargetFolder\python.exe" "-m" "pip" "install" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp$PythonVersionMajor$PythonVersionMinor-cp$PythonVersionMajor$PythonVersionMinor-win_amd64.whl"
-} else {
 & "$TargetFolder\python.exe" "-m" "pip" "install" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp312-abi3-win_amd64.whl"
-}
-
 Write-Host "Installation complete" -ForegroundColor Green
 
 if (!$Unattended) {

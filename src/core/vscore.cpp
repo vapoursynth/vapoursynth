@@ -1833,14 +1833,6 @@ VSCore::VSCore(int flags) :
     plugins.insert(std::make_pair(p->getID(), p));
 
 #ifdef VS_TARGET_OS_WINDOWS
-
-#ifdef _WIN64
-    #define VS_INSTALL_REGKEY L"Software\\VapourSynth"
-    std::wstring bits(L"64");
-#else
-    #define VS_INSTALL_REGKEY L"Software\\VapourSynth-32"
-    std::wstring bits(L"32");
-#endif
     std::call_once(m_portableOnceFlag, isPortableInit);
 
     if (m_isPortable) {
@@ -1857,10 +1849,10 @@ VSCore::VSCore(int flags) :
             SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_DEFAULT, appDataBuffer.data());
 
         std::filesystem::path appDataPath = appDataBuffer.data();
-        appDataPath /= L"VapourSynth\\plugins" + bits;
+        appDataPath /= L"VapourSynth\\plugins64";
 
         // Autoload bundled plugins
-        std::wstring corePluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"CorePlugins");
+        std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", L"CorePlugins");
         if (!loadAllPluginsInPath(corePluginPath))
             logMessage(mtCritical, "Core plugin autoloading failed. Installation is broken!");
 
@@ -1868,7 +1860,7 @@ VSCore::VSCore(int flags) :
             // Autoload per user plugins
             loadAllPluginsInPath(appDataPath);
 
-            std::wstring globalPluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"Plugins");
+            std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", L"Plugins");
             loadAllPluginsInPath(globalPluginPath);
         }
     }

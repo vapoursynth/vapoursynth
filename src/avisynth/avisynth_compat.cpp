@@ -1330,14 +1330,8 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
         avisynthPluginInit3(avs, AVS_linkage);
         delete avs;
     } else {
-#ifdef _WIN64
         vsapi->mapSetError(out, "Avisynth Loader: 2.5 plugins can't be loaded on x64");
         return;
-#else
-        FakeAvisynth *avs = new FakeAvisynth(2, core, vsapi);
-        avisynthPluginInit2(avs);
-        delete avs;
-#endif
     }
 
 #ifdef VS_TARGET_CPU_X86

@@ -7,9 +7,7 @@
 #define MS_WIN64
 #endif
 
-#ifndef VSSCRIPT_PYTHON38
 #define Py_LIMITED_API 0x03080000
-#endif
 
 #include "Python.h"
 #include "vapoursynth.h"

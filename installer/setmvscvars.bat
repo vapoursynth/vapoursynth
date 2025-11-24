@@ -20,16 +20,16 @@ IF NOT EXIST MSBuildPTH GOTO setmvscpath
 goto foundmvspath
 
 :setmvscpath
-SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Community
+SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\18\Community
 IF EXIST "%MSBuildPTH%" GOTO foundmvspath
 
-SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Community
+SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\18\Community
 IF EXIST "%MSBuildPTH%" GOTO foundmvspath
 
-SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise
+SET MSBuildPTH=%ProgramFiles%\Microsoft Visual Studio\18\Enterprise
 IF EXIST "%MSBuildPTH%" GOTO foundmvspath
 
-SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise
+SET MSBuildPTH=C:\Program Files\Microsoft Visual Studio\18\Enterprise
 IF EXIST "%MSBuildPTH%" GOTO foundmvspath
 
 @echo on

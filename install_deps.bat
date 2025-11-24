@@ -24,11 +24,8 @@ IF NOT EXIST zimg (
     echo zimg: & pushd zimg & git pull & popd
 )
 
-py -3.13 -m ensurepip
-py -3.13 -m pip install --upgrade -r python-requirements.txt
-
-py -3.8 -m ensurepip
-py -3.8 -m pip install --upgrade -r python-requirements.txt
+py -3.14 -m ensurepip
+py -3.14 -m pip install --upgrade -r python-requirements.txt
 
 SET ZFOLDER=%ProgramFiles%\7-Zip
 IF EXIST "%ZFOLDER%\7z.exe" GOTO copym

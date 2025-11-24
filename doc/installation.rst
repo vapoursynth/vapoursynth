@@ -26,13 +26,13 @@ Prerequisites
 -------------
 
 First download and install the prerequisites:
-   * `Python 64 bit version <http://www.python.org/>`_ -- There is universal support for Python 3.12 and all later versions, including 3.13 and the upcoming 3.14. There is also support for Python 3.8 for compatibility with Windows 7.
+   * `Python 64 bit version <http://www.python.org/>`_ -- There is support for Python 3.12 and all later versions, including 3.13 and 3.14.
 
 Note that VapourSynth and Python have to be matched so both are either installed
 for all users or for only for the current user.
 
 Also note that per user installs will not install the required Visual Studio
-2022 runtimes.
+2026 runtimes.
 
 Installation
 ------------
@@ -50,11 +50,10 @@ By far the easiest way is to download and run the automatic script called *Insta
 It will then automatically download and set up embedded Python, pip and VapourSynth in a subdirectorey called *vapoursynth-portable* by default. It's possible to pass arguments to it to specify the installed Python version in addition to an option to run it in unattended mode.
 
 Or if you want to do it the manual and not recommended way follow these steps:
-   * Download and decompress `Python 3.13.x <http://www.python.org/>`_ or Python 3.8.x -- 64 bit embeddable version
+   * Download and decompress `Python 3.14 or newer <http://www.python.org/>`_ -- 64 bit embeddable version (note that all versions from 3.12 are supported)
    * Decompress the `portable VapourSynth archive <https://github.com/vapoursynth/vapoursynth/releases>`_ into the Python dir and overwrite all existing files.
    * Install pip using `get-pip.py <https://bootstrap.pypa.io/get-pip.py>`_ or any other method.
    * Install the wheel from the *wheel* directory for the chosen Python version.
-   * If using Python 3.8 rename *vsscriptpython38.dll* to *vsscript.dll* and delete the original file.
 
 OS X Installation
 *****************
@@ -115,8 +114,8 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 
 Required languages and applications:
 
-* Needs `Visual Studio 2022 <https://visualstudio.microsoft.com/de/vs/>`_
-* It also needs `64bit <https://www.python.org/>`_ Python 3.8.x and 3.13.x (the msvc project assumes that you installed python for all users.)
+* Needs `Visual Studio 2026 <https://visualstudio.microsoft.com/de/vs/>`_
+* It also needs `64bit <https://www.python.org/>`_ Python 3.14.x (the msvc project assumes that you installed python for all users.)
 * `InnoSetup <http://www.jrsoftware.org/isdl.php>`_ is needed to create the installer (default installation path assumed)
 * `7-zip <https://www.7-zip.org/>`_ is needed to compress the portable version (default installation path assumed)
 
@@ -124,20 +123,24 @@ Preparing things
 ----------------
 
 * Clone VapourSynth
+* Run ``install_deps.bat``
+
+This will put everything in the correct location assuming you have VapourSynth installed. Or alternatively you can do every step manually:
+
+* Clone VapourSynth repository
 * Clone VSRepo into the VapourSynth dir (``git clone https://github.com/vapoursynth/vsrepo``)
 * Clone zimg into the VapourSynth dir (``git clone https://github.com/sekrit-twc/zimg --recurse-submodules``)
 * Clone avs+ into the VapourSynth dir (``git clone https://github.com/AviSynth/AviSynthPlus``)
 * Clone libp2p into the VapourSynth dir (``git clone https://github.com/sekrit-twc/libp2p``)
 * Place 7z.exe and 7z.dll from `7-zip <https://www.7-zip.org/>`_ into the ``installer`` dir
 * Place ``pfm-192-vapoursynth-win.exe`` into the ``installer`` dir. You can get this file from the embedded zip or an existing VapourSynth install.
-* Run ``install_deps.bat``
 
 Compilation
 -----------
 
 * Run ``compile_all.bat`` for 64bit.
 
-.. note:: Note that the Avisynth side of AVFS won't work properly in debug builds (memory allocation and exceptions across module boundaries trolololol)
+.. note:: Note that the Avisynth side of AVFS won't work properly in debug builds
 
 
 Linux and OS X Compilation

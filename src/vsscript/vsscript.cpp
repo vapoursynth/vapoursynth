@@ -44,18 +44,6 @@ static PyGILState_STATE s;
 
 static void real_init(void) VS_NOEXCEPT {
 #ifdef VS_TARGET_OS_WINDOWS
-#ifdef _WIN64
-    #define VS_INSTALL_REGKEY L"Software\\VapourSynth"
-#else
-    #define VS_INSTALL_REGKEY L"Software\\VapourSynth-32"
-#endif
-
-#ifdef VSSCRIPT_PYTHON38
-    const std::wstring pythonDllName = L"python38.dll";
-#else
-    const std::wstring pythonDllName = L"python3.dll";
-#endif
-
     // portable
     HMODULE module;
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&real_init, &module);
@@ -68,15 +56,15 @@ static void real_init(void) VS_NOEXCEPT {
     HMODULE pythonDll = nullptr;
 
     if (isPortable) {
-        pythonDll = LoadLibraryExW((dllPath / pythonDllName).c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+        pythonDll = LoadLibraryExW((dllPath / L"python3.dll").c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
     } else {
         DWORD dwType = REG_SZ;
         HKEY hKey = 0;
 
         wchar_t value[1024];
         DWORD valueLength = 1000;
-        if (RegOpenKeyW(HKEY_CURRENT_USER, VS_INSTALL_REGKEY, &hKey) != ERROR_SUCCESS) {
-            if (RegOpenKeyW(HKEY_LOCAL_MACHINE, VS_INSTALL_REGKEY, &hKey) != ERROR_SUCCESS)
+        if (RegOpenKeyW(HKEY_CURRENT_USER, L"Software\\VapourSynth", &hKey) != ERROR_SUCCESS) {
+            if (RegOpenKeyW(HKEY_LOCAL_MACHINE, L"Software\\VapourSynth", &hKey) != ERROR_SUCCESS)
                 return;
         }
 
@@ -86,7 +74,7 @@ static void real_init(void) VS_NOEXCEPT {
             return;
 
         std::filesystem::path pyPath = value;
-        pyPath /= pythonDllName;
+        pyPath /= L"python3.dll";
 
         pythonDll = LoadLibraryExW(pyPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
     }

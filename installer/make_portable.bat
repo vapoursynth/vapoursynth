@@ -26,9 +26,7 @@ copy ..\vsrepo\vsgenstubs4 buildp64\vsgenstubs4
 copy 7z.exe buildp64
 copy 7z.dll buildp64
 copy ..\dist\VapourSynth-%CURRENT_VERSION%-cp312-abi3-win_amd64.whl buildp64\wheel
-copy ..\dist\VapourSynth-%CURRENT_VERSION%-cp38-cp38-win_amd64.whl buildp64\wheel
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
-copy ..\msvc_project\x64\Release\vsscriptpython38.dll buildp64
 copy ..\msvc_project\x64\Release\avfs.exe buildp64
 copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
 copy ..\msvc_project\x64\Release\vspipe.exe buildp64
