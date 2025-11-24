@@ -30,7 +30,7 @@ DefaultGroupName={#= AppName}
 AllowCancelDuringInstall=no
 AllowNoIcons=yes
 AllowUNCPath=no
-MinVersion=6.1sp1
+MinVersion=10.0.14393
 UsePreviousPrivileges=yes
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog

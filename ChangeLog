@@ -2,7 +2,7 @@ r74:
 removed remaining leftovers of 32 bit windows support from the source code
 windows binaries now require windows 10
 dropped python 3.8 support on windows
-now requires visual studio 2026, python 3.14 and inno 6.6+ on windows to build
+now requires visual studio 2026, python 3.14 and inno setup 6.6+ on windows to build
 
 r73:
 many minor python improvements (ichunjo)
