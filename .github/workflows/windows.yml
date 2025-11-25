@@ -18,32 +18,17 @@ jobs:
         git clone https://github.com/sekrit-twc/libp2p.git --depth 1
         git clone https://github.com/sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules
 
-    - name: Setup Python 3.8
+    - name: Setup Python 3.14
       uses: actions/setup-python@v6
       with:
-        python-version: '3.8'
+        python-version: '3.14'
 
-    - name: Install Python 3.8 packages
+    - name: Install Python 3.14 packages
       run: |
         python -m pip install -U pip
         pip install -U setuptools wheel cython build
 
-    - name: Get Python 3.8 install path
-      run: |
-        $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
-        echo "PYTHON38_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-    - name: Setup Python 3.13
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.13'
-
-    - name: Install Python 3.13 packages
-      run: |
-        python -m pip install -U pip
-        pip install -U setuptools wheel cython build
-
-    - name: Get Python 3.13 install path
+    - name: Get Python 3.14 install path
       run: |
         $py_install_path = (Split-Path -Path (Get-Command python.exe).Path)
         echo "PYTHON_PATH=$py_install_path" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -54,30 +39,15 @@ jobs:
 
     - name: Build
       run: |
-        $env:VSPYTHON38_PATH="${{ env.PYTHON38_PATH }}"
         $env:VSPYTHON_PATH="${{ env.PYTHON_PATH }}"
         msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=x64 /p:CurrentVersion=${{ env.VS_CURRENT_RELEASE }} /m
 
-    - name: Package for Python 3.13
+    - name: Package for Python 3.14
       run: |
         python -m build --sdist
         python -m build --wheel
 
-    - name: Run test with Python 3.13
-      run: |
-        pip install .
-        python -m unittest discover -s test -p "*test.py"
-
-    - name: Setup Python 3.8 a second time
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.8'
-
-    - name: Package for Python 3.8
-      run: |
-        python -m build --wheel
-
-    - name: Run test with Python 3.8
+    - name: Run test with Python 3.14
       run: |
         pip install .
         python -m unittest discover -s test -p "*test.py"
@@ -92,7 +62,7 @@ jobs:
     needs: build-msvc
     strategy:
       matrix:
-        python: ["3.8", "3.13"]
+        python: ["3.14"]
 
     steps:
     - name: Setup Python ${{ matrix.python }}
