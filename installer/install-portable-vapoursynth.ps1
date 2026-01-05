@@ -16,7 +16,7 @@ if ($PythonVersionMinor -lt 12) {
     exit 1
 }
 
-if ($PythonVersionMinor -le 12) {
+if ($PythonVersionMinor -le 13) {
     $PythonVersionPatch = 10
 }
 
@@ -75,7 +75,7 @@ if (-Not (Test-Path "$TargetFolder")) {
 
 Write-Host "Determining latest Python $PythonVersionMajor.$PythonVersionMinor.x version..."
 
-for ($i = $PythonVersionPatch + 1; $i -le 10; $i++) {
+for ($i = $PythonVersionPatch + 1; $i -le 15; $i++) {
     $PyUri = "https://www.python.org/ftp/python/$PythonVersionMajor.$PythonVersionMinor.$i/python-$PythonVersionMajor.$PythonVersionMinor.$i-embed-amd64.zip"
     try {
         $PythonReply = Invoke-WebRequest -Uri $PyUri -Method head
