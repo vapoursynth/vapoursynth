@@ -1100,7 +1100,7 @@ Field Based
    FIELD_TOP
    FIELD_BOTTOM
 
-Color Range
+Range
 -----------
 
 ::

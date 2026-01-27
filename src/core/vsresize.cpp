@@ -250,15 +250,15 @@ void translate_vsformat(const VSVideoFormat *vsformat, zimg_image_format *format
 void import_frame_props(const VSMap *props, zimg_image_format *format, bool *interlaced, const VSAPI *vsapi) {
     propGetIfValid<int>(props, "_ChromaLocation", &format->chroma_location, [](int x) { return x >= 0; }, vsapi);
 
-    if (vsapi->mapNumElements(props, "_ColorRange") > 0) {
-        int64_t x = vsapi->mapGetInt(props, "_ColorRange", 0, nullptr);
+    if (vsapi->mapNumElements(props, "_Range") > 0) {
+        int64_t x = vsapi->mapGetInt(props, "_Range", 0, nullptr);
 
-        if (x == 0)
+        if (x == VSC_RANGE_FULL)
             format->pixel_range = ZIMG_RANGE_FULL;
-        else if (x == 1)
+        else if (x == VSC_RANGE_LIMITED)
             format->pixel_range = ZIMG_RANGE_LIMITED;
         else
-            throw std::runtime_error{ "bad _ColorRange value: " + std::to_string(x) };
+            throw std::runtime_error{ "bad _Range value: " + std::to_string(x) };
     }
 
     // Ignore UNSPECIFIED values from properties, since the user can specify them.
@@ -307,11 +307,11 @@ void export_frame_props(const zimg_image_format &format, VSMap *props, const VSA
         vsapi->mapDeleteKey(props, "_ChromaLocation");
 
     if (format.pixel_range == ZIMG_RANGE_FULL)
-        vsapi->mapSetInt(props, "_ColorRange", 0, maReplace);
+        vsapi->mapSetInt(props, "_Range", VSC_RANGE_FULL, maReplace);
     else if (format.pixel_range == ZIMG_RANGE_LIMITED)
-        vsapi->mapSetInt(props, "_ColorRange", 1, maReplace);
+        vsapi->mapSetInt(props, "_Range", VSC_RANGE_LIMITED, maReplace);
     else
-        vsapi->mapDeleteKey(props, "_ColorRange");
+        vsapi->mapDeleteKey(props, "_Range");
 
     set_int_if_positive("_Matrix", format.matrix_coefficients);
     set_int_if_positive("_Transfer", format.transfer_characteristics);

@@ -44,8 +44,16 @@ int _ChromaLocation
    Chroma sample position in YUV formats.
    
    0=left, 1=center, 2=topleft, 3=top, 4=bottomleft, 5=bottom.
+   
+int _Range
 
+   Full or limited range (PC/TV range). Primarily used with YUV formats.
+
+   1=full range, 0=limited range.
+   
 int _ColorRange
+
+   Deprecated, use *_Range* instead which was introduced in API R4.2. These properties are linked for backward compatibility.
 
    Full or limited range (PC/TV range). Primarily used with YUV formats.
 

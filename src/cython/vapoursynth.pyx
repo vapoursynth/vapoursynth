@@ -202,6 +202,9 @@ class CoreCreationFlags(IntFlag):
     DISABLE_AUTO_LOADING = ccfDisableAutoLoading
     DISABLE_LIBRARY_UNLOADING = ccfDisableLibraryUnloading
 
+# Alias for deprecated type name, remove this in 2030 or so
+ColorRange = Range
+
 # In this file
 globals().update(MediaType.__members__)
 globals().update(ColorFamily.__members__)
@@ -213,7 +216,7 @@ globals().update(MessageType.__members__)
 globals().update(CoreCreationFlags.__members__)
 
 # From vsconstants.pxd
-globals().update(ColorRange.__members__)
+globals().update(Range.__members__)
 globals().update(ChromaLocation.__members__)
 globals().update(FieldBased.__members__)
 globals().update(MatrixCoefficients.__members__)
@@ -955,6 +958,24 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNod
         finally:
             Py_DECREF(d)
 
+cdef object intToRangeFilter(int64_t value, str key):
+    isrange = (key == '_Range')
+    iscolorrange = (key =='_ColorRange')
+    if ((isrange and value == Range.RANGE_FULL) or (iscolorrange and value == Range.RANGE_LIMITED)):
+        return Range.RANGE_FULL
+    elif ((isrange and value == Range.RANGE_LIMITED) or (iscolorrange and value == Range.RANGE_FULL)):
+        return Range.RANGE_LIMITED
+    return value
+    
+cdef int64_t rangeToIntFilter(object value, str key):
+    if (key == '_ColorRange') and (isinstance(value, Range)):
+        warnings.warn('The _ColorRange property has been deprecated, use _Range instead', DeprecationWarning)
+        if value == Range.RANGE_FULL:
+            value = Range.RANGE_LIMITED
+        elif value == Range.RANGE_LIMITED:
+            value = Range.RANGE_FULL
+    return int(value)
+
 cdef object mapToDict(const VSMap *map, bint flatten):
     cdef const VSAPI *funcs = getVSAPIInternal()
     cdef int numKeys = funcs.mapNumKeys(map)
@@ -965,10 +986,10 @@ cdef object mapToDict(const VSMap *map, bint flatten):
     for x in range(numKeys):
         retkey = funcs.mapGetKey(map, x)
         proptype = funcs.mapGetType(map, retkey)
-
+        decretkey = retkey.decode('utf-8')
         for y in range(funcs.mapNumElements(map, retkey)):
             if proptype == ptInt:
-                newval = funcs.mapGetInt(map, retkey, y, NULL)
+                newval = intToRangeFilter(funcs.mapGetInt(map, retkey, y, NULL), decretkey)
             elif proptype == ptFloat:
                 newval = funcs.mapGetFloat(map, retkey, y, NULL)
             elif proptype == ptData:
@@ -988,7 +1009,7 @@ cdef object mapToDict(const VSMap *map, bint flatten):
                 vval = [vval, newval]
             else:
                 vval.append(newval)
-        retdict[retkey.decode('utf-8')] = vval
+        retdict[decretkey] = vval
 
     if not flatten:
         return retdict
@@ -1015,7 +1036,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
 
         for v in val:
             if isinstance(v, (int, enum.Flag)):
-                if funcs.mapSetInt(inm, ckey, int(v), 1) != 0:
+                if funcs.mapSetInt(inm, ckey, rangeToIntFilter(v, key), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, float):
                 if funcs.mapSetFloat(inm, ckey, float(v), 1) != 0:
@@ -1046,15 +1067,20 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
                 raise Error('argument ' + key + ' was passed an unsupported type (' + type(v).__name__ + ')')
 
 
-cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, const VSAPI *funcs) except *:
+cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, const VSAPI *funcs, bint filterAllInts) except *:
     for key in ndict:
         ckey = key.encode('utf-8')
         val = ndict[key]
         if val is None:
             continue
 
-        if isinstance(val, (str, bytes, bytearray, enum.Flag, RawNode, RawFrame, enum.Flag)) or not isinstance(val, Iterable):
+        if isinstance(val, (str, bytes, bytearray, RawNode, RawFrame, enum.Flag)):
             val = [val]
+        else:
+            try:
+                iter(val)
+            except:
+                val = [val]
 
         for v in val:
             if (atypes[key][:5] == 'vnode' and isinstance(v, VideoNode)) or (atypes[key][:5] == 'anode' and isinstance(v, AudioNode)):
@@ -1071,7 +1097,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                 if funcs.mapSetFunction(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:3] == 'int':
-                if funcs.mapSetInt(inm, ckey, int(v), 1) != 0:
+                if funcs.mapSetInt(inm, ckey, rangeToIntFilter(v, '_ColorRange') if filterAllInts else rangeToIntFilter(v, key), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:5] == 'float':
                 if funcs.mapSetFloat(inm, ckey, float(v), 1) != 0:
@@ -1225,7 +1251,7 @@ cdef class FrameProps(object):
             if numelem > 0:
                 intArray = self.funcs.mapGetIntArray(m, b, NULL)
                 for i in range(numelem):
-                    ol.append(intArray[i])
+                    ol.append(intToRangeFilter(intArray[i], name))
         elif t == ptFloat:
             if numelem > 0:
                 floatArray = self.funcs.mapGetFloatArray(m, b, NULL)
@@ -1261,6 +1287,12 @@ cdef class FrameProps(object):
         cdef bytes b = name.encode('utf-8')
         cdef const VSAPI *funcs = self.funcs
         val = value
+        if (name == '_ColorRange' and isinstance(val, Range)):
+            warnings.warn('The _ColorRange property has been deprecated, use _Range instead', DeprecationWarning)
+            if val == Range.RANGE_FULL:
+                val = 0
+            elif val == Range.RANGE_LIMITED:
+                val = 1
         if isinstance(val, (str, bytes, bytearray, RawNode, RawFrame, enum.Flag)):
             val = [val]
         else:
@@ -3096,12 +3128,14 @@ cdef class Function(object):
         if (len(ndict) > 0) and not any:
             raise Error(self.name + ': Function does not take argument(s) named ' + ', '.join(ndict.keys()))
 
+        filterAllInts = (self.name == 'SetFrameProp') and ('prop' in atypes) and (atypes['prop'] == '_ColorRange') and ('intval' in atypes)       
+            
         inm = self.funcs.createMap()
 
         dtomsuccess = True
         dtomexceptmsg = ''
         try:
-            typedDictToMap(processed, atypes, inm, self.plugin.core.core, self.funcs)
+            typedDictToMap(processed, atypes, inm, self.plugin.core.core, self.funcs, filterAllInts)
             if any:
                 dictToMap(ndict, inm, self.plugin.core.core, self.funcs)
         except Error as e:

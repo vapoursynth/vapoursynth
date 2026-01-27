@@ -28,6 +28,7 @@
 #include "kernel/cpulevel.h"
 #include "kernel/merge.h"
 #include "VSHelper4.h"
+#include "VSConstants4.h"
 
 using namespace vsh;
 
@@ -39,7 +40,7 @@ typedef VariableNodeData<VIPointerData> PreMultiplyData;
 
 static unsigned getLimitedRangeOffset(const VSFrame *f, const VSVideoInfo *vi, const VSAPI *vsapi) {
     int err;
-    int limited = !!vsapi->mapGetInt(vsapi->getFramePropertiesRO(f), "_ColorRange", 0, &err);
+    bool limited = (vsapi->mapGetInt(vsapi->getFramePropertiesRO(f), "_Range", 0, &err) == VSC_RANGE_LIMITED);
     if (err)
         limited = (vi->format.colorFamily == cfGray || vi->format.colorFamily == cfYUV);
     return (limited ? (16 << (vi->format.bitsPerSample - 8)) : 0);

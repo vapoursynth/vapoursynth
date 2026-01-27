@@ -590,7 +590,7 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
             int transfer = vsapi->mapGetIntSaturated(props, "_Transfer", 0, &err);
             if (err)
                 transfer = -1;
-            int range = vsapi->mapGetIntSaturated(props, "_ColorRange", 0, &err);
+            int range = vsapi->mapGetIntSaturated(props, "_Range", 0, &err);
             if (err)
                 range = -1;
             int location = vsapi->mapGetIntSaturated(props, "_ChromaLocation", 0, &err);

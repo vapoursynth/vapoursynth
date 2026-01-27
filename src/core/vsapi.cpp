@@ -482,7 +482,13 @@ static const VSFrame *VS_CC mapGetFrame(const VSMap *map, const char *key, int i
 
 static int VS_CC mapDeleteKey(VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    return map->erase(key);
+    bool result = map->erase(key);
+    const char *extraKey = nullptr;
+    if (!strcmp(key, "_Range"))
+        map->erase("_ColorRange");
+    else if (!strcmp(key, "_ColorRange"))
+        map->erase("_Range");
+    return result;
 }
 
 static inline bool isAlphaUnderscore(char c) {
@@ -582,8 +588,27 @@ bool propSetShared(VSMap *map, const char *key, const T &val, int append) {
     }
 }
 
+static int64_t flipRangeProperty(int64_t range) {
+    if (range == 0)
+        return 1;
+    else if (range == 1)
+        return 0;
+    else
+        return range;
+}
+
 static int VS_CC mapSetInt(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT {
-    return !propSetShared<int64_t, ptInt>(map, key, i, append);
+    bool result = !propSetShared<int64_t, ptInt>(map, key, i, append);
+    if (!result) {
+        const char *extraKey = nullptr;
+        if (!strcmp(key, "_Range"))
+            extraKey = "_ColorRange";
+        else if (!strcmp(key, "_ColorRange"))
+            extraKey = "_Range";
+        if (extraKey)
+            propSetShared<int64_t, ptInt>(map, extraKey, flipRangeProperty(i), append);
+    }
+    return result;
 }
 
 static int VS_CC mapSetFloat(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT {
@@ -873,6 +898,18 @@ static int VS_CC mapSetIntArray(VSMap *map, const char *key, const int64_t *i, i
     if (!isValidVSMapKey(key))
         return 1;
     map->insert(key, new VSIntArray(i, size));
+    const char *extraKey = nullptr;
+    if (!strcmp(key, "_Range"))
+        extraKey = "_ColorRange";
+    else if (!strcmp(key, "_ColorRange"))
+        extraKey = "_Range";
+    if (extraKey) {
+        std::vector<int64_t> flipped;
+        flipped.resize(size);
+        for (int j = 0; j < size; j++)
+            flipped[j] = flipRangeProperty(i[j]);
+        map->insert(extraKey, new VSIntArray(flipped.data(), size));
+    }
     return 0;
 }
 

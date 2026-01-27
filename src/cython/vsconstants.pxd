@@ -85,7 +85,7 @@ cdef extern from "include/VSConstants4.h" nogil:
         VSC_PRIMARIES_ST432_1
         VSC_PRIMARIES_EBU3213_E
 
-class ColorRange(IntEnum):
+class Range(IntEnum):
     RANGE_FULL = VSC_RANGE_FULL
     RANGE_LIMITED = VSC_RANGE_LIMITED
 
