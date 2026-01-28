@@ -25,7 +25,7 @@ self_path = Path(__file__).resolve()
 CURRENT_RELEASE = self_path.parent.joinpath('VAPOURSYNTH_VERSION').read_text('utf8').split(' ')[-1].strip().split('-')[0]
 
 if is_win:
-    library_dirs.append("C:\\vapoursynth\\msvc_project\\x64\\Release")
+    library_dirs.append(str(self_path.parent / "msvc_project" / "x64" / "Release"))
 
     # Locate the vapoursynth dll inside the library directories first
     # should we find it, it is a clear indicator that VapourSynth
@@ -58,7 +58,8 @@ setup(
     platforms="All",
     ext_modules=[
         Extension(
-            "vapoursynth", [join("src", "cython", "vapoursynth.pyx")],
+            "vapoursynth",
+            [join("src", "cython", "vapoursynth.pyx"), join("src", "common", "wave.cpp")],
             define_macros=[("Py_LIMITED_API" if limited_api_build else "VS_UNUSED_CYTHON_BUILD_MACRO", 0x030C0000), ("VS_USE_LATEST_API", None), ("VS_GRAPH_API", None), ("VS_CURRENT_RELEASE", CURRENT_RELEASE)],
             py_limited_api=limited_api_build,
             libraries=["vapoursynth"],
@@ -66,8 +67,10 @@ setup(
             include_dirs=[
                 curdir,
                 join("src", "cython"),
-                join("src", "vsscript")
-            ]
+                join("src", "vsscript"),
+                join("src", "common"),
+            ],
+            language="c++",
         )
     ],
     exclude_package_data={"": ("VAPOURSYNTH_VERSION",)},
