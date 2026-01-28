@@ -245,9 +245,19 @@ elif enable_vspipe
 endif
 
 if enable_python_module
+    py_include_dirs = [
+        incdir,
+        include_directories('.', 'src/cython', 'src/vsscript', 'src/common'),
+    ]
+
     py.extension_module('vapoursynth',
-        files('src/cython/vapoursynth.pyx'),
+        files('src/cython/vapoursynth.pyx', 'src/common/wave.cpp'),
+        cython_args: ['--cplus'],
+        c_args: ['-x', 'c++'],
+        include_directories: py_include_dirs,
         install: true,
         link_with: libvapoursynth,
+        # Remove -std=c99 to allow -x c++ on macOS/Clang
+        override_options: ['c_std=none'],
     )
 endif
