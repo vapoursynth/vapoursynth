@@ -74,5 +74,6 @@ setup(
         )
     ],
     exclude_package_data={"": ("VAPOURSYNTH_VERSION",)},
+    packages=[],
     **extra_data
 )
