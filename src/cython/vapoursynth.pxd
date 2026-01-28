@@ -28,6 +28,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VAPOURSYNTH_API_MAJOR
         VAPOURSYNTH_API_MINOR
         VAPOURSYNTH_API_VERSION
+        VS_AUDIO_FRAME_SAMPLES
 
     ctypedef struct VSFrame:
         pass
