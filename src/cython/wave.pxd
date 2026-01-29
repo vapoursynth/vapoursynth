@@ -1,8 +1,6 @@
 from libc.stdint cimport uint8_t, uint64_t, int64_t
 
 cdef extern from "src/common/wave.h":
-    const uint64_t maxWaveFileSize
-
     ctypedef struct WaveFormatExtensible:
         pass
 
