@@ -643,6 +643,17 @@ Classes and Functions
 
       Set the clip to be accessible for output.
 
+   .. py:method:: output(fileobj[, wav = False, w64 = False, progress_update = None, prefetch = 0, backlog=-1])
+
+      Write the whole audio to the specified file handle. It is possible to pipe to stdout by specifying *sys.stdout* as the file.
+      WAV headers will be added when *wav=True*.
+      WAVE64 headers will be added when *w64=True*.
+      The current progress can be reported by passing a callback function of the form *func(current_frame, total_frames)* to *progress_update*.
+      The *prefetch* argument is only for debugging purposes and should never need to be changed.
+      The *backlog* argument is only for debugging purposes and should never need to be changed.
+
+      Added: R74
+
    .. py:method:: frames([prefetch=None, backlog=None])
 
       Returns a generator iterator of all AudioFrames in the clip. It will render multiple frames concurrently.
