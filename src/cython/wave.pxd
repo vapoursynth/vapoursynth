@@ -14,5 +14,5 @@ cdef extern from "src/common/wave.h":
     void PackChannels32to32le(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) nogil
     void PackChannels32to24le(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) nogil
 
-    bint CreateWave64Header(Wave64Header &header, bint IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask, int64_t NumSamples) nogil
-    bint CreateWaveHeader(WaveHeader &header, bint IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask, int64_t NumSamples) nogil
+    bint CreateWave64Header(Wave64Header &header, bint IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask, int64_t NumSamples) noexcept nogil
+    bint CreateWaveHeader(WaveHeader &header, bint IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask, int64_t NumSamples) noexcept nogil
