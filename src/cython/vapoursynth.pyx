@@ -20,9 +20,11 @@
 cimport vapoursynth
 include 'vsconstants.pxd'
 from vsscript_internal cimport VSScript
+from wave cimport WaveHeader, Wave64Header, CreateWave64Header, CreateWaveHeader, PackChannels16to16le, PackChannels32to24le, PackChannels32to32le
 cimport cython.parallel
 from cython cimport view, final
-from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t
+from libc.stdlib cimport malloc, free, realloc
+from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t, uint8_t, uint64_t, int64_t
 from cpython.buffer cimport PyBUF_SIMPLE
 from cpython.buffer cimport PyBuffer_FillInfo
 from cpython.buffer cimport PyBuffer_Release
@@ -2483,6 +2485,116 @@ cdef class AudioNode(RawNode):
                 raise Error('Internal error - no error given')
         else:
             return createConstAudioFrame(f, self.funcs, self.core.core)
+
+    def output(self, object fileobj not None, bint wav = False, bint w64 = False, object progress_update = None, int prefetch = 0, int backlog = -1):
+        if (fileobj is sys.stdout or fileobj is sys.stderr):
+            # If you are embedded in a vsscript-application, don't allow outputting to stdout/stderr.
+            # This is the responsibility of the application, which does know better where to output it.
+            if not isinstance(get_policy(), StandaloneEnvironmentPolicy):
+                raise ValueError("In this context, use set_output() instead.")
+
+            if hasattr(fileobj, "buffer"):
+                fileobj = fileobj.buffer
+
+        if wav and w64:
+            raise ValueError("Only one header type can be selected.")
+
+        cdef:
+            WaveHeader whdr
+            Wave64Header w64hdr
+
+            size_t bytes_per_output_sample = (self.bits_per_sample + 7) // 8
+            # VapourSynth audio frames contain at most VS_AUDIO_FRAME_SAMPLES samples
+            size_t buffer_size = VS_AUDIO_FRAME_SAMPLES * self.num_channels * bytes_per_output_sample
+
+            uint8_t *interleave_buffer = <uint8_t *>malloc(buffer_size)
+            const uint8_t **src_ptrs = <const uint8_t **>malloc(self.num_channels * sizeof(uint8_t *))
+
+            void (*pack_func)(const uint8_t *const *const, uint8_t *, size_t, size_t) noexcept nogil
+
+        if progress_update is not None:
+                progress_update(0, self.num_frames)
+
+        if w64:
+            if not CreateWave64Header(
+                w64hdr,
+                self.sample_type == SampleType.FLOAT,
+                self.bits_per_sample,
+                self.sample_rate,
+                self.channel_layout,
+                self.num_samples,
+            ):
+                raise Error("Failed to create WAVE64 header")
+            fileobj.write((<char *>&w64hdr)[:sizeof(Wave64Header)])
+        elif wav:
+            if not CreateWaveHeader(
+                whdr,
+                self.sample_type == SampleType.FLOAT,
+                self.bits_per_sample,
+                self.sample_rate,
+                self.channel_layout,
+                self.num_samples,
+            ):
+                raise Error("Failed to create WAV header")
+            fileobj.write((<char *>&whdr)[:sizeof(WaveHeader)])
+
+        if not interleave_buffer:
+            raise Error("Failed to allocate interleave buffer")
+
+        if not src_ptrs:
+            free(interleave_buffer)
+            raise Error("Failed to allocate source pointers array")
+
+        if bytes_per_output_sample == 2:
+            pack_func = PackChannels16to16le
+        elif bytes_per_output_sample == 3:
+            pack_func = PackChannels32to24le
+        elif bytes_per_output_sample == 4:
+            pack_func = PackChannels32to32le
+        else:
+            free(src_ptrs)
+            free(interleave_buffer)
+            raise Error(f"Unsupported bit depth for output: {self.bits_per_sample}")
+
+        cdef:
+            AudioFrame af
+            int num_samples_in_frame
+            size_t required_size
+            uint8_t *new_buffer
+
+        write = fileobj.write
+
+        try:
+            for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
+                af = <AudioFrame>frame
+                num_samples_in_frame = af.funcs.getFrameLength(af.constf)
+                required_size = <size_t>num_samples_in_frame * self.num_channels * bytes_per_output_sample
+
+                if required_size > buffer_size:
+                    new_buffer = <uint8_t *>realloc(interleave_buffer, required_size)
+
+                    if not new_buffer:
+                        raise Error("Failed to reallocate interleave buffer")
+
+                    interleave_buffer = new_buffer
+                    buffer_size = required_size
+
+                with nogil:
+                    for c in range(self.num_channels):
+                        src_ptrs[c] = af.funcs.getReadPtr(af.constf, c)
+
+                    pack_func(src_ptrs, interleave_buffer, num_samples_in_frame, self.num_channels)
+
+                write((<char *>interleave_buffer)[:required_size])
+
+                if progress_update is not None:
+                    progress_update(idx + 1, self.num_frames)
+        finally:
+            free(src_ptrs)
+            free(interleave_buffer)
+
+        if hasattr(fileobj, "flush"):
+            fileobj.flush()
 
     def set_output(self, int index = 0):
         _get_output_dict("set_output")[index] = self
