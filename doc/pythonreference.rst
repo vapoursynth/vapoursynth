@@ -654,12 +654,13 @@ Classes and Functions
 
       Added: R74
 
-   .. py:method:: frames([prefetch=None, backlog=None])
+   .. py:method:: frames([prefetch=None, backlog=None, close=False])
 
       Returns a generator iterator of all AudioFrames in the clip. It will render multiple frames concurrently.
 
       The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
+      The *close* argument determines if the frame should be closed after each iteration step. It defaults to false to remain backward compatible.
 
    .. py:method:: clear_cache()
 
