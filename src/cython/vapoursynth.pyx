@@ -2807,8 +2807,8 @@ cdef class Core(object):
 
     @property
     def num_threads(self):
-        cdef VSCoreInfo v
-        self.funcs.getCoreInfo(self.core, &v)
+        cdef VSCoreInfo2 v
+        self.funcs.getCoreInfo2(self.core, &v)
         return v.numThreads
 
     @num_threads.setter
@@ -2817,8 +2817,8 @@ cdef class Core(object):
 
     @property
     def max_cache_size(self):
-        cdef VSCoreInfo v
-        self.funcs.getCoreInfo(self.core, &v)
+        cdef VSCoreInfo2 v
+        self.funcs.getCoreInfo2(self.core, &v)
         cdef int64_t current_size = <int64_t>v.maxFramebufferSize
         current_size = (current_size + 1024 * 1024 - 1) // <int64_t>(1024 * 1024)
         return current_size
@@ -2833,8 +2833,8 @@ cdef class Core(object):
 
     @property
     def used_cache_size(self):
-        cdef VSCoreInfo v
-        self.funcs.getCoreInfo(self.core, &v)
+        cdef VSCoreInfo2 v
+        self.funcs.getCoreInfo2(self.core, &v)
         return v.usedFramebufferSize
 
     @property
@@ -2898,18 +2898,18 @@ cdef class Core(object):
 
     @property
     def core_version(self):
-        cdef VSCoreInfo v
-        self.funcs.getCoreInfo(self.core, &v)
+        cdef VSCoreInfo2 v
+        self.funcs.getCoreInfo2(self.core, &v)
 
-        return VapourSynthVersion(v.core, 0)
+        return VapourSynthVersion(v.coreVersion, 0)
 
     @property
     def api_version(self):
-        cdef VSCoreInfo v
-        self.funcs.getCoreInfo(self.core, &v)
+        cdef VSCoreInfo2 v
+        self.funcs.getCoreInfo2(self.core, &v)
 
-        api_major = (v.api >> 16)
-        api_minor = v.api - (api_major << 16)
+        api_major = (v.apiVersion >> 16)
+        api_minor = v.apiVersion - (api_major << 16)
 
         return VapourSynthAPIVersion(api_major, api_minor)
 
@@ -2935,8 +2935,8 @@ cdef class Core(object):
         )
 
     def __str__(self):
-        cdef VSCoreInfo v
-        self.funcs.getCoreInfo(self.core, &v)
+        cdef VSCoreInfo2 v
+        self.funcs.getCoreInfo2(self.core, &v)
 
         versionString = (<const char *>v.versionString).decode('utf-8')
 
@@ -2977,26 +2977,16 @@ cdef Core createCore(EnvironmentData env):
 
 cdef Core createCore2(VSCore *core):
     cdef Core instance = Core.__new__(Core)
-    cdef VSMap *min
-    cdef VSMap *mout
-    cdef VSPlugin *plugin
-    cdef VSNode *node
+    cdef VSCoreInfo2 v        
     instance.funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
     instance.core = core
+    instance.funcs.getCoreInfo2(instance.core, &v)
+    instance.creationFlags = v.creationFlags
     instance.timings = createCoreTimings(instance)
     if instance.core_version.release_major != VS_CURRENT_RELEASE:
         instance.log_message(mtWarning, f'Version mismatch: The VapourSynth Python module version is R{__version__.release_major:d} but the VapourSynth core library is R{instance.core_version.release_major:d}. This usually indicates a broken install.')
-    plugin = instance.funcs.getPluginByID('com.vapoursynth.std', core)
-    min = instance.funcs.createMap()
-    mout = instance.funcs.invoke(plugin, "BlankClip", min)
-    instance.funcs.freeMap(min)
-    node = instance.funcs.mapGetNode(mout, "clip", 0, NULL)
-    instance.funcs.freeMap(mout)
-    if instance.funcs.getNodeCreationFunctionName(node, 0) != NULL:
-        instance.creationFlags = ccfEnableGraphInspection
-    instance.funcs.freeNode(node)
     return instance
 
 cdef Core _get_core(threads = None):

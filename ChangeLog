@@ -1,6 +1,7 @@
 r74:
-fixed crash in vspipe when using --info with multiple output clips set and discarding all output (--)
+added getCoreInfo2 function which also returns the core creation flags used
 added the new _Range property which follows the H.273 numbering (0 and 1 switched) instead of the now deprecated _ColorRange property, all filters compiled against api version 4.2 and later must only use the _Range property
+fixed crash in vspipe when using --info with multiple output clips set and discarding all output (--)
 removed remaining leftovers of 32 bit windows support from the source code
 windows binaries now require windows 10
 dropped python 3.8 support on windows

@@ -202,6 +202,15 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int numThreads
         int64_t maxFramebufferSize
         int64_t usedFramebufferSize
+        
+    struct VSCoreInfo2:
+        char *versionString
+        int coreVersion
+        int apiVersion
+        int creationFlags
+        int numThreads
+        int64_t maxFramebufferSize
+        int64_t usedFramebufferSize
 
     struct VSVideoInfo:
         VSVideoFormat format
@@ -393,6 +402,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int64_t setMaxCacheSize(int64_t bytes, VSCore *core) nogil
         int setThreadCount(int threads, VSCore *core) nogil
         void getCoreInfo(VSCore *core, VSCoreInfo *info) nogil
+        void getCoreInfo2(VSCore *core, VSCoreInfo2 *info) nogil
         int getAPIVersion() nogil
 
         # Message handler

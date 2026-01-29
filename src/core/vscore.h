@@ -1040,6 +1040,7 @@ private:
     // the core will be freed once it reaches 0
     std::atomic<long> numFilterInstances;
     std::atomic<long> numFunctionInstances;
+    int creationFlags;
     bool coreFreed = false;
     bool enableFilterTiming = false;
     std::atomic<int64_t> freedNodeProcessingTime;
@@ -1131,7 +1132,8 @@ public:
     VSPlugin *getNextPlugin(VSPlugin *plugin);
 
     const VSCoreInfo &getCoreInfo3();
-    void getCoreInfo(VSCoreInfo &info);
+    void getCoreInfo(VSCoreInfo &info) const;
+    void getCoreInfo2(VSCoreInfo2 &info) const;
 
     static bool getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept;
     static bool getVideoFormatName(const VSVideoFormat &format, char *buffer) noexcept;

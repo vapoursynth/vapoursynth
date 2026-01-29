@@ -1520,10 +1520,20 @@ const VSCoreInfo &VSCore::getCoreInfo3() {
     return coreInfo;
 }
 
-void VSCore::getCoreInfo(VSCoreInfo &info) {
+void VSCore::getCoreInfo(VSCoreInfo &info) const {
     info.versionString = VAPOURSYNTH_VERSION_STRING;
     info.core = VAPOURSYNTH_CORE_VERSION;
     info.api = VAPOURSYNTH_API_VERSION;
+    info.numThreads = static_cast<int>(threadPool->threadCount());
+    info.maxFramebufferSize = memory->limit();
+    info.usedFramebufferSize = memory->allocated_bytes();
+}
+
+void VSCore::getCoreInfo2(VSCoreInfo2 &info) const {
+    info.versionString = VAPOURSYNTH_VERSION_STRING;
+    info.coreVersion = VAPOURSYNTH_CORE_VERSION;
+    info.apiVersion = VAPOURSYNTH_API_VERSION;
+    info.creationFlags = 
     info.numThreads = static_cast<int>(threadPool->threadCount());
     info.maxFramebufferSize = memory->limit();
     info.usedFramebufferSize = memory->allocated_bytes();
@@ -1792,14 +1802,16 @@ VSCore::VSCore(int flags) :
     videoFormatIdOffset(1000),
     cpuLevel(INT_MAX),
     memory(new vs::MemoryUse()),
-    enableGraphInspection(flags & ccfEnableGraphInspection) {
+    creationFlags(flags & (ccfEnableGraphInspection | ccfDisableAutoLoading | ccfDisableLibraryUnloading)),
+    enableGraphInspection(creationFlags & ccfEnableGraphInspection) {
+
 #ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
         logFatal("Bad SSE state detected when creating new core");
 #endif
 
-    disableLibraryUnloading = !!(flags & ccfDisableLibraryUnloading);
-    bool disableAutoLoading = !!(flags & ccfDisableAutoLoading);
+    disableLibraryUnloading = !!(creationFlags & ccfDisableLibraryUnloading);
+    bool disableAutoLoading = !!(creationFlags & ccfDisableAutoLoading);
     threadPool = new VSThreadPool(this);
 
     registerFormats();

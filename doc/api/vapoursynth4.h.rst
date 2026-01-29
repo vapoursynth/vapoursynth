@@ -86,6 +86,8 @@ Structs_
 
    VSCoreInfo_
    
+   VSCoreInfo2_
+   
    VSFilterDependency_
 
    VSPLUGINAPI_
@@ -103,6 +105,8 @@ Structs_
           * setThreadCount_
           
           * getCoreInfo_
+          
+          * getCoreInfo2_
           
           * getAPIVersion_
           
@@ -1031,6 +1035,42 @@ struct VSCoreInfo
 
       Current size of the framebuffer cache, in bytes.
 
+
+.. _VSCoreInfo2:
+
+struct VSCoreInfo2
+------------------
+
+   Contains information about a VSCore_ instance.
+
+   .. c:member:: const char* versionString
+
+      Printable string containing the name of the library, copyright notice,
+      core and API versions.
+
+   .. c:member:: int coreVersion
+
+      Version of the core.
+
+   .. c:member:: int apiVersion
+
+      Version of the API.
+      
+   .. c:member:: int creationFlags
+
+      The flags that were passed when creation the core.
+
+   .. c:member:: int numThreads
+
+      Number of worker threads.
+
+   .. c:member:: int64_t maxFramebufferSize
+
+      The framebuffer cache will be allowed to grow up to this size (bytes) before memory is aggressively reclaimed.
+
+   .. c:member:: int64_t usedFramebufferSize
+
+      Current size of the framebuffer cache, in bytes.
 
 .. _VSFilterDependency:
 

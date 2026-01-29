@@ -950,9 +950,14 @@ static int VS_CC removeMessageHandler3(int id) VS_NOEXCEPT {
     return vsRemoveMessageHandler3(id);
 }
 
-static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
+static void VS_CC getCoreInfo(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
     assert(core && info);
     core->getCoreInfo(*info);
+}
+
+static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo2 *info) VS_NOEXCEPT {
+    assert(core && info);
+    core->getCoreInfo2(*info);
 }
 
 static void VS_CC createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT {
@@ -1242,7 +1247,7 @@ const VSAPI vs_internal_vsapi = {
     &freeCore,
     &setMaxCacheSize,
     &setThreadCount,
-    &getCoreInfo2,
+    &getCoreInfo,
     &getAPIVersion,
 
     &logMessage,
@@ -1261,6 +1266,8 @@ const VSAPI vs_internal_vsapi = {
     &setCoreNodeTiming,
     &getNodeProcessingTime,
     &getFreedNodeProcessingTime,
+
+    &getCoreInfo2,
 
     &getNodeCreationFunctionName,
     &getNodeCreationFunctionArguments
@@ -1356,7 +1363,7 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &logMessage3,
     &addMessageHandler3,
     &removeMessageHandler3,
-    &getCoreInfo2
+    &getCoreInfo
 };
 
 ///////////////////////////////
