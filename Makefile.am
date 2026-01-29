@@ -3,6 +3,7 @@ commoncflags = -O3 -fvisibility=hidden $(warningflags) -I$(srcdir)/include $(DEB
 AM_CXXFLAGS = -std=c++17 $(commoncflags)
 AM_CFLAGS = -std=c99 $(commoncflags)
 ACLOCAL_AMFLAGS = -I m4
+SUFFIXES = .pyx
 
 VSCURRENTRELEASE := $(shell cat VAPOURSYNTH_VERSION | cut -d ' ' -f3  | cut -d '-' -f1)
 
@@ -12,8 +13,10 @@ cython_verbose_ = $(cython_verbose_$(AM_DEFAULT_VERBOSITY))
 cython_verbose_0 = @echo "  CYTHON  " $@;
 
 
-.pyx.c:
-	$(cython_verbose)$(CYTHON) -o $@ $<
+.pyx.cpp:
+	$(cython_verbose)$(CYTHON) --cplus -o $@ $<
+
+src/cython/vapoursynth.cpp: src/cython/vapoursynth.pyx
 
 
 commonlibtoolflags = --tag=disable-static
@@ -23,8 +26,13 @@ pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA =
 
 EXTRA_DIST = pc/vapoursynth.pc.in \
-			 pc/vapoursynth-script.pc.in
-
+			 pc/vapoursynth-script.pc.in \
+			 src/cython/vapoursynth.pyx \
+			 src/cython/vapoursynth.pxd \
+			 src/cython/vsconstants.pxd \
+			 src/cython/vsscript.pxd \
+			 src/cython/vsscript_internal.pxd \
+			 src/cython/wave.pxd
 
 
 lib_LTLIBRARIES =
@@ -118,14 +126,17 @@ endif # X86ASM
 if PYTHONMODULE
 pyexec_LTLIBRARIES = vapoursynth.la
 
-vapoursynth_la_SOURCES = src/cython/vapoursynth.pyx
+vapoursynth_la_SOURCES = src/cython/vapoursynth.cpp \
+						 src/common/wave.cpp \
+						 src/common/wave.h
+vapoursynth_la_CXXFLAGS = $(AM_CXXFLAGS) -fvisibility=default -Wno-implicit-fallthrough
 vapoursynth_la_CFLAGS= $(AM_CFLAGS) -fvisibility=default -Wno-implicit-fallthrough
-vapoursynth_la_CPPFLAGS = $(PYTHON3_CFLAGS) -DVS_CURRENT_RELEASE='$(VSCURRENTRELEASE)'
+vapoursynth_la_CPPFLAGS = $(PYTHON3_CFLAGS) -I$(srcdir)/src/cython -I$(srcdir)/src/vsscript -I$(srcdir)/src/common -I$(srcdir) -DVS_CURRENT_RELEASE='$(VSCURRENTRELEASE)'
 vapoursynth_la_LIBADD = $(MAYBE_PYTHON3_LIBS) libvapoursynth.la
 vapoursynth_la_LDFLAGS = $(PYTHON_MODULE_UNDEFINED) -avoid-version -module
 vapoursynth_la_LIBTOOLFLAGS = $(commonlibtoolflags)
 
-MOSTLYCLEANFILES = src/cython/vapoursynth.c \
+MOSTLYCLEANFILES = src/cython/vapoursynth.cpp \
 				   src/cython/vapoursynth.h \
 				   src/cython/vapoursynth_api.h
 endif # PYTHONMODULE
@@ -150,11 +161,12 @@ bin_PROGRAMS = vspipe
 vspipe_SOURCES = src/vspipe/vspipe.cpp \
 				 src/vspipe/printgraph.cpp \
 				 src/vspipe/vsjson.cpp \
-				 src/common/wave.cpp
+				 src/common/wave.cpp \
+				 src/common/wave.h
 
 vspipe_LDADD = libvapoursynth-script.la
 vspipe_LDFLAGS = $(UNICODELDFLAGS)
-vspipe_CPPFLAGS = $(PYTHON3_CFLAGS) -DVS_CURRENT_RELEASE='$(VSCURRENTRELEASE)'
+vspipe_CPPFLAGS = $(PYTHON3_CFLAGS) -I$(srcdir)/src/common -I$(srcdir) -DVS_CURRENT_RELEASE='$(VSCURRENTRELEASE)'
 endif # VSPIPE
 endif # VSSCRIPT
 
