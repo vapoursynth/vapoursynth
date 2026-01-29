@@ -1245,7 +1245,8 @@ cdef class FrameProps(object):
         cdef const int64_t *intArray
         cdef const double *floatArray
         cdef const char *data
-
+        if (name == '_ColorRange'):
+            warnings.warn('The _ColorRange frame property has been deprecated, use _Range instead', DeprecationWarning)
         if numelem < 0:
             raise KeyError('No key named ' + name + ' exists')
         cdef int t = self.funcs.mapGetType(m, b)
@@ -1289,12 +1290,13 @@ cdef class FrameProps(object):
         cdef bytes b = name.encode('utf-8')
         cdef const VSAPI *funcs = self.funcs
         val = value
-        if (name == '_ColorRange' and isinstance(val, Range)):
-            warnings.warn('The _ColorRange property has been deprecated, use _Range instead', DeprecationWarning)
-            if val == Range.RANGE_FULL:
-                val = 0
-            elif val == Range.RANGE_LIMITED:
-                val = 1
+        if (name == '_ColorRange'):
+            warnings.warn('The _ColorRange frame property has been deprecated, use _Range instead', DeprecationWarning)
+            if isinstance(val, Range):
+                if val == Range.RANGE_FULL:
+                    val = 0
+                elif val == Range.RANGE_LIMITED:
+                    val = 1
         if isinstance(val, (str, bytes, bytearray, RawNode, RawFrame, enum.Flag)):
             val = [val]
         else:
@@ -1857,7 +1859,7 @@ cdef AudioFrame createConstAudioFrame(const VSFrame *constf, const VSAPI *funcs,
     instance.core = core
     instance.flags = 0
     cdef const VSAudioFormat *format = funcs.getAudioFrameFormat(constf)
-    instance.sample_type = SampleType(format.sampleType);
+    instance.sample_type = SampleType(format.sampleType)
     instance.bits_per_sample = format.bitsPerSample
     instance.bytes_per_sample = format.bytesPerSample
     instance.channel_layout = format.channelLayout
@@ -1873,7 +1875,7 @@ cdef AudioFrame createAudioFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     instance.core = core
     instance.flags = -1
     cdef const VSAudioFormat *format = funcs.getAudioFrameFormat(f)
-    instance.sample_type = SampleType(format.sampleType);
+    instance.sample_type = SampleType(format.sampleType)
     instance.bits_per_sample = format.bitsPerSample
     instance.bytes_per_sample = format.bytesPerSample
     instance.channel_layout = format.channelLayout
@@ -2713,7 +2715,7 @@ cdef AudioNode createAudioNode(VSNode *node, const VSAPI *funcs, Core core):
     instance.sample_rate = instance.ai.sampleRate
     instance.num_samples = instance.ai.numSamples
     instance.num_frames = instance.ai.numFrames
-    instance.sample_type = SampleType(instance.ai.format.sampleType);
+    instance.sample_type = SampleType(instance.ai.format.sampleType)
     instance.bits_per_sample = instance.ai.format.bitsPerSample
     instance.bytes_per_sample = instance.ai.format.bytesPerSample
     instance.channel_layout = instance.ai.format.channelLayout
@@ -3240,8 +3242,10 @@ cdef class Function(object):
         if (len(ndict) > 0) and not any:
             raise Error(self.name + ': Function does not take argument(s) named ' + ', '.join(ndict.keys()))
 
-        filterAllInts = (self.name == 'SetFrameProp') and ('prop' in atypes) and (atypes['prop'] == '_ColorRange') and ('intval' in atypes)       
-            
+        filterAllInts = (self.name == 'SetFrameProp') and ('prop' in processed) and (processed['prop'] == '_ColorRange') and ('intval' in atypes)  
+        
+        if (filterAllInts or ((self.name == 'SetFrameProps') and ('_ColorRange' in ndict))):
+            warnings.warn('The _ColorRange frame property has been deprecated, use _Range instead', DeprecationWarning)
         inm = self.funcs.createMap()
 
         dtomsuccess = True
