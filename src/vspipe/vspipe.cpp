@@ -1036,7 +1036,7 @@ int main(int argc, char **argv) {
             VSNode *mainNode = vssapi->getOutputNode(se, iter);
             assert(mainNode);
 
-            if (!first)
+            if (!first && outFile)
                 fprintf(outFile, "\n");
             first = false;
 
