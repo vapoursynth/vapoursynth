@@ -389,7 +389,7 @@ Classes and Functions
       The *alt_output* argument is for optional alternate output modes. Currently
       it controls the FOURCCs used for VFW-style output with certain formats.
 
-   .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None, backlog=-1])
+   .. py:method:: output(fileobj[, y4m = False, progress_update = None, prefetch = 0, backlog=-1])
 
       Write the whole clip to the specified file handle. It is possible to pipe to stdout by specifying *sys.stdout* as the file.
       YUV4MPEG2 headers will be added when *y4m* is true.
