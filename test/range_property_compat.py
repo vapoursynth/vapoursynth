@@ -33,6 +33,17 @@ class CoreTestSequence(unittest.TestCase):
         self.assertEqual(frame.props.get('_ColorRange'), 2)
         frame.props['_Range'] = -1  
         self.assertEqual(frame.props.get('_ColorRange'), -1)
+        
+    def test_frame_props3(self):
+        clip = self.core.std.BlankClip(format=vs.YUV444P8, color=[69, 242, 115], width=120, height=121)
+        clip.std.SetFrameProp('_ColorRange', 1)
+        clip.std.SetFrameProp('_Range', 1)
+        
+    def test_frame_props4(self):
+        clip = self.core.std.BlankClip(format=vs.YUV444P8, color=[69, 242, 115], width=120, height=121)
+        clip.std.SetFrameProps(_ColorRange=1)
+        clip.std.SetFrameProps(_Range=0)
+
 
 if __name__ == '__main__':
     unittest.main()
