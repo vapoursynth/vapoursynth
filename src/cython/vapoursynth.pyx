@@ -2512,26 +2512,8 @@ cdef class AudioNode(RawNode):
 
             void (*pack_func)(const uint8_t *const *const, uint8_t *, size_t, size_t) noexcept nogil
 
-        if not interleave_buffer:
-            raise Error("Failed to allocate interleave buffer")
-
-        if not src_ptrs:
-            free(interleave_buffer)
-            raise Error("Failed to allocate source pointers array")
-
-        if bytes_per_output_sample == 2:
-            pack_func = PackChannels16to16le
-        elif bytes_per_output_sample == 3:
-            pack_func = PackChannels32to24le
-        elif bytes_per_output_sample == 4:
-            pack_func = PackChannels32to32le
-        else:
-            free(src_ptrs)
-            free(interleave_buffer)
-            raise Error(f"Unsupported bit depth for output: {self.bits_per_sample}")
-
         if progress_update is not None:
-            progress_update(0, self.num_frames)
+                progress_update(0, self.num_frames)
 
         if w64:
             if not CreateWave64Header(
@@ -2555,6 +2537,24 @@ cdef class AudioNode(RawNode):
             ):
                 raise Error("Failed to create WAV header")
             fileobj.write((<char *>&whdr)[:sizeof(WaveHeader)])
+
+        if not interleave_buffer:
+            raise Error("Failed to allocate interleave buffer")
+
+        if not src_ptrs:
+            free(interleave_buffer)
+            raise Error("Failed to allocate source pointers array")
+
+        if bytes_per_output_sample == 2:
+            pack_func = PackChannels16to16le
+        elif bytes_per_output_sample == 3:
+            pack_func = PackChannels32to24le
+        elif bytes_per_output_sample == 4:
+            pack_func = PackChannels32to32le
+        else:
+            free(src_ptrs)
+            free(interleave_buffer)
+            raise Error(f"Unsupported bit depth for output: {self.bits_per_sample}")
 
         cdef:
             AudioFrame af
