@@ -389,7 +389,7 @@ Classes and Functions
       The *alt_output* argument is for optional alternate output modes. Currently
       it controls the FOURCCs used for VFW-style output with certain formats.
 
-   .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None, backlog=-1])
+   .. py:method:: output(fileobj[, y4m = False, progress_update = None, prefetch = 0, backlog=-1])
 
       Write the whole clip to the specified file handle. It is possible to pipe to stdout by specifying *sys.stdout* as the file.
       YUV4MPEG2 headers will be added when *y4m* is true.
@@ -643,12 +643,23 @@ Classes and Functions
 
       Set the clip to be accessible for output.
 
-   .. py:method:: frames([prefetch=None, backlog=None])
+   .. py:method:: output(fileobj[, wav = False, w64 = False, progress_update = None, prefetch = 0, backlog=-1])
+
+      Write the whole audio to the specified file handle. It is possible to pipe to stdout by specifying *sys.stdout* as the file.
+      A WAV or WAVE64 header can be written by enabling *wav* or *w64* respectively; these options are mutually exclusive.
+      The current progress can be reported by passing a callback function of the form *func(current_frame, total_frames)* to *progress_update*.
+      The *prefetch* argument is only for debugging purposes and should never need to be changed.
+      The *backlog* argument is only for debugging purposes and should never need to be changed.
+
+      Added: R74
+
+   .. py:method:: frames([prefetch=None, backlog=None, close=False])
 
       Returns a generator iterator of all AudioFrames in the clip. It will render multiple frames concurrently.
 
       The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
+      The *close* argument determines if the frame should be closed after each iteration step. It defaults to false to remain backward compatible.
 
    .. py:method:: clear_cache()
 
