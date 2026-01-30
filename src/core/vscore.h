@@ -618,8 +618,10 @@ typedef std::shared_ptr<VSFunctionFrame> PVSFunctionFrame;
 
 struct VSFunctionFrame {
     std::string name;
+    std::string pluginID;
+    std::string ns;
     const VSMap *args;
-    VSFunctionFrame(const std::string &name, const VSMap *args, PVSFunctionFrame next) : name(name), args(args), next(next) {};
+    VSFunctionFrame(const std::string &name, const std::string &pluginID, const std::string &ns, const VSMap *args, PVSFunctionFrame next) : name(name), pluginID(pluginID), ns(ns), args(args), next(next) {};
     ~VSFunctionFrame() { delete args; }
     PVSFunctionFrame next;
 };
@@ -908,6 +910,8 @@ public:
     }
 
     const char *getCreationFunctionName(int level) const;
+    const char *getNodeCreationPluginID(int level) const;
+    const char *getNodeCreationPluginNS(int level) const;
     const VSMap *getCreationFunctionArguments(int level) const;
 
     int setLinear();

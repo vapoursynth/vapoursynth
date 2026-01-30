@@ -428,6 +428,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
 
         # Unstable API, has no set place.
         const char *getNodeCreationFunctionName(VSNode *node, int level) nogil
+        const char *getNodeCreationPluginID(VSNode *node, int level) nogil
+        const char *getNodeCreationPluginNS(VSNode *node, int level) nogil
         const VSMap *getNodeCreationFunctionArguments(VSNode *node, int level) nogil
 
     const VSAPI *getVapourSynthAPI(int version) nogil

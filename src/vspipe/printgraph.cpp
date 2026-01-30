@@ -167,7 +167,7 @@ static void printNodeGraphHelper(NodePrintMode mode, std::set<std::string> &line
 
     bool simple = (mode == NodePrintMode::Simple);
 
-    nodes[simple ? baseFrame : thisFrame].insert("label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, simple ? maxLevel : 0)) + setArgsStr + "\"");
+    nodes[simple ? baseFrame : thisFrame].insert("label=\"" + std::string(vsapi->getNodeCreationPluginNS(node, simple ? maxLevel : 0)) + "." + std::string(vsapi->getNodeCreationFunctionName(node, simple ? maxLevel : 0)) + setArgsStr + "\"");
     if (mode == NodePrintMode::FullWithTimes)
         nodes[simple ? baseFrame : thisFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\\nMode: " + filterModeToString(vsapi->getNodeFilterMode(node)) + "\\nTime (%): " + printWithTwoDecimals((vsapi->getNodeProcessingTime(node, 0)) / (processingTime * 10000000)) + "\\nTime (s): " + printWithTwoDecimals(vsapi->getNodeProcessingTime(node, 0) / 1000000000.) + "\", shape=oval]");
     else

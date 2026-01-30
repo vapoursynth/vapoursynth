@@ -529,7 +529,7 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
 
         bool enableGraphInspection = plugin->core->enableGraphInspection;
         if (enableGraphInspection) {
-            plugin->core->functionFrame = std::make_shared<VSFunctionFrame>(name, new VSMap(&args), plugin->core->functionFrame);
+            plugin->core->functionFrame = std::make_shared<VSFunctionFrame>(name, plugin->getID(), plugin->getNamespace(), new VSMap(&args), plugin->core->functionFrame);
         }
         func(&args, v, functionData, plugin->core, getVSAPIInternal(plugin->apiMajor));
         if (enableGraphInspection) {
@@ -878,6 +878,37 @@ const char *VSNode::getCreationFunctionName(int level) const {
     }
     return nullptr;
 }
+
+const char *VSNode::getNodeCreationPluginID(int level) const {
+    if (core->enableGraphInspection) {
+        VSFunctionFrame *frame = functionFrame.get();
+        for (int i = 0; i < level; i++) {
+            if (frame)
+                frame = frame->next.get();
+        }
+
+        if (frame)
+            return frame->pluginID.c_str();
+    }
+    return nullptr;
+}
+
+
+const char *VSNode::getNodeCreationPluginNS(int level) const {
+    if (core->enableGraphInspection) {
+        VSFunctionFrame *frame = functionFrame.get();
+        for (int i = 0; i < level; i++) {
+            if (frame)
+                frame = frame->next.get();
+        }
+
+        if (frame)
+            return frame->ns.c_str();
+    }
+    return nullptr;
+}
+
+
 
 const VSMap *VSNode::getCreationFunctionArguments(int level) const {
     if (core->enableGraphInspection) {
@@ -1533,7 +1564,7 @@ void VSCore::getCoreInfo2(VSCoreInfo2 &info) const {
     info.versionString = VAPOURSYNTH_VERSION_STRING;
     info.coreVersion = VAPOURSYNTH_CORE_VERSION;
     info.apiVersion = VAPOURSYNTH_API_VERSION;
-    info.creationFlags = 
+    info.creationFlags = creationFlags;
     info.numThreads = static_cast<int>(threadPool->threadCount());
     info.maxFramebufferSize = memory->limit();
     info.usedFramebufferSize = memory->allocated_bytes();

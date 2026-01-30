@@ -1067,6 +1067,16 @@ static const char *VS_CC getNodeCreationFunctionName(VSNode *node, int level) VS
     return node->getCreationFunctionName(level);
 }
 
+static const char *VS_CC getNodeCreationPluginID(VSNode *node, int level) VS_NOEXCEPT {
+    assert(node);
+    return node->getNodeCreationPluginID(level);
+}
+
+static const char *VS_CC getNodeCreationPluginNS(VSNode *node, int level) VS_NOEXCEPT {
+    assert(node);
+    return node->getNodeCreationPluginNS(level);
+}
+
 static const VSMap *VS_CC getNodeCreationFunctionArguments(VSNode *node, int level) VS_NOEXCEPT {
     assert(node);
     return node->getCreationFunctionArguments(level);
@@ -1270,6 +1280,8 @@ const VSAPI vs_internal_vsapi = {
     &getCoreInfo2,
 
     &getNodeCreationFunctionName,
+    &getNodeCreationPluginID,
+    &getNodeCreationPluginNS,
     &getNodeCreationFunctionArguments
 };
 
