@@ -98,6 +98,7 @@ struct VSPipeOptions {
     int outputIndex = 0;
     int requests = 0;
     bool printProgress = false;
+    bool frameRefDebug = false;
     bool printFilterTime = false;
     std::filesystem::path scriptFilename;
     std::filesystem::path outputFilename;
@@ -661,6 +662,7 @@ static void printHelp() {
         "      --filter-time-graph FILE     Write output node's filter graph in dot format with time information after processing\n"
         "  -i, --info                       Print all set output node info to <outfile> and exit\n"
         "  -g  --graph <simple/full>        Print output node's filter graph in dot format to <outfile> and exit\n"
+        "      --frame-ref-debug            Print frame allocation debug information\n"
         "  -v, --version                    Show version info and exit\n"
         "\n"
         "Special output options for <outfile>:\n"
@@ -718,6 +720,8 @@ static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
             arg++;
         } else if (argString == "-p" || argString == "--progress") {
             opts.printProgress = true;
+        } else if (argString == "--frame-ref-debug") {
+            opts.frameRefDebug = true;
         } else if (argString == "--filter-time") {
             opts.printFilterTime = true;
         } else if (argString == "--filter-time-graph") {
@@ -1000,7 +1004,12 @@ int main(int argc, char **argv) {
 
     std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
 
-    VSCore *core = vsapi->createCore((opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph || filterTimeGraphFile) ? ccfEnableGraphInspection : 0);
+    int creationFlags = 0;
+    if (opts.frameRefDebug)
+        creationFlags |= ccfEnableFrameRefDebug;
+    if (opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph || filterTimeGraphFile)
+        creationFlags |= ccfEnableGraphInspection;
+    VSCore *core = vsapi->createCore(creationFlags);
     vsapi->addLogHandler(logMessageHandler, nullptr, nullptr, core);
     vsapi->setCoreNodeTiming(core, opts.printFilterTime || filterTimeGraphFile);
     VSScript *se = vssapi->createScript(core);
