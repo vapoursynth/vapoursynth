@@ -297,7 +297,8 @@ typedef enum VSMessageType {
 typedef enum VSCoreCreationFlags {
     ccfEnableGraphInspection = 1,
     ccfDisableAutoLoading = 2,
-    ccfDisableLibraryUnloading = 4
+    ccfDisableLibraryUnloading = 4,
+    ccfEnableFrameRefDebug = 8
 } VSCoreCreationFlags;
 
 typedef enum VSPluginConfigFlags {

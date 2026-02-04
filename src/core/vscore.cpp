@@ -176,6 +176,15 @@ void VSPlaneData::release() noexcept {
 
 ///////////////
 
+void VSFrame::setAllocationInfo() noexcept {
+    VSNode *currentNode = core->currentProcessingNode;
+    if (currentNode)
+        debugAllocationInfo = "Frame #" + std::to_string(allocationSeq++) + " (" + std::to_string(width) + "x" + std::to_string((contentType == mtVideo) ? height : 0) + ") allocated by " + currentNode->getName();
+    else
+        debugAllocationInfo = "Frame #" + std::to_string(allocationSeq++) + " (" + std::to_string(width) + "x" + std::to_string((contentType == mtVideo) ? height : 0) + ") allocated by <unknown>";
+    core->logMessage(mtInformation, debugAllocationInfo.c_str());
+}
+
 VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (width <= 0 || height <= 0)
         core->logFatal("Error in frame creation: dimensions are negative (" + std::to_string(width) + "x" + std::to_string(height) + ")");
@@ -200,6 +209,9 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
         data[1] = new VSPlaneData(size23, *core->memory);
         data[2] = new VSPlaneData(size23, *core->memory);
     }
+
+    if (core->enableFrameRefDebug)
+        setAllocationInfo();
 }
 
 VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
@@ -236,6 +248,9 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
             }
         }
     }
+
+    if (core->enableFrameRefDebug)
+        setAllocationInfo();
 }
 
 VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc, VSCore *core) noexcept
@@ -251,6 +266,9 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc,
     stride[0] = format.af.bytesPerSample * VS_AUDIO_FRAME_SAMPLES;
 
     data[0] = new VSPlaneData(stride[0] * format.af.numChannels, *core->memory);
+
+    if (core->enableFrameRefDebug)
+        setAllocationInfo();
 }
 
 VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *channelSrc, const int *channel, const VSFrame *propSrc, VSCore *core) noexcept
@@ -276,6 +294,9 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *
             memcpy(getWritePtr(i), channelSrc[i]->getReadPtr(channel[i]), getFrameLength() * format.af.bytesPerSample);
         }
     }
+
+    if (core->enableFrameRefDebug)
+        setAllocationInfo();
 }
 
 VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), v3format(nullptr) {
@@ -297,6 +318,9 @@ VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), v3format(nullptr) {
     stride[2] = f.stride[2];
     properties = f.properties;
     core = f.core;
+
+    if (core->enableFrameRefDebug)
+        setAllocationInfo();
 }
 
 VSFrame::~VSFrame() {
@@ -305,6 +329,9 @@ VSFrame::~VSFrame() {
         data[1]->release();
         data[2]->release();
     }
+
+    if (!debugAllocationInfo.empty())
+        core->logMessage(mtInformation, (debugAllocationInfo + " was freed").c_str());
 }
 
 const vs3::VSVideoFormat *VSFrame::getVideoFormatV3() const noexcept {
@@ -996,7 +1023,9 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     core->logMessage(mtInformation, "Started processing of frame: " + std::to_string(n) + " ar: " + std::to_string(activationReason) + " filter: " + this->name + " (" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ")");
 #endif
 
+    core->currentProcessingNode = this;
     const VSFrame *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi3);
+    core->currentProcessingNode = nullptr;
 
 #ifdef VS_DEBUG_FRAME_REQUESTS
     core->logMessage(mtInformation, "Finished processing of frame: " + std::to_string(n) + " ar: " + std::to_string(activationReason) + " filter: " + this->name + " (" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ")");
@@ -1833,8 +1862,9 @@ VSCore::VSCore(int flags) :
     videoFormatIdOffset(1000),
     cpuLevel(INT_MAX),
     memory(new vs::MemoryUse()),
-    creationFlags(flags & (ccfEnableGraphInspection | ccfDisableAutoLoading | ccfDisableLibraryUnloading)),
-    enableGraphInspection(creationFlags & ccfEnableGraphInspection) {
+    creationFlags(flags & (ccfEnableGraphInspection | ccfDisableAutoLoading | ccfDisableLibraryUnloading | ccfEnableFrameRefDebug)),
+    enableGraphInspection(creationFlags & ccfEnableGraphInspection),
+    enableFrameRefDebug(creationFlags & ccfEnableFrameRefDebug) {
 
 #ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
@@ -2456,7 +2486,9 @@ int VSFrame::alignment = alignmentHelper();
 int VSFrame::alignment = 32;
 #endif
 
+thread_local VSNode *VSCore::currentProcessingNode = nullptr;
 thread_local PVSFunctionFrame VSCore::functionFrame;
 bool VSCore::m_isPortable = false;
 std::filesystem::path VSCore::m_basePath;
 std::once_flag VSCore::m_portableOnceFlag;
+std::atomic<uint64_t> VSFrame::allocationSeq = 0;

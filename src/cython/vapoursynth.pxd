@@ -242,6 +242,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         ccfEnableGraphInspection
         ccfDisableAutoLoading
         ccfDisableLibraryUnloading
+        ccfEnableFrameRefDebug
 
     enum VSPluginConfigFlags:
         pcModifiable

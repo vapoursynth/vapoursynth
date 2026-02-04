@@ -1,4 +1,5 @@
 r74:
+added ccfEnableFrameRefDebug core creation flag that will log all frame allocations to help find memory leaks
 added getCoreInfo2 function which also returns the core creation flags used
 added the new _Range property which follows the H.273 numbering (0 and 1 switched) instead of the now deprecated _ColorRange property, all filters compiled against api version 4.2 and later must only use the _Range property
 fixed crash in vspipe when using --info with multiple output clips set and discarding all output (--)

@@ -419,6 +419,11 @@ private:
     int numPlanes;
     VSMap properties;
     VSCore *core;
+
+    std::string debugAllocationInfo;
+    static std::atomic<uint64_t> allocationSeq;
+
+    void setAllocationInfo() noexcept;
 public:
     static int alignment;
 
@@ -1084,6 +1089,11 @@ public:
     // Used only for graph inspection
     bool enableGraphInspection;
     static thread_local PVSFunctionFrame functionFrame;
+    //
+
+    // Used only for frame ref debugging
+    bool enableFrameRefDebug;
+    static thread_local VSNode *currentProcessingNode;
     //
 
     void notifyCaches(bool needMemory);

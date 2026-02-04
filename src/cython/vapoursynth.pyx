@@ -203,6 +203,7 @@ class CoreCreationFlags(IntFlag):
     ENABLE_GRAPH_INSPECTION = ccfEnableGraphInspection
     DISABLE_AUTO_LOADING = ccfDisableAutoLoading
     DISABLE_LIBRARY_UNLOADING = ccfDisableLibraryUnloading
+    ENABLE_FRAME_REF_DEBUG = ccfEnableFrameRefDebug
 
 # Alias for deprecated type name, remove this in 2030 or so
 ColorRange = Range

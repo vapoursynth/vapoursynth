@@ -638,7 +638,11 @@ enum VSCoreCreationFlags
    
       Don't unload plugin libraries when the core is destroyed. Due to a small amount of memory leaking every load
       and unload (windows feature, not my fault) of a library this may help in applications with extreme amount of script reloading.
+
+   * ccfEnableFrameRefDebug
    
+      Logs information when frames are allocated and freed and by which filter (if any). The messages are information level.
+      Useful to help debug frame reference leaks.
    
 .. _VSPluginConfigFlags:
 
