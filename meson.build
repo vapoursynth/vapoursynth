@@ -245,11 +245,11 @@ endif
 if enable_python_module
     py_include_dirs = [
         incdir,
-        include_directories('.', 'src/cython', 'src/vsscript', 'src/common'),
+        include_directories('.', 'src/common', 'src/cython', 'src/vsscript'),
     ]
 
     py.extension_module('vapoursynth',
-        files('src/cython/vapoursynth.pyx', 'src/common/wave.cpp'),
+        files('src/common/wave.cpp', 'src/cython/vapoursynth.pyx'),
         include_directories: py_include_dirs,
         install: true,
         link_with: libvapoursynth,
