@@ -37,20 +37,18 @@ endif
 vspipe_link_args = []
 
 add_project_arguments(
-    [
-        '-DVS_CORE_EXPORTS',
-        '-DVS_CURRENT_RELEASE=@0@'.format(meson.project_version()),
-        '-DVS_GRAPH_API',
-        '-DVS_PATH_PLUGINDIR="@0@"'.format(plugindir),
-        '-DVS_USE_LATEST_API',
-        '-DVSSCRIPT_USE_LATEST_API',
-        '-Wno-ignored-attributes',
-    ],
+    '-DVS_CORE_EXPORTS',
+    '-DVS_CURRENT_RELEASE=@0@'.format(meson.project_version()),
+    '-DVS_GRAPH_API',
+    '-DVS_PATH_PLUGINDIR="@0@"'.format(plugindir),
+    '-DVS_USE_LATEST_API',
+    '-DVSSCRIPT_USE_LATEST_API',
+    '-Wno-ignored-attributes',
     language: lang,
 )
 
 if get_option('buildtype') == 'release'
-    add_project_arguments(['-fno-math-errno', '-fno-trapping-math'], language: lang)
+    add_project_arguments('-fno-math-errno', '-fno-trapping-math', language: lang)
 endif
 
 if host_system == 'darwin'
@@ -58,7 +56,7 @@ if host_system == 'darwin'
 elif host_system in ['dragonfly', 'freebsd', 'gnu', 'linux', 'netbsd', 'openbsd']
     add_project_arguments('-DVS_TARGET_OS_LINUX', language: lang)
 elif host_system in ['cygwin', 'windows']
-    add_project_arguments(['-DVS_TARGET_OS_WINDOWS', '-DUNICODE', '-D_UNICODE'], language: lang)
+    add_project_arguments('-DVS_TARGET_OS_WINDOWS', '-DUNICODE', '-D_UNICODE', language: lang)
     vspipe_link_args = '-municode'
 else
     warning('Unknown host OS')
