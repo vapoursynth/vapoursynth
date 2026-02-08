@@ -7,7 +7,7 @@ jobs:
     runs-on: windows-2025-vs2026
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - uses: microsoft/setup-msbuild@v2
 
@@ -52,7 +52,7 @@ jobs:
         pip install .
         python -m unittest discover -s test -p "*test.py"
 
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v6
       with:
         name: vapoursynth
         path: dist
@@ -70,7 +70,7 @@ jobs:
       with:
         python-version: ${{ matrix.python }}
 
-    - uses: actions/download-artifact@v6
+    - uses: actions/download-artifact@v7
       with:
         name: vapoursynth
 
@@ -87,7 +87,7 @@ jobs:
       id-token: write
 
     steps:
-    - uses: actions/download-artifact@v6
+    - uses: actions/download-artifact@v7
       with:
         name: vapoursynth
         path: dist

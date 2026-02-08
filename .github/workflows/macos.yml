@@ -7,16 +7,16 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - uses: actions/setup-python@v6
       with:
-        python-version: '3.13'
+        python-version: '3.14'
 
     - name: Install Homebrew packages
       run: |
         brew update
-        brew install automake libtool lld llvm
+        brew install automake libtool lld
 
     - name: Install Python packages
       run: |
