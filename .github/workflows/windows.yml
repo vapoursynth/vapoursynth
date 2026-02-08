@@ -40,7 +40,7 @@ jobs:
     - name: Build
       run: |
         $env:VSPYTHON_PATH="${{ env.PYTHON_PATH }}"
-        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=x64 /p:CurrentVersion=${{ env.VS_CURRENT_RELEASE }} /m
+        msbuild msvc_project/VapourSynth.sln -t:Build -p:Configuration=Release -p:Platform=x64 -p:PlatformToolset=v145 -p:CurrentVersion=${{ env.VS_CURRENT_RELEASE }} -m
 
     - name: Package for Python 3.14
       run: |
