@@ -51,7 +51,6 @@ import warnings
 import keyword
 from threading import local as ThreadLocal, Lock, RLock
 from types import MappingProxyType
-from collections import namedtuple
 from collections.abc import ItemsView, Iterable, KeysView, MutableMapping, ValuesView
 from concurrent.futures import Future
 from fractions import Fraction
@@ -669,7 +668,11 @@ def get_current_environment():
 # Create an empty list whose instance will represent a not passed value.
 _EMPTY = []
 
-VideoOutputTuple = namedtuple("VideoOutputTuple", "clip alpha alt_output")
+class VideoOutputTuple(typing.NamedTuple):
+    clip: VideoNode
+    alpha: typing.Union[VideoNode, None]
+    alt_output: typing.Literal[0, 1, 2]
+
 
 def _construct_type(signature):
     type,*opt = signature.split(":")
@@ -3063,8 +3066,9 @@ cdef class _CoreProxy(object):
 
 core = _CoreProxy.__new__(_CoreProxy)
 
-PluginVersion = namedtuple("PluginVersion", "major minor")
-
+class PluginVersion(typing.NamedTuple):
+    major: int
+    minor: int
 
 cdef class Plugin(object):
     cdef Core core
