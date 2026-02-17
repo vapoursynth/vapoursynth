@@ -2156,6 +2156,20 @@ cdef class RawNode(object):
         return self.funcs.getNodeCreationFunctionName(self.node, 0).decode("utf-8")
 
     @property
+    def _plugin_id(self):
+        if not self._inspectable():
+            raise Error("This node is not inspectable.")
+
+        return self.funcs.getNodeCreationPluginID(self.node, 0).decode("utf-8")
+
+    @property
+    def _plugin_ns(self):
+        if not self._inspectable():
+            raise Error("This node is not inspectable.")
+
+        return self.funcs.getNodeCreationPluginNS(self.node, 0).decode("utf-8")
+
+    @property
     def _inputs(self):
         if not self._inspectable():
             raise Error("This node is not inspectable.")
