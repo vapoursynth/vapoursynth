@@ -31,6 +31,7 @@
 #include <cassert>
 #include <queue>
 #include <bitset>
+#include <fstream>
 
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
@@ -1732,7 +1733,51 @@ void VSCore::registerFormats() {
     queryVideoFormat3(vs3::cmCompat, stInteger, 16, 1, 0, "CompatYUY2", vs3::pfCompatYUY2);
 }
 
+bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
+    std::filesystem::path manifestPath = path;
+    manifestPath /= "manifest.vs";
 
+    std::ifstream f(manifestPath);
+    if (!f.is_open())
+        return false;
+
+    std::string line;
+
+    if (!std::getline(f, line)) {
+        logMessage(mtCritical, ("Couldn't read contents of manifest file: " + manifestPath.u8string()).c_str());
+        return true;
+    }
+
+    if (line != "[VapourSynth Manifest V1]") {
+        logMessage(mtCritical, ("Invalid header in manifest: " + manifestPath.u8string()).c_str());
+        return true;
+    }
+
+#ifdef VS_TARGET_OS_WINDOWS
+    const std::string ext = ".dll";
+#elif defined(VS_TARGET_OS_DARWIN)
+    const std::string ext = ".dylib";
+#else
+    const std::string ext = ".so";
+#endif
+
+    while (std::getline(f, line)) {
+        if (line.empty())
+            continue;
+        std::filesystem::path pluginPath = path;
+        pluginPath /= line;
+        pluginPath += ext;
+        try {
+            loadPlugin(pluginPath);
+        } catch (VSNoEntryPointException &) {
+            logMessage(mtCritical, ("Manifest declared plugin has no entry point: " + pluginPath.u8string()).c_str());
+        } catch (VSException &e) {
+            logMessage(mtWarning, e.what());
+        }
+    }
+
+    return true;
+}
 
 bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path) {
     if (path.empty())
@@ -1746,21 +1791,25 @@ bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path) {
     const std::string filter = ".so";
 #endif
 
-    try {
-        for (const auto &iter : std::filesystem::directory_iterator(path)) {
-            std::error_code ec;
-            if (iter.is_regular_file(ec) && !ec && iter.path().extension() == filter) {
-                try {
-                    loadPlugin(iter.path());
-                } catch (VSNoEntryPointException &) {
-                    // do nothing since we may encounter supporting dlls without an entry point
-                } catch (VSException &e) {
-                    logMessage(mtWarning, e.what());
+    if (!loadPluginManifest(path)) {
+        try {
+            for (const auto &iter : std::filesystem::directory_iterator(path)) {
+                std::error_code ec;
+                if (iter.is_regular_file(ec) && !ec && iter.path().extension() == filter) {
+                    try {
+                        loadPlugin(iter.path());
+                    } catch (VSNoEntryPointException &) {
+                        // do nothing since we may encounter supporting dlls without an entry point
+                    } catch (VSException &e) {
+                        logMessage(mtWarning, e.what());
+                    }
+                } else if (iter.is_directory(ec) && !ec) {
+                    loadAllPluginsInPath(iter.path());
                 }
             }
+        } catch (std::filesystem::filesystem_error &) {
+            return false;
         }
-    } catch (std::filesystem::filesystem_error &) {
-        return false;
     }
 
     return true;

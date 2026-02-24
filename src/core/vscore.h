@@ -503,9 +503,9 @@ public:
 template<typename T, size_t staticSize>
 class SemiStaticVector {
 private:
-    size_t numElems = 0;
-    typename std::aligned_storage<sizeof(T), alignof(T)>::type staticData[staticSize];
+    alignas(T) std::byte staticData[sizeof(T) * staticSize];
     std::vector<T> dynamicData;
+    size_t numElems = 0;
     void freeStatic() noexcept {
         for (size_t pos = 0; pos < std::min(numElems, staticSize); ++pos)
             reinterpret_cast<T *>(&staticData[pos])->~T();
@@ -1128,6 +1128,8 @@ public:
     vs3::VSVideoInfo VideoInfoToV3(const VSVideoInfo &vi) noexcept;
     VSVideoInfo VideoInfoFromV3(const vs3::VSVideoInfo &vi) noexcept;
 
+
+    bool loadPluginManifest(const std::filesystem::path &path);
     void loadPlugin(const std::filesystem::path &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
     bool loadAllPluginsInPath(const std::filesystem::path &path);
 
