@@ -1889,13 +1889,24 @@ int64_t VSCore::getFreedNodeProcessingTime(bool reset) noexcept {
     return tmp;
 }
 
+std::filesystem::path VSCore::getLibraryPath() {
 #ifdef VS_TARGET_OS_WINDOWS
-void VSCore::isPortableInit() {
     HMODULE module;
     GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&vs_internal_vsapi, &module);
     std::vector<wchar_t> pathBuf(65536);
     GetModuleFileName(module, pathBuf.data(), (DWORD)pathBuf.size());
-    m_basePath = pathBuf.data();
+    return pathBuf.data();
+#else
+    Dl_info info = {};
+    if (dladdr(&vs_internal_vsapi, &info))
+        return info.dli_fname;
+#endif
+    return {};
+}
+
+#ifdef VS_TARGET_OS_WINDOWS
+void VSCore::isPortableInit() {
+    m_basePath = getLibraryPath();
     int level = 4;
     do {
         m_basePath = m_basePath.parent_path();
@@ -1953,6 +1964,15 @@ VSCore::VSCore(int flags) :
     p = new VSPlugin(this);
     textInitialize(p, &vs_internal_vspapi);
     plugins.insert(std::make_pair(p->getID(), p));
+
+    auto libraryPath = getLibraryPath().parent_path();
+    assert(!libraryPath.empty());
+
+    // New site-packages relative plugin loading
+    if (!disableAutoLoading)
+        loadAllPluginsInPath(libraryPath / L"plugins");
+
+    // FIXME, at some point all these old plugin paths should be dropped or reworked
 
 #ifdef VS_TARGET_OS_WINDOWS
     std::call_once(m_portableOnceFlag, isPortableInit);

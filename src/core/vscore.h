@@ -1068,6 +1068,8 @@ private:
 
     std::atomic<int> cpuLevel;
 
+    static std::filesystem::path getLibraryPath();
+
 #ifdef VS_TARGET_OS_WINDOWS
     static void isPortableInit();
 #endif
