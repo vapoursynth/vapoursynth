@@ -45,18 +45,18 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>../../include;$(VSPYTHON_PATH)\include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(VSPYTHON_PATH)\libs;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>../../include;$(VSPYTHON_PATH)\include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(VSPYTHON_PATH)\libs;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NOMINMAX;VS_CORE_EXPORTS;VS_TARGET_OS_WINDOWS;VS_USE_LATEST_API;VSSCRIPT_USE_LATEST_API;_CRT_SECURE_NO_WARNINGS;HAVE_ROUND;</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;VS_CORE_EXPORTS;VS_TARGET_OS_WINDOWS;VS_USE_LATEST_API;VSSCRIPT_USE_LATEST_API;_CRT_SECURE_NO_WARNINGS;Py_NO_LINK_LIB;HAVE_ROUND;</PreprocessorDefinitions>
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
@@ -66,7 +66,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
-      <DelayLoadDLLs>python3.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -76,7 +76,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>false</SDLCheck>
-      <PreprocessorDefinitions>NOMINMAX;VS_CORE_EXPORTS;VS_TARGET_OS_WINDOWS;VS_USE_LATEST_API;VSSCRIPT_USE_LATEST_API;_CRT_SECURE_NO_WARNINGS;HAVE_ROUND;NDEBUG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;VS_CORE_EXPORTS;VS_TARGET_OS_WINDOWS;VS_USE_LATEST_API;VSSCRIPT_USE_LATEST_API;_CRT_SECURE_NO_WARNINGS;Py_NO_LINK_LIB;HAVE_ROUND;NDEBUG</PreprocessorDefinitions>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -85,7 +85,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <DelayLoadDLLs>python3.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

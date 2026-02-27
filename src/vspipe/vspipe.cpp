@@ -906,7 +906,9 @@ static int main8(int argc, char **argv) {
 #else
 int main(int argc, char **argv) {
 #endif
-    const VSSCRIPTAPI *vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
+    std::string errMsg;
+    errMsg.resize(1000);
+    const VSSCRIPTAPI *vssapi = getVSScriptAPI2(VSSCRIPT_API_VERSION, errMsg.data(), errMsg.size());
     if (!vssapi) {
         fprintf(stderr, "Failed to initialize VSScript\n");
         return 1;

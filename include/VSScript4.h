@@ -25,7 +25,9 @@
 
 /* Note that the base version of the API is 4.1 due to that change happening very soon after the API4 release */
 #define VSSCRIPT_API_MAJOR 4
-#if defined(VSSCRIPT_USE_LATEST_API) || defined(VSSCRIPT_USE_API_42)
+#if defined(VSSCRIPT_USE_LATEST_API) || defined(VSSCRIPT_USE_API_43)
+#define VSSCRIPT_API_MINOR 3
+#elif defined(VSSCRIPT_USE_API_42)
 #define VSSCRIPT_API_MINOR 2
 #else
 #define VSSCRIPT_API_MINOR 1
@@ -95,7 +97,7 @@ struct VSSCRIPTAPI {
     */
     void (VS_CC *evalSetWorkingDir)(VSScript *handle, int setCWD) VS_NOEXCEPT;
 
-#if defined(VSSCRIPT_USE_LATEST_API) || defined(VSSCRIPT_USE_API_42)
+#if VSSCRIPT_API_MINOR >= 2
     /*
     * Write a list of set output index values to dst but at most size values.
     * Always returns the total number of available output index values.
@@ -105,5 +107,13 @@ struct VSSCRIPTAPI {
 };
 
 VS_API(const VSSCRIPTAPI *) getVSScriptAPI(int version) VS_NOEXCEPT;
+
+/*
+* Same as getVSScriptAPI() but will write a NULL terminated error message to errMsg. A size of 200 bytes should be enough for any error message.
+* Returns NULL on failure.
+*/
+#if VSSCRIPT_API_MINOR >= 3
+VS_API(const VSSCRIPTAPI *) getVSScriptAPI2(int version, char *errMsg, int errSize) VS_NOEXCEPT;
+#endif
 
 #endif /* VSSCRIPT4_H */

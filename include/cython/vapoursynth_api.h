@@ -7,10 +7,23 @@
 #define MS_WIN64
 #endif
 
-#define Py_LIMITED_API 0x03080000
+#define Py_LIMITED_API 0x030C0000
 
 #include "Python.h"
 #include "vapoursynth.h"
+
+
+static decltype(_Py_DecRef) *p_Py_DecRef = nullptr;
+static decltype(PyObject_GetAttrString) *p_PyObject_GetAttrString = nullptr;
+static decltype(PyDict_GetItemString) *p_PyDict_GetItemString = nullptr;
+static decltype(PyCapsule_IsValid) *p_PyCapsule_IsValid = nullptr;
+static decltype(PyCapsule_GetPointer) *p_PyCapsule_GetPointer = nullptr;
+static decltype(PyImport_ImportModule) *p_PyImport_ImportModule = nullptr;
+static decltype(Py_IsInitialized) *p_Py_IsInitialized = nullptr;
+static decltype(Py_InitializeEx) *p_Py_InitializeEx = nullptr;
+static decltype(PyGILState_Ensure) *p_PyGILState_Ensure = nullptr;
+static decltype(PyEval_SaveThread) *p_PyEval_SaveThread = nullptr;
+
 
 static int (*__pyx_api_f_11vapoursynth_vpy4_createScript)(VSScript *) = 0;
 #define vpy4_createScript __pyx_api_f_11vapoursynth_vpy4_createScript
@@ -40,13 +53,6 @@ static int (*__pyx_api_f_11vapoursynth_vpy4_setVariables)(VSScript *, VSMap cons
 #define vpy4_setVariables __pyx_api_f_11vapoursynth_vpy4_setVariables
 static int (*__pyx_api_f_11vapoursynth_vpy4_initVSScript)(void) = 0;
 #define vpy4_initVSScript __pyx_api_f_11vapoursynth_vpy4_initVSScript
-#if !defined(__Pyx_PyIdentifier_FromString)
-#if PY_MAJOR_VERSION < 3
-  #define __Pyx_PyIdentifier_FromString(s) PyString_FromString(s)
-#else
-  #define __Pyx_PyIdentifier_FromString(s) PyUnicode_FromString(s)
-#endif
-#endif
 
 #ifndef __PYX_HAVE_RT_ImportFunction
 #define __PYX_HAVE_RT_ImportFunction
@@ -57,52 +63,27 @@ static int __Pyx_ImportFunction(PyObject *module, const char *funcname, void (**
         void (*fp)(void);
         void *p;
     } tmp;
-    d = PyObject_GetAttrString(module, (char *)"__pyx_capi__");
+    d = p_PyObject_GetAttrString(module, (char *)"__pyx_capi__");
     if (!d)
         goto bad;
-    cobj = PyDict_GetItemString(d, funcname);
+    cobj = p_PyDict_GetItemString(d, funcname);
     if (!cobj) {
-        /*
-        PyErr_Format(PyExc_ImportError,
-            "%.200s does not export expected C function %.200s",
-                PyModule_GetName(module), funcname);
-                */
         goto bad;
     }
-#if PY_VERSION_HEX >= 0x02070000
-    if (!PyCapsule_IsValid(cobj, sig)) {
-        /*
-        PyErr_Format(PyExc_TypeError,
-            "C function %.200s.%.200s has wrong signature (expected %.500s, got %.500s)",
-             PyModule_GetName(module), funcname, sig, PyCapsule_GetName(cobj));
-             */
+
+    if (!p_PyCapsule_IsValid(cobj, sig)) {
         goto bad;
     }
-    tmp.p = PyCapsule_GetPointer(cobj, sig);
-#else
-    {const char *desc, *s1, *s2;
-    desc = (const char *)PyCObject_GetDesc(cobj);
-    if (!desc)
-        goto bad;
-    s1 = desc; s2 = sig;
-    while (*s1 != '\0' && *s1 == *s2) { s1++; s2++; }
-    if (*s1 != *s2) {
-        /*
-        PyErr_Format(PyExc_TypeError,
-            "C function %.200s.%.200s has wrong signature (expected %.500s, got %.500s)",
-             PyModule_GetName(module), funcname, sig, desc);
-             */
-        goto bad;
-    }
-    tmp.p = PyCObject_AsVoidPtr(cobj);}
-#endif
+    tmp.p = p_PyCapsule_GetPointer(cobj, sig);
+
     *f = tmp.fp;
     if (!(*f))
         goto bad;
-    Py_DECREF(d);
+    p_Py_DecRef(d);
     return 0;
 bad:
-    Py_XDECREF(d);
+    if (d)
+        p_Py_DecRef(d);
     return -1;
 }
 #endif
@@ -110,7 +91,7 @@ bad:
 
 static int import_vapoursynth(void) {
   PyObject *module = 0;
-  module = PyImport_ImportModule("vapoursynth");
+  module = p_PyImport_ImportModule("vapoursynth");
   if (!module) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_createScript", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_createScript, "int (VSScript *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_evaluateBuffer", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_evaluateBuffer, "int (VSScript *, char const *, char const *)") < 0) goto bad;
@@ -126,10 +107,11 @@ static int import_vapoursynth(void) {
   if (__Pyx_ImportFunction(module, "vpy4_getVariable", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_getVariable, "int (VSScript *, char const *, VSMap *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_setVariables", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_setVariables, "int (VSScript *, VSMap const *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_initVSScript", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_initVSScript, "int (void)") < 0) goto bad;
-  Py_DECREF(module); module = 0;
+  p_Py_DecRef(module); module = 0;
   return 0;
-  bad:
-  Py_XDECREF(module);
+bad:
+  if (module)
+      p_Py_DecRef(module);
   return -1;
 }
 

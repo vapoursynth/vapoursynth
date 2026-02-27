@@ -7,7 +7,7 @@ name = "VapourSynth"
 authors = [
     {name = "Fredrik Mellbin", email = "fredrik.mellbin@gmail.com"},
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 description = "A frameserver for the 21st century"
 keywords = ["frameserver", "video", "audio"]
 dynamic = ["version", "license"]

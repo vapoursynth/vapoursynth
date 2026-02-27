@@ -27,69 +27,136 @@
 #include <filesystem>
 #include <vector>
 #include <algorithm>
+#include <cstdlib>
+#include <fstream>
+#include <string>
 
 #ifdef VS_TARGET_OS_WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#else 
+#include <dlfcn.h>
 #endif
 
 static std::once_flag flag;
 
 static std::mutex vsscriptlock;
-static std::atomic<int> initializationCount(0);
 static std::atomic<int> scriptID(1000);
 static bool initialized = false;
 static PyThreadState *ts = nullptr;
 static PyGILState_STATE s;
 
-static void real_init(void) VS_NOEXCEPT {
 #ifdef VS_TARGET_OS_WINDOWS
-    // portable
+#define MODULE_HANDLE_TYPE HMODULE
+#define LOAD_LIBRARY(x) LoadLibraryExW(x,nullptr,LOAD_WITH_ALTERED_SEARCH_PATH)
+#define GET_FUNCTION_ADDRESS(x,y) GetProcAddress(x,y)
+#define FREE_LIBRARY(x) FreeLibrary(x)
+#else
+#define MODULE_HANDLE_TYPE void*
+#define LOAD_LIBRARY(x) dlopen(x, RTLD_LAZY)
+#define GET_FUNCTION_ADDRESS(x, y) dlsym(x, y)
+#define FREE_LIBRARY(x) dlclose(x)
+#endif
+
+static std::filesystem::path getLibraryPath() {
+#ifdef VS_TARGET_OS_WINDOWS
     HMODULE module;
-    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&real_init, &module);
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&getLibraryPath), &module);
     std::vector<wchar_t> pathBuf(65536);
     GetModuleFileNameW(module, pathBuf.data(), (DWORD)pathBuf.size());
-    std::filesystem::path dllPath = pathBuf.data();
-    dllPath = dllPath.parent_path();
-    bool isPortable = std::filesystem::exists(dllPath / L"portable.vs");
-
-    HMODULE pythonDll = nullptr;
-
-    if (isPortable) {
-        pythonDll = LoadLibraryExW((dllPath / L"python3.dll").c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
-    } else {
-        DWORD dwType = REG_SZ;
-        HKEY hKey = 0;
-
-        wchar_t value[1024];
-        DWORD valueLength = 1000;
-        if (RegOpenKeyW(HKEY_CURRENT_USER, L"Software\\VapourSynth", &hKey) != ERROR_SUCCESS) {
-            if (RegOpenKeyW(HKEY_LOCAL_MACHINE, L"Software\\VapourSynth", &hKey) != ERROR_SUCCESS)
-                return;
-        }
-
-        LSTATUS status = RegQueryValueExW(hKey, L"PythonPath", nullptr, &dwType, (LPBYTE)&value, &valueLength);
-        RegCloseKey(hKey);
-        if (status != ERROR_SUCCESS)
-            return;
-
-        std::filesystem::path pyPath = value;
-        pyPath /= L"python3.dll";
-
-        pythonDll = LoadLibraryExW(pyPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
-    }
-    if (!pythonDll)
-        return;
+    return pathBuf.data();
+#else
+    Dl_info info = {};
+    if (dladdr(&vs_internal_vsapi, &info))
+        return info.dli_fname;
 #endif
-    int preInitialized = Py_IsInitialized();
+    return {};
+}
+
+static std::filesystem::path readEnvConfig(const std::filesystem::path &path) {
+    std::ifstream configFile(path);
+    if (!configFile.is_open())
+        return {};
+    std::string line;
+    while (std::getline(configFile, line)) {
+        if (line.substr(0, 10) == "executable") {
+            auto pos = line.find(" = ");
+            if (pos != std::string::npos)
+                return std::filesystem::u8path(line.substr(pos + 3));
+        }
+    }
+    return {};
+}
+
+static std::string extendedErrorMessage;
+
+static void real_init(void) VS_NOEXCEPT {
+
+    extendedErrorMessage.clear();
+
+    MODULE_HANDLE_TYPE libraryHandle = nullptr;
+
+    const char *venvRoot = getenv("VIRTUAL_ENV");
+    std::filesystem::path pythonPath;
+
+    if (venvRoot) {
+        std::filesystem::path configPath = std::filesystem::u8path(venvRoot);
+        configPath /= "pyvenv.cfg";
+        pythonPath = readEnvConfig(configPath);
+    } else {
+        std::filesystem::path configPath = getLibraryPath();
+        configPath.replace_filename("pyenv.cfg");
+        pythonPath = readEnvConfig(configPath);
+    }
+
+    if (!pythonPath.empty()) {
+#ifdef VS_TARGET_OS_WINDOWS
+        pythonPath.replace_filename("python3.dll");
+#endif
+        libraryHandle = LOAD_LIBRARY(pythonPath.c_str());
+    } else {
+        if (venvRoot)
+            extendedErrorMessage = "Python executable path couldn't be determined from pyvenv.cfg";
+        else
+            extendedErrorMessage = "Python executable path couldn't be determined from the global config file. Run `python -m vapoursynth vsscript-config` to set it for this Python installation and then try again.";
+        return;
+    }
+    if (!libraryHandle) {
+        extendedErrorMessage = "Python library failed to load from " + pythonPath.u8string();
+        return;
+    }
+
+    p_Py_DecRef = reinterpret_cast<decltype(_Py_DecRef) *>(GET_FUNCTION_ADDRESS(libraryHandle, "_Py_DecRef"));
+    p_PyObject_GetAttrString = reinterpret_cast<decltype(PyObject_GetAttrString) *>(GET_FUNCTION_ADDRESS(libraryHandle, "PyObject_GetAttrString"));
+    p_PyDict_GetItemString = reinterpret_cast<decltype(PyDict_GetItemString) *>(GET_FUNCTION_ADDRESS(libraryHandle, "PyDict_GetItemString"));
+    p_PyCapsule_IsValid = reinterpret_cast<decltype(PyCapsule_IsValid) *>(GET_FUNCTION_ADDRESS(libraryHandle, "PyCapsule_IsValid"));
+    p_PyCapsule_GetPointer = reinterpret_cast<decltype(PyCapsule_GetPointer) *>(GET_FUNCTION_ADDRESS(libraryHandle, "PyCapsule_GetPointer"));
+    p_PyImport_ImportModule = reinterpret_cast<decltype(PyImport_ImportModule) *>(GET_FUNCTION_ADDRESS(libraryHandle, "PyImport_ImportModule"));
+    p_Py_IsInitialized = reinterpret_cast<decltype(Py_IsInitialized) *>(GET_FUNCTION_ADDRESS(libraryHandle, "Py_IsInitialized"));
+    p_Py_InitializeEx = reinterpret_cast<decltype(Py_InitializeEx) *>(GET_FUNCTION_ADDRESS(libraryHandle, "Py_InitializeEx"));
+    p_PyGILState_Ensure = reinterpret_cast<decltype(PyGILState_Ensure) *>(GET_FUNCTION_ADDRESS(libraryHandle, "PyGILState_Ensure"));
+    p_PyEval_SaveThread = reinterpret_cast<decltype(PyEval_SaveThread) *>(GET_FUNCTION_ADDRESS(libraryHandle, "PyEval_SaveThread"));
+
+    if (!p_Py_DecRef || !p_PyObject_GetAttrString || !p_PyDict_GetItemString || !p_PyCapsule_IsValid || !p_PyCapsule_GetPointer || !p_PyImport_ImportModule || !p_Py_IsInitialized || !p_Py_InitializeEx || !p_PyGILState_Ensure || !p_PyEval_SaveThread) {
+        FREE_LIBRARY(libraryHandle);
+        extendedErrorMessage = "Failed to load required Python API functions from the library.";
+        return;
+    }
+
+    // FIXME, unload library here as well?
+    int preInitialized = p_Py_IsInitialized();
     if (!preInitialized)
-        Py_InitializeEx(0);
-    s = PyGILState_Ensure();
-    if (import_vapoursynth())
+        p_Py_InitializeEx(0);
+    s = p_PyGILState_Ensure();
+    if (import_vapoursynth()) {
+        extendedErrorMessage = "Failed to import the VapourSynth Python module.";
         return;
-    if (vpy4_initVSScript())
+    }
+    if (vpy4_initVSScript()) {
+        extendedErrorMessage = "Failed to initalize the VapourSynth Python module for VSScript use.";
         return;
-    ts = PyEval_SaveThread();
+    }
+    ts = p_PyEval_SaveThread();
     initialized = true;
 }
 
@@ -213,14 +280,33 @@ static VSSCRIPTAPI vsscript_api = {
     &getAvailableOutputNodes
 };
 
-const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {
+const VSSCRIPTAPI *VS_CC getVSScriptAPI2(int version, char *errMsg, int errSize) VS_NOEXCEPT {
+    if (errSize < 0 || (!errMsg && errSize > 0))
+        return nullptr;
+
+    memset(errMsg, 0, errSize);
     int apiMajor = (version >> 16);
     int apiMinor = (version & 0xFFFF);
 
     if (apiMajor == VSSCRIPT_API_MAJOR && apiMinor <= VSSCRIPT_API_MINOR) {
         std::call_once(flag, real_init);
-        if (initialized)
+        if (initialized) {
             return &vsscript_api;
+        } else {
+            if (errMsg) {
+                strncpy(errMsg, extendedErrorMessage.c_str(), errSize);
+                errMsg[errSize - 1] = 0;
+            }
+        }
+    } else {
+        if (errMsg) {
+            strncpy(errMsg, "Unsupported API version requested", errSize);
+            errMsg[errSize - 1] = 0;
+        }
     }
     return nullptr;
+}
+
+const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {
+    return getVSScriptAPI2(version, nullptr, 0);
 }

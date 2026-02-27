@@ -54,6 +54,7 @@ from types import MappingProxyType
 from collections.abc import ItemsView, Iterable, KeysView, MutableMapping, ValuesView
 from concurrent.futures import Future
 from fractions import Fraction
+from pathlib import PurePath
 
 __all__ = [
   'GRAY',
@@ -3795,3 +3796,45 @@ cdef public api int vpy4_initVSScript() nogil:
         vsscript = VSScriptEnvironmentPolicy.__new__(VSScriptEnvironmentPolicy)
         register_policy(vsscript)
         return 0
+
+def vsscriptConfig():
+    configPath = PurePath(__file__)
+    configPath.name = 'pyenv.cfg'
+    with open(configPath, 'w') as f:
+        f.write('executable = ' + sys.executable + '\n')
+    print('Configuration success!')
+
+def registerInstall():
+    print('Installation successfully registered!')
+
+def registerVFW():
+    print('VFW provider successfully registered!')
+
+def checkVSScriptEnv():
+    globalPath = os.getenv('VSSCRIPT_PATH')
+    virtualEnv = os.getenv('VIRTUAL_ENV')
+    
+    if (virtualEnv is not None):
+        print('VIRTUAL_ENV environment variable is set. Running in a venv.')
+    if (globalPath is None):
+        print('VSSCRIPT_PATH environment variable is not set.')
+    else:
+        print('VSSCRIPT_PATH environment variable is set to "' + globalPath + '".')
+
+def main():
+    if len(sys.argv) >= 2:
+        if sys.argv[1] == 'vsscript-config':
+            vsscriptConfig()
+        elif sys.argv[1] == 'register-install':
+            registerInstall()
+        elif sys.argv[1] == 'register-vfw':
+            registerVFW()
+        else
+            print('Unknown option!')
+            exit(1)
+    else
+        print('Unknown option!')
+        exit(1)
+
+if __name__ == '__main__':
+    main()
