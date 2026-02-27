@@ -19,3 +19,10 @@ Documentation = "https://www.vapoursynth.com/doc/"
 Repository = "https://github.com/vapoursynth/vapoursynth.git"
 Issues = "https://github.com/vapoursynth/vapoursynth/issues"
 Changelog = "https://github.com/vapoursynth/vapoursynth/blob/master/ChangeLog"
+
+[project.scripts]
+vsscript-config = "vapoursynth:vsscript_config"
+check-vscript-env = "vapoursynth:check_vsscript_env"
+vspipe = "vapoursynth:vspipe"
+register-install = "vapoursynth:register_install"
+register-vfw = "vapoursynth:register_vfw"
