@@ -22,7 +22,7 @@ Changelog = "https://github.com/vapoursynth/vapoursynth/blob/master/ChangeLog"
 
 [project.scripts]
 vsscript-config = "vapoursynth:vsscript_config"
-check-vscript-env = "vapoursynth:check_vsscript_env"
+vsscript-check-env = "vapoursynth:vsscript_check_env"
 vspipe = "vapoursynth:vspipe"
-register-install = "vapoursynth:register_install"
-register-vfw = "vapoursynth:register_vfw"
+vapoursynth-register-install = "vapoursynth:register_install"
+vapoursynth-register-vfw = "vapoursynth:register_vfw"

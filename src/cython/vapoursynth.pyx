@@ -82,6 +82,12 @@ __all__ = [
   'clear_output', 'clear_outputs',
 
   'core',
+  
+  'check_vsscript_env',
+  'register_install',
+  'register_vfw',
+  'vspipe',
+  'vsscript_config',
 ]
 
 class MediaType(IntEnum):
@@ -3797,44 +3803,178 @@ cdef public api int vpy4_initVSScript() nogil:
         register_policy(vsscript)
         return 0
 
-def vsscriptConfig():
-    configPath = PurePath(__file__)
-    configPath.name = 'pyenv.cfg'
-    with open(configPath, 'w') as f:
-        f.write('executable = ' + sys.executable + '\n')
-    print('Configuration success!')
+# All code for scripts executables
 
-def registerInstall():
-    print('Installation successfully registered!')
-
-def registerVFW():
-    print('VFW provider successfully registered!')
-
-def checkVSScriptEnv():
-    globalPath = os.getenv('VSSCRIPT_PATH')
-    virtualEnv = os.getenv('VIRTUAL_ENV')
+def vsscript_check_env():
+    global_path = os.getenv('VSSCRIPT_PATH')
+    virtual_env = os.getenv('VIRTUAL_ENV')
     
-    if (virtualEnv is not None):
+    if virtual_env is not None:
         print('VIRTUAL_ENV environment variable is set. Running in a venv.')
-    if (globalPath is None):
+    if global_path is None:
         print('VSSCRIPT_PATH environment variable is not set.')
     else:
-        print('VSSCRIPT_PATH environment variable is set to "' + globalPath + '".')
+        print(f'VSSCRIPT_PATH environment variable is set to "{global_path}". VapourSynth module path is "{__file__}".')
 
-def main():
-    if len(sys.argv) >= 2:
-        if sys.argv[1] == 'vsscript-config':
-            vsscriptConfig()
-        elif sys.argv[1] == 'register-install':
-            registerInstall()
-        elif sys.argv[1] == 'register-vfw':
-            registerVFW()
-        else
-            print('Unknown option!')
-            exit(1)
-    else
-        print('Unknown option!')
-        exit(1)
+def vsscript_config():
+    virtual_env = os.getenv('VIRTUAL_ENV')
 
-if __name__ == '__main__':
-    main()
+    if virtual_env is not None:
+        print(f'Running in a venv in "{virtual_env}". Nothing to configure!')
+    else:
+        config_path = PurePath(__file__)
+        config_path = config_path.with_name('pyenv.cfg')
+        with open(config_path, 'w') as f:
+            f.write('executable = ' + sys.executable + '\n')
+        print('Configuration successful!')
+
+def write_registry_entries(entries, use_hklm):
+    import winreg
+    root_key = winreg.HKEY_LOCAL_MACHINE if use_hklm else winreg.HKEY_CURRENT_USER
+
+    for entry in entries:
+        try:
+            key = winreg.CreateKeyEx(root_key, entry["subkey"], 0, winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY)
+            
+            try:
+                winreg.SetValueEx(key, entry["value_name"], 0, winreg.REG_SZ, str(entry["value_data"]))   
+            finally:
+                winreg.CloseKey(key)
+                
+        except PermissionError:
+            print(f"Permission denied: {entry['subkey']}")
+            print("Try running as administrator or don't run in global mode")
+            return False
+        except Exception as e:
+            raise
+
+    return True
+
+def register_install():
+    if sys.platform != 'win32':
+        raise Error('Command is only supported on Windows!')
+
+    use_hklm = (len(sys.argv) == 2) and (sys.argv[1] == 'global')
+    
+    entries = [
+        {
+            "subkey": r"SOFTWARE\VapourSynth",
+            "value_name": "Version",
+            "value_data": __version__,
+        },
+        {
+            "subkey": r"SOFTWARE\VapourSynth",
+            "value_name": "Path",
+            "value_data": PurePath(__file__).parent,
+        },
+        {
+            "subkey": r"SOFTWARE\VapourSynth",
+            "value_name": "Plugins",
+            "value_data": PurePath(__file__).with_name('plugins'),
+        },
+        {
+            "subkey": r"SOFTWARE\VapourSynth",
+            "value_name": "VapourSynthDLL",
+            "value_data": PurePath(__file__).with_name('vapoursynth.dll'),
+        },
+        {
+            "subkey": r"SOFTWARE\VapourSynth",
+            "value_name": "VSScriptDLL",
+            "value_data": PurePath(__file__).with_name('vsscript.dll'),
+        },
+        {
+            "subkey": r"SOFTWARE\VapourSynth",
+            "value_name": "VSPipeEXE",
+            "value_data": PurePath(__file__).with_name('vspipe.exe'),
+        },
+        {
+            "subkey": r"SOFTWARE\VapourSynth",
+            "value_name": "PythonPath",
+            "value_data": PurePath(sys.executable).parent,
+        }
+    ]
+    
+    if not write_registry_entries(entries, use_hklm):
+        print('Couldn\'t write paths to registry!')
+    else:
+        print('Successfully wrote paths to registry!')
+
+def register_vfw():
+    if sys.platform != 'win32':
+        raise Error('Command is only supported on Windows!')
+
+    use_hklm = (len(sys.argv) == 2) and (sys.argv[1] == 'global')
+
+    entries = [
+        # CLSID for VapourSynth VFW
+        {
+            "subkey": r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}",
+            "value_name": "",
+            "value_data": "VapourSynth",
+            
+        },
+        {
+            "subkey": r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32",
+            "value_name": "",
+            "value_data": PurePath(__file__).with_name('vsvfw.dll'),
+            
+        },
+        {
+            "subkey": r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32",
+            "value_name": "ThreadingModel",
+            "value_data": "Apartment",
+            
+        },
+        # Media Type Extensions
+        {
+            "subkey": r"SOFTWARE\Classes\Media Type\Extensions\.vpy",
+            "value_name": "",
+            "value_data": "",
+            
+        },
+        {
+            "subkey": r"SOFTWARE\Classes\Media Type\Extensions\.vpy",
+            "value_name": "Source Filter",
+            "value_data": "{D3588AB0-0781-11CE-B03A-0020AF0BA770}",
+            
+        },
+        # File association
+        {
+            "subkey": r"SOFTWARE\Classes\.vpy",
+            "value_name": "",
+            "value_data": "vpyfile",
+            
+        },
+        {
+            "subkey": r"SOFTWARE\Classes\vpyfile",
+            "value_name": "",
+            "value_data": "VapourSynth Python Script",
+            
+        },
+        {
+            "subkey": r"SOFTWARE\Classes\vpyfile\DefaultIcon",
+            "value_name": "",
+            "value_data": f"{PurePath(__file__).with_name('vsvfw.dll')},0",
+            
+        },
+        # AVIFile Extensions
+        {
+            "subkey": r"SOFTWARE\Classes\AVIFile\Extensions\VPY",
+            "value_name": "",
+            "value_data": "{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}",
+            
+        }
+    ]
+    
+    if not write_registry_entries(entries, use_hklm):
+        print('Couldn\'t register VFW provider!')
+    else:
+        print('VFW provider successfully registered!')
+
+def vspipe():
+    import subprocess
+    vspipe_path = PurePath(__file__)
+    vspipe_path = vspipe_path.with_name('vspipe')
+    if sys.platform == 'win32':
+        vspipe_path = vspipe_path.with_suffix('.exe')
+    subprocess.run([vspipe_path, *sys.argv[1:]])
