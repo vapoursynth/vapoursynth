@@ -1892,9 +1892,9 @@ int64_t VSCore::getFreedNodeProcessingTime(bool reset) noexcept {
 std::filesystem::path VSCore::getLibraryPath() {
 #ifdef VS_TARGET_OS_WINDOWS
     HMODULE module;
-    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&vs_internal_vsapi, &module);
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&vs_internal_vsapi, &module);
     std::vector<wchar_t> pathBuf(65536);
-    GetModuleFileName(module, pathBuf.data(), (DWORD)pathBuf.size());
+    GetModuleFileNameW(module, pathBuf.data(), (DWORD)pathBuf.size());
     return pathBuf.data();
 #else
     Dl_info info = {};
@@ -1954,13 +1954,12 @@ VSCore::VSCore(int flags) :
     audioInitialize(p, &vs_internal_vspapi);
     stdlibInitialize(p, &vs_internal_vspapi);
     p->lock();
-
     plugins.insert(std::make_pair(p->getID(), p));
+
     p = new VSPlugin(this);
     resizeInitialize(p, &vs_internal_vspapi);
     plugins.insert(std::make_pair(p->getID(), p));
 
-    plugins.insert(std::make_pair(p->getID(), p));
     p = new VSPlugin(this);
     textInitialize(p, &vs_internal_vspapi);
     plugins.insert(std::make_pair(p->getID(), p));
