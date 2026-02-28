@@ -153,7 +153,7 @@ static void real_init(void) VS_NOEXCEPT {
         return;
     }
     if (vpy4_initVSScript()) {
-        extendedErrorMessage = "Failed to initalize the VapourSynth Python module for VSScript use.";
+        extendedErrorMessage = "Failed to initialize the VapourSynth Python module for VSScript use.";
         return;
     }
     ts = p_PyEval_SaveThread();
