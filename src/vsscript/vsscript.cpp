@@ -68,7 +68,7 @@ static std::filesystem::path getLibraryPath() {
     return pathBuf.data();
 #else
     Dl_info info = {};
-    if (dladdr(&vs_internal_vsapi, &info))
+    if (dladdr(&getLibraryPath, &info))
         return info.dli_fname;
 #endif
     return {};
