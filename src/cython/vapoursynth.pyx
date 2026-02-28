@@ -83,10 +83,10 @@ __all__ = [
 
   'core',
   
-  'check_vsscript_env',
   'register_install',
   'register_vfw',
   'vspipe',
+  'vsscript_check_env',
   'vsscript_config',
 ]
 

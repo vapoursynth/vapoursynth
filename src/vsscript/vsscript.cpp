@@ -30,11 +30,12 @@
 #include <cstdlib>
 #include <fstream>
 #include <string>
+#include <string.h>
 
 #ifdef VS_TARGET_OS_WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-#else 
+#else
 #include <dlfcn.h>
 #endif
 
@@ -153,7 +154,7 @@ static void real_init(void) VS_NOEXCEPT {
         return;
     }
     if (vpy4_initVSScript()) {
-        extendedErrorMessage = "Failed to initalize the VapourSynth Python module for VSScript use.";
+        extendedErrorMessage = "Failed to initialize the VapourSynth Python module for VSScript use.";
         return;
     }
     ts = p_PyEval_SaveThread();
