@@ -49,6 +49,7 @@ py = import('python').find_installation(python3_bin, pure: false)
 vspipe_link_args = []
 
 install_dir = build_wheel ? py.get_install_dir() / 'vapoursynth' : []
+install_rpath = build_wheel ? '$ORIGIN' : ''
 
 add_project_arguments(
     cxx.get_supported_arguments(
@@ -214,9 +215,9 @@ if enable_core
 endif
 
 if enable_vsscript
-    py_dep = py.dependency(embed: true, required: false, version: '>=3.12.0')
+    py_dep = py.dependency(embed: true, required: false, version: '>=3.12')
     if not py_dep.found()
-        py_dep = py.dependency(embed: false, version: '>=3.12.0')
+        py_dep = py.dependency(embed: false, version: '>=3.12')
     endif
 
     libvsscript = library('vapoursynth-script',
@@ -254,6 +255,7 @@ if enable_vsscript
             gnu_symbol_visibility: 'hidden',
             install: true,
             install_dir: install_dir,
+            install_rpath: install_rpath,
             link_args: vspipe_link_args,
         )
     endif
@@ -286,6 +288,7 @@ if enable_python_module
         cython_args: '-E VS_CURRENT_RELEASE=@0@'.format(meson.project_version()),
         dependencies: vapoursynth_dep,
         install: true,
+        install_rpath: install_rpath,
         limited_api: '3.12',
         override_options: 'cython_language=cpp',
         subdir: 'vapoursynth',
