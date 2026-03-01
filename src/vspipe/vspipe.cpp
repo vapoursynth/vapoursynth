@@ -910,7 +910,7 @@ int main(int argc, char **argv) {
     errMsg.resize(1000);
     const VSSCRIPTAPI *vssapi = getVSScriptAPI2(VSSCRIPT_API_VERSION, errMsg.data(), errMsg.size());
     if (!vssapi) {
-        fprintf(stderr, "Failed to initialize VSScript\n");
+        fprintf(stderr, "Failed to initialize VSScript. VSScript reported error: %s\n", errMsg.c_str());
         return 1;
     }
 
