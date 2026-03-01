@@ -1,17 +1,30 @@
 [build-system]
-requires = ["setuptools", "wheel", "cython>=3.1.0"]
-build-backend = "setuptools.build_meta"
+requires = ["Cython>=3.1.0", "meson-python"]
+build-backend = "mesonpy"
 
 [project]
 name = "VapourSynth"
+description = "A frameserver for the 21st century"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "LGPL-2.1-or-later"
+license-files = ["COPYING.LESSER"]
 authors = [
     {name = "Fredrik Mellbin", email = "fredrik.mellbin@gmail.com"},
 ]
-requires-python = ">=3.12"
-description = "A frameserver for the 21st century"
 keywords = ["frameserver", "video", "audio"]
-dynamic = ["version", "license"]
-readme = "README.md"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: C",
+    "Programming Language :: C++",
+    "Programming Language :: Cython",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Video",
+]
+dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://www.vapoursynth.com/"
@@ -26,3 +39,9 @@ vsscript-check-env = "vapoursynth:vsscript_check_env"
 vspipe = "vapoursynth:vspipe"
 vapoursynth-register-install = "vapoursynth:register_install"
 vapoursynth-register-vfw = "vapoursynth:register_vfw"
+
+[tool.meson-python]
+limited-api = true
+
+[tool.meson-python.args]
+setup = ["-Dbuild_wheel=true"]

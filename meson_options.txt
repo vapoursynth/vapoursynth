@@ -45,3 +45,9 @@ option('python3_bin',
     value: 'python3',
     description: 'Find a python installation matching python3_bin. It can be: a name "python-3.12", a path "/usr/local/bin/python3.12m", or just "python3"',
 )
+
+option('build_wheel',
+    type: 'boolean',
+    value: false,
+    description: 'If true, the install directory for core, vsscript and vspipe will be changed to "site-packages/vapoursynth"',
+)
