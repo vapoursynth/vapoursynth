@@ -43,7 +43,7 @@ jobs:
 
     - name: Package
       run: |
-        python -m build --sdist --wheel
+        python -m build --sdist --wheel -Csetup-args="--vsenv"
 
     - name: Install
       run: |
