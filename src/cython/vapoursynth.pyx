@@ -3976,6 +3976,6 @@ def register_vfw():
 def vspipe():
     import subprocess
     vspipe_path = PurePath(__file__)
-    vspipe_path = vspipe_path.with_name('VSPipe')
+    vspipe_path = vspipe_path.with_name('vspipe')
     ret = subprocess.run([vspipe_path, *sys.argv[1:]])
     sys.exit(ret.returncode)
