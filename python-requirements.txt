@@ -2,3 +2,4 @@ build
 sphinx
 sphinx-intl
 sphinx-rtd-theme
+wheel
