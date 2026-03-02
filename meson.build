@@ -45,6 +45,10 @@ if plugindir == '$libdir/vapoursynth'
 endif
 
 py = import('python').find_installation(python3_bin, pure: false)
+py_dep = py.dependency(embed: true, required: false, version: '>=3.12')
+if not py_dep.found()
+    py_dep = py.dependency(embed: false, version: '>=3.12')
+endif
 
 vspipe_link_args = []
 
@@ -215,11 +219,6 @@ if enable_core
 endif
 
 if enable_vsscript
-    py_dep = py.dependency(embed: true, required: false, version: '>=3.12')
-    if not py_dep.found()
-        py_dep = py.dependency(embed: false, version: '>=3.12')
-    endif
-
     libvsscript = library('vapoursynth-script',
         files('src/vsscript/vsscript.cpp'),
         dependencies: py_dep,
@@ -279,14 +278,14 @@ if enable_python_module
 
         install_data(
             files('msvc_project/x64/Release/AvsCompat.dll'),
-            install_dir: py.get_install_dir() / 'vapoursynth' / 'plugins',
+            install_dir: py.get_install_dir() / 'vapoursynth/plugins',
         )
     endif
 
     py.extension_module('vapoursynth',
         files('src/common/wave.cpp', 'src/cython/vapoursynth.pyx'),
         cython_args: '-E VS_CURRENT_RELEASE=@0@'.format(meson.project_version()),
-        dependencies: vapoursynth_dep,
+        dependencies: [py_dep, vapoursynth_dep],
         install: true,
         install_rpath: install_rpath,
         limited_api: '3.12',
