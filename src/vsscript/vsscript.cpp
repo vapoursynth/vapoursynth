@@ -30,7 +30,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <string>
-#include <string.h>
+#include <cstring>
 
 #ifdef VS_TARGET_OS_WINDOWS
 #define WIN32_LEAN_AND_MEAN
@@ -74,13 +74,13 @@ static std::filesystem::path getLibraryPath() {
     return {};
 }
 
-static std::filesystem::path readEnvConfig(const std::filesystem::path &path) {
+static std::filesystem::path readEnvConfig(const std::filesystem::path &path, const std::string &varname) {
     std::ifstream configFile(path);
     if (!configFile.is_open())
         return {};
     std::string line;
     while (std::getline(configFile, line)) {
-        if (line.substr(0, 10) == "executable") {
+        if (line.substr(0, varname.size()) == varname) {
             auto pos = line.find(" = ");
             if (pos != std::string::npos)
                 return std::filesystem::u8path(line.substr(pos + 3));
@@ -98,32 +98,49 @@ static void real_init(void) VS_NOEXCEPT {
     MODULE_HANDLE_TYPE libraryHandle = nullptr;
 
     const char *venvRoot = getenv("VIRTUAL_ENV");
-    std::filesystem::path pythonPath;
+    std::filesystem::path vspyConfigPath;
+
+    // read py-symbol-path from vspyenv.cfg
+    // if no py-symbol-path, try to read executable path from pyvenv.cfg
+    // if executable path exists run python -m vapoursynth vsscript-config and re-read py-symbol-path (return it as well?)
+    // load from py-symbol-path if it exists, otherwise error out
 
     if (venvRoot) {
-        std::filesystem::path configPath = std::filesystem::u8path(venvRoot);
-        configPath /= "pyvenv.cfg";
-        pythonPath = readEnvConfig(configPath);
+        vspyConfigPath = std::filesystem::u8path(venvRoot);
+        vspyConfigPath /= "vspyenv.cfg";
     } else {
-        std::filesystem::path configPath = getLibraryPath();
-        configPath.replace_filename("pyenv.cfg");
-        pythonPath = readEnvConfig(configPath);
+        vspyConfigPath = getLibraryPath();
+        vspyConfigPath.replace_filename("vspyenv.cfg");
     }
 
-    if (!pythonPath.empty()) {
+    std::filesystem::path pythonSymbolPath = readEnvConfig(vspyConfigPath, "py-symbol-path");
+
+    if (pythonSymbolPath.empty()) {
+        std::filesystem::path venvConfigPath = std::filesystem::u8path(venvRoot);
+        venvConfigPath /= "pyvenv.cfg";
+        std::filesystem::path pythonExePath = readEnvConfig(venvConfigPath, "executable");
+        if (pythonExePath.empty()) {
+            extendedErrorMessage = "Python library path couldn't be determined. Run `python -m vapoursynth vsscript-config` to set it for this Python installation and then try again.";
+            return;
+        }
+
 #ifdef VS_TARGET_OS_WINDOWS
-        pythonPath.replace_filename("python3.dll");
+        pythonSymbolPath = pythonExePath;
+        pythonSymbolPath.replace_filename("python3.dll");
+#else
+        system((pythonExePath.u8string() + " -m vapoursynth vsscript-config 2>nul >nul").c_str());
+        pythonSymbolPath = readEnvConfig(vspyConfigPath, "py-symbol-path");
 #endif
-        libraryHandle = LOAD_LIBRARY(pythonPath.c_str());
-    } else {
-        if (venvRoot)
-            extendedErrorMessage = "Python executable path couldn't be determined from pyvenv.cfg";
-        else
-            extendedErrorMessage = "Python executable path couldn't be determined from the global config file. Run `python -m vapoursynth vsscript-config` to set it for this Python installation and then try again.";
+    }
+
+    if (pythonSymbolPath.empty()) {
+        extendedErrorMessage = "Python library path couldn't be determined despite automatic configuration. Run `python -m vapoursynth vsscript-config` to set it for this Python installation or get extended error information and then try again.";
         return;
     }
+
+    libraryHandle = LOAD_LIBRARY(pythonSymbolPath.c_str());
     if (!libraryHandle) {
-        extendedErrorMessage = "Python library failed to load from " + pythonPath.u8string();
+        extendedErrorMessage = "Python library failed to load from " + pythonSymbolPath.u8string();
         return;
     }
 
@@ -140,7 +157,7 @@ static void real_init(void) VS_NOEXCEPT {
 
     if (!p_Py_DecRef || !p_PyObject_GetAttrString || !p_PyDict_GetItemString || !p_PyCapsule_IsValid || !p_PyCapsule_GetPointer || !p_PyImport_ImportModule || !p_Py_IsInitialized || !p_Py_InitializeEx || !p_PyGILState_Ensure || !p_PyEval_SaveThread) {
         FREE_LIBRARY(libraryHandle);
-        extendedErrorMessage = "Failed to load required Python API functions from the library.";
+        extendedErrorMessage = "Failed to load required Python API functions from " + pythonSymbolPath.u8string();
         return;
     }
 
@@ -150,10 +167,12 @@ static void real_init(void) VS_NOEXCEPT {
         p_Py_InitializeEx(0);
     s = p_PyGILState_Ensure();
     if (import_vapoursynth()) {
+        FREE_LIBRARY(libraryHandle);
         extendedErrorMessage = "Failed to import the VapourSynth Python module.";
         return;
     }
     if (vpy4_initVSScript()) {
+        FREE_LIBRARY(libraryHandle);
         extendedErrorMessage = "Failed to initialize the VapourSynth Python module for VSScript use.";
         return;
     }

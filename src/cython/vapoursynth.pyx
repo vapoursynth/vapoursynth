@@ -35,6 +35,7 @@ from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
 import enum
 import ctypes
+from ctypes.util import find_library
 import threading
 import traceback
 import gc
@@ -3805,6 +3806,28 @@ cdef public api int vpy4_initVSScript() nogil:
 
 # All code for scripts executables
 
+def _find_python_symbol_path():
+    if sys.platform == 'win32':
+        return PurePath(sys.executable).with_name('python3.dll')
+        
+    class Dl_info(ctypes.Structure):
+        _fields_ = [
+            ("dli_fname", ctypes.c_char_p),
+            ("dli_fbase", ctypes.c_void_p),
+            ("dli_sname", ctypes.c_char_p),
+            ("dli_saddr", ctypes.c_void_p),
+        ]
+        
+    libdl = ctypes.CDLL(find_library('dl'))
+    libdl.dladdr.argtypes = [ctypes.c_void_p, ctypes.POINTER(Dl_info)]
+    libdl.dladdr.restype = ctypes.c_int
+
+    dlinfo = Dl_info()
+    retcode = libdl.dladdr(ctypes.cast(ctypes.pythonapi.Py_GetVersion, ctypes.c_void_p), ctypes.pointer(dlinfo))
+    if retcode == 0:
+        return None
+    return os.path.realpath(dlinfo.dli_fname.decode())    
+
 def vsscript_check_env():
     global_path = os.getenv('VSSCRIPT_PATH')
     virtual_env = os.getenv('VIRTUAL_ENV')
@@ -3819,14 +3842,17 @@ def vsscript_check_env():
 def vsscript_config():
     virtual_env = os.getenv('VIRTUAL_ENV')
 
-    if virtual_env is not None:
-        print(f'Running in a venv in "{virtual_env}". Nothing to configure!')
-    else:
-        config_path = PurePath(__file__)
-        config_path = config_path.with_name('pyenv.cfg')
-        with open(config_path, 'w') as f:
-            f.write('executable = ' + sys.executable + '\n')
-        print('Configuration successful!')
+    config_path = PurePath(__file__)
+    config_path = config_path.with_name('vspyenv.cfg')
+
+    py_symbol_path = _find_python_symbol_path()
+    if py_symbol_path is None:
+        raise Error('Couldn\'t determine location of Python library!')
+
+    with open(config_path, 'w') as f:
+        f.write(f'py-symbol-path = {py_symbol_path}\n')             
+        
+    print(f'Configuration successfully written to {config_path}!')
 
 def write_registry_entries(entries, use_hklm):
     import winreg

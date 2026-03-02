@@ -295,7 +295,7 @@ if enable_python_module
     )
 
     py.install_sources(
-        files('src/vapoursynth/__init__.py'),
+        files('src/vapoursynth/__init__.py', 'src/vapoursynth/__main__.py'),
         subdir: 'vapoursynth',
     )
 endif
