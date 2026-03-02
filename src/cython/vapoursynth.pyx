@@ -55,7 +55,7 @@ from types import MappingProxyType
 from collections.abc import ItemsView, Iterable, KeysView, MutableMapping, ValuesView
 from concurrent.futures import Future
 from fractions import Fraction
-from pathlib import PurePath
+from pathlib import Path, PurePath
 
 __all__ = [
   'GRAY',
@@ -3809,24 +3809,53 @@ cdef public api int vpy4_initVSScript() nogil:
 def _find_python_symbol_path():
     if sys.platform == 'win32':
         return PurePath(sys.executable).with_name('python3.dll')
-        
-    class Dl_info(ctypes.Structure):
-        _fields_ = [
-            ("dli_fname", ctypes.c_char_p),
-            ("dli_fbase", ctypes.c_void_p),
-            ("dli_sname", ctypes.c_char_p),
-            ("dli_saddr", ctypes.c_void_p),
-        ]
-        
-    libdl = ctypes.CDLL(find_library('dl'))
-    libdl.dladdr.argtypes = [ctypes.c_void_p, ctypes.POINTER(Dl_info)]
-    libdl.dladdr.restype = ctypes.c_int
+    elif sys.platform == 'darwin':      
+        class Dl_info(ctypes.Structure):
+            _fields_ = [
+                ("dli_fname", ctypes.c_char_p),
+                ("dli_fbase", ctypes.c_void_p),
+                ("dli_sname", ctypes.c_char_p),
+                ("dli_saddr", ctypes.c_void_p),
+            ]
+            
+        libdl = ctypes.CDLL(find_library('dl'))
+        libdl.dladdr.argtypes = [ctypes.c_void_p, ctypes.POINTER(Dl_info)]
+        libdl.dladdr.restype = ctypes.c_int
 
-    dlinfo = Dl_info()
-    retcode = libdl.dladdr(ctypes.cast(ctypes.pythonapi.Py_GetVersion, ctypes.c_void_p), ctypes.pointer(dlinfo))
-    if retcode == 0:
+        dlinfo = Dl_info()
+        retcode = libdl.dladdr(ctypes.cast(ctypes.pythonapi.Py_GetVersion, ctypes.c_void_p), ctypes.pointer(dlinfo))
+        if retcode == 0:
+            return None
+        return os.path.realpath(dlinfo.dli_fname.decode())
+    else:
+        # if not one the easy platforms we simply mash up some path combinations until we hopefully find one of the many symlinks lying around
+        # somewhat inspired by find-libpython
+        from sysconfig import get_config_var, get_config_vars
+        
+        suffix = '.so'
+
+        libfilenames = []
+        
+        INSTSONAME = get_config_var("INSTSONAME")
+        if INSTSONAME and suffix in INSTSONAME:
+            libfilenames.append(INSTSONAME)
+
+        LDLIBRARY = get_config_var("LDLIBRARY")
+        if LDLIBRARY and os.path.splitext(LDLIBRARY)[1] == suffix:
+            libfilenames.append(LDLIBRARY)
+
+        LIBRARY = get_config_var("LIBRARY")
+        if LIBRARY and os.path.splitext(LIBRARY)[1] == suffix:
+            libfilenames.append(LIBRARY)
+        
+        libpaths = get_config_vars('LIBDIR', 'LIBPL', 'srcdir')
+        for fn in libfilenames:
+            for path in libpaths:
+                if path:
+                    pylib = Path(path) / fn
+                    if pylib.is_file():
+                        return pylib
         return None
-    return os.path.realpath(dlinfo.dli_fname.decode())    
 
 def vsscript_check_env():
     global_path = os.getenv('VSSCRIPT_PATH')
@@ -3849,10 +3878,10 @@ def vsscript_config():
     if py_symbol_path is None:
         raise Error('Couldn\'t determine location of Python library!')
 
-    with open(config_path, 'w') as f:
-        f.write(f'py-symbol-path = {py_symbol_path}\n')             
-        
-    print(f'Configuration successfully written to {config_path}!')
+    with open(config_path, 'w', encoding='utf-8') as f:
+        f.write(f'py-symbol-path = {py_symbol_path}\n')
+
+    print(f'Configuration successfully written to {config_path}')
 
 def write_registry_entries(entries, use_hklm):
     import winreg
