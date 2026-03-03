@@ -2,7 +2,7 @@ project('VapourSynth', 'c', 'cpp', 'cython',
     default_options: ['buildtype=release', 'b_lto=true', 'b_ndebug=if-release', 'c_std=c99', 'cpp_std=c++17'],
     license: 'LGPL-2.1-or-later',
     meson_version: '>=1.3.0',
-    version: run_command('python', '-c', 'print(open("VAPOURSYNTH_VERSION").read())', check: true).stdout().strip().split()[2].split('-')[0],
+    version: run_command(find_program('python', 'python3'), '-c', 'print(open("VAPOURSYNTH_VERSION").read())', check: true).stdout().strip().split()[2].split('-')[0],
 )
 
 enable_guard_pattern = get_option('enable_guard_pattern')
