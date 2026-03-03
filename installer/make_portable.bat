@@ -12,8 +12,6 @@ echo     [int]$VSVersion = %CURRENT_VERSION%,>> Compiled\Install-Portable-Vapour
 echo     [string]$VSVersionExtra = "%CURRENT_VERSION_EXTRA%",>> Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
 type install-portable-vapoursynth.ps1 >> Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.ps1
 echo powershell.exe -executionpolicy bypass -file Install-Portable-VapourSynth-R%VERSION_STRING%.ps1 %%* > Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.bat
-mkdir buildp64\vs-coreplugins
-mkdir buildp64\vs-plugins
 mkdir buildp64\sdk\include\vapoursynth
 mkdir buildp64\sdk\examples
 mkdir buildp64\sdk\lib64
@@ -26,11 +24,6 @@ copy ..\vsrepo\vsgenstubs4 buildp64\vsgenstubs4
 copy 7z.exe buildp64
 copy 7z.dll buildp64
 copy ..\dist\VapourSynth-%CURRENT_VERSION%-cp312-abi3-win_amd64.whl buildp64\wheel
-copy ..\msvc_project\x64\Release\vsscript.dll buildp64
-copy ..\msvc_project\x64\Release\avfs.exe buildp64
-copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
-copy ..\msvc_project\x64\Release\vspipe.exe buildp64
-copy ..\msvc_project\x64\Release\AvsCompat.dll buildp64\vs-coreplugins
 copy ..\include\VapourSynth4.h buildp64\sdk\include\vapoursynth
 copy ..\include\VSHelper4.h buildp64\sdk\include\vapoursynth
 copy ..\include\VSScript4.h buildp64\sdk\include\vapoursynth
@@ -41,7 +34,6 @@ copy ..\sdk\filter_skeleton.c buildp64\sdk\examples
 copy ..\sdk\invert_example.c buildp64\sdk\examples
 copy ..\sdk\vsscript_example.c buildp64\sdk\examples
 copy "%MVSCRedistPath%\%RedistVersion%\x64\Microsoft.VC%RedistShortVersion%.CRT\*" buildp64
-copy pfm-192-vapoursynth-win.exe buildp64
 copy .\VAPOURSYNTH_VERSION buildp64
 copy .\MANIFEST.in buildp64
 xcopy /E ..\doc\_build\html\* buildp64\doc

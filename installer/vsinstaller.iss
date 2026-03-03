@@ -51,18 +51,21 @@ Name: "vscore"; Description: "VapourSynth x64 R{#= Version}{#= VersionExtra}"; T
 Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disablenouninstallwarning
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
-Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Flags: disablenouninstallwarning
 Name: "vsruntimes"; Description: "Visual Studio 2015-2026 Runtime"; Types: Full; Check: IsAdminInstallMode; Flags: disablenouninstallwarning
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "VapourSynth:"; Components: vscore
-Name: vscorepath; Description: "Add VSPipe and AVFS to PATH"; GroupDescription: "VapourSynth:"; Components: vscore
-Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
+Name: vsscriptpath; Description: "Set VSSCRIPT_PATH environment variable"; GroupDescription: "VapourSynth:"; Components: vscore
+; this will add all python scripts which is potentially meh
+;Name: vscorepath; Description: "Add VSPipe to PATH"; GroupDescription: "VapourSynth:"; Components: vscore 
 Name: vsrepopath; Description: "Add VSRepo to PATH"; GroupDescription: "VSRepo:"; Components: vsrepo
+Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
 
 [Run]
 Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename(Version)}"""; Check: IsPython3; Flags: runhidden; Components: vscore
-Filename: "{app}\pismo\pfm-192-vapoursynth-win.exe"; Parameters: "install"; Check: IsAdminInstallMode; Flags: runhidden; Components: pismo
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth vsscript-config"; Check: IsPython3; Flags: runhidden; Components: vscore
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install"; Check: IsPython3; Flags: runhidden; Components: vscore
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-vfw"; Check: IsPython3; Flags: runhidden; Components: vscore
 Filename: {code:GetPythonExecutable}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden runasoriginaluser; Components: vsrepo
 
 [UninstallRun]
@@ -75,7 +78,6 @@ Source: ..\dist\{#= WheelFilename(Version)}; DestDir: {app}\python; Flags: ignor
 
 Source: {#= SourceBinaryPath}\vapoursynth.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vapoursynth.pdb; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
-Source: {#= SourceBinaryPath}\avfs.exe; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vspipe.exe; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vsvfw.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vsscript.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore; Check: IsPython3
@@ -104,12 +106,6 @@ Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignorevers
 Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\sdk\vsscript_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 
-;bundled plugins
-Source: {#= SourceBinaryPath}\AvsCompat.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
-
-;pismo installer
-Source: "pfm-192-vapoursynth-win.exe"; DestDir: {app}\pismo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: pismo
-
 ; Create the general autoload directory
 [Dirs]
 Name: "{app}\plugins"; Flags: uninsalwaysuninstall; Components: vscore
@@ -123,33 +119,10 @@ Name: {group}\User Autoload Directory; Filename: %APPDATA%\VapourSynth\plugins64
 Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
 
 [Registry]
-Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "CorePlugins"; ValueData: "{app}\core\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VapourSynthDLL"; ValueData: "{app}\core\vapoursynth.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VSScriptDLL"; ValueData: "{app}\core\vsscript.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VSPipeEXE"; ValueData: "{app}\core\vspipe.exe"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VSRepoPY"; ValueData: "{app}\vsrepo\vsrepo.py"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vsrepo
-Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-
 ; new vpy file shortcut task
 Root: HKA; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName: "FileName"; ValueData: "{app}\template.vpy"; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: newvpyfile
 
-; vfw
-Root: HKA; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "{app}\core\vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: ""; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: "Source Filter"; ValueData: "{{D3588AB0-0781-11CE-B03A-0020AF0BA770}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; ValueData: "vpyfile"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: SOFTWARE\Classes\vpyfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: SOFTWARE\Classes\vpyfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "{app}\core\vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKA; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-
 ; PATH
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: IsAdminInstallMode; Tasks: vscorepath
-Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: not IsAdminInstallMode; Tasks: vscorepath
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Tasks: vsrepopath
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: not IsAdminInstallMode; Tasks: vsrepopath
 
