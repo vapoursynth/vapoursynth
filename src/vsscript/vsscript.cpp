@@ -128,7 +128,7 @@ static void real_init(void) VS_NOEXCEPT {
         pythonSymbolPath = pythonExePath;
         pythonSymbolPath.replace_filename("python3.dll");
 #else
-        system((pythonExePath.u8string() + " -m vapoursynth vsscript-config 2>nul >nul").c_str());
+        system((pythonExePath.u8string() + " -m vapoursynth vsscript-config >/dev/null 2>&1").c_str());
         pythonSymbolPath = readEnvConfig(vspyConfigPath, "py-symbol-path");
 #endif
     }
