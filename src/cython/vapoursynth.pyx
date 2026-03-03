@@ -3870,9 +3870,11 @@ def vsscript_check_env():
 
 def vsscript_config():
     virtual_env = os.getenv('VIRTUAL_ENV')
-
-    config_path = PurePath(__file__)
-    config_path = config_path.with_name('vspyenv.cfg')
+    if virtual_env:
+        config_path = PurePath(virtual_env) / 'vspyenv.cfg'
+    else:
+        config_path = PurePath(__file__)
+        config_path = config_path.with_name('vspyenv.cfg')
 
     py_symbol_path = _find_python_symbol_path()
     if py_symbol_path is None:
