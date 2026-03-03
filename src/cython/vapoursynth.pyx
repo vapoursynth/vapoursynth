@@ -3809,7 +3809,7 @@ cdef public api int vpy4_initVSScript() nogil:
 def _find_python_symbol_path():
     if sys.platform == 'win32':
         return PurePath(sys.executable).with_name('python3.dll')
-    elif sys.platform == 'darwin':      
+    else:
         class Dl_info(ctypes.Structure):
             _fields_ = [
                 ("dli_fname", ctypes.c_char_p),
@@ -3817,24 +3817,38 @@ def _find_python_symbol_path():
                 ("dli_sname", ctypes.c_char_p),
                 ("dli_saddr", ctypes.c_void_p),
             ]
-            
+
         libdl = ctypes.CDLL(find_library('dl'))
         libdl.dladdr.argtypes = [ctypes.c_void_p, ctypes.POINTER(Dl_info)]
         libdl.dladdr.restype = ctypes.c_int
 
         dlinfo = Dl_info()
         retcode = libdl.dladdr(ctypes.cast(ctypes.pythonapi.Py_GetVersion, ctypes.c_void_p), ctypes.pointer(dlinfo))
-        if retcode == 0:
-            return None
-        return os.path.realpath(dlinfo.dli_fname.decode())
-    else:
-        # if not one the easy platforms we simply mash up some path combinations until we hopefully find one of the many symlinks lying around
-        # somewhat inspired by find-libpython
+        
+        libpath = None
+        
+        if retcode != 0:
+            libpath = os.path.realpath(dlinfo.dli_fname.decode())
+        
+        # Always correct on mac with system and brew python so exit early
+        if sys.platform == 'darwin':
+            return libpath
+                    
+        # We can't dlopen executables on Linux so make sure it's a proper library
+        if libpath:
+            try:
+                pylib = ctypes.CDLL(libpath)
+                if pylib and pylib.Py_GetVersion:
+                    return libpath
+            except:
+                pass
+        
+        # Now for general path guessing based on compile time values instead
         from sysconfig import get_config_var, get_config_vars
         
-        suffix = '.so'
-
         libfilenames = []
+        
+        suffix = '.so'
         
         INSTSONAME = get_config_var("INSTSONAME")
         if INSTSONAME and suffix in INSTSONAME:
