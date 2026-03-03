@@ -54,7 +54,7 @@ static PyGILState_STATE s;
 #define FREE_LIBRARY(x) FreeLibrary(x)
 #else
 #define MODULE_HANDLE_TYPE void*
-#define LOAD_LIBRARY(x) dlopen(x, RTLD_LAZY)
+#define LOAD_LIBRARY(x) dlopen(x, RTLD_LAZY | RTLD_GLOBAL)
 #define GET_FUNCTION_ADDRESS(x, y) dlsym(x, y)
 #define FREE_LIBRARY(x) dlclose(x)
 #endif
