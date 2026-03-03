@@ -3848,7 +3848,7 @@ def _find_python_symbol_path():
         if LIBRARY and os.path.splitext(LIBRARY)[1] == suffix:
             libfilenames.append(LIBRARY)
         
-        libpaths = get_config_vars('LIBDIR', 'LIBPL', 'srcdir')
+        libpaths = get_config_vars('LIBPL', 'srcdir', 'LIBDIR')
         for fn in libfilenames:
             for path in libpaths:
                 if path:
@@ -3862,7 +3862,7 @@ def vsscript_check_env():
     virtual_env = os.getenv('VIRTUAL_ENV')
     
     if virtual_env is not None:
-        print('VIRTUAL_ENV environment variable is set. Running in a venv.')
+        print(f'VIRTUAL_ENV environment variable is set. Running in a venv located in {virtual_env}')
     if global_path is None:
         print('VSSCRIPT_PATH environment variable is not set.')
     else:
