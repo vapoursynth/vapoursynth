@@ -57,40 +57,6 @@ from concurrent.futures import Future
 from fractions import Fraction
 from pathlib import Path, PurePath
 
-__all__ = [
-  'GRAY',
-    'GRAY8', 'GRAY9', 'GRAY10', 'GRAY12', 'GRAY14', 'GRAY16', 'GRAY32', 'GRAYH', 'GRAYS',
-  'RGB',
-    'RGB24', 'RGB27', 'RGB30', 'RGB36', 'RGB42', 'RGB48', 'RGBH', 'RGBS',
-  'YUV',
-    'YUV410P8',
-    'YUV411P8',
-    'YUV420P8', 'YUV420P9', 'YUV420P10', 'YUV420P12', 'YUV420P14', 'YUV420P16',
-    'YUV422P8', 'YUV422P9', 'YUV422P10', 'YUV422P12', 'YUV422P14', 'YUV422P16',
-    'YUV440P8',
-    'YUV444P8', 'YUV444P9', 'YUV444P10', 'YUV444P12', 'YUV444P14', 'YUV444P16', 'YUV420PH', 'YUV420PS', 'YUV422PH', 'YUV422PS', 'YUV444PH', 'YUV444PS',
-  'NONE',
-
-  'FLOAT', 'INTEGER',
-
-  'RANGE_FULL', 'RANGE_LIMITED',
-
-  'CHROMA_LEFT', 'CHROMA_CENTER', 'CHROMA_TOP_LEFT', 'CHROMA_TOP', 'CHROMA_BOTTOM_LEFT', 'CHROMA_BOTTOM',
-
-  'FIELD_PROGRESSIVE', 'FIELD_TOP', 'FIELD_BOTTOM',
-
-  'get_output', 'get_outputs',
-  'clear_output', 'clear_outputs',
-
-  'core',
-  
-  'register_install',
-  'register_vfw',
-  'vspipe',
-  'vsscript_check_env',
-  'vsscript_config',
-]
-
 class MediaType(IntEnum):
     VIDEO = mtVideo
     AUDIO = mtAudio
@@ -149,7 +115,7 @@ class PresetVideoFormat(IntEnum):
 
     YUV420PH = pfYUV420PH
     YUV420PS = pfYUV420PS
-    
+
     YUV422PH = pfYUV422PH
     YUV422PS = pfYUV422PS
 
@@ -170,7 +136,7 @@ class FilterMode(IntEnum):
     PARALLEL = fmParallel
     PARALLEL_REQUESTS = fmParallelRequests
     UNORDERED = fmUnordered
-    FRAME_STATE = fmFrameState 
+    FRAME_STATE = fmFrameState
 
 class AudioChannels(IntEnum):
     FRONT_LEFT = acFrontLeft
@@ -980,7 +946,7 @@ cdef object intToRangeFilter(int64_t value, str key):
     elif ((isrange and value == Range.RANGE_LIMITED) or (iscolorrange and value == Range.RANGE_FULL)):
         return Range.RANGE_LIMITED
     return value
-    
+
 cdef int64_t rangeToIntFilter(object value, str key):
     if (key == '_ColorRange') and (isinstance(value, Range)):
         warnings.warn('The _ColorRange property has been deprecated, use _Range instead', DeprecationWarning)
@@ -1783,7 +1749,7 @@ cdef class _video:
         view.strides[0] = lib.getStride(frame, plane)
         view.len = view.shape[0] * view.shape[1] * view.itemsize
         view.buf = _frame.getdata(frame, plane, flags, lib)
-        
+
     @staticmethod
     cdef void filllineinfo(Py_buffer* view, VSFrame* frame, int plane, int line, unsigned* flags, const VSAPI* lib) nogil:
         view.shape[1] = lib.getFrameWidth(frame, plane)
@@ -2195,7 +2161,7 @@ cdef class RawNode(object):
 
     def __getitem__(self, val):
         raise NotImplementedError
-    
+
     def __len__(self):
         raise NotImplementedError
 
@@ -3003,7 +2969,7 @@ cdef Core createCore(EnvironmentData env):
 
 cdef Core createCore2(VSCore *core):
     cdef Core instance = Core.__new__(Core)
-    cdef VSCoreInfo2 v        
+    cdef VSCoreInfo2 v
     instance.funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
@@ -3129,7 +3095,7 @@ cdef class Plugin(object):
         ver_minor = (ver_major > -1) and (ver - (ver_major << 16)) or 0
 
         return PluginVersion(ver_major, ver_minor)
-        
+
     @property
     def plugin_path(self):
         cdef const char *ppath = self.funcs.getPluginPath(self.plugin)
@@ -3259,8 +3225,8 @@ cdef class Function(object):
         if (len(ndict) > 0) and not any:
             raise Error(self.name + ': Function does not take argument(s) named ' + ', '.join(ndict.keys()))
 
-        filterAllInts = (self.name == 'SetFrameProp') and ('prop' in processed) and (processed['prop'] == '_ColorRange') and ('intval' in atypes)  
-        
+        filterAllInts = (self.name == 'SetFrameProp') and ('prop' in processed) and (processed['prop'] == '_ColorRange') and ('intval' in atypes)
+
         if (filterAllInts or ((self.name == 'SetFrameProps') and ('_ColorRange' in ndict))):
             warnings.warn('The _ColorRange frame property has been deprecated, use _Range instead', DeprecationWarning)
         inm = self.funcs.createMap()
@@ -3661,7 +3627,7 @@ cdef public api void vpy4_freeScript(VSScript *se) noexcept nogil:
                     env.core = None
             except:
                 pass
-            
+
             se.pyenvdict = NULL
             Py_DECREF(pyenvdict)
             pyenvdict = None
@@ -3730,7 +3696,7 @@ cdef public api int vpy4_getAltOutputMode(VSScript *se, int index) nogil:
         if isinstance(output, VideoOutputTuple):
             return output[2]
         return 0
-        
+
 cdef public api int vpy4_getAvailableOutputNodes(VSScript *se, int size, int *dst) nogil:
     cdef int dstidx = 0
     with gil:
@@ -3740,14 +3706,14 @@ cdef public api int vpy4_getAvailableOutputNodes(VSScript *se, int size, int *ds
             nodes = _get_vsscript_policy().get_environment(se.id).outputs
         except:
             return 0
-    
+
         if size > 0:
             for key in nodes:
                 dst[dstidx] = key
                 dstidx = dstidx + 1
                 if size - dstidx <= 0:
                     break
-        
+
         return len(nodes)
 
 cdef public api VSCore *vpy4_getCore(VSScript *se) nogil:
@@ -3824,16 +3790,16 @@ def _find_python_symbol_path():
 
         dlinfo = Dl_info()
         retcode = libdl.dladdr(ctypes.cast(ctypes.pythonapi.Py_GetVersion, ctypes.c_void_p), ctypes.pointer(dlinfo))
-        
+
         libpath = None
-        
+
         if retcode != 0:
             libpath = os.path.realpath(dlinfo.dli_fname.decode())
-        
+
         # Always correct on mac with system and brew python so exit early
         if sys.platform == 'darwin':
             return libpath
-                    
+
         # We can't dlopen executables on Linux so make sure it's a proper library
         if libpath:
             try:
@@ -3842,14 +3808,14 @@ def _find_python_symbol_path():
                     return libpath
             except:
                 pass
-        
+
         # Now for general path guessing based on compile time values instead
         from sysconfig import get_config_var, get_config_vars
-        
+
         libfilenames = []
-        
+
         suffix = '.so'
-        
+
         INSTSONAME = get_config_var("INSTSONAME")
         if INSTSONAME and suffix in INSTSONAME:
             libfilenames.append(INSTSONAME)
@@ -3861,7 +3827,7 @@ def _find_python_symbol_path():
         LIBRARY = get_config_var("LIBRARY")
         if LIBRARY and os.path.splitext(LIBRARY)[1] == suffix:
             libfilenames.append(LIBRARY)
-        
+
         libpaths = get_config_vars('LIBPL', 'srcdir', 'LIBDIR')
         for fn in libfilenames:
             for path in libpaths:
@@ -3874,7 +3840,7 @@ def _find_python_symbol_path():
 def vsscript_check_env():
     global_path = os.getenv('VSSCRIPT_PATH')
     virtual_env = os.getenv('VIRTUAL_ENV')
-    
+
     if virtual_env is not None:
         print(f'VIRTUAL_ENV environment variable is set. Running in a venv located in {virtual_env}')
     if global_path is None:
@@ -3906,12 +3872,12 @@ def write_registry_entries(entries, use_hklm):
     for entry in entries:
         try:
             key = winreg.CreateKeyEx(root_key, entry["subkey"], 0, winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY)
-            
+
             try:
-                winreg.SetValueEx(key, entry["value_name"], 0, winreg.REG_SZ, str(entry["value_data"]))   
+                winreg.SetValueEx(key, entry["value_name"], 0, winreg.REG_SZ, str(entry["value_data"]))
             finally:
                 winreg.CloseKey(key)
-                
+
         except PermissionError:
             print(f"Permission denied: {entry['subkey']}")
             print("Try running as administrator or don't run in global mode")
@@ -3926,7 +3892,7 @@ def register_install():
         raise Error('Command is only supported on Windows!')
 
     use_hklm = (len(sys.argv) == 2) and (sys.argv[1] == 'global')
-    
+
     entries = [
         {
             "subkey": r"SOFTWARE\VapourSynth",
@@ -3964,7 +3930,7 @@ def register_install():
             "value_data": PurePath(sys.executable).parent,
         }
     ]
-    
+
     if not write_registry_entries(entries, use_hklm):
         print('Couldn\'t write paths to registry!')
         sys.exit(1)
@@ -3983,61 +3949,61 @@ def register_vfw():
             "subkey": r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}",
             "value_name": "",
             "value_data": "VapourSynth",
-            
+
         },
         {
             "subkey": r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32",
             "value_name": "",
             "value_data": PurePath(__file__).with_name('vsvfw.dll'),
-            
+
         },
         {
             "subkey": r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32",
             "value_name": "ThreadingModel",
             "value_data": "Apartment",
-            
+
         },
         # Media Type Extensions
         {
             "subkey": r"SOFTWARE\Classes\Media Type\Extensions\.vpy",
             "value_name": "",
             "value_data": "",
-            
+
         },
         {
             "subkey": r"SOFTWARE\Classes\Media Type\Extensions\.vpy",
             "value_name": "Source Filter",
             "value_data": "{D3588AB0-0781-11CE-B03A-0020AF0BA770}",
-            
+
         },
         # File association
         {
             "subkey": r"SOFTWARE\Classes\.vpy",
             "value_name": "",
             "value_data": "vpyfile",
-            
+
         },
         {
             "subkey": r"SOFTWARE\Classes\vpyfile",
             "value_name": "",
             "value_data": "VapourSynth Python Script",
-            
+
         },
         {
             "subkey": r"SOFTWARE\Classes\vpyfile\DefaultIcon",
             "value_name": "",
             "value_data": f"{PurePath(__file__).with_name('vsvfw.dll')},0",
-            
+
         },
         # AVIFile Extensions
         {
             "subkey": r"SOFTWARE\Classes\AVIFile\Extensions\VPY",
             "value_name": "",
             "value_data": "{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}",
-            
+
         }
     ]
-    
+
     if not write_registry_entries(entries, use_hklm):
         print('Couldn\'t register VFW provider!')
         sys.exit(1)
