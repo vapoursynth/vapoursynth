@@ -116,9 +116,12 @@ static void real_init(void) VS_NOEXCEPT {
     std::filesystem::path pythonSymbolPath = readEnvConfig(vspyConfigPath, "py-symbol-path");
 
     if (pythonSymbolPath.empty()) {
-        std::filesystem::path venvConfigPath = std::filesystem::u8path(venvRoot);
-        venvConfigPath /= "pyvenv.cfg";
-        std::filesystem::path pythonExePath = readEnvConfig(venvConfigPath, "executable");
+        std::filesystem::path pythonExePath;
+        if (venvRoot) {
+            std::filesystem::path venvConfigPath = std::filesystem::u8path(venvRoot);
+            venvConfigPath /= "pyvenv.cfg";
+            pythonExePath = readEnvConfig(venvConfigPath, "executable");
+        }
         if (pythonExePath.empty()) {
             extendedErrorMessage = "Python library path couldn't be determined. Run `python -m vapoursynth vsscript-config` to set it for this Python installation and then try again.";
             return;
