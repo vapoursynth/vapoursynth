@@ -1,5 +1,5 @@
 from .vapoursynth import *
-from .vapoursynth import __pyx_capi__
+from .vapoursynth import __api_version__, __pyx_capi__, __version__
 
 __all__ = [
   'GRAY',
