@@ -1978,9 +1978,6 @@ VSCore::VSCore(int flags) :
 
     if (m_isPortable) {
         // Autoload bundled plugins
-        if (!loadAllPluginsInPath(m_basePath / L"vs-coreplugins"))
-            logMessage(mtCritical, "Core plugin autoloading failed. Installation is broken?");
-
         if (!disableAutoLoading)
             loadAllPluginsInPath(m_basePath / L"vs-plugins");
     } else {
@@ -1993,10 +1990,6 @@ VSCore::VSCore(int flags) :
         appDataPath /= L"VapourSynth\\plugins64";
 
         // Autoload bundled plugins
-        std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", L"CorePlugins");
-        if (!loadAllPluginsInPath(corePluginPath))
-            logMessage(mtCritical, "Core plugin autoloading failed. Installation is broken!");
-
         if (!disableAutoLoading) {
             // Autoload per user plugins
             loadAllPluginsInPath(appDataPath);
