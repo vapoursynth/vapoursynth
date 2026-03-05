@@ -84,7 +84,7 @@ if enable_guard_pattern
 endif
 
 if enable_core
-    deps += dependency('zimg', version: '>=3.0.5')
+    deps += dependency('zimg', static: true, version: '>=3.0.5')
 
     if host_system not in ['cygwin', 'windows']
         deps += dependency('dl')
