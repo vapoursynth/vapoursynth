@@ -1,3 +1,4 @@
+from ._utils import *
 from .vapoursynth import *
 from .vapoursynth import __api_version__, __pyx_capi__, __version__
 

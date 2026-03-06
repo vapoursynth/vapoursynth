@@ -282,6 +282,13 @@ if enable_python_module
         )
     endif
 
+    install_subdir(
+        'include',
+        exclude_directories: 'cython',
+        exclude_files: ['VapourSynth.h', 'VSHelper.h'],
+        install_dir: py.get_install_dir() / 'vapoursynth',
+    )
+
     py.extension_module('vapoursynth',
         files('src/common/wave.cpp', 'src/cython/vapoursynth.pyx'),
         cython_args: '-E VS_CURRENT_RELEASE=@0@'.format(meson.project_version()),
@@ -294,7 +301,11 @@ if enable_python_module
     )
 
     py.install_sources(
-        files('src/py/__init__.py', 'src/py/__main__.py'),
+        files(
+            'src/py/__init__.py',
+            'src/py/__main__.py',
+            'src/py/_utils.py',
+        ),
         subdir: 'vapoursynth',
     )
 endif
