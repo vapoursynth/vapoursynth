@@ -147,12 +147,10 @@ Linux and OS X Compilation
 **************************
 
 These are the requirements:
-   - with Meson:
-      * Meson 0.63.0 or later
-      * ninja-build
 
-   - with Autotools: (deprecated, will be removed in future releases)
-      * Autoconf, Automake, and Libtool
+   * Meson 0.63.0 or later
+    
+   * ninja-build
 
    * pkg-config
 
@@ -160,9 +158,9 @@ These are the requirements:
 
    * `zimg <https://github.com/sekrit-twc/zimg>`_
 
-   * Python 3.8 or later (may work on earlier versions but these are never fully tested)
+   * Python 3.12 or later (may work on earlier versions but these are never fully tested)
 
-   * Cython 3.x or later installed in your Python 3 environment
+   * Cython 3.1.x or later installed in your Python 3 environment
 
    * Sphinx for the documentation (optional)
 
@@ -179,7 +177,7 @@ First download and install the prerequisites:
 Installation of the required packages is very easy. Simply run these
 commands in a terminal and wait for them to complete::
 
-   brew install python3 ffmpeg libass zimg imagemagick
+   brew install python3 zimg
    pip3 install cython
 
 If you've already installed all the required packages and instead want
@@ -201,18 +199,9 @@ Or if you already have a copy of the source, update it with::
 
 Enter the VapourSynth directory and run these commands to compile and install::
 
-* with Meson:
-
    meson setup build
    ninja -C build
    ninja -C build install
-
-* with Autotools:
-
-   ./autogen.sh
-   ./configure
-   make
-   make install
 
 Depending on your operating system's configuration, VapourSynth may not
 work out of the box with the default prefix of /usr/local. Two errors
@@ -296,7 +285,6 @@ Global plugins are placed last to prevent them from overriding any of the includ
 The searched paths are:
 
 #. *<AppData>*\\VapourSynth\\plugins32 or *<AppData>*\\VapourSynth\\plugins64
-#. *<VapourSynth path>*\\core\\plugins
 #. *<VapourSynth path>*\\plugins
 
 Note that the per user path is not created by default.
@@ -304,9 +292,7 @@ On modern Windows versions the *AppData* directory is located in *<user>*\\AppDa
 
 Shortcuts to the global autoload directory are located in the start menu.
 
-Avisynth plugins are never autoloaded. Support for this may be added in the future.
-
-User plugins should never be put into the *core\\plugins* directory.
+Avisynth plugins are never autoloaded.
 
 Windows Portable
 ----------------
@@ -314,8 +300,6 @@ Windows Portable
 The searched paths are:
 
 #. *<base path (portable.vs location)>*\\vs-plugins
-
-User plugins should never be put into the *vs-coreplugins* directory.
 
 Linux
 -----
