@@ -45,3 +45,11 @@ limited-api = true
 
 [tool.meson-python.args]
 setup = ["-Dbuild_wheel=true"]
+
+[tool.cibuildwheel]
+build = "cp312-*"
+test-command = [
+    "vsscript-config",
+    "vspipe --version",
+]
+build-verbosity = 1
