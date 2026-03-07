@@ -48,6 +48,11 @@ jobs:
         Get-ChildItem *.whl | ForEach-Object { wheel tags --remove --python-tag cp312 $_.Name }
         popd
 
+    - uses: actions/upload-artifact@v7
+      with:
+        name: vapoursynth
+        path: dist
+
     - name: Install
       run: |
         pip install vapoursynth --no-index --find-links dist
@@ -58,20 +63,15 @@ jobs:
         vspipe --version
         python -m unittest discover -s test -p "*test.py"
 
-    - uses: actions/upload-artifact@v6
-      with:
-        name: vapoursynth
-        path: dist
-
   publish:
-    runs-on: ubuntu-latest
-    needs: build-msvc
-    if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
     permissions:
       id-token: write
+    needs: build-msvc
+    if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: vapoursynth
         path: dist
