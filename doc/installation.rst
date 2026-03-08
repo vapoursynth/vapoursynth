@@ -148,7 +148,7 @@ Linux and OS X Compilation
 
 These are the requirements:
 
-   * Meson 0.63.0 or later
+   * Meson 1.3.0 or later
     
    * ninja-build
 
