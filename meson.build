@@ -12,7 +12,6 @@ enable_vsscript = get_option('enable_vsscript')
 enable_vspipe = get_option('enable_vspipe')
 enable_python_module = get_option('enable_python_module')
 plugindir = get_option('plugindir')
-python3_bin = get_option('python3_bin')
 build_wheel = get_option('build_wheel')
 
 cxx = meson.get_compiler('cpp')
@@ -44,7 +43,7 @@ if plugindir == '$libdir/vapoursynth'
     plugindir = get_option('prefix') / get_option('libdir') / 'vapoursynth'
 endif
 
-py = import('python').find_installation(python3_bin, pure: false)
+py = import('python').find_installation(pure: false)
 py_dep = py.dependency(embed: true, required: false, version: '>=3.12')
 if not py_dep.found()
     py_dep = py.dependency(embed: false, version: '>=3.12')

@@ -40,12 +40,6 @@ option('plugindir',
     description: 'The default value for the configuration option SystemPluginDir in vapoursynth.conf',
 )
 
-option('python3_bin',
-    type: 'string',
-    value: 'python3',
-    description: 'Find a python installation matching python3_bin. It can be: a name "python-3.12", a path "/usr/local/bin/python3.12m", or just "python3"',
-)
-
 option('build_wheel',
     type: 'boolean',
     value: false,
