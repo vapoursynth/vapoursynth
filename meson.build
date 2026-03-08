@@ -20,6 +20,9 @@ if cxx.get_argument_syntax() == 'msvc'
     enable_core = false
     enable_vsscript = false
     enable_vspipe = false
+elif not build_wheel
+    enable_vspipe = false
+    enable_python_module = false
 endif
 
 deps = []
