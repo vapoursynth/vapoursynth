@@ -30,7 +30,9 @@ deps = []
 host_cpu_family = host_machine.cpu_family()
 host_system = host_machine.system()
 
-if host_system not in ['cygwin', 'windows']
+if host_system in ['cygwin', 'windows']
+    dl_dep = dependency('', required: false)
+else
     dl_dep = dependency('dl')
 endif
 
