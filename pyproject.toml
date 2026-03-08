@@ -44,7 +44,7 @@ vapoursynth-register-vfw = "vapoursynth:register_vfw"
 limited-api = true
 
 [tool.meson-python.args]
-setup = ["-Ddefault_library=static", "-Dbuild_wheel=true"]
+setup = ["-Dbuild_wheel=true"]
 
 [tool.ruff]
 line-length = 120
