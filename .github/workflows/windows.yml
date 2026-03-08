@@ -3,7 +3,7 @@ name: Windows
 on: [push, pull_request, workflow_dispatch]
 
 jobs:
-  build-msvc:
+  build:
     runs-on: windows-2025-vs2026
 
     steps:
@@ -54,8 +54,13 @@ jobs:
 
     - uses: actions/upload-artifact@v7
       with:
-        name: vapoursynth
-        path: dist
+        name: vapoursynth-sdist
+        path: dist/*.tar.gz
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: vapoursynth-win_amd64
+        path: dist/*.whl
 
     - name: Install
       run: |
@@ -70,14 +75,15 @@ jobs:
   publish:
     permissions:
       id-token: write
-    needs: build-msvc
+    needs: build
     if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v8
       with:
-        name: vapoursynth
         path: dist
+        pattern: vapoursynth-*
+        merge-multiple: true
 
     - uses: pypa/gh-action-pypi-publish@release/v1
