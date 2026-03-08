@@ -3,7 +3,7 @@ name: Linux
 on: [push, pull_request, workflow_dispatch]
 
 jobs:
-  build-gcc:
+  build-sdist:
     runs-on: ubuntu-latest
 
     env:
@@ -20,7 +20,7 @@ jobs:
     - name: Install Python packages
       run: |
         python -m pip install -U pip
-        pip install -U abi3audit build
+        pip install -U build
 
     - name: Install zimg
       run: |
@@ -35,11 +35,56 @@ jobs:
 
     - name: Build
       run: |
-        python -m build
+        python -m build --sdist
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: vapoursynth-sdist
+        path: dist/*.tar.gz
+
+  build-wheel:
+    strategy:
+      matrix:
+        include:
+        - arch: x86_64
+          runs-on: ubuntu-latest
+        - arch: aarch64
+          runs-on: ubuntu-24.04-arm
+      fail-fast: false
+
+    runs-on: ${{ matrix.runs-on }}
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: pypa/cibuildwheel@v3.4.0
+      env:
+        CIBW_BUILD: cp312-*
+        CIBW_BEFORE_ALL: >
+          git clone https://github.com/sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules &&
+          cd zimg &&
+          ./autogen.sh &&
+          ./configure &&
+          make -j$(nproc) &&
+          make install -j$(nproc) &&
+          cd .. &&
+          rm -rf zimg
+      with:
+        output-dir: dist
 
     - name: Check for abi3 violations or inconsistencies
       run: |
-        abi3audit --verbose dist/*.whl
+        pipx run abi3audit --verbose dist/*.whl
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: vapoursynth-manylinux_${{ matrix.arch }}
+        path: dist/*manylinux*.whl
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: vapoursynth-musllinux_${{ matrix.arch }}
+        path: dist/*musllinux*.whl
 
     - name: Install
       run: |

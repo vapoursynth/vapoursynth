@@ -30,6 +30,10 @@ deps = []
 host_cpu_family = host_machine.cpu_family()
 host_system = host_machine.system()
 
+if host_system not in ['cygwin', 'windows']
+    dl_dep = dependency('dl')
+endif
+
 if not host_cpu_family.startswith('x86')
     enable_x86_asm = false
 endif
@@ -82,10 +86,11 @@ if enable_guard_pattern
 endif
 
 if enable_core
+    deps += dependency('threads')
     deps += dependency('zimg', static: true, version: '>=3.0.5')
 
     if host_system not in ['cygwin', 'windows']
-        deps += dependency('dl')
+        deps += dl_dep
 
         code = '''
     #define _GNU_SOURCE
@@ -219,7 +224,7 @@ endif
 if enable_vsscript
     libvsscript = library('vapoursynth-script',
         files('src/vsscript/vsscript.cpp'),
-        dependencies: py_dep,
+        dependencies: [dl_dep, py_dep],
         gnu_symbol_visibility: 'hidden',
         include_directories: incdir,
         install: true,
