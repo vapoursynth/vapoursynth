@@ -47,10 +47,7 @@ if plugindir == '$libdir/vapoursynth'
 endif
 
 py = import('python').find_installation(pure: false)
-py_dep = py.dependency(embed: true, required: false, version: '>=3.12')
-if not py_dep.found()
-    py_dep = py.dependency(embed: false, version: '>=3.12')
-endif
+py_dep = py.dependency(version: '>=3.12')
 
 vspipe_link_args = []
 
