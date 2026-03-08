@@ -45,3 +45,9 @@ limited-api = true
 
 [tool.meson-python.args]
 setup = ["-Dbuild_wheel=true"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+extend-select = ["I"]
