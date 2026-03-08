@@ -95,3 +95,19 @@ jobs:
         vsscript-config
         vspipe --version
         python -m unittest discover -s test -p "*test.py"
+
+  publish:
+    permissions:
+      id-token: write
+    needs: [build-sdist, build-wheel]
+    if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        path: dist
+        pattern: vapoursynth-*
+        merge-multiple: true
+
+    - uses: pypa/gh-action-pypi-publish@release/v1
