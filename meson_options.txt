@@ -43,5 +43,5 @@ option('plugindir',
 option('build_wheel',
     type: 'boolean',
     value: false,
-    description: 'If true, the install directory for core, vsscript and vspipe will be changed to "site-packages/vapoursynth"',
+    description: 'Indicating whether meson is invoked by a backend for building the wheel',
 )

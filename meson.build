@@ -51,8 +51,7 @@ endif
 
 vspipe_link_args = []
 
-install_dir = build_wheel ? py.get_install_dir() / 'vapoursynth' : []
-install_rpath = build_wheel ? '$ORIGIN' : ''
+install_dir = py.get_install_dir() / 'vapoursynth'
 
 add_project_arguments(
     cxx.get_supported_arguments(
@@ -185,8 +184,7 @@ if enable_core
         dependencies: deps,
         gnu_symbol_visibility: 'hidden',
         include_directories: incdir,
-        install: true,
-        install_dir: install_dir,
+        install: not build_wheel,
         link_with: libs,
         soversion: run_command('grep', '-m', '1', 'VAPOURSYNTH_API_MAJOR', 'include/VapourSynth4.h', check: true).stdout().strip().split()[2],
     )
@@ -223,8 +221,7 @@ if enable_vsscript
         dependencies: py_dep,
         gnu_symbol_visibility: 'hidden',
         include_directories: incdir,
-        install: true,
-        install_dir: install_dir,
+        install: not build_wheel,
         soversion: run_command('grep', '-m', '1', 'VSSCRIPT_API_MAJOR', 'include/VSScript4.h', check: true).stdout().strip().split()[2],
     )
 
@@ -253,7 +250,6 @@ if enable_vsscript
             gnu_symbol_visibility: 'hidden',
             install: true,
             install_dir: install_dir,
-            install_rpath: install_rpath,
             link_args: vspipe_link_args,
         )
     endif
@@ -272,12 +268,12 @@ if enable_python_module
                 'msvc_project/x64/Release/VSScript.dll',
                 'msvc_project/x64/Release/VSVFW.dll',
             ),
-            install_dir: py.get_install_dir() / 'vapoursynth',
+            install_dir: install_dir,
         )
 
         install_data(
             files('msvc_project/x64/Release/AvsCompat.dll'),
-            install_dir: py.get_install_dir() / 'vapoursynth/plugins',
+            install_dir: install_dir / 'plugins',
         )
     endif
 
@@ -285,7 +281,7 @@ if enable_python_module
         'include',
         exclude_directories: 'cython',
         exclude_files: ['VapourSynth.h', 'VSHelper.h'],
-        install_dir: py.get_install_dir() / 'vapoursynth',
+        install_dir: install_dir,
     )
 
     py.extension_module('vapoursynth',
@@ -293,7 +289,6 @@ if enable_python_module
         cython_args: '-E VS_CURRENT_RELEASE=@0@'.format(meson.project_version()),
         dependencies: [py_dep, vapoursynth_dep],
         install: true,
-        install_rpath: install_rpath,
         limited_api: '3.12',
         override_options: 'cython_language=cpp',
         subdir: 'vapoursynth',
