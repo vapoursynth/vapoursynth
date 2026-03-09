@@ -52,17 +52,11 @@ jobs:
 
     - name: Build
       run: |
-        python -m build
+        python -m build --wheel
 
     - name: Check for abi3 violations or inconsistencies
       run: |
         abi3audit --verbose dist/*.whl
-
-    - uses: actions/upload-artifact@v7
-      with:
-        name: vapoursynth-sdist
-        path: dist/*.tar.gz
-        overwrite: true
 
     - uses: actions/upload-artifact@v7
       with:
