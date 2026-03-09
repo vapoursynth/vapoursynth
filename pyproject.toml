@@ -51,6 +51,9 @@ limited-api = true
 [tool.meson-python.args]
 setup = ["-Dbuild_wheel=true"]
 
+[tool.meson-python.wheel]
+exclude = ["*/vapoursynth.lib"]
+
 [tool.ruff]
 line-length = 120
 
