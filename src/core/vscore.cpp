@@ -59,23 +59,11 @@ static bool isValidIdentifier(const std::string &s) {
 }
 
 #ifdef VS_TARGET_OS_WINDOWS
-static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *valueName) {
-    HKEY hKey;
-    LONG lRes = RegOpenKeyEx(HKEY_CURRENT_USER, keyName, 0, KEY_READ, &hKey);
-    if (lRes != ERROR_SUCCESS) {
-        lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName, 0, KEY_READ, &hKey);
-        if (lRes != ERROR_SUCCESS)
-            return std::wstring();
-    }
-    WCHAR szBuffer[512];
-    DWORD dwBufferSize = sizeof(szBuffer);
-    ULONG nError;
-    nError = RegQueryValueEx(hKey, valueName, 0, nullptr, (LPBYTE)szBuffer, &dwBufferSize);
-    RegCloseKey(hKey);
-    if (ERROR_SUCCESS == nError)
-        return szBuffer;
-    return std::wstring();
-}
+const char *VSCore::libraryExtension = ".dll";
+#elif defined(VS_TARGET_OS_DARWIN)
+const char *VSCore::libraryExtension = ".dylib";
+#else
+const char *VSCore::libraryExtension = ".so";
 #endif
 
 VSFrameContext::VSFrameContext(NodeOutputKey key, const PVSFrameContext &notify) :
@@ -1744,20 +1732,12 @@ bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
         return true;
     }
 
-#ifdef VS_TARGET_OS_WINDOWS
-    const std::string ext = ".dll";
-#elif defined(VS_TARGET_OS_DARWIN)
-    const std::string ext = ".dylib";
-#else
-    const std::string ext = ".so";
-#endif
-
     while (std::getline(f, line)) {
         if (line.empty())
             continue;
         std::filesystem::path pluginPath = path;
         pluginPath /= line;
-        pluginPath += ext;
+        pluginPath += libraryExtension;
         try {
             loadPlugin(pluginPath);
         } catch (VSNoEntryPointException &) {
@@ -1774,19 +1754,11 @@ bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path) {
     if (path.empty())
         return false;
 
-#ifdef VS_TARGET_OS_WINDOWS
-    const std::string filter = ".dll";
-#elif defined(VS_TARGET_OS_DARWIN)
-    const std::string filter = ".dylib";
-#else
-    const std::string filter = ".so";
-#endif
-
     if (!loadPluginManifest(path)) {
         try {
             for (const auto &iter : std::filesystem::directory_iterator(path)) {
                 std::error_code ec;
-                if (iter.is_regular_file(ec) && !ec && iter.path().extension() == filter) {
+                if (iter.is_regular_file(ec) && !ec && iter.path().extension() == libraryExtension) {
                     try {
                         loadPlugin(iter.path());
                     } catch (VSNoEntryPointException &) {

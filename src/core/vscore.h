@@ -1079,6 +1079,8 @@ private:
     std::mutex logMutex;
     std::set<VSLogHandle *> messageHandlers;
     std::list<std::pair<VSMessageType, std::string>> storedMessages;
+
+    static const char *libraryExtension;
 public:
     VSThreadPool *threadPool;
     vs::MemoryUse *memory;
