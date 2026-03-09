@@ -503,8 +503,12 @@ public:
 template<typename T, size_t staticSize>
 class SemiStaticVector {
 private:
+    struct StorageElement {
+        alignas(T) std::byte data[sizeof(T)];
+    };
+
     size_t numElems = 0;
-    alignas(T[staticSize]) std::byte staticData[sizeof(T[staticSize])];
+    StorageElement staticData[staticSize];
     std::vector<T> dynamicData;
     void freeStatic() noexcept {
         for (size_t pos = 0; pos < std::min(numElems, staticSize); ++pos)
