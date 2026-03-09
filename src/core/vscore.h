@@ -504,7 +504,7 @@ template<typename T, size_t staticSize>
 class SemiStaticVector {
 private:
     size_t numElems = 0;
-    typename std::aligned_storage<sizeof(T), alignof(T)>::type staticData[staticSize];
+    alignas(T[staticSize]) std::byte staticData[sizeof(T[staticSize])];
     std::vector<T> dynamicData;
     void freeStatic() noexcept {
         for (size_t pos = 0; pos < std::min(numElems, staticSize); ++pos)
