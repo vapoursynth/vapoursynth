@@ -179,7 +179,6 @@ if enable_core
             'src/core/memoryuse.cpp',
             'src/core/mergefilters.cpp',
             'src/core/reorderfilters.cpp',
-            'src/core/settings.cpp',
             'src/core/simplefilters.cpp',
             'src/core/textfilter.cpp',
             'src/core/vsapi.cpp',

@@ -22,12 +22,7 @@
 #include "VSHelper4.h"
 #include "version.h"
 #include "cpufeatures.h"
-#ifndef VS_TARGET_OS_WINDOWS
-#include <dirent.h>
 #include <cstddef>
-#include <unistd.h>
-#include "settings.h"
-#endif
 #include <cassert>
 #include <queue>
 #include <bitset>
@@ -35,10 +30,6 @@
 
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
-#endif
-
-#ifdef VS_TARGET_OS_WINDOWS
-#include <shlobj.h>
 #endif
 
 // Internal filter headers
@@ -1904,17 +1895,6 @@ std::filesystem::path VSCore::getLibraryPath() {
     return {};
 }
 
-#ifdef VS_TARGET_OS_WINDOWS
-void VSCore::isPortableInit() {
-    m_basePath = getLibraryPath();
-    int level = 4;
-    do {
-        m_basePath = m_basePath.parent_path();
-        m_isPortable = std::filesystem::exists(m_basePath / L"portable.vs");
-    } while (!m_isPortable && --level > 0 && !m_basePath.empty());
-}
-#endif
-
 VSCore::VSCore(int flags) :
     numFilterInstances(1),
     numFunctionInstances(0),
@@ -1968,95 +1948,13 @@ VSCore::VSCore(int flags) :
     assert(!libraryPath.empty());
 
     // New site-packages relative plugin loading
-    if (!disableAutoLoading)
+    if (!disableAutoLoading) {
         loadAllPluginsInPath(libraryPath / L"plugins");
 
-    // FIXME, at some point all these old plugin paths should be dropped or reworked
-
-#ifdef VS_TARGET_OS_WINDOWS
-    std::call_once(m_portableOnceFlag, isPortableInit);
-
-    if (m_isPortable) {
-        // Autoload bundled plugins
-        if (!disableAutoLoading)
-            loadAllPluginsInPath(m_basePath / L"vs-plugins");
-    } else {
-        // Autoload user specific plugins first so a user can always override
-        std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
-        if (SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appDataBuffer.data()) != S_OK)
-            SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_DEFAULT, appDataBuffer.data());
-
-        std::filesystem::path appDataPath = appDataBuffer.data();
-        appDataPath /= L"VapourSynth\\plugins64";
-
-        // Autoload bundled plugins
-        if (!disableAutoLoading) {
-            // Autoload per user plugins
-            loadAllPluginsInPath(appDataPath);
-
-            std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", L"Plugins");
-            loadAllPluginsInPath(globalPluginPath);
-        }
+        const char *extraPluginPath = std::getenv("VAPOURSYNTH_EXTRA_PLUGIN_PATH");
+        if (extraPluginPath && strlen(extraPluginPath) > 0)
+            loadAllPluginsInPath(extraPluginPath);
     }
-
-#else
-    std::string configFile;
-    
-    const char *override = getenv("VAPOURSYNTH_CONF_PATH");
-
-    if (override) {
-        configFile.append(override);
-    } else {
-        const char *home = getenv("HOME");
-#ifdef VS_TARGET_OS_DARWIN
-        if (home) {
-            configFile.append(home).append("/Library/Application Support/VapourSynth/vapoursynth.conf");
-        }
-#else
-        const char *xdg_config_home = getenv("XDG_CONFIG_HOME");
-        if (xdg_config_home) {
-            configFile.append(xdg_config_home).append("/vapoursynth/vapoursynth.conf");
-        } else if (home) {
-            configFile.append(home).append("/.config/vapoursynth/vapoursynth.conf");
-        } // If neither exists, an empty string will do.
-#endif
-    }
-
-    VSMap *settings = readSettings(configFile);
-    const char *error = vs_internal_vsapi.mapGetError(settings);
-    if (error) {
-        logMessage(mtWarning, error);
-    } else {
-        int err;
-        const char *tmp;
-
-        tmp = vs_internal_vsapi.mapGetData(settings, "UserPluginDir", 0, &err);
-        std::string userPluginDir(tmp ? tmp : "");
-
-        tmp = vs_internal_vsapi.mapGetData(settings, "SystemPluginDir", 0, &err);
-        std::string systemPluginDir(tmp ? tmp : VS_PATH_PLUGINDIR);
-
-        tmp = vs_internal_vsapi.mapGetData(settings, "AutoloadUserPluginDir", 0, &err);
-        bool autoloadUserPluginDir = tmp ? std::string(tmp) == "true" : true;
-
-        tmp = vs_internal_vsapi.mapGetData(settings, "AutoloadSystemPluginDir", 0, &err);
-        bool autoloadSystemPluginDir = tmp ? std::string(tmp) == "true" : true;
-
-        if (!disableAutoLoading && autoloadUserPluginDir && !userPluginDir.empty()) {
-            if (!loadAllPluginsInPath(userPluginDir)) {
-                logMessage(mtWarning, "Autoloading the user plugin dir '" + userPluginDir + "' failed. Directory doesn't exist?");
-            }
-        }
-
-        if (autoloadSystemPluginDir) {
-            if (!loadAllPluginsInPath(systemPluginDir)) {
-                logMessage(mtDebug, "Autoloading the system plugin dir '" + systemPluginDir + "' failed. Directory doesn't exist?");
-            }
-        }
-    }
-
-    vs_internal_vsapi.freeMap(settings);
-#endif
 }
 
 void VSCore::freeCore() {
@@ -2549,7 +2447,4 @@ int VSFrame::alignment = 32;
 
 thread_local VSNode *VSCore::currentProcessingNode = nullptr;
 thread_local PVSFunctionFrame VSCore::functionFrame;
-bool VSCore::m_isPortable = false;
-std::filesystem::path VSCore::m_basePath;
-std::once_flag VSCore::m_portableOnceFlag;
 std::atomic<uint64_t> VSFrame::allocationSeq = 0;

@@ -106,16 +106,11 @@ Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignorevers
 Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\sdk\vsscript_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 
-; Create the general autoload directory
-[Dirs]
-Name: "{app}\plugins"; Flags: uninsalwaysuninstall; Components: vscore
-
 [Icons]
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/; Components: vscore
 Name: {group}\Documentation (Local); Filename: {app}\docs\index.html; Components: docs
 Name: {group}\Documentation (Online); Filename: http://www.vapoursynth.com/doc/
 Name: {group}\Global Autoload Directory; Filename: {app}\plugins; Check: IsAdminInstallMode; Components: vscore
-Name: {group}\User Autoload Directory; Filename: %APPDATA%\VapourSynth\plugins64; Components: vscore
 Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
 
 [Registry]

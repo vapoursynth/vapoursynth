@@ -1066,17 +1066,10 @@ private:
     VSCoreInfo coreInfo; // API3 compatibility
     std::set<VSNode *> caches;
     std::mutex cacheLock;
-    static bool m_isPortable;
-    static std::filesystem::path m_basePath;
-    static std::once_flag m_portableOnceFlag;
 
     std::atomic<int> cpuLevel;
 
     static std::filesystem::path getLibraryPath();
-
-#ifdef VS_TARGET_OS_WINDOWS
-    static void isPortableInit();
-#endif
 
     ~VSCore();
 

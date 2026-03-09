@@ -37,7 +37,6 @@ copy "%MVSCRedistPath%\%RedistVersion%\x64\Microsoft.VC%RedistShortVersion%.CRT\
 copy .\VAPOURSYNTH_VERSION buildp64
 copy .\MANIFEST.in buildp64
 xcopy /E ..\doc\_build\html\* buildp64\doc
-type nul >buildp64\portable.vs
 if "%SKIP_COMPRESS%" EQU "" (
   IF EXIST "Compiled\vapoursynth64-portable-R%VERSION_STRING%.zip" (
     del Compiled\vapoursynth64-portable-R%VERSION_STRING%.zip
