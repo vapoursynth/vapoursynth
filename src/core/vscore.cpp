@@ -1743,7 +1743,7 @@ bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
         } catch (VSNoEntryPointException &) {
             logMessage(mtCritical, ("Manifest declared plugin has no entry point: " + pluginPath.u8string()).c_str());
         } catch (VSException &e) {
-            logMessage(mtWarning, e.what());
+            logMessage(mtCritical, e.what());
         }
     }
 
@@ -2087,6 +2087,24 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
     : fnamespace(forcedNamespace), id(forcedId), core(core) {
     std::filesystem::path fullPath = std::filesystem::absolute(relFilename);
     filename = fullPath.generic_u8string();
+
+#ifdef VS_TARGET_CPU_X86
+    int abiLevel = doGetX86ABILevel();
+
+    auto tryABILevel = [&fullPath](int level) -> bool {
+            std::filesystem::path abiLevelPath = std::filesystem::path(fullPath).replace_extension(".v" + std::to_string(level) + fullPath.extension().u8string());
+            if (std::filesystem::exists(abiLevelPath)) {
+                fullPath = abiLevelPath;
+                return true;
+            }
+            return false;
+        };
+
+    for (int level = abiLevel; level > 1; --level)
+        if (tryABILevel(level))
+            break;
+#endif
+
 #ifdef VS_TARGET_OS_WINDOWS
     libHandle = LoadLibraryEx(fullPath.c_str(), nullptr, altSearchPath ? 0 : (LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR));
 

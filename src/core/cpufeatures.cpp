@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2020 Fredrik Mellbin
+* Copyright (c) 2012-2026 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -80,6 +80,7 @@ static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
     cpuFeatures->aes = !!(ecx & (1 << 25));
     cpuFeatures->movbe = !!(ecx & (1 << 22));
     cpuFeatures->popcnt = !!(ecx & (1 << 23));
+    cpuFeatures->cmpxchg16b = !!(ecx & (1 << 13));
 
     if ((ecx & (1 << 27)) && (ecx & (1 << 28))) {
         xedxeax = vs_cpu_xgetbv(0);
@@ -91,6 +92,9 @@ static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
             edx = 0;
             vs_cpu_cpuid(7, &eax, &ebx, &ecx, &edx);
             cpuFeatures->avx2 = !!(ebx & (1 << 5));
+            cpuFeatures->bmi1 = !!(ebx & (1 << 3));
+            cpuFeatures->bmi2 = !!(ebx & (1 << 8));
+
             cpuFeatures->avx512_f = !!(ebx & (1 << 16)) && ((xedxeax & 0xE0) == 0xE0);
 
             if (cpuFeatures->avx512_f) {
@@ -102,6 +106,18 @@ static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
         }
     }
 }
+
+int doGetX86ABILevel(void) {
+    auto c = getCPUFeatures();
+    if (!(c->cmpxchg16b && c->popcnt && c->sse4_2))
+        return 1;
+    if (!(c->avx2 && c->f16c && c->fma3 && c->bmi2 && c->movbe))
+        return 2;
+    if (!(c->avx512_f && c->avx512_bw && c->avx512_cd && c->avx512_dq && c->avx512_vl))
+        return 3;
+    return 4;
+}
+
 #else
 static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
     memset(cpuFeatures, 0, sizeof(CPUFeatures));

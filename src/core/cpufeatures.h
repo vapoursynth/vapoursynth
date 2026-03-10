@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2020 Fredrik Mellbin
+* Copyright (c) 2012-2026 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -42,6 +42,9 @@ typedef struct CPUFeatures {
     char aes;
     char movbe;
     char popcnt;
+    char bmi1;
+    char bmi2;
+    char cmpxchg16b;
     char avx512_f;
     char avx512_cd;
     char avx512_bw;
@@ -51,6 +54,7 @@ typedef struct CPUFeatures {
 } CPUFeatures;
 
 const CPUFeatures *getCPUFeatures(void);
+int doGetX86ABILevel(void);
 
 #ifdef __cplusplus
 }
