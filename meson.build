@@ -11,7 +11,6 @@ enable_core = get_option('enable_core')
 enable_vsscript = get_option('enable_vsscript')
 enable_vspipe = get_option('enable_vspipe')
 enable_python_module = get_option('enable_python_module')
-plugindir = get_option('plugindir')
 build_wheel = get_option('build_wheel')
 
 cxx = meson.get_compiler('cpp')
@@ -48,10 +47,6 @@ libs = []
 
 pkg = import('pkgconfig')
 
-if plugindir == '$libdir/vapoursynth'
-    plugindir = get_option('prefix') / get_option('libdir') / 'vapoursynth'
-endif
-
 py = import('python').find_installation(pure: false)
 py_dep = py.dependency(version: '>=3.12')
 
@@ -64,7 +59,6 @@ add_project_arguments(
         '-DVS_CORE_EXPORTS',
         '-DVS_CURRENT_RELEASE=@0@'.format(meson.project_version()),
         '-DVS_GRAPH_API',
-        '-DVS_PATH_PLUGINDIR="@0@"'.format(plugindir),
         '-DVS_USE_LATEST_API',
         '-DVSSCRIPT_USE_LATEST_API',
         '-Wno-ignored-attributes',
