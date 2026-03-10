@@ -34,12 +34,6 @@ option('enable_python_module',
     description: 'Build the Python module. Requires Python, Cython, and the core',
 )
 
-option('plugindir',
-    type: 'string',
-    value: '$libdir/vapoursynth',
-    description: 'The default value for the configuration option SystemPluginDir in vapoursynth.conf',
-)
-
 option('build_wheel',
     type: 'boolean',
     value: false,

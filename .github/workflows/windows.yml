@@ -83,7 +83,6 @@ jobs:
     - uses: actions/download-artifact@v8
       with:
         path: dist
-        pattern: vapoursynth-*
         merge-multiple: true
 
     - uses: pypa/gh-action-pypi-publish@release/v1
