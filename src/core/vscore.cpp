@@ -1643,7 +1643,7 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
         if (!forceid)
             forceid = "";
         bool altSearchPath = !!vsapi->mapGetInt(in, "altsearchpath", 0, &err);
-        core->loadPlugin(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)), forcens, forceid, altSearchPath);
+        core->loadPlugin(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)), true, forcens, forceid, altSearchPath);
     } catch (VSException &e) {
         vsapi->mapSetError(out, e.what());
     }
@@ -1739,7 +1739,7 @@ bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
         pluginPath /= line;
         pluginPath += libraryExtension;
         try {
-            loadPlugin(pluginPath);
+            loadPlugin(pluginPath, true);
         } catch (VSNoEntryPointException &) {
             logMessage(mtCritical, ("Manifest declared plugin has no entry point: " + pluginPath.u8string()).c_str());
         } catch (VSException &e) {
@@ -1998,8 +1998,8 @@ VSPlugin *VSCore::getNextPlugin(VSPlugin *plugin) {
     }
 }
 
-void VSCore::loadPlugin(const std::filesystem::path &filename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath) {
-    std::unique_ptr<VSPlugin> p(new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, this));
+void VSCore::loadPlugin(const std::filesystem::path &filename, bool loadCPUOptimized, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath) {
+    std::unique_ptr<VSPlugin> p(new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, loadCPUOptimized, this));
 
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
 
@@ -2083,26 +2083,28 @@ static void VS_CC configPlugin3(const char *identifier, const char *defaultNames
     plugin->configPlugin(identifier, defaultNamespace, name, -1, apiVersion, readOnly ? 0 : pcModifiable);
 }
 
-VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core)
+VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, bool loadCPUOptimized, VSCore *core)
     : fnamespace(forcedNamespace), id(forcedId), core(core) {
     std::filesystem::path fullPath = std::filesystem::absolute(relFilename);
     filename = fullPath.generic_u8string();
 
 #ifdef VS_TARGET_CPU_X86
-    int abiLevel = doGetX86ABILevel();
+    if (loadCPUOptimized) {
+        int abiLevel = doGetX86ABILevel();
 
-    auto tryABILevel = [&fullPath](int level) -> bool {
+        auto tryABILevel = [&fullPath](int level) -> bool {
             std::filesystem::path abiLevelPath = std::filesystem::path(fullPath).replace_extension(".v" + std::to_string(level) + fullPath.extension().u8string());
             if (std::filesystem::exists(abiLevelPath)) {
                 fullPath = abiLevelPath;
                 return true;
             }
             return false;
-        };
+            };
 
-    for (int level = abiLevel; level > 1; --level)
-        if (tryABILevel(level))
-            break;
+        for (int level = abiLevel; level > 1; --level)
+            if (tryABILevel(level))
+                break;
+    }
 #endif
 
 #ifdef VS_TARGET_OS_WINDOWS

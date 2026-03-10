@@ -1020,7 +1020,7 @@ private:
     VSCore *core;
 public:
     explicit VSPlugin(VSCore *core);
-    VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core);
+    VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, bool loadCPUOptimized, VSCore *core);
     ~VSPlugin();
     void lock() { readOnly = true; }
     bool configPlugin(const std::string &identifier, const std::string &pluginsNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags);
@@ -1131,7 +1131,7 @@ public:
 
 
     bool loadPluginManifest(const std::filesystem::path &path);
-    void loadPlugin(const std::filesystem::path &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
+    void loadPlugin(const std::filesystem::path &filename, bool loadCPUOptimized = false, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
     bool loadAllPluginsInPath(const std::filesystem::path &path);
 
     void createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
