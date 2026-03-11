@@ -190,19 +190,19 @@ if enable_core
         soversion: run_command('grep', '-m', '1', 'VAPOURSYNTH_API_MAJOR', 'include/VapourSynth4.h', check: true).stdout().strip().split()[2],
     )
 
-    install_headers(
-        files(
-            'include/VapourSynth.h',
-            'include/VapourSynth4.h',
-            'include/VSConstants4.h',
-            'include/VSHelper.h',
-            'include/VSHelper4.h',
-            'include/VSScript4.h',
-        ),
-        subdir: 'vapoursynth',
-    )
-
     if not build_wheel
+        install_headers(
+            files(
+                'include/VapourSynth.h',
+                'include/VapourSynth4.h',
+                'include/VSConstants4.h',
+                'include/VSHelper.h',
+                'include/VSHelper4.h',
+                'include/VSScript4.h',
+            ),
+            subdir: 'vapoursynth',
+        )
+
         pkg.generate(libvapoursynth,
             description: 'A frameserver for the 21st century',
             filebase: 'vapoursynth',
