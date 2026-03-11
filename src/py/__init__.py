@@ -1,6 +1,6 @@
 from ._utils import *
 from .vapoursynth import *
-from .vapoursynth import __api_version__, __pyx_capi__, __version__
+from .vapoursynth import __api_version__, __pyx_capi__, __version__, _CoreProxy, _FastManager, _construct_parameter, _construct_type, _try_enable_introspection
 
 __all__ = [
   'GRAY',
