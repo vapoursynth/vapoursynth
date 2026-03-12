@@ -31,6 +31,7 @@
 #include <fstream>
 #include <string>
 #include <cstring>
+#include <cstdlib>
 
 #ifdef VS_TARGET_OS_WINDOWS
 #define WIN32_LEAN_AND_MEAN
@@ -92,16 +93,16 @@ static std::filesystem::path readEnvConfig(const std::filesystem::path &path, co
 static std::string extendedErrorMessage;
 
 static void real_init(void) VS_NOEXCEPT {
-
     extendedErrorMessage.clear();
 
     MODULE_HANDLE_TYPE libraryHandle = nullptr;
 
+    const char *venvRoot = std::getenv("VIRTUAL_ENV");
+
     // read py-symbol-path from vspyenv.cfg
     // if no py-symbol-path, try to read executable path from pyvenv.cfg
-    // if executable path exists run python -m vapoursynth vsscript-config and re-read py-symbol-path (return it as well?)
+    // if executable path exists run vsscript-config and re-read py-symbol-path
     // load from py-symbol-path if it exists, otherwise error out
-
 
     std::filesystem::path vspyConfigPath = getLibraryPath();
     vspyConfigPath.replace_filename("vspyenv.cfg");
@@ -109,7 +110,6 @@ static void real_init(void) VS_NOEXCEPT {
     std::filesystem::path pythonSymbolPath = readEnvConfig(vspyConfigPath, "py-symbol-path");
 
     if (pythonSymbolPath.empty()) {
-        const char *venvRoot = getenv("VIRTUAL_ENV");
         std::filesystem::path pythonExePath;
         if (venvRoot) {
             std::filesystem::path venvConfigPath = std::filesystem::u8path(venvRoot);
@@ -117,7 +117,7 @@ static void real_init(void) VS_NOEXCEPT {
             pythonExePath = readEnvConfig(venvConfigPath, "executable");
         }
         if (pythonExePath.empty()) {
-            extendedErrorMessage = "Python library path couldn't be determined. Run `python -m vapoursynth vsscript-config` to set it for this Python installation and then try again.";
+            extendedErrorMessage = "Python library path couldn't be determined. Run `vsscript-config` to set it for this Python installation and then try again.";
             return;
         }
 
@@ -151,17 +151,27 @@ static void real_init(void) VS_NOEXCEPT {
     p_Py_InitializeEx = reinterpret_cast<decltype(Py_InitializeEx) *>(GET_FUNCTION_ADDRESS(libraryHandle, "Py_InitializeEx"));
     p_PyGILState_Ensure = reinterpret_cast<decltype(PyGILState_Ensure) *>(GET_FUNCTION_ADDRESS(libraryHandle, "PyGILState_Ensure"));
     p_PyEval_SaveThread = reinterpret_cast<decltype(PyEval_SaveThread) *>(GET_FUNCTION_ADDRESS(libraryHandle, "PyEval_SaveThread"));
+    p_Py_SetProgramName = reinterpret_cast<decltype(Py_SetProgramName) *>(GET_FUNCTION_ADDRESS(libraryHandle, "Py_SetProgramName"));
 
-    if (!p_Py_DecRef || !p_PyObject_GetAttrString || !p_PyDict_GetItemString || !p_PyCapsule_IsValid || !p_PyCapsule_GetPointer || !p_PyImport_ImportModule || !p_Py_IsInitialized || !p_Py_InitializeEx || !p_PyGILState_Ensure || !p_PyEval_SaveThread) {
+    if (!p_Py_DecRef || !p_PyObject_GetAttrString || !p_PyDict_GetItemString || !p_PyCapsule_IsValid || !p_PyCapsule_GetPointer || !p_PyImport_ImportModule
+        || !p_Py_IsInitialized || !p_Py_InitializeEx || !p_PyGILState_Ensure || !p_PyEval_SaveThread || !p_Py_SetProgramName) {
         FREE_LIBRARY(libraryHandle);
         extendedErrorMessage = "Failed to load required Python API functions from " + pythonSymbolPath.u8string();
         return;
     }
 
-    // FIXME, unload library here as well?
     int preInitialized = p_Py_IsInitialized();
-    if (!preInitialized)
+    if (!preInitialized) {
+#ifdef VS_TARGET_OS_WINDOWS
+        if (venvRoot) {
+            std::filesystem::path pythonPath = std::filesystem::u8path(venvRoot);
+            pythonPath /= "Scripts";
+            pythonPath /= "python.exe";
+            p_Py_SetProgramName(pythonPath.c_str());
+        }
+#endif
         p_Py_InitializeEx(0);
+    }
     s = p_PyGILState_Ensure();
     if (import_vapoursynth()) {
         FREE_LIBRARY(libraryHandle);

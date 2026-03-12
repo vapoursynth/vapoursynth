@@ -23,6 +23,7 @@ static decltype(Py_IsInitialized) *p_Py_IsInitialized = nullptr;
 static decltype(Py_InitializeEx) *p_Py_InitializeEx = nullptr;
 static decltype(PyGILState_Ensure) *p_PyGILState_Ensure = nullptr;
 static decltype(PyEval_SaveThread) *p_PyEval_SaveThread = nullptr;
+static decltype(Py_SetProgramName) *p_Py_SetProgramName = nullptr;
 
 
 static int (*__pyx_api_f_11vapoursynth_vpy4_createScript)(VSScript *) = 0;
