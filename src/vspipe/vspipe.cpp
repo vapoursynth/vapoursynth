@@ -900,7 +900,6 @@ int wmain(int argc, wchar_t **argv) {
 }
 
 static int main8(int argc, char **argv) {
-    SetConsoleCtrlHandler(HandlerRoutine, TRUE);
     if (GetConsoleOutputCP() != CP_UTF8 && !SetConsoleOutputCP(CP_UTF8))
         fprintf(stderr, "Failed to set UTF-8 console codepage, some characters may not be correctly displayed\n");
 #else
@@ -919,6 +918,11 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
         return 1;
     }
+
+    // Set the signal handler AFTER python initialization because it handles signals even if you tell it not to
+#ifdef VS_TARGET_OS_WINDOWS
+    SetConsoleCtrlHandler(HandlerRoutine, TRUE);
+#endif
 
     VSPipeOptions opts{};
     int parseResult = parseOptions(opts, argc, argv);
