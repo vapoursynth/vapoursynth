@@ -97,25 +97,19 @@ static void real_init(void) VS_NOEXCEPT {
 
     MODULE_HANDLE_TYPE libraryHandle = nullptr;
 
-    const char *venvRoot = getenv("VIRTUAL_ENV");
-    std::filesystem::path vspyConfigPath;
-
     // read py-symbol-path from vspyenv.cfg
     // if no py-symbol-path, try to read executable path from pyvenv.cfg
     // if executable path exists run python -m vapoursynth vsscript-config and re-read py-symbol-path (return it as well?)
     // load from py-symbol-path if it exists, otherwise error out
 
-    if (venvRoot) {
-        vspyConfigPath = std::filesystem::u8path(venvRoot);
-        vspyConfigPath /= "vspyenv.cfg";
-    } else {
-        vspyConfigPath = getLibraryPath();
-        vspyConfigPath.replace_filename("vspyenv.cfg");
-    }
+
+    std::filesystem::path vspyConfigPath = getLibraryPath();
+    vspyConfigPath.replace_filename("vspyenv.cfg");
 
     std::filesystem::path pythonSymbolPath = readEnvConfig(vspyConfigPath, "py-symbol-path");
 
     if (pythonSymbolPath.empty()) {
+        const char *venvRoot = getenv("VIRTUAL_ENV");
         std::filesystem::path pythonExePath;
         if (venvRoot) {
             std::filesystem::path venvConfigPath = std::filesystem::u8path(venvRoot);
@@ -137,7 +131,7 @@ static void real_init(void) VS_NOEXCEPT {
     }
 
     if (pythonSymbolPath.empty()) {
-        extendedErrorMessage = "Python library path couldn't be determined despite automatic configuration. Run `python -m vapoursynth vsscript-config` to set it for this Python installation or get extended error information and then try again.";
+        extendedErrorMessage = "Python library path couldn't be determined despite automatic configuration. Run `vsscript-config` to set it for this Python installation or get extended error information and then try again.";
         return;
     }
 

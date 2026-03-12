@@ -3774,7 +3774,15 @@ cdef public api int vpy4_initVSScript() nogil:
 
 def _find_python_symbol_path():
     if sys.platform == 'win32':
-        return PurePath(sys.executable).with_name('python3.dll')
+        from ctypes.wintypes import HMODULE, LPWSTR, DWORD, MAX_PATH
+        kernel32 = ctypes.WinDLL('kernel32.dll')
+        GetModuleFileNameW = kernel32.GetModuleFileNameW
+        GetModuleFileNameW.argtypes = [HMODULE, LPWSTR, DWORD]
+        GetModuleFileNameW.restype = DWORD
+        buf = ctypes.create_unicode_buffer(MAX_PATH * 4 + 1)
+        if GetModuleFileNameW(ctypes.pythonapi._handle, buf, MAX_PATH * 4) == 0:
+            return None
+        return buf.value
     else:
         class Dl_info(ctypes.Structure):
             _fields_ = [
@@ -3849,12 +3857,8 @@ def vsscript_check_env():
         print(f'VSSCRIPT_PATH environment variable is set to "{global_path}". VapourSynth module path is "{__file__}".')
 
 def vsscript_config():
-    virtual_env = os.getenv('VIRTUAL_ENV')
-    if virtual_env:
-        config_path = PurePath(virtual_env) / 'vspyenv.cfg'
-    else:
-        config_path = PurePath(__file__)
-        config_path = config_path.with_name('vspyenv.cfg')
+    config_path = PurePath(__file__)
+    config_path = config_path.with_name('vspyenv.cfg')
 
     py_symbol_path = _find_python_symbol_path()
     if py_symbol_path is None:
