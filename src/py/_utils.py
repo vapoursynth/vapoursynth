@@ -2,7 +2,6 @@ import os
 import sys
 import ctypes
 from ctypes.util import find_library
-
 from pathlib import Path, PurePath
 
 def get_include():
@@ -258,7 +257,21 @@ def register_vfw():
 
 def vspipe():
     import subprocess
+    # Perform a search similar to how python determines it's in a venv
+    # and set VIRTUAL_ENV as a hint to VSScript if it's the case
+    vspipe_env = dict(os.environ)
+    if not os.getenv('VIRTUAL_ENV'):
+        venv_config = Path(sys.executable)
+        venv_config = venv_config.with_name('pyvenv.cfg')
+        if venv_config.is_file():
+            vspipe_env['VIRTUAL_ENV'] = str(venv_config.parent)
+        else:
+            venv_config = venv_config.parent
+            venv_config = venv_config.with_name('pyvenv.cfg')
+            if venv_config.is_file():
+                vspipe_env['VIRTUAL_ENV'] = str(venv_config.parent)
+           
     vspipe_path = PurePath(__file__)
     vspipe_path = vspipe_path.with_name('vspipe')
-    ret = subprocess.run([vspipe_path, *sys.argv[1:]])
+    ret = subprocess.run([vspipe_path, *sys.argv[1:]], env=vspipe_env)
     sys.exit(ret.returncode)
