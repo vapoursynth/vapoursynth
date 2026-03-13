@@ -162,14 +162,17 @@ static void real_init(void) VS_NOEXCEPT {
 
     int preInitialized = p_Py_IsInitialized();
     if (!preInitialized) {
-#ifdef VS_TARGET_OS_WINDOWS
         if (venvRoot) {
             std::filesystem::path pythonPath = std::filesystem::u8path(venvRoot);
+#ifdef VS_TARGET_OS_WINDOWS
             pythonPath /= "Scripts";
             pythonPath /= "python.exe";
+#else
+            pythonPath /= "bin";
+            pythonPath /= "python3";
+#endif
             p_Py_SetProgramName(pythonPath.c_str());
         }
-#endif
         p_Py_InitializeEx(0);
     }
     s = p_PyGILState_Ensure();
