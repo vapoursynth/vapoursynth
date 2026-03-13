@@ -1,18 +1,20 @@
 import math
 import unittest
+
 import vapoursynth as vs
+
 
 def get_pixel_value(clip):
     frame = clip.get_frame(0)
     arr = frame[0]
-    return arr[0,0]
+    return arr[0, 0]
+
 
 class CoreTestSequence(unittest.TestCase):
-
     def setUp(self):
         self.core = vs.core
         self.core.num_threads = 1
-            
+
     def test_expr_op1(self):
         clip = self.core.std.BlankClip(format=vs.GRAY8, color=58)
         clip = self.core.std.Expr(clip, "x 2 *")
@@ -206,7 +208,7 @@ class CoreTestSequence(unittest.TestCase):
         clip2 = self.core.std.BlankClip(format=vs.GRAY8, color=58)
         clip = self.core.std.Expr((clip1, clip2), "x y xor")
         self.assertEqual(get_pixel_value(clip), 1)
-        
+
     def test_expr_op39(self):
         clip1 = self.core.std.BlankClip(format=vs.GRAY8, color=1)
         clip2 = self.core.std.BlankClip(format=vs.GRAY8, color=0)
@@ -303,12 +305,12 @@ class CoreTestSequence(unittest.TestCase):
         clip = self.core.std.BlankClip(format=vs.GRAY8, color=58)
         clip = self.core.std.Expr(clip, "x 58 =")
         self.assertEqual(get_pixel_value(clip), 1)
-        
+
     def test_expr_op55(self):
         clip = self.core.std.BlankClip(format=vs.GRAY8, color=3)
         clip = self.core.std.Expr(clip, "x 2 pow")
         self.assertEqual(get_pixel_value(clip), 9)
-        
+
     def test_expr_op56(self):
         clip = self.core.std.BlankClip(format=vs.GRAY8, color=6)
         clip = self.core.std.Expr(clip, "2 x pow")
@@ -363,16 +365,18 @@ class CoreTestSequence(unittest.TestCase):
         clip = self.core.std.Expr((clip1, clip2, clip3), "x dup0 10 dup2 y swap3 3 * + + swap / +")
         self.assertEqual(get_pixel_value(clip), 35)
 
-    def helper_sincos(self, op='sin', f=lambda x: math.sin(x)):
+    def helper_sincos(self, op="sin", f=lambda x: math.sin(x)):
         clip = self.core.std.BlankClip(format=vs.GRAYS, color=10, width=1025, height=1024, length=2)
+
         def init_frame(n, f):
             fout = f.copy()
             arr = fout[0]
             M, N = arr.shape
             for i in range(M):
                 for j in range(N):
-                    arr[i, j] = (n != 0 or -1) * (i*N + j) * 1e-3
+                    arr[i, j] = (n != 0 or -1) * (i * N + j) * 1e-3
             return fout
+
         clip = self.core.std.ModifyFrame(clip, clip, init_frame)
         clip2 = self.core.std.Expr(clip, "x %s" % op)
         for n in range(clip2.num_frames):
@@ -380,12 +384,14 @@ class CoreTestSequence(unittest.TestCase):
             arr1, arr2 = f1[0], f2[0]
             for i in range(clip.height):
                 for j in range(clip.width):
-                    self.assertTrue(abs(arr2[i,j] - f(arr1[i,j])) < 1e-6)
-    def test_expr_sin64(self):
-        self.helper_sincos('sin', lambda x: math.sin(x))
-    def test_expr_cos65(self):
-        self.helper_sincos('cos', lambda x: math.cos(x))
+                    self.assertTrue(abs(arr2[i, j] - f(arr1[i, j])) < 1e-6)
 
-        
-if __name__ == '__main__':
+    def test_expr_sin64(self):
+        self.helper_sincos("sin", lambda x: math.sin(x))
+
+    def test_expr_cos65(self):
+        self.helper_sincos("cos", lambda x: math.cos(x))
+
+
+if __name__ == "__main__":
     unittest.main()

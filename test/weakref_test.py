@@ -1,10 +1,10 @@
-import weakref
 import unittest
+import weakref
+
 import vapoursynth as vs
 
 
 class FilterTestSequence(unittest.TestCase):
-
     def setUp(self):
         self.core = vs.core
 
@@ -27,5 +27,6 @@ class FilterTestSequence(unittest.TestCase):
         ref = weakref.ref(frame)
         self.assertTrue(ref() is frame)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

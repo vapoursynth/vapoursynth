@@ -1,4 +1,5 @@
 import unittest
+
 import vapoursynth as vs
 
 
@@ -19,46 +20,46 @@ class PropDictTest(unittest.TestCase):
         self.core.std.BlankAudio().get_frame(0).props
 
     def test_item_access(self):
-        self.assertEqual(self.props['_DurationDen'], 24)
+        self.assertEqual(self.props["_DurationDen"], 24)
         with self.assertRaises(KeyError):
-            self.props['_NonExistent']
+            self.props["_NonExistent"]
 
         with self.assertRaises(vs.Error):
-            self.props['_DurationDen'] = 1
+            self.props["_DurationDen"] = 1
 
         with self.assertRaises(vs.Error):
-            del self.props['_DurationDen']
+            del self.props["_DurationDen"]
 
-        self.assertEqual(self.props['_DurationDen'], 24)
+        self.assertEqual(self.props["_DurationDen"], 24)
 
-        self.assertEqual(self.props_rw['_DurationDen'], 24)
-        self.props_rw['_DurationDen'] = 1
-        self.assertEqual(self.props_rw['_DurationDen'], 1)
-        del self.props_rw['_DurationDen']
-        self.assertFalse('_DurationDen' in self.props_rw)
+        self.assertEqual(self.props_rw["_DurationDen"], 24)
+        self.props_rw["_DurationDen"] = 1
+        self.assertEqual(self.props_rw["_DurationDen"], 1)
+        del self.props_rw["_DurationDen"]
+        self.assertFalse("_DurationDen" in self.props_rw)
 
     def test_length(self):
         self.assertCountEqual(self.props, self.props_rw)
         self.assertEqual(len(self.props_rw), 2)
-        del self.props_rw['_DurationDen']
+        del self.props_rw["_DurationDen"]
         self.assertEqual(len(self.props_rw), 1)
-        self.props_rw['_DurationDen'] = 1
+        self.props_rw["_DurationDen"] = 1
         self.assertEqual(len(self.props_rw), 2)
-        self.props_rw['TestEntry'] = "123"
+        self.props_rw["TestEntry"] = "123"
         self.assertEqual(len(self.props_rw), 3)
 
     def test_iterators(self):
         self.assertEqual(list(self.props.keys()), list(self.props))
-        self.assertEqual(self.props.keys(), set(['_DurationDen', '_DurationNum']))
+        self.assertEqual(self.props.keys(), set(["_DurationDen", "_DurationNum"]))
         self.assertEqual(list(self.props.values()), [24, 1])
-        self.assertEqual(self.props.items(),  {('_DurationDen', 24), ('_DurationNum', 1)})
+        self.assertEqual(self.props.items(), {("_DurationDen", 24), ("_DurationNum", 1)})
         self.assertEqual(dict(self.props), dict(self.props_rw))
-        self.assertEqual(dict(self.props), {'_DurationDen': 24, '_DurationNum': 1})
+        self.assertEqual(dict(self.props), {"_DurationDen": 24, "_DurationNum": 1})
 
     def test_get_pop(self):
-        self.assertEqual(self.props.get('_DurationDen'), 24)
-        self.assertEqual(self.props.get('_NonExistent'), None)
-        self.assertEqual(self.props.get('_NonExistent', "Testificate"), "Testificate")
+        self.assertEqual(self.props.get("_DurationDen"), 24)
+        self.assertEqual(self.props.get("_NonExistent"), None)
+        self.assertEqual(self.props.get("_NonExistent", "Testificate"), "Testificate")
 
         with self.assertRaises(KeyError):
             self.props.pop("_NonExistent")
@@ -100,14 +101,14 @@ class PropDictTest(unittest.TestCase):
         self.props_rw._DurationDen = 1
         self.assertEqual(self.props_rw._DurationDen, 1)
         del self.props_rw._DurationDen
-        self.assertFalse(hasattr(self.props_rw, '_DurationDen'))
-        
+        self.assertFalse(hasattr(self.props_rw, "_DurationDen"))
+
     def test_data_props(self):
-        self.props_rw.DataPropStr = 'hello'
-        self.props_rw.DataPropBytes = b'hello'
+        self.props_rw.DataPropStr = "hello"
+        self.props_rw.DataPropBytes = b"hello"
         self.assertEqual(type(self.props_rw.DataPropStr), str)
         self.assertEqual(type(self.props_rw.DataPropBytes), bytes)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

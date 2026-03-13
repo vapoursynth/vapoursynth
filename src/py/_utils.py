@@ -1,8 +1,11 @@
+import ctypes
 import os
 import sys
-import ctypes
 from ctypes.util import find_library
 from pathlib import Path, PurePath
+
+from .vapoursynth import Error, __version__
+
 
 def get_include():
     """
@@ -13,10 +16,12 @@ def get_include():
 
 # All code for scripts executables
 
+
 def _find_python_symbol_path():
-    if sys.platform == 'win32':
-        from ctypes.wintypes import HMODULE, LPWSTR, DWORD, MAX_PATH
-        kernel32 = ctypes.WinDLL('kernel32.dll')
+    if sys.platform == "win32":
+        from ctypes.wintypes import DWORD, HMODULE, LPWSTR, MAX_PATH
+
+        kernel32 = ctypes.WinDLL("kernel32.dll")
         GetModuleFileNameW = kernel32.GetModuleFileNameW
         GetModuleFileNameW.argtypes = [HMODULE, LPWSTR, DWORD]
         GetModuleFileNameW.restype = DWORD
@@ -25,6 +30,7 @@ def _find_python_symbol_path():
             return None
         return buf.value
     else:
+
         class Dl_info(ctypes.Structure):
             _fields_ = [
                 ("dli_fname", ctypes.c_char_p),
@@ -33,7 +39,7 @@ def _find_python_symbol_path():
                 ("dli_saddr", ctypes.c_void_p),
             ]
 
-        libdl = ctypes.CDLL(find_library('dl'))
+        libdl = ctypes.CDLL(find_library("dl"))
         libdl.dladdr.argtypes = [ctypes.c_void_p, ctypes.POINTER(Dl_info)]
         libdl.dladdr.restype = ctypes.c_int
 
@@ -46,7 +52,7 @@ def _find_python_symbol_path():
             libpath = os.path.realpath(dlinfo.dli_fname.decode())
 
         # Always correct on mac with system and brew python so exit early
-        if sys.platform == 'darwin':
+        if sys.platform == "darwin":
             return libpath
 
         # We can't dlopen executables on Linux so make sure it's a proper library
@@ -55,7 +61,7 @@ def _find_python_symbol_path():
                 pylib = ctypes.CDLL(libpath)
                 if pylib and pylib.Py_GetVersion:
                     return libpath
-            except:
+            except Exception:
                 pass
 
         # Now for general path guessing based on compile time values instead
@@ -63,7 +69,7 @@ def _find_python_symbol_path():
 
         libfilenames = []
 
-        suffix = '.so'
+        suffix = ".so"
 
         INSTSONAME = get_config_var("INSTSONAME")
         if INSTSONAME and suffix in INSTSONAME:
@@ -77,7 +83,7 @@ def _find_python_symbol_path():
         if LIBRARY and os.path.splitext(LIBRARY)[1] == suffix:
             libfilenames.append(LIBRARY)
 
-        libpaths = get_config_vars('LIBPL', 'srcdir', 'LIBDIR')
+        libpaths = get_config_vars("LIBPL", "srcdir", "LIBDIR")
         for fn in libfilenames:
             for path in libpaths:
                 if path:
@@ -86,32 +92,36 @@ def _find_python_symbol_path():
                         return pylib
         return None
 
+
 def vsscript_check_env():
-    global_path = os.getenv('VSSCRIPT_PATH')
-    virtual_env = os.getenv('VIRTUAL_ENV')
+    global_path = os.getenv("VSSCRIPT_PATH")
+    virtual_env = os.getenv("VIRTUAL_ENV")
 
     if virtual_env is not None:
-        print(f'VIRTUAL_ENV environment variable is set. Running in a venv located in {virtual_env}')
+        print(f"VIRTUAL_ENV environment variable is set. Running in a venv located in {virtual_env}")
     if global_path is None:
-        print('VSSCRIPT_PATH environment variable is not set.')
+        print("VSSCRIPT_PATH environment variable is not set.")
     else:
         print(f'VSSCRIPT_PATH environment variable is set to "{global_path}". VapourSynth module path is "{__file__}".')
 
+
 def vsscript_config():
     config_path = PurePath(__file__)
-    config_path = config_path.with_name('vspyenv.cfg')
+    config_path = config_path.with_name("vspyenv.cfg")
 
     py_symbol_path = _find_python_symbol_path()
     if py_symbol_path is None:
-        raise Error('Couldn\'t determine location of Python library!')
+        raise Error("Couldn't determine location of Python library!")
 
-    with open(config_path, 'w', encoding='utf-8') as f:
-        f.write(f'py-symbol-path = {py_symbol_path}\n')
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(f"py-symbol-path = {py_symbol_path}\n")
 
-    print(f'Configuration successfully written to {config_path}')
+    print(f"Configuration successfully written to {config_path}")
+
 
 def write_registry_entries(entries, use_hklm):
     import winreg
+
     root_key = winreg.HKEY_LOCAL_MACHINE if use_hklm else winreg.HKEY_CURRENT_USER
 
     for entry in entries:
@@ -127,16 +137,17 @@ def write_registry_entries(entries, use_hklm):
             print(f"Permission denied: {entry['subkey']}")
             print("Try running as administrator or don't run in global mode")
             return False
-        except Exception as e:
+        except Exception:
             raise
 
     return True
 
-def register_install():
-    if sys.platform != 'win32':
-        raise Error('Command is only supported on Windows!')
 
-    use_hklm = (len(sys.argv) == 2) and (sys.argv[1] == 'global')
+def register_install():
+    if sys.platform != "win32":
+        raise Error("Command is only supported on Windows!")
+
+    use_hklm = (len(sys.argv) == 2) and (sys.argv[1] == "global")
 
     entries = [
         {
@@ -152,41 +163,42 @@ def register_install():
         {
             "subkey": r"SOFTWARE\VapourSynth",
             "value_name": "Plugins",
-            "value_data": PurePath(__file__).with_name('plugins'),
+            "value_data": PurePath(__file__).with_name("plugins"),
         },
         {
             "subkey": r"SOFTWARE\VapourSynth",
             "value_name": "VapourSynthDLL",
-            "value_data": PurePath(__file__).with_name('vapoursynth.dll'),
+            "value_data": PurePath(__file__).with_name("vapoursynth.dll"),
         },
         {
             "subkey": r"SOFTWARE\VapourSynth",
             "value_name": "VSScriptDLL",
-            "value_data": PurePath(__file__).with_name('vsscript.dll'),
+            "value_data": PurePath(__file__).with_name("vsscript.dll"),
         },
         {
             "subkey": r"SOFTWARE\VapourSynth",
             "value_name": "VSPipeEXE",
-            "value_data": PurePath(__file__).with_name('vspipe.exe'),
+            "value_data": PurePath(__file__).with_name("vspipe.exe"),
         },
         {
             "subkey": r"SOFTWARE\VapourSynth",
             "value_name": "PythonPath",
             "value_data": PurePath(sys.executable).parent,
-        }
+        },
     ]
 
     if not write_registry_entries(entries, use_hklm):
-        print('Couldn\'t write paths to registry!')
+        print("Couldn't write paths to registry!")
         sys.exit(1)
     else:
-        print('Successfully wrote paths to registry!')
+        print("Successfully wrote paths to registry!")
+
 
 def register_vfw():
-    if sys.platform != 'win32':
-        raise Error('Command is only supported on Windows!')
+    if sys.platform != "win32":
+        raise Error("Command is only supported on Windows!")
 
-    use_hklm = (len(sys.argv) == 2) and (sys.argv[1] == 'global')
+    use_hklm = (len(sys.argv) == 2) and (sys.argv[1] == "global")
 
     entries = [
         # CLSID for VapourSynth VFW
@@ -194,84 +206,77 @@ def register_vfw():
             "subkey": r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}",
             "value_name": "",
             "value_data": "VapourSynth",
-
         },
         {
             "subkey": r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32",
             "value_name": "",
-            "value_data": PurePath(__file__).with_name('vsvfw.dll'),
-
+            "value_data": PurePath(__file__).with_name("vsvfw.dll"),
         },
         {
             "subkey": r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32",
             "value_name": "ThreadingModel",
             "value_data": "Apartment",
-
         },
         # Media Type Extensions
         {
             "subkey": r"SOFTWARE\Classes\Media Type\Extensions\.vpy",
             "value_name": "",
             "value_data": "",
-
         },
         {
             "subkey": r"SOFTWARE\Classes\Media Type\Extensions\.vpy",
             "value_name": "Source Filter",
             "value_data": "{D3588AB0-0781-11CE-B03A-0020AF0BA770}",
-
         },
         # File association
         {
             "subkey": r"SOFTWARE\Classes\.vpy",
             "value_name": "",
             "value_data": "vpyfile",
-
         },
         {
             "subkey": r"SOFTWARE\Classes\vpyfile",
             "value_name": "",
             "value_data": "VapourSynth Python Script",
-
         },
         {
             "subkey": r"SOFTWARE\Classes\vpyfile\DefaultIcon",
             "value_name": "",
             "value_data": f"{PurePath(__file__).with_name('vsvfw.dll')},0",
-
         },
         # AVIFile Extensions
         {
             "subkey": r"SOFTWARE\Classes\AVIFile\Extensions\VPY",
             "value_name": "",
             "value_data": "{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}",
-
-        }
+        },
     ]
 
     if not write_registry_entries(entries, use_hklm):
-        print('Couldn\'t register VFW provider!')
+        print("Couldn't register VFW provider!")
         sys.exit(1)
     else:
-        print('VFW provider successfully registered!')
+        print("VFW provider successfully registered!")
+
 
 def vspipe():
     import subprocess
+
     # Perform a search similar to how python determines it's in a venv
     # and set VIRTUAL_ENV as a hint to VSScript if it's the case
     vspipe_env = dict(os.environ)
-    if not os.getenv('VIRTUAL_ENV'):
+    if not os.getenv("VIRTUAL_ENV"):
         venv_config = Path(sys.executable)
-        venv_config = venv_config.with_name('pyvenv.cfg')
+        venv_config = venv_config.with_name("pyvenv.cfg")
         if venv_config.is_file():
-            vspipe_env['VIRTUAL_ENV'] = str(venv_config.parent)
+            vspipe_env["VIRTUAL_ENV"] = str(venv_config.parent)
         else:
             venv_config = venv_config.parent
-            venv_config = venv_config.with_name('pyvenv.cfg')
+            venv_config = venv_config.with_name("pyvenv.cfg")
             if venv_config.is_file():
-                vspipe_env['VIRTUAL_ENV'] = str(venv_config.parent)
-           
+                vspipe_env["VIRTUAL_ENV"] = str(venv_config.parent)
+
     vspipe_path = PurePath(__file__)
-    vspipe_path = vspipe_path.with_name('vspipe')
+    vspipe_path = vspipe_path.with_name("vspipe")
     ret = subprocess.run([vspipe_path, *sys.argv[1:]], env=vspipe_env)
     sys.exit(ret.returncode)

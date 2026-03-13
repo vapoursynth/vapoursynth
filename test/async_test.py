@@ -1,13 +1,11 @@
+import threading
 import time
 import unittest
-import threading
-import vapoursynth as vs
 
-from concurrent.futures import Future
+import vapoursynth as vs
 
 
 class FilterTestSequence(unittest.TestCase):
-
     def setUp(self):
         self.core = vs.core
         self.filter = self.core.std.BlankClip(length=20)
@@ -83,5 +81,6 @@ class FilterTestSequence(unittest.TestCase):
         with self.assertRaisesRegex(vs.Error, "Fail"):
             fut.result(2)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

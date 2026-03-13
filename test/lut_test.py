@@ -1,15 +1,16 @@
 import unittest
+
 import vapoursynth as vs
 
-class FilterTestSequence(unittest.TestCase):
 
+class FilterTestSequence(unittest.TestCase):
     def setUp(self):
         self.core = vs.core
         self.Lut = self.core.std.Lut
         self.Lut2 = self.core.std.Lut2
         self.BlankClip = self.core.std.BlankClip
         self.mask = lambda val, bits: val & ((1 << bits) - 1)
-		
+
     def checkDifference(self, cpu, gpu):
         diff = self.core.std.PlaneStats(cpu, gpu, 0, prop="PlaneStats0")
         diff = self.core.std.PlaneStats(diff, gpu, 1, prop="PlaneStats1")
@@ -17,15 +18,15 @@ class FilterTestSequence(unittest.TestCase):
 
         for i in range(diff.num_frames):
             frame = diff.get_frame(i)
-            self.assertEqual(frame.props['PlaneStats0Diff'], 0)
-            self.assertEqual(frame.props['PlaneStats1Diff'], 0)
-            self.assertEqual(frame.props['PlaneStats2Diff'], 0)
+            self.assertEqual(frame.props["PlaneStats0Diff"], 0)
+            self.assertEqual(frame.props["PlaneStats1Diff"], 0)
+            self.assertEqual(frame.props["PlaneStats2Diff"], 0)
 
     def testLUT8to16Bit(self):
         clip = self.BlankClip(format=vs.YUV420P8, color=[0, 0, 0])
-        ret = self.Lut(clip, planes=[0, 1, 2], lut=[0]*256, bits=16)
+        ret = self.Lut(clip, planes=[0, 1, 2], lut=[0] * 256, bits=16)
         self.checkDifference(ret, self.BlankClip(format=vs.YUV420P16, color=[0, 0, 0]))
-            
+
     def testLUT16Bit(self):
         clip = self.BlankClip(format=vs.YUV420P16, color=[69, 242, 115])
         ret = self.Lut(clip, planes=[0, 1, 2], function=lambda x: x)
@@ -66,5 +67,6 @@ class FilterTestSequence(unittest.TestCase):
         ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: x, bits=10)
         self.checkDifference(clipx, ret)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

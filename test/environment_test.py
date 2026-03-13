@@ -1,17 +1,14 @@
-import gc
-import sys
-import weakref
-import unittest
 import contextlib
+import gc
 import multiprocessing
+import unittest
+import weakref
 from concurrent.futures import ProcessPoolExecutor
 
-from vapoursynth import core
 import vapoursynth as vs
 
 
 class StubPolicy(vs.EnvironmentPolicy):
-
     def __init__(self) -> None:
         self._current = None
         self._api = None
@@ -43,6 +40,7 @@ def _with_policy():
 
 test_functions = {}
 counter = 0
+
 
 def _wrap_with(ident):
     func = test_functions[ident]
@@ -84,43 +82,44 @@ class EnvironmentTest(unittest.TestCase):
         with _with_policy() as pol:
             env = pol._api.create_environment()
             wrapped = pol._api.wrap_environment(env)
-    
+
             with self.assertRaises(RuntimeError):
                 vs.get_current_environment()
-    
+
             with wrapped.use():
                 self.assertEqual(vs.get_current_environment(), wrapped)
-    
+
             with self.assertRaises(RuntimeError):
                 vs.get_current_environment()
-    
+
     @subprocess_runner
     def test_environment_use_restores_environment_on_exit(self):
         with _with_policy() as pol:
             env1 = pol._api.create_environment()
             wrapped1 = pol._api.wrap_environment(env1)
-    
+
             env2 = pol._api.create_environment()
             wrapped2 = pol._api.wrap_environment(env2)
-    
+
             with wrapped1.use():
                 ce1 = vs.get_current_environment()
-    
+
                 with wrapped2.use():
                     self.assertNotEqual(ce1, vs.get_current_environment())
-    
+
                 self.assertEqual(ce1, vs.get_current_environment())
 
     @subprocess_runner
     def test_policy_clearing_runs_callbacks(self):
         f1_run = [False]
+
         def f1():
             f1_run[0] = True
 
         f2_run = [False]
+
         def f2():
             f2_run[0] = True
-
 
         with _with_policy() as pol:
             env = pol._api.create_environment()
@@ -150,13 +149,14 @@ class EnvironmentTest(unittest.TestCase):
     @subprocess_runner
     def test_environment_destruction_runs_callbacks(self):
         f1_run = [False]
+
         def f1():
             f1_run[0] = True
 
         f2_run = [False]
+
         def f2():
             f2_run[0] = True
-
 
         with _with_policy() as pol:
             env = pol._api.create_environment()
@@ -171,7 +171,6 @@ class EnvironmentTest(unittest.TestCase):
 
             self.assertFalse(f1_run[0])
             self.assertTrue(f2_run[0])
-
 
             f1_run = [False]
             f2_run = [False]
@@ -195,7 +194,6 @@ class EnvironmentTest(unittest.TestCase):
             with self.assertWarnsRegex(RuntimeWarning, "An environment is getting collected"):
                 env = None
                 gc.collect()
-
 
     @subprocess_runner
     def test_locals_store_data_between_envs(self):
@@ -233,7 +231,7 @@ class EnvironmentTest(unittest.TestCase):
             with wrapped1.use():
                 with self.assertRaises(AttributeError):
                     local.hello
-    
+
     @subprocess_runner
     def test_locals_differ_from_each_other(self):
         local1 = vs.Local()
@@ -249,7 +247,7 @@ class EnvironmentTest(unittest.TestCase):
 
                 self.assertEqual(local1.a, 5)
                 self.assertEqual(local2.a, 6)
-    
+
     @subprocess_runner
     def test_locals_store_data_between_envs(self):
         local = vs.Local()
@@ -272,8 +270,9 @@ class EnvironmentTest(unittest.TestCase):
             gc.collect()
             gc.collect()
             gc.collect()
-            
+
             self.assertIsNone(wr())
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

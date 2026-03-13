@@ -1,13 +1,14 @@
-import unittest
 import itertools
+import unittest
+
 import vapoursynth as vs
+
 core = vs.core
 
 colorfamilies = (vs.GRAY, vs.YUV, vs.RGB)
 intbitdepths = (8, 9, 10, 11, 12, 13, 14, 15, 16)
 floatbitdepths = (16, 32)
 yuvss = (0, 1, 2)
-
 
 
 class ZimgTest(unittest.TestCase):
@@ -34,16 +35,17 @@ class ZimgTest(unittest.TestCase):
         formatids = list(self._build_format_ids())
         for informat, outformat in itertools.product(formatids, formatids):
             try:
-                clip = core.std.BlankClip(format=informat)     
+                clip = core.std.BlankClip(format=informat)
                 if clip.format.color_family in (vs.YUV, vs.GRAY):
                     clip = core.resize.Bicubic(clip, format=outformat, matrix_in_s="709")
                 elif core.get_video_format(outformat).color_family in (vs.YUV, vs.GRAY):
-                    clip = core.resize.Bicubic(clip, format=outformat, matrix_s="709")       
+                    clip = core.resize.Bicubic(clip, format=outformat, matrix_s="709")
                 else:
-                    clip = core.resize.Bicubic(clip, format=outformat) 
+                    clip = core.resize.Bicubic(clip, format=outformat)
                 clip.get_frame(0)
             except vs.Error as e:
                 raise RuntimeError(f"Failed to convert from {informat} to {outformat}") from e
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

@@ -59,3 +59,8 @@ line-length = 120
 
 [tool.ruff.lint]
 extend-select = ["I"]
+
+[tool.ruff.lint.per-file-ignores]
+"test/environment_test.py" = ["F811", "F841"]
+"test/weakref_test.py" = ["F841"]
+"__init__.py" = ["F401", "F403", "F405"]
