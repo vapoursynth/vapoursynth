@@ -171,7 +171,7 @@ static void real_init(void) VS_NOEXCEPT {
             pythonPath /= "bin";
             pythonPath /= "python3";
 #endif
-            p_Py_SetProgramName(pythonPath.c_str());
+            p_Py_SetProgramName(pythonPath.wstring().c_str());
         }
         p_Py_InitializeEx(0);
     }
