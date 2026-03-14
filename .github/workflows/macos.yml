@@ -7,10 +7,10 @@ jobs:
     strategy:
       matrix:
         include:
-        - arch: arm64
-          runs-on: macos-26
         - arch: x86_64
           runs-on: macos-26-intel
+        - arch: arm64
+          runs-on: macos-26
       fail-fast: false
 
     runs-on: ${{ matrix.runs-on }}
@@ -63,13 +63,21 @@ jobs:
         name: vapoursynth-macosx_${{ matrix.arch }}
         path: dist/*.whl
 
-    - name: Install
+    - name: Install wheel and run test in base environment
       run: |
         pip install vapoursynth --no-index --find-links dist
-
-    - name: Run test
-      run: |
         vsscript-config
+        which vspipe
+        vspipe --version
+        python -m unittest discover -s test -p "*test.py"
+        pip uninstall -y vapoursynth
+
+    - name: Install wheel and run test in virtual environment
+      run: |
+        python -m venv .venv
+        source .venv/bin/activate
+        pip install vapoursynth --no-index --find-links dist
+        which vspipe
         vspipe --version
         python -m unittest discover -s test -p "*test.py"
 

@@ -47,13 +47,21 @@ jobs:
         name: vapoursynth-musllinux_${{ matrix.arch }}
         path: dist/*musllinux*.whl
 
-    - name: Install
+    - name: Install wheel and run test in base environment
       run: |
         pip install vapoursynth --no-index --find-links dist
-
-    - name: Run test
-      run: |
         vsscript-config
+        which vspipe
+        vspipe --version
+        python -m unittest discover -s test -p "*test.py"
+        pip uninstall -y vapoursynth
+
+    - name: Install wheel and run test in virtual environment
+      run: |
+        python -m venv .venv
+        source .venv/bin/activate
+        pip install vapoursynth --no-index --find-links dist
+        which vspipe
         vspipe --version
         python -m unittest discover -s test -p "*test.py"
 
