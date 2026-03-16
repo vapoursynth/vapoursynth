@@ -13,6 +13,11 @@ def get_include():
     """
     return os.path.join(os.path.dirname(__file__), "include")
 
+def get_plugin_dir():
+    """
+    Return the directory that contains the VapourSynth header files.
+    """
+    return os.path.join(os.path.dirname(__file__), "plugins")
 
 # All code for scripts executables
 
