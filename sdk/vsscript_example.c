@@ -51,10 +51,11 @@ int main(int argc, char **argv) {
 
 
     // Initialize VSScript and get the api pointer
-    vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
+    char errMsg[200];
+    vssapi = getVSScriptAPI2(VSSCRIPT_API_VERSION, errMsg, sizeof(errMsg));
     if (!vssapi) {
         // VapourSynth probably isn't properly installed at all
-        fprintf(stderr, "Failed to initialize VSScript library\n");
+        fprintf(stderr, "Failed to initialize VSScript library: %s\n", &errMsg);
         return 1;
     }
 
