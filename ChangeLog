@@ -1,4 +1,5 @@
 r74:
+avfs has been moved to a separate repository/download
 configuration and and handling of autoloading directories has been completely reworked, see documentation for a full explanation
 the whole application can now be installed with "pip install vapoursynth" on windows, osx and linux (HolyWu)
 greatly improved support for python virtual environments

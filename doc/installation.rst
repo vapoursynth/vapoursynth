@@ -130,18 +130,13 @@ This will put everything in the correct location assuming you have VapourSynth i
 * Clone VapourSynth repository
 * Clone VSRepo into the VapourSynth dir (``git clone https://github.com/vapoursynth/vsrepo``)
 * Clone zimg into the VapourSynth dir (``git clone https://github.com/sekrit-twc/zimg --recurse-submodules``)
-* Clone avs+ into the VapourSynth dir (``git clone https://github.com/AviSynth/AviSynthPlus``)
 * Clone libp2p into the VapourSynth dir (``git clone https://github.com/sekrit-twc/libp2p``)
 * Place 7z.exe and 7z.dll from `7-zip <https://www.7-zip.org/>`_ into the ``installer`` dir
-* Place ``pfm-192-vapoursynth-win.exe`` into the ``installer`` dir. You can get this file from the embedded zip or an existing VapourSynth install.
 
 Compilation
 -----------
 
 * Run ``compile_all.bat`` for 64bit.
-
-.. note:: Note that the Avisynth side of AVFS won't work properly in debug builds
-
 
 Linux and OS X Compilation
 **************************

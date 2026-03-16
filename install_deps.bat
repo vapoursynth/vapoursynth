@@ -1,11 +1,5 @@
 @echo off
 
-IF NOT EXIST AviSynthPlus (
-    git clone https://github.com/AviSynth/AviSynthPlus
-) ELSE (
-    echo AviSynthPlus: & pushd AviSynthPlus & git pull & popd
-)
-
 IF NOT EXIST libp2p (
     git clone https://github.com/sekrit-twc/libp2p
 ) ELSE (
