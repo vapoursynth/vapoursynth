@@ -25,7 +25,7 @@ jobs:
           git clone https://github.com/sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules &&
           cd zimg &&
           ./autogen.sh &&
-          ./configure &&
+          ./configure --disable-shared --with-pic &&
           make -j$(nproc) &&
           make install -j$(nproc) &&
           cd .. &&
@@ -69,7 +69,7 @@ jobs:
     permissions:
       id-token: write
     needs: build
-    if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
+    if: ${{ startsWith(github.ref, 'refs/tags/R') && !contains(github.ref, 'RC') }}
     runs-on: ubuntu-latest
 
     steps:

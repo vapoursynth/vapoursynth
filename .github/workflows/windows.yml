@@ -24,7 +24,6 @@ jobs:
 
     - name: Install Python packages
       run: |
-        python -m pip install -U pip
         pip install -U abi3audit build wheel
 
     - name: Get Python install path
@@ -84,7 +83,7 @@ jobs:
     permissions:
       id-token: write
     needs: build
-    if: startsWith(github.event.ref, 'refs/tags/R') && !(contains(github.event.ref, 'RC'))
+    if: ${{ startsWith(github.ref, 'refs/tags/R') && !contains(github.ref, 'RC') }}
     runs-on: ubuntu-latest
 
     steps:
