@@ -26,7 +26,7 @@ def get_vsscript():
     if sys.platform == "win32":
         return os.path.join(os.path.dirname(__file__), "vsscript.dll")
     elif sys.platform == "darwin":       
-        return os.path.join(os.path.dirname(__file__), "libvapoursynth-script.dylib")
+        return os.path.join(os.path.dirname(__file__), "libvapoursynth-script.4.dylib")
     else:
         return os.path.join(os.path.dirname(__file__), "libvapoursynth-script.so.4")
         
