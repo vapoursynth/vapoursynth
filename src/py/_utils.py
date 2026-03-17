@@ -15,10 +15,21 @@ def get_include():
 
 def get_plugin_dir():
     """
-    Return the directory that contains the VapourSynth header files.
+    Return the VapourSynth plugin directory location.
     """
     return os.path.join(os.path.dirname(__file__), "plugins")
-
+    
+def get_vsscript():
+    """
+    Return the location of the vsscript library.
+    """
+    if sys.platform == "win32":
+        return os.path.join(os.path.dirname(__file__), "vsscript.dll")
+    elif sys.platform == "darwin":       
+        return os.path.join(os.path.dirname(__file__), "libvapoursynth-script.dylib")
+    else:
+        return os.path.join(os.path.dirname(__file__), "libvapoursynth-script.so.4")
+        
 # All code for scripts executables
 
 
@@ -124,7 +135,7 @@ def vsscript_config():
     print(f"Configuration successfully written to {config_path}")
 
 
-def write_registry_entries(entries, use_hklm):
+def _write_registry_entries(entries, use_hklm):
     import winreg
 
     root_key = winreg.HKEY_LOCAL_MACHINE if use_hklm else winreg.HKEY_CURRENT_USER
@@ -192,7 +203,7 @@ def register_install():
         },
     ]
 
-    if not write_registry_entries(entries, use_hklm):
+    if not _write_registry_entries(entries, use_hklm):
         print("Couldn't write paths to registry!")
         sys.exit(1)
     else:
@@ -257,7 +268,7 @@ def register_vfw():
         },
     ]
 
-    if not write_registry_entries(entries, use_hklm):
+    if not _write_registry_entries(entries, use_hklm):
         print("Couldn't register VFW provider!")
         sys.exit(1)
     else:
