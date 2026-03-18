@@ -101,7 +101,7 @@ static void real_init(void) VS_NOEXCEPT {
 
     // read py-symbol-path from vspyenv.cfg
     // if no py-symbol-path, try to read executable path from pyvenv.cfg
-    // if executable path exists run vsscript-config and re-read py-symbol-path
+    // if executable path exists run vapoursynth-config and re-read py-symbol-path
     // load from py-symbol-path if it exists, otherwise error out
 
     std::filesystem::path vspyConfigPath = getLibraryPath();
@@ -117,7 +117,7 @@ static void real_init(void) VS_NOEXCEPT {
             pythonExePath = readEnvConfig(venvConfigPath, "executable");
         }
         if (pythonExePath.empty()) {
-            extendedErrorMessage = "Python library path couldn't be determined. Run `vsscript-config` to set it for this Python installation and then try again.";
+            extendedErrorMessage = "Python library path couldn't be determined. Run `vapoursynth-config` to set it for this Python installation and then try again.";
             return;
         }
 
@@ -125,13 +125,13 @@ static void real_init(void) VS_NOEXCEPT {
         pythonSymbolPath = pythonExePath;
         pythonSymbolPath.replace_filename("python3.dll");
 #else
-        system("vsscript-config >/dev/null 2>&1");
+        system("vapoursynth-config >/dev/null 2>&1");
         pythonSymbolPath = readEnvConfig(vspyConfigPath, "py-symbol-path");
 #endif
     }
 
     if (pythonSymbolPath.empty()) {
-        extendedErrorMessage = "Python library path couldn't be determined despite automatic configuration. Run `vsscript-config` to set it for this Python installation or get extended error information and then try again.";
+        extendedErrorMessage = "Python library path couldn't be determined despite automatic configuration. Run `vapoursynth-config` to set it for this Python installation or get extended error information and then try again.";
         return;
     }
 

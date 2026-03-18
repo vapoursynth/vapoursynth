@@ -152,7 +152,7 @@ def _find_python_symbol_path():
         return None
 
 
-def vsscript_check_env():
+def vapoursynth_check_env():
     _check_visual_studio_runtime()
     
     global_path = os.getenv("VSSCRIPT_PATH")
@@ -166,7 +166,7 @@ def vsscript_check_env():
         print(f'VSSCRIPT_PATH environment variable is set to "{global_path}". VapourSynth module path is "{__file__}".')
 
 
-def vsscript_config():
+def vapoursynth_config():
     _check_visual_studio_runtime()
     
     config_path = PurePath(__file__)

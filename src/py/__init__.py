@@ -81,6 +81,6 @@ __all__ = [
     "register_install",
     "register_vfw",
     "vspipe",
-    "vsscript_check_env",
-    "vsscript_config",
+    "vapoursynth_check_env",
+    "vapoursynth_config",
 ]

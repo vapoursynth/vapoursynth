@@ -1,14 +1,14 @@
 import sys
 
-from vapoursynth import register_install, register_vfw, vspipe, vsscript_check_env, vsscript_config
+from vapoursynth import register_install, register_vfw, vspipe, vapoursynth_check_env, vapoursynth_config
 
 
 def main():
     if len(sys.argv) < 2:
         print("Usage: python -m mymodule <command>")
         print("Available commands:")
-        print("  vsscript-config")
-        print("  vsscript-check-env")
+        print("  config")
+        print("  check-env")
         print("  register-install")
         print("  register-vfw")
         print("  vspipe")
@@ -18,10 +18,10 @@ def main():
 
     sys.argv = [sys.argv[0]] + sys.argv[2:]
 
-    if command == "vsscript-config":
-        vsscript_config()
-    elif command == "vsscript-check-env":
-        vsscript_check_env()
+    if command == "config":
+        vapoursynth_config()
+    elif command == "check-env":
+        vapoursynth_check_env()
     elif command == "register-install":
         register_install()
     elif command == "register-vfw":
