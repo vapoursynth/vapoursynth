@@ -54,20 +54,19 @@ Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; T
 Name: "vsruntimes"; Description: "Visual Studio 2015-2026 Runtime"; Types: Full; Check: IsAdminInstallMode; Flags: disablenouninstallwarning
 
 [Tasks]
+Name: rgegisterinstall; Description: "Set VSSCRIPT_PATH environment variable"; GroupDescription: "VapourSynth:"; Components: vscore
+Name: registervfw; Description: "Register VFW component"; GroupDescription: "VapourSynth:"; Components: vscore
+Name: legacyinstall; Description: "Write installation information to the registry"; GroupDescription: "VapourSynth:"; Components: vscore
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "VapourSynth:"; Components: vscore
-Name: vsscriptpath; Description: "Set VSSCRIPT_PATH environment variable"; GroupDescription: "VapourSynth:"; Components: vscore
-; this will add all python scripts which is potentially meh
-;Name: vscorepath; Description: "Add VSPipe to PATH"; GroupDescription: "VapourSynth:"; Components: vscore 
 Name: vsrepopath; Description: "Add VSRepo to PATH"; GroupDescription: "VSRepo:"; Components: vsrepo
 Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
-; register install
-; register vfw
 
 [Run]
 Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename(Version)}"""; Check: IsPython3; Flags: runhidden; Components: vscore
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth vapoursynth-config"; Check: IsPython3; Flags: runhidden; Components: vscore
-Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install"; Check: IsPython3; Flags: runhidden; Components: vscore
-Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-vfw"; Check: IsPython3; Flags: runhidden; Components: vscore
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: rgegisterinstall
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-vfw"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: registervfw
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install legacy"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: legacyinstall
 Filename: {code:GetPythonExecutable}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden runasoriginaluser; Components: vsrepo
 
 [UninstallRun]
@@ -106,16 +105,15 @@ Source: ..\sdk\vsscript_example.c; DestDir: {app}\sdk\examples; Flags: ignorever
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/; Components: vscore
 Name: {group}\Documentation (Local); Filename: {app}\docs\index.html; Components: docs
 Name: {group}\Documentation (Online); Filename: http://www.vapoursynth.com/doc/
-Name: {group}\Global Autoload Directory; Filename: {app}\plugins; Check: IsAdminInstallMode; Components: vscore
+Name: {group}\Autoload Directory; Filename: FIXME; Components: vscore
 Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
 
 [Registry]
 ; new vpy file shortcut task
-Root: HKA; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName: "FileName"; ValueData: "{app}\template.vpy"; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: newvpyfile
+Root: HKCU; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName: "FileName"; ValueData: "{app}\template.vpy"; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: newvpyfile
 
-; PATH
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Tasks: vsrepopath
-Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: not IsAdminInstallMode; Tasks: vsrepopath
+; VSREPO PATH
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Tasks: vsrepopath
 
 [Code]
 
@@ -238,12 +236,9 @@ var
   P: Integer;
   RegPath: string;
 begin
-  if IsAdminInstallMode then
-    RegPath := 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
-  else
-    RegPath := 'Environment';
+  RegPath := 'Environment';
   
-  if not RegQueryStringValue(HKA, RegPath, 'Path', Paths) then
+  if not RegQueryStringValue(HKCU, RegPath, 'Path', Paths) then
   begin
     Log('PATH not found');
   end
@@ -262,7 +257,7 @@ begin
       Delete(Paths, P, Length(Path) + 1);
       Log(Format('Path [%s] removed from PATH => [%s]', [Path, Paths]));
 
-      if RegWriteStringValue(HKA, RegPath, 'Path', Paths) then
+      if RegWriteStringValue(HKCU, RegPath, 'Path', Paths) then
       begin
         Log('PATH written');
       end
@@ -440,7 +435,6 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usUninstall then
   begin
-    RemovePath(ExpandConstant('{app}\core'));
     RemovePath(ExpandConstant('{app}\vsrepo'));
   end;
 end;

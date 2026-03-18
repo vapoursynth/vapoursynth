@@ -155,15 +155,15 @@ def _find_python_symbol_path():
 def vapoursynth_check_env():
     _check_visual_studio_runtime()
     
-    global_path = os.getenv("VSSCRIPT_PATH")
+    vsscript_path = os.getenv("VSSCRIPT_PATH")
     virtual_env = os.getenv("VIRTUAL_ENV")
 
     if virtual_env is not None:
         print(f"VIRTUAL_ENV environment variable is set. Running in a venv located in {virtual_env}")
-    if global_path is None:
+    if vsscript_path is None:
         print("VSSCRIPT_PATH environment variable is not set.")
     else:
-        print(f'VSSCRIPT_PATH environment variable is set to "{global_path}". VapourSynth module path is "{__file__}".')
+        print(f'VSSCRIPT_PATH environment variable is set to "{vsscript_path}". VapourSynth module path is "{__file__}".')
 
 
 def vapoursynth_config():
@@ -182,14 +182,12 @@ def vapoursynth_config():
     print(f"Configuration successfully written to {config_path}")
 
 
-def _write_registry_entries(entries, use_hklm):
+def _write_registry_entries(entries):
     import winreg
-
-    root_key = winreg.HKEY_LOCAL_MACHINE if use_hklm else winreg.HKEY_CURRENT_USER
 
     for entry in entries:
         try:
-            key = winreg.CreateKeyEx(root_key, entry["subkey"], 0, winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY)
+            key = winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, entry["subkey"], 0, winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY)
 
             try:
                 winreg.SetValueEx(key, entry["value_name"], 0, winreg.REG_SZ, str(entry["value_data"]))
@@ -204,14 +202,9 @@ def _write_registry_entries(entries, use_hklm):
             raise
 
     return True
+    
 
-
-def register_install():
-    if sys.platform != "win32":
-        raise Error("Command is only supported on Windows!")
-
-    use_hklm = (len(sys.argv) == 2) and (sys.argv[1] == "global")
-
+def _register_legacy_windows_install():
     entries = [
         {
             "subkey": r"SOFTWARE\VapourSynth",
@@ -226,7 +219,7 @@ def register_install():
         {
             "subkey": r"SOFTWARE\VapourSynth",
             "value_name": "Plugins",
-            "value_data": PurePath(__file__).with_name("plugins"),
+            "value_data": get_plugins(),
         },
         {
             "subkey": r"SOFTWARE\VapourSynth",
@@ -236,7 +229,7 @@ def register_install():
         {
             "subkey": r"SOFTWARE\VapourSynth",
             "value_name": "VSScriptDLL",
-            "value_data": PurePath(__file__).with_name("vsscript.dll"),
+            "value_data": get_vsscript(),
         },
         {
             "subkey": r"SOFTWARE\VapourSynth",
@@ -250,18 +243,38 @@ def register_install():
         },
     ]
 
-    if not _write_registry_entries(entries, use_hklm):
-        print("Couldn't write paths to registry!")
+    if not _write_registry_entries(entries):
+        print("Couldn't write to registry!")
         sys.exit(1)
     else:
-        print("Successfully wrote paths to registry!")
+        print("Successfully wrote legacy installation information to registry!")
 
+
+def register_install():
+    if sys.platform != "win32":
+        raise Error("Command is only supported on Windows!")
+        
+    if (len(sys.argv) >= 2) and (sys.argv[1] == "legacy"):
+        _register_legacy_windows_install()
+        return
+        
+    entries = [
+        {
+            "subkey": "Environment",
+            "value_name": "VSSCRIPT_PATH",
+            "value_data": get_vsscript(),
+        }]
+    
+    if not _write_registry_entries(entries):
+        print("Couldn't write to registry!")
+        sys.exit(1)
+    else:
+        print("Successfully set environment variables!")
+    
 
 def register_vfw():
     if sys.platform != "win32":
         raise Error("Command is only supported on Windows!")
-
-    use_hklm = (len(sys.argv) == 2) and (sys.argv[1] == "global")
 
     entries = [
         # CLSID for VapourSynth VFW
@@ -315,7 +328,7 @@ def register_vfw():
         },
     ]
 
-    if not _write_registry_entries(entries, use_hklm):
+    if not _write_registry_entries(entries):
         print("Couldn't register VFW provider!")
         sys.exit(1)
     else:

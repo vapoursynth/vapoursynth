@@ -9,7 +9,7 @@ def main():
         print("Available commands:")
         print("  config")
         print("  check-env")
-        print("  register-install")
+        print("  register-install [legacy]")
         print("  register-vfw")
         print("  vspipe")
         sys.exit(1)
