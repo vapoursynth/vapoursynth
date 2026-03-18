@@ -9,8 +9,9 @@ def main():
         print("Available commands:")
         print("  config")
         print("  check-env")
-        print("  register-install [legacy]")
-        print("  register-vfw")
+        if sys.platform == "win32":
+            print("  register-install [legacy]")
+            print("  register-vfw")
         print("  vspipe")
         sys.exit(1)
 

@@ -1,7 +1,7 @@
 #define PythonVersionMinorLow 12
 #define PythonVersionMinorHigh 30
 
-#define AppName 'VapourSynth (64-bits)'
+#define AppName 'VapourSynth'
 #define AppId 'VapourSynth'
 #define RegistryPath 'SOFTWARE\VapourSynth'
 #define SourceBinaryPath '..\msvc_project\x64\Release'
@@ -62,7 +62,7 @@ Name: vsrepopath; Description: "Add VSRepo to PATH"; GroupDescription: "VSRepo:"
 Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
 
 [Run]
-Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename(Version)}"""; Check: IsPython3; Flags: runhidden; Components: vscore
+Filename: {code:GetPythonExecutable}; Parameters: "-m pip install --user ""{app}\python\{#= WheelFilename(Version)}"""; Check: IsPython3; Flags: runhidden; Components: vscore
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth vapoursynth-config"; Check: IsPython3; Flags: runhidden; Components: vscore
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: rgegisterinstall
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-vfw"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: registervfw
@@ -105,7 +105,7 @@ Source: ..\sdk\vsscript_example.c; DestDir: {app}\sdk\examples; Flags: ignorever
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/; Components: vscore
 Name: {group}\Documentation (Local); Filename: {app}\docs\index.html; Components: docs
 Name: {group}\Documentation (Online); Filename: http://www.vapoursynth.com/doc/
-Name: {group}\Autoload Directory; Filename: FIXME; Components: vscore
+Name: {group}\Autoload Directory; Filename: {code:GetPythonExecutable}; Parameters: "-c ""import vapoursynth as vs; from subprocess import run; run(['explorer.exe', vs.get_plugin_dir()])"""; Flags: runminimized; Components: vscore
 Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
 
 [Registry]
