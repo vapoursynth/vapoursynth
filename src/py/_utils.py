@@ -32,7 +32,50 @@ def get_vsscript():
         
 # All code for scripts executables
 
+def _version_string_to_number(version_string):
+    version_parts = version_string.strip().split('.', 4)
+    while len(version_parts) < 4:
+        version_parts.append('0')
+    return (int(version_parts[0]) << 48) | (int(version_parts[1]) << 32) | (int(version_parts[2]) << 16) | (int(version_parts[3]) << 0)
 
+def _is_msi_product_installed(upgrade_code, min_version):
+    from ctypes.wintypes import DWORD, LPDWORD, LPCWSTR, LPWSTR, UINT
+    
+    msi = ctypes.WinDLL("msi.dll")
+    MsiEnumRelatedProductsW = msi.MsiEnumRelatedProductsW
+    MsiEnumRelatedProductsW.argtypes = [LPCWSTR, DWORD, DWORD, LPWSTR]
+    MsiEnumRelatedProductsW.restype = UINT
+    MsiGetProductInfoW = msi.MsiGetProductInfoW;
+    MsiGetProductInfoW.argtypes = [LPCWSTR, LPCWSTR, LPWSTR, LPDWORD]
+    MsiGetProductInfoW.restype = UINT
+    
+    product_code_buf = ctypes.create_unicode_buffer(39)
+    if MsiEnumRelatedProductsW(upgrade_code, 0, 0, product_code_buf) != 0:
+        return False
+      
+    version_string_size = ctypes.wintypes.DWORD(16)      
+    version_string_buf = ctypes.create_unicode_buffer(version_string_size.value)
+
+    err_code = MsiGetProductInfoW(product_code_buf.value, 'VersionString', version_string_buf, ctypes.byref(version_string_size))
+    
+    if err_code == 234: # ERROR_MORE_DATA
+        version_string_size.value = version_string_size.value + 1
+        version_string_buf = ctypes.create_unicode_buffer(version_string_size.value)
+        err_code = MsiGetProductInfoW(product_code_buf.value, 'VersionString', version_string_buf, ctypes.byref(version_string_size))
+  
+    if err_code != 0:
+        return False
+
+    return _version_string_to_number(version_string_buf.value) >= _version_string_to_number(min_version)
+    
+def _check_visual_studio_runtime():
+    if sys.platform == "win32":
+        if not _is_msi_product_installed('{36F68A90-239C-34DF-B58C-64B30153CE35}', '14.50.35719.0'):
+            print('The Visual Studio 2015-2026 runtime which is required to run VapourSynth is missing or too old!')
+            print('The lastest version can be downloaded from:')
+            print('    x64: https://aka.ms/vc14/vc_redist.x64.exe')
+            print('  arm64: https://aka.ms/vc14/vc_redist.arm64.exe')
+   
 def _find_python_symbol_path():
     if sys.platform == "win32":
         from ctypes.wintypes import DWORD, HMODULE, LPWSTR, MAX_PATH
@@ -110,6 +153,8 @@ def _find_python_symbol_path():
 
 
 def vsscript_check_env():
+    _check_visual_studio_runtime()
+    
     global_path = os.getenv("VSSCRIPT_PATH")
     virtual_env = os.getenv("VIRTUAL_ENV")
 
@@ -122,6 +167,8 @@ def vsscript_check_env():
 
 
 def vsscript_config():
+    _check_visual_studio_runtime()
+    
     config_path = PurePath(__file__)
     config_path = config_path.with_name("vspyenv.cfg")
 
