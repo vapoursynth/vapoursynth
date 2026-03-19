@@ -8,6 +8,8 @@
 * processing is done.
 */
 
+#define VSSCRIPT_USE_LATEST_API
+
 #include "VSScript4.h"
 #include "VSHelper4.h"
 #include <stdio.h>
@@ -51,11 +53,10 @@ int main(int argc, char **argv) {
 
 
     // Initialize VSScript and get the api pointer
-    char errMsg[200];
-    vssapi = getVSScriptAPI2(VSSCRIPT_API_VERSION, errMsg, sizeof(errMsg));
+    vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
     if (!vssapi) {
-        // VapourSynth probably isn't properly installed at all
-        fprintf(stderr, "Failed to initialize VSScript library: %s\n", &errMsg);
+        // VapourSynth probably isn't properly installed
+        fprintf(stderr, "Failed to initialize VSScript library: %s\n", getVSScriptAPILastError());
         return 1;
     }
 
