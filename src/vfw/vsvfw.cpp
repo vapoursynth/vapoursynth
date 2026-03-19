@@ -371,8 +371,10 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) noexcept 
 
 VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), pending_requests(0) {
     vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
-    assert(vssapi);
-    vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
+    if (!vssapi)
+        error_msg = getVSScriptAPILastError();
+    else
+        vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
     AddRef();
 }
 
@@ -419,7 +421,7 @@ static const char *ErrorScript2 = "\"\"\")\n\
 msg.set_output()\n";
 
 bool VapourSynthFile::DelayInit2() {
-    if (!szScriptName.empty() && !vi) {
+    if (vssapi && !szScriptName.empty() && !vi) {
         se = vssapi->createScript(nullptr);
         vssapi->evalSetWorkingDir(se, 1);
         vssapi->evaluateFile(se, szScriptName.u8string().c_str());

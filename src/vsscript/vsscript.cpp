@@ -310,11 +310,7 @@ static VSSCRIPTAPI vsscript_api = {
     &getAvailableOutputNodes
 };
 
-const VSSCRIPTAPI *VS_CC getVSScriptAPI2(int version, char *errMsg, int errSize) VS_NOEXCEPT {
-    if (errSize < 0 || (!errMsg && errSize > 0))
-        return nullptr;
-
-    memset(errMsg, 0, errSize);
+const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {
     int apiMajor = (version >> 16);
     int apiMinor = (version & 0xFFFF);
 
@@ -322,21 +318,11 @@ const VSSCRIPTAPI *VS_CC getVSScriptAPI2(int version, char *errMsg, int errSize)
         std::call_once(flag, real_init);
         if (initialized) {
             return &vsscript_api;
-        } else {
-            if (errMsg) {
-                strncpy(errMsg, extendedErrorMessage.c_str(), errSize);
-                errMsg[errSize - 1] = 0;
-            }
         }
-    } else {
-        if (errMsg) {
-            strncpy(errMsg, "Unsupported API version requested", errSize);
-            errMsg[errSize - 1] = 0;
-        }
-    }
+    } 
     return nullptr;
 }
 
-const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {
-    return getVSScriptAPI2(version, nullptr, 0);
+const char *VS_CC getVSScriptAPILastError() VS_NOEXCEPT {
+    return extendedErrorMessage.empty() ? nullptr : extendedErrorMessage.c_str();
 }

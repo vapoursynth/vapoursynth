@@ -109,11 +109,12 @@ struct VSSCRIPTAPI {
 VS_API(const VSSCRIPTAPI *) getVSScriptAPI(int version) VS_NOEXCEPT;
 
 /*
-* Same as getVSScriptAPI() but will write a NULL terminated error message to errMsg. A size of 200 bytes should be enough for any error message.
+* Same as getVSScriptAPI() but will write a NULL terminated error message to errMsg. A size of 200 bytes should be enough for most error messages.
+* The message is always NULL terminated and truncated if it exceeds errSize and empty on success.
 * Returns NULL on failure.
 */
 #if VSSCRIPT_API_MINOR >= 3
-VS_API(const VSSCRIPTAPI *) getVSScriptAPI2(int version, char *errMsg, int errSize) VS_NOEXCEPT;
+VS_API(const char *) getVSScriptAPILastError() VS_NOEXCEPT;
 #endif
 
 #endif /* VSSCRIPT4_H */
