@@ -1,13 +1,17 @@
 Installation
 ============
 
-Basic Program
-#############
+General Installation
+####################
 
-The installation contains two main steps:
+The recommended way to install VapourSynth is through pip. There are currently binary wheels available for Windows, Linux, and OSX.
 
-1. Install VapourSynth core library.
-2. Install the Python wrapper of VapourSynth.
+1. Install Python 3.12 or later
+2. Run ``pip install vapoursynth``
+3. Run ``vaporsynth-config``
+4. (Windows only) Update the Visual Studio 2015-2026 Redistributable if told to
+
+Installation is now done.
 
 After you completed the second step, you can test it by opening a Python command line
 and type this::
@@ -19,8 +23,8 @@ After pressing return at the final line, you should see the version printed alon
 few other lines describing the options used when instantiating the Core object.
 In fact, these lines should be the same as the output result of ``vspipe --version``.
 
-Windows Installation
-********************
+Windows Installer
+******************
 
 Prerequisites
 -------------
@@ -28,32 +32,19 @@ Prerequisites
 First download and install the prerequisites:
    * `Python 64 bit version <http://www.python.org/>`_ -- There is support for Python 3.12 and all later versions, including 3.13 and 3.14.
 
-Note that VapourSynth and Python have to be matched so both are either installed
-for all users or for only for the current user.
-
-Also note that per user installs will not install the required Visual Studio
-2026 runtimes.
-
 Installation
 ------------
 
 Simply run the `VapourSynth installer <https://github.com/vapoursynth/vapoursynth/releases>`_.
-It should automatically detect and install everything, including the Python wrapper.
 
-If the tests mentioned at the beginning fails, there may be a bug in the installer or there are
-old copies of vapoursynth.pyd and vapoursynth.dll lying around.
+It will perform the general installation steps and offer a few additional option. 
 
-Windows Installation (Portable)
-*******************************
+Windows Portable
+****************
 
-By far the easiest way is to download and run the automatic script called *Install-Portable-VapourSynth-RXX.ps1*.
-It will then automatically download and set up embedded Python, pip and VapourSynth in a subdirectorey called *vapoursynth-portable* by default. It's possible to pass arguments to it to specify the installed Python version in addition to an option to run it in unattended mode.
-
-Or if you want to do it the manual and not recommended way follow these steps:
-   * Download and decompress `Python 3.14 or newer <http://www.python.org/>`_ -- 64 bit embeddable version (note that all versions from 3.12 are supported)
-   * Decompress the `portable VapourSynth archive <https://github.com/vapoursynth/vapoursynth/releases>`_ into the Python dir and overwrite all existing files.
-   * Install pip using `get-pip.py <https://bootstrap.pypa.io/get-pip.py>`_ or any other method.
-   * Install the wheel from the *wheel* directory for the chosen Python version.
+Download and run the automatic script called *Install-Portable-VapourSynth-RXX.ps1*.
+It will then automatically download and set up embedded Python, pip and VapourSynth in a subdirectorey called *vapoursynth-portable* by default.
+It's possible to pass arguments to it to specify the installed Python version in addition to an option to run it in unattended mode.
 
 OS X Installation
 *****************
@@ -114,7 +105,7 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 
 Required languages and applications:
 
-* Needs `Visual Studio 2026 <https://visualstudio.microsoft.com/de/vs/>`_
+* Needs `Visual Studio 2026 <https://visualstudio.microsoft.com/vs/>`_
 * It also needs `64bit <https://www.python.org/>`_ Python 3.14.x (the msvc project assumes that you installed python for all users.)
 * `InnoSetup <http://www.jrsoftware.org/isdl.php>`_ is needed to create the installer (default installation path assumed)
 * `7-zip <https://www.7-zip.org/>`_ is needed to compress the portable version (default installation path assumed)
@@ -259,71 +250,7 @@ For scripts, you should add a relative path to ``python<your_python_version>._pt
 Plugin Autoloading
 ******************
 
-VapourSynth automatically loads all the native plugins located in certain
-folders. Autoloading works just like manual loading, with the exception
+VapourSynth automatically recursively loads all the native plugins located in ``<site-packages>/vapoursynth/plugins``. Autoloading works just like manual loading, with the exception
 that any errors encountered while loading a plugin are silently ignored.
 
-.. note::
-
-   Avoid autoloading from folders that other applications might also
-   use, such as /usr/lib or /usr/local/lib in a Linux system. Several
-   users reported crashes when VapourSynth attempted to load some
-   random libraries (\*cough\*wxgtk\*cough\*).
-
-Windows
--------
-
-Windows has in total 3 different autoloading directories: user plugins, core plugins and global plugins. They are searched in that order.
-User plugins are always loaded first so that the current user can always decide which exact version of a plugin is used. Core plugins follow.
-Global plugins are placed last to prevent them from overriding any of the included plugins by accident.
-
-The searched paths are:
-
-#. *<AppData>*\\VapourSynth\\plugins32 or *<AppData>*\\VapourSynth\\plugins64
-#. *<VapourSynth path>*\\plugins
-
-Note that the per user path is not created by default.
-On modern Windows versions the *AppData* directory is located in *<user>*\\AppData\\Roaming by default.
-
-Shortcuts to the global autoload directory are located in the start menu.
-
-Avisynth plugins are never autoloaded.
-
-Windows Portable
-----------------
-
-The searched paths are:
-
-#. *<base path (portable.vs location)>*\\vs-plugins
-
-Linux
------
-
-Autoloading can be configured using the file
-$XDG_CONFIG_HOME/vapoursynth/vapoursynth.conf,
-or $HOME/.config/vapoursynth/vapoursynth.conf if XDG_CONFIG_HOME is not
-defined.
-
-To provide your own path to the config file, you can use $VAPOURSYNTH_CONF_PATH.
-
-Two configuration options may be used: **UserPluginDir**, empty by default,
-and **SystemPluginDir**, whose default value is set at compile time to
-``$libdir/vapoursynth``, or to the location passed to either the ``plugindir``
-argument to ``meson`` or the ``--with-plugindir`` argument to ``configure``.
-
-UserPluginDir is tried first, then SystemPluginDir.
-
-Example vapoursynth.conf::
-
-   UserPluginDir=/home/asdf/vapoursynth/plugins
-   SystemPluginDir=/special/non/default/location
-
-
-OS X
-----
-
-Autoloading can be configured using the file
-$HOME/Library/Application Support/VapourSynth/vapoursynth.conf. Everything else is
-the same as in Linux.
-
-Like on linux, you can use $VAPOURSYNTH_CONF_PATH to provide your own configuration.
+An additional plugin path can be loaded by setting the VAPOURSYNTH_EXTRA_PLUGIN_PATH environment variable. It is loaded after the normal plugin path.

@@ -124,13 +124,12 @@ type
     ExecutablePath: string;
     Version: string;
     Bitness: Integer;
+    User: Boolean;
   end;
 
 var
   RuntimesAdded: Boolean;
   PythonInstallations: array of TPythonPath;
-  GlobalPythonInstallations: array of TPythonPath;
-  UserPythonInstallations: array of TPythonPath;
   PythonPage: TWizardPage;
   PythonList: TNewCheckListBox;
   PythonPath: string;
@@ -194,6 +193,7 @@ begin
                DestArray[GetArrayLength(DestArray) - 1].ExecutablePath := ExecutablePath;
                DestArray[GetArrayLength(DestArray) - 1].Version := PythonVer;
                DestArray[GetArrayLength(DestArray) - 1].Bitness := Bitness;
+               DestArray[GetArrayLength(DestArray) - 1].User := (RegRoot = HKCU);
             end;
           end;
         end;
@@ -207,8 +207,8 @@ var Counter: Integer;
 begin
   for Counter := {#PythonVersionMinorHigh} downto {#PythonVersionMinorLow} do
   begin
-    GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', '3.' + IntToStr(Counter), 0);
-    GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', '3.' + IntToStr(Counter), 64); 
+    GetPythonInstallations2(PythonInstallations, HKCU, 'SOFTWARE\Python', '3.' + IntToStr(Counter), 0);
+    GetPythonInstallations2(PythonInstallations, HKLM, 'SOFTWARE\Python', '3.' + IntToStr(Counter), 64); 
   end;
 end;
 
@@ -278,25 +278,9 @@ begin
   RuntimesAdded := False;
   PythonList := nil;
   GetPythonInstallations;
-  if IsAdminInstallMode then
-  begin
-    PythonInstallations := GlobalPythonInstallations;
-    HasOtherPython := GetArrayLength(UserPythonInstallations) > 0;
-  end
-  else
-  begin
-    PythonInstallations := UserPythonInstallations;
-    HasOtherPython := GetArrayLength(GlobalPythonInstallations) > 0;
-  end;
-
   Result := GetArrayLength(PythonInstallations) > 0; 
-
-  if not Result and not HasOtherPython then
-      MsgBox('No suitable Python 3.{#PythonVersionMinorLow} or later 64-bit installation found. The installer will now exit.', mbCriticalError, MB_OK)
-  else if not Result and IsAdminInstallMode then
-      MsgBox('Python 3.{#PythonVersionMinorLow} or later 64-bit is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
-  else if not Result and not IsAdminInstallMode then
-      MsgBox('Python 3.{#PythonVersionMinorLow} or later 64-bit is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
+  if not Result then
+      MsgBox('No suitable Python installations found.', mbCriticalError, MB_OK);
 end;
 
 procedure WizardFormOnResize(Sender: TObject);
