@@ -1,5 +1,5 @@
-Installation
-============
+Installing and Compiling
+========================
 
 General Installation
 ####################
@@ -8,7 +8,7 @@ The recommended way to install VapourSynth is through pip. There are currently b
 
 1. Install Python 3.12 or later
 2. Run ``pip install vapoursynth``
-3. Run ``vaporsynth-config``
+3. Run ``vapoursynth-config``
 4. (Windows only) Update the Visual Studio 2015-2026 Redistributable if told to
 
 Installation is now done.
@@ -46,8 +46,15 @@ Download and run the automatic script called *Install-Portable-VapourSynth-RXX.p
 It will then automatically download and set up embedded Python, pip and VapourSynth in a subdirectorey called *vapoursynth-portable* by default.
 It's possible to pass arguments to it to specify the installed Python version in addition to an option to run it in unattended mode.
 
-OS X Installation
-*****************
+Unofficial Packages
+###################
+
+REPORT ALL PACKAGING ISSUES TO THE RESPECTIVE MAINTAINERS AND NOT ON THE VAPOURSYNTH BUG TRACKER!
+
+Several package managers have VapourSynth packages maintained by other people. The ones listed here are generally kept up to date with fairly recent versions.
+
+OSX
+***
 
 Homebrew has VapourSynth packages maintained by other people that are generally kept up to date.
 
@@ -61,39 +68,39 @@ Simply run these commands in a terminal and wait for them to complete::
 
    brew install vapoursynth
 
-Linux installation
-******************
-
-Several Linux distributions have VapourSynth packages maintained by other people. The ones listed here are generally kept up to date with fairly recent versions.
-
-REPORT ALL PACKAGING ISSUES TO THE RESPECTIVE MAINTAINERS AND NOT ON THE VAPOURSYNTH BUG TRACKER!
-
 Debian
-------
-The VapourSynth packages are provided by `deb-multimedia repository <https://www.deb-multimedia.org/>`_.
+******
+
+VapourSynth packages are provided by the `deb-multimedia repository <https://www.deb-multimedia.org/>`_.
 You need to add the repository first following the guide on the official website.
 
 Fedora, CentOS and RHEL
------------------------
+***********************
+
 For Fedora, the VapourSynth packages can be downloaded from official repository directly.
-For CentOS and RHEL, you should install EPEL (Extra Packages for Enterprise Linux) repository first.
+For CentOS and RHEL, you should install the EPEL (Extra Packages for Enterprise Linux) repository first.
 
 Gentoo
-------
+******
+
 There is an `unofficial Portage tree <https://github.com/4re/vapoursynth-portage>`_ with all VapourSynth related ebuilds.
 Check the Github link for more information and instructions.
 
 Arch Linux
-----------
+**********
+
 `VapourSynth-related packages <https://www.archlinux.org/packages/?q=vapoursynth>`_ are provided by the Community repository.
 
 Nix and NixOS
--------------
+*************
 ``vapoursynth`` is available on nixpkgs, either via ``nixpkgs#vapoursynth`` or via ``nixpkgs#python3Packages.vapoursynth`` (currently on unstable only).
 Be aware that the derivation is broken on MacOS.
 
 VapourSynth releases are not backported to the current stable branch.
 To get the newest version use the unstable branch.
+
+Compiling it Yourself
+#####################
 
 Windows Compilation
 *******************
@@ -103,7 +110,7 @@ Preparing the Build Environment on Windows
 
 Default install paths are assumed in all projects and scripts, be prepared to adjust many things if you changed them
 
-Required languages and applications:
+Required applications:
 
 * Needs `Visual Studio 2026 <https://visualstudio.microsoft.com/vs/>`_
 * It also needs `64bit <https://www.python.org/>`_ Python 3.14.x (the msvc project assumes that you installed python for all users.)
@@ -127,10 +134,10 @@ This will put everything in the correct location assuming you have VapourSynth i
 Compilation
 -----------
 
-* Run ``compile_all.bat`` for 64bit.
+* Run ``compile_all.bat``.
 
-Linux and OS X Compilation
-**************************
+Linux, OS X and Others Compilation
+**********************************
 
 These are the requirements:
 
@@ -140,7 +147,7 @@ These are the requirements:
 
    * pkg-config
 
-   * GCC or Clang, with a version supporting C++17
+   * GCC or Clang, must be recent enough to support C++17
 
    * `zimg <https://github.com/sekrit-twc/zimg>`_
 
@@ -150,70 +157,16 @@ These are the requirements:
 
    * Sphinx for the documentation (optional)
 
-Note: **any version of Python 3 will do.** A specific version is only
-required when using the official Windows binaries.
-
-Required packages (OS X)
-------------------------
-
-First download and install the prerequisites:
-   * Xcode -- Available from the AppStore
-   * `Homebrew <http://brew.sh/>`_ -- A package manager
-
-Installation of the required packages is very easy. Simply run these
-commands in a terminal and wait for them to complete::
-
-   brew install python3 zimg
-   pip3 install cython
-
-If you've already installed all the required packages and instead want
-to update them, simply run::
-
-   brew update && brew upgrade
-   pip3 install --upgrade cython
-
 Compilation
 -----------
 
-If you haven't checked out the source code before, use git to do so::
-
-   git clone https://github.com/vapoursynth/vapoursynth.git
-
-Or if you already have a copy of the source, update it with::
-
-   git pull
+  * Clone VapourSynth repository
 
 Enter the VapourSynth directory and run these commands to compile and install::
 
-   meson setup build
-   ninja -C build
-   ninja -C build install
-
-Depending on your operating system's configuration, VapourSynth may not
-work out of the box with the default prefix of /usr/local. Two errors
-may pop up when running ``vspipe --version``:
-
-* "vspipe: error while loading shared libraries: libvapoursynth-script.so.0:
-  cannot open shared object file: No such file or directory"
-
-  This is caused by the non-standard location of libvapoursynth-script.so.0.
-  Your dynamic loader is not configured to look in /usr/local/lib. One
-  way to work around this error is to use the LD_LIBRARY_PATH environment
-  variable (or DYLD_LIBRARY_PATH on macOS)::
-
-     $ LD_LIBRARY_PATH=/usr/local/lib vspipe --version
-
-* "Failed to initialize VapourSynth environment"
-
-  This is caused by the non-standard location of the Python module,
-  vapoursynth.so. Your Python is not configured to look in
-  /usr/local/lib/python3.x/site-packages. One way to work around this
-  error is to use the PYTHONPATH environment variable::
-
-     $ PYTHONPATH=/usr/local/lib/python3.x/site-packages vspipe --version
-
-  Replace "x" with the correct number.
-
+   python -m build --wheel
+   
+You can then install the wheel found in the dist directory.
 
 The documentation can be built using its own Makefile::
 

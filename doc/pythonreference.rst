@@ -174,6 +174,18 @@ Classes and Functions
    Gets the singleton Core object. If it is the first time the function is called,
    the Core will be instantiated with the default options. This is the preferred
    way to reference the core.
+   
+.. py:function:: get_include()
+
+   Returns the full path to the VapourSynth headers.
+   
+.. py:function:: get_plugin_dir()
+
+   Returns the full path to the auto-loaded plugin directory.
+   
+.. py:function:: get_vsscript()
+
+   Returns the full path to the VSScript library.
 
 .. py:function:: get_outputs()
 
