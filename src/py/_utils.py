@@ -72,7 +72,7 @@ def _check_visual_studio_runtime():
     if sys.platform == "win32":
         if not _is_msi_product_installed('{36F68A90-239C-34DF-B58C-64B30153CE35}', '14.50.35719.0'):
             print('The Visual Studio 2015-2026 runtime which is required to run VapourSynth is missing or too old!')
-            print('The lastest version can be downloaded from:')
+            print('The latest version can be downloaded from:')
             print('    x64: https://aka.ms/vc14/vc_redist.x64.exe')
             print('  arm64: https://aka.ms/vc14/vc_redist.arm64.exe')
    
