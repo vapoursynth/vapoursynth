@@ -37,7 +37,7 @@ getVSScriptAPILastErrorType getVSScriptAPILastErrorFunc = NULL;
 static int loadVSScriptLibrary() {
 #ifdef _WIN32
     const wchar_t *vsscriptPath = _wgetenv(L"VSSCRIPT_PATH");
-    HMODULE lib = LoadLibraryExW(vsscriptPath ? vsscriptPath : L"VSScript.dll", nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+    HMODULE lib = LoadLibraryExW(vsscriptPath ? vsscriptPath : L"VSScript.dll", NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
     if (!lib) {
         fprintf(stderr, "Failed to load VSScript library");
         return 1;
