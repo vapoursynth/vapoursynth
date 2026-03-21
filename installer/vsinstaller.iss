@@ -31,9 +31,7 @@ AllowCancelDuringInstall=no
 AllowNoIcons=yes
 AllowUNCPath=no
 MinVersion=10.0.14393
-UsePreviousPrivileges=yes
-PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=dialog
+PrivilegesRequired=lowest
 WizardStyle=modern dynamic
 FlatComponentsList=yes
 ChangesEnvironment=yes
@@ -51,12 +49,12 @@ Name: "vscore"; Description: "VapourSynth x64 R{#= Version}{#= VersionExtra}"; T
 Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disablenouninstallwarning
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
-Name: "vsruntimes"; Description: "Visual Studio 2015-2026 Runtime"; Types: Full; Check: IsAdminInstallMode; Flags: disablenouninstallwarning
+Name: "vsruntimes"; Description: "Visual Studio 2015-2026 Runtime"; Types: Full; Flags: disablenouninstallwarning
 
 [Tasks]
-Name: rgegisterinstall; Description: "Set VSSCRIPT_PATH environment variable"; GroupDescription: "VapourSynth:"; Components: vscore
 Name: registervfw; Description: "Register VFW component"; GroupDescription: "VapourSynth:"; Components: vscore
-Name: legacyinstall; Description: "Write installation information to the registry"; GroupDescription: "VapourSynth:"; Components: vscore
+Name: registerinstall; Description: "Set VSSCRIPT_PATH environment variable"; GroupDescription: "VapourSynth:"; Components: vscore
+Name: legacyinstall; Description: "Write legacy installation information to the registry"; GroupDescription: "VapourSynth:"; Components: vscore
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "VapourSynth:"; Components: vscore
 Name: vsrepopath; Description: "Add VSRepo to PATH"; GroupDescription: "VSRepo:"; Components: vsrepo
 Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
@@ -64,7 +62,7 @@ Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription:
 [Run]
 Filename: {code:GetPythonExecutable}; Parameters: "-m pip install --user ""{app}\python\{#= WheelFilename(Version)}"""; Check: IsPython3; Flags: runhidden; Components: vscore
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth vapoursynth-config"; Check: IsPython3; Flags: runhidden; Components: vscore
-Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: rgegisterinstall
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: registerinstall
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-vfw"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: registervfw
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install legacy"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: legacyinstall
 Filename: {code:GetPythonExecutable}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden runasoriginaluser; Components: vsrepo
@@ -272,8 +270,6 @@ end;
 /////////////////////////////////////////////////////////////////////
 
 function InitializeSetup: Boolean;
-var
-  HasOtherPython: Boolean;
 begin
   RuntimesAdded := False;
   PythonList := nil;

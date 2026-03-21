@@ -21,9 +21,7 @@ copy ..\vsrepo\vsgenstubs4 buildp64\vsgenstubs4
 copy 7z.exe buildp64
 copy 7z.dll buildp64
 copy ..\dist\VapourSynth-%CURRENT_VERSION%-cp312-abi3-win_amd64.whl buildp64\wheel
-copy "%MVSCRedistPath%\%RedistVersion%\x64\Microsoft.VC%RedistShortVersion%.CRT\*" buildp64
 copy .\VAPOURSYNTH_VERSION buildp64
-copy .\MANIFEST.in buildp64
 xcopy /E ..\doc\_build\html\* buildp64\doc
 if "%SKIP_COMPRESS%" EQU "" (
   IF EXIST "Compiled\vapoursynth64-portable-R%VERSION_STRING%.zip" (
