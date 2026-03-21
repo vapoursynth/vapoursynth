@@ -15,14 +15,71 @@
 #include <stdio.h>
 #include <assert.h>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
+/*
+* This bit contains boilerplate code for how to locate and load the VSScript library and get the API pointer. Normally you
+* should only load the library this way and not link with it directly since its location is very unlikely to be in the
+* standard library search path.
+*/
+
+typedef VS_CC const VSSCRIPTAPI *(*getVSScriptAPIType)(int);
+typedef VS_CC const char *(*getVSScriptAPILastErrorType)();
+
+getVSScriptAPIType getVSScriptAPIFunc = NULL;
+getVSScriptAPILastErrorType getVSScriptAPILastErrorFunc = NULL;
+
+static int loadVSScriptLibrary() {
+#ifdef _WIN32
+    const wchar_t *vsscriptPath = _wgetenv(L"VSSCRIPT_PATH");
+    HMODULE lib = LoadLibraryExW(vsscriptPath ? vsscriptPath : L"VSScript.dll", nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+    if (!lib) {
+        fprintf(stderr, "Failed to load VSScript library");
+        return 1;
+    }
+    getVSScriptAPIFunc = (getVSScriptAPIType)GetProcAddress(lib, "getVSScriptAPI");
+    getVSScriptAPILastErrorFunc = (getVSScriptAPILastErrorType)GetProcAddress(lib, "getVSScriptAPILastError");
+    if (!getVSScriptAPIFunc || !getVSScriptAPILastErrorFunc) {
+        fprintf(stderr, "Failed to locate entry points in VSScript library");
+        return 1;
+    }
+    return 0;
+#else
+    const char *vsscriptPath = getenv(L"VSSCRIPT_PATH");
+#ifdef __APPLE__
+    const char *defaultLibName = "libvapoursynth-script.4.dylib";
+#else
+    const char *defaultLibName = "libvapoursynth-script.so.4";
+#endif
+    void *lib = dlopen(vsscriptPath ? vsscriptPath : defaultLibName, RTLD_LAZY);
+    if (!lib) {
+        fprintf(stderr, "Failed to load VSScript library: %s\n", dlerror());
+        return 1;
+    }
+    getVSScriptAPIFunc = (getVSScriptAPIType)dlsym(lib, "getVSScriptAPI");
+    getVSScriptAPILastErrorFunc = (getVSScriptAPILastErrorType)dlsym(lib, "getVSScriptAPILastError");
+    if (!getVSScriptAPIFunc || !getVSScriptAPILastErrorFunc) {
+        fprintf(stderr, "Failed to locate entry points in VSScript library: %s\n", dlerror());
+        return 1;
+    }
+    return 0;
+
+#endif
+}
+
 static const char *messageTypeToString(int msgType) {
     switch (msgType) {
-    case mtDebug: return "Debug";
-    case mtInformation: return "Information";
-    case mtWarning: return "Warning";
-    case mtCritical: return "Critical";
-    case mtFatal: return "Fatal";
-    default: return "";
+        case mtDebug: return "Debug";
+        case mtInformation: return "Information";
+        case mtWarning: return "Warning";
+        case mtCritical: return "Critical";
+        case mtFatal: return "Fatal";
+        default: return "";
     }
 }
 
@@ -38,6 +95,9 @@ int main(int argc, char **argv) {
     VSCore *core = NULL;
     FILE *outFile = NULL;
 
+    if (loadVSScriptLibrary())
+        return 1;
+
     if (argc != 3) {
         fprintf(stderr, "Usage: vsscript_example <infile> <outfile>\n");
         return 1;
@@ -51,12 +111,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-
     // Initialize VSScript and get the api pointer
-    vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
+    vssapi = getVSScriptAPIFunc(VSSCRIPT_API_VERSION);
     if (!vssapi) {
         // VapourSynth probably isn't properly installed
-        fprintf(stderr, "Failed to initialize VSScript library: %s\n", getVSScriptAPILastError());
+        fprintf(stderr, "Failed to initialize VSScript library: %s\n", getVSScriptAPILastErrorFunc());
         return 1;
     }
 
