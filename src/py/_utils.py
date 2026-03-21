@@ -177,6 +177,7 @@ def vapoursynth_config():
         raise Error("Couldn't determine location of Python library!")
 
     with open(config_path, "w", encoding="utf-8") as f:
+        f.write(f"executable = {sys.executable}\n")
         f.write(f"py-symbol-path = {py_symbol_path}\n")
 
     print(f"Configuration successfully written to {config_path}")
@@ -338,21 +339,7 @@ def register_vfw():
 def vspipe():
     import subprocess
 
-    # Perform a search similar to how python determines it's in a venv
-    # and set VIRTUAL_ENV as a hint to VSScript if it's the case
-    vspipe_env = dict(os.environ)
-    if not os.getenv("VIRTUAL_ENV"):
-        venv_config = Path(sys.executable)
-        venv_config = venv_config.with_name("pyvenv.cfg")
-        if venv_config.is_file():
-            vspipe_env["VIRTUAL_ENV"] = str(venv_config.parent)
-        else:
-            venv_config = venv_config.parent
-            venv_config = venv_config.with_name("pyvenv.cfg")
-            if venv_config.is_file():
-                vspipe_env["VIRTUAL_ENV"] = str(venv_config.parent)
-
     vspipe_path = PurePath(__file__)
     vspipe_path = vspipe_path.with_name("vspipe")
-    ret = subprocess.run([vspipe_path, *sys.argv[1:]], env=vspipe_env)
+    ret = subprocess.run([vspipe_path, *sys.argv[1:]])
     sys.exit(ret.returncode)

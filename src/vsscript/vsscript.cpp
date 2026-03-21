@@ -75,63 +75,56 @@ static std::filesystem::path getLibraryPath() {
     return {};
 }
 
-static std::filesystem::path readEnvConfig(const std::filesystem::path &path, const std::string &varname) {
+static std::filesystem::path getLineValue(const std::string &line) {
+    auto pos = line.find(" = ");
+    if (pos != std::string::npos)
+        return std::filesystem::u8path(line.substr(pos + 3));
+    assert(false);
+    return {};
+}
+
+static bool lineStartsWith(const std::string &line, const std::string &varname) {
+    return line.substr(0, varname.size()) == varname;
+}
+
+static std::pair<std::filesystem::path, std::filesystem::path> readEnvConfig(const std::filesystem::path &path) {
     std::ifstream configFile(path);
     if (!configFile.is_open())
         return {};
+    std::pair<std::filesystem::path, std::filesystem::path> result;
     std::string line;
     while (std::getline(configFile, line)) {
-        if (line.substr(0, varname.size()) == varname) {
-            auto pos = line.find(" = ");
-            if (pos != std::string::npos)
-                return std::filesystem::u8path(line.substr(pos + 3));
-        }
+        if (lineStartsWith(line, "executable"))
+            result.first = getLineValue(line);
+        else if (lineStartsWith(line, "py-symbol-path"))
+            result.second = getLineValue(line);
     }
-    return {};
+    return result;
 }
 
 static std::string extendedErrorMessage;
 
-static void real_init(void) VS_NOEXCEPT {
+static void realInit() VS_NOEXCEPT {
     extendedErrorMessage.clear();
 
     MODULE_HANDLE_TYPE libraryHandle = nullptr;
 
-    const char *venvRoot = std::getenv("VIRTUAL_ENV");
-
-    // read py-symbol-path from vspyenv.cfg
-    // if no py-symbol-path, try to read executable path from pyvenv.cfg
-    // if executable path exists run vapoursynth-config and re-read py-symbol-path
-    // load from py-symbol-path if it exists, otherwise error out
-
     std::filesystem::path vspyConfigPath = getLibraryPath();
     vspyConfigPath.replace_filename("vspyenv.cfg");
 
-    std::filesystem::path pythonSymbolPath = readEnvConfig(vspyConfigPath, "py-symbol-path");
+    auto [pythonExePath, pythonSymbolPath] = readEnvConfig(vspyConfigPath);
 
-    if (pythonSymbolPath.empty()) {
-        std::filesystem::path pythonExePath;
-        if (venvRoot) {
-            std::filesystem::path venvConfigPath = std::filesystem::u8path(venvRoot);
-            venvConfigPath /= "pyvenv.cfg";
-            pythonExePath = readEnvConfig(venvConfigPath, "executable");
-        }
-        if (pythonExePath.empty()) {
-            extendedErrorMessage = "Python library path couldn't be determined. Run `vapoursynth-config` to set it for this Python installation and then try again.";
-            return;
-        }
-
+    if (pythonExePath.empty() || pythonSymbolPath.empty()) {
 #ifdef VS_TARGET_OS_WINDOWS
-        pythonSymbolPath = pythonExePath;
-        pythonSymbolPath.replace_filename("python3.dll");
+        _wsystem(L"vapoursynth-config >NUL 2>&1");
 #else
         system("vapoursynth-config >/dev/null 2>&1");
-        pythonSymbolPath = readEnvConfig(vspyConfigPath, "py-symbol-path");
 #endif
+        std::tie(pythonExePath, pythonSymbolPath) = readEnvConfig(vspyConfigPath);
     }
 
-    if (pythonSymbolPath.empty()) {
-        extendedErrorMessage = "Python library path couldn't be determined despite automatic configuration. Run `vapoursynth-config` to set it for this Python installation or get extended error information and then try again.";
+    if (pythonExePath.empty() || pythonSymbolPath.empty()) {
+        extendedErrorMessage = "Python executable and library path couldn't be determined despite automatic configuration. Run `vapoursynth-config` to set it for this Python installation and then try again.";
         return;
     }
 
@@ -162,17 +155,7 @@ static void real_init(void) VS_NOEXCEPT {
 
     int preInitialized = p_Py_IsInitialized();
     if (!preInitialized) {
-        if (venvRoot) {
-            std::filesystem::path pythonPath = std::filesystem::u8path(venvRoot);
-#ifdef VS_TARGET_OS_WINDOWS
-            pythonPath /= "Scripts";
-            pythonPath /= "python.exe";
-#else
-            pythonPath /= "bin";
-            pythonPath /= "python3";
-#endif
-            p_Py_SetProgramName(pythonPath.wstring().c_str());
-        }
+        p_Py_SetProgramName(pythonExePath.wstring().c_str());
         p_Py_InitializeEx(0);
     }
     s = p_PyGILState_Ensure();
@@ -315,7 +298,7 @@ const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {
     int apiMinor = (version & 0xFFFF);
 
     if (apiMajor == VSSCRIPT_API_MAJOR && apiMinor <= VSSCRIPT_API_MINOR) {
-        std::call_once(flag, real_init);
+        std::call_once(flag, realInit);
         if (initialized) {
             return &vsscript_api;
         }
