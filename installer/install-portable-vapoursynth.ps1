@@ -106,20 +106,19 @@ $global:ProgressPreference = 'SilentlyContinue'
 Write-Host "Extracting Python..."
 Expand-Archive -LiteralPath "$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch-embed-amd64.zip" -DestinationPath "$TargetFolder" -Force
 Add-Content -Path "$TargetFolder\python$PythonVersionMajor$PythonVersionMinor._pth" -Encoding UTF8 -Value "Lib\site-packages" | Out-Null
-New-Item -Path "$TargetFolder\vs-plugins" -ItemType SymbolicLink -Value "Lib\site-packages\vapoursynth\plugins"
 Write-Host "Installing Pip..."
 & "$TargetFolder\python.exe" "$DownloadFolder\get-pip.py" "--no-warn-script-location"
 Remove-Item -Path "$TargetFolder\Scripts\*.exe"
 Write-Host "Extracting VapourSynth..."
 Expand-Archive -LiteralPath "$DownloadFolder\VapourSynth64-Portable-R$VSVersion$VSVersionExtra.zip" -DestinationPath "$TargetFolder" -Force
 Write-Host "Installing VapourSynth..."
-& "$TargetFolder\python.exe" "-m" "pip" "install" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp312-abi3-win_amd64.whl"
+& "$TargetFolder\python.exe" "-m" "pip" "install" "--no-warn-script-location" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp312-abi3-win_amd64.whl"
 Write-Host "Configuring VapourSynth..."
 & "$TargetFolder\Scripts\vapoursynth-config.exe"
 Write-Host "Installation complete" -ForegroundColor Green
 
 Write-Host "Commands you may want to run next:"
-Write-Host "    Scripts\vapoursynth-register-install          Sets VSScript environment variables to make it available to all applications"
+Write-Host "    Scripts\vapoursynth-register-install          Sets the VSSCRIPT_PATH environment variable to make it usable by all applications"
 Write-Host "    Scripts\vapoursynth-register-install legacy   Write installation information to the registry for compatibility with legacy applications"
 Write-Host "    Scripts\vapoursynth-register-vfw              Register the VFW module and set it to use the current installation"
 
