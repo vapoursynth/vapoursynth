@@ -60,7 +60,7 @@ jobs:
     - name: Install wheel and run test in base environment
       run: |
         pip install vapoursynth --no-index --find-links dist
-        vsscript-config
+        vapoursynth-config
         which vspipe
         vspipe --version
         python -m unittest discover -s test -p "*test.py"
