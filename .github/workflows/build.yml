@@ -1,0 +1,94 @@
+name: Build
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  build-sdist:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.x'
+
+    - name: Install Python packages
+      run: |
+        pip install -U build
+
+    - name: Build
+      run: |
+        python -m build --sdist
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: vapoursynth-sdist
+        path: dist
+
+  build-wheel:
+    strategy:
+      matrix:
+        include:
+        - arch: win_amd64
+          runs-on: windows-2025-vs2026
+        - arch: linux_x86_64
+          runs-on: ubuntu-latest
+        - arch: linux_aarch64
+          runs-on: ubuntu-24.04-arm
+        - arch: macosx_x86_64
+          runs-on: macos-26-intel
+        - arch: macosx_arm64
+          runs-on: macos-26
+      fail-fast: false
+
+    runs-on: ${{ matrix.runs-on }}
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: pypa/cibuildwheel@v3.4.0
+      env:
+        CIBW_BUILD: cp314-win_amd64 cp312-*
+        CIBW_SKIP: cp312-win*
+        CIBW_CONFIG_SETTINGS_WINDOWS: setup-args=--vsenv
+        CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=13.3
+      with:
+        output-dir: dist
+
+    - name: Fix tag
+      if: ${{ runner.os == 'Windows' }}
+      run: |
+        cd dist
+        Get-ChildItem *.whl | ForEach-Object { pipx run wheel tags --remove --python-tag cp312 $_.Name }
+
+    - name: Check for abi3 violations and inconsistencies
+      run: |
+        pipx run abi3audit --verbose dist/*.whl
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: vapoursynth-${{ matrix.arch }}
+        path: dist
+
+    - name: Install and run test
+      run: |
+        pip install vapoursynth --no-index --find-links dist
+        vapoursynth-config
+        vspipe --version
+        python -m unittest discover -s test -p "*test.py"
+
+  publish:
+    permissions:
+      id-token: write
+    needs: [build-sdist, build-wheel]
+    if: ${{ startsWith(github.ref, 'refs/tags/R') && !contains(github.ref, 'RC') }}
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        path: dist
+        merge-multiple: true
+
+    - uses: pypa/gh-action-pypi-publish@release/v1
