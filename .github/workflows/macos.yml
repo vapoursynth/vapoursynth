@@ -25,24 +25,9 @@ jobs:
       with:
         python-version: '3.12'
 
-    - name: Install Homebrew packages
-      run: |
-        brew install automake libtool
-
     - name: Install Python packages
       run: |
         pip install -U abi3audit build
-
-    - name: Install zimg
-      run: |
-        git clone https://github.com/sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules
-        pushd zimg
-        ./autogen.sh
-        ./configure --disable-shared --with-pic
-        make -j3
-        sudo make install -j3
-        popd
-        rm -rf zimg
 
     - name: Build
       run: |

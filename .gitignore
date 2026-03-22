@@ -1,62 +1,110 @@
-build/*
-doc/_build/*
+# Prerequisites
+*.d
 
-*.pyc
-__pycache__
-
-src/cython/vapoursynth.c
-src/cython/vapoursynth.h
-src/cython/vapoursynth_api.h
-
-*.o
-*.la
+# Compiled Object files
+*.slo
 *.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Linker files
+*.ilk
+
+# Debugger Files
+*.pdb
+
+# Compiled Dynamic libraries
 *.so
+*.dylib
 *.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
 *.exe
-!pfm-192-vapoursynth-win.exe
-*.7z
-*.pyd
-.libs
-.deps/
-.dirstamp
-.idea
-.vscode
-Makefile
-Makefile.in
-aclocal.m4
-autom4te.cache
-compile
-config.guess
-config.log
-config.status
-config.sub
-configure
-depcomp
-install-sh
-libtool
-ltmain.sh
-missing
-vspipe
-*.pc
+*.out
+*.app
 
+# debug information files
+*.dwo
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[codz]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
 dist/
-.eggs
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
 *.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-libp2p
-vsrepo
-zimg
-AviSynthPlus
+# Sphinx documentation
+doc/_build/
 
-*.log
+# Cython debug symbols
+cython_debug/
+
+# Ruff stuff:
+.ruff_cache/
+
+# User-specific files
+*.rsuser
+*.suo
 *.user
-x64
-Debug
-Release
-msvc_project/.vs
+*.userosscache
+*.sln.docstates
+*.env
 
-.ccls-cache/
-configure~
-m4/
-!m4/ax_pthread.m4
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+[Aa][Rr][Mm]64[Ee][Cc]/
+bld/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio 2015/2017 cache/options directory
+.vs/
+
+# Subprojects
+libp2p/
+vsrepo/
+zimg/
+!subprojects/packagefiles/*
+.wraplock

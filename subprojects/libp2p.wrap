@@ -1,0 +1,5 @@
+[wrap-git]
+url = https://github.com/sekrit-twc/libp2p.git
+revision = HEAD
+depth = 1
+patch_directory = libp2p

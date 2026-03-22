@@ -21,15 +21,6 @@ jobs:
     - uses: pypa/cibuildwheel@v3.4.0
       env:
         CIBW_BUILD: cp312-*
-        CIBW_BEFORE_ALL: >
-          git clone https://github.com/sekrit-twc/zimg.git --depth 1 --recurse-submodules --shallow-submodules &&
-          cd zimg &&
-          ./autogen.sh &&
-          ./configure --disable-shared --with-pic &&
-          make -j$(nproc) &&
-          make install -j$(nproc) &&
-          cd .. &&
-          rm -rf zimg
       with:
         output-dir: dist
 
