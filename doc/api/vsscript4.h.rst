@@ -52,8 +52,6 @@ Introduction
 
 VSScript provides a convenient wrapper for VapourSynth's scripting interface(s), allowing the evaluation of VapourSynth scripts and retrieval of output clips.
 
-For reasons unknown, the VSScript library is called ``VSScript`` in Windows and ``vapoursynth-script`` everywhere else.
-
 At this time, VapourSynth scripts can be written only in Python (version 3).
 
 Here are a few users of the VSScript library:
@@ -67,7 +65,7 @@ Here are a few users of the VSScript library:
    * the video player `mpv <https://github.com/mpv-player/mpv/blob/master/video/filter/vf_vapoursynth.c>`_
 
 .. note::
-   If libvapoursynth-script is loaded with dlopen(), the RTLD_GLOBAL flag must be used. If not, Python won't be able to import binary modules. This is due to Python's design.
+   If libvsscript is loaded with dlopen(), the RTLD_GLOBAL flag must be used. If not, Python won't be able to import binary modules. This is due to Python's design.
 
 
 Structs

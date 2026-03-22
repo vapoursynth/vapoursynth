@@ -52,11 +52,11 @@ static int loadVSScriptLibrary() {
 #else
     const char *vsscriptPath = getenv(L"VSSCRIPT_PATH");
 #ifdef __APPLE__
-    const char *defaultLibName = "libvapoursynth-script.4.dylib";
+    const char *defaultLibName = "libvsscript.4.dylib";
 #else
-    const char *defaultLibName = "libvapoursynth-script.so.4";
+    const char *defaultLibName = "libvsscript.so.4";
 #endif
-    void *lib = dlopen(vsscriptPath ? vsscriptPath : defaultLibName, RTLD_LAZY);
+    void *lib = dlopen(vsscriptPath ? vsscriptPath : defaultLibName, RTLD_LAZY | RTLD_GLOBAL);
     if (!lib) {
         fprintf(stderr, "Failed to load VSScript library: %s\n", dlerror());
         return 1;

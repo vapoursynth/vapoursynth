@@ -256,7 +256,7 @@ elif enable_python_module
 endif
 
 if enable_vsscript
-    libvsscript = library(is_win ? 'vsscript' : 'vapoursynth-script',
+    libvsscript = library('vsscript',
         files('src/vsscript/vsscript.cpp'),
         cpp_args: ['-DPy_NO_LINK_LIB', '-DVS_CORE_EXPORTS'],
         dependencies: [dl_dep, py_dep],
@@ -270,7 +270,7 @@ if enable_vsscript
     if not build_wheel
         pkg.generate(libvsscript,
             description: 'Library for interfacing VapourSynth with Python',
-            filebase: 'vapoursynth-script',
+            filebase: 'vsscript',
             subdirs: 'vapoursynth',
         )
     endif
@@ -305,7 +305,6 @@ if enable_vsscript
             files('src/common/fourcc.cpp', 'src/common/wave.cpp', 'src/vfw/vsvfw.cpp'),
             dependencies: [libp2p_dep, vsscript_dep],
             gnu_symbol_visibility: 'hidden',
-            include_directories: incdir,
             install: true,
             install_dir: install_dir,
             vs_module_defs: 'src/vfw/vsvfw.def',
