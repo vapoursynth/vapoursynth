@@ -37,7 +37,7 @@ Installation
 
 Simply run the `VapourSynth installer <https://github.com/vapoursynth/vapoursynth/releases>`_.
 
-It will perform the general installation steps and offer a few additional option. 
+It will perform the general installation steps and offer a few additional option.
 
 Windows Portable
 ****************
@@ -141,32 +141,29 @@ Linux, OS X and Others Compilation
 
 These are the requirements:
 
-   * Meson 1.3.0 or later
-    
-   * ninja-build
-
-   * pkg-config
-
-   * GCC or Clang, must be recent enough to support C++17
-
-   * `zimg <https://github.com/sekrit-twc/zimg>`_
-
-   * Python 3.12 or later (may work on earlier versions but these are never fully tested)
-
-   * Cython 3.1.x or later installed in your Python 3 environment
-
-   * Sphinx for the documentation (optional)
+* Meson 1.3.0 or later
+* ninja-build
+* pkg-config
+* GCC or Clang, must be recent enough to support C++17
+* `zimg <https://github.com/sekrit-twc/zimg>`_
+* Python 3.12 or later
+* Cython 3.1.x or later installed in your Python 3 environment
+* Sphinx for the documentation (optional)
 
 Compilation
 -----------
 
-  * Clone VapourSynth repository
+* Clone VapourSynth repository
 
 Enter the VapourSynth directory and run these commands to compile and install::
 
    python -m build --wheel
-   
+
 You can then install the wheel found in the dist directory.
+
+Alternatively, you can let pip directly install from GitHub without cloning the repository first::
+
+   pip install git+https://github.com/vapoursynth/vapoursynth.git
 
 The documentation can be built using its own Makefile::
 
