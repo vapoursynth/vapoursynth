@@ -1,6 +1,6 @@
 import sys
 
-from vapoursynth import register_install, register_vfw, vspipe, vapoursynth_check_env, vapoursynth_config
+from vapoursynth import register_install, register_vfw, vapoursynth_check_env, vapoursynth_config, vspipe
 
 
 def main():

@@ -8,74 +8,84 @@ from .vapoursynth import Error, __version__
 
 
 def get_include():
-    """
-    Return the directory that contains the VapourSynth header files.
-    """
+    """Return the directory that contains the VapourSynth header files."""
     return os.path.join(os.path.dirname(__file__), "include")
 
+
 def get_plugin_dir():
-    """
-    Return the VapourSynth plugin directory location.
-    """
+    """Return the VapourSynth plugin directory location."""
     return os.path.join(os.path.dirname(__file__), "plugins")
-    
+
+
 def get_vsscript():
-    """
-    Return the location of the vsscript library.
-    """
+    """Return the location of the vsscript library."""
     if sys.platform == "win32":
         return os.path.join(os.path.dirname(__file__), "vsscript.dll")
-    elif sys.platform == "darwin":       
+    elif sys.platform == "darwin":
         return os.path.join(os.path.dirname(__file__), "libvapoursynth-script.4.dylib")
     else:
         return os.path.join(os.path.dirname(__file__), "libvapoursynth-script.so.4")
-        
+
+
 # All code for scripts executables
 
+
 def _version_string_to_number(version_string):
-    version_parts = version_string.strip().split('.', 4)
+    version_parts = version_string.strip().split(".", 4)
     while len(version_parts) < 4:
-        version_parts.append('0')
-    return (int(version_parts[0]) << 48) | (int(version_parts[1]) << 32) | (int(version_parts[2]) << 16) | (int(version_parts[3]) << 0)
+        version_parts.append("0")
+    return (
+        (int(version_parts[0]) << 48)
+        | (int(version_parts[1]) << 32)
+        | (int(version_parts[2]) << 16)
+        | (int(version_parts[3]) << 0)
+    )
+
 
 def _is_msi_product_installed(upgrade_code, min_version):
-    from ctypes.wintypes import DWORD, LPDWORD, LPCWSTR, LPWSTR, UINT
-    
+    from ctypes.wintypes import DWORD, LPCWSTR, LPDWORD, LPWSTR, UINT
+
     msi = ctypes.WinDLL("msi.dll")
     MsiEnumRelatedProductsW = msi.MsiEnumRelatedProductsW
     MsiEnumRelatedProductsW.argtypes = [LPCWSTR, DWORD, DWORD, LPWSTR]
     MsiEnumRelatedProductsW.restype = UINT
-    MsiGetProductInfoW = msi.MsiGetProductInfoW;
+    MsiGetProductInfoW = msi.MsiGetProductInfoW
     MsiGetProductInfoW.argtypes = [LPCWSTR, LPCWSTR, LPWSTR, LPDWORD]
     MsiGetProductInfoW.restype = UINT
-    
+
     product_code_buf = ctypes.create_unicode_buffer(39)
     if MsiEnumRelatedProductsW(upgrade_code, 0, 0, product_code_buf) != 0:
         return False
-      
-    version_string_size = ctypes.wintypes.DWORD(16)      
+
+    version_string_size = ctypes.wintypes.DWORD(16)
     version_string_buf = ctypes.create_unicode_buffer(version_string_size.value)
 
-    err_code = MsiGetProductInfoW(product_code_buf.value, 'VersionString', version_string_buf, ctypes.byref(version_string_size))
-    
-    if err_code == 234: # ERROR_MORE_DATA
+    err_code = MsiGetProductInfoW(
+        product_code_buf.value, "VersionString", version_string_buf, ctypes.byref(version_string_size)
+    )
+
+    if err_code == 234:  # ERROR_MORE_DATA
         version_string_size.value = version_string_size.value + 1
         version_string_buf = ctypes.create_unicode_buffer(version_string_size.value)
-        err_code = MsiGetProductInfoW(product_code_buf.value, 'VersionString', version_string_buf, ctypes.byref(version_string_size))
-  
+        err_code = MsiGetProductInfoW(
+            product_code_buf.value, "VersionString", version_string_buf, ctypes.byref(version_string_size)
+        )
+
     if err_code != 0:
         return False
 
     return _version_string_to_number(version_string_buf.value) >= _version_string_to_number(min_version)
-    
+
+
 def _check_visual_studio_runtime():
     if sys.platform == "win32":
-        if not _is_msi_product_installed('{36F68A90-239C-34DF-B58C-64B30153CE35}', '14.50.35719.0'):
-            print('The Visual Studio 2015-2026 runtime which is required to run VapourSynth is missing or too old!')
-            print('The latest version can be downloaded from:')
-            print('    x64: https://aka.ms/vc14/vc_redist.x64.exe')
-            print('  arm64: https://aka.ms/vc14/vc_redist.arm64.exe')
-   
+        if not _is_msi_product_installed("{36F68A90-239C-34DF-B58C-64B30153CE35}", "14.50.35719.0"):
+            print("The Visual Studio 2015-2026 runtime which is required to run VapourSynth is missing or too old!")
+            print("The latest version can be downloaded from:")
+            print("    x64: https://aka.ms/vc14/vc_redist.x64.exe")
+            print("  arm64: https://aka.ms/vc14/vc_redist.arm64.exe")
+
+
 def _find_python_symbol_path():
     if sys.platform == "win32":
         from ctypes.wintypes import DWORD, HMODULE, LPWSTR, MAX_PATH
@@ -154,7 +164,7 @@ def _find_python_symbol_path():
 
 def vapoursynth_check_env():
     _check_visual_studio_runtime()
-    
+
     vsscript_path = os.getenv("VSSCRIPT_PATH")
     virtual_env = os.getenv("VIRTUAL_ENV")
 
@@ -163,12 +173,14 @@ def vapoursynth_check_env():
     if vsscript_path is None:
         print("VSSCRIPT_PATH environment variable is not set.")
     else:
-        print(f'VSSCRIPT_PATH environment variable is set to "{vsscript_path}". VapourSynth module path is "{__file__}".')
+        print(
+            f'VSSCRIPT_PATH environment variable is set to "{vsscript_path}". VapourSynth module path is "{__file__}".'
+        )
 
 
 def vapoursynth_config():
     _check_visual_studio_runtime()
-    
+
     config_path = PurePath(__file__)
     config_path = config_path.with_name("vspyenv.cfg")
 
@@ -188,7 +200,9 @@ def _write_registry_entries(entries):
 
     for entry in entries:
         try:
-            key = winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, entry["subkey"], 0, winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY)
+            key = winreg.CreateKeyEx(
+                winreg.HKEY_CURRENT_USER, entry["subkey"], 0, winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY
+            )
 
             try:
                 winreg.SetValueEx(key, entry["value_name"], 0, winreg.REG_SZ, str(entry["value_data"]))
@@ -203,7 +217,7 @@ def _write_registry_entries(entries):
             raise
 
     return True
-    
+
 
 def _register_legacy_windows_install():
     entries = [
@@ -220,7 +234,7 @@ def _register_legacy_windows_install():
         {
             "subkey": r"SOFTWARE\VapourSynth",
             "value_name": "Plugins",
-            "value_data": get_plugins(),
+            "value_data": get_plugin_dir(),
         },
         {
             "subkey": r"SOFTWARE\VapourSynth",
@@ -254,24 +268,25 @@ def _register_legacy_windows_install():
 def register_install():
     if sys.platform != "win32":
         raise Error("Command is only supported on Windows!")
-        
+
     if (len(sys.argv) >= 2) and (sys.argv[1] == "legacy"):
         _register_legacy_windows_install()
         return
-        
+
     entries = [
         {
             "subkey": "Environment",
             "value_name": "VSSCRIPT_PATH",
             "value_data": get_vsscript(),
-        }]
-    
+        }
+    ]
+
     if not _write_registry_entries(entries):
         print("Couldn't write to registry!")
         sys.exit(1)
     else:
         print("Successfully set environment variables!")
-    
+
 
 def register_vfw():
     if sys.platform != "win32":
