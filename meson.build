@@ -69,8 +69,18 @@ add_project_arguments(
 if is_win
     add_project_arguments('-DVS_TARGET_OS_WINDOWS', '-D_UNICODE', '-DUNICODE', language: lang)
 
-    if get_option('buildtype') == 'release' and cxx.get_argument_syntax() == 'msvc'
-        add_project_link_arguments('/OPT:ICF', language: lang)
+    if get_option('buildtype') == 'release'
+        if cxx.get_id() == 'msvc'
+            add_project_arguments('/GL', language: lang)
+        endif
+
+        if cxx.get_argument_syntax() == 'msvc'
+            add_project_link_arguments('/OPT:ICF', language: lang)
+        endif
+
+        if cxx.get_linker_id() == 'link'
+            add_project_link_arguments('/LTCG', language: lang)
+        endif
     endif
 elif host_system == 'darwin'
     add_project_arguments('-DVS_TARGET_OS_DARWIN', language: lang)
