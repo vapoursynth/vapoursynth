@@ -285,8 +285,14 @@ def register_install():
         print("Couldn't write to registry!")
         sys.exit(1)
     else:
+        from ctypes.wintypes import HWND, UINT, WPARAM
+        user32 = ctypes.WinDLL("user32.dll")
+        SendMessageW = user32.SendMessageW
+        SendMessageW.argtypes = [HWND, UINT, WPARAM, ctypes.c_wchar_p]
+        SendMessageW.restype = ctypes.c_void_p
+#       SendMessage(HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment")
+        SendMessageW(0xffff, 0x001A, 0, "Environment")            
         print("Successfully set environment variables!")
-
 
 def register_vfw():
     if sys.platform != "win32":
