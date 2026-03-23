@@ -8,8 +8,8 @@ if meson.get_compiler('cpp').get_argument_syntax() == 'gcc'
     avx512_args = '-march=x86-64-v4'
     avx512vnni_args = '-mavx512vnni'
 else
-    avx2_args = '-arch:AVX2'
-    avx512_args = '-arch:AVX512'
+    avx2_args = '/arch:AVX2'
+    avx512_args = '/arch:AVX512'
     avx512vnni_args = []
 endif
 

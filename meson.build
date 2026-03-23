@@ -21,7 +21,7 @@ endif
 
 cxx = meson.get_compiler('cpp')
 
-avx2_args = cxx.get_argument_syntax() == 'gcc' ? '-march=x86-64-v3' : '-arch:AVX2'
+avx2_args = cxx.get_argument_syntax() == 'gcc' ? '-march=x86-64-v3' : '/arch:AVX2'
 
 host_system = host_machine.system()
 is_win = host_system in ['cygwin', 'windows']
@@ -218,7 +218,7 @@ if enable_core
             install: true,
             install_rpath: '$ORIGIN',
             limited_api: '3.12',
-            link_args: cxx.get_argument_syntax() == 'msvc' ? ['-NOEXP', '-NOIMPLIB'] : [],
+            link_args: cxx.get_argument_syntax() == 'msvc' ? ['/NOEXP', '/NOIMPLIB'] : [],
             override_options: 'cython_language=cpp',
             subdir: 'vapoursynth',
         )
@@ -286,7 +286,7 @@ if enable_vsscript
         if cxx.get_argument_syntax() == 'gcc' and is_win
             link_args += '-municode'
         elif cxx.get_argument_syntax() == 'msvc'
-            link_args += ['-MANIFEST:EMBED', '-MANIFESTINPUT:' + (meson.project_source_root() / 'src/vspipe/vspipe.manifest')]
+            link_args += ['/MANIFEST:EMBED', '/MANIFESTINPUT:' + (meson.project_source_root() / 'src/vspipe/vspipe.manifest')]
         endif
 
         executable('vspipe',
