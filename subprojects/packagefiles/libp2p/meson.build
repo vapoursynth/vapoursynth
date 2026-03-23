@@ -19,12 +19,7 @@ if host_machine.cpu_family().startswith('x86')
 endif
 
 libp2p = library('p2p',
-    files(
-        'simd/cpuinfo_x86.cpp',
-        'simd/p2p_simd.cpp',
-        'p2p_api.cpp',
-        'v210.cpp',
-    ),
+    files('simd/cpuinfo_x86.cpp', 'simd/p2p_simd.cpp', 'p2p_api.cpp', 'v210.cpp'),
     cpp_args: p2p_args,
     gnu_symbol_visibility: 'hidden',
     link_with: libs,
