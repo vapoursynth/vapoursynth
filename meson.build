@@ -147,7 +147,7 @@ if enable_core
         )
     endif
 
-    libvapoursynth = library('vapoursynth',
+    libvapoursynth = library('libvapoursynth',
         files(
             'src/core/expr/expr.cpp',
             'src/core/expr/jitcompiler.cpp',
@@ -183,6 +183,7 @@ if enable_core
         install: true,
         install_dir: install_dir,
         link_with: libs,
+        name_prefix: '',
         soversion: is_win ? '' : run_command('grep', '-m', '1', 'VAPOURSYNTH_API_MAJOR', 'include/VapourSynth4.h', check: true).stdout().strip().split()[2],
     )
 

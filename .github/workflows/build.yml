@@ -51,7 +51,7 @@ jobs:
       env:
         CIBW_BUILD: cp314-win_amd64 cp312-*
         CIBW_SKIP: cp312-win*
-        CIBW_CONFIG_SETTINGS_WINDOWS: setup-args=--vsenv
+        CIBW_CONFIG_SETTINGS_WINDOWS: setup-args=--debug setup-args=--vsenv
         CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=13.3
       with:
         output-dir: dist
