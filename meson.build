@@ -21,7 +21,13 @@ endif
 
 cxx = meson.get_compiler('cpp')
 
-avx2_args = cxx.get_argument_syntax() == 'gcc' ? '-march=x86-64-v3' : '/arch:AVX2'
+if cxx.get_argument_syntax() == 'gcc'
+    avx2_args = '-march=x86-64-v3'
+elif cxx.get_id() == 'clang-cl'
+    avx2_args = '/clang:-march=x86-64-v3'
+else
+    avx2_args = '/arch:AVX2'
+endif
 
 host_system = host_machine.system()
 is_win = host_system in ['cygwin', 'windows']
@@ -219,7 +225,6 @@ if enable_core
             install: true,
             install_rpath: '$ORIGIN',
             limited_api: '3.12',
-            link_args: cxx.get_argument_syntax() == 'msvc' ? ['/NOEXP', '/NOIMPLIB'] : [],
             override_options: 'cython_language=cpp',
             subdir: 'vapoursynth',
         )

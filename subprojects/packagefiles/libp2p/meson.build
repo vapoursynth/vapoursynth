@@ -6,7 +6,13 @@ libs = []
 
 p2p_args = []
 
-sse4_args = meson.get_compiler('cpp').get_argument_syntax() == 'gcc' ? '-march=x86-64-v2' : []
+if meson.get_compiler('cpp').get_argument_syntax() == 'gcc'
+    sse4_args = '-march=x86-64-v2'
+elif meson.get_compiler('cpp').get_id() == 'clang-cl'
+    sse4_args = '/clang:-march=x86-64-v2'
+else
+    sse4_args = []
+endif
 
 if host_machine.cpu_family().startswith('x86')
     p2p_args += '-DP2P_SIMD'
