@@ -7,9 +7,13 @@ if meson.get_compiler('cpp').get_argument_syntax() == 'gcc'
     avx2_args = '-march=x86-64-v3'
     avx512_args = '-march=x86-64-v4'
     avx512vnni_args = '-mavx512vnni'
+elif meson.get_compiler('cpp').get_id() == 'clang-cl'
+    avx2_args = '/clang:-march=x86-64-v3'
+    avx512_args = '/clang:-march=x86-64-v4'
+    avx512vnni_args = '/clang:-mavx512vnni'
 else
-    avx2_args = '-arch:AVX2'
-    avx512_args = '-arch:AVX512'
+    avx2_args = '/arch:AVX2'
+    avx512_args = '/arch:AVX512'
     avx512vnni_args = []
 endif
 
@@ -17,7 +21,7 @@ incdir = include_directories('graphengine/include', 'src/zimg')
 
 libs = []
 
-add_project_arguments('-DGRAPHENGINE_IMPL_NAMESPACE=zimg', language: 'cpp')
+add_project_arguments('-DGRAPHENGINE_IMPL_NAMESPACE=zimg', '-DZIMG_GRAPHENGINE_API', language: 'cpp')
 
 if host_machine.cpu_family() == 'aarch64'
     add_project_arguments('-DZIMG_ARM', language: 'cpp')

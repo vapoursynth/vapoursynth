@@ -52,7 +52,13 @@ limited-api = true
 setup = ["-Dbuild_wheel=true"]
 
 [tool.meson-python.wheel]
-exclude = ["*/*.lib"]
+exclude = [
+    "*.lib",
+    "*/avscompat.pdb",
+    "*/vapoursynth.pdb",
+    "*/vspipe.pdb",
+    "*/vsvfw.pdb",
+]
 
 [tool.ruff]
 line-length = 120

@@ -6,7 +6,13 @@ libs = []
 
 p2p_args = []
 
-sse4_args = meson.get_compiler('cpp').get_argument_syntax() == 'gcc' ? '-march=x86-64-v2' : []
+if meson.get_compiler('cpp').get_argument_syntax() == 'gcc'
+    sse4_args = '-march=x86-64-v2'
+elif meson.get_compiler('cpp').get_id() == 'clang-cl'
+    sse4_args = '/clang:-march=x86-64-v2'
+else
+    sse4_args = []
+endif
 
 if host_machine.cpu_family().startswith('x86')
     p2p_args += '-DP2P_SIMD'
@@ -19,12 +25,7 @@ if host_machine.cpu_family().startswith('x86')
 endif
 
 libp2p = library('p2p',
-    files(
-        'simd/cpuinfo_x86.cpp',
-        'simd/p2p_simd.cpp',
-        'p2p_api.cpp',
-        'v210.cpp',
-    ),
+    files('simd/cpuinfo_x86.cpp', 'simd/p2p_simd.cpp', 'p2p_api.cpp', 'v210.cpp'),
     cpp_args: p2p_args,
     gnu_symbol_visibility: 'hidden',
     link_with: libs,

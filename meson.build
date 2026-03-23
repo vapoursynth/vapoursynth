@@ -21,7 +21,13 @@ endif
 
 cxx = meson.get_compiler('cpp')
 
-avx2_args = cxx.get_argument_syntax() == 'gcc' ? '-march=x86-64-v3' : '-arch:AVX2'
+if cxx.get_argument_syntax() == 'gcc'
+    avx2_args = '-march=x86-64-v3'
+elif cxx.get_id() == 'clang-cl'
+    avx2_args = '/clang:-march=x86-64-v3'
+else
+    avx2_args = '/arch:AVX2'
+endif
 
 host_system = host_machine.system()
 is_win = host_system in ['cygwin', 'windows']
@@ -62,6 +68,22 @@ add_project_arguments(
 
 if is_win
     add_project_arguments('-DVS_TARGET_OS_WINDOWS', '-D_UNICODE', '-DUNICODE', language: lang)
+
+    if get_option('buildtype') == 'release'
+        if cxx.get_id() == 'msvc'
+            add_project_arguments('/GL', language: lang)
+        elif cxx.get_id() == 'clang-cl'
+            add_project_arguments('/clang:-flto', language: lang)
+        endif
+
+        if cxx.get_argument_syntax() == 'msvc'
+            add_project_link_arguments('/OPT:ICF', language: lang)
+        endif
+
+        if cxx.get_linker_id() == 'link'
+            add_project_link_arguments('/LTCG', language: lang)
+        endif
+    endif
 elif host_system == 'darwin'
     add_project_arguments('-DVS_TARGET_OS_DARWIN', language: lang)
 elif host_system in ['dragonfly', 'freebsd', 'gnu', 'linux', 'netbsd', 'openbsd']
@@ -147,7 +169,7 @@ if enable_core
         )
     endif
 
-    libvapoursynth = library('vapoursynth',
+    libvapoursynth = library('libvapoursynth',
         files(
             'src/core/expr/expr.cpp',
             'src/core/expr/jitcompiler.cpp',
@@ -183,6 +205,7 @@ if enable_core
         install: true,
         install_dir: install_dir,
         link_with: libs,
+        name_prefix: '',
         soversion: is_win ? '' : run_command('grep', '-m', '1', 'VAPOURSYNTH_API_MAJOR', 'include/VapourSynth4.h', check: true).stdout().strip().split()[2],
     )
 
@@ -218,17 +241,12 @@ if enable_core
             install: true,
             install_rpath: '$ORIGIN',
             limited_api: '3.12',
-            link_args: cxx.get_argument_syntax() == 'msvc' ? ['-NOEXP', '-NOIMPLIB'] : [],
             override_options: 'cython_language=cpp',
             subdir: 'vapoursynth',
         )
 
         py.install_sources(
-            files(
-                'src/py/__init__.py',
-                'src/py/__main__.py',
-                'src/py/_utils.py',
-            ),
+            files('src/py/__init__.py', 'src/py/__main__.py', 'src/py/_utils.py'),
             subdir: 'vapoursynth',
         )
 
@@ -286,7 +304,7 @@ if enable_vsscript
         if cxx.get_argument_syntax() == 'gcc' and is_win
             link_args += '-municode'
         elif cxx.get_argument_syntax() == 'msvc'
-            link_args += ['-MANIFEST:EMBED', '-MANIFESTINPUT:' + (meson.project_source_root() / 'src/vspipe/vspipe.manifest')]
+            link_args += ['/MANIFEST:EMBED', '/MANIFESTINPUT:' + (meson.project_source_root() / 'src/vspipe/vspipe.manifest')]
         endif
 
         executable('vspipe',
