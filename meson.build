@@ -72,6 +72,8 @@ if is_win
     if get_option('buildtype') == 'release'
         if cxx.get_id() == 'msvc'
             add_project_arguments('/GL', language: lang)
+        elif cxx.get_id() == 'clang-cl'
+            add_project_arguments('/clang:-flto', language: lang)
         endif
 
         if cxx.get_argument_syntax() == 'msvc'
