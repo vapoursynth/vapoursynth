@@ -287,11 +287,11 @@ def register_install():
     else:
         from ctypes.wintypes import HWND, UINT, WPARAM
         user32 = ctypes.WinDLL("user32.dll")
-        SendMessageW = user32.SendMessageW
-        SendMessageW.argtypes = [HWND, UINT, WPARAM, ctypes.c_wchar_p]
-        SendMessageW.restype = ctypes.c_void_p
-#       SendMessage(HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment")
-        SendMessageW(0xffff, 0x001A, 0, "Environment")            
+        SendMessageTimeoutW = user32.SendMessageTimeoutW
+        SendMessageTimeoutW.argtypes = [HWND, UINT, WPARAM, ctypes.c_wchar_p, UINT, UINT, ctypes.c_void_p]
+        SendMessageTimeoutW.restype = ctypes.c_void_p
+#       SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment", SMTO_ABORTIFHUNG, 0, 2000, NULL)
+        SendMessageTimeoutW(0xffff, 0x001A, 0, "Environment", 2, 2000, 0)            
         print("Successfully set environment variables!")
 
 def register_vfw():
