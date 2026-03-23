@@ -68,6 +68,10 @@ add_project_arguments(
 
 if is_win
     add_project_arguments('-DVS_TARGET_OS_WINDOWS', '-D_UNICODE', '-DUNICODE', language: lang)
+
+    if get_option('buildtype') == 'release' and cxx.get_argument_syntax() == 'msvc'
+        add_project_link_arguments('/OPT:ICF', language: lang)
+    endif
 elif host_system == 'darwin'
     add_project_arguments('-DVS_TARGET_OS_DARWIN', language: lang)
 elif host_system in ['dragonfly', 'freebsd', 'gnu', 'linux', 'netbsd', 'openbsd']
