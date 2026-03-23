@@ -17,7 +17,7 @@ incdir = include_directories('graphengine/include', 'src/zimg')
 
 libs = []
 
-add_project_arguments('-DGRAPHENGINE_IMPL_NAMESPACE=zimg', language: 'cpp')
+add_project_arguments('-DGRAPHENGINE_IMPL_NAMESPACE=zimg', '-DZIMG_GRAPHENGINE_API', language: 'cpp')
 
 if host_machine.cpu_family() == 'aarch64'
     add_project_arguments('-DZIMG_ARM', language: 'cpp')
