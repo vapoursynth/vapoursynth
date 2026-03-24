@@ -166,9 +166,12 @@ def vapoursynth_check_env():
 
     vsscript_path = os.getenv("VSSCRIPT_PATH")
     
-    print(f'VapourSynth module path is "{__file__}".')
+    print(f'VapourSynth package path is "{os.path.dirname(__file__)}".')
     if vsscript_path is not None:
-        print(f'VSSCRIPT_PATH environment variable is set to "{vsscript_path}".')
+        if vsscript_path == get_vsscript():
+            print(f'VSSCRIPT_PATH environment variable is set to "{vsscript_path}" which belongs to the current installation.')
+        else:
+            print(f'VSSCRIPT_PATH environment variable is set to "{vsscript_path}" which doesn\'t belong to the current installation.')
     else:
         print("VSSCRIPT_PATH environment variable is not set.")
 
