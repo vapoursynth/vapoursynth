@@ -1,6 +1,6 @@
 @echo off
 
-call setmvscvars.bat
+call setmsvcvars.bat
 
 SET VERSION_STRING=%CURRENT_VERSION%%CURRENT_VERSION_EXTRA%
 

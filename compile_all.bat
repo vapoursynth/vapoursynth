@@ -1,7 +1,7 @@
 rem @echo | call install_deps.bat
 
 pushd installer
-call setmvscvars.bat
+call setmsvcvars.bat
 popd
 
 pushd msvc_project
