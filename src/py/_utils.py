@@ -161,19 +161,64 @@ def _find_python_symbol_path():
                         return pylib
         return None
 
+def _check_windows_env():
+    if sys.platform == "win32":
+        import winreg
+        
+        vapoursynth_path = None
+
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"SOFTWARE\VapourSynth", 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY)
+            try:
+                vapoursynth_path = winreg.QueryValueEx(key, 'Path')[0]
+            finally:
+                winreg.CloseKey(key)
+        except:
+            pass
+        
+        if vapoursynth_path == os.path.dirname(__file__):
+            print('Registry entries: this installation')
+        elif vapoursynth_path:
+            print(f'Registry entries: (other installation) "{vapoursynth_path}"')
+        else:
+            print("Registry entries: not set")
+            
+        vfw_path = None
+
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32", 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY)
+            try:
+                vfw_path = winreg.QueryValueEx(key, None)[0]
+            finally:
+                winreg.CloseKey(key)
+        except:
+            pass
+        
+        if vfw_path == os.path.join(os.path.dirname(__file__), 'vsvfw.dll'):
+            print('VFW module: this installation')
+        elif vfw_path:
+            print(f'VFW module: (other installation) "{vfw_path}"')
+        else:
+            print("VFW module: not set")
+
 def vapoursynth_check_env():
     _check_visual_studio_runtime()
 
     vsscript_path = os.getenv("VSSCRIPT_PATH")
     
-    print(f'VapourSynth package path is "{os.path.dirname(__file__)}".')
-    if vsscript_path is not None:
-        if vsscript_path == get_vsscript():
-            print(f'VSSCRIPT_PATH environment variable is set to "{vsscript_path}" which belongs to the current installation.')
-        else:
-            print(f'VSSCRIPT_PATH environment variable is set to "{vsscript_path}" which doesn\'t belong to the current installation.')
+    if not Path(__file__).with_name("vspyenv.cfg").is_file():
+        print('VAPOURSYNTH IS NOT CONFIGURED! RUN VAPOURSYNTH-CONFIG!')  
+    
+    print(f'VapourSynth path: "{os.path.dirname(__file__)}"')
+
+    if vsscript_path == get_vsscript():
+        print('VSSCRIPT_PATH: this installation')
+    elif vsscript_path:
+        print(f'VSSCRIPT_PATH: (other installation) "{vsscript_path}"')
     else:
-        print("VSSCRIPT_PATH environment variable is not set.")
+        print("VSSCRIPT_PATH: not set")
+        
+    _check_windows_env()
 
 def vapoursynth_config():
     _check_visual_studio_runtime()
