@@ -3,7 +3,7 @@ project('VapourSynth', 'c', 'cpp', 'cython',
     license: 'LGPL-2.1-or-later',
     license_files: 'COPYING.LESSER',
     meson_version: '>=1.3.0',
-    version: run_command(find_program('python', 'python3'), '-c', 'print(open("VAPOURSYNTH_VERSION").read())', check: true).stdout().strip().split()[2].split('-')[0],
+    version: '74rc1',
 )
 
 enable_guard_pattern = get_option('enable_guard_pattern')
@@ -57,7 +57,7 @@ install_dir = build_wheel ? py.get_install_dir() / 'vapoursynth' : []
 add_project_arguments(
     cxx.get_supported_arguments(
         '-DNOMINMAX',
-        '-DVS_CURRENT_RELEASE=@0@'.format(meson.project_version()),
+        '-DVS_CURRENT_RELEASE=@0@'.format(run_command(find_program('python', 'python3'), '-c', 'print(open("VAPOURSYNTH_VERSION").read())', check: true).stdout().strip().split()[2].split('-')[0]),
         '-DVS_GRAPH_API',
         '-DVS_USE_LATEST_API',
         '-DVSSCRIPT_USE_LATEST_API',
