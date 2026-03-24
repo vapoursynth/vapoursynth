@@ -82,7 +82,7 @@ jobs:
     permissions:
       id-token: write
     needs: [build-sdist, build-wheel]
-    if: ${{ startsWith(github.ref, 'refs/tags/R') && !contains(github.ref, 'RC') }}
+    if: ${{ startsWith(github.ref, 'refs/tags/R') }}
     runs-on: ubuntu-latest
 
     steps:
