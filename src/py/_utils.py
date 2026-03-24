@@ -161,22 +161,16 @@ def _find_python_symbol_path():
                         return pylib
         return None
 
-
 def vapoursynth_check_env():
     _check_visual_studio_runtime()
 
     vsscript_path = os.getenv("VSSCRIPT_PATH")
-    virtual_env = os.getenv("VIRTUAL_ENV")
-
-    if virtual_env is not None:
-        print(f"VIRTUAL_ENV environment variable is set. Running in a venv located in {virtual_env}")
-    if vsscript_path is None:
-        print("VSSCRIPT_PATH environment variable is not set.")
+    
+    print(f'VapourSynth module path is "{__file__}".')
+    if vsscript_path is not None:
+        print(f'VSSCRIPT_PATH environment variable is set to "{vsscript_path}".')
     else:
-        print(
-            f'VSSCRIPT_PATH environment variable is set to "{vsscript_path}". VapourSynth module path is "{__file__}".'
-        )
-
+        print("VSSCRIPT_PATH environment variable is not set.")
 
 def vapoursynth_config():
     _check_visual_studio_runtime()
