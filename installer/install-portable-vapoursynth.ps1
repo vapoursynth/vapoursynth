@@ -93,12 +93,14 @@ New-Item -Path "$DownloadFolder" -ItemType Directory -Force | Out-Null
 
 $ProgressPreference = 'Continue'
 
+$ErrorActionPreference = "Stop"
 Write-Host "Downloading Python..."
 Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch/python-$PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch-embed-amd64.zip" -OutFile "$DownloadFolder\python-$PythonVersionMajor.$PythonVersionMinor.$PythonVersionPatch-embed-amd64.zip"
 Write-Host "Downloading VapourSynth..."
 Invoke-WebRequest -Uri "https://github.com/vapoursynth/vapoursynth/releases/download/R$VSVersion$VSVersionExtra/VapourSynth64-Portable-R$VSVersion$VSVersionExtra.zip" -OutFile "$DownloadFolder\VapourSynth64-Portable-R$VSVersion$VSVersionExtra.zip"
 Write-Host "Downloading Pip..."
 Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$DownloadFolder\get-pip.py"
+$ErrorActionPreference = "Continue"
 
 # Expand-Archive requires the global scope variable to be set and not just the local one because why not?
 $global:ProgressPreference = 'SilentlyContinue'
@@ -113,6 +115,8 @@ Write-Host "Extracting VapourSynth..."
 Expand-Archive -LiteralPath "$DownloadFolder\VapourSynth64-Portable-R$VSVersion$VSVersionExtra.zip" -DestinationPath "$TargetFolder" -Force
 Write-Host "Installing VapourSynth..."
 & "$TargetFolder\python.exe" "-m" "pip" "install" "--no-warn-script-location" "$TargetFolder\wheel\VapourSynth-$VSVersion-cp312-abi3-win_amd64.whl"
+Write-Host "Installing VSRepo..."
+& "$TargetFolder\python.exe" "-m" "pip" "install" "--no-warn-script-location" "$TargetFolder\wheel\vsrepo-51-py3-none-any.whl"
 Write-Host "Configuring VapourSynth..."
 & "$TargetFolder\Scripts\vapoursynth-config.exe"
 Write-Host "Installation complete" -ForegroundColor Green

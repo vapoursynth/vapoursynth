@@ -6,6 +6,8 @@
 #define RegistryPath 'SOFTWARE\VapourSynth'
 #define SourceBinaryPath '..\msvc_project\x64\Release'
 #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp312-abi3-win_amd64.whl'
+#define VSRepoVersion '51'
+#define VSRepoWheelFilename(VSRepoVer) 'vsrepo-' + VSRepoVer + '-py3-none-any.whl'
 
 #define Dependency_NoExampleSetup
 #include "CodeDependencies.iss"
@@ -52,20 +54,20 @@ Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; T
 Name: "vsruntimes"; Description: "Visual Studio 2015-2026 Runtime"; Types: Full; Flags: disablenouninstallwarning
 
 [Tasks]
-Name: registervfw; Description: "Register VFW component"; GroupDescription: "VapourSynth:"; Components: vscore
 Name: registerinstall; Description: "Set VSSCRIPT_PATH environment variable"; GroupDescription: "VapourSynth:"; Components: vscore
 Name: legacyinstall; Description: "Write legacy installation information to the registry"; GroupDescription: "VapourSynth:"; Components: vscore
+Name: registervfw; Description: "Register VFW component"; GroupDescription: "VapourSynth:"; Components: vscore
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "VapourSynth:"; Components: vscore
-Name: vsrepopath; Description: "Add VSRepo to PATH"; GroupDescription: "VSRepo:"; Components: vsrepo
 Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
 
 [Run]
 Filename: {code:GetPythonExecutable}; Parameters: "-m pip install --user ""{app}\python\{#= WheelFilename(Version)}"""; Check: IsPython3; Flags: runhidden; Components: vscore
+Filename: {code:GetPythonExecutable}; Parameters: "-m pip install --user ""{app}\python\{#= VSRepoWheelFilename(VSRepoVersion)}"""; Check: IsPython3; Flags: runhidden; Components: vsrepo
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth vapoursynth-config"; Check: IsPython3; Flags: runhidden; Components: vscore
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: registerinstall
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-vfw"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: registervfw
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install legacy"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: legacyinstall
-Filename: {code:GetPythonExecutable}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden runasoriginaluser; Components: vsrepo
+Filename: {code:GetPythonExecutable}; Parameters: "-m vsrepo update"; Flags: runhidden; Components: vsrepo
 
 [UninstallRun]
 Filename: {code:GetPythonExecutable}; Parameters: "-m pip uninstall -y VapourSynth"; Flags: runhidden; RunOnceId: "VSUninstallPyModule"; Components: vscore
@@ -76,14 +78,7 @@ Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete re
 Source: ..\dist\{#= WheelFilename(Version)}; DestDir: {app}\python; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
 ;vsrepo
-Source: ..\vsrepo\vsrepo.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
-Source: ..\vsrepo\vsgenstubs.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
-Source: ..\vsrepo\vsgenstubs4\__init__.py; DestDir: {app}\vsrepo\vsgenstubs4; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
-Source: ..\vsrepo\vsgenstubs4\__main__.py; DestDir: {app}\vsrepo\vsgenstubs4; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
-Source: ..\vsrepo\vsgenstubs4\_vapoursynth.part.pyi; DestDir: {app}\vsrepo\vsgenstubs4; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
-Source: ..\vsrepo\vsgenstubs4\init.py; DestDir: {app}\vsrepo\vsgenstubs4; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
-Source: 7z.exe; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
-Source: 7z.dll; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
+Source: ..\vsrepo\dist\{#= VSRepoWheelFilename(VSRepoVersion)}; DestDir: {app}\python; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
 ;docs
 Source: ..\doc\_build\html\*; DestDir: {app}\docs; Flags: ignoreversion uninsrestartdelete restartreplace recursesubdirs; Components: docs
@@ -107,9 +102,6 @@ Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
 [Registry]
 ; new vpy file shortcut task
 Root: HKCU; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName: "FileName"; ValueData: "{app}\template.vpy"; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: newvpyfile
-
-; VSREPO PATH
-Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Tasks: vsrepopath
 
 [Code]
 
