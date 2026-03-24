@@ -5,7 +5,7 @@
 #define AppId 'VapourSynth'
 #define RegistryPath 'SOFTWARE\VapourSynth'
 #define SourceBinaryPath '..\msvc_project\x64\Release'
-#define WheelFilename(Version) 'VapourSynth-' + Version + '-cp312-abi3-win_amd64.whl'
+#define WheelFilename(Version) 'VapourSynth-' + Version + VersionExtra + '-cp312-abi3-win_amd64.whl'
 #define VSRepoVersion '51'
 #define VSRepoWheelFilename(VSRepoVer) 'vsrepo-' + VSRepoVer + '-py3-none-any.whl'
 

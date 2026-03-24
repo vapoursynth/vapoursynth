@@ -15,7 +15,7 @@ echo powershell.exe -executionpolicy bypass -file Install-Portable-VapourSynth-R
 mkdir buildp64\doc
 mkdir buildp64\wheel
 copy ..\vsrepo\dist\vsrepo-51-py3-none-any.whl buildp64\wheel
-copy ..\dist\VapourSynth-%CURRENT_VERSION%-cp312-abi3-win_amd64.whl buildp64\wheel
+copy ..\dist\VapourSynth-%CURRENT_VERSION%%CURRENT_VERSION_EXTRA%-cp312-abi3-win_amd64.whl buildp64\wheel
 copy .\VAPOURSYNTH_VERSION buildp64
 xcopy /E ..\doc\_build\html\* buildp64\doc
 if "%SKIP_COMPRESS%" EQU "" (
