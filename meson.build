@@ -258,7 +258,7 @@ if enable_core
         )
     endif
 
-    if build_wheel and is_win
+    if build_wheel and cxx.get_argument_syntax() == 'msvc'
         avscompat = shared_module('avscompat',
             files('src/avisynth/avisynth_compat.cpp', 'src/avisynth/interface.cpp', 'src/core/cpufeatures.cpp'),
             cpp_args: '-DBUILDING_AVSCORE',
@@ -318,7 +318,7 @@ if enable_vsscript
         )
     endif
 
-    if build_wheel and is_win
+    if build_wheel and cxx.get_argument_syntax() == 'msvc'
         vsvfw = library('vsvfw',
             files('src/common/fourcc.cpp', 'src/common/wave.cpp', 'src/vfw/vsvfw.cpp'),
             dependencies: [libp2p_dep, vsscript_dep],
