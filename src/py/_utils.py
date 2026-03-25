@@ -1,6 +1,7 @@
 import ctypes
 import os
 import sys
+import argparse
 from ctypes.util import find_library
 from pathlib import Path, PurePath
 
@@ -398,18 +399,14 @@ def register_vfw():
         print("VFW provider successfully registered!")
        
 def vapoursynth_entrypoint():
-    if len(sys.argv) < 2:
-        print("Usage: python -m vapoursynth <command>")
-        print("Available commands:")
-        print("  config")
-        print("  check-env")
-        if sys.platform == "win32":
-            print("  register-install")
-            print("  register-legacy-install")
-            print("  register-vfw")
-        sys.exit(1)
-
-    command = sys.argv[1]
+    parser = argparse.ArgumentParser(prog='vapoursynth', description='VapourSynth configuration utility')
+    operations = ['config', 'check-env']
+    if sys.platform == "win32":
+        operations = operations + ['register-install', 'register-legacy-install', 'register-vfw']
+    parser.add_argument('operation', choices=operations)
+    args = parser.parse_args()
+    
+    command = args.operation
 
     if command == "config":
         vapoursynth_config()
@@ -421,9 +418,6 @@ def vapoursynth_entrypoint():
         register_legacy_install()
     elif command == "register-vfw":
         register_vfw()
-    else:
-        print(f"Unknown command: {command}")
-        sys.exit(1)
 
 def vspipe():
     import subprocess
