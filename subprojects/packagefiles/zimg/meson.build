@@ -3,6 +3,20 @@ project('zimg', 'cpp',
     version: '3.0.6',
 )
 
+cxx = meson.get_compiler('cpp')
+
+if get_option('buildtype') == 'release'
+    if cxx.get_id() == 'msvc'
+        add_project_arguments('/GL', language: 'cpp')
+    elif cxx.get_id() == 'clang-cl'
+        add_project_arguments('/clang:-flto', language: 'cpp')
+    endif
+
+    if cxx.get_linker_id() == 'link'
+        add_project_link_arguments('/LTCG', language: 'cpp')
+    endif
+endif
+
 if meson.get_compiler('cpp').get_argument_syntax() == 'gcc'
     avx2_args = '-march=x86-64-v3'
     avx512_args = '-march=x86-64-v4'

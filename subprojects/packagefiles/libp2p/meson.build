@@ -2,9 +2,21 @@ project('libp2p', 'cpp',
     default_options: ['cpp_std=c++14'],
 )
 
-libs = []
+cxx = meson.get_compiler('cpp')
 
-p2p_args = []
+if get_option('buildtype') == 'release'
+    if cxx.get_id() == 'msvc'
+        add_project_arguments('/GL', language: 'cpp')
+    elif cxx.get_id() == 'clang-cl'
+        add_project_arguments('/clang:-flto', language: 'cpp')
+    endif
+
+    if cxx.get_linker_id() == 'link'
+        add_project_link_arguments('/LTCG', language: 'cpp')
+    endif
+endif
+
+libs = []
 
 if meson.get_compiler('cpp').get_argument_syntax() == 'gcc'
     sse4_args = '-march=x86-64-v2'
@@ -15,18 +27,17 @@ else
 endif
 
 if host_machine.cpu_family().startswith('x86')
-    p2p_args += '-DP2P_SIMD'
+    add_project_arguments('-DP2P_SIMD', language: 'cpp')
 
     libs += static_library('p2p_sse41',
         files('simd/p2p_sse41.cpp'),
-        cpp_args: p2p_args + sse4_args,
+        cpp_args: sse4_args,
         gnu_symbol_visibility: 'hidden',
     )
 endif
 
 libp2p = library('p2p',
     files('simd/cpuinfo_x86.cpp', 'simd/p2p_simd.cpp', 'p2p_api.cpp', 'v210.cpp'),
-    cpp_args: p2p_args,
     gnu_symbol_visibility: 'hidden',
     link_with: libs,
 )

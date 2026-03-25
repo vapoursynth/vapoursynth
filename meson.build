@@ -54,6 +54,18 @@ py_dep = py.dependency(version: is_win ? '>=3.14' : '>=3.12') # Py_NO_LINK_LIB w
 
 install_dir = build_wheel ? py.get_install_dir() / 'vapoursynth' : []
 
+if get_option('buildtype') == 'release'
+    if cxx.get_id() == 'msvc'
+        add_project_arguments('/GL', language: lang)
+    elif cxx.get_id() == 'clang-cl'
+        add_project_arguments('/clang:-flto', language: lang)
+    endif
+
+    if cxx.get_linker_id() == 'link'
+        add_project_link_arguments('/LTCG', language: lang)
+    endif
+endif
+
 add_project_arguments(
     cxx.get_supported_arguments(
         '-DNOMINMAX',
@@ -68,18 +80,6 @@ add_project_arguments(
 
 if is_win
     add_project_arguments('-DVS_TARGET_OS_WINDOWS', '-D_UNICODE', '-DUNICODE', language: lang)
-
-    if get_option('buildtype') == 'release'
-        if cxx.get_id() == 'msvc'
-            add_project_arguments('/GL', language: lang)
-        elif cxx.get_id() == 'clang-cl'
-            add_project_arguments('/clang:-flto', language: lang)
-        endif
-
-        if cxx.get_linker_id() == 'link'
-            add_project_link_arguments('/LTCG', language: lang)
-        endif
-    endif
 elif host_system == 'darwin'
     add_project_arguments('-DVS_TARGET_OS_DARWIN', language: lang)
 elif host_system in ['dragonfly', 'freebsd', 'gnu', 'linux', 'netbsd', 'openbsd']
