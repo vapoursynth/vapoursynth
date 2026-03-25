@@ -31,7 +31,9 @@ AllowCancelDuringInstall=no
 AllowNoIcons=yes
 AllowUNCPath=no
 MinVersion=10.0.14393
-PrivilegesRequired=lowest
+UsePreviousPrivileges=yes
+PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=dialog
 WizardStyle=modern dynamic
 FlatComponentsList=yes
 ChangesEnvironment=yes
@@ -59,9 +61,9 @@ Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to sh
 [Run]
 Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename(Version)}"""; Check: IsPython3; Flags: runhidden; Components: vscore
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth config"; Check: IsPython3; Flags: runhidden; Components: vscore
-Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: registerinstall
-Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-vfw"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: registervfw
-Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-legacy-install"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: legacyinstall
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install"; Check: IsPython3; Flags: runhidden runasoriginaluser; Components: vscore; Tasks: registerinstall
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-vfw"; Check: IsPython3; Flags: runhidden runasoriginaluser; Components: vscore; Tasks: registervfw
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-legacy-install"; Check: IsPython3; Flags: runhidden runasoriginaluser; Components: vscore; Tasks: legacyinstall
 
 [UninstallRun]
 Filename: {code:GetPythonExecutable}; Parameters: "-m pip uninstall -y VapourSynth"; Flags: runhidden; RunOnceId: "VSUninstallPyModule"; Components: vscore
@@ -92,7 +94,7 @@ Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
 
 [Registry]
 ; new vpy file shortcut task
-Root: HKCU; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName: "FileName"; ValueData: "{app}\template.vpy"; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: newvpyfile
+Root: HKA; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName: "FileName"; ValueData: "{app}\template.vpy"; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: newvpyfile
 
 [Code]
 
