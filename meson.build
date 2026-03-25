@@ -242,7 +242,7 @@ if enable_core
         )
 
         py.install_sources(
-            files('src/py/__init__.py', 'src/py/__main__.py', 'src/py/_utils.py', 'src/py/vapoursynth.pyi'),
+            files('src/py/__init__.py', 'src/py/__main__.py', 'src/py/_utils.py', 'src/py/vspyenv.cfg', 'src/py/vapoursynth.pyi'),
             subdir: 'vapoursynth',
         )
 
