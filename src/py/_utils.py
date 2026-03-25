@@ -261,7 +261,10 @@ def _write_registry_entries(entries):
     return True
 
 
-def _register_legacy_windows_install():
+def register_legacy_install():
+    if sys.platform != "win32":
+        raise Error("Command is only supported on Windows!")
+        
     entries = [
         {
             "subkey": r"SOFTWARE\VapourSynth",
@@ -310,10 +313,6 @@ def _register_legacy_windows_install():
 def register_install():
     if sys.platform != "win32":
         raise Error("Command is only supported on Windows!")
-
-    if (len(sys.argv) >= 2) and (sys.argv[1] == "legacy"):
-        _register_legacy_windows_install()
-        return
 
     entries = [
         {
@@ -397,7 +396,34 @@ def register_vfw():
         sys.exit(1)
     else:
         print("VFW provider successfully registered!")
+       
+def vapoursynth_entrypoint():
+    if len(sys.argv) < 2:
+        print("Usage: python -m vapoursynth <command>")
+        print("Available commands:")
+        print("  config")
+        print("  check-env")
+        if sys.platform == "win32":
+            print("  register-install")
+            print("  register-legacy-install")
+            print("  register-vfw")
+        sys.exit(1)
 
+    command = sys.argv[1]
+
+    if command == "config":
+        vapoursynth_config()
+    elif command == "check-env":
+        vapoursynth_check_env()
+    elif command == "register-install":
+        register_install()
+    elif command == "register-legacy-install":
+        register_legacy_install()
+    elif command == "register-vfw":
+        register_vfw()
+    else:
+        print(f"Unknown command: {command}")
+        sys.exit(1)
 
 def vspipe():
     import subprocess

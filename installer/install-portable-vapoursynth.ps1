@@ -115,16 +115,14 @@ Write-Host "Extracting VapourSynth..."
 Expand-Archive -LiteralPath "$DownloadFolder\VapourSynth64-Portable-R$VSVersion$VSVersionExtra.zip" -DestinationPath "$TargetFolder" -Force
 Write-Host "Installing VapourSynth..."
 & "$TargetFolder\python.exe" "-m" "pip" "install" "--no-warn-script-location" "$TargetFolder\wheel\VapourSynth-$VSVersion$VSVersionExtra-cp312-abi3-win_amd64.whl"
-Write-Host "Installing VSRepo..."
-& "$TargetFolder\python.exe" "-m" "pip" "install" "--no-warn-script-location" "$TargetFolder\wheel\vsrepo-51-py3-none-any.whl"
 Write-Host "Configuring VapourSynth..."
-& "$TargetFolder\Scripts\vapoursynth-config.exe"
+& "$TargetFolder\Scripts\vapoursynth.exe" "config"
 Write-Host "Installation complete" -ForegroundColor Green
 
 Write-Host "Commands you may want to run next:"
-Write-Host "    Scripts\vapoursynth-register-install          Sets the VSSCRIPT_PATH environment variable to make it usable by all applications"
-Write-Host "    Scripts\vapoursynth-register-install legacy   Write installation information to the registry for compatibility with legacy applications"
-Write-Host "    Scripts\vapoursynth-register-vfw              Register the VFW module and set it to use the current installation"
+Write-Host "    Scripts\vapoursynth register-install          Sets the VSSCRIPT_PATH environment variable to make it usable by all applications"
+Write-Host "    Scripts\vapoursynth register-legacy-install   Write installation information to the registry for compatibility with legacy applications"
+Write-Host "    Scripts\vapoursynth register-vfw              Register the VFW module and set it to use the current installation"
 
 if (!$Unattended) {
     pause

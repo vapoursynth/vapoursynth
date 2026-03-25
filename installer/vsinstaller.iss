@@ -6,8 +6,6 @@
 #define RegistryPath 'SOFTWARE\VapourSynth'
 #define SourceBinaryPath '..\msvc_project\x64\Release'
 #define WheelFilename(Version) 'VapourSynth-' + Version + VersionExtra + '-cp312-abi3-win_amd64.whl'
-#define VSRepoVersion '51'
-#define VSRepoWheelFilename(VSRepoVer) 'vsrepo-' + VSRepoVer + '-py3-none-any.whl'
 
 #define Dependency_NoExampleSetup
 #include "CodeDependencies.iss"
@@ -48,7 +46,6 @@ Name: Full; Description: Full installation; Flags: iscustom
 
 [Components]
 Name: "vscore"; Description: "VapourSynth x64 R{#= Version}{#= VersionExtra}"; Types: Full; Flags: fixed disablenouninstallwarning
-Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disablenouninstallwarning
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
 Name: "vsruntimes"; Description: "Visual Studio 2015-2026 Runtime"; Types: Full; Flags: disablenouninstallwarning
@@ -58,16 +55,13 @@ Name: registerinstall; Description: "Set VSSCRIPT_PATH environment variable"; Gr
 Name: legacyinstall; Description: "Write legacy installation information to the registry"; GroupDescription: "VapourSynth:"; Components: vscore
 Name: registervfw; Description: "Register VFW component"; GroupDescription: "VapourSynth:"; Components: vscore
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "VapourSynth:"; Components: vscore
-Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
 
 [Run]
-Filename: {code:GetPythonExecutable}; Parameters: "-m pip install --user ""{app}\python\{#= WheelFilename(Version)}"""; Check: IsPython3; Flags: runhidden; Components: vscore
-Filename: {code:GetPythonExecutable}; Parameters: "-m pip install --user ""{app}\python\{#= VSRepoWheelFilename(VSRepoVersion)}"""; Check: IsPython3; Flags: runhidden; Components: vsrepo
-Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth vapoursynth-config"; Check: IsPython3; Flags: runhidden; Components: vscore
+Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename(Version)}"""; Check: IsPython3; Flags: runhidden; Components: vscore
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth config"; Check: IsPython3; Flags: runhidden; Components: vscore
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: registerinstall
 Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-vfw"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: registervfw
-Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-install legacy"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: legacyinstall
-Filename: {code:GetPythonExecutable}; Parameters: "-m vsrepo update"; Flags: runhidden; Components: vsrepo
+Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth register-legacy-install"; Check: IsPython3; Flags: runhidden; Components: vscore; Tasks: legacyinstall
 
 [UninstallRun]
 Filename: {code:GetPythonExecutable}; Parameters: "-m pip uninstall -y VapourSynth"; Flags: runhidden; RunOnceId: "VSUninstallPyModule"; Components: vscore
@@ -76,9 +70,6 @@ Filename: {code:GetPythonExecutable}; Parameters: "-m pip uninstall -y VapourSyn
 ;core binaries
 Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: ..\dist\{#= WheelFilename(Version)}; DestDir: {app}\python; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
-
-;vsrepo
-Source: ..\vsrepo\dist\{#= VSRepoWheelFilename(VSRepoVersion)}; DestDir: {app}\python; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
 ;docs
 Source: ..\doc\_build\html\*; DestDir: {app}\docs; Flags: ignoreversion uninsrestartdelete restartreplace recursesubdirs; Components: docs
@@ -214,47 +205,6 @@ begin
         List.AddRadioButton(DisplayName, '(' + InstallPath + ')', 0, First, True, TObject(Counter));
         First := False;
       end;
-end;
-
-/////////////////////////////////////////////////////////////////////
-
-procedure RemovePath(Path: string);
-var
-  Paths: string;
-  P: Integer;
-  RegPath: string;
-begin
-  RegPath := 'Environment';
-  
-  if not RegQueryStringValue(HKCU, RegPath, 'Path', Paths) then
-  begin
-    Log('PATH not found');
-  end
-    else
-  begin
-    Log(Format('PATH is [%s]', [Paths]));
-
-    P := Pos(';' + Uppercase(Path) + ';', ';' + Uppercase(Paths) + ';');
-    if P = 0 then
-    begin
-      Log(Format('Path [%s] not found in PATH', [Path]));
-    end
-      else
-    begin
-      if P > 1 then P := P - 1;
-      Delete(Paths, P, Length(Path) + 1);
-      Log(Format('Path [%s] removed from PATH => [%s]', [Path, Paths]));
-
-      if RegWriteStringValue(HKCU, RegPath, 'Path', Paths) then
-      begin
-        Log('PATH written');
-      end
-        else
-      begin
-        Log('Error writing PATH');
-      end;
-    end;
-  end;
 end;
 
 /////////////////////////////////////////////////////////////////////
@@ -396,15 +346,5 @@ begin
       Dependency_AddVC2015To2022;
       RuntimesAdded := True;
     end;
-  end;
-end;
-
-/////////////////////////////////////////////////////////////////////
-
-procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-begin
-  if CurUninstallStep = usUninstall then
-  begin
-    RemovePath(ExpandConstant('{app}\vsrepo'));
   end;
 end;

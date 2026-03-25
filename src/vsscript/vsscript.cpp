@@ -116,15 +116,15 @@ static void realInit() VS_NOEXCEPT {
 
     if (pythonExePath.empty() || pythonSymbolPath.empty()) {
 #ifdef VS_TARGET_OS_WINDOWS
-        _wsystem(L"vapoursynth-config >NUL 2>&1");
+        _wsystem(L"vapoursynth config >NUL 2>&1");
 #else
-        system("vapoursynth-config >/dev/null 2>&1");
+        system("vapoursynth config >/dev/null 2>&1");
 #endif
         std::tie(pythonExePath, pythonSymbolPath) = readEnvConfig(vspyConfigPath);
     }
 
     if (pythonExePath.empty() || pythonSymbolPath.empty()) {
-        extendedErrorMessage = "Python executable and library path couldn't be determined despite automatic configuration. Run `vapoursynth-config` to set it for this Python installation and then try again.";
+        extendedErrorMessage = "Python executable and library path couldn't be determined despite automatic configuration. Run `vapoursynth config` to set it for this Python installation and then try again.";
         return;
     }
 

@@ -6,12 +6,6 @@ IF NOT EXIST libp2p (
     echo libp2p: & pushd libp2p & git pull &popd
 )
 
-IF NOT EXIST vsrepo (
-    git clone https://github.com/vapoursynth/vsrepo
-) ELSE (
-    echo vsrepo: & pushd vsrepo & git pull &popd
-)
-
 IF NOT EXIST zimg (
     git clone https://github.com/sekrit-twc/zimg --shallow-submodules --recurse-submodules
 ) ELSE (
@@ -42,7 +36,3 @@ GOTO end
 ECHO 7-zip not installed!
 
 :end
-
-IF NOT EXIST installer/pfm-192-vapoursynth-win.exe (
-    ECHO You need to grab pfm-192-vapoursynth-win.exe from a portable release!
-)

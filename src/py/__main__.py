@@ -1,16 +1,17 @@
 import sys
 
-from vapoursynth import register_install, register_vfw, vapoursynth_check_env, vapoursynth_config, vspipe
+from vapoursynth import register_install, register_legacy_install, register_vfw, vapoursynth_check_env, vapoursynth_config, vspipe
 
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python -m mymodule <command>")
+        print("Usage: python -m vapoursynth <command>")
         print("Available commands:")
         print("  config")
         print("  check-env")
         if sys.platform == "win32":
-            print("  register-install [legacy]")
+            print("  register-install")
+            print("  register-legacy-install")
             print("  register-vfw")
         print("  vspipe")
         sys.exit(1)
@@ -25,6 +26,8 @@ def main():
         vapoursynth_check_env()
     elif command == "register-install":
         register_install()
+    elif command == "register-legacy-install":
+        register_legacy_install()
     elif command == "register-vfw":
         register_vfw()
     elif command == "vspipe":

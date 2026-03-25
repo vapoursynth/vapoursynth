@@ -8,14 +8,14 @@ The recommended way to install VapourSynth is through pip. There are currently b
 
 1. Install Python 3.12 or later
 2. Run ``pip install vapoursynth``
-3. Run ``vapoursynth-config``
+3. Run ``vapoursynth config``
 4. (Windows only) Update the Visual Studio 2015-2026 Redistributable if told to
 
 Optional on Windows:
 
-5. Run ``vapoursynth-register-install`` to set the VSSCRIPT_PATH environment variable to allow other applications to find the library
-6. Run ``vapoursynth-register-install legacy`` to write installation information to the registry so applications not aware of R74 and later still work
-7. Run ``vapoursynth-register-vfw legacy`` to register the VFW module
+5. Run ``vapoursynth register-install`` to set the VSSCRIPT_PATH environment variable to allow other applications to find the library
+6. Run ``vapoursynth register-legacy-install legacy`` to write installation information to the registry so applications not aware of R74 and later still work
+7. Run ``vapoursynth register-vfw`` to register the VFW module
 
 Note that you can easily switch multiple installs in virtual environments by using these commands.
 

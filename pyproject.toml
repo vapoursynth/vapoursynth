@@ -39,11 +39,8 @@ Issues = "https://github.com/vapoursynth/vapoursynth/issues"
 Changelog = "https://github.com/vapoursynth/vapoursynth/blob/master/ChangeLog"
 
 [project.scripts]
-vapoursynth-config = "vapoursynth:vapoursynth_config"
-vapoursynth-check-env = "vapoursynth:vapoursynth_check_env"
+vapoursynth = "vapoursynth:vapoursynth_entrypoint"
 vspipe = "vapoursynth:vspipe"
-vapoursynth-register-install = "vapoursynth:register_install"
-vapoursynth-register-vfw = "vapoursynth:register_vfw"
 
 [tool.meson-python]
 limited-api = true
