@@ -76,10 +76,6 @@ if is_win
             add_project_arguments('/clang:-flto', language: lang)
         endif
 
-        if cxx.get_argument_syntax() == 'msvc'
-            add_project_link_arguments('/OPT:ICF', language: lang)
-        endif
-
         if cxx.get_linker_id() == 'link'
             add_project_link_arguments('/LTCG', language: lang)
         endif
