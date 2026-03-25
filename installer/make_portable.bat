@@ -26,6 +26,13 @@ if "%SKIP_COMPRESS%" EQU "" (
   7z.exe a ..\Compiled\VapourSynth64-Portable-R%VERSION_STRING%.zip *
   cd ..
   rmdir /s /q buildp64
+  
+  IF EXIST "Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.zip" (
+    del Compiled\Install-Portable-VapourSynth-R%VERSION_STRING%.zip
+  )
+  cd Compiled
+  7z.exe a Install-Portable-VapourSynth-R%VERSION_STRING%.zip Install-Portable-VapourSynth-R%VERSION_STRING%.ps1 Install-Portable-VapourSynth-R%VERSION_STRING%.bat
+  cd ..
 )
 
 :endc
