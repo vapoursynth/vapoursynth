@@ -285,7 +285,7 @@ def register_legacy_install():
         {
             "subkey": r"SOFTWARE\VapourSynth",
             "value_name": "VapourSynthDLL",
-            "value_data": PurePath(__file__).with_name("vapoursynth.dll"),
+            "value_data": PurePath(__file__).with_name("libvapoursynth.dll"),
         },
         {
             "subkey": r"SOFTWARE\VapourSynth",
