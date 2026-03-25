@@ -74,7 +74,7 @@ jobs:
     - name: Install and run test
       run: |
         pip install vapoursynth --no-index --find-links dist
-        vapoursynth-config
+        vapoursynth config
         vspipe --version
         python -m unittest discover -s test -p "*test.py"
 
