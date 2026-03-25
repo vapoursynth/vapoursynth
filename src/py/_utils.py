@@ -207,7 +207,12 @@ def vapoursynth_check_env():
 
     vsscript_path = os.getenv("VSSCRIPT_PATH")
     
-    if not Path(__file__).with_name("vspyenv.cfg").is_file():
+    fsize = 0
+    try:
+        fsize = Path(__file__).with_name("vspyenv.cfg").stat().st_size
+    except:
+        pass
+    if fsize == 0:
         print('VAPOURSYNTH IS NOT CONFIGURED! RUN VAPOURSYNTH CONFIG!')  
     
     print(f'VapourSynth path: "{os.path.dirname(__file__)}"')
