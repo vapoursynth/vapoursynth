@@ -9,10 +9,11 @@ Contents:
    introduction
    installation
    gettingstarted
-   pythonreference  
+   pythonreference
    functions
    output
    applications
+   packaging
    apireference
 
 
