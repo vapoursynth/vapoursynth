@@ -42,6 +42,10 @@ Changelog = "https://github.com/vapoursynth/vapoursynth/blob/master/ChangeLog"
 vapoursynth = "vapoursynth:vapoursynth_entrypoint"
 vspipe = "vapoursynth:vspipe"
 
+[dependency-groups]
+dev = ["build", { include-group = "doc" }]
+doc = ["sphinx", "sphinx-intl", "sphinx-rtd-theme"]
+
 [tool.meson-python]
 limited-api = true
 
