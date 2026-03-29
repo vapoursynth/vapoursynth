@@ -50,9 +50,16 @@ lang = ['c', 'cpp']
 pkg = import('pkgconfig')
 
 py = import('python').find_installation(pure: false)
-py_dep = py.dependency(version: is_win ? '>=3.14' : '>=3.12') # Py_NO_LINK_LIB was introduced in 3.14
+py_dep = py.dependency(version: is_win ? '>=3.14' : '>=3.12')  # Py_NO_LINK_LIB was introduced in 3.14
 
 install_dir = build_wheel ? py.get_install_dir() / 'vapoursynth' : []
+
+vs_current_release = run_command(
+    find_program('python', 'python3'),
+    '-c',
+    'print(open("VAPOURSYNTH_VERSION").read())',
+    check: true,
+).stdout().strip().split()[2].split('-')[0]
 
 if get_option('buildtype') == 'release'
     if cxx.get_id() == 'msvc'
@@ -69,7 +76,7 @@ endif
 add_project_arguments(
     cxx.get_supported_arguments(
         '-DNOMINMAX',
-        '-DVS_CURRENT_RELEASE=@0@'.format(run_command(find_program('python', 'python3'), '-c', 'print(open("VAPOURSYNTH_VERSION").read())', check: true).stdout().strip().split()[2].split('-')[0]),
+        '-DVS_CURRENT_RELEASE=@0@'.format(vs_current_release),
         '-DVS_GRAPH_API',
         '-DVS_USE_LATEST_API',
         '-DVSSCRIPT_USE_LATEST_API',
@@ -100,6 +107,15 @@ if enable_core
     ]
 
     libs = []
+
+    soversion = is_win ? '' : run_command(
+        'grep',
+        '-m',
+        '1',
+        'VAPOURSYNTH_API_MAJOR',
+        'include/VapourSynth4.h',
+        check: true,
+    ).stdout().strip().split()[2]
 
     if host_system not in ['cygwin', 'windows']
         code = '''
@@ -202,7 +218,7 @@ if enable_core
         install_dir: install_dir,
         link_with: libs,
         name_prefix: '',
-        soversion: is_win ? '' : run_command('grep', '-m', '1', 'VAPOURSYNTH_API_MAJOR', 'include/VapourSynth4.h', check: true).stdout().strip().split()[2],
+        soversion: soversion,
     )
 
     if not build_wheel
@@ -276,6 +292,15 @@ elif enable_python_module
 endif
 
 if enable_vsscript
+    soversion = is_win ? '' : run_command(
+        'grep',
+        '-m',
+        '1',
+        'VSSCRIPT_API_MAJOR',
+        'include/VSScript4.h',
+        check: true,
+    ).stdout().strip().split()[2]
+
     libvsscript = library('vsscript',
         files('src/vsscript/vsscript.cpp'),
         cpp_args: ['-DPy_NO_LINK_LIB', '-DVS_CORE_EXPORTS'],
@@ -284,7 +309,7 @@ if enable_vsscript
         include_directories: incdir,
         install: true,
         install_dir: install_dir,
-        soversion: is_win ? '' : run_command('grep', '-m', '1', 'VSSCRIPT_API_MAJOR', 'include/VSScript4.h', check: true).stdout().strip().split()[2],
+        soversion: soversion,
     )
 
     if not build_wheel
@@ -306,7 +331,10 @@ if enable_vsscript
         if cxx.get_argument_syntax() == 'gcc' and is_win
             link_args += '-municode'
         elif cxx.get_argument_syntax() == 'msvc'
-            link_args += ['/MANIFEST:EMBED', '/MANIFESTINPUT:' + (meson.project_source_root() / 'src/vspipe/vspipe.manifest')]
+            link_args += [
+                '/MANIFEST:EMBED',
+                '/MANIFESTINPUT:' + (meson.project_source_root() / 'src/vspipe/vspipe.manifest'),
+            ]
         endif
 
         executable('vspipe',
