@@ -177,7 +177,7 @@ def _check_windows_env():
                 vapoursynth_path = winreg.QueryValueEx(key, "Path")[0]
             finally:
                 winreg.CloseKey(key)
-        except:
+        except Exception:
             pass
 
         if vapoursynth_path == os.path.dirname(__file__):
@@ -200,7 +200,7 @@ def _check_windows_env():
                 vfw_path = winreg.QueryValueEx(key, None)[0]
             finally:
                 winreg.CloseKey(key)
-        except:
+        except Exception:
             pass
 
         if vfw_path == os.path.join(os.path.dirname(__file__), "vsvfw.dll"):
@@ -219,7 +219,7 @@ def vapoursynth_check_env():
     fsize = 0
     try:
         fsize = Path(__file__).with_name("vspyenv.cfg").stat().st_size
-    except:
+    except Exception:
         pass
     if fsize == 0:
         print("VAPOURSYNTH IS NOT CONFIGURED! RUN VAPOURSYNTH CONFIG!")
