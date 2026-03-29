@@ -2086,7 +2086,6 @@ static void VS_CC configPlugin3(const char *identifier, const char *defaultNames
 VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, bool loadCPUOptimized, VSCore *core)
     : fnamespace(forcedNamespace), id(forcedId), core(core) {
     std::filesystem::path fullPath = std::filesystem::absolute(relFilename);
-    filename = fullPath.generic_u8string();
 
 #ifdef VS_TARGET_CPU_X86
     if (loadCPUOptimized) {
@@ -2106,6 +2105,8 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
                 break;
     }
 #endif
+
+    filename = fullPath.generic_u8string();
 
 #ifdef VS_TARGET_OS_WINDOWS
     libHandle = LoadLibraryEx(fullPath.c_str(), nullptr, altSearchPath ? 0 : (LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR));
