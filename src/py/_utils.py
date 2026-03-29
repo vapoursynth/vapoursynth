@@ -1,7 +1,7 @@
+import argparse
 import ctypes
 import os
 import sys
-import argparse
 from ctypes.util import find_library
 from pathlib import Path, PurePath
 
@@ -162,69 +162,79 @@ def _find_python_symbol_path():
                         return pylib
         return None
 
+
 def _check_windows_env():
     if sys.platform == "win32":
         import winreg
-        
+
         vapoursynth_path = None
 
         try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"SOFTWARE\VapourSynth", 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY)
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER, r"SOFTWARE\VapourSynth", 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY
+            )
             try:
-                vapoursynth_path = winreg.QueryValueEx(key, 'Path')[0]
+                vapoursynth_path = winreg.QueryValueEx(key, "Path")[0]
             finally:
                 winreg.CloseKey(key)
         except:
             pass
-        
+
         if vapoursynth_path == os.path.dirname(__file__):
-            print('Registry entries: this installation')
+            print("Registry entries: this installation")
         elif vapoursynth_path:
             print(f'Registry entries: (other installation) "{vapoursynth_path}"')
         else:
             print("Registry entries: not set")
-            
+
         vfw_path = None
 
         try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32", 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY)
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32",
+                0,
+                winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
+            )
             try:
                 vfw_path = winreg.QueryValueEx(key, None)[0]
             finally:
                 winreg.CloseKey(key)
         except:
             pass
-        
-        if vfw_path == os.path.join(os.path.dirname(__file__), 'vsvfw.dll'):
-            print('VFW module: this installation')
+
+        if vfw_path == os.path.join(os.path.dirname(__file__), "vsvfw.dll"):
+            print("VFW module: this installation")
         elif vfw_path:
             print(f'VFW module: (other installation) "{vfw_path}"')
         else:
             print("VFW module: not set")
 
+
 def vapoursynth_check_env():
     _check_visual_studio_runtime()
 
     vsscript_path = os.getenv("VSSCRIPT_PATH")
-    
+
     fsize = 0
     try:
         fsize = Path(__file__).with_name("vspyenv.cfg").stat().st_size
     except:
         pass
     if fsize == 0:
-        print('VAPOURSYNTH IS NOT CONFIGURED! RUN VAPOURSYNTH CONFIG!')  
-    
+        print("VAPOURSYNTH IS NOT CONFIGURED! RUN VAPOURSYNTH CONFIG!")
+
     print(f'VapourSynth path: "{os.path.dirname(__file__)}"')
 
     if vsscript_path == get_vsscript():
-        print('VSSCRIPT_PATH: this installation')
+        print("VSSCRIPT_PATH: this installation")
     elif vsscript_path:
         print(f'VSSCRIPT_PATH: (other installation) "{vsscript_path}"')
     else:
         print("VSSCRIPT_PATH: not set")
-        
+
     _check_windows_env()
+
 
 def vapoursynth_config():
     _check_visual_studio_runtime()
@@ -270,7 +280,7 @@ def _write_registry_entries(entries):
 def register_legacy_install():
     if sys.platform != "win32":
         raise Error("Command is only supported on Windows!")
-        
+
     entries = [
         {
             "subkey": r"SOFTWARE\VapourSynth",
@@ -333,13 +343,15 @@ def register_install():
         sys.exit(1)
     else:
         from ctypes.wintypes import HWND, UINT, WPARAM
+
         user32 = ctypes.WinDLL("user32.dll")
         SendMessageTimeoutW = user32.SendMessageTimeoutW
         SendMessageTimeoutW.argtypes = [HWND, UINT, WPARAM, ctypes.c_wchar_p, UINT, UINT, ctypes.c_void_p]
         SendMessageTimeoutW.restype = ctypes.c_void_p
-#       SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment", SMTO_ABORTIFHUNG, 0, 2000, NULL)
-        SendMessageTimeoutW(0xffff, 0x001A, 0, "Environment", 2, 2000, 0)            
+        #       SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment", SMTO_ABORTIFHUNG, 0, 2000, NULL)
+        SendMessageTimeoutW(0xFFFF, 0x001A, 0, "Environment", 2, 2000, 0)
         print("Successfully set environment variables!")
+
 
 def register_vfw():
     if sys.platform != "win32":
@@ -402,15 +414,16 @@ def register_vfw():
         sys.exit(1)
     else:
         print("VFW provider successfully registered!")
-       
+
+
 def vapoursynth_entrypoint():
-    parser = argparse.ArgumentParser(prog='vapoursynth', description='VapourSynth configuration utility')
-    operations = ['config', 'check-env']
+    parser = argparse.ArgumentParser(prog="vapoursynth", description="VapourSynth configuration utility")
+    operations = ["config", "check-env"]
     if sys.platform == "win32":
-        operations = operations + ['register-install', 'register-legacy-install', 'register-vfw']
-    parser.add_argument('operation', choices=operations)
+        operations = operations + ["register-install", "register-legacy-install", "register-vfw"]
+    parser.add_argument("operation", choices=operations)
     args = parser.parse_args()
-    
+
     command = args.operation
 
     if command == "config":
@@ -423,6 +436,7 @@ def vapoursynth_entrypoint():
         register_legacy_install()
     elif command == "register-vfw":
         register_vfw()
+
 
 def vspipe():
     import subprocess
