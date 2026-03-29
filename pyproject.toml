@@ -58,6 +58,7 @@ exclude = [
 ]
 
 [tool.ruff]
+extend-exclude = ["vapoursynth.pyi"]
 line-length = 120
 
 [tool.ruff.lint]
