@@ -10,22 +10,22 @@ from .vapoursynth import Error, __version__
 
 def get_include():
     """Return the directory that contains the VapourSynth header files."""
-    return os.path.join(os.path.dirname(__file__), "include")
+    return str(PurePath(__file__).with_name("include"))
 
 
 def get_plugin_dir():
     """Return the VapourSynth plugin directory location."""
-    return os.path.join(os.path.dirname(__file__), "plugins")
+    return str(PurePath(__file__).with_name("plugins"))
 
 
 def get_vsscript():
     """Return the location of the vsscript library."""
     if sys.platform == "win32":
-        return os.path.join(os.path.dirname(__file__), "vsscript.dll")
+        return str(PurePath(__file__).with_name("vsscript.dll"))
     elif sys.platform == "darwin":
-        return os.path.join(os.path.dirname(__file__), "libvsscript.4.dylib")
+        return str(PurePath(__file__).with_name("libvsscript.4.dylib"))
     else:
-        return os.path.join(os.path.dirname(__file__), "libvsscript.so.4")
+        return str(PurePath(__file__).with_name("libvsscript.so.4"))
 
 
 # All code for scripts executables
@@ -119,7 +119,7 @@ def _find_python_symbol_path():
         libpath = None
 
         if retcode != 0:
-            libpath = os.path.realpath(dlinfo.dli_fname.decode())
+            libpath = Path(dlinfo.dli_fname.decode()).resolve()
 
         # Always correct on mac with system and brew python so exit early
         if sys.platform == "darwin":
@@ -146,11 +146,11 @@ def _find_python_symbol_path():
             libfilenames.append(INSTSONAME)
 
         LDLIBRARY = get_config_var("LDLIBRARY")
-        if LDLIBRARY and os.path.splitext(LDLIBRARY)[1] == suffix:
+        if LDLIBRARY and PurePath(LDLIBRARY).suffix == suffix:
             libfilenames.append(LDLIBRARY)
 
         LIBRARY = get_config_var("LIBRARY")
-        if LIBRARY and os.path.splitext(LIBRARY)[1] == suffix:
+        if LIBRARY and PurePath(LIBRARY).suffix == suffix:
             libfilenames.append(LIBRARY)
 
         libpaths = get_config_vars("LIBPL", "srcdir", "LIBDIR")
@@ -180,7 +180,7 @@ def _check_windows_env():
         except Exception:
             pass
 
-        if vapoursynth_path == os.path.dirname(__file__):
+        if vapoursynth_path and PurePath(__file__).parent.full_match(vapoursynth_path):
             print("Registry entries: this installation")
         elif vapoursynth_path:
             print(f'Registry entries: (other installation) "{vapoursynth_path}"')
@@ -203,7 +203,7 @@ def _check_windows_env():
         except Exception:
             pass
 
-        if vfw_path == os.path.join(os.path.dirname(__file__), "vsvfw.dll"):
+        if vfw_path and PurePath(__file__).with_name("vsvfw.dll").full_match(vfw_path):
             print("VFW module: this installation")
         elif vfw_path:
             print(f'VFW module: (other installation) "{vfw_path}"')
@@ -224,7 +224,7 @@ def vapoursynth_check_env():
     if fsize == 0:
         print("VAPOURSYNTH IS NOT CONFIGURED! RUN VAPOURSYNTH CONFIG!")
 
-    print(f'VapourSynth path: "{os.path.dirname(__file__)}"')
+    print(f'VapourSynth path: "{PurePath(__file__).parent}"')
 
     if vsscript_path == get_vsscript():
         print("VSSCRIPT_PATH: this installation")
