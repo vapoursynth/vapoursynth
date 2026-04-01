@@ -137,7 +137,6 @@ Preparing things
 This will put everything in the correct location assuming you have VapourSynth installed. Or alternatively you can do every step manually:
 
 * Clone VapourSynth repository
-* Clone VSRepo into the VapourSynth dir (``git clone https://github.com/vapoursynth/vsrepo``)
 * Clone zimg into the VapourSynth dir (``git clone https://github.com/sekrit-twc/zimg --recurse-submodules``)
 * Clone libp2p into the VapourSynth dir (``git clone https://github.com/sekrit-twc/libp2p``)
 
@@ -196,7 +195,7 @@ Simply run ``vsrepo.py install <namespace or identifier>`` to install them.
 
 If you need a list of known plugins and scripts you can run ``vsrepo.py available`` or visit `vsdb.top <http://vsdb.top/>`_.
 
-For more reference, visit `vsrepo's repository <https://github.com/vapoursynth/vsrepo>`_
+For more information, visit `vsrepo's repository <https://github.com/vapoursynth/vsrepo>`_
 
 Installing Manually
 *******************
