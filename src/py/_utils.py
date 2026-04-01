@@ -253,7 +253,7 @@ def vapoursynth_check_env():
     _check_windows_env()
     
 def _escape_toml_string(s):
-    return '"' + s.replace('\\', '\\\\') + '"'
+    return '"' + str(s).replace('\\', '\\\\') + '"'
 
 def vapoursynth_config():
     _check_visual_studio_runtime()
