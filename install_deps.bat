@@ -14,25 +14,3 @@ IF NOT EXIST zimg (
 
 py -3.14 -m ensurepip
 py -3.14 -m pip install --upgrade -r python-requirements.txt
-
-SET ZFOLDER=%ProgramFiles%\7-Zip
-IF EXIST "%ZFOLDER%\7z.exe" GOTO copym
-
-SET ZFOLDER=C:\Program Files\7-Zip
-IF EXIST "%ZFOLDER%\7z.exe" GOTO copym
-
-SET ZFOLDER=%ProgramFiles(x86)%\7-Zip
-IF EXIST "%ZFOLDER%\7z.exe" GOTO copym
-
-SET ZFOLDER=C:\Program Files (x86)\7-Zip
-IF EXIST "%ZFOLDER%\7z.exe" GOTO copym
-
-GOTO end
-:copym
-copy "%ZFOLDER%\7z.exe" installer
-copy "%ZFOLDER%\7z.dll" installer
-GOTO end
-
-ECHO 7-zip not installed!
-
-:end

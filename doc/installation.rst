@@ -127,7 +127,6 @@ Required applications:
 * Needs `Visual Studio 2026 <https://visualstudio.microsoft.com/vs/>`_
 * It also needs `64bit <https://www.python.org/>`_ Python 3.14.x (the msvc project assumes that you installed python for all users.)
 * `InnoSetup <http://www.jrsoftware.org/isdl.php>`_ is needed to create the installer (default installation path assumed)
-* `7-zip <https://www.7-zip.org/>`_ is needed to compress the portable version (default installation path assumed)
 
 Preparing things
 ----------------
@@ -141,7 +140,6 @@ This will put everything in the correct location assuming you have VapourSynth i
 * Clone VSRepo into the VapourSynth dir (``git clone https://github.com/vapoursynth/vsrepo``)
 * Clone zimg into the VapourSynth dir (``git clone https://github.com/sekrit-twc/zimg --recurse-submodules``)
 * Clone libp2p into the VapourSynth dir (``git clone https://github.com/sekrit-twc/libp2p``)
-* Place 7z.exe and 7z.dll from `7-zip <https://www.7-zip.org/>`_ into the ``installer`` dir
 
 Compilation
 -----------
