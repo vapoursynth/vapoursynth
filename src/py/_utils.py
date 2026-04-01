@@ -234,11 +234,11 @@ def vapoursynth_check_env():
     except Exception:
         pass
         
-    vsscript_path = get_vsscript()
+    vsscript_key = get_vsscript()
     if sys.platform == "win32":
-        vsscript_path = vsscript_path.lower()
+        vsscript_key = vsscript_key.lower()
     
-    if vsscript_path not in contents:
+    if vsscript_key not in contents:
         print("VAPOURSYNTH IS NOT CONFIGURED! RUN VAPOURSYNTH CONFIG!")
 
     print(f'VapourSynth path: "{PurePath(__file__).parent}"')
