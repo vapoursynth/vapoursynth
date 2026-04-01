@@ -2,6 +2,7 @@ import argparse
 import ctypes
 import os
 import sys
+import tomllib
 from ctypes.util import find_library
 from pathlib import Path, PurePath
 
@@ -210,18 +211,34 @@ def _check_windows_env():
         else:
             print("VFW module: not set")
 
+def _get_vapoursynth_config_path():
+    if sys.platform == "win32":
+        config_path = Path(os.getenv('APPDATA')) / 'vapoursynth'
+    else:
+        config_path = Path.home() / '.config/vapoursynth'
+    config_path.mkdir(parents=True, exist_ok=True)
+    return config_path / 'vapoursynth.toml'
 
 def vapoursynth_check_env():
     _check_visual_studio_runtime()
 
     vsscript_path = os.getenv("VSSCRIPT_PATH")
 
-    fsize = 0
+    config_path = _get_vapoursynth_config_path()
+    
+    contents = {}
+                
     try:
-        fsize = Path(__file__).with_name("vspyenv.cfg").stat().st_size
+        with open(config_path, "rb") as f:
+            contents = tomllib.load(f)
     except Exception:
         pass
-    if fsize == 0:
+        
+    vsscript_path = get_vsscript()
+    if sys.platform == "win32":
+        vsscript_path = vsscript_path.lower()
+    
+    if vsscript_path not in contents:
         print("VAPOURSYNTH IS NOT CONFIGURED! RUN VAPOURSYNTH CONFIG!")
 
     print(f'VapourSynth path: "{PurePath(__file__).parent}"')
@@ -234,24 +251,38 @@ def vapoursynth_check_env():
         print("VSSCRIPT_PATH: not set")
 
     _check_windows_env()
-
+    
+def _escape_toml_string(s):
+    return '"' + s.replace('\\', '\\\\') + '"'
 
 def vapoursynth_config():
     _check_visual_studio_runtime()
 
-    config_path = PurePath(__file__)
-    config_path = config_path.with_name("vspyenv.cfg")
-
-    py_symbol_path = _find_python_symbol_path()
-    if py_symbol_path is None:
-        raise Error("Couldn't determine location of Python library!")
-
-    with open(config_path, "w", encoding="utf-8") as f:
-        f.write(f"executable = {sys.executable}\n")
-        f.write(f"py-symbol-path = {py_symbol_path}\n")
-
-    print(f"Configuration successfully written to {config_path}")
-
+    config_path = _get_vapoursynth_config_path()
+    
+    try:
+        with open(config_path, "a+b") as f:
+            f.seek(0)
+            contents = {}
+            try:
+                contents = tomllib.load(f)
+            except Exception:
+                pass
+            py_symbol_path = _find_python_symbol_path()
+            if py_symbol_path is not None:      
+                f.truncate(0)
+                vsscript_path = get_vsscript()
+                # Make all paths lowercase on windows to ensure upper/lower case drive letters don't ruin comparisons, which they otherwise do
+                if sys.platform == "win32":
+                    vsscript_path = vsscript_path.lower()
+                contents[vsscript_path] = [sys.executable, py_symbol_path]
+                for key in contents:
+                    f.write(f"{_escape_toml_string(key)} = [{_escape_toml_string(contents[key][0])},{_escape_toml_string(contents[key][1])}]\n".encode('utf-8'))
+                print(f"Configuration successfully written to {config_path}")
+            else:
+                print(f"Failed to write configuration to {config_path}")
+    except Exception:
+        print(f"Failed to write configuration to {config_path}")
 
 def _write_registry_entries(entries):
     import winreg

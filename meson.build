@@ -263,7 +263,6 @@ if enable_core
                 'src/py/__main__.py',
                 'src/py/_utils.py',
                 'src/py/vapoursynth.pyi',
-                'src/py/vspyenv.cfg',
             ),
             subdir: 'vapoursynth',
         )

@@ -66,6 +66,7 @@ static std::filesystem::path getLibraryPath() {
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&getLibraryPath), &module);
     std::vector<wchar_t> pathBuf(65536);
     GetModuleFileNameW(module, pathBuf.data(), (DWORD)pathBuf.size());
+    LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE, pathBuf.data(), -1, pathBuf.data(), static_cast<int>(pathBuf.size()), nullptr, nullptr, 0);
     return pathBuf.data();
 #else
     Dl_info info = {};
@@ -75,31 +76,54 @@ static std::filesystem::path getLibraryPath() {
     return {};
 }
 
-static std::filesystem::path getLineValue(const std::string &line) {
-    auto pos = line.find(" = ");
-    if (pos != std::string::npos)
-        return std::filesystem::u8path(line.substr(pos + 3));
-    assert(false);
-    return {};
+static std::string unescapeTOMLString(const std::string &input) {
+    std::string output;
+    output.reserve(input.size());
+    bool escape = false;
+    for (auto c : input) {
+        escape = !escape && (c == '\\');
+        if (!escape)
+            output += c;
+    }
+    return output;
 }
 
-static bool lineStartsWith(const std::string &line, const std::string &varname) {
-    return line.substr(0, varname.size()) == varname;
+static std::pair<std::string, size_t> getTOMLString(const std::string &line, size_t offset = 0) {
+    auto start = line.find('"', offset);
+    if (start == std::string::npos)
+        return {};
+    auto end = line.find('"', start + 1);
+    std::string s = line.substr(start + 1, end - start - 1);
+    return std::make_pair(unescapeTOMLString(s), end + 1);
 }
 
-static std::pair<std::filesystem::path, std::filesystem::path> readEnvConfig(const std::filesystem::path &path) {
-    std::ifstream configFile(path);
+static std::pair<std::filesystem::path, std::filesystem::path> readEnvConfig(const std::filesystem::path &vsscriptPath) {
+#ifdef VS_TARGET_OS_WINDOWS
+    std::filesystem::path configPath = _wgetenv(L"APPDATA");
+#else
+    std::filesystem::path configPath = std::getenv("HOME");
+    configPath /= ".config";
+#endif
+    configPath /= "vapoursynth";
+    configPath /= "vapoursynth.toml";
+
+    std::ifstream configFile(configPath);
     if (!configFile.is_open())
         return {};
-    std::pair<std::filesystem::path, std::filesystem::path> result;
     std::string line;
     while (std::getline(configFile, line)) {
-        if (lineStartsWith(line, "executable"))
-            result.first = getLineValue(line);
-        else if (lineStartsWith(line, "py-symbol-path"))
-            result.second = getLineValue(line);
+        if (line.empty() || line[0] == '#')
+            continue;
+        
+        auto s1 = getTOMLString(line);
+
+        if (s1.first == vsscriptPath) {
+            auto s2 = getTOMLString(line, s1.second);
+            auto s3 = getTOMLString(line, s2.second);
+            return { s2.first, s3.first };
+        }
     }
-    return result;
+    return {};
 }
 
 static std::string extendedErrorMessage;
@@ -109,10 +133,9 @@ static void realInit() VS_NOEXCEPT {
 
     MODULE_HANDLE_TYPE libraryHandle = nullptr;
 
-    std::filesystem::path vspyConfigPath = getLibraryPath();
-    vspyConfigPath.replace_filename("vspyenv.cfg");
+    std::string vsscriptPath = getLibraryPath().u8string();
 
-    auto [pythonExePath, pythonSymbolPath] = readEnvConfig(vspyConfigPath);
+    auto [pythonExePath, pythonSymbolPath] = readEnvConfig(vsscriptPath);
 
     if (pythonExePath.empty() || pythonSymbolPath.empty()) {
 #ifdef VS_TARGET_OS_WINDOWS
@@ -120,7 +143,7 @@ static void realInit() VS_NOEXCEPT {
 #else
         system("vapoursynth config >/dev/null 2>&1");
 #endif
-        std::tie(pythonExePath, pythonSymbolPath) = readEnvConfig(vspyConfigPath);
+        std::tie(pythonExePath, pythonSymbolPath) = readEnvConfig(vsscriptPath);
     }
 
     if (pythonExePath.empty() || pythonSymbolPath.empty()) {
