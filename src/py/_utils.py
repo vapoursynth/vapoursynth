@@ -280,7 +280,7 @@ def vapoursynth_config():
                     f.write(f"{_escape_toml_string(key)} = [{_escape_toml_string(contents[key][0])},{_escape_toml_string(contents[key][1])}]\n".encode('utf-8'))
                 print(f"Configuration successfully written to {config_path}")
             else:
-                print(f"Failed to write configuration to {config_path}")
+                print(f"Failed to determine Python symbol path")
     except Exception:
         print(f"Failed to write configuration to {config_path}")
 
