@@ -449,9 +449,9 @@ def register_vfw():
 
 def vapoursynth_entrypoint():
     parser = argparse.ArgumentParser(prog="vapoursynth", description="VapourSynth configuration utility")
-    operations = ["config", "check-env"]
+    operations = ["config", "check-env", "get-vsscript", "get-include", "get-plugin-dir"]
     if sys.platform == "win32":
-        operations = operations + ["register-install", "register-legacy-install", "register-vfw"]
+        operations = operations + ["open-plugin-dir", "register-install", "register-legacy-install", "register-vfw"]
     parser.add_argument("operation", choices=operations)
     args = parser.parse_args()
 
@@ -461,6 +461,15 @@ def vapoursynth_entrypoint():
         vapoursynth_config()
     elif command == "check-env":
         vapoursynth_check_env()
+    elif command == "get-vsscript":
+        print(get_vsscript())
+    elif command == "get-include":
+        print(get_include())
+    elif command == "get-plugin-dir":
+        print(get_plugin_dir())
+    elif command == "open-plugin-dir":
+        from subprocess import run
+        run(['explorer.exe', get_plugin_dir()])
     elif command == "register-install":
         register_install()
     elif command == "register-legacy-install":

@@ -89,7 +89,7 @@ Source: ..\sdk\vsscript_example.c; DestDir: {app}\sdk\examples; Flags: ignorever
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/; Components: vscore
 Name: {group}\Documentation (Local); Filename: {app}\docs\index.html; Components: docs
 Name: {group}\Documentation (Online); Filename: http://www.vapoursynth.com/doc/
-Name: {group}\Plugin Autoload Directory; Filename: {code:GetPythonExecutable}; Parameters: "-c ""import vapoursynth as vs; from subprocess import run; run(['explorer.exe', vs.get_plugin_dir()])"""; Flags: runminimized; Components: vscore
+Name: {group}\Plugin Autoload Directory; Filename: {code:GetPythonExecutable}; Parameters: "-m vapoursynth open-plugin-dir"; Flags: runminimized; Components: vscore
 Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
 
 [Registry]

@@ -21,7 +21,7 @@ Note that you can easily switch multiple installs in virtual environments by usi
 
 Optional on MacOS, Linux and similar:
 
-5. Set the VSSCRIPT_PATH environment variable to allow other applications to find the library, you can get the path by running ``python3 -c "import vapoursynth as v; print(v.get_vsscript())"``
+5. Set the VSSCRIPT_PATH environment variable to allow other applications to find the library, you can get the path by running ``vapoursynth get-vsscript``
 
 Installation is now done.
 
