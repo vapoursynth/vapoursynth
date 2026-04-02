@@ -120,7 +120,7 @@ static std::pair<std::filesystem::path, std::filesystem::path> readEnvConfig(con
         if (s1.first == vsscriptPath) {
             auto s2 = getTOMLString(line, s1.second);
             auto s3 = getTOMLString(line, s2.second);
-            return { s2.first, s3.first };
+            return { std::filesystem::u8path(s2.first), std::filesystem::u8path(s3.first) };
         }
     }
     return {};
