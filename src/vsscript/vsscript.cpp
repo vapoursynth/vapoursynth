@@ -99,6 +99,14 @@ static std::pair<std::string, size_t> getTOMLString(const std::string &line, siz
 
 static std::pair<std::filesystem::path, std::filesystem::path> readEnvConfig(const std::filesystem::path &vsscriptPath) {
 #ifdef VS_TARGET_OS_WINDOWS
+    std::filesystem::path directPythonExePath = vsscriptPath.parent_path().parent_path().parent_path().parent_path();
+    std::filesystem::path directPythonDLLPath = directPythonExePath / "python3.dll";
+    directPythonExePath /= "python.exe";
+
+    std::error_code ec;
+    if (std::filesystem::exists(directPythonExePath, ec) && std::filesystem::exists(directPythonDLLPath, ec))
+        return { directPythonExePath, directPythonDLLPath };
+
     std::filesystem::path configPath = _wgetenv(L"APPDATA");
 #else
     std::filesystem::path configPath = std::getenv("HOME");

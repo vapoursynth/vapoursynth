@@ -115,8 +115,6 @@ Write-Host "Extracting VapourSynth..."
 Expand-Archive -LiteralPath "$DownloadFolder\VapourSynth64-Portable-R$VSVersion$VSVersionExtra.zip" -DestinationPath "$TargetFolder" -Force
 Write-Host "Installing VapourSynth..."
 & "$TargetFolder\python.exe" "-m" "pip" "install" "--no-warn-script-location" "$TargetFolder\wheel\VapourSynth-$VSVersion$VSVersionExtra-cp312-abi3-win_amd64.whl"
-Write-Host "Configuring VapourSynth..."
-& "$TargetFolder\Scripts\vapoursynth.exe" "config"
 Write-Host "Installation complete" -ForegroundColor Green
 
 Write-Host "Commands you may want to run next:"

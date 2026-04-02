@@ -219,26 +219,39 @@ def _get_vapoursynth_config_path():
     config_path.mkdir(parents=True, exist_ok=True)
     return config_path / 'vapoursynth.toml'
 
+def _has_implicit_config():
+    if sys.platform == "win32":
+        direct_python_exe_path = Path(__file__).parent.parent.parent.parent
+        direct_python_dll_path = direct_python_exe_path / 'python3.dll'
+        direct_python_exe_path = direct_python_exe_path / 'python.exe'
+        return direct_python_exe_path.is_file() and direct_python_dll_path.is_file() 
+    return False
+
 def vapoursynth_check_env():
     _check_visual_studio_runtime()
 
     vsscript_path = os.getenv("VSSCRIPT_PATH")
 
-    config_path = _get_vapoursynth_config_path()
-    
-    contents = {}
-                
-    try:
-        with open(config_path, "rb") as f:
-            contents = tomllib.load(f)
-    except Exception:
-        pass
+    has_valid_config = _has_implicit_config()
+
+    if not has_valid_config:
+        config_path = _get_vapoursynth_config_path()
         
-    vsscript_key = get_vsscript()
-    if sys.platform == "win32":
-        vsscript_key = vsscript_key.lower()
-    
-    if vsscript_key not in contents:
+        contents = {}
+                    
+        try:
+            with open(config_path, "rb") as f:
+                contents = tomllib.load(f)
+        except Exception:
+            pass
+            
+        vsscript_key = get_vsscript()
+        if sys.platform == "win32":
+            vsscript_key = vsscript_key.lower()
+        
+        has_valid_config = vsscript_key in contents
+        
+    if not has_valid_config:
         print("VAPOURSYNTH IS NOT CONFIGURED! RUN VAPOURSYNTH CONFIG!")
 
     print(f'VapourSynth path: "{PurePath(__file__).parent}"')
@@ -257,7 +270,11 @@ def _escape_toml_string(s):
 
 def vapoursynth_config():
     _check_visual_studio_runtime()
-
+    
+    if _has_implicit_config():
+        print("No configuration needed!")
+        return
+        
     config_path = _get_vapoursynth_config_path()
     
     try:
