@@ -1,4 +1,3 @@
-import argparse
 import ctypes
 import os
 import sys
@@ -462,38 +461,6 @@ def register_vfw():
         sys.exit(1)
     else:
         print("VFW provider successfully registered!")
-
-
-def vapoursynth_entrypoint():
-    parser = argparse.ArgumentParser(prog="vapoursynth", description="VapourSynth configuration utility")
-    operations = ["config", "check-env", "get-vsscript", "get-include", "get-plugin-dir"]
-    if sys.platform == "win32":
-        operations = operations + ["open-plugin-dir", "register-install", "register-legacy-install", "register-vfw"]
-    parser.add_argument("operation", choices=operations)
-    args = parser.parse_args()
-
-    command = args.operation
-
-    if command == "config":
-        vapoursynth_config()
-    elif command == "check-env":
-        vapoursynth_check_env()
-    elif command == "get-vsscript":
-        print(get_vsscript())
-    elif command == "get-include":
-        print(get_include())
-    elif command == "get-plugin-dir":
-        print(get_plugin_dir())
-    elif command == "open-plugin-dir":
-        from subprocess import run
-        run(['explorer.exe', get_plugin_dir()])
-    elif command == "register-install":
-        register_install()
-    elif command == "register-legacy-install":
-        register_legacy_install()
-    elif command == "register-vfw":
-        register_vfw()
-
 
 def vspipe():
     import subprocess

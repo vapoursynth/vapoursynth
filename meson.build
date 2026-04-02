@@ -264,6 +264,7 @@ if enable_core
             files(
                 'src/py/__init__.py',
                 'src/py/__main__.py',
+                'src/py/_cli.py',
                 'src/py/_utils.py',
                 'src/py/vapoursynth.pyi',
             ),

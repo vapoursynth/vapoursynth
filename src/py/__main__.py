@@ -1,4 +1,4 @@
-from vapoursynth import vapoursynth_entrypoint
+from vapoursynth._cli import main
 
 if __name__ == "__main__":
-    vapoursynth_entrypoint()
+    raise SystemExit(main())

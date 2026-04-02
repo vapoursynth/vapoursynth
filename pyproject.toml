@@ -39,7 +39,7 @@ Issues = "https://github.com/vapoursynth/vapoursynth/issues"
 Changelog = "https://github.com/vapoursynth/vapoursynth/blob/master/ChangeLog"
 
 [project.scripts]
-vapoursynth = "vapoursynth:vapoursynth_entrypoint"
+vapoursynth = "vapoursynth._cli:main"
 vspipe = "vapoursynth:vspipe"
 
 [dependency-groups]
