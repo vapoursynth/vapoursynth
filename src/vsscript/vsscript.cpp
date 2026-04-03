@@ -119,13 +119,15 @@ static std::pair<std::filesystem::path, std::filesystem::path> readEnvConfig(con
     if (!configFile.is_open())
         return {};
     std::string line;
+    // Temp string here to ensure correct utf8 conversion
+    std::string vsscriptStrPath = vsscriptPath.u8string();
     while (std::getline(configFile, line)) {
         if (line.empty() || line[0] == '#')
             continue;
         
         auto s1 = getTOMLString(line);
 
-        if (s1.first == vsscriptPath) {
+        if (s1.first == vsscriptStrPath) {
             auto s2 = getTOMLString(line, s1.second);
             auto s3 = getTOMLString(line, s2.second);
             return { std::filesystem::u8path(s2.first), std::filesystem::u8path(s3.first) };
@@ -141,7 +143,7 @@ static void realInit() VS_NOEXCEPT {
 
     MODULE_HANDLE_TYPE libraryHandle = nullptr;
 
-    std::string vsscriptPath = getLibraryPath().u8string();
+    std::filesystem::path vsscriptPath = getLibraryPath();
 
     auto [pythonExePath, pythonSymbolPath] = readEnvConfig(vsscriptPath);
 
