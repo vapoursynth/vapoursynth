@@ -172,6 +172,16 @@ The custom Hatch build hook (``hatch_build.py``):
     For multi-platform distribution, use a CI tool like `cibuildwheel <https://cibuildwheel.pypa.io/en/stable/>`_
     to build separate wheels for each target platform.
 
+The important platforms to support are:
+
+- Windows ``x86_64``
+- Linux ``x86_64``
+- Linux ``aarch64``
+- macOS ``x86_64``
+- macOS ``arm64``
+
+If your project cannot reasonably ship wheels for one of them, document that limitation clearly.
+
 Install the ``build`` package and build the wheel::
 
     pip install build
