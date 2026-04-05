@@ -2359,7 +2359,7 @@ static const VSFrame *VS_CC removeFramePropsGetFrame(int n, int activationReason
                     if (std::regex_match(key, iter)) {
                         vsapi->mapDeleteKey(props, key);
                         --i;
-                        --numKeys;
+                        numKeys = vsapi->mapNumKeys(props);
                         break;
                     }
                 }
