@@ -110,7 +110,6 @@ Expand-Archive -LiteralPath "$DownloadFolder\python-$PythonVersionMajor.$PythonV
 Add-Content -Path "$TargetFolder\python$PythonVersionMajor$PythonVersionMinor._pth" -Encoding UTF8 -Value "Lib\site-packages" | Out-Null
 Write-Host "Installing Pip..."
 & "$TargetFolder\python.exe" "$DownloadFolder\get-pip.py" "--no-warn-script-location"
-Remove-Item -Path "$TargetFolder\Scripts\*.exe"
 Write-Host "Extracting VapourSynth..."
 Expand-Archive -LiteralPath "$DownloadFolder\VapourSynth64-Portable-R$VSVersion$VSVersionExtra.zip" -DestinationPath "$TargetFolder" -Force
 Write-Host "Installing VapourSynth..."
