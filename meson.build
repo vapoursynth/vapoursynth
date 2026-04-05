@@ -3,7 +3,7 @@ project('VapourSynth', 'c', 'cpp', 'cython',
     license: 'LGPL-2.1-or-later',
     license_files: 'COPYING.LESSER',
     meson_version: '>=1.3.0',
-    version: '74rc4',
+    version: '74',
 )
 
 enable_guard_pattern = get_option('enable_guard_pattern')

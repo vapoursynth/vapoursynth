@@ -45,6 +45,11 @@ class CoreTestSequence(unittest.TestCase):
         clip.std.SetFrameProps(_ColorRange=1)
         clip.std.SetFrameProps(_Range=0)
 
+    def test_frame_props5(self):
+        clip = vs.core.std.BlankClip(format=vs.YUV420P16)
+        clip = clip.std.SetFrameProps(_ColorRange=vs.RANGE_FULL)
+        clip = clip.std.RemoveFrameProps(["_ColorRange"])
+        clip.get_frame(0)
 
 if __name__ == "__main__":
     unittest.main()
