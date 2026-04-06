@@ -49,7 +49,7 @@ Installation
 
 Simply run the `VapourSynth installer <https://github.com/vapoursynth/vapoursynth/releases>`_.
 
-It will perform the general installation steps and offer a few additional option.
+It will perform the general installation steps and offer a few additional options.
 
 Windows Portable
 ****************
