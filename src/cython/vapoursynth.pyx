@@ -2862,9 +2862,9 @@ cdef class Core(object):
         else:
             return createVideoFormat(&fmt, self.funcs, self.core)
 
-    def create_video_frame(self, object format, int width, int height):
+    def create_video_frame(self, int format, int width, int height):
         cdef VSVideoFormat fmt
-        if not self.funcs.getVideoFormatByID(&fmt, int(format), self.core):
+        if not self.funcs.getVideoFormatByID(&fmt, format, self.core):
             raise Error('Invalid format id specified')
 
         cdef VSFrame* ref = self.funcs.newVideoFrame(&fmt, width, height, NULL, self.core)
