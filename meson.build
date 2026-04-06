@@ -1,4 +1,4 @@
-project('VapourSynth', 'c', 'cpp', 'cython',
+project('VapourSynth', 'c', 'cpp',
     default_options: ['buildtype=release', 'b_lto=true', 'b_ndebug=if-release', 'c_std=c99', 'cpp_std=c++17'],
     license: 'LGPL-2.1-or-later',
     license_files: 'COPYING.LESSER',
@@ -247,6 +247,8 @@ if enable_core
     )
 
     if enable_python_module
+        add_languages('cython', native: false)
+
         py.extension_module('vapoursynth',
             files('src/common/wave.cpp', 'src/cython/vapoursynth.pyx'),
             dependencies: [py_dep, vapoursynth_dep],
