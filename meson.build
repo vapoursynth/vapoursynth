@@ -237,6 +237,7 @@ if enable_core
         pkg.generate(libvapoursynth,
             description: 'A frameserver for the 21st century',
             filebase: 'vapoursynth',
+            name: 'vapoursynth',
             subdirs: 'vapoursynth',
         )
     endif
