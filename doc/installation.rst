@@ -23,7 +23,7 @@ Optional on MacOS, Linux and similar:
 
 5. Set the VSSCRIPT_PATH environment variable to allow other applications to find the library, you can get the path by running ``vapoursynth get-vsscript``
 
-Installation is now done.
+Installation is now done. If you want to use VSRepo you can simply install it with ``pip install vsrepo``
 
 After you completed the second step, you can test it by opening a Python command line
 and type this::
@@ -191,9 +191,9 @@ Installing with VSRepo
 
 On windows you can use the included vsrepo.py to install and upgrade plugins and scripts.
 
-Simply run ``vsrepo.py install <namespace or identifier>`` to install them.
+Simply run ``vsrepo install <namespace or identifier>`` to install them.
 
-If you need a list of known plugins and scripts you can run ``vsrepo.py available`` or visit `vsdb.top <http://vsdb.top/>`_.
+If you need a list of known plugins and scripts you can run ``vsrepo available`` or visit `vsdb.top <http://vsdb.top/>`_.
 
 For more information, visit `vsrepo's repository <https://github.com/vapoursynth/vsrepo>`_
 
