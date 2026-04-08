@@ -9,17 +9,13 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - uses: actions/setup-python@v6
+    - uses: astral-sh/setup-uv@v8.0.0
       with:
-        python-version: '3.x'
-
-    - name: Install Python packages
-      run: |
-        pip install -U build
+        enable-cache: true
 
     - name: Build
       run: |
-        python -m build --sdist
+        uv build --sdist
 
     - uses: actions/upload-artifact@v7
       with:
@@ -47,10 +43,15 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
+    - uses: astral-sh/setup-uv@v8.0.0
+      with:
+        enable-cache: true
+
     - uses: pypa/cibuildwheel@v3.4.0
       env:
         CIBW_BUILD: cp314-win_amd64 cp312-*
         CIBW_SKIP: cp312-win*
+        CIBW_BUILD_FRONTEND: uv
         CIBW_CONFIG_SETTINGS_WINDOWS: setup-args=--debug setup-args=--vsenv
         CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=13.3
       with:
@@ -60,18 +61,18 @@ jobs:
       if: ${{ runner.os == 'Windows' }}
       run: |
         cd dist
-        Get-ChildItem *.whl | ForEach-Object { pipx run wheel tags --remove --python-tag cp312 $_.Name }
+        Get-ChildItem *.whl | ForEach-Object { uvx wheel tags --remove --python-tag cp312 $_.Name }
 
     - name: Check for abi3 violations and inconsistencies
       run: |
-        pipx run abi3audit --verbose dist/*.whl
+        uvx abi3audit --verbose dist/*.whl
 
     - uses: actions/upload-artifact@v7
       with:
         name: vapoursynth-${{ matrix.arch }}
         path: dist
 
-    - name: Install and run test
+    - name: Install and run tests
       run: |
         pip install vapoursynth --no-index --find-links dist
         vapoursynth config

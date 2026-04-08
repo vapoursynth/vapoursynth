@@ -15,6 +15,7 @@ enable_python_module = get_option('enable_python_module')
 build_wheel = get_option('build_wheel')
 
 if not build_wheel
+    enable_vsscript = false
     enable_vspipe = false
     enable_python_module = false
 endif
@@ -314,14 +315,6 @@ if enable_vsscript
         install_dir: install_dir,
         soversion: soversion,
     )
-
-    if not build_wheel
-        pkg.generate(libvsscript,
-            description: 'Library for interfacing VapourSynth with Python',
-            filebase: 'vsscript',
-            subdirs: 'vapoursynth',
-        )
-    endif
 
     vsscript_dep = declare_dependency(
         include_directories: incdir,
