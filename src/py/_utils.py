@@ -210,21 +210,24 @@ def _check_windows_env():
         else:
             print("VFW module: not set")
 
+
 def _get_vapoursynth_config_path():
     if sys.platform == "win32":
-        config_path = Path(os.getenv('APPDATA')) / 'vapoursynth'
+        config_path = Path(os.getenv("APPDATA")) / "vapoursynth"
     else:
-        config_path = Path.home() / '.config/vapoursynth'
+        config_path = Path.home() / ".config/vapoursynth"
     config_path.mkdir(parents=True, exist_ok=True)
-    return config_path / 'vapoursynth.toml'
+    return config_path / "vapoursynth.toml"
+
 
 def _has_implicit_config():
     if sys.platform == "win32":
         direct_python_exe_path = Path(__file__).parent.parent.parent.parent
-        direct_python_dll_path = direct_python_exe_path / 'python3.dll'
-        direct_python_exe_path = direct_python_exe_path / 'python.exe'
-        return direct_python_exe_path.is_file() and direct_python_dll_path.is_file() 
+        direct_python_dll_path = direct_python_exe_path / "python3.dll"
+        direct_python_exe_path = direct_python_exe_path / "python.exe"
+        return direct_python_exe_path.is_file() and direct_python_dll_path.is_file()
     return False
+
 
 def vapoursynth_check_env():
     _check_visual_studio_runtime()
@@ -235,21 +238,21 @@ def vapoursynth_check_env():
 
     if not has_valid_config:
         config_path = _get_vapoursynth_config_path()
-        
+
         contents = {}
-                    
+
         try:
             with open(config_path, "rb") as f:
                 contents = tomllib.load(f)
         except Exception:
             pass
-            
+
         vsscript_key = get_vsscript()
         if sys.platform == "win32":
             vsscript_key = vsscript_key.lower()
-        
+
         has_valid_config = vsscript_key in contents
-        
+
     if not has_valid_config:
         print("VAPOURSYNTH IS NOT CONFIGURED! RUN VAPOURSYNTH CONFIG!")
 
@@ -263,19 +266,21 @@ def vapoursynth_check_env():
         print("VSSCRIPT_PATH: not set")
 
     _check_windows_env()
-    
+
+
 def _escape_toml_string(s):
-    return '"' + str(s).replace('\\', '\\\\') + '"'
+    return '"' + str(s).replace("\\", "\\\\") + '"'
+
 
 def vapoursynth_config():
     _check_visual_studio_runtime()
-    
+
     if _has_implicit_config():
         print("No configuration needed!")
         return
-        
+
     config_path = _get_vapoursynth_config_path()
-    
+
     try:
         with open(config_path, "a+b") as f:
             f.seek(0)
@@ -285,7 +290,7 @@ def vapoursynth_config():
             except Exception:
                 pass
             py_symbol_path = _find_python_symbol_path()
-            if py_symbol_path is not None:      
+            if py_symbol_path is not None:
                 f.truncate(0)
                 vsscript_path = get_vsscript()
                 # Make all paths lowercase on windows to ensure upper/lower case drive letters don't ruin comparisons, which they otherwise do
@@ -293,12 +298,17 @@ def vapoursynth_config():
                     vsscript_path = vsscript_path.lower()
                 contents[vsscript_path] = [sys.executable, py_symbol_path]
                 for key in contents:
-                    f.write(f"{_escape_toml_string(key)} = [{_escape_toml_string(contents[key][0])},{_escape_toml_string(contents[key][1])}]\n".encode('utf-8'))
+                    f.write(
+                        f"{_escape_toml_string(key)} = [{_escape_toml_string(contents[key][0])},{_escape_toml_string(contents[key][1])}]\n".encode(
+                            "utf-8"
+                        )
+                    )
                 print(f"Configuration successfully written to {config_path}")
             else:
-                print(f"Failed to determine Python symbol path")
+                print("Failed to determine Python symbol path")
     except Exception:
         print(f"Failed to write configuration to {config_path}")
+
 
 def _write_registry_entries(entries):
     import winreg
@@ -461,6 +471,7 @@ def register_vfw():
         sys.exit(1)
     else:
         print("VFW provider successfully registered!")
+
 
 def vspipe():
     import subprocess

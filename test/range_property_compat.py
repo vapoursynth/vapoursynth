@@ -51,5 +51,6 @@ class CoreTestSequence(unittest.TestCase):
         clip = clip.std.RemoveFrameProps(["_ColorRange"])
         clip.get_frame(0)
 
+
 if __name__ == "__main__":
     unittest.main()
