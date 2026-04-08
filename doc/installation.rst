@@ -55,8 +55,12 @@ Windows Portable
 ****************
 
 Download and run the automatic script called *Install-Portable-VapourSynth-RXX.ps1*.
-It will then automatically download and set up embedded Python, pip and VapourSynth in a subdirectorey called *vapoursynth-portable* by default.
+It will then automatically download and set up embedded Python, pip, VapourSynth and VSRepo in a subdirectorey called *vapoursynth-portable* by default.
 It's possible to pass arguments to it to specify the installed Python version in addition to an option to run it in unattended mode.
+
+Note that Python by design hardcodes its current path in all exe files in the *Scripts* directory which technically makes the install not portable at all. To counteract
+this the portable install script deletes all of these and instead provides a set of bat files (vspipe.bat, vsrepo.bat, pip.bat) in the root of the portable install
+to offset this inconvenience. You can also still call just about all python modules using ``python -m <module> <arguments>`` instead.
 
 Unofficial Packages
 ###################

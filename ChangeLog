@@ -1,4 +1,5 @@
 r75:
+multiple improvements to the portable version experience where vsrepo is now installed by default again and forwarding bat files are provided to closer match pre R74 paths
 the frame pool is now enabled on all platforms since it's been proven that it greatly reduces memory fragmentation at high resolutions
 
 r74:
