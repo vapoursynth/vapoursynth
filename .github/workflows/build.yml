@@ -49,8 +49,8 @@ jobs:
 
     - uses: pypa/cibuildwheel@v3.4.0
       env:
-        CIBW_BUILD: cp314-*
-        CIBW_ARCHS: auto64
+        CIBW_BUILD: cp314-win_amd64 cp312-*
+        CIBW_SKIP: cp312-win*
         CIBW_BUILD_FRONTEND: uv
         CIBW_CONFIG_SETTINGS_WINDOWS: setup-args=--debug setup-args=--vsenv
         CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=13.3
