@@ -4,6 +4,12 @@ project('libp2p', 'cpp',
 
 cxx = meson.get_compiler('cpp')
 
+if cxx.get_argument_syntax() == 'gcc'
+    add_project_arguments('-w', language: 'cpp')
+else
+    add_project_arguments('/W0', language: 'cpp')
+endif
+
 if get_option('buildtype') == 'release'
     if cxx.get_id() == 'msvc'
         add_project_arguments('/GL', language: 'cpp')
