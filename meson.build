@@ -76,6 +76,7 @@ endif
 
 add_project_arguments(
     cxx.get_supported_arguments(
+        '-D_CRT_SECURE_NO_WARNINGS',
         '-DNOMINMAX',
         '-DVS_CURRENT_RELEASE=@0@'.format(vs_current_release),
         '-DVS_GRAPH_API',
