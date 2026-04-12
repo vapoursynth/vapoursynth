@@ -54,6 +54,7 @@ jobs:
         CIBW_BUILD_FRONTEND: uv
         CIBW_CONFIG_SETTINGS_WINDOWS: setup-args=--debug setup-args=--vsenv
         CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=13.3
+        CIBW_ENVIRONMENT_WINDOWS: CC=clang-cl CXX=clang-cl AR=llvm-lib
       with:
         output-dir: dist
 
