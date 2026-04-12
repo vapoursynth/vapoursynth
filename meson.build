@@ -66,7 +66,7 @@ if get_option('buildtype') == 'release'
     if cxx.get_id() == 'msvc'
         add_project_arguments('/GL', language: lang)
     elif cxx.get_id() == 'clang-cl'
-        add_project_arguments('/clang:-flto', language: lang)
+        add_project_arguments('/clang:-flto', '/clang:-O3', language: lang)
     endif
 
     if cxx.get_linker_id() == 'link'
@@ -76,6 +76,7 @@ endif
 
 add_project_arguments(
     cxx.get_supported_arguments(
+        '-D_CRT_SECURE_NO_WARNINGS',
         '-DNOMINMAX',
         '-DVS_CURRENT_RELEASE=@0@'.format(vs_current_release),
         '-DVS_GRAPH_API',
