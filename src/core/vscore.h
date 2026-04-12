@@ -1132,7 +1132,7 @@ public:
 
     bool loadPluginManifest(const std::filesystem::path &path);
     void loadPlugin(const std::filesystem::path &filename, bool loadCPUOptimized = false, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
-    bool loadAllPluginsInPath(const std::filesystem::path &path);
+    bool loadAllPluginsInPath(const std::filesystem::path &path, bool pluginRoot = false);
 
     void createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
     void createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);

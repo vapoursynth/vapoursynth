@@ -1750,11 +1750,11 @@ bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
     return true;
 }
 
-bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path) {
+bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path, bool pluginRoot) {
     if (path.empty())
         return false;
 
-    if (!loadPluginManifest(path)) {
+    if (pluginRoot || !loadPluginManifest(path)) {
         try {
             for (const auto &iter : std::filesystem::directory_iterator(path)) {
                 std::error_code ec;
@@ -1921,11 +1921,19 @@ VSCore::VSCore(int flags) :
 
     // New site-packages relative plugin loading
     if (!disableAutoLoading) {
-        loadAllPluginsInPath(libraryPath / L"plugins");
+#ifdef VS_TARGET_OS_WINDOWS
+        loadAllPluginsInPath(libraryPath / L"plugins", true);
+
+        const wchar_t *extraPluginPath = _wgetenv(L"VAPOURSYNTH_EXTRA_PLUGIN_PATH");
+        if (extraPluginPath && wcslen(extraPluginPath) > 0)
+            loadAllPluginsInPath(extraPluginPath, true);
+#else
+        loadAllPluginsInPath(libraryPath / "plugins", true);
 
         const char *extraPluginPath = std::getenv("VAPOURSYNTH_EXTRA_PLUGIN_PATH");
         if (extraPluginPath && strlen(extraPluginPath) > 0)
-            loadAllPluginsInPath(extraPluginPath);
+            loadAllPluginsInPath(extraPluginPath, true);
+#endif
     }
 }
 
