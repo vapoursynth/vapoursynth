@@ -92,7 +92,6 @@
     <ClInclude Include="..\..\include\VapourSynth4.h" />
     <ClInclude Include="..\..\include\VSHelper4.h" />
     <ClInclude Include="..\..\include\VSScript4.h" />
-    <ClInclude Include="..\..\src\common\vsutf16.h" />
     <ClInclude Include="..\..\src\common\wave.h" />
     <ClInclude Include="..\..\src\vspipe\printgraph.h" />
     <ClInclude Include="..\..\src\vspipe\vsjson.h" />

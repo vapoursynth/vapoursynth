@@ -37,7 +37,6 @@
 #ifdef VS_TARGET_OS_WINDOWS
 #include <io.h>
 #include <fcntl.h>
-#include "../common/vsutf16.h"
 #endif
 
 #define __STDC_FORMAT_MACROS
@@ -887,6 +886,14 @@ static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
 }
 
 #ifdef VS_TARGET_OS_WINDOWS
+static std::string utf16_to_utf8(const std::wstring &wstr) {
+    int required_size = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    std::string buffer;
+    buffer.resize(required_size - 1);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), static_cast<int>(wstr.size()), &buffer[0], required_size, nullptr, nullptr);
+    return buffer;
+}
+
 static int main8(int argc, char **argv);
 
 int wmain(int argc, wchar_t **argv) {
