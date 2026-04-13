@@ -101,7 +101,6 @@ static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
                 cpuFeatures->avx512_cd   = !!(ebx & (1 << 28));
                 cpuFeatures->avx512_bw   = !!(ebx & (1 << 30));
                 cpuFeatures->avx512_dq   = !!(ebx & (1 << 17));
-                cpuFeatures->avx512_ifma = !!(ebx & (1 << 21));
                 cpuFeatures->avx512_vl   = !!(ebx & (1 << 31));
                 cpuFeatures->avx512_ifma = !!(ebx & (1 << 21));
                 cpuFeatures->avx512_vbmi = !!(ecx & (1 << 1));
