@@ -2100,7 +2100,14 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
         int abiLevel = doGetX86ABILevel();
 
         auto tryABILevel = [&fullPath](int level) -> bool {
-            std::filesystem::path abiLevelPath = std::filesystem::path(fullPath).replace_extension(".v" + std::to_string(level) + fullPath.extension().u8string());
+            std::filesystem::path newExtension;
+            if (level == 3)
+                newExtension = std::filesystem::u8path(".zn4");
+            else if (level == 2)
+                newExtension = std::filesystem::u8path(".avx2");
+            newExtension += fullPath.extension();
+
+            std::filesystem::path abiLevelPath = std::filesystem::path(fullPath).replace_extension(newExtension);
             if (std::filesystem::exists(abiLevelPath)) {
                 fullPath = abiLevelPath;
                 return true;

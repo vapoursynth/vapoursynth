@@ -50,6 +50,16 @@ typedef struct CPUFeatures {
     char avx512_bw;
     char avx512_dq;
     char avx512_vl;
+    char avx512_ifma;
+    char avx512_vbmi;
+    char avx512_vbmi2;
+    char avx512_vnni;
+    char avx512_bitalg;
+    char avx512_vpopcntdq;
+    char avx512_bf16;
+    char gfni;
+    char vaes;
+    char rdseed;
 #endif
 } CPUFeatures;
 
