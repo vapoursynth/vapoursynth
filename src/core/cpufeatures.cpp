@@ -114,9 +114,11 @@ static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
             cpuFeatures->vaes = !!(ecx & (1 << 9));
             cpuFeatures->rdseed = !!(ebx & (1 << 18));
 
-            vs_cpu_cpuid(0x80000000, 0, &eax, &ebx, &ecx, &edx);
-            int max_ext_level = eax;
-            if (max_ext_level >= 1) {
+            if (cpuFeatures->avx512_f && eax >= 1) {
+                eax = 0;
+                ebx = 0;
+                ecx = 0;
+                edx = 0;
                 vs_cpu_cpuid(7, 1, &eax, &ebx, &ecx, &edx);
                 cpuFeatures->avx512_bf16 = !!(eax & (1 << 5));
             }
