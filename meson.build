@@ -56,7 +56,7 @@ py_dep = py.dependency(version: is_win ? '>=3.14' : '>=3.12')  # Py_NO_LINK_LIB 
 install_dir = build_wheel ? py.get_install_dir() / 'vapoursynth' : []
 
 vs_current_release = run_command(
-    find_program('python', 'python3'),
+    py,
     '-c',
     'print(open("VAPOURSYNTH_VERSION").read())',
     check: true,
