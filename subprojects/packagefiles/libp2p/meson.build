@@ -1,5 +1,5 @@
 project('libp2p', 'cpp',
-    default_options: ['cpp_std=c++14'],
+    default_options: ['warning_level=0', 'cpp_std=c++14'],
 )
 
 cxx = meson.get_compiler('cpp')

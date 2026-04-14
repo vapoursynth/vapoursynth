@@ -1,5 +1,5 @@
 project('zimg', 'cpp',
-    default_options: ['cpp_std=c++17'],
+    default_options: ['warning_level=0', 'cpp_std=c++17'],
     version: '3.0.6',
 )
 
