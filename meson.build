@@ -63,14 +63,8 @@ vs_current_release = run_command(
 ).stdout().strip().split()[2].split('-')[0]
 
 if get_option('buildtype') == 'release'
-    if cxx.get_id() == 'msvc'
-        add_project_arguments('/GL', language: lang)
-    elif cxx.get_id() == 'clang-cl'
+    if cxx.get_id() == 'clang-cl'
         add_project_arguments('/clang:-flto', '/clang:-O3', language: lang)
-    endif
-
-    if cxx.get_linker_id() == 'link'
-        add_project_link_arguments('/LTCG', language: lang)
     endif
 endif
 
