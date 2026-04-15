@@ -893,7 +893,7 @@ public:
     }
 
     const VSFilterDependency *getDependency(int index) const {
-        if (index < 0 || index >= dependencies.size())
+        if (index < 0 || index >= static_cast<int>(dependencies.size()))
             return nullptr;
         return &dependencies.at(index);
     }
