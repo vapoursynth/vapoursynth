@@ -63,15 +63,21 @@ static PyGILState_STATE s;
 static std::filesystem::path getLibraryPath() {
 #ifdef VS_TARGET_OS_WINDOWS
     HMODULE module;
-    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&getLibraryPath), &module);
-    std::vector<wchar_t> pathBuf(65536);
-    GetModuleFileNameW(module, pathBuf.data(), (DWORD)pathBuf.size());
-    LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE, pathBuf.data(), -1, pathBuf.data(), static_cast<int>(pathBuf.size()), nullptr, nullptr, 0);
-    return pathBuf.data();
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(&getLibraryPath), &module)) {
+        std::vector<wchar_t> pathBuf(65536);
+        GetModuleFileNameW(module, pathBuf.data(), (DWORD)pathBuf.size());
+        LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE, pathBuf.data(), -1, pathBuf.data(), static_cast<int>(pathBuf.size()), nullptr, nullptr, 0);
+        return pathBuf.data();
+    }
 #else
     Dl_info info = {};
-    if (dladdr(reinterpret_cast<void*>(&getLibraryPath), &info))
-        return info.dli_fname;
+    if (dladdr(reinterpret_cast<void *>(&getLibraryPath), &info)) {
+        std::string fname = info.dli_fname;
+        auto pos = fname.find("/lib64/");
+        if (pos != std::string::npos)
+            fname.replace(pos, 7, "/lib/");
+        return fname;
+    }
 #endif
     return {};
 }

@@ -228,6 +228,11 @@ def _has_implicit_config():
         return direct_python_exe_path.is_file() and direct_python_dll_path.is_file()
     return False
 
+def _mangle_vsscript_key(path):
+    if sys.platform == "win32":
+        return path.lower()
+    else:
+        return path.replace('/lib64/', '/lib/')
 
 def vapoursynth_check_env():
     _check_visual_studio_runtime()
@@ -247,9 +252,7 @@ def vapoursynth_check_env():
         except Exception:
             pass
 
-        vsscript_key = get_vsscript()
-        if sys.platform == "win32":
-            vsscript_key = vsscript_key.lower()
+        vsscript_key = _mangle_vsscript_key(get_vsscript())
 
         has_valid_config = vsscript_key in contents
 
@@ -292,10 +295,7 @@ def vapoursynth_config():
             py_symbol_path = _find_python_symbol_path()
             if py_symbol_path is not None:
                 f.truncate(0)
-                vsscript_path = get_vsscript()
-                # Make all paths lowercase on windows to ensure upper/lower case drive letters don't ruin comparisons, which they otherwise do
-                if sys.platform == "win32":
-                    vsscript_path = vsscript_path.lower()
+                vsscript_path = _mangle_vsscript_key(get_vsscript())
                 contents[vsscript_path] = [sys.executable, py_symbol_path]
                 for key in contents:
                     f.write(
