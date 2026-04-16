@@ -1744,6 +1744,7 @@ bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
         lastPos = contents.find_first_not_of("\r\n", pos + 1);
         pos = contents.find_first_of("\r\n", lastPos);
     }
+    lines.push_back(contents.substr(lastPos));
 
     if (lines.empty() || lines[0] != "[VapourSynth Manifest V1]") {
         logMessage(mtCritical, ("Invalid header in manifest: " + manifestPath.u8string()).c_str());
