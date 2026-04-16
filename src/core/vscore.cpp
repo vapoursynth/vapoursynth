@@ -1855,7 +1855,7 @@ int64_t VSCore::getFreedNodeProcessingTime(bool reset) noexcept {
 std::filesystem::path VSCore::getLibraryPath() {
 #ifdef VS_TARGET_OS_WINDOWS
     HMODULE module;
-    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&vs_internal_vsapi, &module);
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCWSTR)&vs_internal_vsapi, &module);
     std::vector<wchar_t> pathBuf(65536);
     GetModuleFileNameW(module, pathBuf.data(), (DWORD)pathBuf.size());
     return pathBuf.data();
@@ -2145,6 +2145,9 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
 
     if (!pluginInit3)
         pluginInit3 = reinterpret_cast<vs3::VSInitPlugin>(GetProcAddress(libHandle, "_VapourSynthPluginInit@12"));
+
+    if (pluginInit3)
+        core->logMessage(mtWarning, "Plugin " + relFilename.u8string() + " is using API3 which is deprecated and will be removed shortly.");
 
     if (!pluginInit && !pluginInit3) {
         if (!core->disableLibraryUnloading)
