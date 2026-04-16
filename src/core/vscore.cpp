@@ -59,11 +59,11 @@ static bool isValidIdentifier(const std::string &s) {
 }
 
 #ifdef VS_TARGET_OS_WINDOWS
-const char *VSCore::libraryExtension = ".dll";
+const std::filesystem::path VSCore::libraryExtension = std::filesystem::u8path(".dll");
 #elif defined(VS_TARGET_OS_DARWIN)
-const char *VSCore::libraryExtension = ".dylib";
+const std::filesystem::path VSCore::libraryExtension = std::filesystem::u8path(".dylib");
 #else
-const char *VSCore::libraryExtension = ".so";
+const std::filesystem::path VSCore::libraryExtension = std::filesystem::u8path(".so");
 #endif
 
 VSFrameContext::VSFrameContext(NodeOutputKey key, const PVSFrameContext &notify) :
@@ -1716,27 +1716,45 @@ bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
     std::filesystem::path manifestPath = path;
     manifestPath /= "manifest.vs";
 
-    std::ifstream f(manifestPath);
-    if (!f.is_open())
+#ifdef VS_TARGET_OS_WINDOWS
+    FILE *f = _wfopen(manifestPath.c_str(), L"rb");
+#else
+    FILE *f = fopen(manifestPath.c_str(), "rb");
+#endif
+
+    if (!f)
         return false;
 
-    std::string line;
+    std::string contents;
+    contents.resize(10000);
+    size_t numRead = fread(contents.data(), 1, contents.size(), f);
+    contents.resize(numRead);
 
-    if (!std::getline(f, line)) {
+    if (contents.empty()) {
         logMessage(mtCritical, ("Couldn't read contents of manifest file: " + manifestPath.u8string()).c_str());
         return true;
     }
 
-    if (line != "[VapourSynth Manifest V1]") {
+    std::vector<std::string> lines;
+
+    size_t lastPos = contents.find_first_not_of("\r\n", 0);
+    size_t pos = contents.find_first_of("\r\n", lastPos + 1);
+    while (pos != std::string::npos) {
+        lines.push_back(contents.substr(lastPos, pos - lastPos));
+        lastPos = contents.find_first_not_of("\r\n", pos + 1);
+        pos = contents.find_first_of("\r\n", lastPos);
+    }
+
+    if (lines.empty() || lines[0] != "[VapourSynth Manifest V1]") {
         logMessage(mtCritical, ("Invalid header in manifest: " + manifestPath.u8string()).c_str());
         return true;
     }
 
-    while (std::getline(f, line)) {
-        if (line.empty())
+    for (size_t i = 1; i < lines.size(); ++i) {
+        if (lines[i].empty())
             continue;
         std::filesystem::path pluginPath = path;
-        pluginPath /= line;
+        pluginPath /= std::filesystem::u8path(lines[i]);
         pluginPath += libraryExtension;
         try {
             loadPlugin(pluginPath, true);

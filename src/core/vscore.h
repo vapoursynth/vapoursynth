@@ -1080,7 +1080,7 @@ private:
     std::set<VSLogHandle *> messageHandlers;
     std::list<std::pair<VSMessageType, std::string>> storedMessages;
 
-    static const char *libraryExtension;
+    static const std::filesystem::path libraryExtension;
 public:
     VSThreadPool *threadPool;
     vs::MemoryUse *memory;
