@@ -14,7 +14,7 @@ The recommended way to install VapourSynth is through pip. There are currently b
 Optional on Windows:
 
 5. Run ``vapoursynth register-install`` to set the VSSCRIPT_PATH environment variable to allow other applications to find the library
-6. Run ``vapoursynth register-legacy-install legacy`` to write installation information to the registry so applications not aware of R74 and later still work
+6. Run ``vapoursynth register-legacy-install`` to write installation information to the registry so applications not aware of R74 and later still work
 7. Run ``vapoursynth register-vfw`` to register the VFW module
 
 Note that you can easily switch multiple installs in virtual environments by using these commands.
