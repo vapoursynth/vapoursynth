@@ -2334,14 +2334,14 @@ VSNode::VSCache::CacheAction VSNode::VSCache::recommendSize() {
 
     if (total == 0) {
 #ifdef VS_CACHE_DEBUG
-        fprintf(stderr, "Cache (%p) stats (clear): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize);
+        fprintf(stderr, "Cache (%p) stats (clear): total: %d, far miss: %d, near miss: %d, hits: %d, maxsize: %d, currentsize: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize, (int)size());
 #endif
         return CacheAction::Clear;
     }
 
     if (total < 30) {
 #ifdef VS_CACHE_DEBUG
-        fprintf(stderr, "Cache (%p) stats (keep low total): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize);
+        fprintf(stderr, "Cache (%p) stats (keep - low request count): total: %d, far miss: %d, near miss: %d, hits: %d, maxsize: %d, currentsize: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize, (int)size());
 #endif
         return CacheAction::NoChange; // not enough requests to know what to do so keep it this way
     }
@@ -2349,7 +2349,7 @@ VSNode::VSCache::CacheAction VSNode::VSCache::recommendSize() {
     bool shrink = (nearMiss == 0 && hits == 0); // shrink if there were no hits or even close to hitting
     bool grow = ((nearMiss * 20) >= total); // grow if 5% or more are near misses
 #ifdef VS_CACHE_DEBUG
-    fprintf(stderr, "Cache (%p) stats (%s): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, shrink ? "shrink" : (grow ? "grow" : "keep"), total, farMiss, nearMiss, hits, maxSize);
+    fprintf(stderr, "Cache (%p) stats (%s): total: %d, far miss: %d, near miss: %d, hits: %d, maxsize: %d, currentsize: %d\n", (void *)this, shrink ? "shrink" : (grow ? "grow" : "keep"), total, farMiss, nearMiss, hits, maxSize, (int)size());
 #endif
 
     if (grow) { // growing the cache would be beneficial
@@ -2462,6 +2462,9 @@ void VSNode::VSCache::adjustSize(bool needMemory) {
             default:;
             }
         }
+#ifdef VS_CACHE_DEBUG
+        fprintf(stderr, "Cache (%p) adjusted to maxsize: %d, currentsize: %d\n", (void *)this, total, maxSize, (int)size());
+#endif
     }
 }
 
