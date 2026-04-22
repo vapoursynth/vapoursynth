@@ -6,8 +6,10 @@
 #include "memoryuse.h"
 #include "VSHelper4.h"
 
-// Confirmed needed on both Windows and Linux so enable it everywhere just to be sure
+// Only confirmed needed on Windows.
+#ifdef _WIN32
 #define USE_FRAME_POOL
+#endif
 
 // Print pool hit/miss stats on exit.
 #if 0

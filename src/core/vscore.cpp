@@ -999,17 +999,9 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     if (enableFilterTiming)
         startTime = std::chrono::high_resolution_clock::now();
 
-#ifdef VS_DEBUG_FRAME_REQUESTS
-    core->logMessage(mtInformation, "Started processing of frame: " + std::to_string(n) + " ar: " + std::to_string(activationReason) + " filter: " + this->name + " (" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ")");
-#endif
-
     core->currentProcessingNode = this;
     const VSFrame *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi3);
     core->currentProcessingNode = nullptr;
-
-#ifdef VS_DEBUG_FRAME_REQUESTS
-    core->logMessage(mtInformation, "Finished processing of frame: " + std::to_string(n) + " ar: " + std::to_string(activationReason) + " filter: " + this->name + " (" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ")");
-#endif
 
     if (enableFilterTiming) {
         std::chrono::nanoseconds duration = std::chrono::high_resolution_clock::now() - startTime;
@@ -2332,25 +2324,14 @@ void VSPlugin::getFunctions3(VSMap *out) const {
 VSNode::VSCache::CacheAction VSNode::VSCache::recommendSize() {
     int total = hits + nearMiss + farMiss;
 
-    if (total == 0) {
-#ifdef VS_CACHE_DEBUG
-        fprintf(stderr, "Cache (%p) stats (clear): total: %d, far miss: %d, near miss: %d, hits: %d, maxsize: %d, currentsize: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize, (int)size());
-#endif
+    if (total == 0)
         return CacheAction::Clear;
-    }
 
-    if (total < 30) {
-#ifdef VS_CACHE_DEBUG
-        fprintf(stderr, "Cache (%p) stats (keep - low request count): total: %d, far miss: %d, near miss: %d, hits: %d, maxsize: %d, currentsize: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize, (int)size());
-#endif
+    if (total < 30)
         return CacheAction::NoChange; // not enough requests to know what to do so keep it this way
-    }
 
     bool shrink = (nearMiss == 0 && hits == 0); // shrink if there were no hits or even close to hitting
     bool grow = ((nearMiss * 20) >= total); // grow if 5% or more are near misses
-#ifdef VS_CACHE_DEBUG
-    fprintf(stderr, "Cache (%p) stats (%s): total: %d, far miss: %d, near miss: %d, hits: %d, maxsize: %d, currentsize: %d\n", (void *)this, shrink ? "shrink" : (grow ? "grow" : "keep"), total, farMiss, nearMiss, hits, maxSize, (int)size());
-#endif
 
     if (grow) { // growing the cache would be beneficial
         clearStats();
@@ -2462,9 +2443,6 @@ void VSNode::VSCache::adjustSize(bool needMemory) {
             default:;
             }
         }
-#ifdef VS_CACHE_DEBUG
-        fprintf(stderr, "Cache (%p) adjusted to maxsize: %d, currentsize: %d\n", (void *)this, maxSize, (int)size());
-#endif
     }
 }
 
