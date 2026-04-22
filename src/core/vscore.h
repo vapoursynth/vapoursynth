@@ -420,11 +420,12 @@ private:
     VSMap properties;
     VSCore *core;
 
-    std::string debugAllocationInfo;
     static std::atomic<uint64_t> allocationSeq;
 
     void setAllocationInfo() noexcept;
 public:
+    std::string debugAllocationInfo;
+
     static int alignment;
 
 #ifdef VS_FRAME_GUARD
@@ -1095,6 +1096,9 @@ public:
     // Used only for frame ref debugging
     bool enableFrameRefDebug;
     static thread_local VSNode *currentProcessingNode;
+    std::set<VSFrame *> m_allocatedFrames;
+    std::mutex m_allocatedFramesMutex;
+    void dumpAllocatedFrames();
     //
 
     void notifyCaches(bool needMemory);

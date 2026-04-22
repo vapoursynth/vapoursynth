@@ -320,6 +320,7 @@ void VSThreadPool::reserveThread() {
 }
 
 void VSThreadPool::startExternal(const PVSFrameContext &context) {
+    core->dumpAllocatedFrames();
     assert(context);
     std::lock_guard<std::mutex> l(taskLock);
     context->reqOrder = ++reqCounter;

@@ -162,7 +162,11 @@ void VSFrame::setAllocationInfo() noexcept {
         debugAllocationInfo = "Frame #" + std::to_string(allocationSeq++) + " (" + std::to_string(width) + "x" + std::to_string((contentType == mtVideo) ? height : 0) + ") allocated by " + currentNode->getName();
     else
         debugAllocationInfo = "Frame #" + std::to_string(allocationSeq++) + " (" + std::to_string(width) + "x" + std::to_string((contentType == mtVideo) ? height : 0) + ") allocated by <unknown>";
+    
     core->logMessage(mtInformation, debugAllocationInfo.c_str());
+
+    std::lock_guard<std::mutex> lock(core->m_allocatedFramesMutex);
+    core->m_allocatedFrames.insert(this);
 }
 
 VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
@@ -310,8 +314,11 @@ VSFrame::~VSFrame() {
         data[2]->release();
     }
 
-    if (!debugAllocationInfo.empty())
+    if (!debugAllocationInfo.empty()) {
         core->logMessage(mtInformation, (debugAllocationInfo + " was freed").c_str());
+        std::lock_guard<std::mutex> lock(core->m_allocatedFramesMutex);
+        core->m_allocatedFrames.erase(this);
+    }
 }
 
 const vs3::VSVideoFormat *VSFrame::getVideoFormatV3() const noexcept {
@@ -1124,6 +1131,15 @@ void VSCore::notifyCaches(bool needMemory) {
     std::lock_guard<std::mutex> lock(cacheLock);
     for (auto &cache : caches)
         cache->notifyCache(needMemory);
+}
+
+void VSCore::dumpAllocatedFrames() {
+    std::lock_guard<std::mutex> lock(m_allocatedFramesMutex);
+    fprintf(stderr, "Frame dump start, total %d frames\n", (int)m_allocatedFrames.size());
+    for (const auto &frame : m_allocatedFrames) {
+        fprintf(stderr, "%s\n", frame->debugAllocationInfo.c_str());
+    }
+    fprintf(stderr, "Frame dump end, total %d frames\n", (int)m_allocatedFrames.size());
 }
 
 const vs3::VSVideoFormat *VSCore::getV3VideoFormat(int id) {
