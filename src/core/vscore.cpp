@@ -2463,7 +2463,7 @@ void VSNode::VSCache::adjustSize(bool needMemory) {
             }
         }
 #ifdef VS_CACHE_DEBUG
-        fprintf(stderr, "Cache (%p) adjusted to maxsize: %d, currentsize: %d\n", (void *)this, total, maxSize, (int)size());
+        fprintf(stderr, "Cache (%p) adjusted to maxsize: %d, currentsize: %d\n", (void *)this, maxSize, (int)size());
 #endif
     }
 }
