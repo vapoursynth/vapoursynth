@@ -76,7 +76,7 @@ static std::filesystem::path getLibraryPath() {
         auto pos = fname.find("/lib64/");
         if (pos != std::string::npos)
             fname.replace(pos, 7, "/lib/");
-        return fname;
+        return std::filesystem::path(fname).lexically_normal();
     }
 #endif
     return {};
