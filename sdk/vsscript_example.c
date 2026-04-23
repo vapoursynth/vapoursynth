@@ -52,9 +52,9 @@ static int loadVSScriptLibrary() {
 #else
     const char *vsscriptPath = getenv(L"VSSCRIPT_PATH");
 #ifdef __APPLE__
-    const char *defaultLibName = "libvsscript.4.dylib";
+    const char *defaultLibName = "libvsscript.dylib";
 #else
-    const char *defaultLibName = "libvsscript.so.4";
+    const char *defaultLibName = "libvsscript.so";
 #endif
     void *lib = dlopen(vsscriptPath ? vsscriptPath : defaultLibName, RTLD_LAZY | RTLD_GLOBAL);
     if (!lib) {

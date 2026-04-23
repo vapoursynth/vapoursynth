@@ -23,9 +23,9 @@ def get_vsscript():
     if sys.platform == "win32":
         return str(PurePath(__file__).with_name("vsscript.dll"))
     elif sys.platform == "darwin":
-        return str(PurePath(__file__).with_name("libvsscript.4.dylib"))
+        return str(PurePath(__file__).with_name("libvsscript.dylib"))
     else:
-        return str(PurePath(__file__).with_name("libvsscript.so.4"))
+        return str(PurePath(__file__).with_name("libvsscript.so"))
 
 
 # All code for scripts executables

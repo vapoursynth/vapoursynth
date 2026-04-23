@@ -291,15 +291,6 @@ elif enable_python_module
 endif
 
 if enable_vsscript
-    soversion = is_win ? '' : run_command(
-        'grep',
-        '-m',
-        '1',
-        'VSSCRIPT_API_MAJOR',
-        'include/VSScript4.h',
-        check: true,
-    ).stdout().strip().split()[2]
-
     libvsscript = library('vsscript',
         files('src/vsscript/vsscript.cpp'),
         cpp_args: ['-DPy_NO_LINK_LIB', '-DVS_CORE_EXPORTS'],
@@ -308,7 +299,6 @@ if enable_vsscript
         include_directories: incdir,
         install: true,
         install_dir: install_dir,
-        soversion: soversion,
     )
 
     vsscript_dep = declare_dependency(
