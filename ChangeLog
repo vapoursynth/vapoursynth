@@ -1,5 +1,5 @@
 r75:
-fixed config issues on fedora linux and probably its closest friends too
+fixed config issues on fedora and alpine linux and probably their closest friends too
 plugins can now ship with multiple copies targeting different optimization levels on x64 and have the best one automatically loaded
 simple plugin manifests have been implemented that stops further recursive plugin loading and enables loading of plugins compiled with optimized settings
 multiple improvements to the portable version experience where vsrepo is now installed by default again and forwarding bat files are provided to closer match pre R74 paths
