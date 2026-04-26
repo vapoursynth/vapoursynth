@@ -301,3 +301,12 @@ install_subdir(
     install_dir: install_dir,
 )
 
+pc_data = configuration_data()
+pc_data.set('version', meson.project_version())
+configure_file(
+    configuration: pc_data,
+    input: 'vapoursynth.pc.in',
+    install: true,
+    install_dir: install_dir / 'pkgconfig',
+    output: 'vapoursynth.pc',
+)

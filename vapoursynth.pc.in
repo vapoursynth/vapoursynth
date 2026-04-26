@@ -1,0 +1,7 @@
+prefix=${pcfiledir}/..
+includedir=${prefix}/include
+
+Name: vapoursynth
+Description: A frameserver for the 21st century
+Version: @version@
+Cflags: -I${includedir}
