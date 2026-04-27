@@ -9,33 +9,3 @@ option('enable_x86_asm',
     value: true,
     description: 'Enable assembler code for x86 CPUs',
 )
-
-option('enable_core',
-    type: 'boolean',
-    value: true,
-    description: 'Build the VapourSynth core library',
-)
-
-option('enable_vsscript',
-    type: 'boolean',
-    value: true,
-    description: 'Build VSScript. Requires Python 3',
-)
-
-option('enable_vspipe',
-    type: 'boolean',
-    value: true,
-    description: 'Build vspipe. Requires VSScript',
-)
-
-option('enable_python_module',
-    type: 'boolean',
-    value: true,
-    description: 'Build the Python module. Requires Python, Cython, and the core',
-)
-
-option('build_wheel',
-    type: 'boolean',
-    value: false,
-    description: 'Indicating whether meson is invoked by a backend for building the wheel',
-)

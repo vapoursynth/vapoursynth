@@ -49,9 +49,6 @@ doc = ["sphinx", "sphinx-intl", "sphinx-rtd-theme"]
 [tool.meson-python]
 limited-api = true
 
-[tool.meson-python.args]
-setup = ["-Dbuild_wheel=true"]
-
 [tool.meson-python.wheel]
 exclude = [
     "*.lib",

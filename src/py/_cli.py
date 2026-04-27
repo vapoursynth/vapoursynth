@@ -3,6 +3,7 @@ import sys
 
 from ._utils import (
     get_include,
+    get_pkgconfig_dir,
     get_plugin_dir,
     get_vsscript,
     register_install,
@@ -55,6 +56,13 @@ def build_parser() -> argparse.ArgumentParser:
         description="Print the bundled include directory.",
     )
     get_include_parser.set_defaults(func=lambda *_: print(get_include()))
+
+    get_pkgconfig_dir_parser = subparsers.add_parser(
+        "get-pkgconfig-dir",
+        help="Print the bundled pkgconfig directory",
+        description="Print the bundled pkgconfig directory.",
+    )
+    get_pkgconfig_dir_parser.set_defaults(func=lambda *_: print(get_pkgconfig_dir()))
 
     get_plugin_dir_parser = subparsers.add_parser(
         "get-plugin-dir",

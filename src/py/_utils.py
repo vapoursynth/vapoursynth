@@ -13,6 +13,11 @@ def get_include():
     return str(PurePath(__file__).with_name("include"))
 
 
+def get_pkgconfig_dir():
+    """Return the pkgconfig directory in which `vapoursynth.pc` is stored."""
+    return str(PurePath(__file__).with_name("pkgconfig"))
+
+
 def get_plugin_dir():
     """Return the VapourSynth plugin directory location."""
     return str(PurePath(__file__).with_name("plugins"))
@@ -228,11 +233,13 @@ def _has_implicit_config():
         return direct_python_exe_path.is_file() and direct_python_dll_path.is_file()
     return False
 
+
 def _mangle_vsscript_key(path):
     if sys.platform == "win32":
         return path.lower()
     else:
-        return path.replace('/lib64/', '/lib/')
+        return path.replace("/lib64/", "/lib/")
+
 
 def vapoursynth_check_env():
     _check_visual_studio_runtime()
