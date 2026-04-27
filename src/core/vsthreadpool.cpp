@@ -334,7 +334,6 @@ void VSThreadPool::returnFrame(const VSFrameContext *rCtx, const PVSFrame &f) {
     if (rCtx->hasError()) {
         if (outputLock)
             callbackLock.lock();
-
         rCtx->frameDone(rCtx->userData, nullptr, rCtx->key.second, rCtx->key.first, rCtx->errorMessage.c_str());
         if (outputLock)
             callbackLock.unlock();
@@ -347,6 +346,8 @@ void VSThreadPool::returnFrame(const VSFrameContext *rCtx, const PVSFrame &f) {
         if (outputLock)
             callbackLock.unlock();
     }
+    if (core->enableFrameRefDebug)
+        core->logMessage(mtInformation, core->getFrameRefInfo());
     taskLock.lock();
 }
 

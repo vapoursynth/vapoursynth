@@ -1,4 +1,5 @@
 r75:
+improved ccfEnableFrameRefDebug flag, it now outputs a list of all allocated frames as a log message after every external frame request has been completed
 fixed config issues on fedora and alpine linux and probably their closest friends too
 plugins can now ship with multiple copies targeting different optimization levels on x64 and have the best one automatically loaded
 simple plugin manifests have been implemented that stops further recursive plugin loading and enables loading of plugins compiled with optimized settings

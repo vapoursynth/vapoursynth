@@ -158,14 +158,28 @@ void VSPlaneData::release() noexcept {
 
 void VSFrame::setAllocationInfo() noexcept {
     VSNode *currentNode = core->currentProcessingNode;
-    if (currentNode)
-        debugAllocationInfo = "Frame #" + std::to_string(allocationSeq++) + " (" + std::to_string(width) + "x" + std::to_string((contentType == mtVideo) ? height : 0) + ") allocated by " + currentNode->getName();
-    else
-        debugAllocationInfo = "Frame #" + std::to_string(allocationSeq++) + " (" + std::to_string(width) + "x" + std::to_string((contentType == mtVideo) ? height : 0) + ") allocated by <unknown>";
-    core->logMessage(mtInformation, debugAllocationInfo.c_str());
+
+    if (contentType == mtVideo) {
+        char fmtname[32];
+        core->getVideoFormatName(format.vf, fmtname);
+        if (currentNode)
+            debugAllocationInfo = "Video frame #" + std::to_string(allocationSeq++) + " (" + std::string(fmtname) + " " + std::to_string(width) + "x" + std::to_string(height) + ") allocated by " + currentNode->getName();
+        else
+            debugAllocationInfo = "Video frame #" + std::to_string(allocationSeq++) + " (" + std::string(fmtname) + " " + std::to_string(width) + "x" + std::to_string(height) + ") allocated by <unknown>";
+    } else {
+        if (currentNode)
+            debugAllocationInfo = "Audio frame #" + std::to_string(allocationSeq++) + " (" + std::to_string(width) + ") allocated by " + currentNode->getName();
+        else
+            debugAllocationInfo = "Audio frame #" + std::to_string(allocationSeq++) + " (" + std::to_string(width) + ") allocated by <unknown>";
+    }
 }
 
 VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+    if (core->enableFrameRefDebug) {
+        std::lock_guard<std::mutex> lock(core->frameRefMutex);
+        core->frameRefs.insert(this);
+    }
+
     if (width <= 0 || height <= 0)
         core->logFatal("Error in frame creation: dimensions are negative (" + std::to_string(width) + "x" + std::to_string(height) + ")");
 
@@ -195,6 +209,11 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
 }
 
 VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+    if (core->enableFrameRefDebug) {
+        std::lock_guard<std::mutex> lock(core->frameRefMutex);
+        core->frameRefs.insert(this);
+    }
+
     if (width <= 0 || height <= 0)
         core->logFatal("Error in frame creation: dimensions are negative " + std::to_string(width) + "x" + std::to_string(height));
 
@@ -235,6 +254,11 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
 
 VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc, VSCore *core) noexcept
     : refcount(1), contentType(mtAudio), v3format(nullptr), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+    if (core->enableFrameRefDebug) {
+        std::lock_guard<std::mutex> lock(core->frameRefMutex);
+        core->frameRefs.insert(this);
+    }
+
     if (numSamples <= 0)
         core->logFatal("Error in frame creation: bad number of samples (" + std::to_string(numSamples) + ")");
 
@@ -253,6 +277,11 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc,
 
 VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *channelSrc, const int *channel, const VSFrame *propSrc, VSCore *core) noexcept
     : refcount(1), contentType(mtAudio), v3format(nullptr), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+    if (core->enableFrameRefDebug) {
+        std::lock_guard<std::mutex> lock(core->frameRefMutex);
+        core->frameRefs.insert(this);
+    }
+
     if (numSamples <= 0)
         core->logFatal("Error in frame creation: bad number of samples (" + std::to_string(numSamples) + ")");
 
@@ -279,7 +308,11 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *
         setAllocationInfo();
 }
 
-VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), v3format(nullptr) {
+VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), v3format(nullptr), core(f.core) {
+    if (core->enableFrameRefDebug) {
+        std::lock_guard<std::mutex> lock(core->frameRefMutex);
+        core->frameRefs.insert(this);
+    }
     contentType = f.contentType;
     data[0] = f.data[0];
     data[1] = f.data[1];
@@ -297,7 +330,6 @@ VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), v3format(nullptr) {
     stride[1] = f.stride[1];
     stride[2] = f.stride[2];
     properties = f.properties;
-    core = f.core;
 
     if (core->enableFrameRefDebug)
         setAllocationInfo();
@@ -310,8 +342,10 @@ VSFrame::~VSFrame() {
         data[2]->release();
     }
 
-    if (!debugAllocationInfo.empty())
-        core->logMessage(mtInformation, (debugAllocationInfo + " was freed").c_str());
+    if (core->enableFrameRefDebug) {
+        std::lock_guard<std::mutex> lock(core->frameRefMutex);
+        core->frameRefs.erase(this);
+    }
 }
 
 const vs3::VSVideoFormat *VSFrame::getVideoFormatV3() const noexcept {
@@ -2445,6 +2479,17 @@ void VSNode::VSCache::adjustSize(bool needMemory) {
             }
         }
     }
+}
+
+std::string VSCore::getFrameRefInfo() {
+    std::lock_guard<std::mutex> lock(frameRefMutex);
+    std::string info;
+    info.reserve(65000);
+    info += "FrameData START (num frames: " + std::to_string(frameRefs.size()) + ")\n";
+    for (const auto &frame : frameRefs)
+        info += frame->debugAllocationInfo + "\n";
+    info += "FrameData END (num frames: " + std::to_string(frameRefs.size()) + ")\n";
+    return info;
 }
 
 #ifdef VS_TARGET_CPU_X86

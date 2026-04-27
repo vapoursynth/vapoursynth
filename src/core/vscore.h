@@ -404,6 +404,7 @@ public:
 };
 
 struct VSFrame {
+    friend struct VSCore;
 private:
     std::atomic<long> refcount;
     VSMediaType contentType;
@@ -1094,7 +1095,10 @@ public:
 
     // Used only for frame ref debugging
     bool enableFrameRefDebug;
+    std::mutex frameRefMutex;
+    std::set<VSFrame *> frameRefs;
     static thread_local VSNode *currentProcessingNode;
+    std::string getFrameRefInfo();
     //
 
     void notifyCaches(bool needMemory);
