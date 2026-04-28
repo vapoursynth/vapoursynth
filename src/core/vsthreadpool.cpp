@@ -252,7 +252,7 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
             break;
         }
 
-        if (!ranTask || activeThreads > maxThreads) {
+        if (!ranTask || (activeThreads > maxThreads) || (core->memory->is_extremely_over_limit() && activeThreads > 1)) {
             --activeThreads;
             if (stop) {
                 lock.unlock();
@@ -301,10 +301,14 @@ void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
 
 void VSThreadPool::wakeThread() {
     if (activeThreads < maxThreads) {
-        if (idleThreads == 0) // newly spawned threads are active so no need to notify an additional thread
-            spawnThread();
-        else
-            newWork.notify_one();
+        if (core->memory->is_extremely_over_limit() && activeThreads > 0) {
+            core->logMessage(mtWarning, "Used cache extremely over set limit, temporarily suspending worker thread. If this message persists consider increasing the max_cache_size setting for optional performance.");
+        } else {
+            if (idleThreads == 0) // newly spawned threads are active so no need to notify an additional thread
+                spawnThread();
+            else
+                newWork.notify_one();
+        }
     }
 }
 

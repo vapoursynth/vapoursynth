@@ -87,6 +87,7 @@ public:
     size_t limit() const { return m_limit; }
 
     bool is_over_limit() const { return m_allocated > m_limit; }
+    bool is_extremely_over_limit() const { return m_allocated > 1.5 * m_limit; }
 
     // Called only from VSCore destructor.
     void on_core_freed();
