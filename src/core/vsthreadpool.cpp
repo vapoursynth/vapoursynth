@@ -144,8 +144,10 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                     tasks.erase(iter);
                     allContexts.erase(frameContext->key);
 
-                    if (frameContext->external)
+                    if (frameContext->external) {
+                        frameContext->availableFrames.clear();
                         returnFrame(frameContext, f);
+                    }
 
                     if (needsSort)
                         tasks.sort(taskCmp);
@@ -258,8 +260,10 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                     }
                 }
 
-                if (frameContext->external)
+                if (frameContext->external) {
+                    frameContext->availableFrames.clear();
                     returnFrame(frameContext, f);
+                }
             } else if (f) {
                 for (size_t i = 0; i < frameContextRef->notifyCtxList.size(); i++) {
                     PVSFrameContext &notify = frameContextRef->notifyCtxList[i];
@@ -272,8 +276,10 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                     }
                 }
 
-                if (frameContext->external)
+                if (frameContext->external) {
+                    frameContext->availableFrames.clear();
                     returnFrame(frameContext, f);
+                }
             } else if (requestedFrames) {
                 // already scheduled, do nothing
             } else {
