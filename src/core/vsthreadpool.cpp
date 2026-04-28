@@ -76,6 +76,37 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
 
     while (true) {
         bool ranTask = false;
+        /////////////////////////////////////////////////////////////////////////////////////////////
+// Find and output all references to frames held
+        if (true || core->enableFrameRefDebug) {
+            std::string queueInfo = "Current queue START " + std::to_string(tasks.size()) + "\n";
+            size_t tmem = 0;
+            for (const auto &iter : tasks) {
+                size_t fmem = 0;
+                for (size_t i = 0; i < iter->availableFrames.size(); i++)
+                    fmem += iter->availableFrames[i].second->getMemoryUsage();
+                tmem += fmem;
+                queueInfo += "Task node: " + iter->key.first->name + " #" + std::to_string(iter->key.second) + " reqorder: " + std::to_string(iter->reqOrder) + " reqs: " + std::to_string(iter->numFrameRequests) + " mem: " + std::to_string(fmem / (1024 * 1024)) + "MB in " + std::to_string(iter->availableFrames.size()) + " frames\n";
+
+                for (size_t i = 0; i < iter->availableFrames.size(); i++)
+                    queueInfo += "    " + iter->availableFrames[i].first.first->name + " #" + std::to_string(iter->availableFrames[i].first.second) + " mem: " + std::to_string(fmem / (1024 * 1024)) + "MB\n";
+            }
+            
+            queueInfo += "Current queue END " + std::to_string(tasks.size()) + " Memory in queue: " + std::to_string(tmem / (1024 * 1024)) + "MB Total cache: " + std::to_string(core->memory->allocated_bytes() / (1024 * 1024)) + "MB\n";
+
+            core->logMessage(mtInformation, queueInfo);
+            if (tmem > peakQueueMem && tmem > 1024*1024*1024*4i64) {
+                peakQueueMem = tmem;
+                core->logMessage(mtInformation, "New peak memory usage in queue memory: " + std::to_string(peakQueueMem / (1024 * 1024)) + "MB");
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+            auto cmem = core->memory->allocated_bytes();
+            if (cmem > peakCacheMem && cmem > 1024 * 1024 * 1024 * 4i64) {
+                peakCacheMem = cmem;
+                core->logMessage(mtInformation, "New peak memory usage in cache memory: " + std::to_string(peakCacheMem / (1024 * 1024)) + "MB");
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+        }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Go through all tasks from the top (oldest) and process the first one possible
@@ -252,7 +283,7 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
             break;
         }
 
-        if (!ranTask || (activeThreads > maxThreads) || (core->memory->is_extremely_over_limit() && activeThreads > 1)) {
+        if (!ranTask || (activeThreads > maxThreads)) {
             --activeThreads;
             if (stop) {
                 lock.unlock();
@@ -301,14 +332,11 @@ void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
 
 void VSThreadPool::wakeThread() {
     if (activeThreads < maxThreads) {
-        if (core->memory->is_extremely_over_limit() && activeThreads > 0) {
-            core->logMessage(mtWarning, "Used cache extremely over set limit, temporarily suspending worker thread. If this message persists consider increasing the max_cache_size setting for optional performance.");
-        } else {
+
             if (idleThreads == 0) // newly spawned threads are active so no need to notify an additional thread
                 spawnThread();
             else
                 newWork.notify_one();
-        }
     }
 }
 

@@ -490,6 +490,14 @@ public:
         assert(contentType == mtAudio);
         return width;
     }
+
+    size_t getMemoryUsage() const noexcept {
+        size_t total = data[0]->size;
+        if (numPlanes > 1)
+            total += data[1]->size + data[2]->size;
+        return total;
+    }
+
     ptrdiff_t getStride(int plane) const;
     const uint8_t *getReadPtr(int plane) const;
     uint8_t *getWritePtr(int plane);
@@ -962,6 +970,8 @@ private:
     static void runTasksWrapper(VSThreadPool *owner, std::atomic<bool> &stop);
     void runTasks(std::atomic<bool> &stop);
     static bool taskCmp(const PVSFrameContext &a, const PVSFrameContext &b);
+    size_t peakQueueMem = 0;
+    size_t peakCacheMem = 0;
 public:
     VSThreadPool(VSCore *core);
     ~VSThreadPool();
