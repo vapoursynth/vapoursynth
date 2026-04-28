@@ -78,6 +78,7 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
         bool ranTask = false;
         /////////////////////////////////////////////////////////////////////////////////////////////
 // Find and output all references to frames held
+        /*
         if (true || core->enableFrameRefDebug) {
             std::string queueInfo = "Current queue START " + std::to_string(tasks.size()) + "\n";
             size_t tmem = 0;
@@ -107,6 +108,7 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
         }
+        */
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Go through all tasks from the top (oldest) and process the first one possible
@@ -364,9 +366,12 @@ void VSThreadPool::returnFrame(const VSFrameContext *rCtx, const PVSFrame &f) {
     // AND so that slow callbacks will only block operations in this thread, not all the others
     taskLock.unlock();
     if (rCtx->hasError()) {
+        core->logMessage(mtInformation, "Waiting for output lock");
         if (outputLock)
             callbackLock.lock();
+        core->logMessage(mtInformation, "Outputting frame");
         rCtx->frameDone(rCtx->userData, nullptr, rCtx->key.second, rCtx->key.first, rCtx->errorMessage.c_str());
+        core->logMessage(mtInformation, "Finished outputting frame");
         if (outputLock)
             callbackLock.unlock();
     } else {
