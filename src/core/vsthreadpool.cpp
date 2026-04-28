@@ -95,13 +95,13 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
             queueInfo += "Current queue END " + std::to_string(tasks.size()) + " Memory in queue: " + std::to_string(tmem / (1024 * 1024)) + "MB Total cache: " + std::to_string(core->memory->allocated_bytes() / (1024 * 1024)) + "MB\n";
 
             core->logMessage(mtInformation, queueInfo);
-            if (tmem > peakQueueMem && tmem > 1024*1024*1024*4i64) {
+            if (tmem > peakQueueMem && tmem > 1024*1024*1024*4ll) {
                 peakQueueMem = tmem;
                 core->logMessage(mtInformation, "New peak memory usage in queue memory: " + std::to_string(peakQueueMem / (1024 * 1024)) + "MB");
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
             auto cmem = core->memory->allocated_bytes();
-            if (cmem > peakCacheMem && cmem > 1024 * 1024 * 1024 * 4i64) {
+            if (cmem > peakCacheMem && cmem > 1024 * 1024 * 1024 * 4ll) {
                 peakCacheMem = cmem;
                 core->logMessage(mtInformation, "New peak memory usage in cache memory: " + std::to_string(peakCacheMem / (1024 * 1024)) + "MB");
                 std::this_thread::sleep_for(std::chrono::seconds(1));
