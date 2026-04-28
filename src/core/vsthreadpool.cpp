@@ -376,10 +376,12 @@ void VSThreadPool::returnFrame(const VSFrameContext *rCtx, const PVSFrame &f) {
             callbackLock.unlock();
     } else {
         f->add_ref();
+        core->logMessage(mtInformation, "Waiting for output lock");
         if (outputLock)
             callbackLock.lock();
-
+        core->logMessage(mtInformation, "Outputting frame");
         rCtx->frameDone(rCtx->userData, f.get(), rCtx->key.second, rCtx->key.first, nullptr);
+        core->logMessage(mtInformation, "Finished outputting frame");
         if (outputLock)
             callbackLock.unlock();
     }
