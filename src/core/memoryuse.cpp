@@ -51,10 +51,12 @@ struct MemoryUse::DebugStats {
 MemoryUse::MemoryUse()
 {
 #if SIZE_MAX > UINT32_MAX
-    m_limit = 4 * (1ULL << 30);
+    m_limit_high = 4 * (1ULL << 30);
 #else
-    m_limit = 1 * (1ULL << 30);
+    m_limit_high = 1 * (1ULL << 30);
 #endif
+
+    m_limit_low = (m_limit_high * 3) / 4;
 
 #ifdef DEBUG_STATS
     m_debug_stats = new DebugStats{};
@@ -172,7 +174,7 @@ void MemoryUse::deallocate_to_freelist(uint8_t *ptr, size_t size)
 void MemoryUse::gc_freelist()
 {
     size_t total = m_allocated + m_freelist_size;
-    size_t limit = m_limit;
+    size_t limit = m_limit_low;
 
     while (total > limit) {
         std::unique_lock<std::mutex> lock{ m_mutex };
@@ -183,7 +185,7 @@ void MemoryUse::gc_freelist()
 
         // Recalculate while holding the mutex.
         total = m_allocated + m_freelist_size;
-        limit = m_limit;
+        limit = m_limit_low;
 
         if (total <= limit)
             return;
@@ -257,9 +259,10 @@ void MemoryUse::deallocate(uint8_t *buf)
 
 size_t MemoryUse::set_limit(size_t bytes)
 {
-    m_limit = bytes;
+    m_limit_high = bytes;
+    m_limit_low = (m_limit_high * 3) / 4;
     gc_freelist();
-    return m_limit;
+    return m_limit_high;
 }
 
 void MemoryUse::on_core_freed()

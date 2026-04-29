@@ -252,7 +252,7 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
             break;
         }
 
-        if (!ranTask || activeThreads > maxThreads) {
+        if (!ranTask || (activeThreads > maxThreads) || (core->memory->is_over_high_limit() && activeThreads > 1)) {
             --activeThreads;
             if (stop) {
                 lock.unlock();
@@ -301,10 +301,19 @@ void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
 
 void VSThreadPool::wakeThread() {
     if (activeThreads < maxThreads) {
-        if (idleThreads == 0) // newly spawned threads are active so no need to notify an additional thread
-            spawnThread();
-        else
-            newWork.notify_one();
+        if (core->memory->is_over_high_limit() && activeThreads > 0) {
+
+            if ((maxThreads >= 2 * activeThreads)) {
+                --maxThreads;
+                core->logMessage(mtWarning, "Maximum running threads reduced to " + std::to_string(maxThreads) + " due to excessive cache usage");
+            }
+            // do nothing
+        } else {
+            if (idleThreads == 0) // newly spawned threads are active so no need to notify an additional thread
+                spawnThread();
+            else
+                newWork.notify_one();
+        }
     }
 }
 
@@ -363,7 +372,7 @@ void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutpu
         core->logFatal("Negative frame request by: " + notify->key.first->getName());
 
     // check to see if it's time to reevaluate cache sizes
-    if (core->memory->is_over_limit()) {
+    if (core->memory->is_over_low_limit()) {
         ticks = 0;
         core->notifyCaches(true);
     } else if (++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history

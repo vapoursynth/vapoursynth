@@ -48,7 +48,8 @@ class MemoryUse {
 
     std::atomic_size_t m_allocated{ 0 };
     std::atomic_size_t m_freelist_size{ 0 };
-    std::atomic_size_t m_limit{ 0 };
+    std::atomic_size_t m_limit_low{ 0 };
+    std::atomic_size_t m_limit_high{ 0 };
 
     std::atomic_bool m_core_freed{ false };
 
@@ -84,9 +85,11 @@ public:
 
     size_t allocated_bytes() const { return m_allocated; }
 
-    size_t limit() const { return m_limit; }
+    size_t limit() const { return m_limit_high; }
 
-    bool is_over_limit() const { return m_allocated > m_limit; }
+    bool is_over_low_limit() const { return m_allocated > m_limit_low; }
+
+    bool is_over_high_limit() const { return m_allocated > m_limit_high; }
 
     // Called only from VSCore destructor.
     void on_core_freed();
