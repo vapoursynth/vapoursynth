@@ -198,6 +198,14 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
             lock.lock();
 
             if (requestedFrames) {
+                assert(frameContext->numFrameRequests == 0);
+
+                for (size_t i = 0; i < frameContext->reqList.size(); i++)
+                    startInternalRequest(frameContextRef, frameContext->reqList[i]);
+
+                frameContext->numFrameRequests = frameContext->reqList.size();
+                frameContext->reqList.clear();
+
                 // check to see if it's time to reevaluate cache sizes
                 if (core->memory->is_over_limit()) {
                     ticks = 0;
@@ -207,18 +215,12 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                     core->notifyCaches(false);
                 }
 
-                assert(frameContext->numFrameRequests == 0);
-
-                for (size_t i = 0; i < frameContext->reqList.size(); i++)
-                    startInternalRequest(frameContextRef, frameContext->reqList[i]);
-
-                frameContext->numFrameRequests = frameContext->reqList.size();
-                frameContext->reqList.clear();
-
                 size_t numActive = activeThreads;
-                if (currentMaxThreads >= numActive * 3 && core->memory->is_over_limit() && numActive > 0) {
+                if (currentMaxThreads >= numActive * 2 && core->memory->is_over_limit() && numActive > 0) {
                     --currentMaxThreads;
+                    assert(currentMaxThreads > 0);
                     core->logMessage(mtInformation, "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage");
+                    flushCaches = true;
                 } else if (currentMaxThreads < maxThreads && core->memory->is_under_limit() && ++reqMemCounter % 500 == 0) {
                     ++currentMaxThreads;
                     core->logMessage(mtInformation, "Maximum running threads increased to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to more memory being available");
@@ -273,12 +275,30 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
         size_t numActive = activeThreads;
         if (!ranTask || (numActive > currentMaxThreads) || (core->memory->is_over_limit() && numActive > 1)) {
             --activeThreads;
+            assert(activeThreads >= 1);
             if (stop) {
                 lock.unlock();
                 break;
             }
-            if (++idleThreads == allThreads.size())
-                allIdle.notify_one();
+
+            if (allThreads.size() > currentMaxThreads + 1) {
+                allThreads.erase(std::this_thread::get_id());
+                lock.unlock();
+                break;
+            }
+                
+            if (++idleThreads == allThreads.size()) {
+                if (flushCaches) {
+                    core->clearCaches();
+                    core->notifyCaches(false, true);
+                    flushCaches = false;
+                    std::swap(tasks, altTasks);
+                    core->logMessage(mtInformation, "Pipeline flushed, resuming processing");
+                } else {
+                    allIdle.notify_one();
+                }
+                newWork.notify_all();
+            }
 
             newWork.wait(lock);
             --idleThreads;
@@ -287,7 +307,7 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), reqMemCounter(0), stopThreads(false), ticks(0) {
+VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), reqMemCounter(0), stopThreads(false), flushCaches(false), ticks(0) {
     setThreadCount(0);
 }
 
@@ -346,8 +366,12 @@ void VSThreadPool::startExternal(const PVSFrameContext &context) {
     std::lock_guard<std::mutex> l(taskLock);
     context->reqOrder = ++reqCounter;
     assert(context);
-    tasks.push_back(context); // external requests can't be combined so just add to queue
-    wakeThread();
+    if (flushCaches) {
+        altTasks.push_back(context);
+    } else {
+        tasks.push_back(context); // external requests can't be combined so just add to queue
+        wakeThread();
+    }
 }
 
 void VSThreadPool::returnFrame(VSFrameContext *rCtx, const PVSFrame &f) {

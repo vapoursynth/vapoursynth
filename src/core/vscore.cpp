@@ -1141,15 +1141,15 @@ bool VSNode::isWorkerThread() {
     return core->threadPool->isWorkerThread();
 }
 
-void VSNode::notifyCache(bool needMemory) {
+void VSNode::notifyCache(bool needMemory, bool resetSize) {
     std::lock_guard<std::mutex> lock(cacheMutex);
-    cache.adjustSize(needMemory);
+    cache.adjustSize(needMemory, resetSize);
 }
 
-void VSCore::notifyCaches(bool needMemory) {
+void VSCore::notifyCaches(bool needMemory, bool resetSize) {
     std::lock_guard<std::mutex> lock(cacheLock);
     for (auto &cache : caches)
-        cache->notifyCache(needMemory);
+        cache->notifyCache(needMemory, resetSize);
 }
 
 const vs3::VSVideoFormat *VSCore::getV3VideoFormat(int id) {
@@ -2445,37 +2445,41 @@ void VSNode::VSCache::trim(int max, int maxHistory) {
     }
 }
 
-void VSNode::VSCache::adjustSize(bool needMemory) {
+void VSNode::VSCache::adjustSize(bool needMemory, bool resetSize) {
     if (!fixedSize) {
-        if (!needMemory) {
-            switch (recommendSize()) {
-            case VSCache::CacheAction::Clear:
-                clear();
-                setMaxFrames(std::max(getMaxFrames() - 2, 0));
-                break;
-            case VSCache::CacheAction::Grow:
-                setMaxFrames(getMaxFrames() + 2);
-                break;
-            case VSCache::CacheAction::Shrink:
-                setMaxFrames(std::max(getMaxFrames() - 1, 0));
-                break;
-            default:;
-            }
+        if (resetSize) {
+            setMaxFrames(20);
         } else {
-            switch (recommendSize()) {
-            case VSCache::CacheAction::Clear:
-                clear();
-                setMaxFrames(std::max(getMaxFrames() - 2, 0));
-                break;
-            case VSCache::CacheAction::Shrink:
-                setMaxFrames(std::max(getMaxFrames() - 2, 0));
-                break;
-            case VSCache::CacheAction::NoChange:
-                if (getMaxFrames() <= 1)
-                    clear();
-                setMaxFrames(std::max(getMaxFrames() - 1, 1));
-                break;
-            default:;
+            if (!needMemory) {
+                switch (recommendSize()) {
+                    case VSCache::CacheAction::Clear:
+                        clear();
+                        setMaxFrames(std::max(getMaxFrames() - 2, 0));
+                        break;
+                    case VSCache::CacheAction::Grow:
+                        setMaxFrames(getMaxFrames() + 2);
+                        break;
+                    case VSCache::CacheAction::Shrink:
+                        setMaxFrames(std::max(getMaxFrames() - 1, 0));
+                        break;
+                    default:;
+                }
+            } else {
+                switch (recommendSize()) {
+                    case VSCache::CacheAction::Clear:
+                        clear();
+                        setMaxFrames(std::max(getMaxFrames() - 2, 0));
+                        break;
+                    case VSCache::CacheAction::Shrink:
+                        setMaxFrames(std::max(getMaxFrames() - 2, 0));
+                        break;
+                    case VSCache::CacheAction::NoChange:
+                        if (getMaxFrames() <= 1)
+                            clear();
+                        setMaxFrames(std::max(getMaxFrames() - 1, 1));
+                        break;
+                    default:;
+                }
             }
         }
     }

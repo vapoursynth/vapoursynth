@@ -813,7 +813,7 @@ private:
 
         CacheAction recommendSize();
 
-        void adjustSize(bool needMemory);
+        void adjustSize(bool needMemory, bool resetSize);
     };
 
     std::atomic<long> refcount;
@@ -935,7 +935,7 @@ public:
     void releaseThread();
     bool isWorkerThread();
 
-    void notifyCache(bool needMemory);
+    void notifyCache(bool needMemory, bool resetSize);
 };
 
 class VSThreadPool {
@@ -945,6 +945,7 @@ private:
     std::mutex callbackLock;
     std::map<std::thread::id, std::thread *> allThreads;
     std::list<PVSFrameContext> tasks;
+    std::list<PVSFrameContext> altTasks;
     std::unordered_map<NodeOutputKey, PVSFrameContext> allContexts;
     std::condition_variable newWork;
     std::condition_variable allIdle;
@@ -955,6 +956,7 @@ private:
     size_t maxThreads;
     size_t currentMaxThreads;
     std::atomic<bool> stopThreads;
+    std::atomic<bool> flushCaches;
     std::atomic<size_t> ticks;
     size_t getNumAvailableThreads();
     void queueTask(const PVSFrameContext &ctx);
@@ -1103,7 +1105,7 @@ public:
     std::string getFrameRefInfo();
     //
 
-    void notifyCaches(bool needMemory);
+    void notifyCaches(bool needMemory, bool resetSize = false);
     const vs3::VSVideoFormat *getV3VideoFormat(int id);
     const vs3::VSVideoFormat *getVideoFormat3(int id);
     static bool queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept;
