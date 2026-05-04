@@ -275,7 +275,6 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
         size_t numActive = activeThreads;
         if (!ranTask || (numActive > currentMaxThreads) || (core->memory->is_over_limit() && numActive > 1)) {
             --activeThreads;
-            assert(activeThreads >= 1);
             if (stop) {
                 lock.unlock();
                 break;
@@ -283,6 +282,7 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
 
             if (allThreads.size() > currentMaxThreads + 1) {
                 allThreads.erase(std::this_thread::get_id());
+                newWork.notify_all();
                 lock.unlock();
                 break;
             }
@@ -294,10 +294,10 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
                     flushCaches = false;
                     std::swap(tasks, altTasks);
                     core->logMessage(mtInformation, "Pipeline flushed, resuming processing");
+                    newWork.notify_all();
                 } else {
                     allIdle.notify_one();
                 }
-                newWork.notify_all();
             }
 
             newWork.wait(lock);
