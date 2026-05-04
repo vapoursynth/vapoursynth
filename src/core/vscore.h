@@ -951,7 +951,9 @@ private:
     std::atomic<size_t> activeThreads;
     std::atomic<size_t> idleThreads;
     std::atomic<size_t> reqCounter;
+    std::atomic<size_t> reqMemCounter;
     size_t maxThreads;
+    size_t currentMaxThreads;
     std::atomic<bool> stopThreads;
     std::atomic<size_t> ticks;
     size_t getNumAvailableThreads();

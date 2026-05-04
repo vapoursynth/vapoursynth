@@ -198,6 +198,15 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
             lock.lock();
 
             if (requestedFrames) {
+                // check to see if it's time to reevaluate cache sizes
+                if (core->memory->is_over_limit()) {
+                    ticks = 0;
+                    core->notifyCaches(true);
+                } else if (++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
+                    ticks = 0;
+                    core->notifyCaches(false);
+                }
+
                 assert(frameContext->numFrameRequests == 0);
 
                 for (size_t i = 0; i < frameContext->reqList.size(); i++)
@@ -205,6 +214,15 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
 
                 frameContext->numFrameRequests = frameContext->reqList.size();
                 frameContext->reqList.clear();
+
+                size_t numActive = activeThreads;
+                if (currentMaxThreads >= numActive * 3 && core->memory->is_over_limit() && numActive > 0) {
+                    --currentMaxThreads;
+                    core->logMessage(mtInformation, "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage");
+                } else if (currentMaxThreads < maxThreads && core->memory->is_under_limit() && ++reqMemCounter % 500 == 0) {
+                    ++currentMaxThreads;
+                    core->logMessage(mtInformation, "Maximum running threads increased to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to more memory being available");
+                }
             }
 
             if (frameProcessingDone)
@@ -252,7 +270,8 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
             break;
         }
 
-        if (!ranTask || (activeThreads > maxThreads) || (core->memory->is_over_high_limit() && activeThreads > 1)) {
+        size_t numActive = activeThreads;
+        if (!ranTask || (numActive > currentMaxThreads) || (core->memory->is_over_limit() && numActive > 1)) {
             --activeThreads;
             if (stop) {
                 lock.unlock();
@@ -268,7 +287,7 @@ void VSThreadPool::runTasks(std::atomic<bool> &stop) {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), stopThreads(false), ticks(0) {
+VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), reqMemCounter(0), stopThreads(false), ticks(0) {
     setThreadCount(0);
 }
 
@@ -290,6 +309,7 @@ size_t VSThreadPool::setThreadCount(size_t threads) {
         maxThreads = 1;
         core->logMessage(mtWarning, "Couldn't detect optimal number of threads. Thread count set to 1.");
     }
+    currentMaxThreads = maxThreads;
     return maxThreads;
 }
 
@@ -300,13 +320,9 @@ void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
 }
 
 void VSThreadPool::wakeThread() {
-    if (activeThreads < maxThreads) {
-        if (core->memory->is_over_high_limit() && activeThreads > 0) {
-
-            if ((maxThreads >= 2 * activeThreads)) {
-                --maxThreads;
-                core->logMessage(mtWarning, "Maximum running threads reduced to " + std::to_string(maxThreads) + " due to excessive cache usage");
-            }
+    size_t numActive = activeThreads;
+    if (numActive < currentMaxThreads) {
+        if (core->memory->is_over_limit() && numActive > 0) {
             // do nothing
         } else {
             if (idleThreads == 0) // newly spawned threads are active so no need to notify an additional thread
@@ -370,16 +386,6 @@ void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutpu
 
     if (key.second < 0)
         core->logFatal("Negative frame request by: " + notify->key.first->getName());
-
-    // check to see if it's time to reevaluate cache sizes
-    if (core->memory->is_over_low_limit()) {
-        ticks = 0;
-        core->notifyCaches(true);
-    } else if (++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
-        ticks = 0;
-        core->notifyCaches(false);
-    }
-
 
     auto it = allContexts.find(key);
     if (it != allContexts.end()) {
