@@ -682,7 +682,7 @@ static void printHelp() {
         "    vspipe [options] script.vpy -\n"
 #ifdef _WIN32
         "  Write to a named pipe (Windows only):\n"
-        "    vspipe [options] script.vpy \"\\\\.\\pipe\\<pipename>\n"
+        "    vspipe [options] script.vpy \"\\\\.\\pipe\\<pipename>\"\n"
 #endif
         "  Request all frames but don't output them:\n"
         "    vspipe [options] script.vpy --\n"
