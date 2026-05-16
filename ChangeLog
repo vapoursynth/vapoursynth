@@ -1,5 +1,5 @@
 r76:
-vsrepo is now no longer installed automatically for portable installs due to vsrepo
+vsrepo is now no longer installed automatically for portable installs due to most plugins being available on pypi
 the register-install command can now be used on *nix as well (HolyWu)
 fixed ctrl-c handling in vspipe on non-windows systems
 fixed an issue where certain compilers would occasionally compile the avx2 code path for some internal filters like maximum in a way that could produce pixels garbage along the edges
