@@ -491,5 +491,3 @@ def vspipe():
         sys.exit(subprocess.run([vspipe_path, *sys.argv[1:]]).returncode)
     except KeyboardInterrupt:
         sys.exit(0)
-    except err:
-        raise err
