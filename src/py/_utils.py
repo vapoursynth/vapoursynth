@@ -487,5 +487,9 @@ def vspipe():
 
     vspipe_path = PurePath(__file__)
     vspipe_path = vspipe_path.with_name("vspipe")
-    ret = subprocess.run([vspipe_path, *sys.argv[1:]])
-    sys.exit(ret.returncode)
+    try:
+        sys.exit(subprocess.run([vspipe_path, *sys.argv[1:]]).returncode)
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except err:
+        raise err
