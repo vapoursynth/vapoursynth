@@ -24,7 +24,7 @@ is_win = host_system in ['cygwin', 'windows']
 
 if is_win
     dl_dep = dependency('', required: false)
-    libp2p_dep = dependency('libp2p', static: true)
+    libp2p_dep = dependency('libp2p')
 else
     dl_dep = dependency('dl')
 endif
@@ -116,7 +116,7 @@ endif
 deps = [
     dl_dep,
     dependency('threads'),
-    dependency('zimg', static: true, version: '>=3.0.5'),
+    dependency('zimg', version: '>=3.0.5'),
 ]
 
 libs = []

@@ -1,8 +1,10 @@
 project('libp2p', 'cpp',
-    default_options: ['warning_level=0', 'cpp_std=c++14'],
+    default_options: ['default_library=static', 'warning_level=0', 'cpp_std=c++14'],
 )
 
 cxx = meson.get_compiler('cpp')
+
+libs = []
 
 if cxx.get_argument_syntax() == 'gcc'
     add_project_arguments('-w', language: 'cpp')
@@ -16,11 +18,9 @@ if get_option('buildtype') == 'release'
     endif
 endif
 
-libs = []
-
-if meson.get_compiler('cpp').get_argument_syntax() == 'gcc'
+if cxx.get_argument_syntax() == 'gcc'
     sse4_args = '-march=x86-64-v2'
-elif meson.get_compiler('cpp').get_id() == 'clang-cl'
+elif cxx.get_id() == 'clang-cl'
     sse4_args = '/clang:-march=x86-64-v2'
 else
     sse4_args = []
@@ -37,8 +37,12 @@ if host_machine.cpu_family().startswith('x86')
 endif
 
 libp2p = library('p2p',
-    files('simd/cpuinfo_x86.cpp', 'simd/p2p_simd.cpp', 'p2p_api.cpp', 'v210.cpp'),
-    gnu_symbol_visibility: 'hidden',
+    files(
+        'simd/cpuinfo_x86.cpp',
+        'simd/p2p_simd.cpp',
+        'p2p_api.cpp',
+        'v210.cpp',
+    ),
     link_with: libs,
 )
 
