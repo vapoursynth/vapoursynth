@@ -2121,6 +2121,7 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
 typedef struct {
     VSVideoInfo vi;
     std::string prop;
+    int index;
 } PropToClipDataExtra;
 
 typedef SingleNodeData<PropToClipDataExtra> PropToClipData;
@@ -2133,7 +2134,7 @@ static const VSFrame *VS_CC propToClipGetFrame(int n, int activationReason, void
     } else if (activationReason == arAllFramesReady) {
         int err;
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFrame *dst = vsapi->mapGetFrame(vsapi->getFramePropertiesRO(src), d->prop.c_str(), 0, &err);
+        const VSFrame *dst = vsapi->mapGetFrame(vsapi->getFramePropertiesRO(src), d->prop.c_str(), d->index, &err);
         vsapi->freeFrame(src);
 
         if (dst) {
@@ -2169,14 +2170,18 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     if (d->prop.empty())
         RETERROR("PropToClip: property name can't be an empty string");
 
+    d->index = vsapi->mapGetInt(in, "index", 0, &err);
+    if (d->index < 0)
+        RETERROR("PropToClip: index can't be negative");
+
     const VSFrame *src = vsapi->getFrame(0, d->node, errmsg, sizeof(errmsg));
     if (!src)
         RETERROR(("PropToClip: upstream error: " + std::string(errmsg)).c_str());
 
-    const VSFrame *msrc = vsapi->mapGetFrame(vsapi->getFramePropertiesRO(src), d->prop.c_str(), 0, &err);
+    const VSFrame *msrc = vsapi->mapGetFrame(vsapi->getFramePropertiesRO(src), d->prop.c_str(), d->index, &err);
     if (err) {
         vsapi->freeFrame(src);
-        RETERROR(("PropToClip: no frame stored in property: " + d->prop).c_str());
+        RETERROR(("PropToClip: no frame stored in property: " + d->prop + " index " + std::to_string(d->index)).c_str());
     }
 
     d->vi.format = *vsapi->getVideoFrameFormat(msrc);
@@ -2598,7 +2603,7 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("PEMVerifier", "clip:vnode;upper:float[]:opt;lower:float[]:opt;", "clip:vnode;", pemVerifierCreate, 0, plugin);
     vspapi->registerFunction("PlaneStats", "clipa:vnode;clipb:vnode:opt;plane:int:opt;prop:data:opt;", "clip:vnode;", planeStatsCreate, 0, plugin);
     vspapi->registerFunction("ClipToProp", "clip:vnode;mclip:vnode;prop:data:opt;", "clip:vnode;", clipToPropCreate, 0, plugin);
-    vspapi->registerFunction("PropToClip", "clip:vnode;prop:data:opt;", "clip:vnode;", propToClipCreate, 0, plugin);
+    vspapi->registerFunction("PropToClip", "clip:vnode;prop:data:opt;index:int:opt;", "clip:vnode;", propToClipCreate, 0, plugin);
     vspapi->registerFunction("SetFrameProp", "clip:vnode;prop:data;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode;", setFramePropCreate, 0, plugin);
     vspapi->registerFunction("SetFrameProps", "clip:vnode;any", "clip:vnode;", setFramePropsCreate, 0, plugin);
     vspapi->registerFunction("RemoveFrameProps", "clip:vnode;props:data[]:opt;", "clip:vnode;", removeFramePropsCreate, 0, plugin);

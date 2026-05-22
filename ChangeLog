@@ -1,3 +1,6 @@
+r77:
+proptoclip now also take an index for the property
+
 r76:
 vsrepo is now no longer installed automatically for portable installs due to most plugins being available on pypi
 the register-install command can now be used on *nix as well (HolyWu)
