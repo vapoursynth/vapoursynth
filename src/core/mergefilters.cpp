@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <memory>
+#include <string>
 #include <algorithm>
 #include "cpufeatures.h"
 #include "filtershared.h"
@@ -33,10 +34,112 @@
 using namespace vsh;
 
 //////////////////////////////////////////
+// Chroma-location-aware mask resampling helpers shared by MaskedMerge and PreMultiply.
+//
+// When a single-plane mask/alpha at luma resolution is applied to a YUV clip
+// with subsampled chroma, the mask must be downsampled to chroma resolution
+// with output samples landing on luma-aligned positions implied by the
+// source's _ChromaLocation. zimg's chromaloc handling only works for true U/V
+// plane resamples, so we instead invoke resize plugin on the GRAY mask with
+// explicit src_left/src_top shifts, pre-creating one candidate per
+// VSChromaLocation value, dispatched based on each source frame's
+// _ChromaLocation (guessing left when property is absent or invalid).
+
+static constexpr int numChromaLocations = 6; // VSC_CHROMA_LEFT (0) to VSC_CHROMA_BOTTOM (5)
+
+// src_left/src_top (in source luma pixels) for downsampling a luma-resolution mask to
+// chroma resolution while aligning output samples to chromaloc-implied luma
+// position. The default centered downsample places output at luma offset (s-1)/2
+// within a block of s luma pixels. Shift by the chromaloc offset minus that center.
+static void getChromalocLumaShift(int chromaloc, int subSamplingW, int subSamplingH,
+                                  double *src_left, double *src_top) {
+    int s_w = 1 << subSamplingW;
+    int s_h = 1 << subSamplingH;
+    double center_w = (s_w - 1) / 2.0;
+    double center_h = (s_h - 1) / 2.0;
+
+    double h_offset = center_w;
+    double v_offset = center_h;
+
+    switch (chromaloc) {
+        case VSC_CHROMA_LEFT:         h_offset = 0.0;       v_offset = center_h; break;
+        case VSC_CHROMA_CENTER:       h_offset = center_w;  v_offset = center_h; break;
+        case VSC_CHROMA_TOP_LEFT:     h_offset = 0.0;       v_offset = 0.0;      break;
+        case VSC_CHROMA_TOP:          h_offset = center_w;  v_offset = 0.0;      break;
+        case VSC_CHROMA_BOTTOM_LEFT:  h_offset = 0.0;       v_offset = s_h - 1;  break;
+        case VSC_CHROMA_BOTTOM:       h_offset = center_w;  v_offset = s_h - 1;  break;
+        default: break;
+    }
+
+    *src_left = h_offset - center_w;
+    *src_top = v_offset - center_h;
+}
+
+// Pre-create one resize candidate per VSChromaLocation via src_left/src_top
+// shift. Return empty string on success. On fail, fill out with nullptrs and
+// return error string. Caller is responsible for freeing any resulting nodes.
+static std::string createChromaResizeCandidates(VSNode *mask_node, int dst_width, int dst_height,
+                                              int subSamplingW, int subSamplingH,
+                                              VSNode *out[numChromaLocations],
+                                              VSCore *core, const VSAPI *vsapi) {
+    for (int i = 0; i < numChromaLocations; i++)
+        out[i] = nullptr;
+
+    VSPlugin *resize_plugin = vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core);
+    if (!resize_plugin)
+        return "resize plugin not available";
+
+    for (int loc = 0; loc < numChromaLocations; loc++) {
+        double src_left, src_top;
+        getChromalocLumaShift(loc, subSamplingW, subSamplingH, &src_left, &src_top);
+
+        VSMap *args = vsapi->createMap();
+        vsapi->mapSetNode(args, "clip", mask_node, maAppend);
+        vsapi->mapSetInt(args, "width", dst_width, maAppend);
+        vsapi->mapSetInt(args, "height", dst_height, maAppend);
+        vsapi->mapSetFloat(args, "src_left", src_left, maAppend);
+        vsapi->mapSetFloat(args, "src_top", src_top, maAppend);
+
+        VSMap *result = vsapi->invoke(resize_plugin, "Bilinear", args);
+        vsapi->freeMap(args);
+
+        const char *invoke_err = vsapi->mapGetError(result);
+        if (invoke_err) {
+            std::string msg = std::string("resize.Bilinear failed: ") + invoke_err;
+            vsapi->freeMap(result);
+            for (int j = 0; j < loc; j++) {
+                vsapi->freeNode(out[j]);
+                out[j] = nullptr;
+            }
+            return msg;
+        }
+
+        out[loc] = vsapi->mapGetNode(result, "clip", 0, nullptr);
+        vsapi->freeMap(result);
+    }
+    return {};
+}
+
+// Read _ChromaLocation from frameprops, guessing left when prop absent or out
+// of range. Always returns a VSChromaLocation index.
+static int resolveChromaLocation(const VSFrame *frame, const VSAPI *vsapi) {
+    int err;
+    int64_t raw = vsapi->mapGetInt(vsapi->getFramePropertiesRO(frame), "_ChromaLocation", 0, &err);
+    if (err || raw < VSC_CHROMA_LEFT || raw > VSC_CHROMA_BOTTOM)
+        return VSC_CHROMA_LEFT;
+    return static_cast<int>(raw);
+}
+
+//////////////////////////////////////////
 // PreMultiply
 
 
-typedef VariableNodeData<VIPointerData> PreMultiplyData;
+typedef struct {
+    const VSVideoInfo *vi;
+    bool chroma_dispatch;  // If true, nodes 2-7 are 6 per-chromaloc resizes
+} PreMultiplyDataExtra;
+
+typedef VariableNodeData<PreMultiplyDataExtra> PreMultiplyData;
 
 static unsigned getLimitedRangeOffset(const VSFrame *f, const VSVideoInfo *vi, const VSAPI *vsapi) {
     int err;
@@ -52,14 +155,30 @@ static const VSFrame *VS_CC preMultiplyGetFrame(int n, int activationReason, voi
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->nodes[0], frameCtx);
         vsapi->requestFrameFilter(n, d->nodes[1], frameCtx);
-        if (d->nodes[2])
+        if (d->vi->format.numPlanes > 1 && !d->chroma_dispatch) {
+            // No subsampling: reuse alpha for chroma planes (nodes[2] is an alpha alias).
             vsapi->requestFrameFilter(n, d->nodes[2], frameCtx);
+        }
+    } else if (activationReason == arAllFramesReady && d->chroma_dispatch && !frameData[0]) {
+        // Defer chroma-resize candidate selection until we've read source frame's _ChromaLocation.
+        const VSFrame *src1 = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
+        int loc = resolveChromaLocation(src1, vsapi);
+        vsapi->freeFrame(src1);
+
+        VSNode *chroma_candidate = d->nodes[2 + loc];
+        frameData[0] = chroma_candidate;
+        vsapi->requestFrameFilter(n, chroma_candidate, frameCtx);
+        return nullptr;
     } else if (activationReason == arAllFramesReady) {
         const VSFrame *src1 = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
         const VSFrame *src2 = vsapi->getFrameFilter(n, d->nodes[1], frameCtx);
-        const VSFrame *src2_23 = 0;
-        if (d->nodes[2])
-            src2_23 = vsapi->getFrameFilter(n, d->nodes[2], frameCtx);
+        const VSFrame *src2_23 = nullptr;
+        if (d->vi->format.numPlanes > 1) {
+            VSNode *chroma_node = d->chroma_dispatch
+                ? reinterpret_cast<VSNode *>(frameData[0])
+                : d->nodes[2];
+            src2_23 = vsapi->getFrameFilter(n, chroma_node, frameCtx);
+        }
         VSFrame *dst = vsapi->newVideoFrame(&d->vi->format, d->vi->width, d->vi->height, src1, core);
         for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
             int h = vsapi->getFrameHeight(src1, plane);
@@ -105,7 +224,7 @@ static const VSFrame *VS_CC preMultiplyGetFrame(int n, int activationReason, voi
 static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<PreMultiplyData> d(new PreMultiplyData(vsapi));
 
-    d->nodes.resize(3);
+    d->nodes.resize(2);
     d->nodes[0] = vsapi->mapGetNode(in, "clip", 0, 0);
     d->nodes[1] = vsapi->mapGetNode(in, "alpha", 0, 0);
 
@@ -122,22 +241,37 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     if (!isConstantVideoFormat(d->vi) || !isConstantVideoFormat(alphavi) || d->vi->width != alphavi->width || d->vi->height != alphavi->height)
         RETERROR("PreMultiply: both clips must have the same constant format and dimensions");
 
-    // do we need to resample the first mask plane and use it for all the planes?
-    if ((d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0)) {
-        VSMap *min = vsapi->createMap();
-        vsapi->mapSetNode(min, "clip", d->nodes[1], maAppend);
-        vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, maAppend);
-        vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, maAppend);
-        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core), "Bilinear", min);
-        d->nodes[2] = vsapi->mapGetNode(mout, "clip", 0, 0);
-        vsapi->freeMap(mout);
-        vsapi->freeMap(min);
+    bool subsampled = (d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0);
+    d->chroma_dispatch = subsampled;
+
+    if (subsampled) {
+        VSNode *candidates[numChromaLocations] = {};
+        std::string err_msg = createChromaResizeCandidates(d->nodes[1],
+            d->vi->width >> d->vi->format.subSamplingW,
+            d->vi->height >> d->vi->format.subSamplingH,
+            d->vi->format.subSamplingW, d->vi->format.subSamplingH,
+            candidates, core, vsapi);
+        if (!err_msg.empty())
+            RETERROR(("PreMultiply: " + err_msg).c_str());
+        d->nodes.resize(2 + numChromaLocations);
+        for (int i = 0; i < numChromaLocations; i++)
+            d->nodes[2 + i] = candidates[i];
     } else if (d->vi->format.numPlanes > 1) {
+        d->nodes.resize(3);
         d->nodes[2] = vsapi->addNodeRef(d->nodes[1]);
     }
 
-    VSFilterDependency deps[] = {{ d->nodes[0], rpStrictSpatial }, { d->nodes[1], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }, { d->nodes[2], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }};
-    vsapi->createVideoFilter(out, "PreMultiply", d->vi, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, deps, d->nodes[2] ? 3 : 2, d.get(), core);
+    std::vector<VSFilterDependency> deps;
+    deps.push_back({ d->nodes[0], rpStrictSpatial });
+    deps.push_back({ d->nodes[1], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
+    if (subsampled) {
+        for (int i = 0; i < numChromaLocations; i++)
+            deps.push_back({ d->nodes[2 + i], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[2 + i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
+    } else if (d->vi->format.numPlanes > 1) {
+        deps.push_back({ d->nodes[2], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
+    }
+
+    vsapi->createVideoFilter(out, "PreMultiply", d->vi, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, deps.data(), static_cast<int>(deps.size()), d.get(), core);
     d.release();
 }
 
@@ -299,6 +433,7 @@ typedef struct {
     bool first_plane;
     bool process[3];
     int cpulevel;
+    bool chroma_dispatch;   // If true, nodes 3-8 are 6 per-chromaloc resizes of mask
 } MaskedMergeDataExtra;
 
 typedef VariableNodeData<MaskedMergeDataExtra> MaskedMergeData;
@@ -310,21 +445,45 @@ static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, voi
         vsapi->requestFrameFilter(n, d->nodes[0], frameCtx);
         vsapi->requestFrameFilter(n, d->nodes[1], frameCtx);
         vsapi->requestFrameFilter(n, d->nodes[2], frameCtx);
-        if (d->nodes[3])
-            vsapi->requestFrameFilter(n, d->nodes[3], frameCtx);
+    } else if (activationReason == arAllFramesReady && d->chroma_dispatch && !frameData[0]) {
+        // Defer chroma-resize selection until we've read source frame's _ChromaLocation.
+        const VSFrame *src1 = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
+        int loc = resolveChromaLocation(src1, vsapi);
+        vsapi->freeFrame(src1);
+
+        VSNode *chroma_candidate = d->nodes[3 + loc];
+        frameData[0] = chroma_candidate;
+        vsapi->requestFrameFilter(n, chroma_candidate, frameCtx);
+        return nullptr;
     } else if (activationReason == arAllFramesReady) {
         const VSFrame *src1 = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
         const VSFrame *src2 = vsapi->getFrameFilter(n, d->nodes[1], frameCtx);
         const VSFrame *mask = vsapi->getFrameFilter(n, d->nodes[2], frameCtx);
         const VSFrame *mask23 = nullptr;
+
+        // With subsampled chroma, clipa and clipb chroma must sample the same
+        // locations to be meaningfully merged.
+        if (d->vi->format.subSamplingW > 0 || d->vi->format.subSamplingH > 0) {
+            int loc1 = resolveChromaLocation(src1, vsapi);
+            int loc2 = resolveChromaLocation(src2, vsapi);
+            if (loc1 != loc2) {
+                vsapi->freeFrame(src1);
+                vsapi->freeFrame(src2);
+                vsapi->freeFrame(mask);
+                vsapi->setFilterError(("MaskedMerge: clipa and clipb have different chroma locations (_ChromaLocation "
+                    + std::to_string(loc1) + " vs " + std::to_string(loc2) + ")").c_str(), frameCtx);
+                return nullptr;
+            }
+        }
+
         unsigned offset1 = getLimitedRangeOffset(src1, d->vi, vsapi);
         unsigned offset2 = getLimitedRangeOffset(src2, d->vi, vsapi);
 
         const int pl[] = {0, 1, 2};
         const VSFrame *fr[] = {d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1};
         VSFrame *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
-        if (d->nodes[3])
-           mask23 = vsapi->getFrameFilter(n, d->nodes[3], frameCtx);
+        if (d->chroma_dispatch)
+            mask23 = vsapi->getFrameFilter(n, reinterpret_cast<VSNode *>(frameData[0]), frameCtx);
         for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
             if (d->process[plane]) {
                 int h = vsapi->getFrameHeight(src1, plane);
@@ -402,7 +561,7 @@ static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, voi
 static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<MaskedMergeData> d(new MaskedMergeData(vsapi));
 
-    d->nodes.resize(4);
+    d->nodes.resize(3);
 
     int err;
     d->nodes[0] = vsapi->mapGetNode(in, "clipa", 0, 0);
@@ -429,36 +588,62 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     if (!getProcessPlanesArg(in, out, "MaskedMerge", d->process, vsapi))
         return;
 
-    // do we need to resample the first mask plane and use it for all the planes?
-    if ((d->first_plane && d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0) && (d->process[1] || d->process[2])) {
-        VSMap *min = vsapi->createMap();
+    // Do we need to resample the first mask plane and use it for the chroma planes?
+    bool need_chroma_resize = (d->first_plane && d->vi->format.numPlanes > 1)
+                              && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0)
+                              && (d->process[1] || d->process[2]);
+    d->chroma_dispatch = need_chroma_resize;
 
+    if (need_chroma_resize) {
+        // If the mask has more than 1 plane, extract plane 0 first so the
+        // resize candidates only resample the plane we'll read.
+        VSNode *single_plane_mask = nullptr;
         if (maskvi->format.numPlanes > 1) {
-            // Don't resize the unused second and third planes.
+            VSMap *min = vsapi->createMap();
             vsapi->mapSetNode(min, "clips", d->nodes[2], maAppend);
             vsapi->mapSetInt(min, "planes", 0, maAppend);
             vsapi->mapSetInt(min, "colorfamily", cfGray, maAppend);
             VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core), "ShufflePlanes", min);
-            VSNode *mask_first_plane = vsapi->mapGetNode(mout, "clip", 0, 0);
+            vsapi->freeMap(min);
+            const char *shuffle_err = vsapi->mapGetError(mout);
+            if (shuffle_err) {
+                std::string msg = std::string("MaskedMerge: ShufflePlanes failed: ") + shuffle_err;
+                vsapi->freeMap(mout);
+                RETERROR(msg.c_str());
+            }
+            single_plane_mask = vsapi->mapGetNode(mout, "clip", 0, 0);
             vsapi->freeMap(mout);
-            vsapi->clearMap(min);
-            vsapi->mapConsumeNode(min, "clip", mask_first_plane, maAppend);
         } else {
-            vsapi->mapSetNode(min, "clip", d->nodes[2], maAppend);
+            single_plane_mask = vsapi->addNodeRef(d->nodes[2]);
         }
 
-        vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, maAppend);
-        vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, maAppend);
-        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core), "Bilinear", min);
-        d->nodes[3] = vsapi->mapGetNode(mout, "clip", 0, 0);
-        vsapi->freeMap(mout);
-        vsapi->freeMap(min);
+        VSNode *candidates[numChromaLocations] = {};
+        std::string err_msg = createChromaResizeCandidates(single_plane_mask,
+            d->vi->width >> d->vi->format.subSamplingW,
+            d->vi->height >> d->vi->format.subSamplingH,
+            d->vi->format.subSamplingW, d->vi->format.subSamplingH,
+            candidates, core, vsapi);
+        vsapi->freeNode(single_plane_mask);
+        if (!err_msg.empty())
+            RETERROR(("MaskedMerge: " + err_msg).c_str());
+
+        d->nodes.resize(3 + numChromaLocations);
+        for (int i = 0; i < numChromaLocations; i++)
+            d->nodes[3 + i] = candidates[i];
     }
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    VSFilterDependency deps[] = {{ d->nodes[0], rpStrictSpatial }, { d->nodes[1], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }, { d->nodes[2], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }, { d->nodes[3], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }};
-    vsapi->createVideoFilter(out, "MaskedMerge", d->vi, maskedMergeGetFrame, filterFree<MaskedMergeData>, fmParallel, deps, d->nodes[3] ? 4 : 3, d.get(), core);
+    std::vector<VSFilterDependency> deps;
+    deps.push_back({ d->nodes[0], rpStrictSpatial });
+    deps.push_back({ d->nodes[1], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
+    deps.push_back({ d->nodes[2], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
+    if (need_chroma_resize) {
+        for (int i = 0; i < numChromaLocations; i++)
+            deps.push_back({ d->nodes[3 + i], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[3 + i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
+    }
+
+    vsapi->createVideoFilter(out, "MaskedMerge", d->vi, maskedMergeGetFrame, filterFree<MaskedMergeData>, fmParallel, deps.data(), static_cast<int>(deps.size()), d.get(), core);
     d.release();
 }
 
