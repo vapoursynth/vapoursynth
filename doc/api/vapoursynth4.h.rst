@@ -466,11 +466,12 @@ enum VSFilterMode
 
    * fmParallelRequests
 
-     For filters that are serial in nature but can request in advance one or
+     For filters that are single-threaded in nature but can request in advance one or
      more frames they need.
      A filter's "getframe" function will be called from multiple threads at a
      time with activation reason arInitial, but only one thread will call it
-     with activation reason arAllFramesReady at a time.
+     with activation reason arAllFramesReady at a time. Calls with arAllFramesReady are not
+     guaranteed to be serial, meaning that frame 2 may be requested before frame 1, etc.
 
    * fmUnordered
 

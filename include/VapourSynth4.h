@@ -162,7 +162,7 @@ typedef enum VSPresetVideoFormat {
 
 typedef enum VSFilterMode {
     fmParallel = 0, /* completely parallel execution */
-    fmParallelRequests = 1, /* for filters that are serial in nature but can request one or more frames they need in advance */
+    fmParallelRequests = 1, /* for filters that are single-threaded in nature but can request one or more frames they need in advance */
     fmUnordered = 2, /* for filters that modify their internal state every request like source filters that read a file */
     fmFrameState = 3 /* DO NOT USE UNLESS ABSOLUTELY NECESSARY, for compatibility with external code that can only keep the processing state of a single frame at a time */
 } VSFilterMode;

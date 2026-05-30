@@ -26,9 +26,9 @@ Plugins
 -------
 Plugin code may run more multithreaded than it initially appears. *VapourSynthPluginInit* is the only function always guaranteed to not run in parallel. This means that the constructor and destructor of a filter may be run in parallel for several instances. Use proper synchronization if you need to initialize shared data.
 
-The *GetFrame* function is a bit more complicated so see the reference of the constants. Do however note that the parallelism is per instance. Even if a filter is *fmUnordered* or *fmSerial* other instances may enter *GetFrame* simultaneously.
+The *GetFrame* function is a bit more complicated so see the reference of the constants. Do however note that the parallelism is per instance. Even if a filter is *fmUnordered* or *fmFrameState* other instances may enter *GetFrame* simultaneously.
 
-There are two common misconseptions about which mode should be used. A simple rule is that *fmSerial* should never be used. And source filters (those returning a frame on *arInitial*) that need locking should use *fmUnordered*.
+There are two common misconseptions about which mode should be used. A simple rule is that *fmFrameState* should never be used. And source filters (those returning a frame on *arInitial*) that need locking should use *fmUnordered*.
 
 Reserved Frame Properties
 #########################
