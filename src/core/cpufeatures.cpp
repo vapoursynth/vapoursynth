@@ -135,6 +135,11 @@ int doGetX86ABILevel(void) {
     return 3;
 }
 
+#elif defined(VS_TARGET_CPU_RISCV)
+static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
+    *cpuFeatures = {};
+    cpuFeatures->can_run_vs = 1;
+}
 #else
 static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
     *cpuFeatures = {};
