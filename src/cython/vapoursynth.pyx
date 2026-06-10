@@ -2295,7 +2295,9 @@ cdef class VideoNode(RawNode):
                 fileobj = fileobj.buffer
 
         if progress_update is not None:
-            progress_update(0, len(self))
+            if not callable(progress_update):
+                raise TypeError("progress_update must be a callable")
+            progress_update(0, self.num_frames)
 
         if y4m:
             if self.format.color_family == cfGray:
