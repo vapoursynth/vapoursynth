@@ -19,16 +19,15 @@
 
 cimport vapoursynth
 include 'vsconstants.pxd'
+from vshelper cimport bitblt
 from vsscript_internal cimport VSScript
 from wave cimport WaveHeader, Wave64Header, CreateWave64Header, CreateWaveHeader, PackChannels16to16le, PackChannels32to24le, PackChannels32to32le
 cimport cython.parallel
 from cython cimport view, final
 from libc.stdlib cimport malloc, free, realloc
 from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t, uint8_t, uint64_t, int64_t
-from cpython.buffer cimport PyBUF_SIMPLE
-from cpython.buffer cimport PyBuffer_FillInfo
-from cpython.buffer cimport PyBuffer_Release
-from cpython.memoryview cimport PyMemoryView_FromObject
+from cpython.buffer cimport PyBUF_READ, PyBUF_SIMPLE, PyBuffer_FillInfo, PyBuffer_Release
+from cpython.memoryview cimport PyMemoryView_FromMemory, PyMemoryView_FromObject
 from cpython.number cimport PyIndex_Check
 from cpython.number cimport PyNumber_Index
 from cpython.ref cimport Py_INCREF, Py_DECREF
@@ -2332,17 +2331,72 @@ cdef class VideoNode(RawNode):
             fileobj.write(data.encode("ascii"))
 
         write = fileobj.write
-        readchunks = VideoFrame.readchunks
+        total = self.num_frames
 
-        for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
-            if y4m:
-                fileobj.write(b"FRAME\n")
+        cdef:
+            const VSAPI *lib = self.funcs
+            const VSVideoFormat *fi
+            uint8_t *buffer = NULL
+            size_t buffer_size = <size_t>0
+            ptrdiff_t stride
+            const uint8_t *readPtr
+            size_t rowSize
+            int height
+            int p
+            const VSFrame *constf
 
-            for chunk in readchunks(frame):
-                write(chunk)
+        # Pre-allocate buffer for packing
+        buffer_size = <size_t>(self.width * self.height * self.format.bytes_per_sample)
+        buffer = <uint8_t *>malloc(buffer_size)
+        if not buffer:
+            raise Error("Failed to allocate memory for output buffer")
 
-            if progress_update is not None:
-                progress_update(idx+1, len(self))
+        try:
+            for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
+                if y4m:
+                    write(b"FRAME\n")
+
+                constf = (<VideoFrame>frame).constf
+                fi = lib.getVideoFrameFormat(constf)
+                for p in range(fi.numPlanes):
+                    stride = lib.getStride(constf, p)
+                    readPtr = lib.getReadPtr(constf, p)
+                    rowSize = <size_t>lib.getFrameWidth(constf, p) * fi.bytesPerSample
+                    height = lib.getFrameHeight(constf, p)
+
+                    if stride == <ptrdiff_t>rowSize:
+                        write(PyMemoryView_FromMemory(<char *>readPtr, rowSize * height, PyBUF_READ))
+                    else:
+                        with nogil:
+                            bitblt(buffer, rowSize, readPtr, stride, rowSize, height)
+                        write(PyMemoryView_FromMemory(<char *>buffer, rowSize * height, PyBUF_READ))
+
+                alpha = frame.props.get("_Alpha")
+                if alpha is not None:
+                    if y4m:
+                        raise ValueError("Can only apply y4m headers to clips without alpha")
+
+                    constf = (<VideoFrame>alpha).constf
+                    fi = lib.getVideoFrameFormat(constf)
+                    for p in range(fi.numPlanes):
+                        stride = lib.getStride(constf, p)
+                        readPtr = lib.getReadPtr(constf, p)
+                        rowSize = <size_t>lib.getFrameWidth(constf, p) * fi.bytesPerSample
+                        height = lib.getFrameHeight(constf, p)
+
+                        if stride == <ptrdiff_t>rowSize:
+                            write(PyMemoryView_FromMemory(<char *>readPtr, rowSize * height, PyBUF_READ))
+                        else:
+                            with nogil:
+                                bitblt(buffer, rowSize, readPtr, stride, rowSize, height)
+                            write(PyMemoryView_FromMemory(<char *>buffer, rowSize * height, PyBUF_READ))
+
+                    alpha.close()
+
+                if progress_update is not None:
+                    progress_update(idx + 1, total)
+        finally:
+            free(buffer)
 
         if hasattr(fileobj, "flush"):
             fileobj.flush()
