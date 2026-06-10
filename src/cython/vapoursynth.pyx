@@ -2301,37 +2301,33 @@ cdef class VideoNode(RawNode):
 
         if y4m:
             if self.format.color_family == cfGray:
-                y4mformat = 'mono'
+                y4mformat = "mono"
                 if self.format.bits_per_sample > 8:
-                    y4mformat = y4mformat + str(self.format.bits_per_sample)
+                    y4mformat += str(self.format.bits_per_sample)
             elif self.format.color_family == cfYUV:
-                if self.format.subsampling_w == 1 and self.format.subsampling_h == 1:
-                    y4mformat = '420'
-                elif self.format.subsampling_w == 1 and self.format.subsampling_h == 0:
-                    y4mformat = '422'
-                elif self.format.subsampling_w == 0 and self.format.subsampling_h == 0:
-                    y4mformat = '444'
-                elif self.format.subsampling_w == 2 and self.format.subsampling_h == 2:
-                    y4mformat = '410'
-                elif self.format.subsampling_w == 2 and self.format.subsampling_h == 0:
-                    y4mformat = '411'
-                elif self.format.subsampling_w == 0 and self.format.subsampling_h == 1:
-                    y4mformat = '440'
+                if (self.format.subsampling_w, self.format.subsampling_h) == (1, 1):
+                    y4mformat = "420"
+                elif (self.format.subsampling_w, self.format.subsampling_h) == (1, 0):
+                    y4mformat = "422"
+                elif (self.format.subsampling_w, self.format.subsampling_h) == (0, 0):
+                    y4mformat = "444"
+                elif (self.format.subsampling_w, self.format.subsampling_h) == (2, 2):
+                    y4mformat = "410"
+                elif (self.format.subsampling_w, self.format.subsampling_h) == (2, 0):
+                    y4mformat = "411"
+                elif (self.format.subsampling_w, self.format.subsampling_h) == (0, 1):
+                    y4mformat = "440"
+                else:
+                    raise NotImplementedError("Unsupported subsampling for Y4M")
+
                 if self.format.bits_per_sample > 8:
-                    y4mformat = y4mformat + 'p' + str(self.format.bits_per_sample)
+                    y4mformat += f"p{self.format.bits_per_sample}"
             else:
-                raise ValueError("Can only use GRAY and YUV for V4M-Streams")
+                raise ValueError("Can only use GRAY and YUV for Y4M-Streams")
 
-            if len(y4mformat) > 0:
-                y4mformat = 'C' + y4mformat + ' '
-
-            data = 'YUV4MPEG2 {y4mformat}W{width} H{height} F{fps_num}:{fps_den} Ip A0:0 XLENGTH={length}\n'.format(
-                y4mformat=y4mformat,
-                width=self.width,
-                height=self.height,
-                fps_num=self.fps_num,
-                fps_den=self.fps_den,
-                length=len(self)
+            data = (
+                f"YUV4MPEG2 C{y4mformat} W{self.width} H{self.height} F{self.fps_num}:{self.fps_den} "
+                f"Ip A0:0 XLENGTH={self.num_frames}\n"
             )
             fileobj.write(data.encode("ascii"))
 
