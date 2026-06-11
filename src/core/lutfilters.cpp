@@ -61,7 +61,7 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
         const VSFrame *fr[] = {d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src};
         VSFrame *dst = vsapi->newVideoFrame2(&fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
-        T maxval = static_cast<T>((static_cast<int64_t>(1) << fi.bitsPerSample) - 1);
+        T maxIndex = static_cast<T>((static_cast<int64_t>(1) << d->vi->format.bitsPerSample) - 1);
 
         for (int plane = 0; plane < fi.numPlanes; plane++) {
 
@@ -77,7 +77,7 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
 
                 for (int hl = 0; hl < h; hl++) {
                     for (int x = 0; x < w; x++)
-                        dstp[x] =  lut[std::min(srcp[x], maxval)];
+                        dstp[x] =  lut[std::min(srcp[x], maxIndex)];
 
                     dstp += dst_stride / sizeof(U);
                     srcp += src_stride / sizeof(T);
