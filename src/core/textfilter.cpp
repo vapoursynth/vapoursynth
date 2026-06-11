@@ -691,6 +691,12 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         d->scale = 1;
     }
 
+    if (d->scale < 1) {
+        vsapi->mapSetError(out, "Text: scale must be a positive integer");
+        vsapi->freeNode(d->node);
+        return;
+    }
+
     d->filter = reinterpret_cast<intptr_t>(userData);
 
     switch (d->filter) {
