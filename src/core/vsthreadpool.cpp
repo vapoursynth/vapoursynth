@@ -354,18 +354,13 @@ void VSThreadPool::wakeThread() {
     }
 }
 
-void VSThreadPool::releaseThread() {
-    --activeThreads;
-}
-
-void VSThreadPool::reserveThread() {
-    ++activeThreads;
-}
-
 void VSThreadPool::startExternal(const PVSFrameContext &context) {
     assert(context);
     std::lock_guard<std::mutex> l(taskLock);
     context->reqOrder = ++reqCounter;
+    context->reserveThread = context->reserveThread && (allThreads.count(std::this_thread::get_id()) > 0);
+    if (context->reserveThread)
+        --activeThreads;
     assert(context);
     if (flushCaches) {
         altTasks.push_back(context);
@@ -378,6 +373,7 @@ void VSThreadPool::startExternal(const PVSFrameContext &context) {
 void VSThreadPool::returnFrame(VSFrameContext *rCtx, const PVSFrame &f) {
     assert(rCtx->frameDone);
     bool outputLock = rCtx->lockOnOutput;
+    bool reserveThread = rCtx->reserveThread;
     // we need to unlock here so the callback may request more frames without causing a deadlock
     // AND so that slow callbacks will only block operations in this thread, not all the others
     taskLock.unlock();
@@ -403,6 +399,8 @@ void VSThreadPool::returnFrame(VSFrameContext *rCtx, const PVSFrame &f) {
     if (core->enableFrameRefDebug)
         core->logMessage(mtInformation, core->getFrameRefInfo());
     taskLock.lock();
+    if (reserveThread)
+        ++activeThreads;
 }
 
 void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutputKey key) {
@@ -423,11 +421,6 @@ void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutpu
         allContexts.insert(std::make_pair(key, ctx));
         queueTask(ctx);
     }
-}
-
-bool VSThreadPool::isWorkerThread() {
-    std::lock_guard<std::mutex> m(taskLock);
-    return allThreads.count(std::this_thread::get_id()) > 0;
 }
 
 void VSThreadPool::waitForDone() {

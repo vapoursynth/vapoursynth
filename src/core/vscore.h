@@ -585,6 +585,7 @@ private:
     bool first = true;
     bool external;
     bool lockOnOutput;
+    bool reserveThread;
 
     /// internal return only
     SemiStaticVector<PVSFrameContext, NUM_FRAMECONTEXT_FAST_REQS> notifyCtxList;
@@ -620,7 +621,7 @@ public:
 
     bool setError(const std::string &errorMsg);
     VSFrameContext(NodeOutputKey key, const PVSFrameContext &notify);
-    VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput);
+    VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput, bool reserveThread);
 };
 
 struct VSFunctionFrame;
@@ -930,11 +931,6 @@ public:
     void cacheFrame(const VSFrame *frame, int n);
     void clearCache(bool resetSize);
 
-    // to get around encapsulation a bit, more elegant than making everything friends in this case
-    void reserveThread();
-    void releaseThread();
-    bool isWorkerThread();
-
     void notifyCache(bool needMemory);
 };
 
@@ -973,9 +969,6 @@ public:
     size_t threadCount();
     size_t setThreadCount(size_t threads);
     void startExternal(const PVSFrameContext &context);
-    void releaseThread();
-    void reserveThread();
-    bool isWorkerThread();
     void waitForDone();
 };
 

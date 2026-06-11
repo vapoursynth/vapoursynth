@@ -67,12 +67,12 @@ const std::filesystem::path VSCore::libraryExtension = std::filesystem::u8path("
 #endif
 
 VSFrameContext::VSFrameContext(NodeOutputKey key, const PVSFrameContext &notify) :
-    refcount(1), reqOrder(notify->reqOrder), external(false), lockOnOutput(true), frameDone(nullptr),  userData(nullptr), key(key), frameContext() {
+    refcount(1), reqOrder(notify->reqOrder), external(false), lockOnOutput(true), reserveThread(false), frameDone(nullptr),  userData(nullptr), key(key), frameContext() {
     notifyCtxList.push_back(notify);
 }
 
-VSFrameContext::VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
-    refcount(1), reqOrder(0), external(true), lockOnOutput(lockOnOutput), frameDone(frameDone), userData(userData), key(node, n), frameContext() {
+VSFrameContext::VSFrameContext(int n, VSNode *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput, bool reserveThread) :
+    refcount(1), reqOrder(0), external(true), lockOnOutput(lockOnOutput), reserveThread(reserveThread), frameDone(frameDone), userData(userData), key(node, n), frameContext() {
 }
 
 bool VSFrameContext::setError(const std::string &errorMsg) {
@@ -1136,18 +1136,6 @@ void VSNode::clearCache(bool resetSize) {
     cache.clear();
     if (resetSize)
         cache.setMaxFrames(20);
-}
-
-void VSNode::reserveThread() {
-    core->threadPool->reserveThread();
-}
-
-void VSNode::releaseThread() {
-    core->threadPool->releaseThread();
-}
-
-bool VSNode::isWorkerThread() {
-    return core->threadPool->isWorkerThread();
 }
 
 void VSNode::notifyCache(bool needMemory) {

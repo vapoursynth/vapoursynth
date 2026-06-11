@@ -88,7 +88,7 @@ static uint8_t *VS_CC getWritePtr(VSFrame *frame, int plane) VS_NOEXCEPT {
 static void VS_CC getFrameAsync(int n, VSNode *clip, VSFrameDoneCallback fdc, void *userData) VS_NOEXCEPT {
     assert(clip && fdc);
     int numFrames = (clip->getNodeType() == mtVideo) ? clip->getVideoInfo().numFrames : clip->getAudioInfo().numFrames;
-    VSFrameContext *ctx = new VSFrameContext(n, clip, fdc, userData, true);
+    VSFrameContext *ctx = new VSFrameContext(n, clip, fdc, userData, true, false);
 
     if (n < 0 || n >= numFrames)
         ctx->setError("Invalid frame number " + std::to_string(n) + " requested, clip only has " + std::to_string(numFrames) + " frames");
@@ -137,13 +137,8 @@ static const VSFrame *VS_CC getFrame(int n, VSNode *node, char *errorMsg, int bu
 
     GetFrameWaiter g(errorMsg, bufSize);
     std::unique_lock<std::mutex> l(g.b);
-    bool isWorker = node->isWorkerThread();
-    if (isWorker)
-        node->releaseThread();
-    node->getFrame(new VSFrameContext(n, node, &frameWaiterCallback, &g, false));
+    node->getFrame(new VSFrameContext(n, node, &frameWaiterCallback, &g, false, true));
     g.a.wait(l, [&g] { return g.done; });
-    if (isWorker)
-        node->reserveThread();
     return g.r;
 }
 
