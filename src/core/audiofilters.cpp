@@ -1084,7 +1084,7 @@ static void VS_CC assumeSampleRateCreate(const VSMap *in, VSMap *out, void *user
     VSNode *src = vsapi->mapGetNode(in, "src", 0, &err);
 
     if (!err) {
-        ai.sampleRate = vsapi->getAudioInfo(d->node)->sampleRate;
+        ai.sampleRate = vsapi->getAudioInfo(src)->sampleRate;
         vsapi->freeNode(src);
         hassrc = true;
     }
