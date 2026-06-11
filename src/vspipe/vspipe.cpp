@@ -528,7 +528,7 @@ static bool initializeVideoOutput(VSPipeOutputData *data) {
         }
     }
 
-    data->buffer.resize(vi->width * vi->height * vi->format.bytesPerSample);
+    data->buffer.resize(static_cast<size_t>(vi->width) * static_cast<size_t>(vi->height) * vi->format.bytesPerSample);
     return true;
 }
 
