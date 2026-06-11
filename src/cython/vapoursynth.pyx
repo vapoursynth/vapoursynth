@@ -19,16 +19,15 @@
 
 cimport vapoursynth
 include 'vsconstants.pxd'
+from vshelper cimport bitblt
 from vsscript_internal cimport VSScript
 from wave cimport WaveHeader, Wave64Header, CreateWave64Header, CreateWaveHeader, PackChannels16to16le, PackChannels32to24le, PackChannels32to32le
 cimport cython.parallel
 from cython cimport view, final
 from libc.stdlib cimport malloc, free, realloc
 from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t, uint8_t, uint64_t, int64_t
-from cpython.buffer cimport PyBUF_SIMPLE
-from cpython.buffer cimport PyBuffer_FillInfo
-from cpython.buffer cimport PyBuffer_Release
-from cpython.memoryview cimport PyMemoryView_FromObject
+from cpython.buffer cimport PyBUF_READ, PyBUF_SIMPLE, PyBuffer_FillInfo, PyBuffer_Release
+from cpython.memoryview cimport PyMemoryView_FromMemory, PyMemoryView_FromObject
 from cpython.number cimport PyIndex_Check
 from cpython.number cimport PyNumber_Index
 from cpython.ref cimport Py_INCREF, Py_DECREF
@@ -51,7 +50,7 @@ import keyword
 from threading import local as ThreadLocal, Lock, RLock
 from types import MappingProxyType
 from collections.abc import ItemsView, Iterable, KeysView, MutableMapping, ValuesView
-from concurrent.futures import Future
+from concurrent.futures import Future, CancelledError as FutureCancelledError
 from fractions import Fraction
 
 
@@ -223,6 +222,9 @@ cdef class EnvironmentData(object):
     cdef Core core
     cdef object on_destroy
     cdef dict outputs
+    cdef dict active_exceptions
+    cdef int next_exc_id
+    cdef object exc_lock
 
     cdef int coreCreationFlags
     cdef VSLogHandle* log
@@ -244,6 +246,29 @@ cdef class EnvironmentData(object):
                 RuntimeWarning
             )
         _unset_logger(self)
+
+    cdef int store_exception(self, object e):
+        if self.active_exceptions is None:
+            return 0
+
+        with self.exc_lock:
+            self.next_exc_id += 1
+            self.active_exceptions[self.next_exc_id] = e
+
+            if len(self.active_exceptions) > 1000:
+                self.active_exceptions.pop(next(iter(self.active_exceptions)), None)
+
+            return self.next_exc_id
+
+    cdef object retrieve_exception(self, str msg_str):
+        if self.active_exceptions is not None and msg_str.startswith("[VS_PY_EXC_ID:"):
+            try:
+                parts = msg_str.split("]\n", 1)
+                exc_id = int(parts[0][len("[VS_PY_EXC_ID:"):])
+                return self.active_exceptions.pop(exc_id, None)
+            except (ValueError, KeyError, IndexError):
+                pass
+        return None
 
 
 class EnvironmentPolicy(object):
@@ -369,6 +394,9 @@ cdef class EnvironmentPolicyAPI:
         env.core = None
         env.log = NULL
         env.outputs = {}
+        env.active_exceptions = {}
+        env.next_exc_id = 0
+        env.exc_lock = Lock()
         env.coreCreationFlags = flags
         env.on_destroy = []
         env.env_locals = weakref.WeakKeyDictionary()
@@ -415,6 +443,8 @@ cdef class EnvironmentPolicyAPI:
         env.outputs = {}
         env.env_locals.clear()
         env.env_locals = None
+        env.active_exceptions = None
+        env.exc_lock = None
         env.alive = False
 
     def unregister_policy(self):
@@ -848,7 +878,10 @@ cdef class Func(object):
             self.funcs.callFunction(self.ref, inm, outm)
             error = self.funcs.mapGetError(outm)
             if error:
-                raise Error(error.decode('utf-8'))
+                msg_str = error.decode('utf-8')
+                env = _env_current()
+                py_exc = env.retrieve_exception(msg_str) if env is not None else None
+                raise py_exc or Error(msg_str)
             return mapToDict(outm, True)
         finally:
             vsapi.freeMap(outm)
@@ -921,10 +954,11 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNod
 
         try:
             if f == NULL:
-                error = 'Internal error - no error message.'
+                error_str = 'Internal error - no error message.'
                 if errormsg != NULL:
-                    error = errormsg.decode('utf-8')
-                error = Error(error)
+                    error_str = errormsg.decode('utf-8')
+                py_exc = d.env.retrieve_exception(error_str) if d.env is not None else None
+                error = py_exc or Error(error_str)
             else:
                 result = createConstFrame(f, d.funcs, d.node.core.core)
 
@@ -2226,7 +2260,10 @@ cdef class VideoNode(RawNode):
             f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
         if f == NULL:
             if (errorMsg[0]):
-                raise Error(ep.decode('utf-8'))
+                msg_str = ep.decode('utf-8')
+                env = _env_current()
+                py_exc = env.retrieve_exception(msg_str) if env is not None else None
+                raise py_exc or Error(msg_str)
             else:
                 raise Error('Internal error - no error given')
         else:
@@ -2257,56 +2294,109 @@ cdef class VideoNode(RawNode):
                 fileobj = fileobj.buffer
 
         if progress_update is not None:
-            progress_update(0, len(self))
+            if not callable(progress_update):
+                raise TypeError("progress_update must be a callable")
+            progress_update(0, self.num_frames)
 
         if y4m:
             if self.format.color_family == cfGray:
-                y4mformat = 'mono'
+                y4mformat = "mono"
                 if self.format.bits_per_sample > 8:
-                    y4mformat = y4mformat + str(self.format.bits_per_sample)
+                    y4mformat += str(self.format.bits_per_sample)
             elif self.format.color_family == cfYUV:
-                if self.format.subsampling_w == 1 and self.format.subsampling_h == 1:
-                    y4mformat = '420'
-                elif self.format.subsampling_w == 1 and self.format.subsampling_h == 0:
-                    y4mformat = '422'
-                elif self.format.subsampling_w == 0 and self.format.subsampling_h == 0:
-                    y4mformat = '444'
-                elif self.format.subsampling_w == 2 and self.format.subsampling_h == 2:
-                    y4mformat = '410'
-                elif self.format.subsampling_w == 2 and self.format.subsampling_h == 0:
-                    y4mformat = '411'
-                elif self.format.subsampling_w == 0 and self.format.subsampling_h == 1:
-                    y4mformat = '440'
+                if (self.format.subsampling_w, self.format.subsampling_h) == (1, 1):
+                    y4mformat = "420"
+                elif (self.format.subsampling_w, self.format.subsampling_h) == (1, 0):
+                    y4mformat = "422"
+                elif (self.format.subsampling_w, self.format.subsampling_h) == (0, 0):
+                    y4mformat = "444"
+                elif (self.format.subsampling_w, self.format.subsampling_h) == (2, 2):
+                    y4mformat = "410"
+                elif (self.format.subsampling_w, self.format.subsampling_h) == (2, 0):
+                    y4mformat = "411"
+                elif (self.format.subsampling_w, self.format.subsampling_h) == (0, 1):
+                    y4mformat = "440"
+                else:
+                    raise NotImplementedError("Unsupported subsampling for Y4M")
+
                 if self.format.bits_per_sample > 8:
-                    y4mformat = y4mformat + 'p' + str(self.format.bits_per_sample)
+                    y4mformat += f"p{self.format.bits_per_sample}"
             else:
-                raise ValueError("Can only use GRAY and YUV for V4M-Streams")
+                raise ValueError("Can only use GRAY and YUV for Y4M-Streams")
 
-            if len(y4mformat) > 0:
-                y4mformat = 'C' + y4mformat + ' '
-
-            data = 'YUV4MPEG2 {y4mformat}W{width} H{height} F{fps_num}:{fps_den} Ip A0:0 XLENGTH={length}\n'.format(
-                y4mformat=y4mformat,
-                width=self.width,
-                height=self.height,
-                fps_num=self.fps_num,
-                fps_den=self.fps_den,
-                length=len(self)
+            data = (
+                f"YUV4MPEG2 C{y4mformat} W{self.width} H{self.height} F{self.fps_num}:{self.fps_den} "
+                f"Ip A0:0 XLENGTH={self.num_frames}\n"
             )
             fileobj.write(data.encode("ascii"))
 
         write = fileobj.write
-        readchunks = VideoFrame.readchunks
+        total = self.num_frames
 
-        for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
-            if y4m:
-                fileobj.write(b"FRAME\n")
+        cdef:
+            const VSAPI *lib = self.funcs
+            const VSVideoFormat *fi
+            uint8_t *buffer = NULL
+            size_t buffer_size = <size_t>0
+            ptrdiff_t stride
+            const uint8_t *readPtr
+            size_t rowSize
+            int height
+            int p
+            const VSFrame *constf
 
-            for chunk in readchunks(frame):
-                write(chunk)
+        # Pre-allocate buffer for packing
+        buffer_size = <size_t>(self.width * self.height * self.format.bytes_per_sample)
+        buffer = <uint8_t *>malloc(buffer_size)
+        if not buffer:
+            raise Error("Failed to allocate memory for output buffer")
 
-            if progress_update is not None:
-                progress_update(idx+1, len(self))
+        try:
+            for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
+                if y4m:
+                    write(b"FRAME\n")
+
+                constf = (<VideoFrame>frame).constf
+                fi = lib.getVideoFrameFormat(constf)
+                for p in range(fi.numPlanes):
+                    stride = lib.getStride(constf, p)
+                    readPtr = lib.getReadPtr(constf, p)
+                    rowSize = <size_t>lib.getFrameWidth(constf, p) * fi.bytesPerSample
+                    height = lib.getFrameHeight(constf, p)
+
+                    if stride == <ptrdiff_t>rowSize:
+                        write(PyMemoryView_FromMemory(<char *>readPtr, rowSize * height, PyBUF_READ))
+                    else:
+                        with nogil:
+                            bitblt(buffer, rowSize, readPtr, stride, rowSize, height)
+                        write(PyMemoryView_FromMemory(<char *>buffer, rowSize * height, PyBUF_READ))
+
+                alpha = frame.props.get("_Alpha")
+                if alpha is not None:
+                    if y4m:
+                        raise ValueError("Can only apply y4m headers to clips without alpha")
+
+                    constf = (<VideoFrame>alpha).constf
+                    fi = lib.getVideoFrameFormat(constf)
+                    for p in range(fi.numPlanes):
+                        stride = lib.getStride(constf, p)
+                        readPtr = lib.getReadPtr(constf, p)
+                        rowSize = <size_t>lib.getFrameWidth(constf, p) * fi.bytesPerSample
+                        height = lib.getFrameHeight(constf, p)
+
+                        if stride == <ptrdiff_t>rowSize:
+                            write(PyMemoryView_FromMemory(<char *>readPtr, rowSize * height, PyBUF_READ))
+                        else:
+                            with nogil:
+                                bitblt(buffer, rowSize, readPtr, stride, rowSize, height)
+                            write(PyMemoryView_FromMemory(<char *>buffer, rowSize * height, PyBUF_READ))
+
+                    alpha.close()
+
+                if progress_update is not None:
+                    progress_update(idx + 1, total)
+        finally:
+            free(buffer)
 
         if hasattr(fileobj, "flush"):
             fileobj.flush()
@@ -3257,7 +3347,10 @@ cdef class Function(object):
         if err:
             emsg = err
             self.funcs.freeMap(outm)
-            raise Error(emsg.decode('utf-8'))
+            msg_str = emsg.decode('utf-8')
+            env = _env_current()
+            py_exc = env.retrieve_exception(msg_str) if env is not None else None
+            raise py_exc or Error(msg_str)
 
         retdict = mapToDict(outm, True)
         self.funcs.freeMap(outm)
@@ -3359,8 +3452,14 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                     ret = {'val':ret}
                 dictToMap(ret, outm, core, vsapi)
         except BaseException as e:
-            emsg = b'\n' + ''.join(traceback.format_exception(type(e), e, e.__traceback__)).encode('utf-8')
-            vsapi.mapSetError(outm, emsg)
+            if (isinstance(e, BaseException) and not isinstance(e, Exception)) or isinstance(e, FutureCancelledError):
+                exc_id = d.env.store_exception(e) if d.env is not None else 0
+                tb_str = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+                emsg = f"[VS_PY_EXC_ID:{exc_id}]\n{tb_str}".encode('utf-8')
+                vsapi.mapSetError(outm, emsg)
+            else:
+                emsg = b'\n' + ''.join(traceback.format_exception(type(e), e, e.__traceback__)).encode('utf-8')
+                vsapi.mapSetError(outm, emsg)
 
 
 @final

@@ -273,6 +273,43 @@ class EnvironmentTest(unittest.TestCase):
 
             self.assertIsNone(wr())
 
+    @subprocess_runner
+    def test_exception_tunneling_and_no_leak(self):
+        class CustomException(BaseException):
+            pass
+
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                clip = vs.core.std.BlankClip(width=16, height=16, length=2)
+
+                exc = CustomException("Tunnel test")
+                exc_ref = weakref.ref(exc)
+
+                def callback(n, f):
+                    raise exc
+
+                modified = clip.std.ModifyFrame(clip, callback)
+
+                with self.assertRaises(CustomException) as ctx:
+                    modified.get_frame(0)
+
+                self.assertEqual(str(ctx.exception), "Tunnel test")
+
+                # Clear all references that might hold the exception
+                del ctx
+                del callback
+                del modified
+                del clip
+                del exc
+                gc.collect()
+                gc.collect()
+                gc.collect()
+
+                self.assertIsNone(exc_ref())
+
 
 if __name__ == "__main__":
     unittest.main()
