@@ -305,6 +305,9 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             }
         }
 
+        if (!is8to16orFloatFormat(d->vi.format, EXPR_F16C_TEST))
+            throw std::runtime_error(invalidVideoFormatMessage(d->vi.format, vsapi, nullptr, EXPR_F16C_TEST));
+
         int nexpr = vsapi->mapNumElements(in, "expr");
         if (nexpr > d->vi.format.numPlanes)
             throw std::runtime_error("More expressions given than there are planes");
