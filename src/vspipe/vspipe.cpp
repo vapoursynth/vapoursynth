@@ -423,9 +423,9 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrame *f, int n, VSN
                 fprintf(stderr, "Frame: %d/%d\r", data->completedFrames, data->totalFrames);
         } else {
             if (hasMeaningfulFPS)
-                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 " (%.2f sps)\r", static_cast<int64_t>(data->completedFrames * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>(data->totalFrames * VS_AUDIO_FRAME_SAMPLES), fps);
+                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 " (%.2f sps)\r", static_cast<int64_t>(data->completedFrames) * VS_AUDIO_FRAME_SAMPLES, static_cast<int64_t>(data->totalFrames) * VS_AUDIO_FRAME_SAMPLES, fps);
             else
-                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 "\r", static_cast<int64_t>(data->completedFrames * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>(data->totalFrames * VS_AUDIO_FRAME_SAMPLES));
+                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 "\r", static_cast<int64_t>(data->completedFrames) * VS_AUDIO_FRAME_SAMPLES, static_cast<int64_t>(data->totalFrames) * VS_AUDIO_FRAME_SAMPLES);
         }
     }
 
