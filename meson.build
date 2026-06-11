@@ -20,6 +20,7 @@ else
 endif
 
 host_system = host_machine.system()
+host_cpu_family = host_machine.cpu_family()
 is_win = host_system in ['cygwin', 'windows']
 
 if is_win
@@ -29,7 +30,11 @@ else
     dl_dep = dependency('dl')
 endif
 
-if not host_machine.cpu_family().startswith('x86')
+if host_cpu_family.startswith('riscv')
+    add_project_arguments('-DVS_TARGET_CPU_RISCV', language: ['c', 'cpp'])
+endif
+
+if not host_cpu_family.startswith('x86')
     enable_x86_asm = false
 endif
 
