@@ -39,7 +39,7 @@
 
 #if !defined(RC_INVOKED) && !defined(RC_PLIST)
 
-#if (defined(INT_MAX) && LONG_MAX > INT_MAX) || defined(_WIN64) || defined(__x86_64__) || defined(__powerpc64__) || defined(__ppc64__) || defined(__mips64__) || defined(__arm64__) || defined(__ia64__) || (defined(__riscv) && __riscv_xlen == 64)
+#if (defined(INT_MAX) && LONG_MAX > INT_MAX) || defined(_WIN64) || defined(__x86_64__) || defined(__powerpc64__) || defined(__ppc64__) || defined(__mips64__) || defined(__arm64__) || defined(__ia64__)
  #define PT_SIZEOF_PTR 64
 #else
  #define PT_SIZEOF_PTR 32
