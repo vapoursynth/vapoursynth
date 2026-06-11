@@ -51,11 +51,18 @@ public:
     }
 
     vs_intrusive_ptr &operator=(vs_intrusive_ptr const &ptr) noexcept {
-        if (obj)
-            obj->release();
-        obj = ptr.obj;
-        if (obj)
-            obj->add_ref();
+        if (this != &ptr) {
+            if (obj)
+                obj->release();
+            obj = ptr.obj;
+            if (obj)
+                obj->add_ref();
+        }
+        return *this;
+    }
+
+    vs_intrusive_ptr &operator=(vs_intrusive_ptr &&ptr) noexcept {
+        swap(ptr);
         return *this;
     }
 

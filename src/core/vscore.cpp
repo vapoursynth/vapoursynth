@@ -220,7 +220,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
     format.vf = f;
     numPlanes = format.vf.numPlanes;
 
-    stride[0] = (width * (format.vf.bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+    stride[0] = (static_cast<ptrdiff_t>(width) * format.vf.bytesPerSample + (alignment - 1)) & ~(alignment - 1);
 
     if (numPlanes == 3) {
         ptrdiff_t plane23 = (static_cast<ptrdiff_t>(width >> format.vf.subSamplingW) * format.vf.bytesPerSample + (alignment - 1)) & ~(alignment - 1);
@@ -400,8 +400,6 @@ uint8_t *VSFrame::getWritePtr(int plane) {
 bool VSFrame::verifyGuardPattern() const {
     for (int p = 0; p < ((contentType == mtVideo) ? numPlanes : 1); p++) {
         for (size_t i = 0; i < guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
-            uint32_t p1 = reinterpret_cast<uint32_t *>(data[p]->data)[i];
-            uint32_t p2 = reinterpret_cast<uint32_t *>(data[p]->data + data[p]->size - guardSpace)[i];
             if (reinterpret_cast<uint32_t *>(data[p]->data)[i] != VS_FRAME_GUARD_PATTERN ||
                 reinterpret_cast<uint32_t *>(data[p]->data + data[p]->size - guardSpace)[i] != VS_FRAME_GUARD_PATTERN)
                 return false;
@@ -578,7 +576,7 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
             plugin->core->functionFrame = plugin->core->functionFrame->next;
         }
 
-        if (plugin->apiMajor == VAPOURSYNTH3_API_MAJOR && !args.isV3Compatible())
+        if (plugin->apiMajor == VAPOURSYNTH3_API_MAJOR && !v->isV3Compatible())
             plugin->core->logFatal(name + ": filter node returned not yet supported type");
 
     } catch (VSException &e) {
@@ -1753,6 +1751,8 @@ bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
     size_t numRead = fread(contents.data(), 1, contents.size(), f);
     contents.resize(numRead);
 
+    fclose(f);
+
     if (contents.empty()) {
         logMessage(mtCritical, ("Couldn't read contents of manifest file: " + manifestPath.u8string()).c_str());
         return true;
@@ -1889,10 +1889,9 @@ void VSCore::setNodeTiming(bool enable) noexcept {
 }
 
 int64_t VSCore::getFreedNodeProcessingTime(bool reset) noexcept {
-    int64_t tmp = freedNodeProcessingTime;
     if (reset)
-        freedNodeProcessingTime = 0;
-    return tmp;
+        return freedNodeProcessingTime.exchange(0);
+    return freedNodeProcessingTime.load();
 }
 
 std::filesystem::path VSCore::getLibraryPath() {
@@ -2250,7 +2249,7 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
 
 VSPlugin::~VSPlugin() {
 #ifdef VS_TARGET_OS_WINDOWS
-    if (libHandle != INVALID_HANDLE_VALUE && !core->disableLibraryUnloading)
+    if (libHandle && !core->disableLibraryUnloading)
         FreeLibrary(libHandle);
 #else
     if (libHandle && !core->disableLibraryUnloading)

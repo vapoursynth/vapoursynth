@@ -65,7 +65,6 @@ struct VSFrame;
 struct VSCore;
 class VSCache;
 struct VSNode;
-struct VSNode;
 class VSThreadPool;
 struct VSFrameContext;
 struct VSFunction;
@@ -482,10 +481,6 @@ public:
         assert(contentType == mtAudio);
         return &format.af;
     }
-    int getSampleRate() const {
-        assert(contentType == mtAudio);
-        return height;
-    }
     int getFrameLength() const {
         assert(contentType == mtAudio);
         return width;
@@ -536,7 +531,7 @@ public:
 
     void push_back(T &&val) noexcept {
         if (numElems < staticSize) {
-            new(&staticData[numElems]) T(val);
+            new(&staticData[numElems]) T(std::move(val));
         } else {
             dynamicData.push_back(val);
         }
@@ -726,7 +721,7 @@ private:
                 if (last == &n)
                     last = n.prevNode;
 
-                n.prevNode = 0;
+                n.prevNode = nullptr;
                 n.nextNode = first;
                 first->prevNode = &n;
                 first = &n;
@@ -888,10 +883,9 @@ public:
     }
 
     int64_t getProcessingTime(bool reset) {
-        int64_t tmp = processingTime;
         if (reset)
-            processingTime = 0;
-        return tmp;
+            return processingTime.exchange(0);
+        return processingTime.load();
     }
 
     const VSFilterDependency *getDependency(int index) const {
@@ -948,6 +942,7 @@ private:
     size_t idleThreads;
     size_t reqCounter;
     size_t reqMemCounter;
+    size_t minThreads;
     size_t maxThreads;
     size_t currentMaxThreads;
     size_t ticks;
