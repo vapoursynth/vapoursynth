@@ -433,7 +433,7 @@ bool VSThreadPool::isWorkerThread() {
 void VSThreadPool::waitForDone() {
     std::unique_lock<std::mutex> m(taskLock);
     if (idleThreads < allThreads.size())
-        allIdle.wait(m);
+        allIdle.wait(m, [&] { return idleThreads == allThreads.size(); });
 }
 
 VSThreadPool::~VSThreadPool() {
