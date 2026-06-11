@@ -787,6 +787,8 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     for (int i = 0; i < numDstChannels; i++) {
         int channel = vsapi->mapGetIntSaturated(in, "channels_out", i, nullptr);
+        if (channel < 0 || channel >= 64)
+            RETERROR("AudioMix: channel number out of range (0-63)");
         channelLayout |= static_cast<uint64_t>(1) << channel;
     }
 
@@ -945,6 +947,12 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
     for (int i = 0; i < numSrcChannels; i++) {
         int channel = vsapi->mapGetIntSaturated(in, "channels_in", i, nullptr);
         int dstChannel = vsapi->mapGetIntSaturated(in, "channels_out", i, nullptr);
+        if (dstChannel < 0 || dstChannel >= 64 || channel < -64 || channel >= 64) {
+            vsapi->mapSetError(out, "ShuffleChannels: channel number out of range");
+            for (const auto &iter : d->sourceNodes)
+                vsapi->freeNode(iter.node);
+            return;
+        }
         channelLayout |= (static_cast<uint64_t>(1) << dstChannel);
         VSNode *node = vsapi->mapGetNode(in, "clips", std::min(numSrcNodes - 1, i), nullptr);
         d->sourceNodes.push_back({node, channel, dstChannel, -1});
@@ -1155,7 +1163,10 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
     } else {
         d->ai.format.channelLayout = 0;
         for (int i = 0; i < numChannelElems; i++) {
-            uint64_t ctemp = static_cast<uint64_t>(1) << vsapi->mapGetInt(in, "channels", i, nullptr);
+            int64_t channel = vsapi->mapGetInt(in, "channels", i, nullptr);
+            if (channel < 0 || channel >= 64)
+                RETERROR("BlankAudio: channel number out of range (0-63)");
+            uint64_t ctemp = static_cast<uint64_t>(1) << channel;
             if (d->ai.format.channelLayout & ctemp)
                 RETERROR("BlankAudio: channel specified twice");
             d->ai.format.channelLayout |= ctemp;
@@ -1248,7 +1259,10 @@ static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, V
     if (numChannelElems > 0) {
         channels = 0;
         for (int i = 0; i < numChannelElems; i++) {
-            uint64_t ctemp = static_cast<uint64_t>(1) << vsapi->mapGetInt(in, "channels", i, nullptr);
+            int64_t channel = vsapi->mapGetInt(in, "channels", i, nullptr);
+            if (channel < 0 || channel >= 64)
+                RETERROR("TestAudio: channel number out of range (0-63)");
+            uint64_t ctemp = static_cast<uint64_t>(1) << channel;
             if (channels & ctemp)
                 RETERROR("TestAudio: channel specified twice");
             channels |= ctemp;
