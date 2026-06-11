@@ -163,7 +163,7 @@ void VSThreadPool::runTasks(bool &stop) {
                 ar = arError;
             } else if (!frameContext->first) {
                 ar = (node->apiMajor == 3) ? static_cast<int>(vs3::arAllFramesReady) : static_cast<int>(arAllFramesReady);
-            } else if (frameContext->first) {
+            } else {
                 frameContext->first = false;
             }
 
