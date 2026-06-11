@@ -40,8 +40,6 @@ std::string escapeJSONString(const std::string &s) {
     for (auto c : s) {
         if (c == '\\')
             result += "\\\\";
-        else if (c == '\0')
-            result += "\\x00";
         else if (c == '\b')
             result += "\\b";
         else if (c == '\f')
@@ -52,11 +50,15 @@ std::string escapeJSONString(const std::string &s) {
             result += "\\r";
         else if (c == '\t')
             result += "\\t";
-        else if (c == '\v')
-            result += "\\v";
         else if (c == '"')
             result += "\\\"";
-        else
+        else if (static_cast<unsigned char>(c) < 0x20) {
+            static const char hex[] = "0123456789abcdef";
+            unsigned char uc = static_cast<unsigned char>(c);
+            result += "\\u00";
+            result += hex[(uc >> 4) & 0xF];
+            result += hex[uc & 0xF];
+        } else
             result += c;
     }
     return "\"" + result + "\"";
