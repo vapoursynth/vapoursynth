@@ -438,18 +438,9 @@ char *FakeAvisynth::Sprintf(const char *fmt, ...) {
 }
 
 char *FakeAvisynth::VSprintf(const char *fmt, void *val) {
+    // This doesn't need to be correct since nobody saves a long strings
     std::vector<char> buf(4096);
-    va_list val_copy;
-    va_copy(val_copy, (va_list)val);
-    int count = vsnprintf(buf.data(), buf.size(), fmt, val_copy);
-    va_end(val_copy);
-    if (count >= static_cast<int>(buf.size())) {
-        buf.resize(count + 1);
-        va_copy(val_copy, (va_list)val);
-        vsnprintf(buf.data(), buf.size(), fmt, val_copy);
-        va_end(val_copy);
-    }
-
+    vsnprintf(buf.data(), buf.size(), fmt, (va_list)val);
     return SaveString(buf.data());
 }
 
