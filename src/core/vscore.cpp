@@ -186,10 +186,10 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
     format.vf = f;
     numPlanes = format.vf.numPlanes;
 
-    stride[0] = (width * (f.bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+    stride[0] = (static_cast<ptrdiff_t>(width) * f.bytesPerSample + (alignment - 1)) & ~(alignment - 1);
 
     if (numPlanes == 3) {
-        int plane23 = ((width >> format.vf.subSamplingW) * (format.vf.bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+        ptrdiff_t plane23 = (static_cast<ptrdiff_t>(width >> format.vf.subSamplingW) * format.vf.bytesPerSample + (alignment - 1)) & ~(alignment - 1);
         stride[1] = plane23;
         stride[2] = plane23;
     } else {
@@ -223,7 +223,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
     stride[0] = (width * (format.vf.bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
 
     if (numPlanes == 3) {
-        int plane23 = ((width >> format.vf.subSamplingW) * (format.vf.bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+        ptrdiff_t plane23 = (static_cast<ptrdiff_t>(width >> format.vf.subSamplingW) * format.vf.bytesPerSample + (alignment - 1)) & ~(alignment - 1);
         stride[1] = plane23;
         stride[2] = plane23;
     } else {
@@ -2502,13 +2502,13 @@ std::string VSCore::getFrameRefInfo() {
 }
 
 #ifdef VS_TARGET_CPU_X86
-static int alignmentHelper() {
+static ptrdiff_t alignmentHelper() {
     return getCPUFeatures()->avx512_f ? 64 : 32;
 }
 
-int VSFrame::alignment = alignmentHelper();
+ptrdiff_t VSFrame::alignment = alignmentHelper();
 #else
-int VSFrame::alignment = 32;
+ptrdiff_t VSFrame::alignment = 32;
 #endif
 
 thread_local VSNode *VSCore::currentProcessingNode = nullptr;

@@ -426,7 +426,7 @@ private:
 
     void setAllocationInfo() noexcept;
 public:
-    static int alignment;
+    static ptrdiff_t alignment;
 
 #ifdef VS_FRAME_GUARD
     static const int guardSpace = 64;
