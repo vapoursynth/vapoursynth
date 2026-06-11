@@ -1,4 +1,6 @@
 r77:
+riscv compilation fixes, it's now detected as a proper target
+many minor issues such as filter argument validation, overflows and many other rare problems fixed after an ai audit of the code
 proptoclip now also take an index for the property
 
 r76:
