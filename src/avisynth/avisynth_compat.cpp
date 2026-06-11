@@ -438,12 +438,11 @@ char *FakeAvisynth::Sprintf(const char *fmt, ...) {
 }
 
 char *FakeAvisynth::VSprintf(const char *fmt, void *val) {
-    std::vector<char> buf;
-    int size = 0, count = -1;
-
-    while (count == -1) {
-        buf.resize(buf.size() + 4096);
-        count = vsnprintf(buf.data(), size - 1, fmt, (va_list)val);
+    std::vector<char> buf(4096);
+    int count = vsnprintf(buf.data(), buf.size(), fmt, (va_list)val);
+    if (count >= static_cast<int>(buf.size())) {
+        buf.resize(count + 1);
+        vsnprintf(buf.data(), buf.size(), fmt, (va_list)val);  // note: needs a fresh/va_copy'd va_list
     }
 
     char *i = SaveString(buf.data());
