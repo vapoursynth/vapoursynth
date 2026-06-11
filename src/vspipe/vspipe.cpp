@@ -239,7 +239,7 @@ static void outputFrame(const VSFrame *frame, VSPipeOutputData *data) {
                 int p = (fi->colorFamily == cfRGB) ? rgbRemap[rp] : rp;
                 ptrdiff_t stride = data->vsapi->getStride(frame, p);
                 const uint8_t *readPtr = data->vsapi->getReadPtr(frame, p);
-                int rowSize = data->vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
+                ptrdiff_t rowSize = static_cast<ptrdiff_t>(data->vsapi->getFrameWidth(frame, p)) * fi->bytesPerSample;
                 int height = data->vsapi->getFrameHeight(frame, p);
 
                 if (rowSize != stride) {
@@ -247,7 +247,8 @@ static void outputFrame(const VSFrame *frame, VSPipeOutputData *data) {
                     readPtr = data->buffer.data();
                 }
 
-                if (fwrite(readPtr, 1, rowSize * height, data->outFile) != static_cast<size_t>(rowSize * height)) {
+                size_t toWrite = static_cast<size_t>(rowSize) * height;
+                if (fwrite(readPtr, 1, toWrite, data->outFile) != toWrite) {
                     if (data->errorMessage.empty())
                         data->errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(data->outputFrames) + ", plane: " + std::to_string(p) +
                         ", errno: " + std::to_string(errno);
@@ -528,7 +529,7 @@ static bool initializeVideoOutput(VSPipeOutputData *data) {
         }
     }
 
-    data->buffer.resize(static_cast<size_t>(vi->width) * static_cast<size_t>(vi->height) * vi->format.bytesPerSample);
+    data->buffer.resize(static_cast<size_t>(vi->width) * vi->height * vi->format.bytesPerSample);
     return true;
 }
 
