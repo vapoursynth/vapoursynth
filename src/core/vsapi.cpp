@@ -815,7 +815,7 @@ static void VS_CC queryCompletedFrame3(VSNode **node, int *n, VSFrameContext *fr
 static void VS_CC releaseFrameEarly(VSNode *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
     auto key = NodeOutputKey(node, n);
-    for (size_t i = 0; i < frameCtx->reqList.size(); i++) {
+    for (size_t i = 0; i < frameCtx->availableFrames.size(); i++) {
         auto &tmp = frameCtx->availableFrames[i];
         if (tmp.first == key) {
             tmp.first = NodeOutputKey(nullptr, -1);
