@@ -148,7 +148,7 @@ uint8_t *MemoryUse::allocate_from_freelist(size_t size)
     return nullptr;
 }
 
-void MemoryUse::deallocate_to_system(uint8_t *ptr, size_t size)
+size_t MemoryUse::deallocate_to_system(uint8_t *ptr, size_t size)
 {
 #ifdef DEBUG_STATS
     if (size > SYSTEM_ALLOCATOR_THRESHOLD)
@@ -158,15 +158,15 @@ void MemoryUse::deallocate_to_system(uint8_t *ptr, size_t size)
 #endif
 
     do_deallocate(ptr);
-    m_allocated -= size;
+    return m_allocated.fetch_sub(size) - size;
 }
 
-void MemoryUse::deallocate_to_freelist(uint8_t *ptr, size_t size)
+size_t MemoryUse::deallocate_to_freelist(uint8_t *ptr, size_t size)
 {
     std::lock_guard<std::mutex> lock{ m_mutex };
     m_freelist.emplace(size, ptr);
     m_freelist_size += size;
-    m_allocated -= size;
+    return m_allocated.fetch_sub(size) - size;
 }
 
 void MemoryUse::gc_freelist()
@@ -241,12 +241,13 @@ void MemoryUse::deallocate(uint8_t *buf)
     size_t size = header->size;
     bool to_freelist = size > SYSTEM_ALLOCATOR_THRESHOLD;
 
+    size_t allocated;
     if (to_freelist)
-        deallocate_to_freelist(raw_ptr, size);
+        allocated = deallocate_to_freelist(raw_ptr, size);
     else
-        deallocate_to_system(raw_ptr, size);
+        allocated = deallocate_to_system(raw_ptr, size);
 
-    if (m_core_freed && m_allocated == 0) {
+    if (m_core_freed && allocated == 0) {
         delete this;
         return;
     }
