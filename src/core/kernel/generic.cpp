@@ -311,7 +311,7 @@ void conv_plane_5x5(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t 
         T *dst_p = static_cast<T *>(line_ptr(dst, i, dst_stride));
 
         for (unsigned j = 0; j < std::min(width, 2U); ++j) {
-            unsigned dist_from_right = width - 1 - i;
+            unsigned dist_from_right = width - 1 - j;
             unsigned idx[5];
 
             idx[0] = j < 2 ? std::min(1 - j, width - 1) : j - 2;
@@ -352,7 +352,7 @@ void conv_plane_5x5(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t 
         }
 
         for (unsigned j = std::max(2U, width - std::min(width, 2U)); j < width; ++j) {
-            unsigned dist_from_right = width - 1 - i;
+            unsigned dist_from_right = width - 1 - j;
             unsigned idx[5];
 
             idx[0] = j < 2 ? std::min(1 - j, width - 1) : j - 2;
