@@ -258,12 +258,15 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 #ifdef VS_TARGET_CPU_X86
     const CPUFeatures &f = *getCPUFeatures();
-#   define EXPR_F16C_TEST (f.f16c)
+    // The interpreter doesn't support half precision float
+#   define EXPR_F16C_TEST (f.f16c && cpulevel > VS_CPU_LEVEL_NONE)
 #else
 #   define EXPR_F16C_TEST (false)
 #endif
 
     try {
+        int cpulevel = vs_get_cpulevel(core);
+
         d->numInputs = vsapi->mapNumElements(in, "clips");
         if (d->numInputs > 26)
             throw std::runtime_error("More than 26 input clips provided");
@@ -319,8 +322,6 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         for (int i = nexpr; i < 3; ++i) {
             expr[i] = expr[nexpr - 1];
         }
-
-        int cpulevel = vs_get_cpulevel(core);
 
         for (int i = 0; i < d->vi.format.numPlanes; i++) {
             if (!expr[i].empty()) {
