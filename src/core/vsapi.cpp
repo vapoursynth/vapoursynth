@@ -100,6 +100,7 @@ struct GetFrameWaiter {
     std::mutex b;
     std::condition_variable a;
     const VSFrame *r = nullptr;
+    bool done = false;
     char *errorMsg;
     int bufSize;
     GetFrameWaiter(char *errorMsg, int bufSize) : errorMsg(errorMsg), bufSize(bufSize) {}
@@ -116,6 +117,7 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrame *frame, int 
             g->errorMsg[g->bufSize - 1] = 0;
         }
     }
+    g->done = true;
     g->a.notify_one();
 }
 
@@ -139,7 +141,7 @@ static const VSFrame *VS_CC getFrame(int n, VSNode *node, char *errorMsg, int bu
     if (isWorker)
         node->releaseThread();
     node->getFrame(new VSFrameContext(n, node, &frameWaiterCallback, &g, false));
-    g.a.wait(l);
+    g.a.wait(l, [&g] { return g.done; });
     if (isWorker)
         node->reserveThread();
     return g.r;
