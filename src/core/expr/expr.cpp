@@ -147,7 +147,7 @@ std::vector<std::string_view> tokenize(const std::string &expr)
     while (it != expr.end()) {
         char c = *it;
 
-        if (std::isspace(c)) {
+        if (std::isspace(static_cast<unsigned char>(c))) {
             if (it != prev)
                 tokens.push_back({ expr.c_str() + (prev - expr.begin()), static_cast<size_t>(it - prev) });
             prev = it + 1;
