@@ -316,7 +316,11 @@ void VSThreadPool::runTasks(bool &stop) {
             }
 
             if (shouldWait) {
-                newWork.wait(lock, [&] { return activeThreads < currentMaxThreads; });
+                // We always need to wait here to unlock the taskLock mutex, if we don't no new work can be added to the queue and the thread will never wake up again
+                // Wait predicates don't work since they're the equivalent of a wrapping while loop
+                do {
+                    newWork.wait(lock);
+                } while (activeThreads >= currentMaxThreads);
                 --idleThreads;
                 ++activeThreads;
             }
