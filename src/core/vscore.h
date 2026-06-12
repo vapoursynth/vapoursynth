@@ -93,7 +93,9 @@ typedef std::pair<VSNode *, int> NodeOutputKey;
 template<>
 struct std::hash<NodeOutputKey> {
     inline size_t operator()(const NodeOutputKey &val) const {
-        return reinterpret_cast<size_t>(std::get<0>(val)) + (static_cast<size_t>(std::get<1>(val)) << 16);
+        size_t h = reinterpret_cast<size_t>(std::get<0>(val)) >> 4;
+        h ^= static_cast<size_t>(std::get<1>(val)) * 0x9e3779b97f4a7c15ULL;
+        return h;
     }
 };
 
