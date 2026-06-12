@@ -972,13 +972,14 @@ const VSMap *VSNode::getCreationFunctionArguments(int level) const {
 
 int VSNode::setLinear() {
     {
+        size_t threadCount = core->threadPool->threadCount();
         std::lock_guard<std::mutex> lock(cacheMutex);
         cacheLinear = true;
         cacheOverride = true;
         cacheEnabled = true;
         cacheLastOnly = false;
         cache.setFixedSize(true);
-        cache.setMaxFrames(static_cast<int>(core->threadPool->threadCount()) * 2 + 20);
+        cache.setMaxFrames(static_cast<int>(threadCount) * 2 + 20);
     }
     registerCache(cacheEnabled);
     return cache.getMaxFrames() / 2;

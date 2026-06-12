@@ -885,7 +885,7 @@ public:
     int64_t getProcessingTime(bool reset) {
         if (reset)
             return processingTime.exchange(0);
-        return processingTime.load();
+        return processingTime;
     }
 
     const VSFilterDependency *getDependency(int index) const {
@@ -960,7 +960,7 @@ private:
 public:
     VSThreadPool(VSCore *core);
     ~VSThreadPool();
-    void returnFrame(VSFrameContext *rCtx, const PVSFrame &f);
+    void returnFrame(VSFrameContext *rCtx, const PVSFrame &f, std::unique_lock<std::mutex> &lock);
     size_t threadCount();
     size_t setThreadCount(size_t threads);
     void startExternal(const PVSFrameContext &context);

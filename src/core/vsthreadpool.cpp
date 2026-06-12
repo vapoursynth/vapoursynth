@@ -114,7 +114,7 @@ void VSThreadPool::runTasks(bool &stop) {
                         allContexts.erase(frameContext->key);
 
                     if (frameContext->external)
-                        returnFrame(frameContext, f);
+                        returnFrame(frameContext, f, lock);
 
                     if (needsSort)
                         tasks.sort(taskCmp);
@@ -251,7 +251,7 @@ void VSThreadPool::runTasks(bool &stop) {
                 }
 
                 if (frameContext->external)
-                    returnFrame(frameContext, f);
+                    returnFrame(frameContext, f, lock);
             } else if (f) {
                 for (size_t i = 0; i < frameContextRef->notifyCtxList.size(); i++) {
                     PVSFrameContext &notify = frameContextRef->notifyCtxList[i];
@@ -265,7 +265,7 @@ void VSThreadPool::runTasks(bool &stop) {
                 }
 
                 if (frameContext->external)
-                    returnFrame(frameContext, f);
+                    returnFrame(frameContext, f, lock);
             } else if (requestedFrames) {
                 // already scheduled, do nothing
             } else {
@@ -370,13 +370,13 @@ void VSThreadPool::startExternal(const PVSFrameContext &context) {
     }
 }
 
-void VSThreadPool::returnFrame(VSFrameContext *rCtx, const PVSFrame &f) {
+void VSThreadPool::returnFrame(VSFrameContext *rCtx, const PVSFrame &f, std::unique_lock<std::mutex> &lock) {
     assert(rCtx->frameDone);
     bool outputLock = rCtx->lockOnOutput;
     bool reserveThread = rCtx->reserveThread;
     // we need to unlock here so the callback may request more frames without causing a deadlock
     // AND so that slow callbacks will only block operations in this thread, not all the others
-    taskLock.unlock();
+    lock.unlock();
 
     // don't hold on to frame references only used for processing while waiting to output
     rCtx->availableFrames.clear();
@@ -398,7 +398,7 @@ void VSThreadPool::returnFrame(VSFrameContext *rCtx, const PVSFrame &f) {
     }
     if (core->enableFrameRefDebug)
         core->logMessage(mtInformation, core->getFrameRefInfo());
-    taskLock.lock();
+    lock.lock();
     if (reserveThread)
         ++activeThreads;
 }
