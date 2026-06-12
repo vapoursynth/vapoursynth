@@ -80,7 +80,9 @@ void VSThreadPool::runTasks(bool &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Go through all tasks from the top (oldest) and process the first one possible
 
-        std::set<VSNode *> seenNodes;
+        constexpr size_t maxSeenNodes = 64;
+        VSNode *seenNodes[maxSeenNodes];
+        size_t seenCount = 0;
 
         for (auto iter = tasks.begin(); iter != tasks.end(); ++iter) {
             VSFrameContext *frameContext = iter->get();
@@ -130,8 +132,19 @@ void VSThreadPool::runTasks(bool &stop) {
             int filterMode = node->filterMode;
 
             // Don't try to lock the same node twice since it's likely to fail and will produce more out of order requests as well
-            if (filterMode != fmFrameState && !seenNodes.insert(node).second)
-                continue;
+            if (filterMode != fmFrameState) {
+                bool alreadySeen = false;
+                for (size_t i = 0; i < seenCount; i++) {
+                    if (seenNodes[i] == node) {
+                        alreadySeen = true;
+                        break;
+                    }
+                }
+                if (alreadySeen)
+                    continue;
+                if (seenCount < maxSeenNodes)
+                    seenNodes[seenCount++] = node;
+            }
 
             // Does the filter need the per instance mutex? fmFrameState, fmUnordered and fmParallelRequests (when in the arAllFramesReady state) use this
             bool useSerialLock = (filterMode == fmFrameState || filterMode == fmUnordered || (filterMode == fmParallelRequests && !frameContext->first));
