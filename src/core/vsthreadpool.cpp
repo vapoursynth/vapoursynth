@@ -80,6 +80,8 @@ void VSThreadPool::runTasks(bool &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Go through all tasks from the top (oldest) and process the first one possible
 
+        // Note that seenNodes is only used for fast early rejection, reaching the size limit will not cause any correctness issues
+        // Even with many threads and complicated scripts the full task queue is generally less than 10 items
         constexpr size_t maxSeenNodes = 64;
         VSNode *seenNodes[maxSeenNodes];
         size_t seenCount = 0;
@@ -112,11 +114,10 @@ void VSThreadPool::runTasks(bool &stop) {
                     PVSFrameContext mainContextRef = std::move(*iter);  
                     tasks.erase(iter);
 
-                    if (!frameContext->external)
-                        allContexts.erase(frameContext->key);
-
                     if (frameContext->external)
                         returnFrame(frameContext, f, lock);
+                    else
+                        allContexts.erase(frameContext->key);
 
                     if (needsSort)
                         tasks.sort(taskCmp);

@@ -566,6 +566,12 @@ public:
         numElems = 0;
     }
 
+    SemiStaticVector() = default;
+    SemiStaticVector(const SemiStaticVector &) = delete;
+    SemiStaticVector(SemiStaticVector &&) = delete;
+    SemiStaticVector &operator=(const SemiStaticVector &) = delete;
+    SemiStaticVector &operator=(SemiStaticVector &&) = delete;
+
     ~SemiStaticVector() {
         freeStatic();
     }
@@ -944,7 +950,6 @@ private:
     size_t idleThreads;
     size_t reqCounter;
     size_t reqMemCounter;
-    size_t minThreads;
     size_t maxThreads;
     size_t currentMaxThreads;
     size_t ticks;
