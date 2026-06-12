@@ -535,7 +535,7 @@ public:
         if (numElems < staticSize) {
             new(&staticData[numElems]) T(std::move(val));
         } else {
-            dynamicData.push_back(val);
+            dynamicData.push_back(std::move(val));
         }
         numElems++;
     }
