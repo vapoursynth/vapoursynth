@@ -840,7 +840,7 @@ private:
     std::mutex cacheMutex;
     bool cacheLinear = false;
     bool cacheOverride = false;
-    bool cacheEnabled = false; // FIXME, needs to be atomic?
+    std::atomic<bool> cacheEnabled = false;
     bool cacheLastOnly = false;
     VSCache cache;
 

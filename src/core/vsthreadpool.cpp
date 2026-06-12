@@ -109,7 +109,9 @@ void VSThreadPool::runTasks(bool &stop) {
                     // this is needed in order to prevent more tasks latching on to a context in the final stages of completion, holds a reference to frameContext
                     PVSFrameContext mainContextRef = std::move(*iter);  
                     tasks.erase(iter);
-                    allContexts.erase(frameContext->key);
+
+                    if (!frameContext->external)
+                        allContexts.erase(frameContext->key);
 
                     if (frameContext->external)
                         returnFrame(frameContext, f);
@@ -230,7 +232,7 @@ void VSThreadPool::runTasks(bool &stop) {
                 }
             }
 
-            if (frameProcessingDone)
+            if (frameProcessingDone && !frameContext->external)
                 allContexts.erase(frameContext->key);
 
 /////////////////////////////////////////////////////////////////////////////////////////////
