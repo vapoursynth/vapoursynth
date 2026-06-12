@@ -320,7 +320,7 @@ void VSThreadPool::runTasks(bool &stop) {
                 // Wait predicates don't work since they're the equivalent of a wrapping while loop
                 do {
                     newWork.wait(lock);
-                } while (activeThreads >= currentMaxThreads);
+                } while (activeThreads >= currentMaxThreads && !stop);
                 --idleThreads;
                 ++activeThreads;
             }
