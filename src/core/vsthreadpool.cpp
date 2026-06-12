@@ -305,18 +305,21 @@ void VSThreadPool::runTasks(bool &stop) {
                     flushCaches = false;
                     std::swap(tasks, altTasks);
                     core->logMessage(mtInformation, "Pipeline flushed, resuming processing");
-                    newWork.notify_all();
                     // the thread can't notify itself ahead of waiting so instead skip the wait and just loop back around to check for work immediately
                     shouldWait = false;
+                    ++activeThreads;
+                    --idleThreads;
+                    newWork.notify_all();
                 } else {
                     allIdle.notify_one();
                 }
             }
 
-            if (shouldWait)
+            if (shouldWait) {
                 newWork.wait(lock, [&] { return activeThreads < currentMaxThreads; });
-            --idleThreads;
-            ++activeThreads;
+                --idleThreads;
+                ++activeThreads;
+            }
         }
     }
 }
