@@ -53,7 +53,7 @@ Minimum/Maximum
 
    *threshold*
       Allows to limit how much pixels are changed. Output pixels will not
-      become less than ``input - threshold``. The default is no limit.
+      become greater than ``input + threshold``. The default is no limit.
 
    *coordinates*
       Specifies which pixels from the 3x3 neighbourhood are considered.
