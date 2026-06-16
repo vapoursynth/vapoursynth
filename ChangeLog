@@ -1,4 +1,5 @@
 r77:
+fixed deadlock introduced in r76
 maskedmerge and premultiply now takes chroma location into account when resizing the mask/alpha channel, note that chroma location checks have been introduced which may cause errors in rare cases (Justin Arthur)
 riscv compilation fixes, it's now detected as a proper target
 many minor issues such as filter argument validation, overflows and many other rare problems fixed after an ai audit of the code
