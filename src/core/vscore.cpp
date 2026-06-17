@@ -907,8 +907,6 @@ void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
     this->v3vi = *vi;
     this->v3vi.flags = vs3::nfNoCache | vs3::nfIsCache;
     this->vi = core->VideoInfoFromV3(this->v3vi);
-
-    refcount = numOutputs;
 }
 
 const char *VSNode::getCreationFunctionName(int level) const {
