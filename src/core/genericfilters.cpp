@@ -972,6 +972,11 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         d->max_in = std::round(d->max_in);
         d->max_out = std::round(d->max_out);
 
+        if (std::abs(d->max_in - d->min_in) < std::numeric_limits<float>::epsilon()) {
+            vsapi->mapSetError(out, (d->name + ": max_in and min_in are too close"s).c_str());
+            return;
+        }
+
         if (d->vi->format.bytesPerSample == 1) {
             for (int v = 0; v <= 255; v++)
                 d->lut[v] = static_cast<uint8_t>(std::max(std::min(std::pow(std::max(std::min<float>(v, d->max_in) - d->min_in, 0.f) / (d->max_in - d->min_in), d->gamma) * (d->max_out - d->min_out) + d->min_out, 255.f), 0.f) + 0.5f);

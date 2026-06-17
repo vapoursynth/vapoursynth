@@ -349,6 +349,9 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         if (!hblur && !vblur)
             throw std::runtime_error("nothing to be performed");
 
+        if (vi->width < 4 || vi->height < 4)
+            throw std::runtime_error("dimensions must be at least 4x4");
+
         VSPlugin *stdplugin = vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core);
 
         if (vi->format.numPlanes == 1) {
