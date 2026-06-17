@@ -289,7 +289,7 @@ static void outputFrame(const VSFrame *frame, VSPipeOutputData *data) {
 
 static std::string doubleToString(double v) {
     char buffer[100];
-    auto res = std::to_chars(buffer, buffer + sizeof(buffer), v, std::chars_format::fixed);
+    auto res = std::to_chars(buffer, buffer + sizeof(buffer), v, std::chars_format::fixed, 20);
     return std::string(buffer, res.ptr - buffer);
 }
 
