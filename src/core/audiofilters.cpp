@@ -498,8 +498,8 @@ static const VSFrame *VS_CC audioGainGetFrame32(int n, int activationReason, voi
         VSFrame *dst = vsapi->newAudioFrame(&d->ai->format, length, src, core);
         bool error = false;
 
-        double maxV = ((1 << (d->ai->format.bitsPerSample - 1)) - 1);
-        double minV = -((1 << (d->ai->format.bitsPerSample - 1)));
+        double maxV = ((static_cast<int64_t>(1) << (d->ai->format.bitsPerSample - 1)) - 1);
+        double minV = -(static_cast<int64_t>(1) << (d->ai->format.bitsPerSample - 1));
 
         for (int p = 0; p < d->ai->format.numChannels; p++) {
             double gain = d->gain[(d->gain.size() > 1) ? p : 0];
@@ -646,7 +646,7 @@ static const VSFrame *VS_CC audioMixGetFrame16(int n, int activationReason, void
                     }
                 }
 
-                dstPtrs[dstIdx][i] = static_cast<int16_t>(tmp);
+                dstPtrs[dstIdx][i] = static_cast<int16_t>(vclamped);
             }
         }
 
@@ -676,8 +676,8 @@ static const VSFrame *VS_CC audioMixGetFrame32(int n, int activationReason, void
         srcFrames.reserve(d->sourceNodes.size());
         bool error = false;
 
-        double maxV = ((1 << (d->ai.format.bitsPerSample - 1)) - 1);
-        double minV = -((1 << (d->ai.format.bitsPerSample - 1)));
+        double maxV = ((static_cast<int64_t>(1) << (d->ai.format.bitsPerSample - 1)) - 1);
+        double minV = -(static_cast<int64_t>(1) << (d->ai.format.bitsPerSample - 1));
 
         for (size_t idx = 0; idx < d->sourceNodes.size(); idx++) {
             const VSFrame *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);

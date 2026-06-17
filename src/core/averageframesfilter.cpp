@@ -264,9 +264,10 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
                 d->fscale = scalef;
         } else {
             if (d->vi.format.sampleType == stInteger) {
-                d->scale = floatToIntS(scale);
-                if (d->scale < 1)
+                int scalei = floatToIntS(scale);
+                if (scalei < 1)
                     throw std::runtime_error("scale must be a positive number");
+                d->scale = scalei;
             } else {
                 d->fscale = scale;
                 if (d->fscale < FLT_EPSILON)

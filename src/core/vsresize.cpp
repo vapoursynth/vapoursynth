@@ -324,8 +324,8 @@ void propagate_sar(const VSMap *src_props, VSMap *dst_props, const zimg_image_fo
 
     if (vsapi->mapNumElements(src_props, "_SARNum") > 0)
         sar_num = vsapi->mapGetInt(src_props, "_SARNum", 0, nullptr);
-    if (vsapi->mapNumElements(dst_props, "_SARDen") > 0)
-        sar_den = vsapi->mapGetInt(dst_props, "_SARDen", 0, nullptr);
+    if (vsapi->mapNumElements(src_props, "_SARDen") > 0)
+        sar_den = vsapi->mapGetInt(src_props, "_SARDen", 0, nullptr);
 
     if (sar_num <= 0 || sar_den <= 0) {
         vsapi->mapDeleteKey(dst_props, "_SARNum");

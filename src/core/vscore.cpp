@@ -115,7 +115,7 @@ void VSFunction::call(const VSMap *in, VSMap *out) {
 ///////////////
 
 VSPlaneData::VSPlaneData(size_t dataSize, vs::MemoryUse &mem) noexcept : refcount(1), mem(mem), size(dataSize + 2 * VSFrame::guardSpace) {
-    data = mem.allocate(size + 2 * VSFrame::guardSpace);
+    data = mem.allocate(size);
     assert(data);
     if (!data)
         VS_FATAL_ERROR("Failed to allocate memory for plane. Out of memory.");
@@ -1085,7 +1085,8 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
 
         if (cacheEnabled) {
             std::lock_guard<std::mutex> lock(cacheMutex);
-            if (cacheEnabled && (!cacheLastOnly || n == vi.numFrames - 1))
+            int lastFrame = (nodeType == mtVideo ? vi.numFrames : ai.numFrames) - 1;
+            if (cacheEnabled && (!cacheLastOnly || n == lastFrame))
                 cache.insert(n, ref);
         }
 
