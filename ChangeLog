@@ -1,3 +1,7 @@
+r78:
+remembered to actually remove avfs from the source tree
+several more small fixes for ai found bugs
+
 r77:
 fixed deadlock introduced in r76
 maskedmerge and premultiply now takes chroma location into account when resizing the mask/alpha channel, note that chroma location checks have been introduced which may cause errors in rare cases (Justin Arthur)

@@ -206,11 +206,13 @@ static void realInit() VS_NOEXCEPT {
     }
     s = p_PyGILState_Ensure();
     if (import_vapoursynth()) {
+        p_PyEval_SaveThread();
         FREE_LIBRARY(libraryHandle);
         extendedErrorMessage = "Failed to import the VapourSynth Python module.";
         return;
     }
     if (vpy4_initVSScript()) {
+        p_PyEval_SaveThread();
         FREE_LIBRARY(libraryHandle);
         extendedErrorMessage = "Failed to initialize the VapourSynth Python module for VSScript use.";
         return;
@@ -309,6 +311,7 @@ static int VS_CC setVariable(VSScript *handle, const VSMap *vars) VS_NOEXCEPT {
 }
 
 static void VS_CC evalSetWorkingDir(VSScript *handle, int setCWD) VS_NOEXCEPT {
+    std::lock_guard<std::mutex> lock(vsscriptlock);
     handle->setCWD = setCWD;
 }
 
