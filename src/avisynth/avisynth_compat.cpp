@@ -862,7 +862,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         PClip clip = ret.AsClip();
 
         PrefetchInfo prefetchInfo = getPrefetchInfo(wf->name, in, core, vsapi);
-        std::unique_ptr<WrappedClip> filterData(new WrappedClip(wf->name, clip, preFetchClips, prefetchInfo, fakeEnv.get()));
+        std::unique_ptr<WrappedClip> filterData(new WrappedClip(wf->name, clip, preFetchClips, prefetchInfo, fakeEnv.release()));
 
         if (!filterData->preFetchClips.empty())
             filterData->fakeEnv->uglyNode = filterData->preFetchClips.front();
@@ -916,8 +916,6 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     } else if (ret.IsString()) {
         vsapi->mapSetData(out, "val", ret.AsString(), -1, dtUtf8, maReplace);
     }
-
-    fakeEnv.release();
 }
 
 void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc apply, void *user_data) {
