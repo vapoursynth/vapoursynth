@@ -506,6 +506,11 @@ bool VapourSynthFile::DelayInit2() {
             se = vssapi->createScript(nullptr);
             vssapi->evaluateBuffer(se, error_script.c_str(), "vfw_error.message");
             videoNode = vssapi->getOutputNode(se, 0);
+            if (!videoNode) {
+                vssapi->freeScript(se);
+                se = nullptr;
+                return false;
+            }
             vi = vsapi->getVideoInfo(videoNode);
             return true;
         }
@@ -767,8 +772,10 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         errSe = vssapi->createScript(nullptr);
         vssapi->evaluateBuffer(errSe, frameErrorScript.c_str(), "vfw_error.message");
         VSNode *node = vssapi->getOutputNode(errSe, 0);
-        f = vsapi->getFrame(0, node, nullptr, 0);
-        vsapi->freeNode(node);
+        if (node) {
+            f = vsapi->getFrame(0, node, nullptr, 0);
+            vsapi->freeNode(node);
+        }
 
         if (!f) {
             vssapi->freeScript(errSe);
