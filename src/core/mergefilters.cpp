@@ -398,7 +398,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         if (d->vi->format.sampleType == stInteger) {
             if (d->weight[i] == 0)
                 d->process[i] = 1;
-            else if (d->weight[i] == 1 << MergeShift)
+            else if (d->fweight[i] == 1.0f)
                 d->process[i] = 2;
         } else if (d->vi->format.sampleType == stFloat) {
             if (d->fweight[i] == 0.0f)
