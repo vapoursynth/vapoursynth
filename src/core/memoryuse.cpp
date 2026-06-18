@@ -6,10 +6,10 @@
 #include "memoryuse.h"
 #include "VSHelper4.h"
 
-// Only confirmed needed on Windows.
-#ifdef _WIN32
+// Confirmed needed on Windows and Linux, primarily due to the impact
+// of memory fragmentation with default allocators
+// https://github.com/vapoursynth/vapoursynth/issues/1167
 #define USE_FRAME_POOL
-#endif
 
 // Print pool hit/miss stats on exit.
 #if 0
