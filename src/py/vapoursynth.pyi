@@ -843,6 +843,7 @@ class VideoFormat:
 
     def replace(
         self, *,
+        core: Core | _CoreProxy | None = None,
         color_family: Union[ColorFamily, None] = None,
         sample_type: Union[SampleType, None] = None,
         bits_per_sample: Union[int, None] = None,
