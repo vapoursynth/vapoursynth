@@ -1162,17 +1162,27 @@ cdef class VideoFormat(object):
 
     def _as_dict(self):
         return {
+            'id': self.id,
+            'name': self.name,
             'color_family': self.color_family,
             'sample_type': self.sample_type,
             'bits_per_sample': self.bits_per_sample,
+            'bytes_per_sample': self.bytes_per_sample,
             'subsampling_w': self.subsampling_w,
-            'subsampling_h': self.subsampling_h
+            'subsampling_h': self.subsampling_h,
+            'num_planes': self.num_planes
         }
 
     def replace(self, **kwargs):
         core = kwargs.pop("core", None) or _get_core()
-        vals = self._as_dict()
-        vals.update(**kwargs)
+        vals = {
+            'color_family': self.color_family,
+            'sample_type': self.sample_type,
+            'bits_per_sample': self.bits_per_sample,
+            'subsampling_w': self.subsampling_w,
+            'subsampling_h': self.subsampling_h,
+            **kwargs,
+        }
         return core.query_video_format(**vals)
 
     def __eq__(self, other):
