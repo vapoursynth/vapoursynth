@@ -6,6 +6,14 @@
 #include "memoryuse.h"
 #include "VSHelper4.h"
 
+#ifdef VS_TARGET_OS_WINDOWS
+#include <windows.h>
+#elif defined(VS_TARGET_OS_DARWIN)
+#include <sys/sysctl.h>
+#else
+#include <sys/sysinfo.h>
+#endif
+
 // Confirmed needed on Windows and Linux, primarily due to the impact
 // of memory fragmentation with default allocators
 // https://github.com/vapoursynth/vapoursynth/issues/1167
@@ -36,6 +44,28 @@ bool is_good_fit(size_t request, size_t allocated)
     return wasted <= (request / GOOD_FIT_DENOMINATOR) * GOOD_FIT_NUMERATOR;
 }
 
+std::size_t get_total_ram()
+{
+#ifdef VS_TARGET_OS_WINDOWS
+    MEMORYSTATUSEX status{};
+    status.dwLength = sizeof(status);
+    if (!GlobalMemoryStatusEx(&status))
+        return 0;
+    return status.ullTotalPhys;
+#elif defined(VS_TARGET_OS_DARWIN)
+    std::size_t memsize = 0;
+    std::size_t len = sizeof(memsize);
+    if (sysctlbyname("hw.memsize", &memsize, &len, nullptr, 0))
+        return 0;
+    return memsize;
+#else
+    struct sysinfo info{};
+    if (sysinfo(&info))
+        return 0;
+    return static_cast<std::size_t>(info.totalram) * info.mem_unit;
+#endif
+}
+
 } // namespace
 
 #ifdef DEBUG_STATS
@@ -51,7 +81,8 @@ struct MemoryUse::DebugStats {
 MemoryUse::MemoryUse()
 {
 #if SIZE_MAX > UINT32_MAX
-    m_limit = 4 * (1ULL << 30);
+    size_t total_ram = get_total_ram();
+    m_limit = (total_ram > 0) ? total_ram / 2 : 4 * (1ULL << 30);
 #else
     m_limit = 1 * (1ULL << 30);
 #endif
