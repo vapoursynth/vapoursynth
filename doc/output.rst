@@ -42,11 +42,17 @@ Options
 ``-t, --timecodes FILE``
     Write timecodes v2 file
 
+``-j, --json FILE``
+    Write properties of output frames in json format to file
+
 ``-p, --progress``
     Print progress to stderr
-    
+
 ``--filter-time``
     Records the time spent in each filter and prints it out at the end of processing.
+
+``--filter-time-graph FILE``
+    Write the output node's filter graph in dot format with time information to file after processing
 
 ``-i, --info``
     Show video info and exit
@@ -54,9 +60,14 @@ Options
 ``-g, --graph <simple/full>``
     Print output node filter graph in dot format to outfile and exit
 
+``--frame-ref-debug``
+    Print frame allocation debug information
+
 ``-v, --version``
     Show version info and exit
 
+``-h, --help``
+    Show usage information and exit
 
 Examples
 ********

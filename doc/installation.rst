@@ -175,9 +175,9 @@ Alternatively, you can let pip directly install from GitHub without cloning the 
 
    pip install git+https://github.com/vapoursynth/vapoursynth.git
 
-The documentation can be built using its own Makefile::
+The documentation can be built using Sphinx::
 
-   $ make -C doc/ html
+   $ sphinx-build -b html doc/ doc/_build/html
 
 The documentation can be installed using the standard program ``cp``.
 

@@ -10,10 +10,10 @@ LoadAllPlugins
 
    Beware of Python's escape character, this will fail::
 
-      LoadPlugin(path='c:\plugins')
+      LoadAllPlugins(path='c:\plugins')
 
    Correct ways::
-   
-      LoadPlugin(path='c:/plugins')
-      LoadPlugin(path=r'c:\plugins')
-      LoadPlugin(path='c:\\plugins\\')
+
+      LoadAllPlugins(path='c:/plugins')
+      LoadAllPlugins(path=r'c:\plugins')
+      LoadAllPlugins(path='c:\\plugins\\')

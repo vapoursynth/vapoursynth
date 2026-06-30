@@ -1082,7 +1082,7 @@ struct VSCoreInfo2
 struct VSFilterDependency
 -------------------------
 
-   Contains information about a VSCore_ instance.
+   Contains information about a filter's dependencies, used to determine the cache behavior when creating a filter.
 
    .. c:member:: VSNode *source
 
@@ -1185,7 +1185,7 @@ struct VSAPI
 
    .. _getCoreInfo2:
 
-   void getCoreInfo(VSCore_ \*core, VSCoreInfo2_ \*info)
+   void getCoreInfo2(VSCore_ \*core, VSCoreInfo2_ \*info)
 
       Returns information about the VapourSynth core.
 
@@ -1588,7 +1588,7 @@ struct VSAPI
 
    void createAudioFilter(VSMap \*out, const char \*name, const VSAudioInfo \*ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency_ \*dependencies, int numDeps, void \*instanceData, VSCore \*core)
 
-      Creates a new video filter node.
+      Creates a new audio filter node.
 
       *out*
          Output map for the filter node.
@@ -1765,7 +1765,7 @@ struct VSAPI
 
    int queryVideoFormat(VSVideoFormat_ \*format, int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore_ \*core)
 
-      Fills out a VSVideoInfo_ struct based on the provided arguments. Validates the arguments before filling out *format*.
+      Fills out a VSVideoFormat_ struct based on the provided arguments. Validates the arguments before filling out *format*.
 
       *format*
          The struct to fill out.
@@ -1809,7 +1809,7 @@ struct VSAPI
 
       *bitsPerSample*
          Number of meaningful bits for a single component. The valid range is
-         8-32.
+         16-32.
 
          For floating point formats only 32 bits are allowed.
 
@@ -1825,7 +1825,7 @@ struct VSAPI
    uint32_t queryVideoFormatID(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore_ \*core)
 
       Get the id associated with a video format. Similar to queryVideoFormat_\ () except that it returns a format id instead
-      of filling out a VSVideoInfo_ struct.
+      of filling out a VSVideoFormat_ struct.
 
       *colorFamily*
          One of VSColorFamily_.
@@ -1971,7 +1971,7 @@ struct VSAPI
 
    .. _mapSetEmpty:
 
-   int mapSetEmpty(const VSMap_ \*map, const char \*key, int type)
+   int mapSetEmpty(VSMap_ \*map, const char \*key, int type)
 
       Creates an empty array of *type* in *key*. Returns non-zero
       value on failure due to *key* already existing or having an
@@ -2191,10 +2191,9 @@ struct VSAPI
 
    int mapGetDataTypeHint(const VSMap_ \*map, const char \*key, int index, int \*error)
 
-      Returns the size in bytes of a property of type ptData (see
-      VSPropertyType_), or 0 in case of error. The terminating NULL byte
-      added by mapSetData_\ () is not counted.
-      
+      Returns the data type hint of a property of type ptData (see
+      VSDataTypeHint_), or dtUnknown in case of error.
+
       See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
@@ -2306,7 +2305,7 @@ struct VSAPI
 
    .. _mapGetFunction:
 
-   VSFunctionRef \*mapGetFunction(const VSMap_ \*map, const char \*key, int index, int \*error)
+   VSFunction \*mapGetFunction(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves a function from a map.
 
@@ -2780,7 +2779,7 @@ struct VSAPI
                
                "vframe": const VSFrame_\ * (video type)
 
-               "func": const VSFunctionRef\ *
+               "func": const VSFunction\ *
 
                It is possible to declare an array by appending "[]" to the type.
 

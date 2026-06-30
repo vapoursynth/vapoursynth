@@ -4,7 +4,7 @@ MergeFullDiff
 .. function::   MergeFullDiff(vnode clipa, vnode clipb)
    :module: std
 
-   Merges back the difference in *clipb* to *clipa*. Note that the bitdepth of *clipb* has to be one higher than that of *clip*.
+   Merges back the difference in *clipb* to *clipa*. Note that the bitdepth of *clipb* has to be one higher than that of *clipa*.
    This function is usually used together with *MakeFullDiff*, which is normally used to calculate the difference.
 
    Unsharp mask::

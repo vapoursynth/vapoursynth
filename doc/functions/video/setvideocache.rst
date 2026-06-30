@@ -1,7 +1,7 @@
 SetVideoCache
 =============
 
-.. function:: SetVideoCache(vnode clip[, int mode, int fixedsize, int maxsize, int historysize])
+.. function:: SetVideoCache(vnode clip[, int mode, int fixedsize, int maxsize, int maxhistory])
    :module: std
 
    Every filter node has a cache associated with it that
@@ -18,7 +18,7 @@ SetVideoCache
    The other options are fairly self-explanatory where
    setting *fixedsize* prevents the cache from over time
    altering its *maxsize* based on request history. The
-   final *historysize* argument controls how many previous
+   final *maxhistory* argument controls how many previous
    and no longer cached requests should be considered when
    adjusting *maxsize*, generally this value should not
    be touched at all.

@@ -16,7 +16,7 @@ Structs_
 Functions_
    getVSScriptAPI_
 
-   getApiVersion_
+   getAPIVersion_
       
    getVSAPI_
       
@@ -96,10 +96,10 @@ getVSScriptAPI
     It is recommended to always pass *VSSCRIPT_API_VERSION*.
     
 
-getApiVersion
+getAPIVersion
 -------------
 
-.. c:function:: int getApiVersion()
+.. c:function:: int getAPIVersion()
 
     Returns the api version provided by vsscript.
 
@@ -162,7 +162,7 @@ evaluateBuffer
 evaluateFile
 ------------
 
-.. c:function:: int evaluateFile(VSScript **handle, const char *scriptFilename)
+.. c:function:: int evaluateFile(VSScript *handle, const char *scriptFilename)
 
     Evaluates a script contained in a file. This is a convenience function which reads the script from a file for you. It will only read the first 16 MiB which should be enough for everyone.
 
@@ -212,7 +212,7 @@ getVariable
 setVariables
 ------------
 
-.. c:function:: int vsscript_setVariable(VSScript *handle, const VSMap *vars)
+.. c:function:: int setVariables(VSScript *handle, const VSMap *vars)
 
     Sets variables in the script environment.
 

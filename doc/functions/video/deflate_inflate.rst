@@ -22,7 +22,7 @@ Deflate/Inflate
       become less than ``input - threshold``. The default is no limit.
 
 
-.. function:: Inflate(vnode clip[, int[] planes=[0, 1, 2], int threshold=65535])
+.. function:: Inflate(vnode clip[, int[] planes=[0, 1, 2], float threshold])
    :module: std
 
    Replaces each pixel with the average of the eight pixels in its 3x3

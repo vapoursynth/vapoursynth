@@ -189,7 +189,7 @@ Classes and Functions
 
 .. py:function:: get_outputs()
 
-   Return a read-only mapping of all outputs registered on the current node.
+   Return a read-only mapping of all outputs registered on the current environment.
 
    The mapping will automatically update when a new output is registered.
 
@@ -206,7 +206,7 @@ Classes and Functions
 
    Clears all clips set for output in the current environment.
 
-.. py:function:: construct_signature(signature[, injected=None])
+.. py:function:: construct_signature(signature, return_signature[, injected=None, name=None])
 
    Creates a *inspect.Signature* object for the given registration signature.
 
@@ -278,9 +278,9 @@ Classes and Functions
 
    .. py:method:: get_video_format(id)
 
-      Retrieve a Format object corresponding to the specified id. Returns None if the *id* is invalid.
+      Retrieve a Format object corresponding to the specified id. Invalid ids throw an exception.
 
-   .. py:method:: query_video_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
+   .. py:method:: query_video_format(color_family, sample_type, bits_per_sample[, subsampling_w = 0, subsampling_h = 0])
 
       Retrieve a Format object corresponding to the format information, Invalid formats throw an exception.
 
@@ -366,11 +366,6 @@ Classes and Functions
    .. py:attribute:: fps_den
 
       Deprecated, use *fps.denominator* instead
-
-   .. py:attribute:: flags
-
-      Special flags set for this clip. This attribute should normally be
-      ignored.
 
    .. py:method:: get_frame(n)
 
@@ -490,7 +485,7 @@ Classes and Functions
       compatibility with older scripts. For more information, see:
       `API Reference <apireference.html#reserved-frame-properties>`_
       Note: This includes the data for matrix, transfer and primaries. (_Matrix,
-      _Transfer, _Primaries) See `Resize <functions/resize.html>`_ for more information.
+      _Transfer, _Primaries) See `Resize <functions/video/resize.html>`_ for more information.
 
    .. py:method:: copy()
 
@@ -1040,9 +1035,7 @@ Color Family
 ------------
 
 The color family constants describe groups of formats and the basic way their
-color information is stored. You should be familiar with all of them apart from
-maybe *YCOCG* and *COMPAT*. The latter is a special junk category for non-planar
-formats. These are the declared constants in the module::
+color information is stored. These are the declared constants in the module::
 
    UNDEFINED
    RGB
@@ -1091,6 +1084,10 @@ bits for all 3 planes added together. The long list of values::
    YUV420P16
    YUV422P16
    YUV444P16
+   YUV420PH
+   YUV420PS
+   YUV422PH
+   YUV422PS
    YUV444PH
    YUV444PS
    RGB24

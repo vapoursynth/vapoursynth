@@ -166,7 +166,7 @@ isConstantVideoFormat
 isSameVideoFormat
 -----------------
 
-.. cpp:function:: static inline bool vsh::isSameVideoFormat(const VSVideoInfo *v1, const VSVideoInfo *v2)
+.. cpp:function:: static inline bool vsh::isSameVideoFormat(const VSVideoFormat *v1, const VSVideoFormat *v2)
 
    Checks if two clips have the same video format. If the format is
    unknown in both, it will be considered the same.
@@ -247,7 +247,7 @@ int64ToIntS
 doubleToFloatS
 --------------
 
-.. cpp:function:: static inline int vsh::doubleToFloatS(double d)
+.. cpp:function:: static inline float vsh::doubleToFloatS(double d)
 
    Converts a double to float. It's useful to silence
    warnings when reading double properties from a VSMap and mostly exists to mirror `int64ToIntS`_.
@@ -256,7 +256,7 @@ doubleToFloatS
 bitblt
 ------
 
-.. cpp:function:: static inline void vsh::bitblt(void *dstp, int dst_stride, const void *srcp, int src_stride, size_t row_size, size_t height)
+.. cpp:function:: static inline void vsh::bitblt(void *dstp, ptrdiff_t dst_stride, const void *srcp, ptrdiff_t src_stride, size_t row_size, size_t height)
 
    Copies bytes from one plane to another. Basically, it is memcpy in a loop.
 
@@ -266,7 +266,7 @@ bitblt
 areValidDimensions
 ------------------
 
-.. cpp:function:: static inline bool vsh::areValidDimensions(const VSFormat *fi, int width, int height)
+.. cpp:function:: static inline bool vsh::areValidDimensions(const VSVideoFormat *fi, int width, int height)
 
    Checks if the given dimensions are valid for a particular format, with regards
    to chroma subsampling.

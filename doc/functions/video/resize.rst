@@ -8,15 +8,15 @@ Resize
                 Spline16(vnode clip[, ...])
                 Spline36(vnode clip[, ...])
                 Spline64(vnode clip[, ...])
-                Bob(vnode clip, string filter="bicubic", bint tff[, ...])
+                Bob(vnode clip[, string filter="bicubic", bint tff, ...])
    :module: resize
    
    In VapourSynth the resizers have several functions. In addition to scaling,
-   they also do colorspace conversions and conversions to and from the compat
-   formats. Resize converts a clip of known or unknown format to another clip
-   of known or unknown format, changing only the parameters specified by the
-   user. The resize filters can handle varying size and format input clips
-   and turn them into constant format clips.
+   they also do colorspace conversions. Resize converts a clip of known or
+   unknown format to another clip of known or unknown format, changing only
+   the parameters specified by the user. The resize filters can handle
+   varying size and format input clips and turn them into constant format
+   clips.
 
    If you do not know which resizer to choose, then try Bicubic. It usually
    makes a good neutral default.
@@ -72,7 +72,7 @@ Resize
    *matrix*, *transfer*, *primaries*:
 
       Output colorspace specification. If not provided, the corresponding attributes from
-      the input clip will be selected, except for YCoCg and RGB color families, where the
+      the input clip will be selected, except for the RGB color family, where the
       corresponding matrix is set by default.
 
    *range*:
@@ -106,7 +106,7 @@ Resize
    
       Scaling method for UV channels. It defaults to the same as for the Y-channel. The
       following values can be used with *resample_filter_uv*: *point*, *bilinear*, *bicubic*,
-      *spline16*, *spline36*, *lanczos*.
+      *spline16*, *spline36*, *spline64*, *lanczos*.
 
    *filter_param_a_uv*, *filter_param_b_uv*:
 

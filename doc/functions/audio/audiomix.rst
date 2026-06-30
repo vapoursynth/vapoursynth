@@ -10,8 +10,8 @@ AudioMix
    Most of the returned clip's properties are implicitly determined from the
    first clip given to *clips*.
 
-   The *clips* parameter takes one or more clips with the same format. If the clips
-   are different lengths they'll be zero extended to that of the longest.
+   The *clips* parameter takes one or more clips with the same format. All clips
+   must have the same length, sample rate, bits per sample and sample type.
 
    The argument *matrix* applies the coefficients to each channel of each input clip where
    the channels are in the numerical order of their channel constants. For example a stereo clip

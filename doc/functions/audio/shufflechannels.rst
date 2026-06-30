@@ -10,8 +10,9 @@ ShuffleChannels
    Most of the returned clip's properties are implicitly determined from the
    first clip given to *clips*.
 
-   The *clips* parameter takes one or more clips with the same format. If the clips
-   are different lengths they'll be zero extended to that of the longest.
+   The *clips* parameter takes one or more clips with the same samplerate, bits per
+   sample and sample type. If the clips are different lengths they'll be zero extended
+   to that of the longest.
 
    The argument *channels_in* controls which of the input clips' channels to use and
    takes a channel constants as its argument. Specifying a non-existent channel
