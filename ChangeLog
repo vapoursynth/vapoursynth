@@ -1,4 +1,5 @@
 r78:
+improved planestats optimizations
 improved merge filters optimization and added avx512 path
 added avx512 optimizations to min, max, convolution and other fitlers internally known as genericfilters
 now the initial max cache size default is half of the physical available ram (HolyWu)

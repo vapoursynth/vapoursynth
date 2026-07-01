@@ -121,40 +121,44 @@ void vs_plane_stats_1_word_sse2(union vs_plane_stats *stats, const void *src, pt
 
     __m128i mmin = _mm_set1_epi16(INT16_MAX);
     __m128i mmax = _mm_set1_epi16(INT16_MIN);
-    __m128i macc_lo = _mm_setzero_si128();
-    __m128i macc_hi = _mm_setzero_si128();
+    __m128i macc = _mm_setzero_si128(); /* 2x int64, biased running sum */
+    __m128i mbias = _mm_set1_epi16(INT16_MIN);
+    __m128i ones = _mm_set1_epi16(1);
     __m128i mask = _mm_cmplt_epi16(_mm_loadu_si128((const __m128i *)ascend16), _mm_set1_epi16(width % 8));
     __m128i onesmask = _mm_andnot_si128(mask, _mm_set1_epi16(UINT16_MAX));
-    __m128i low8mask = _mm_set1_epi16(0xFF);
-    __m128i tmp;
 
     for (y = 0; y < height; y++) {
+        __m128i racc = _mm_setzero_si128(); /* per-row 4x int32 madd accumulator */
+        __m128i sign;
         for (x = 0; x < tail; x += 8) {
             __m128i v = _mm_load_si128((const __m128i *)((const uint16_t *)srcp + x));
-            __m128i v_signed = _mm_add_epi16(v, _mm_set1_epi16(INT16_MIN));
+            __m128i v_signed = _mm_add_epi16(v, mbias);
             mmin = _mm_min_epi16(mmin, v_signed);
             mmax = _mm_max_epi16(mmax, v_signed);
-
-            macc_lo = _mm_add_epi64(macc_lo, _mm_sad_epu8(_mm_and_si128(low8mask, v), _mm_setzero_si128()));
-            macc_hi = _mm_add_epi64(macc_hi, _mm_sad_epu8(_mm_andnot_si128(low8mask, v), _mm_setzero_si128()));
+            /* sum of (v - 32768) via pmaddwd; corrected by +32768*N at the end */
+            racc = _mm_add_epi32(racc, _mm_madd_epi16(v_signed, ones));
         }
         if (width != tail) {
             __m128i v = _mm_and_si128(_mm_load_si128((const __m128i *)((const uint16_t *)srcp + tail)), mask);
-            mmin = _mm_min_epi16(mmin, _mm_add_epi16(_mm_or_si128(v, onesmask), _mm_set1_epi16(INT16_MIN)));
-            mmax = _mm_max_epi16(mmax, _mm_add_epi16(v, _mm_set1_epi16(INT16_MIN)));
-
-            macc_lo = _mm_add_epi64(macc_lo, _mm_sad_epu8(_mm_and_si128(low8mask, v), _mm_setzero_si128()));
-            macc_hi = _mm_add_epi64(macc_hi, _mm_sad_epu8(_mm_andnot_si128(low8mask, v), _mm_setzero_si128()));
+            __m128i v_signed = _mm_add_epi16(v, mbias);
+            mmin = _mm_min_epi16(mmin, _mm_add_epi16(_mm_or_si128(v, onesmask), mbias));
+            mmax = _mm_max_epi16(mmax, v_signed);
+            racc = _mm_add_epi32(racc, _mm_madd_epi16(_mm_and_si128(v_signed, mask), ones));
         }
+        /* widen the row's signed int32 partial sums into the int64 accumulator */
+        sign = _mm_srai_epi32(racc, 31);
+        macc = _mm_add_epi64(macc, _mm_add_epi64(_mm_unpacklo_epi32(racc, sign), _mm_unpackhi_epi32(racc, sign)));
         srcp += stride;
     }
 
     stats->i.min = hmin_epi16(mmin) - INT16_MIN;
     stats->i.max = hmax_epi16(mmax) - INT16_MIN;
 
-    tmp = _mm_add_epi64(_mm_unpacklo_epi64(macc_lo, macc_hi), _mm_unpackhi_epi64(macc_lo, macc_hi));
-    tmp = _mm_add_epi64(tmp, _mm_slli_epi64(_mm_unpackhi_epi64(tmp, tmp), 8));
-    _mm_storel_epi64((__m128i *)&stats->i.acc, tmp);
+    {
+        int64_t sum_biased;
+        _mm_storel_epi64((__m128i *)&sum_biased, _mm_add_epi64(macc, _mm_srli_si128(macc, 8)));
+        stats->i.acc = (uint64_t)(sum_biased + (int64_t)(((uint64_t)width * height) << 15));
+    }
 }
 
 void vs_plane_stats_1_float_sse2(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
@@ -243,45 +247,43 @@ void vs_plane_stats_2_word_sse2(union vs_plane_stats *stats, const void *src1, p
 
     __m128i mmin = _mm_set1_epi16(INT16_MAX);
     __m128i mmax = _mm_set1_epi16(INT16_MIN);
-    __m128i macc_lo = _mm_setzero_si128();
-    __m128i macc_hi = _mm_setzero_si128();
-    __m128i mdiffacc_lo = _mm_setzero_si128();
-    __m128i mdiffacc_hi = _mm_setzero_si128();
+    __m128i macc = _mm_setzero_si128();
+    __m128i mdiffacc = _mm_setzero_si128();
+    __m128i mbias = _mm_set1_epi16(INT16_MIN);
+    __m128i ones = _mm_set1_epi16(1);
     __m128i mask = _mm_cmplt_epi16(_mm_loadu_si128((const __m128i *)ascend16), _mm_set1_epi16(width % 8));
     __m128i onesmask = _mm_andnot_si128(mask, _mm_set1_epi16(UINT16_MAX));
-    __m128i low8mask = _mm_set1_epi16(0xFF);
-    __m128i tmp;
 
     for (y = 0; y < height; y++) {
+        __m128i racc = _mm_setzero_si128();
+        __m128i rdiffacc = _mm_setzero_si128();
+        __m128i sign;
         for (x = 0; x < tail; x += 8) {
             __m128i v1 = _mm_load_si128((const __m128i *)((const uint16_t *)srcp1 + x));
             __m128i v2 = _mm_load_si128((const __m128i *)((const uint16_t *)srcp2 + x));
-            __m128i v1_signed = _mm_add_epi16(v1, _mm_set1_epi16(INT16_MIN));
+            __m128i v1_signed = _mm_add_epi16(v1, mbias);
             __m128i udiff = _mm_or_si128(_mm_subs_epu16(v1, v2), _mm_subs_epu16(v2, v1));
 
             mmin = _mm_min_epi16(mmin, v1_signed);
             mmax = _mm_max_epi16(mmax, v1_signed);
-
-            macc_lo = _mm_add_epi64(macc_lo, _mm_sad_epu8(_mm_and_si128(low8mask, v1), _mm_setzero_si128()));
-            macc_hi = _mm_add_epi64(macc_hi, _mm_sad_epu8(_mm_andnot_si128(low8mask, v1), _mm_setzero_si128()));
-
-            mdiffacc_lo = _mm_add_epi64(mdiffacc_lo, _mm_sad_epu8(_mm_and_si128(low8mask, udiff), _mm_setzero_si128()));
-            mdiffacc_hi = _mm_add_epi64(mdiffacc_hi, _mm_sad_epu8(_mm_andnot_si128(low8mask, udiff), _mm_setzero_si128()));
+            racc = _mm_add_epi32(racc, _mm_madd_epi16(v1_signed, ones));
+            rdiffacc = _mm_add_epi32(rdiffacc, _mm_madd_epi16(_mm_add_epi16(udiff, mbias), ones));
         }
         if (width != tail) {
             __m128i v1 = _mm_and_si128(_mm_load_si128((const __m128i *)((const uint16_t *)srcp1 + tail)), mask);
             __m128i v2 = _mm_and_si128(_mm_load_si128((const __m128i *)((const uint16_t *)srcp2 + tail)), mask);
+            __m128i v1_signed = _mm_add_epi16(v1, mbias);
             __m128i udiff = _mm_or_si128(_mm_subs_epu16(v1, v2), _mm_subs_epu16(v2, v1));
 
-            mmin = _mm_min_epi16(mmin, _mm_add_epi16(_mm_or_si128(v1, onesmask), _mm_set1_epi16(INT16_MIN)));
-            mmax = _mm_max_epi16(mmax, _mm_add_epi16(v1, _mm_set1_epi16(INT16_MIN)));
-
-            macc_lo = _mm_add_epi64(macc_lo, _mm_sad_epu8(_mm_and_si128(low8mask, v1), _mm_setzero_si128()));
-            macc_hi = _mm_add_epi64(macc_hi, _mm_sad_epu8(_mm_andnot_si128(low8mask, v1), _mm_setzero_si128()));
-
-            mdiffacc_lo = _mm_add_epi64(mdiffacc_lo, _mm_sad_epu8(_mm_and_si128(low8mask, udiff), _mm_setzero_si128()));
-            mdiffacc_hi = _mm_add_epi64(mdiffacc_hi, _mm_sad_epu8(_mm_andnot_si128(low8mask, udiff), _mm_setzero_si128()));
+            mmin = _mm_min_epi16(mmin, _mm_add_epi16(_mm_or_si128(v1, onesmask), mbias));
+            mmax = _mm_max_epi16(mmax, v1_signed);
+            racc = _mm_add_epi32(racc, _mm_madd_epi16(_mm_and_si128(v1_signed, mask), ones));
+            rdiffacc = _mm_add_epi32(rdiffacc, _mm_madd_epi16(_mm_and_si128(_mm_add_epi16(udiff, mbias), mask), ones));
         }
+        sign = _mm_srai_epi32(racc, 31);
+        macc = _mm_add_epi64(macc, _mm_add_epi64(_mm_unpacklo_epi32(racc, sign), _mm_unpackhi_epi32(racc, sign)));
+        sign = _mm_srai_epi32(rdiffacc, 31);
+        mdiffacc = _mm_add_epi64(mdiffacc, _mm_add_epi64(_mm_unpacklo_epi32(rdiffacc, sign), _mm_unpackhi_epi32(rdiffacc, sign)));
         srcp1 += src1_stride;
         srcp2 += src2_stride;
     }
@@ -289,13 +291,14 @@ void vs_plane_stats_2_word_sse2(union vs_plane_stats *stats, const void *src1, p
     stats->i.min = hmin_epi16(mmin) - INT16_MIN;
     stats->i.max = hmax_epi16(mmax) - INT16_MIN;
 
-    tmp = _mm_add_epi64(_mm_unpacklo_epi64(macc_lo, macc_hi), _mm_unpackhi_epi64(macc_lo, macc_hi));
-    tmp = _mm_add_epi64(tmp, _mm_slli_epi64(_mm_unpackhi_epi64(tmp, tmp), 8));
-    _mm_storel_epi64((__m128i *)&stats->i.acc, tmp);
-
-    tmp = _mm_add_epi64(_mm_unpacklo_epi64(mdiffacc_lo, mdiffacc_hi), _mm_unpackhi_epi64(mdiffacc_lo, mdiffacc_hi));
-    tmp = _mm_add_epi64(tmp, _mm_slli_epi64(_mm_unpackhi_epi64(tmp, tmp), 8));
-    _mm_storel_epi64((__m128i *)&stats->i.diffacc, tmp);
+    {
+        int64_t sum_biased, diff_biased;
+        uint64_t bias_total = ((uint64_t)width * height) << 15;
+        _mm_storel_epi64((__m128i *)&sum_biased, _mm_add_epi64(macc, _mm_srli_si128(macc, 8)));
+        _mm_storel_epi64((__m128i *)&diff_biased, _mm_add_epi64(mdiffacc, _mm_srli_si128(mdiffacc, 8)));
+        stats->i.acc = (uint64_t)(sum_biased + (int64_t)bias_total);
+        stats->i.diffacc = (uint64_t)(diff_biased + (int64_t)bias_total);
+    }
 }
 
 void vs_plane_stats_2_float_sse2(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
