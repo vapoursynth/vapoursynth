@@ -133,6 +133,13 @@ static __m128i divX_epu32(__m128i x, unsigned depth)
     return x;
 }
 
+static __m128i maskmerge_byte_half(__m128i v1, __m128i v2, __m128i w2)
+{
+    __m128i w1 = _mm_sub_epi16(_mm_set1_epi16(UINT8_MAX), w2);
+    __m128i tmp = _mm_add_epi16(_mm_add_epi16(_mm_mullo_epi16(v1, w1), _mm_mullo_epi16(v2, w2)), _mm_set1_epi16(UINT8_MAX / 2));
+    return div255_epu16(tmp);
+}
+
 void vs_mask_merge_byte_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
     const uint8_t *srcp1 = src1;
@@ -141,21 +148,20 @@ void vs_mask_merge_byte_sse2(const void *src1, const void *src2, const void *mas
     uint8_t *dstp = dst;
     unsigned i;
 
+    __m128i zero = _mm_setzero_si128();
+
     (void)depth;
     (void)offset;
 
-    for (i = 0; i < n; i += 8) {
-        __m128i v1 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp1 + i)), _mm_setzero_si128());
-        __m128i v2 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp2 + i)), _mm_setzero_si128());
-        __m128i w2 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(maskp + i)), _mm_setzero_si128());
-        __m128i w1 = _mm_sub_epi16(_mm_set1_epi16(UINT8_MAX), w2);
-        __m128i tmp1 = _mm_mullo_epi16(v1, w1);
-        __m128i tmp2 = _mm_mullo_epi16(v2, w2);
-        __m128i tmp;
+    for (i = 0; i < n; i += 16) {
+        __m128i m1 = _mm_load_si128((const __m128i *)(srcp1 + i));
+        __m128i m2 = _mm_load_si128((const __m128i *)(srcp2 + i));
+        __m128i mm = _mm_load_si128((const __m128i *)(maskp + i));
 
-        tmp = _mm_add_epi16(_mm_add_epi16(tmp1, tmp2), _mm_set1_epi16(UINT8_MAX / 2));
-        tmp = div255_epu16(tmp);
-        _mm_storel_epi64((__m128i *)(dstp + i), _mm_packus_epi16(tmp, tmp));
+        __m128i lo = maskmerge_byte_half(_mm_unpacklo_epi8(m1, zero), _mm_unpacklo_epi8(m2, zero), _mm_unpacklo_epi8(mm, zero));
+        __m128i hi = maskmerge_byte_half(_mm_unpackhi_epi8(m1, zero), _mm_unpackhi_epi8(m2, zero), _mm_unpackhi_epi8(mm, zero));
+
+        _mm_store_si128((__m128i *)(dstp + i), _mm_packus_epi16(lo, hi));
     }
 }
 
@@ -223,6 +229,27 @@ void vs_mask_merge_float_sse2(const void *src1, const void *src2, const void *ma
     }
 }
 
+static __m128i premul_byte_half_sse2(__m128i v1, __m128i v2, __m128i w2, __m128i offs)
+{
+    __m128i w1 = _mm_sub_epi16(_mm_set1_epi16(UINT8_MAX), w2);
+    __m128i neg, sign, tmp;
+
+    // Premultiply v1.
+    tmp = _mm_sub_epi16(v1, offs);
+    sign = _mm_cmplt_epi16(tmp, _mm_setzero_si128());
+    neg = _mm_sub_epi16(_mm_setzero_si128(), tmp);
+    tmp = _mm_or_si128(_mm_andnot_si128(sign, tmp), _mm_and_si128(sign, neg));
+
+    tmp = _mm_add_epi16(_mm_mullo_epi16(tmp, w1), _mm_set1_epi16(UINT8_MAX / 2));
+    tmp = div255_epu16(tmp);
+
+    neg = _mm_sub_epi16(_mm_setzero_si128(), tmp);
+    tmp = _mm_or_si128(_mm_andnot_si128(sign, tmp), _mm_and_si128(sign, neg));
+
+    // Saturated add v1 (-128...255) to v2 (0...255)
+    return _mm_add_epi16(tmp, v2);
+}
+
 void vs_mask_merge_premul_byte_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
     const uint8_t *srcp1 = src1;
@@ -231,31 +258,20 @@ void vs_mask_merge_premul_byte_sse2(const void *src1, const void *src2, const vo
     uint8_t *dstp = dst;
     unsigned i;
 
+    __m128i zero = _mm_setzero_si128();
+    __m128i offs = _mm_set1_epi16(offset);
+
     (void)depth;
 
-    for (i = 0; i < n; i += 8) {
-        __m128i v1 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp1 + i)), _mm_setzero_si128());
-        __m128i v2 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(srcp2 + i)), _mm_setzero_si128());
-        __m128i w2 = _mm_unpacklo_epi8(_mm_loadl_epi64((const __m128i *)(maskp + i)), _mm_setzero_si128());
-        __m128i w1 = _mm_sub_epi16(_mm_set1_epi16(UINT8_MAX), w2);
-        __m128i neg, sign, tmp;
+    for (i = 0; i < n; i += 16) {
+        __m128i m1 = _mm_load_si128((const __m128i *)(srcp1 + i));
+        __m128i m2 = _mm_load_si128((const __m128i *)(srcp2 + i));
+        __m128i mm = _mm_load_si128((const __m128i *)(maskp + i));
 
-        // Premultiply v1.
-        tmp = _mm_sub_epi16(v1, _mm_set1_epi16(offset));
-        sign = _mm_cmplt_epi16(tmp, _mm_setzero_si128());
-        neg = _mm_sub_epi16(_mm_setzero_si128(), tmp);
-        tmp = _mm_or_si128(_mm_andnot_si128(sign, tmp), _mm_and_si128(sign, neg));
+        __m128i lo = premul_byte_half_sse2(_mm_unpacklo_epi8(m1, zero), _mm_unpacklo_epi8(m2, zero), _mm_unpacklo_epi8(mm, zero), offs);
+        __m128i hi = premul_byte_half_sse2(_mm_unpackhi_epi8(m1, zero), _mm_unpackhi_epi8(m2, zero), _mm_unpackhi_epi8(mm, zero), offs);
 
-        tmp = _mm_add_epi16(_mm_mullo_epi16(tmp, w1), _mm_set1_epi16(UINT8_MAX / 2));
-        tmp = div255_epu16(tmp);
-
-        neg = _mm_sub_epi16(_mm_setzero_si128(), tmp);
-        tmp = _mm_or_si128(_mm_andnot_si128(sign, tmp), _mm_and_si128(sign, neg));
-
-        // Saturated add v1 (-128...255) to v2 (0...255)
-        tmp = _mm_add_epi16(tmp, v2);
-        tmp = _mm_packus_epi16(tmp, tmp);
-        _mm_storel_epi64((__m128i *)(dstp + i), tmp);
+        _mm_store_si128((__m128i *)(dstp + i), _mm_packus_epi16(lo, hi));
     }
 }
 

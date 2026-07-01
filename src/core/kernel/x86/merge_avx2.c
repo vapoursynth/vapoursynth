@@ -35,19 +35,19 @@ void vs_merge_byte_avx2(const void *src1, const void *src2, void *dst, union vs_
 
     __m256i w = _mm256_set1_epi16(weight.u);
 
-    for (i = 0; i < n; i += 16) {
-        __m256i v1 = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp1 + i)));
-        __m256i v2 = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp2 + i)));
+    for (i = 0; i < n; i += 32) {
+        __m256i v1a = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp1 + i)));
+        __m256i v1b = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp1 + i + 16)));
+        __m256i v2a = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp2 + i)));
+        __m256i v2b = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp2 + i + 16)));
 
-        // tmp1 = (v2 - v1) * 2
-        __m256i tmp1 = _mm256_slli_epi16(_mm256_sub_epi16(v2, v1), 1);
-        // tmp2 = ((tmp1 * w) >> 16) + (((tmp1 * w) >> 15) & 1)
-        __m256i tmp2 = _mm256_add_epi16(_mm256_add_epi16(_mm256_mulhi_epi16(tmp1, w), _mm256_srli_epi16(_mm256_mullo_epi16(tmp1, w), 15)), v1);
-        // result = tmp2 >> 8
-        __m256i result = _mm256_packus_epi16(tmp2, tmp2);
+        // tmp = v1 + round((v2 - v1) * w / 2^15); pmulhrsw does (x * w + 0x4000) >> 15
+        __m256i tmpa = _mm256_add_epi16(_mm256_mulhrs_epi16(_mm256_sub_epi16(v2a, v1a), w), v1a);
+        __m256i tmpb = _mm256_add_epi16(_mm256_mulhrs_epi16(_mm256_sub_epi16(v2b, v1b), w), v1b);
+
+        __m256i result = _mm256_packus_epi16(tmpa, tmpb);
         result = _mm256_permute4x64_epi64(result, _MM_SHUFFLE(3, 1, 2, 0));
-
-        _mm_store_si128((__m128i *)(dstp + i), _mm256_castsi256_si128(result));
+        _mm256_store_si256((__m256i *)(dstp + i), result);
     }
 }
 
@@ -95,12 +95,12 @@ void vs_merge_float_avx2(const void *src1, const void *src2, void *dst, union vs
     unsigned i;
 
     __m256 w2 = _mm256_set1_ps(weight.f);
-    __m256 w1 = _mm256_set1_ps(1.0f - weight.f);
 
     for (i = 0; i < n; i += 8) {
         __m256 v1 = _mm256_load_ps(srcp1 + i);
         __m256 v2 = _mm256_load_ps(srcp2 + i);
-        _mm256_store_ps(dstp + i, _mm256_fmadd_ps(w1, v1, _mm256_mul_ps(w2, v2)));
+        // v1 + (v2 - v1) * w2, matching the scalar reference
+        _mm256_store_ps(dstp + i, _mm256_fmadd_ps(_mm256_sub_ps(v2, v1), w2, v1));
     }
 }
 
@@ -135,21 +135,24 @@ void vs_mask_merge_byte_avx2(const void *src1, const void *src2, const void *mas
     (void)depth;
     (void)offset;
 
-    for (i = 0; i < n; i += 16) {
-        __m256i v1 = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp1 + i)));
-        __m256i v2 = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp2 + i)));
-        __m256i w2 = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(maskp + i)));
-        __m256i w1 = _mm256_sub_epi16(_mm256_set1_epi16(UINT8_MAX), w2);
-        __m256i tmp1 = _mm256_mullo_epi16(v1, w1);
-        __m256i tmp2 = _mm256_mullo_epi16(v2, w2);
-        __m256i tmp;
+    for (i = 0; i < n; i += 32) {
+        __m256i v1a = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp1 + i)));
+        __m256i v1b = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp1 + i + 16)));
+        __m256i v2a = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp2 + i)));
+        __m256i v2b = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp2 + i + 16)));
+        __m256i w2a = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(maskp + i)));
+        __m256i w2b = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(maskp + i + 16)));
+        __m256i w1a = _mm256_sub_epi16(_mm256_set1_epi16(UINT8_MAX), w2a);
+        __m256i w1b = _mm256_sub_epi16(_mm256_set1_epi16(UINT8_MAX), w2b);
 
-        tmp = _mm256_add_epi16(_mm256_add_epi16(tmp1, tmp2), _mm256_set1_epi16(UINT8_MAX / 2));
-        tmp = div255_epu16(tmp);
+        __m256i tmpa = _mm256_add_epi16(_mm256_add_epi16(_mm256_mullo_epi16(v1a, w1a), _mm256_mullo_epi16(v2a, w2a)), _mm256_set1_epi16(UINT8_MAX / 2));
+        __m256i tmpb = _mm256_add_epi16(_mm256_add_epi16(_mm256_mullo_epi16(v1b, w1b), _mm256_mullo_epi16(v2b, w2b)), _mm256_set1_epi16(UINT8_MAX / 2));
+        tmpa = div255_epu16(tmpa);
+        tmpb = div255_epu16(tmpb);
 
-        tmp = _mm256_packus_epi16(tmp, tmp);
-        tmp = _mm256_permute4x64_epi64(tmp, _MM_SHUFFLE(3, 1, 2, 0));
-        _mm_store_si128((__m128i *)(dstp + i), _mm256_castsi256_si128(tmp));
+        __m256i result = _mm256_packus_epi16(tmpa, tmpb);
+        result = _mm256_permute4x64_epi64(result, _MM_SHUFFLE(3, 1, 2, 0));
+        _mm256_store_si256((__m256i *)(dstp + i), result);
     }
 }
 
@@ -214,6 +217,27 @@ void vs_mask_merge_float_avx2(const void *src1, const void *src2, const void *ma
     }
 }
 
+static __m256i premul_byte_half(__m256i v1, __m256i v2, __m256i w2, __m256i offs)
+{
+    __m256i w1 = _mm256_sub_epi16(_mm256_set1_epi16(UINT8_MAX), w2);
+    __m256i neg, sign, tmp;
+
+    // Premultiply v1.
+    tmp = _mm256_sub_epi16(v1, offs);
+    sign = _mm256_cmpgt_epi16(_mm256_setzero_si256(), tmp);
+    neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
+    tmp = _mm256_blendv_epi8(tmp, neg, sign);
+
+    tmp = _mm256_add_epi16(_mm256_mullo_epi16(tmp, w1), _mm256_set1_epi16(UINT8_MAX / 2));
+    tmp = div255_epu16(tmp);
+
+    neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
+    tmp = _mm256_blendv_epi8(tmp, neg, sign);
+
+    // Saturated add v1 (-128...255) to v2 (0...255).
+    return _mm256_add_epi16(tmp, v2);
+}
+
 void vs_mask_merge_premul_byte_avx2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
     const uint8_t *srcp1 = src1;
@@ -222,33 +246,24 @@ void vs_mask_merge_premul_byte_avx2(const void *src1, const void *src2, const vo
     uint8_t *dstp = dst;
     unsigned i;
 
+    __m256i offs = _mm256_set1_epi16(offset);
+
     (void)depth;
 
-    for (i = 0; i < n; i += 16) {
-        __m256i v1 = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp1 + i)));
-        __m256i v2 = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp2 + i)));
-        __m256i w2 = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(maskp + i)));
-        __m256i w1 = _mm256_sub_epi16(_mm256_set1_epi16(UINT8_MAX), w2);
-        __m256i neg, sign, tmp;
+    for (i = 0; i < n; i += 32) {
+        __m256i v1a = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp1 + i)));
+        __m256i v1b = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp1 + i + 16)));
+        __m256i v2a = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp2 + i)));
+        __m256i v2b = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(srcp2 + i + 16)));
+        __m256i w2a = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(maskp + i)));
+        __m256i w2b = _mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)(maskp + i + 16)));
 
-        // Premultiply v1.
-        tmp = _mm256_sub_epi16(v1, _mm256_set1_epi16(offset));
-        sign = _mm256_cmpgt_epi16(_mm256_setzero_si256(), tmp);
-        neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
-        tmp = _mm256_blendv_epi8(tmp, neg, sign);
+        __m256i tmpa = premul_byte_half(v1a, v2a, w2a, offs);
+        __m256i tmpb = premul_byte_half(v1b, v2b, w2b, offs);
 
-        tmp = _mm256_add_epi16(_mm256_mullo_epi16(tmp, w1), _mm256_set1_epi16(UINT8_MAX / 2));
-        tmp = div255_epu16(tmp);
-
-        neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
-        tmp = _mm256_blendv_epi8(tmp, neg, sign);
-
-        // Saturated add v1 (-128...255) to v2 (0...255).
-        tmp = _mm256_add_epi16(tmp, v2);
-        tmp = _mm256_packus_epi16(tmp, tmp);
-        tmp = _mm256_permute4x64_epi64(tmp, _MM_SHUFFLE(3, 1, 2, 0));
-
-        _mm_store_si128((__m128i *)(dstp + i), _mm256_castsi256_si128(tmp));
+        __m256i result = _mm256_packus_epi16(tmpa, tmpb);
+        result = _mm256_permute4x64_epi64(result, _MM_SHUFFLE(3, 1, 2, 0));
+        _mm256_store_si256((__m256i *)(dstp + i), result);
     }
 }
 

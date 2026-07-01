@@ -114,6 +114,14 @@ DECL_MAKEDIFF(float, avx2)
 DECL_MERGEDIFF(byte, avx2)
 DECL_MERGEDIFF(word, avx2)
 DECL_MERGEDIFF(float, avx2)
+
+/* AVX-512: only the compute-bound mask-merge / premultiply integer kernels are
+   worth the wider path (see merge_avx512.c); the rest stay on AVX2. */
+DECL_MASK_MERGE(byte, avx512)
+DECL_MASK_MERGE(word, avx512)
+
+DECL_MASK_MERGE_PREMUL(byte, avx512)
+DECL_MASK_MERGE_PREMUL(word, avx512)
 #endif /* VS_TARGET_CPU_X86 */
 
 #undef DECL_MERGEDIFF

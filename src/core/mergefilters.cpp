@@ -508,7 +508,13 @@ static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, voi
                 }
 
 #ifdef VS_TARGET_CPU_X86
-                if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                if (getCPUFeatures()->avx512 && d->cpulevel >= VS_CPU_LEVEL_AVX512) {
+                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
+                        func = d->premultiplied ? vs_mask_merge_premul_byte_avx512 : vs_mask_merge_byte_avx512;
+                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
+                        func = d->premultiplied ? vs_mask_merge_premul_word_avx512 : vs_mask_merge_word_avx512;
+                }
+                if (!func && getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
                     if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
                         func = d->premultiplied ? vs_mask_merge_premul_byte_avx2 : vs_mask_merge_byte_avx2;
                     else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)

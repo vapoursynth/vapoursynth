@@ -182,6 +182,7 @@ if enable_x86_asm
         files(
             'src/core/kernel/x86/convolution_avx512.cpp',
             'src/core/kernel/x86/generic_avx512.cpp',
+            'src/core/kernel/x86/merge_avx512.c',
         ),
         c_args: avx512_args,
         cpp_args: avx512_args,

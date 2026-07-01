@@ -137,6 +137,10 @@
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\x86\merge_avx512.c">
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
+    </ClCompile>
     <ClCompile Include="..\..\src\core\kernel\x86\merge_sse2.c" />
     <ClCompile Include="..\..\src\core\kernel\x86\planestats_avx2.c">
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
