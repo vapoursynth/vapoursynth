@@ -18,7 +18,6 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include <limits.h>
 #include "planestats.h"
 #include "VSHelper4.h"
 
@@ -26,8 +25,8 @@ void vs_plane_stats_1_byte_c(union vs_plane_stats *stats, const void *src, ptrdi
 {
     const uint8_t *srcp = src;
     unsigned x, y;
-    unsigned imin = UINT_MAX;
-    unsigned imax = 0;
+    uint8_t imin = UINT8_MAX;
+    uint8_t imax = 0;
     uint64_t acc = 0;
 
     for (y = 0; y < height; y++) {
@@ -96,8 +95,8 @@ void vs_plane_stats_2_byte_c(union vs_plane_stats *stats, const void *src1, ptrd
     const uint8_t *srcp1 = src1;
     const uint8_t *srcp2 = src2;
     unsigned x, y;
-    unsigned imin = UINT_MAX;
-    unsigned imax = 0;
+    uint8_t imin = UINT8_MAX;
+    uint8_t imax = 0;
     uint64_t acc = 0;
     uint64_t diffacc = 0;
 
@@ -108,7 +107,8 @@ void vs_plane_stats_2_byte_c(union vs_plane_stats *stats, const void *src1, ptrd
             imin = VSMIN(imin, v);
             imax = VSMAX(imax, v);
             acc += v;
-            diffacc += abs(v - t);
+            // explicit unsigned diff instead of abs(v - t) to help auto vectorizers
+            diffacc += v > t ? (uint8_t)(v - t) : (uint8_t)(t - v);
         }
         srcp1 += src1_stride;
         srcp2 += src2_stride;
