@@ -13,10 +13,13 @@ cxx = meson.get_compiler('cpp')
 
 if cxx.get_argument_syntax() == 'gcc'
     avx2_args = '-march=x86-64-v3'
+    avx512_args = '-march=x86-64-v4'
 elif cxx.get_id() == 'clang-cl'
     avx2_args = '/clang:-march=x86-64-v3'
+    avx512_args = '/clang:-march=x86-64-v4'
 else
     avx2_args = '/arch:AVX2'
+    avx512_args = '/arch:AVX512'
 endif
 
 host_system = host_machine.system()
@@ -161,6 +164,17 @@ if enable_x86_asm
         ),
         c_args: avx2_args,
         cpp_args: avx2_args,
+        gnu_symbol_visibility: 'hidden',
+        include_directories: incdir,
+    )
+
+    libs += static_library('core_avx512',
+        files(
+            'src/core/kernel/x86/convolution_avx512.cpp',
+            'src/core/kernel/x86/generic_avx512.cpp',
+        ),
+        c_args: avx512_args,
+        cpp_args: avx512_args,
         gnu_symbol_visibility: 'hidden',
         include_directories: incdir,
     )

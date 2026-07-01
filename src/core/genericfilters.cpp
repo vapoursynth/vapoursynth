@@ -231,6 +231,72 @@ vs_generic_params make_generic_params(const GenericData *d, const VSVideoFormat 
 
 #ifdef VS_TARGET_CPU_X86
 template <GenericOperations op>
+static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX512(const VSVideoFormat *fi, GenericData *d) {
+    if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_byte_avx512;
+        case GenericSobel: return vs_generic_3x3_sobel_byte_avx512;
+        case GenericMinimum: return vs_generic_3x3_min_byte_avx512;
+        case GenericMaximum: return vs_generic_3x3_max_byte_avx512;
+        case GenericMedian: return vs_generic_3x3_median_byte_avx512;
+        case GenericDeflate: return vs_generic_3x3_deflate_byte_avx512;
+        case GenericInflate: return vs_generic_3x3_inflate_byte_avx512;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_byte_avx512;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_byte_avx512;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_byte_avx512;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_byte_avx512;
+            break;
+        }
+    } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_word_avx512;
+        case GenericSobel: return vs_generic_3x3_sobel_word_avx512;
+        case GenericMinimum: return vs_generic_3x3_min_word_avx512;
+        case GenericMaximum: return vs_generic_3x3_max_word_avx512;
+        case GenericMedian: return vs_generic_3x3_median_word_avx512;
+        case GenericDeflate: return vs_generic_3x3_deflate_word_avx512;
+        case GenericInflate: return vs_generic_3x3_inflate_word_avx512;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_word_avx512;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_word_avx512;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_word_avx512;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_word_avx512;
+            break;
+        }
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_float_avx512;
+        case GenericSobel: return vs_generic_3x3_sobel_float_avx512;
+        case GenericMinimum: return vs_generic_3x3_min_float_avx512;
+        case GenericMaximum: return vs_generic_3x3_max_float_avx512;
+        case GenericMedian: return vs_generic_3x3_median_float_avx512;
+        case GenericDeflate: return vs_generic_3x3_deflate_float_avx512;
+        case GenericInflate: return vs_generic_3x3_inflate_float_avx512;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_float_avx512;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_float_avx512;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_float_avx512;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_float_avx512;
+            break;
+        }
+    }
+    return nullptr;
+}
+
+template <GenericOperations op>
 static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoFormat *fi, GenericData *d) {
     if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
         switch (op) {
@@ -470,7 +536,10 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
         void (*func)(const void *, ptrdiff_t, void *, ptrdiff_t, const vs_generic_params *, unsigned, unsigned) = nullptr;
 
 #ifdef VS_TARGET_CPU_X86
-        if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2)
+        const CPUFeatures *cpu = getCPUFeatures();
+        if (cpu->avx512 && d->cpulevel >= VS_CPU_LEVEL_AVX512)
+            func = genericSelectAVX512<op>(fi, d);
+        if (!func && cpu->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2)
             func = genericSelectAVX2<op>(fi, d);
         if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2)
             func = genericSelectSSE2<op>(fi, d);

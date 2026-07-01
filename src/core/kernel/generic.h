@@ -190,6 +190,50 @@ DECL(2d_conv_sep, byte, avx2)
 DECL(2d_conv_sep, word, avx2)
 DECL(2d_conv_sep, float, avx2)
 
+DECL_3x3(prewitt, byte, avx512)
+DECL_3x3(prewitt, word, avx512)
+DECL_3x3(prewitt, float, avx512)
+
+DECL_3x3(sobel, byte, avx512)
+DECL_3x3(sobel, word, avx512)
+DECL_3x3(sobel, float, avx512)
+
+DECL_3x3(min, byte, avx512)
+DECL_3x3(min, word, avx512)
+DECL_3x3(min, float, avx512)
+
+DECL_3x3(max, byte, avx512)
+DECL_3x3(max, word, avx512)
+DECL_3x3(max, float, avx512)
+
+DECL_3x3(median, byte, avx512)
+DECL_3x3(median, word, avx512)
+DECL_3x3(median, float, avx512)
+
+DECL_3x3(deflate, byte, avx512)
+DECL_3x3(deflate, word, avx512)
+DECL_3x3(deflate, float, avx512)
+
+DECL_3x3(inflate, byte, avx512)
+DECL_3x3(inflate, word, avx512)
+DECL_3x3(inflate, float, avx512)
+
+DECL_3x3(conv, byte, avx512)
+DECL_3x3(conv, word, avx512)
+DECL_3x3(conv, float, avx512)
+
+DECL(1d_conv_h, byte, avx512)
+DECL(1d_conv_h, word, avx512)
+DECL(1d_conv_h, float, avx512)
+
+DECL(1d_conv_v, byte, avx512)
+DECL(1d_conv_v, word, avx512)
+DECL(1d_conv_v, float, avx512)
+
+DECL(2d_conv_sep, byte, avx512)
+DECL(2d_conv_sep, word, avx512)
+DECL(2d_conv_sep, float, avx512)
+
 #endif /* VS_TARGET_CPU_X86 */
 
 #undef DECL_3x3

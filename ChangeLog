@@ -1,4 +1,6 @@
 r78:
+added avx512 optimizations to min, max, convolution and that general group of filters
+now the initial max cache size default is half of the physical available ram (HolyWu)
 remembered to actually remove avfs from the source tree
 several more small fixes for ai found bugs
 

@@ -110,6 +110,9 @@ static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
                 cpuFeatures->avx512_vpopcntdq = !!(ecx & (1 << 14));
             }
 
+            cpuFeatures->avx512 = cpuFeatures->avx512_f && cpuFeatures->avx512_cd &&
+                cpuFeatures->avx512_bw && cpuFeatures->avx512_dq && cpuFeatures->avx512_vl;
+
             cpuFeatures->gfni = !!(ecx & (1 << 8));
             cpuFeatures->vaes = !!(ecx & (1 << 9));
             cpuFeatures->rdseed = !!(ebx & (1 << 18));

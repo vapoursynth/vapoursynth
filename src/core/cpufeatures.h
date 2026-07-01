@@ -60,6 +60,7 @@ typedef struct CPUFeatures {
     char gfni;
     char vaes;
     char rdseed;
+    char avx512;
 #endif
 } CPUFeatures;
 
