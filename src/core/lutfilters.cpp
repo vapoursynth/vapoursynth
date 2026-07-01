@@ -61,8 +61,6 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
         const VSFrame *fr[] = {d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src};
         VSFrame *dst = vsapi->newVideoFrame2(&fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
-        T maxIndex = static_cast<T>((static_cast<int64_t>(1) << d->vi->format.bitsPerSample) - 1);
-
         for (int plane = 0; plane < fi.numPlanes; plane++) {
 
             if (d->process[plane]) {
@@ -77,7 +75,7 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
 
                 for (int hl = 0; hl < h; hl++) {
                     for (int x = 0; x < w; x++)
-                        dstp[x] =  lut[std::min(srcp[x], maxIndex)];
+                        dstp[x] = lut[srcp[x]]; /* LUT padded to the full input container, so no per-pixel clamp is needed */
 
                     dstp += dst_stride / sizeof(U);
                     srcp += src_stride / sizeof(T);
@@ -143,8 +141,12 @@ template<typename T, typename U>
 static void lutCreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std::unique_ptr<LutData> &d, VSCore *core, const VSAPI *vsapi) {
     int inrange = 1 << d->vi->format.bitsPerSample;
     int maxval = 1 << d->vi_out.format.bitsPerSample;
+    /* Allocate the LUT for the full input container (256 or 65536 entries) rather
+       than just the valid range, so out-of-range samples index a padded entry
+       instead of needing a per-pixel clamp in the hot loop. */
+    size_t container = static_cast<size_t>(1) << (8 * sizeof(T));
 
-    d->lut = malloc(inrange * sizeof(U));
+    d->lut = malloc(container * sizeof(U));
 
     if (func) {
         std::string errstr;
@@ -174,6 +176,15 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std::
                 lut[i] = static_cast<U>(v);
             }
         }
+    }
+
+    /* Pad [inrange, container) with lut[maxIndex] so any out-of-range (garbage
+       high-bit) sample maps to the same value an explicit clamp would produce.
+       No-op for full-width formats where inrange == container. */
+    {
+        U *lut = reinterpret_cast<U *>(d->lut);
+        for (size_t i = inrange; i < container; i++)
+            lut[i] = lut[inrange - 1];
     }
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
