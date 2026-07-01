@@ -19,6 +19,7 @@
 */
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <cmath>
 #include <cfloat>
@@ -31,14 +32,130 @@
 #include <VSHelper4.h>
 #include "filtershared.h"
 #include "version.h"
-#include "kernel/average.h"
-#include "kernel/cpulevel.h"
-
-#ifdef VS_TARGET_CPU_X86
-#include <emmintrin.h>
-#endif
 
 namespace {
+
+// ---- plane averaging kernels (AverageFrames) -------------------------------
+// Pure scalar C, written to auto-vectorise: the source count is a compile-time
+// template parameter (AverageFrames caps it at 31) so the reduction unrolls, and
+// __restrict on the row pointers lets the store be proven not to alias the
+// sources. Build this file with -fno-math-errno so lrintf lowers to a vector
+// convert instead of a libcall.
+
+// Round to nearest, ties to even (matches SSE cvtps_epi32).
+static inline int32_t round_nearest_i32(float x)
+{
+    return static_cast<int32_t>(std::lrintf(x));
+}
+
+template <class T, unsigned N>
+static void average_int_n(const int *weights, const void * const *srcs, void *dst_, int scale, int32_t maxval, int32_t bias, unsigned w, unsigned h, ptrdiff_t stride)
+{
+    float rscale = 1.0f / static_cast<float>(scale);
+
+    for (unsigned i = 0; i < h; ++i) {
+        T *__restrict dst = reinterpret_cast<T *>(static_cast<uint8_t *>(dst_) + static_cast<ptrdiff_t>(i) * stride);
+        const T * __restrict rows[N];
+        for (unsigned k = 0; k < N; ++k)
+            rows[k] = reinterpret_cast<const T *>(static_cast<const uint8_t *>(srcs[k]) + static_cast<ptrdiff_t>(i) * stride);
+
+        for (unsigned j = 0; j < w; ++j) {
+            int32_t accum = 0;
+            for (unsigned k = 0; k < N; ++k)
+                accum += (static_cast<int32_t>(rows[k][j]) - bias) * weights[k];
+
+            int32_t r = round_nearest_i32(static_cast<float>(accum) * rscale) + bias;
+            dst[j] = static_cast<T>(std::min(std::max(r, 0), maxval));
+        }
+    }
+}
+
+template <class T>
+static void average_int_runtime(const int *weights, const void * const *srcs, unsigned num_srcs, void *dst_, int scale, int32_t maxval, int32_t bias, unsigned w, unsigned h, ptrdiff_t stride)
+{
+    float rscale = 1.0f / static_cast<float>(scale);
+
+    for (unsigned i = 0; i < h; ++i) {
+        T *__restrict dst = reinterpret_cast<T *>(static_cast<uint8_t *>(dst_) + static_cast<ptrdiff_t>(i) * stride);
+
+        for (unsigned j = 0; j < w; ++j) {
+            int32_t accum = 0;
+            for (unsigned k = 0; k < num_srcs; ++k) {
+                const T *src = reinterpret_cast<const T *>(static_cast<const uint8_t *>(srcs[k]) + static_cast<ptrdiff_t>(i) * stride);
+                accum += (static_cast<int32_t>(src[j]) - bias) * weights[k];
+            }
+
+            int32_t r = round_nearest_i32(static_cast<float>(accum) * rscale) + bias;
+            dst[j] = static_cast<T>(std::min(std::max(r, 0), maxval));
+        }
+    }
+}
+
+template <unsigned N>
+static void average_float_n(const float *weights, const void * const *srcs, void *dst_, float rscale, unsigned w, unsigned h, ptrdiff_t stride)
+{
+    for (unsigned i = 0; i < h; ++i) {
+        float *__restrict dst = reinterpret_cast<float *>(static_cast<uint8_t *>(dst_) + static_cast<ptrdiff_t>(i) * stride);
+        const float * __restrict rows[N];
+        for (unsigned k = 0; k < N; ++k)
+            rows[k] = reinterpret_cast<const float *>(static_cast<const uint8_t *>(srcs[k]) + static_cast<ptrdiff_t>(i) * stride);
+
+        for (unsigned j = 0; j < w; ++j) {
+            float accum = 0.0f;
+            for (unsigned k = 0; k < N; ++k)
+                accum += rows[k][j] * weights[k];
+            dst[j] = accum * rscale;
+        }
+    }
+}
+
+static void average_float_runtime(const float *weights, const void * const *srcs, unsigned num_srcs, void *dst_, float rscale, unsigned w, unsigned h, ptrdiff_t stride)
+{
+    for (unsigned i = 0; i < h; ++i) {
+        float *__restrict dst = reinterpret_cast<float *>(static_cast<uint8_t *>(dst_) + static_cast<ptrdiff_t>(i) * stride);
+
+        for (unsigned j = 0; j < w; ++j) {
+            float accum = 0.0f;
+            for (unsigned k = 0; k < num_srcs; ++k) {
+                const float *src = reinterpret_cast<const float *>(static_cast<const uint8_t *>(srcs[k]) + static_cast<ptrdiff_t>(i) * stride);
+                accum += src[j] * weights[k];
+            }
+            dst[j] = accum * rscale;
+        }
+    }
+}
+
+template <class T>
+static void average_int(const int *weights, const void * const *srcs, unsigned num_srcs, void *dst, int scale, unsigned depth, unsigned w, unsigned h, ptrdiff_t stride, bool chroma)
+{
+    int32_t maxval = (1L << depth) - 1;
+    int32_t bias = chroma ? (1L << (depth - 1)) : 0;
+
+#define AVG_CASE(k) case k: average_int_n<T, k>(weights, srcs, dst, scale, maxval, bias, w, h, stride); return;
+    switch (num_srcs) {
+    AVG_CASE(1)  AVG_CASE(2)  AVG_CASE(3)  AVG_CASE(4)  AVG_CASE(5)  AVG_CASE(6)  AVG_CASE(7)  AVG_CASE(8)
+    AVG_CASE(9)  AVG_CASE(10) AVG_CASE(11) AVG_CASE(12) AVG_CASE(13) AVG_CASE(14) AVG_CASE(15) AVG_CASE(16)
+    AVG_CASE(17) AVG_CASE(18) AVG_CASE(19) AVG_CASE(20) AVG_CASE(21) AVG_CASE(22) AVG_CASE(23) AVG_CASE(24)
+    AVG_CASE(25) AVG_CASE(26) AVG_CASE(27) AVG_CASE(28) AVG_CASE(29) AVG_CASE(30) AVG_CASE(31)
+    default: average_int_runtime<T>(weights, srcs, num_srcs, dst, scale, maxval, bias, w, h, stride); return;
+    }
+#undef AVG_CASE
+}
+
+static void average_float(const float *weights, const void * const *srcs, unsigned num_srcs, void *dst, float scale, unsigned w, unsigned h, ptrdiff_t stride)
+{
+    float rscale = 1.0f / scale;
+
+#define AVG_CASE(k) case k: average_float_n<k>(weights, srcs, dst, rscale, w, h, stride); return;
+    switch (num_srcs) {
+    AVG_CASE(1)  AVG_CASE(2)  AVG_CASE(3)  AVG_CASE(4)  AVG_CASE(5)  AVG_CASE(6)  AVG_CASE(7)  AVG_CASE(8)
+    AVG_CASE(9)  AVG_CASE(10) AVG_CASE(11) AVG_CASE(12) AVG_CASE(13) AVG_CASE(14) AVG_CASE(15) AVG_CASE(16)
+    AVG_CASE(17) AVG_CASE(18) AVG_CASE(19) AVG_CASE(20) AVG_CASE(21) AVG_CASE(22) AVG_CASE(23) AVG_CASE(24)
+    AVG_CASE(25) AVG_CASE(26) AVG_CASE(27) AVG_CASE(28) AVG_CASE(29) AVG_CASE(30) AVG_CASE(31)
+    default: average_float_runtime(weights, srcs, num_srcs, dst, rscale, w, h, stride); return;
+    }
+#undef AVG_CASE
+}
 
 using namespace std::string_literals;
 using namespace vsh;
@@ -159,38 +276,24 @@ static const VSFrame *VS_CC averageFramesGetFrame(int n, int activationReason, v
             if (!d->process[plane])
                 continue;
 
-            decltype(&vs_average_plane_byte_luma_c) func = nullptr;
             bool chroma = (plane == 1 || plane == 2) && fi->colorFamily == cfYUV;
 
-#ifdef VS_TARGET_CPU_X86
-            if (vs_get_cpulevel(core) >= VS_CPU_LEVEL_SSE2) {
-                if (fi->bytesPerSample == 1)
-                    func = chroma ? vs_average_plane_byte_chroma_sse2 : vs_average_plane_byte_luma_sse2;
-                else if (fi->bytesPerSample == 2)
-                    func = chroma ? vs_average_plane_word_chroma_sse2 : vs_average_plane_word_luma_sse2;
-                else
-                    func = vs_average_plane_float_sse2;
-            }
-#endif
-            if (!func) {
-                if (fi->bytesPerSample == 1)
-                    func = chroma ? vs_average_plane_byte_chroma_c : vs_average_plane_byte_luma_c;
-                else if (fi->bytesPerSample == 2)
-                    func = chroma ? vs_average_plane_word_chroma_c : vs_average_plane_word_luma_c;
-                else
-                    func = vs_average_plane_float_c;
-            }
-
             const void *src_ptrs[32];
-            const void *weights_ptr = (fi->bytesPerSample == 1 || fi->bytesPerSample == 2) ? (const void *)weights.data() : fweights.data();
-            const void *scale_ptr = (fi->bytesPerSample == 1 || fi->bytesPerSample == 2) ? (const void *)&d->scale : &d->fscale;
-
-            for (unsigned n = 0; n < frames.size(); ++n) {
+            for (unsigned n = 0; n < frames.size(); ++n)
                 src_ptrs[n] = vsapi->getReadPtr(frames[n], plane);
-            }
 
-            func(weights_ptr, src_ptrs, static_cast<unsigned>(frames.size()), vsapi->getWritePtr(dst, plane), scale_ptr, fi->bitsPerSample,
-                vsapi->getFrameWidth(dst, plane), vsapi->getFrameHeight(dst, plane), vsapi->getStride(dst, plane));
+            unsigned num = static_cast<unsigned>(frames.size());
+            void *dstp = vsapi->getWritePtr(dst, plane);
+            unsigned pw = vsapi->getFrameWidth(dst, plane);
+            unsigned ph = vsapi->getFrameHeight(dst, plane);
+            ptrdiff_t pstride = vsapi->getStride(dst, plane);
+
+            if (fi->bytesPerSample == 1)
+                average_int<uint8_t>(weights.data(), src_ptrs, num, dstp, static_cast<int>(d->scale), fi->bitsPerSample, pw, ph, pstride, chroma);
+            else if (fi->bytesPerSample == 2)
+                average_int<uint16_t>(weights.data(), src_ptrs, num, dstp, static_cast<int>(d->scale), fi->bitsPerSample, pw, ph, pstride, chroma);
+            else
+                average_float(fweights.data(), src_ptrs, num, dstp, d->fscale, pw, ph, pstride);
         }
 
         for (auto iter : frames)

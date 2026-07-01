@@ -14,12 +14,23 @@ cxx = meson.get_compiler('cpp')
 if cxx.get_argument_syntax() == 'gcc'
     avx2_args = '-march=x86-64-v3'
     avx512_args = '-march=x86-64-v4'
+    math_errno_args = ['-fno-math-errno']
 elif cxx.get_id() == 'clang-cl'
     avx2_args = '/clang:-march=x86-64-v3'
     avx512_args = '/clang:-march=x86-64-v4'
+    math_errno_args = ['/clang:-fno-math-errno']
 else
     avx2_args = '/arch:AVX2'
     avx512_args = '/arch:AVX512'
+    math_errno_args = []
+endif
+
+# Applied project-wide: lets the compiler lower math calls (e.g. averageframesfilter's
+# lrintf) to vector converts instead of libcalls. Safe -- no VapourSynth code reads
+# math errno (the only errno reads are fwrite error handling in vspipe, which this
+# does not affect).
+if math_errno_args.length() > 0
+    add_project_arguments(math_errno_args, language: ['c', 'cpp'])
 endif
 
 host_system = host_machine.system()
@@ -144,7 +155,6 @@ if enable_x86_asm
     libs += static_library('core_sse2',
         files(
             'src/core/expr/jitcompiler_x86.cpp',
-            'src/core/kernel/x86/average_sse2.c',
             'src/core/kernel/x86/convolution_sse2.cpp',
             'src/core/kernel/x86/generic_sse2.cpp',
             'src/core/kernel/x86/merge_sse2.c',
@@ -184,7 +194,6 @@ libvapoursynth = library('libvapoursynth',
     files(
         'src/core/expr/expr.cpp',
         'src/core/expr/jitcompiler.cpp',
-        'src/core/kernel/average.cpp',
         'src/core/kernel/cpulevel.cpp',
         'src/core/kernel/generic.cpp',
         'src/core/kernel/merge.c',

@@ -126,12 +126,6 @@
     <ClCompile Include="..\..\src\core\averageframesfilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core\kernel\average.cpp">
-      <Filter>Source Files\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core\kernel\x86\average_sse2.c">
-      <Filter>Source Files\kernel\x86</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core\expr\expr.cpp">
       <Filter>Source Files\expr</Filter>
     </ClCompile>
@@ -194,6 +188,12 @@
     <ClInclude Include="..\..\src\core\kernel\generic.h">
       <Filter>Header Files\kernel</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\core\kernel\x86\convolution_impl.h">
+      <Filter>Header Files\kernel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\kernel\x86\generic_impl.h">
+      <Filter>Header Files\kernel</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\core\kernel\cpulevel.h">
       <Filter>Header Files\kernel</Filter>
     </ClInclude>
@@ -208,9 +208,6 @@
     </ClInclude>
     <ClInclude Include="..\..\include\VSHelper4.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\core\kernel\average.h">
-      <Filter>Header Files\kernel</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core\expr\jitasm.h">
       <Filter>Header Files\expr</Filter>

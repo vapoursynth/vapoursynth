@@ -110,13 +110,11 @@
     <ClCompile Include="..\..\src\core\expr\jitcompiler.cpp" />
     <ClCompile Include="..\..\src\core\expr\jitcompiler_x86.cpp" />
     <ClCompile Include="..\..\src\core\genericfilters.cpp" />
-    <ClCompile Include="..\..\src\core\kernel\average.cpp" />
     <ClCompile Include="..\..\src\core\kernel\cpulevel.cpp" />
     <ClCompile Include="..\..\src\core\kernel\generic.cpp" />
     <ClCompile Include="..\..\src\core\kernel\merge.c" />
     <ClCompile Include="..\..\src\core\kernel\planestats.c" />
     <ClCompile Include="..\..\src\core\kernel\transpose.c" />
-    <ClCompile Include="..\..\src\core\kernel\x86\average_sse2.c" />
     <ClCompile Include="..\..\src\core\kernel\x86\convolution_avx2.cpp">
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
@@ -169,9 +167,10 @@
     <ClInclude Include="..\..\src\core\filtershared.h" />
     <ClInclude Include="..\..\src\core\internalfilters.h" />
     <ClInclude Include="..\..\src\core\intrusive_ptr.h" />
-    <ClInclude Include="..\..\src\core\kernel\average.h" />
     <ClInclude Include="..\..\src\core\kernel\cpulevel.h" />
     <ClInclude Include="..\..\src\core\kernel\generic.h" />
+    <ClInclude Include="..\..\src\core\kernel\x86\convolution_impl.h" />
+    <ClInclude Include="..\..\src\core\kernel\x86\generic_impl.h" />
     <ClInclude Include="..\..\src\core\kernel\merge.h" />
     <ClInclude Include="..\..\src\core\kernel\planestats.h" />
     <ClInclude Include="..\..\src\core\kernel\transpose.h" />
