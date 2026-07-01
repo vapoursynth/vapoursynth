@@ -310,9 +310,9 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
         for (idx = 0; idx < numElements; idx++) {
             const char *value = vsapi->mapGetData(map, key.c_str(), idx, nullptr);
             int size = vsapi->mapGetDataSize(map, key.c_str(), idx, nullptr);
-            int type = vsapi->mapGetDataTypeHint(map, key.c_str(), idx, nullptr);
+            int hint = vsapi->mapGetDataTypeHint(map, key.c_str(), idx, nullptr);
             text += " ";
-            if (type == dtBinary) {
+            if (hint == dtBinary) {
                 text += "<binary data (" + std::to_string(size) + " bytes)>";
             } else if (size > 100) {
                 text += "<property too long (" + std::to_string(size) + " bytes)>";
@@ -416,9 +416,9 @@ static std::string matrixToString(int matrix) {
     else if (matrix == 11)
         s = "SMPTE 2085";
     else if (matrix == VSC_MATRIX_CHROMATICITY_DERIVED_NCL)
-        s = "Cromaticity derived cl";
+        s = "Chromaticity derived NCL";
     else if (matrix == VSC_MATRIX_CHROMATICITY_DERIVED_CL)
-        s = "Cromaticity derived ncl";
+        s = "Chromaticity derived CL";
     else if (matrix == VSC_MATRIX_ICTCP)
         s = "ICtCp";
     return s;
@@ -564,7 +564,7 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
             int64_t sn = vsapi->mapGetInt(props, "_SARNum", 0, &snerr);
             int64_t sd = vsapi->mapGetInt(props, "_SARDen", 0, &sderr);
             if (snerr || sderr)
-                text += "Aspect ratio: Unknown\n";
+                text += "Sample aspect ratio: Unknown\n";
             else
                 text += "Sample aspect ratio: " + std::to_string(sn) + ":" + std::to_string(sd) + "\n";
 
@@ -573,7 +573,7 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
             char nameBuffer[32];
             vsapi->getVideoFormatName(&d->vi->format, nameBuffer);
 
-            text += "Format name: "s + std::string(nameBuffer) + (d->vi->format.colorFamily == cfUndefined ? "\n" : " (may vary)\n");
+            text += "Format name: "s + std::string(nameBuffer) + (d->vi->format.colorFamily == cfUndefined ? " (may vary)\n" : "\n");
 
             text += "Color family: " + colorFamilyToString(frame_format->colorFamily) + "\n";
             text += "Sample type: "s + (frame_format->sampleType == stInteger ? "Integer" : "Float") + "\n";
