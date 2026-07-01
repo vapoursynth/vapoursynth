@@ -670,8 +670,8 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     }
 
     if (d->format == cfGray) {
-        VSFilterDependency deps1[] = {{ d->nodes[0], rpStrictSpatial }};
-        vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, deps1, 1, d.get(), core);
+        VSFilterDependency deps1[] = {{ d->nodes[0], rpStrictSpatial }, { d->nodes[3], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[3])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }};
+        vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, deps1, 2, d.get(), core);
     } else {
         VSFilterDependency deps3[] = {{ d->nodes[0], rpStrictSpatial}, { d->nodes[1], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }, { d->nodes[2], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }, { d->nodes[3], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[3])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly } };
         vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, deps3, 3, d.get(), core);
@@ -2139,6 +2139,7 @@ static const VSFrame *VS_CC propToClipGetFrame(int n, int activationReason, void
 
         if (dst) {
             if (!isSameVideoFormat(&d->vi.format, vsapi->getVideoFrameFormat(dst)) || d->vi.height != vsapi->getFrameHeight(dst, 0) || d->vi.width != vsapi->getFrameWidth(dst, 0)) {
+                vsapi->freeFrame(dst);
                 vsapi->setFilterError("PropToClip: retrieved frame doesn't match output format or dimensions", frameCtx);
                 return nullptr;
             }
@@ -2243,10 +2244,10 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
     int num_strings = vsapi->mapNumElements(in, "data");
 
     if ((num_ints > -1) + (num_floats > -1) + (num_strings > -1) > 1)
-        RETERROR("SetFrameProp: only one of 'intval', 'floatval', and 'data' can be passed->");
+        RETERROR("SetFrameProp: only one of 'intval', 'floatval', and 'data' can be passed.");
 
     if (num_ints + num_floats + num_strings == -3)
-        RETERROR("SetFrameProp: one of 'intval', 'floatval', or 'data' must be passed->");
+        RETERROR("SetFrameProp: one of 'intval', 'floatval', or 'data' must be passed.");
 
     int prop_len = vsapi->mapGetDataSize(in, "prop", 0, nullptr);
 
@@ -2377,15 +2378,30 @@ static const VSFrame *VS_CC removeFramePropsGetFrame(int n, int activationReason
     return nullptr;
 }
 
-static std::string replaceAll(const std::string &s, const std::string &from, const std::string &to) {
-    std::string r(s);
-    size_t found_pos;
-    size_t last_pos = 0;
-    while ((found_pos = r.find(from, last_pos)) != std::string::npos) {
-        r.replace(found_pos, from.length(), to);
-        last_pos = found_pos + to.length();
+// Translate a glob pattern ('*' and '?' wildcards) into an anchored ECMAScript
+// regex. Every other regex metacharacter is escaped so an arbitrary property
+// name can't be misinterpreted as regex syntax or throw std::regex_error.
+static std::string globToRegex(const std::string &pattern) {
+    std::string r = "^";
+    for (char c : pattern) {
+        switch (c) {
+        case '*':
+            r += "(.*)";
+            break;
+        case '?':
+            r += '.';
+            break;
+        case '.': case '^': case '$': case '+': case '(': case ')':
+        case '[': case ']': case '{': case '}': case '|': case '\\':
+            r += '\\';
+            r += c;
+            break;
+        default:
+            r += c;
+            break;
+        }
     }
-
+    r += "$";
     return r;
 }
 
@@ -2396,7 +2412,7 @@ static void VS_CC removeFramePropsCreate(const VSMap *in, VSMap *out, void *user
     d->all = (num_props < 0);
 
     for (int i = 0; i < num_props; i++)
-        d->delProps.push_back(std::regex("^" + replaceAll(replaceAll(vsapi->mapGetData(in, "props", i, nullptr), "*", "(.*)"), "?", ".") + "$", std::regex::ECMAScript));
+        d->delProps.push_back(std::regex(globToRegex(vsapi->mapGetData(in, "props", i, nullptr)), std::regex::ECMAScript));
 
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 

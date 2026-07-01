@@ -1,4 +1,5 @@
 r78:
+fixed proptoclip frame reference leak on error
 fixed potential crash in shufflechannels with multiple audio clip inputs
 lut optimization for all cpus and lut2 optimizations on avx512 cpus
 boxblur optimization
