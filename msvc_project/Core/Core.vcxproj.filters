@@ -126,6 +126,9 @@
     <ClCompile Include="..\..\src\core\simplefilters.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\internalfilters.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core\averageframesfilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

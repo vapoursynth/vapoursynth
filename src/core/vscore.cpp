@@ -1949,6 +1949,7 @@ VSCore::VSCore(int flags) :
     reorderInitialize(p, &vs_internal_vspapi);
     audioInitialize(p, &vs_internal_vspapi);
     stdlibInitialize(p, &vs_internal_vspapi);
+    internalFiltersInitialize(p, &vs_internal_vspapi);
     p->lock();
     plugins.insert(std::make_pair(p->getID(), p));
 

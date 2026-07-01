@@ -24,6 +24,7 @@
 #include "VapourSynth4.h"
 
 void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
+void internalFiltersInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void mergeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void reorderInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);

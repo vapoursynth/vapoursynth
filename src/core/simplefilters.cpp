@@ -138,19 +138,6 @@ static inline uint16_t doubleToHalfPixelValue(double v, int *err) {
 }
 
 //////////////////////////////////////////
-// Cache compatibility filter, does nothing
-
-static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    int err;
-    bool makeLinear = !!vsapi->mapGetInt(in, "make_linear", 0, &err);
-    if (makeLinear)
-        vsapi->logMessage(mtCritical, "Explicitly instantiated a Cache with make_linear set. This is no longer possible and the original clip has been passed through instead which may cause severe issues.", core);
-    else
-        vsapi->logMessage(mtWarning, "Explicitly instantiated a Cache. This is no longer possible and the original clip has been passed through instead.", core);
-    vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clip", 0, nullptr), maAppend);
-}
-
-//////////////////////////////////////////
 // Crop
 
 typedef struct {
@@ -2561,43 +2548,9 @@ static void VS_CC copyFramePropsCreate(const VSMap *in, VSMap *out, void *userDa
 }
 
 //////////////////////////////////////////
-// SetAudio/VideoCache
-
-static void VS_CC setCache(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    int err;
-    VSNode *node = vsapi->mapGetNode(in, "clip", 0, nullptr);
-    int mode = vsapi->mapGetIntSaturated(in, "mode", 0, &err);
-    if (!err)
-        vsapi->setCacheMode(node, mode);
-    int fixedsize = vsapi->mapGetIntSaturated(in, "fixedsize", 0, &err);
-    if (err)
-        fixedsize = -1;
-    int maxsize = vsapi->mapGetIntSaturated(in, "maxsize", 0, &err);
-    if (err)
-        maxsize = -1;
-    int maxhistory = vsapi->mapGetIntSaturated(in, "maxhistory", 0, &err);
-    if (err)
-        maxhistory = -1;
-    vsapi->setCacheOptions(node, fixedsize, maxsize, maxhistory);
-    vsapi->freeNode(node);
-}
-
-//////////////////////////////////////////
-// SetMaxCpu
-
-static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    const char *str = vsapi->mapGetData(in, "cpu", 0, nullptr);
-    int level = vs_cpulevel_from_str(str);
-    level = vs_set_cpulevel(core, level);
-    str = vs_cpulevel_to_str(level);
-    vsapi->mapSetData(out, "cpu", str, -1, dtUtf8, maReplace);
-}
-
-//////////////////////////////////////////
 // Init
 
 void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->registerFunction("Cache", "clip:vnode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:vnode;", createCacheFilter, nullptr, plugin); 
     vspapi->registerFunction("CropAbs", "clip:vnode;width:int;height:int;left:int:opt;top:int:opt;x:int:opt;y:int:opt;", "clip:vnode;", cropAbsCreate, 0, plugin);
     vspapi->registerFunction("CropRel", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode;", cropRelCreate, 0, plugin);
     vspapi->registerFunction("Crop", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode;", cropRelCreate, 0, plugin);
@@ -2625,7 +2578,4 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("RemoveFrameProps", "clip:vnode;props:data[]:opt;", "clip:vnode;", removeFramePropsCreate, 0, plugin);
     vspapi->registerFunction("SetFieldBased", "clip:vnode;value:int;", "clip:vnode;", setFieldBasedCreate, 0, plugin);
     vspapi->registerFunction("CopyFrameProps", "clip:vnode;prop_src:vnode;props:data[]:opt;", "clip:vnode;", copyFramePropsCreate, 0, plugin);
-    vspapi->registerFunction("SetAudioCache", "clip:anode;mode:int:opt;fixedsize:int:opt;maxsize:int:opt;maxhistory:int:opt;", "", setCache, 0, plugin);
-    vspapi->registerFunction("SetVideoCache", "clip:vnode;mode:int:opt;fixedsize:int:opt;maxsize:int:opt;maxhistory:int:opt;", "", setCache, 0, plugin);
-    vspapi->registerFunction("SetMaxCPU", "cpu:data;", "cpu:data;", setMaxCpu, 0, plugin);
 }
