@@ -904,7 +904,7 @@ static const VSFrame *VS_CC shuffleChannelsGetFrame(int n, int activationReason,
         VSFrame *dst = nullptr;
         int dstLength = static_cast<int>(std::min<int64_t>(d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES), VS_AUDIO_FRAME_SAMPLES));
         for (int idx = 0; idx < static_cast<int>(d->sourceNodes.size()); idx++) {
-            const VSFrame *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);;
+            const VSFrame *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);
             int srcLength = (n < d->sourceNodes[idx].numFrames) ? vsapi->getFrameLength(src) : 0;
             int copyLength = std::min(dstLength, srcLength);
             int zeroLength = dstLength - copyLength;
@@ -1012,7 +1012,7 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
 
     std::vector<VSFilterDependency> deps;
     for (const auto &iter : d->reqNodes)
-        deps.push_back({iter, (d->ai.numFrames <= vsapi->getVideoInfo(iter)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
+        deps.push_back({iter, (d->ai.numFrames <= vsapi->getAudioInfo(iter)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
 
     vsapi->createAudioFilter(out, "ShuffleChannels", &d->ai, shuffleChannelsGetFrame, shuffleChannelsFree, fmParallel, deps.data(), static_cast<int>(deps.size()), d.get(), core);
     d.release();
@@ -1225,81 +1225,6 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
 }
 
 //////////////////////////////////////////
-// TestAudio
-
-typedef struct {
-    VSAudioInfo ai;
-} TestAudioData;
-
-static const VSFrame *VS_CC testAudioGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    TestAudioData *d = reinterpret_cast<TestAudioData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        int64_t startSample = n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
-        int samples = static_cast<int>(std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - startSample));
-        VSFrame *frame = vsapi->newAudioFrame(&d->ai.format, samples, nullptr, core);
-        for (int channel = 0; channel < d->ai.format.numChannels; channel++) {
-            uint16_t *w = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, channel));
-            for (int i = 0; i < samples; i++)
-                w[i] = (startSample + i) % 0xFFFF;
-        }
-        return frame;
-    }
-
-    return nullptr;
-}
-
-static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<TestAudioData> d(new TestAudioData());
-
-    int err;
-
-    int numChannelElems = vsapi->mapNumElements(in, "channels");
-    uint64_t channels = (1 << acFrontLeft) | (1 << acFrontRight);
-    if (numChannelElems > 0) {
-        channels = 0;
-        for (int i = 0; i < numChannelElems; i++) {
-            int64_t channel = vsapi->mapGetInt(in, "channels", i, nullptr);
-            if (channel < 0 || channel >= 64)
-                RETERROR("TestAudio: channel number out of range (0-63)");
-            uint64_t ctemp = static_cast<uint64_t>(1) << channel;
-            if (channels & ctemp)
-                RETERROR("TestAudio: channel specified twice");
-            channels |= ctemp;
-        }
-    }
-
-    int bits = vsapi->mapGetIntSaturated(in, "bits", 0, &err);
-    if (err)
-        bits = 16;
-
-    if (bits != 16)
-        RETERROR("TestAudio: bits must be 16!");
-
-    bool isfloat = !!vsapi->mapGetInt(in, "isfloat", 0, &err);
-
-    d->ai.sampleRate = vsapi->mapGetIntSaturated(in, "samplerate", 0, &err);
-    if (err)
-        d->ai.sampleRate = 44100;
-
-    d->ai.numSamples = vsapi->mapGetInt(in, "length", 0, &err);
-    if (err)
-        d->ai.numSamples = static_cast<int64_t>(d->ai.sampleRate) * 60 * 60;
-
-    if (d->ai.sampleRate <= 0)
-        RETERROR("TestAudio: invalid sample rate");
-
-    if (d->ai.numSamples <= 0)
-        RETERROR("TestAudio: invalid length");
-
-    if (!vsapi->queryAudioFormat(&d->ai.format, isfloat ? stFloat : stInteger, bits, channels, core))
-        RETERROR("TestAudio: invalid format");
-
-    vsapi->createAudioFilter(out, "TestAudio", &d->ai, testAudioGetframe, filterFree<TestAudioData>, fmParallel, nullptr, 0, d.get(), core);
-    d.release();
-}
-
-//////////////////////////////////////////
 // Init
 
 void audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
@@ -1313,5 +1238,4 @@ void audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("SplitChannels", "clip:anode;", "clip:anode[];", splitChannelsCreate, 0, plugin);
     vspapi->registerFunction("AssumeSampleRate", "clip:anode;src:anode:opt;samplerate:int:opt;", "clip:anode;", assumeSampleRateCreate, 0, plugin);
     vspapi->registerFunction("BlankAudio", "clip:anode:opt;channels:int[]:opt;bits:int:opt;sampletype:int:opt;samplerate:int:opt;length:int:opt;keep:int:opt;", "clip:anode;", blankAudioCreate, 0, plugin);
-    vspapi->registerFunction("TestAudio", "channels:int[]:opt;bits:int:opt;isfloat:int:opt;samplerate:int:opt;length:int:opt;", "clip:anode;", testAudioCreate, 0, plugin);
 }
