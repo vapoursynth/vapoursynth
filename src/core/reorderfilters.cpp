@@ -150,7 +150,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     if (lengthset && length < 1)
         RETERROR("Trim: invalid length specified (less than 1)");
 
-    if ((lastset && last >= vi.numFrames) || (lengthset && (d->first + length) > vi.numFrames))
+    if ((lastset && last >= vi.numFrames) || (lengthset && length > vi.numFrames - d->first))
         RETERROR("Trim: last frame beyond clip end");
 
     if (lastset) {
@@ -235,7 +235,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
 
         MismatchInfo mminfo = findCommonVi(d->nodes.data(), d->numclips, &d->vi, vsapi);
         if (!mminfo.match && !mismatch)
-            RETERROR(("Interleave: clips are mismatched in " + mismatchToText(mminfo) + " starting at clip #" + std::to_string(mminfo.clipnum) + ", passed " + videoInfoToString(&d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum]), vsapi)).c_str());
+            RETERROR(("Interleave: clips are mismatched in " + mismatchToText(mminfo) + " starting at clip #" + std::to_string(mminfo.clipnum) + ", passed " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum - 1]), vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum]), vsapi)).c_str());
 
         bool overflow = false;
         int maxNumFrames = d->numclips;
@@ -262,7 +262,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < d->numclips; i++)
-            deps.push_back({d->nodes[i], (maxNumFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly});
+            deps.push_back({d->nodes[i], (maxNumFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames) ? rpNoFrameReuse : rpFrameReuseLastOnly});
         vsapi->createVideoFilter(out, "Interleave", &d->vi, interleaveGetframe, filterFree<InterleaveData>, fmParallel, deps.data(), d->numclips, d.get(), core);
         d.release();
     }
