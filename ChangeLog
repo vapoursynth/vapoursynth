@@ -1,5 +1,5 @@
 r78:
-lut (not lut2) filter optimization
+lut optimization for all cpus and lut2 optimizations on avx512 cpus
 boxblur optimization
 improved planestats optimizations
 improved merge filters optimization and added avx512 path

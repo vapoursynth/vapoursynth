@@ -25,9 +25,12 @@
 #include <limits>
 #include <string>
 #include <algorithm>
+#include <type_traits>
 #include "internalfilters.h"
 #include "VSHelper4.h"
 #include "filtershared.h"
+#include "cpufeatures.h"
+#include "kernel/cpulevel.h"
 
 using namespace vsh;
 
@@ -283,10 +286,49 @@ struct Lut2DataExtra {
     const VSVideoInfo *vi[2];
     void *lut;
     bool process[3];
+    int cpulevel;
+    bool use_gather;
     ~Lut2DataExtra() { free(lut); };
 };
 
 typedef DualNodeData<Lut2DataExtra> Lut2Data;
+
+#ifdef VS_TARGET_CPU_X86
+extern "C" {
+void vs_lut2_gather_ww_w_avx512(const uint16_t *, const uint16_t *, uint16_t *, int, const uint16_t *, int, unsigned, unsigned);
+void vs_lut2_gather_ww_b_avx512(const uint16_t *, const uint16_t *, uint8_t *, int, const uint8_t *, int, unsigned, unsigned);
+void vs_lut2_gather_wb_w_avx512(const uint16_t *, const uint8_t *, uint16_t *, int, const uint16_t *, int, unsigned, unsigned);
+void vs_lut2_gather_wb_b_avx512(const uint16_t *, const uint8_t *, uint8_t *, int, const uint8_t *, int, unsigned, unsigned);
+void vs_lut2_gather_bw_w_avx512(const uint8_t *, const uint16_t *, uint16_t *, int, const uint16_t *, int, unsigned, unsigned);
+void vs_lut2_gather_bw_b_avx512(const uint8_t *, const uint16_t *, uint8_t *, int, const uint8_t *, int, unsigned, unsigned);
+}
+#endif
+
+/* Dispatch one row to the AVX-512 gather kernel for the current type combo.
+   Returns false (compile-time) for combos without a kernel so the caller falls
+   back to the scalar path; only ever called when d->use_gather is set. */
+template<typename T, typename U, typename V>
+static inline bool lut2GatherRow(const T *sx, const U *sy, V *d, int w, const V *lut, int bitsx, unsigned mx, unsigned my) {
+#ifdef VS_TARGET_CPU_X86
+    if constexpr (std::is_integral_v<V>) {
+        if constexpr (std::is_same_v<T, uint16_t> && std::is_same_v<U, uint16_t>) {
+            if constexpr (sizeof(V) == 2) vs_lut2_gather_ww_w_avx512(sx, sy, d, w, lut, bitsx, mx, my);
+            else vs_lut2_gather_ww_b_avx512(sx, sy, d, w, lut, bitsx, mx, my);
+            return true;
+        } else if constexpr (std::is_same_v<T, uint16_t> && std::is_same_v<U, uint8_t>) {
+            if constexpr (sizeof(V) == 2) vs_lut2_gather_wb_w_avx512(sx, sy, d, w, lut, bitsx, mx, my);
+            else vs_lut2_gather_wb_b_avx512(sx, sy, d, w, lut, bitsx, mx, my);
+            return true;
+        } else if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint16_t>) {
+            if constexpr (sizeof(V) == 2) vs_lut2_gather_bw_w_avx512(sx, sy, d, w, lut, bitsx, mx, my);
+            else vs_lut2_gather_bw_b_avx512(sx, sy, d, w, lut, bitsx, mx, my);
+            return true;
+        }
+    }
+#endif
+    (void)sx; (void)sy; (void)d; (void)w; (void)lut; (void)bitsx; (void)mx; (void)my;
+    return false;
+}
 
 template<typename T, typename U, typename V>
 static const VSFrame *VS_CC lut2Getframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -321,8 +363,10 @@ static const VSFrame *VS_CC lut2Getframe(int n, int activationReason, void *inst
                 int w = vsapi->getFrameWidth(srcx, plane);
 
                 for (int hl = 0; hl < h; hl++) {
-                    for (int x = 0; x < w; x++)
-                        dstp[x] =  lut[(std::min(srcpy[x], maxvaly) << shift) + std::min(srcpx[x], maxvalx)];
+                    if (!(d->use_gather && lut2GatherRow<T, U, V>(srcpx, srcpy, dstp, w, lut, shift, maxvalx, maxvaly))) {
+                        for (int x = 0; x < w; x++)
+                            dstp[x] =  lut[(std::min(srcpy[x], maxvaly) << shift) + std::min(srcpx[x], maxvalx)];
+                    }
                     srcpx += srcx_stride / sizeof(T);
                     srcpy += srcy_stride / sizeof(U);
                     dstp += dst_stride / sizeof(V);
@@ -397,7 +441,9 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std:
     int inrange = (1 << d->vi[0]->format.bitsPerSample) * (1 << d->vi[1]->format.bitsPerSample);
     int maxval = 1 << d->vi_out.format.bitsPerSample;
 
-    d->lut = malloc(inrange * sizeof(V));
+    /* +64 bytes so the AVX-512 gather's dword-granularity overread past the last
+       entry stays in bounds (see lut2GatherRow). */
+    d->lut = malloc((size_t)inrange * sizeof(V) + 64);
 
     if (func) {
         std::string errstr;
@@ -429,6 +475,17 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std:
         }
     }
 
+    /* Use the AVX-512 gather only where it wins: integer output and a LUT large
+       enough to spill L2 (>= ~512 KB), on CPUs with AVX-512 (a safe fast-gather
+       gate). Smaller tables and float output stay on the scalar path. */
+    d->use_gather = false;
+#ifdef VS_TARGET_CPU_X86
+    if constexpr (std::is_integral_v<V>) {
+        if (getCPUFeatures()->avx512 && d->cpulevel >= VS_CPU_LEVEL_AVX512 && (size_t)inrange * sizeof(V) >= (512u << 10))
+            d->use_gather = true;
+    }
+#endif
+
     VSFilterDependency deps[] = {{ d->node1, rpStrictSpatial }, { d->node2, (d->vi[0]->numFrames <= d->vi[1]->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }};
     vsapi->createVideoFilter(out, "Lut2", &d->vi_out, lut2Getframe<T, U, V>, filterFree<Lut2Data>, fmParallel, deps, 2, d.get(), core);
     d.release();
@@ -442,6 +499,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
         d->vi[0] = vsapi->getVideoInfo(d->node1);
         d->vi[1] = vsapi->getVideoInfo(d->node2);
+        d->cpulevel = vs_get_cpulevel(core);
 
         if (!isConstantVideoFormat(d->vi[0]) || !isConstantVideoFormat(d->vi[1]))
             RETERROR("Lut2: only clips with constant format and dimensions supported");

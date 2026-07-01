@@ -153,6 +153,9 @@
     <ClCompile Include="..\..\src\core\kernel\x86\generic_avx512.cpp">
       <Filter>Source Files\kernel\x86</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\x86\lut_avx512.cpp">
+      <Filter>Source Files\kernel\x86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\core\cpufeatures.h">
