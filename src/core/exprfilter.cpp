@@ -192,11 +192,9 @@ static const VSFrame *VS_CC exprGetFrame(int n, int activationReason, void *inst
                 continue;
 
             for (int i = 0; i < numInputs; i++) {
-                if (d->node[i]) {
-                    srcp[i] = vsapi->getReadPtr(src[i], plane);
-                    src_stride[i] = vsapi->getStride(src[i], plane);
-                    ptroffsets[i + 1] = vsapi->getVideoFrameFormat(src[i])->bytesPerSample * 8;
-                }
+                srcp[i] = vsapi->getReadPtr(src[i], plane);
+                src_stride[i] = vsapi->getStride(src[i], plane);
+                ptroffsets[i + 1] = vsapi->getVideoFrameFormat(src[i])->bytesPerSample * 8;
             }
 
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
@@ -207,11 +205,6 @@ static const VSFrame *VS_CC exprGetFrame(int n, int activationReason, void *inst
             if (d->proc[plane]) {
                 ExprCompiler::ProcessLineProc proc = d->proc[plane];
                 int niterations = (w + 7) / 8;
-
-                for (int i = 0; i < numInputs; i++) {
-                    if (d->node[i])
-                        ptroffsets[i + 1] = vsapi->getVideoFrameFormat(src[i])->bytesPerSample * 8;
-                }
 
                 for (int y = 0; y < h; y++) {
                     alignas(32) uint8_t *rwptrs[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = { dstp + dst_stride * y };
@@ -276,10 +269,8 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
 
         const VSVideoInfo *vi[MAX_EXPR_INPUTS] = {};
-        for (int i = 0; i < d->numInputs; i++) {
-            if (d->node[i])
-                vi[i] = vsapi->getVideoInfo(d->node[i]);
-        }
+        for (int i = 0; i < d->numInputs; i++)
+            vi[i] = vsapi->getVideoInfo(d->node[i]);
 
         for (int i = 0; i < d->numInputs; i++) {
             if (!isConstantVideoFormat(vi[i]))
