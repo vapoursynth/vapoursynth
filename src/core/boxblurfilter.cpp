@@ -37,28 +37,86 @@ struct BoxBlurData {
     int radius, passes;
 };
 
+/*
+ * Portable division-by-constant for the box-blur denominator (2*radius+1).
+ * The divisor is fixed for the whole plane, so we precompute a 32-bit magic +
+ * shift (libdivide/Hacker's-Delight style) once and replace the per-pixel
+ * hardware divide with a multiply-high. Uses only a uint64_t product (32x32->64),
+ * matching the magic-division already used in kernel/merge.c -- no __int128 /
+ * __umulh, so it is portable to 32-bit and to MSVC/GCC/Clang alike. Exact for
+ * every dividend in [0, 2^32); the box-blur accumulator stays below 2^32.
+ */
+struct FastDivU32 {
+    uint32_t magic;
+    uint32_t shift;
+    uint32_t add;
+};
+
+static FastDivU32 makeFastDivU32(uint32_t d) {
+    FastDivU32 fd;
+    uint32_t l = 0;
+    while ((d >> l) > 1)
+        ++l; // l = floor(log2(d))
+
+    if ((d & (d - 1)) == 0) { // power of two (2*radius+1 is odd, so unused, but keep correct)
+        fd.magic = 0;
+        fd.shift = l;
+        fd.add = 0;
+        return fd;
+    }
+
+    uint64_t two_l = static_cast<uint64_t>(1) << (32 + l);
+    uint32_t m = static_cast<uint32_t>(two_l / d);
+    uint32_t rem = static_cast<uint32_t>(two_l - static_cast<uint64_t>(m) * d);
+    if (d - rem < (1u << l)) {
+        fd.magic = m + 1;
+        fd.shift = l;
+        fd.add = 0;
+    } else {
+        uint32_t twice = rem + rem;
+        m += m;
+        if (twice >= d || twice < rem)
+            m += 1;
+        fd.magic = m + 1;
+        fd.shift = l;
+        fd.add = 1;
+    }
+    return fd;
+}
+
+static inline uint32_t fastDivU32(uint32_t n, FastDivU32 fd) {
+    if (fd.magic == 0)
+        return n >> fd.shift;
+    uint32_t q = static_cast<uint32_t>((static_cast<uint64_t>(fd.magic) * n) >> 32);
+    if (fd.add) {
+        uint32_t t = ((n - q) >> 1) + q;
+        return t >> fd.shift;
+    }
+    return q >> fd.shift;
+}
+
 template<typename T>
-static void blurH(const T * VS_RESTRICT src, T * VS_RESTRICT dst, const int width, const int radius, const unsigned div, const unsigned round) {
+static void blurH(const T * VS_RESTRICT src, T * VS_RESTRICT dst, const int width, const int radius, const FastDivU32 fd, const unsigned round) {
     unsigned acc = radius * src[0];
     for (int x = 0; x < radius; x++)
         acc += src[std::min(x, width - 1)];
 
     for (int x = 0; x < std::min(radius, width); x++) {
         acc += src[std::min(x + radius, width - 1)];
-        dst[x] = (acc + round) / div;
+        dst[x] = static_cast<T>(fastDivU32(acc + round, fd));
         acc -= src[std::max(x - radius, 0)];
     }
 
     if (width > radius) {
         for (int x = radius; x < width - radius; x++) {
             acc += src[x + radius];
-            dst[x] = (acc + round) / div;
+            dst[x] = static_cast<T>(fastDivU32(acc + round, fd));
             acc -= src[x - radius];
         }
 
         for (int x = std::max(width - radius, radius); x < width; x++) {
             acc += src[std::min(x + radius, width - 1)];
-            dst[x] = (acc + round) / div;
+            dst[x] = static_cast<T>(fastDivU32(acc + round, fd));
             acc -= src[std::max(x - radius, 0)];
         }
     }
@@ -68,12 +126,13 @@ template<typename T>
 static void processPlane(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, int width, int height, int passes, int radius, uint8_t *tmp) {
     const unsigned div = radius * 2 + 1;
     const unsigned round = div - 1;
+    const FastDivU32 fd = makeFastDivU32(div);
     for (int h = 0; h < height; h++) {
         uint8_t *dst1 = (passes & 1) ? dst : tmp;
         uint8_t *dst2 = (passes & 1) ? tmp : dst;
-        blurH(reinterpret_cast<const T *>(src), reinterpret_cast<T *>(dst1), width, radius, div, round);
+        blurH(reinterpret_cast<const T *>(src), reinterpret_cast<T *>(dst1), width, radius, fd, round);
         for (int p = 1; p < passes; p++) {
-            blurH(reinterpret_cast<const T *>(dst1), reinterpret_cast<T *>(dst2), width, radius, div, (p & 1) ? 0 : round);
+            blurH(reinterpret_cast<const T *>(dst1), reinterpret_cast<T *>(dst2), width, radius, fd, (p & 1) ? 0 : round);
             std::swap(dst1, dst2);
         }
         src += stride;
