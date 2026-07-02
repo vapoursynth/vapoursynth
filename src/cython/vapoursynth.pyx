@@ -996,11 +996,15 @@ cdef object mapToDict(const VSMap *map, bint flatten):
     cdef const char *retkey
     cdef int proptype
 
+    cdef int numElements
+
     for x in range(numKeys):
         retkey = funcs.mapGetKey(map, x)
         proptype = funcs.mapGetType(map, retkey)
         decretkey = retkey.decode('utf-8')
-        for y in range(funcs.mapNumElements(map, retkey)):
+        numElements = funcs.mapNumElements(map, retkey)
+        vval = []
+        for y in range(numElements):
             if proptype == ptInt:
                 newval = intToRangeFilter(funcs.mapGetInt(map, retkey, y, NULL), decretkey)
             elif proptype == ptFloat:
@@ -2600,43 +2604,15 @@ cdef class AudioNode(RawNode):
             # VapourSynth audio frames contain at most VS_AUDIO_FRAME_SAMPLES samples
             size_t buffer_size = VS_AUDIO_FRAME_SAMPLES * self.num_channels * bytes_per_output_sample
 
-            uint8_t *interleave_buffer = <uint8_t *>malloc(buffer_size)
-            const uint8_t **src_ptrs = <const uint8_t **>malloc(self.num_channels * sizeof(uint8_t *))
+            uint8_t *interleave_buffer = NULL
+            const uint8_t **src_ptrs = NULL
+            uint8_t *new_buffer
 
             void (*pack_func)(const uint8_t *const *const, uint8_t *, size_t, size_t) noexcept nogil
 
-        if progress_update is not None:
-                progress_update(0, self.num_frames)
-
-        if w64:
-            if not CreateWave64Header(
-                w64hdr,
-                self.sample_type == SampleType.FLOAT,
-                self.bits_per_sample,
-                self.sample_rate,
-                self.channel_layout,
-                self.num_samples,
-            ):
-                raise Error("Failed to create WAVE64 header")
-            fileobj.write((<char *>&w64hdr)[:sizeof(Wave64Header)])
-        elif wav:
-            if not CreateWaveHeader(
-                whdr,
-                self.sample_type == SampleType.FLOAT,
-                self.bits_per_sample,
-                self.sample_rate,
-                self.channel_layout,
-                self.num_samples,
-            ):
-                raise Error("Failed to create WAV header")
-            fileobj.write((<char *>&whdr)[:sizeof(WaveHeader)])
-
-        if not interleave_buffer:
-            raise Error("Failed to allocate interleave buffer")
-
-        if not src_ptrs:
-            free(interleave_buffer)
-            raise Error("Failed to allocate source pointers array")
+            AudioFrame af
+            int num_samples_in_frame
+            size_t required_size
 
         if bytes_per_output_sample == 2:
             pack_func = PackChannels16to16le
@@ -2645,19 +2621,46 @@ cdef class AudioNode(RawNode):
         elif bytes_per_output_sample == 4:
             pack_func = PackChannels32to32le
         else:
-            free(src_ptrs)
-            free(interleave_buffer)
             raise Error(f"Unsupported bit depth for output: {self.bits_per_sample}")
 
-        cdef:
-            AudioFrame af
-            int num_samples_in_frame
-            size_t required_size
-            uint8_t *new_buffer
+        interleave_buffer = <uint8_t *>malloc(buffer_size)
+        if not interleave_buffer:
+            raise Error("Failed to allocate interleave buffer")
+
+        src_ptrs = <const uint8_t **>malloc(self.num_channels * sizeof(uint8_t *))
+        if not src_ptrs:
+            free(interleave_buffer)
+            raise Error("Failed to allocate source pointers array")
 
         write = fileobj.write
 
         try:
+            if progress_update is not None:
+                progress_update(0, self.num_frames)
+
+            if w64:
+                if not CreateWave64Header(
+                    w64hdr,
+                    self.sample_type == SampleType.FLOAT,
+                    self.bits_per_sample,
+                    self.sample_rate,
+                    self.channel_layout,
+                    self.num_samples,
+                ):
+                    raise Error("Failed to create WAVE64 header")
+                write((<char *>&w64hdr)[:sizeof(Wave64Header)])
+            elif wav:
+                if not CreateWaveHeader(
+                    whdr,
+                    self.sample_type == SampleType.FLOAT,
+                    self.bits_per_sample,
+                    self.sample_rate,
+                    self.channel_layout,
+                    self.num_samples,
+                ):
+                    raise Error("Failed to create WAV header")
+                write((<char *>&whdr)[:sizeof(WaveHeader)])
+
             for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
                 af = <AudioFrame>frame
                 num_samples_in_frame = af.funcs.getFrameLength(af.constf)
