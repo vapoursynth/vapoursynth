@@ -380,7 +380,6 @@ if enable_x86_asm
             name_prefix: '',
             install: true,
             install_dir: install_dir,
-            soversion: soversion,
         )
     endforeach
 else
@@ -391,7 +390,6 @@ else
         name_prefix: '',
         install: true,
         install_dir: install_dir,
-        soversion: soversion,
     )
 endif
 

@@ -1938,8 +1938,15 @@ VSCore::VSCore(int flags) :
 
     registerFormats();
 
-    auto libraryExtension = getLibraryPath().extension();
-    auto libraryPath = getLibraryPath().parent_path();
+    auto libraryPath = getLibraryPath();
+    libraryPath = std::filesystem::path("meh.so.4");
+
+    auto libraryExtension = libraryPath.extension();
+    if (libraryExtension != ".dll" && libraryExtension != ".so" && libraryExtension != ".dylib") {
+        libraryPath.replace_extension("");
+        libraryExtension = libraryPath.extension();
+    }
+    libraryPath = libraryPath.parent_path();
     assert(!libraryPath.empty());
 
     // The internal plugin units, the loading is a bit special so they can get special flags
