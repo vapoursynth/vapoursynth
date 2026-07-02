@@ -1956,6 +1956,7 @@ VSCore::VSCore(int flags) :
     loadPluginInitialize(p, &vs_internal_vspapi);
     internalFiltersInitialize(p, &vs_internal_vspapi);
     p->lock();
+    plugins.insert(std::make_pair(p->getID(), p));
 
     p = new VSPlugin(this);
     resizeInitialize(p, &vs_internal_vspapi);
