@@ -379,7 +379,7 @@ if enable_x86_asm
             link_with: vlibs,
             name_prefix: '',
             install: true,
-            install_dir: install_dir',
+            install_dir: install_dir,
         )
     endforeach
 else
