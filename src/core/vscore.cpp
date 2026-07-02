@@ -1939,7 +1939,6 @@ VSCore::VSCore(int flags) :
     registerFormats();
 
     auto libraryPath = getLibraryPath();
-    libraryPath = std::filesystem::path("meh.so.4");
 
     auto libraryExtension = libraryPath.extension();
     if (libraryExtension != ".dll" && libraryExtension != ".so" && libraryExtension != ".dylib") {
