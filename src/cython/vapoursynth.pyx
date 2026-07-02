@@ -652,7 +652,8 @@ cdef class Local:
 
 
 cdef Environment use_environment(EnvironmentData env):
-    if id is None: raise ValueError("id may not be None.")
+    if env is None:
+        raise ValueError("env may not be None.")
 
     cdef Environment instance = Environment.__new__(Environment)
     instance.env = weakref.ref(env)
