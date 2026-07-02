@@ -341,8 +341,8 @@ if enable_x86_asm
     # the running CPU and ignores the rest.
     variants = [
         { 'name': 'libvapoursynthfilters',        'tag': 'baseline', 'level': 0 },
-        { 'name': 'libvapoursynthfilters.avx2',   'tag': 'avx2',     'level': 1 },
-        { 'name': 'libvapoursynthfilters.zn4',    'tag': 'znver4',   'level': 3 },
+        { 'name': 'libvapoursynthfilters_avx2',   'tag': 'avx2',     'level': 1 },
+        { 'name': 'libvapoursynthfilters_zn4',    'tag': 'znver4',   'level': 3 },
     ]
 
     foreach v : variants
