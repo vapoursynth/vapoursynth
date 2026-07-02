@@ -2158,7 +2158,7 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     if (d->prop.empty())
         RETERROR("PropToClip: property name can't be an empty string");
 
-    d->index = vsapi->mapGetInt(in, "index", 0, &err);
+    d->index = vsapi->mapGetIntSaturated(in, "index", 0, &err);
     if (d->index < 0)
         RETERROR("PropToClip: index can't be negative");
 

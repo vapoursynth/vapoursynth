@@ -1911,6 +1911,11 @@ std::filesystem::path VSCore::getLibraryPath() {
     return {};
 }
 
+// Internal plugin initialization functions
+void textInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
+void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
+void internalFiltersInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
+
 VSCore::VSCore(int flags) :
     numFilterInstances(1),
     numFunctionInstances(0),
@@ -1933,25 +1938,23 @@ VSCore::VSCore(int flags) :
 
     registerFormats();
 
-    // The internal plugin units, the loading is a bit special so they can get special flags
-    VSPlugin *p;
+    auto libraryExtension = getLibraryPath().extension();
+    auto libraryPath = getLibraryPath().parent_path();
+    assert(!libraryPath.empty());
 
-    // Initialize internal plugins
-    p = new VSPlugin(this);
-    vs_internal_vspapi.configPlugin(VSH_STD_PLUGIN_ID, "std", "VapourSynth Core Functions", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, p);
+    // The internal plugin units, the loading is a bit special so they can get special flags
+    auto internalPluginPath = libraryPath / "libvapoursynthfilters";
+    internalPluginPath += libraryExtension;
+    try {
+        loadPlugin(internalPluginPath, true);
+    } catch (VSException &e) {
+        logFatal("Failed to load " + internalPluginPath.u8string() + " with error: " + e.what());
+    }
+
+    VSPlugin *p = plugins.at(VSH_STD_PLUGIN_ID);
     loadPluginInitialize(p, &vs_internal_vspapi);
-    exprInitialize(p, &vs_internal_vspapi);
-    genericInitialize(p, &vs_internal_vspapi);
-    lutInitialize(p, &vs_internal_vspapi);
-    boxBlurInitialize(p, &vs_internal_vspapi);
-    averageFramesInitialize(p, &vs_internal_vspapi);
-    mergeInitialize(p, &vs_internal_vspapi);
-    reorderInitialize(p, &vs_internal_vspapi);
-    audioInitialize(p, &vs_internal_vspapi);
-    stdlibInitialize(p, &vs_internal_vspapi);
     internalFiltersInitialize(p, &vs_internal_vspapi);
     p->lock();
-    plugins.insert(std::make_pair(p->getID(), p));
 
     p = new VSPlugin(this);
     resizeInitialize(p, &vs_internal_vspapi);
@@ -1961,8 +1964,7 @@ VSCore::VSCore(int flags) :
     textInitialize(p, &vs_internal_vspapi);
     plugins.insert(std::make_pair(p->getID(), p));
 
-    auto libraryPath = getLibraryPath().parent_path();
-    assert(!libraryPath.empty());
+
 
     // New site-packages relative plugin loading
     if (!disableAutoLoading) {
@@ -2117,14 +2119,6 @@ VSNode *VSCore::createAudioFilter(const std::string &name, const VSAudioInfo *ai
     } catch (VSException &) {
         return nullptr;
     }
-}
-
-int VSCore::getCpuLevel() const {
-    return cpuLevel;
-}
-
-int VSCore::setCpuLevel(int cpu) {
-    return cpuLevel.exchange(cpu);
 }
 
 VSPlugin::VSPlugin(VSCore *core)

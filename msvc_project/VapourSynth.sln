@@ -38,6 +38,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ExprDebugger", "ExprDebugge
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "graphengine_srcs", "..\zimg\graphengine\_msvc\graphengine_srcs\graphengine_srcs.vcxitems", "{E6991282-4AD2-4CC1-8DA5-5B44D2053A3C}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CoreFilters", "CoreFilters\CoreFilters.vcxproj", "{45DFFFB9-DC57-437B-A621-86D6E0707E5F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -76,6 +78,10 @@ Global
 		{39EE1521-66A9-42A3-8258-3FD594DFD0A7}.Debug|x64.Build.0 = Debug|x64
 		{39EE1521-66A9-42A3-8258-3FD594DFD0A7}.Release|x64.ActiveCfg = Release|x64
 		{39EE1521-66A9-42A3-8258-3FD594DFD0A7}.Release|x64.Build.0 = Release|x64
+		{45DFFFB9-DC57-437B-A621-86D6E0707E5F}.Debug|x64.ActiveCfg = Debug|x64
+		{45DFFFB9-DC57-437B-A621-86D6E0707E5F}.Debug|x64.Build.0 = Debug|x64
+		{45DFFFB9-DC57-437B-A621-86D6E0707E5F}.Release|x64.ActiveCfg = Release|x64
+		{45DFFFB9-DC57-437B-A621-86D6E0707E5F}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
