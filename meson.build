@@ -379,7 +379,7 @@ if enable_x86_asm
             link_with: vlibs,
             name_prefix: '',
             install: true,
-            install_dir: install_dir / 'corefilters',
+            install_dir: install_dir',
         )
     endforeach
 else
@@ -389,7 +389,7 @@ else
         include_directories: incdir,
         name_prefix: '',
         install: true,
-        install_dir: install_dir / 'corefilters',
+        install_dir: install_dir,
     )
 endif
 

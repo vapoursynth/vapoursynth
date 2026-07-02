@@ -1943,7 +1943,7 @@ VSCore::VSCore(int flags) :
     assert(!libraryPath.empty());
 
     // The internal plugin units, the loading is a bit special so they can get special flags
-    auto internalPluginPath = libraryPath / "libvapoursynthfilters" / "corefilters";
+    auto internalPluginPath = libraryPath / "libvapoursynthfilters";
     internalPluginPath += libraryExtension;
     try {
         loadPlugin(internalPluginPath, true);
