@@ -14,14 +14,17 @@ cxx = meson.get_compiler('cpp')
 if cxx.get_argument_syntax() == 'gcc'
     avx2_args = '-march=x86-64-v3'
     avx512_args = '-march=x86-64-v4'
+    znver4_args = ['-march=znver4', '-mno-sse4a']
     math_errno_args = ['-fno-math-errno']
 elif cxx.get_id() == 'clang-cl'
     avx2_args = '/clang:-march=x86-64-v3'
     avx512_args = '/clang:-march=x86-64-v4'
+    znver4_args = ['/clang:-march=znver4', '/clang:-mno-sse4a']
     math_errno_args = ['/clang:-fno-math-errno']
 else
     avx2_args = '/arch:AVX2'
     avx512_args = '/arch:AVX512'
+    znver4_args = ['/arch:AVX512']  # MSVC has no znver4 target; fall back to AVX-512
     math_errno_args = []
 endif
 
@@ -138,8 +141,6 @@ deps = [
     dependency('zimg', version: '>=3.0.5'),
 ]
 
-libs = []
-
 soversion = is_win ? '' : run_command(
     'grep',
     '-m',
@@ -151,45 +152,6 @@ soversion = is_win ? '' : run_command(
 
 if enable_x86_asm
     add_project_arguments('-DVS_TARGET_CPU_X86', language: ['c', 'cpp'])
-
-    libs += static_library('core_sse2',
-        files(
-            'src/core/expr/jitcompiler_x86.cpp',
-            'src/core/kernel/x86/convolution_sse2.cpp',
-            'src/core/kernel/x86/generic_sse2.cpp',
-            'src/core/kernel/x86/merge_sse2.c',
-            'src/core/kernel/x86/planestats_sse2.c',
-            'src/core/kernel/x86/transpose_sse2.c',
-        ),
-        gnu_symbol_visibility: 'hidden',
-        include_directories: incdir,
-    )
-
-    libs += static_library('core_avx2',
-        files(
-            'src/core/kernel/x86/convolution_avx2.cpp',
-            'src/core/kernel/x86/generic_avx2.cpp',
-            'src/core/kernel/x86/merge_avx2.c',
-            'src/core/kernel/x86/planestats_avx2.c',
-        ),
-        c_args: avx2_args,
-        cpp_args: avx2_args,
-        gnu_symbol_visibility: 'hidden',
-        include_directories: incdir,
-    )
-
-    libs += static_library('core_avx512',
-        files(
-            'src/core/kernel/x86/convolution_avx512.cpp',
-            'src/core/kernel/x86/generic_avx512.cpp',
-            'src/core/kernel/x86/lut_avx512.cpp',
-            'src/core/kernel/x86/merge_avx512.c',
-        ),
-        c_args: avx512_args,
-        cpp_args: avx512_args,
-        gnu_symbol_visibility: 'hidden',
-        include_directories: incdir,
-    )
 endif
 
 libvapoursynth = library('libvapoursynth',
@@ -310,34 +272,126 @@ if cxx.get_argument_syntax() == 'msvc'
     )
 endif
 
-libvapoursynthfilters = shared_module('libvapoursynthfilters',
-    files(
-        'src/core/audiofilters.cpp',
-        'src/core/averageframesfilter.cpp',
-        'src/core/boxblurfilter.cpp',
-        'src/core/coreplugins.cpp',
-        'src/core/cpufeatures.cpp',
-        'src/core/exprfilter.cpp',
-        'src/core/expr/expr.cpp',
-        'src/core/expr/jitcompiler.cpp',
-        'src/core/genericfilters.cpp',
-        'src/core/kernel/cpulevel.cpp',
-        'src/core/kernel/generic.cpp',
-        'src/core/kernel/merge.c',
-        'src/core/kernel/planestats.c',
-        'src/core/kernel/transpose.c',
-        'src/core/lutfilters.cpp',
-        'src/core/mergefilters.cpp',
-        'src/core/reorderfilters.cpp',
-        'src/core/simplefilters.cpp',
-    ),
-    gnu_symbol_visibility: 'hidden',
-    include_directories: incdir,
-    link_with: libs,
-    name_prefix: '',
-    install: true,
-    install_dir: install_dir / 'plugins',
+# --- libvapoursynthfilters -------------------------------------------------
+# The standard filters ship as a standalone plugin. On x86 it is built in several
+# whole-program ISA variants: every variant still
+# contains the runtime-dispatched AVX2/AVX-512 kernels, but the rest of the plugin is
+# compiled for a progressively higher CPU baseline.
+
+# Cross-platform sources (the kernel/*.{c,cpp} dispatchers carry scalar fallbacks).
+filters_sources = files(
+    'src/core/audiofilters.cpp',
+    'src/core/averageframesfilter.cpp',
+    'src/core/boxblurfilter.cpp',
+    'src/core/coreplugins.cpp',
+    'src/core/cpufeatures.cpp',
+    'src/core/exprfilter.cpp',
+    'src/core/expr/expr.cpp',
+    'src/core/expr/jitcompiler.cpp',
+    'src/core/genericfilters.cpp',
+    'src/core/kernel/cpulevel.cpp',
+    'src/core/kernel/generic.cpp',
+    'src/core/kernel/merge.c',
+    'src/core/kernel/planestats.c',
+    'src/core/kernel/transpose.c',
+    'src/core/lutfilters.cpp',
+    'src/core/mergefilters.cpp',
+    'src/core/reorderfilters.cpp',
+    'src/core/simplefilters.cpp',
 )
+
+if enable_x86_asm
+    # Per-ISA hand-written kernels. They are runtime-dispatched, so even a baseline
+    # build contains them. SSE2 is the x86-64 baseline and rides along with the main
+    # sources; the AVX2/AVX-512 kernels go into their own per-variant static libs.
+    sse2_kernel_sources = files(
+        'src/core/expr/jitcompiler_x86.cpp',
+        'src/core/kernel/x86/convolution_sse2.cpp',
+        'src/core/kernel/x86/generic_sse2.cpp',
+        'src/core/kernel/x86/merge_sse2.c',
+        'src/core/kernel/x86/planestats_sse2.c',
+        'src/core/kernel/x86/transpose_sse2.c',
+    )
+    avx2_kernel_sources = files(
+        'src/core/kernel/x86/convolution_avx2.cpp',
+        'src/core/kernel/x86/generic_avx2.cpp',
+        'src/core/kernel/x86/merge_avx2.c',
+        'src/core/kernel/x86/planestats_avx2.c',
+    )
+    avx512_kernel_sources = files(
+        'src/core/kernel/x86/convolution_avx512.cpp',
+        'src/core/kernel/x86/generic_avx512.cpp',
+        'src/core/kernel/x86/lut_avx512.cpp',
+        'src/core/kernel/x86/merge_avx512.c',
+    )
+
+    # ISA ladder. The effective -march of a translation unit is the HIGHEST of (its
+    # own minimum level, the variant's level).
+    march_levels = {
+        '0': [],             # baseline (generic x86-64, SSE2)
+        '1': [avx2_args],    # AVX2    (x86-64-v3)
+        '2': [avx512_args],  # AVX-512 (x86-64-v4)
+        '3': znver4_args,    # Zen4 whole-program, highest level
+    }
+    avx2_min_level = 1
+    avx512_min_level = 2
+
+    # All variants are always compiled and installed alongside libvapoursynth.
+    # They share the com.vapoursynth.std plugin id; the core picks the one matching
+    # the running CPU and ignores the rest.
+    variants = [
+        { 'name': 'libvapoursynthfilters',        'tag': 'baseline', 'level': 0 },
+        { 'name': 'libvapoursynthfilters.avx2',   'tag': 'avx2',     'level': 1 },
+        { 'name': 'libvapoursynthfilters.znver4', 'tag': 'znver4',   'level': 3 },
+    ]
+
+    foreach v : variants
+        g = v['level']
+        tag = v['tag']
+
+        avx2_level = (avx2_min_level > g) ? avx2_min_level : g
+        avx512_level = (avx512_min_level > g) ? avx512_min_level : g
+
+        vlibs = []
+
+        vlibs += static_library('vsfilters_avx2_' + tag,
+            avx2_kernel_sources,
+            c_args: march_levels[avx2_level.to_string()],
+            cpp_args: march_levels[avx2_level.to_string()],
+            gnu_symbol_visibility: 'hidden',
+            include_directories: incdir,
+        )
+
+        vlibs += static_library('vsfilters_avx512_' + tag,
+            avx512_kernel_sources,
+            c_args: march_levels[avx512_level.to_string()],
+            cpp_args: march_levels[avx512_level.to_string()],
+            gnu_symbol_visibility: 'hidden',
+            include_directories: incdir,
+        )
+
+        shared_module(v['name'],
+            filters_sources + sse2_kernel_sources,
+            c_args: march_levels[g.to_string()],
+            cpp_args: march_levels[g.to_string()],
+            gnu_symbol_visibility: 'hidden',
+            include_directories: incdir,
+            link_with: vlibs,
+            name_prefix: '',
+            install: true,
+            install_dir: install_dir,
+        )
+    endforeach
+else
+    shared_module('libvapoursynthfilters',
+        filters_sources,
+        gnu_symbol_visibility: 'hidden',
+        include_directories: incdir,
+        name_prefix: '',
+        install: true,
+        install_dir: install_dir,
+    )
+endif
 
 install_subdir(
     'include',
