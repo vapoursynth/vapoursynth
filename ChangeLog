@@ -1,4 +1,6 @@
 r78:
+all floating point masks passed to maskedmerge are now clamped to the 0-1 range before applying, this includes UV planes as well
+fixed possible memory leak audionode.output if an error is triggered early in the output process
 the core filters have now been split out and on x64 and are also compiled for avx2 and zen4 class cpus
 fixed proptoclip frame reference leak on error
 fixed potential crash in shufflechannels with multiple audio clip inputs

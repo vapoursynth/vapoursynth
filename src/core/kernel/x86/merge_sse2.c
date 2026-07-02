@@ -216,13 +216,16 @@ void vs_mask_merge_float_sse2(const void *src1, const void *src2, const void *ma
     float *dstp = dst;
     unsigned i;
 
+    const __m128 lo = _mm_setzero_ps();
+    const __m128 hi = _mm_set1_ps(1.0f);
+
     (void)depth;
     (void)offset;
 
     for (i = 0; i < n; i += 4) {
         __m128 v1 = _mm_load_ps(srcp1 + i);
         __m128 v2 = _mm_load_ps(srcp2 + i);
-        __m128 w2 = _mm_load_ps(maskp + i);
+        __m128 w2 = _mm_min_ps(_mm_max_ps(_mm_load_ps(maskp + i), lo), hi);
         __m128 diff = _mm_sub_ps(v2, v1);
         __m128 result = _mm_add_ps(v1, _mm_mul_ps(diff, w2));
         _mm_store_ps(dstp + i, result);
@@ -336,13 +339,17 @@ void vs_mask_merge_premul_float_sse2(const void *src1, const void *src2, const v
     float *dstp = dst;
     unsigned i;
 
+    const __m128 lo = _mm_setzero_ps();
+    const __m128 hi = _mm_set_ps1(1.0f);
+
     (void)depth;
     (void)offset;
 
     for (i = 0; i < n; i += 4) {
         __m128 v1 = _mm_load_ps(srcp1 + i);
         __m128 v2 = _mm_load_ps(srcp2 + i);
-        __m128 w1 = _mm_sub_ps(_mm_set_ps1(1.0f), _mm_load_ps(maskp + i));
+        __m128 mask = _mm_min_ps(_mm_max_ps(_mm_load_ps(maskp + i), lo), hi);
+        __m128 w1 = _mm_sub_ps(hi, mask);
         __m128 result = _mm_add_ps(_mm_mul_ps(w1, v1), v2);
         _mm_store_ps(dstp + i, result);
     }

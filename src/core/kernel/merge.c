@@ -209,7 +209,12 @@ void vs_mask_merge_float_c(const void *src1, const void *src2, const void *mask,
     for (i = 0; i < n; i++) {
         float v1 = srcp1[i];
         float v2 = srcp2[i];
-        dstp[i] = v1 + (v2 - v1) * maskp[i];
+        float mask = maskp[i];
+        if (mask < 0.0f)
+            mask = 0.0f;
+        else if (mask > 1.0f)
+            mask = 1.0f;
+        dstp[i] = v1 + (v2 - v1) * mask;
     }
 }
 
@@ -267,7 +272,12 @@ void vs_mask_merge_premul_float_c(const void *src1, const void *src2, const void
     for (i = 0; i < n; i++) {
         float v1 = srcp1[i];
         float v2 = srcp2[i];
-        dstp[i] = (1.0f - maskp[i]) * v1 + v2;
+        float mask = maskp[i];
+        if (mask < 0.0f)
+            mask = 0.0f;
+        else if (mask > 1.0f)
+            mask = 1.0f;
+        dstp[i] = (1.0f - mask) * v1 + v2;
     }
 }
 

@@ -204,13 +204,16 @@ void vs_mask_merge_float_avx2(const void *src1, const void *src2, const void *ma
     float *dstp = dst;
     unsigned i;
 
+    const __m256 lo = _mm256_setzero_ps();
+    const __m256 hi = _mm256_set1_ps(1.0f);
+
     (void)depth;
     (void)offset;
 
     for (i = 0; i < n; i += 8) {
         __m256 v1 = _mm256_load_ps(srcp1 + i);
         __m256 v2 = _mm256_load_ps(srcp2 + i);
-        __m256 w2 = _mm256_load_ps(maskp + i);
+        __m256 w2 = _mm256_min_ps(_mm256_max_ps(_mm256_load_ps(maskp + i), lo), hi);
         __m256 diff = _mm256_sub_ps(v2, v1);
         __m256 result = _mm256_fmadd_ps(diff, w2, v1);
         _mm256_store_ps(dstp + i, result);
@@ -324,13 +327,17 @@ void vs_mask_merge_premul_float_avx2(const void *src1, const void *src2, const v
     float *dstp = dst;
     unsigned i;
 
+    const __m256 lo = _mm256_setzero_ps();
+    const __m256 hi = _mm256_set1_ps(1.0f);
+
     (void)depth;
     (void)offset;
 
     for (i = 0; i < n; i += 8) {
         __m256 v1 = _mm256_load_ps(srcp1 + i);
         __m256 v2 = _mm256_load_ps(srcp2 + i);
-        __m256 w1 = _mm256_sub_ps(_mm256_set1_ps(1.0f), _mm256_load_ps(maskp + i));
+        __m256 mask = _mm256_min_ps(_mm256_max_ps(_mm256_load_ps(maskp + i), lo), hi);
+        __m256 w1 = _mm256_sub_ps(hi, mask);
         __m256 result = _mm256_fmadd_ps(v1, w1, v2);
         _mm256_store_ps(dstp + i, result);
     }
