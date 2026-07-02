@@ -1919,11 +1919,11 @@ void internalFiltersInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 VSCore::VSCore(int flags) :
     numFilterInstances(1),
     numFunctionInstances(0),
+    creationFlags(flags & (ccfEnableGraphInspection | ccfDisableAutoLoading | ccfDisableLibraryUnloading | ccfEnableFrameRefDebug)),
     freedNodeProcessingTime(0),
     videoFormatIdOffset(1000),
     cpuLevel(INT_MAX),
     memory(new vs::MemoryUse()),
-    creationFlags(flags & (ccfEnableGraphInspection | ccfDisableAutoLoading | ccfDisableLibraryUnloading | ccfEnableFrameRefDebug)),
     enableGraphInspection(creationFlags & ccfEnableGraphInspection),
     enableFrameRefDebug(creationFlags & ccfEnableFrameRefDebug) {
 

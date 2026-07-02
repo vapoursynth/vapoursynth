@@ -329,7 +329,7 @@ void VSThreadPool::runTasks(bool &stop) {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), reqMemCounter(0), stopThreads(false), flushCaches(false), ticks(0) {
+VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), reqMemCounter(0), ticks(0), stopThreads(false), flushCaches(false) {
     setThreadCount(0);
 }
 
