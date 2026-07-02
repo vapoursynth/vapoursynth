@@ -342,7 +342,7 @@ if enable_x86_asm
     variants = [
         { 'name': 'libvapoursynthfilters',        'tag': 'baseline', 'level': 0 },
         { 'name': 'libvapoursynthfilters.avx2',   'tag': 'avx2',     'level': 1 },
-        { 'name': 'libvapoursynthfilters.znver4', 'tag': 'znver4',   'level': 3 },
+        { 'name': 'libvapoursynthfilters.zn4',    'tag': 'znver4',   'level': 3 },
     ]
 
     foreach v : variants

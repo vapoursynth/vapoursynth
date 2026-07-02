@@ -1020,7 +1020,7 @@ private:
     VSCore *core;
 public:
     explicit VSPlugin(VSCore *core);
-    VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, bool loadCPUOptimized, VSCore *core);
+    VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, bool loadCPUOptimized, std::string separator, VSCore *core);
     ~VSPlugin();
     void lock() { readOnly = true; }
     bool configPlugin(const std::string &identifier, const std::string &pluginsNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags);

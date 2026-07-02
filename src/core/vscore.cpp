@@ -1945,13 +1945,14 @@ VSCore::VSCore(int flags) :
     // The internal plugin units, the loading is a bit special so they can get special flags
     auto internalPluginPath = libraryPath / "libvapoursynthfilters";
     internalPluginPath += libraryExtension;
+    VSPlugin *p = nullptr;
+    // Bypass normal pllugin loading to use special settings for the internal filters
     try {
-        loadPlugin(internalPluginPath, true);
+        p = new VSPlugin(internalPluginPath, "", "", false, true, "_", this);
     } catch (VSException &e) {
         logFatal("Failed to load " + internalPluginPath.u8string() + " with error: " + e.what());
     }
 
-    VSPlugin *p = plugins.at(VSH_STD_PLUGIN_ID);
     loadPluginInitialize(p, &vs_internal_vspapi);
     internalFiltersInitialize(p, &vs_internal_vspapi);
     p->lock();
@@ -2054,7 +2055,7 @@ VSPlugin *VSCore::getNextPlugin(VSPlugin *plugin) {
 }
 
 void VSCore::loadPlugin(const std::filesystem::path &filename, bool loadCPUOptimized, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath) {
-    std::unique_ptr<VSPlugin> p(new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, loadCPUOptimized, this));
+    std::unique_ptr<VSPlugin> p(new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, loadCPUOptimized, ".", this));
 
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
 
@@ -2130,7 +2131,7 @@ static void VS_CC configPlugin3(const char *identifier, const char *defaultNames
     plugin->configPlugin(identifier, defaultNamespace, name, -1, apiVersion, readOnly ? 0 : pcModifiable);
 }
 
-VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, bool loadCPUOptimized, VSCore *core)
+VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, bool loadCPUOptimized, std::string separator, VSCore *core)
     : fnamespace(forcedNamespace), id(forcedId), core(core) {
     std::filesystem::path fullPath = std::filesystem::absolute(relFilename);
 
@@ -2138,12 +2139,12 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
     if (loadCPUOptimized) {
         int abiLevel = doGetX86ABILevel();
 
-        auto tryABILevel = [&fullPath](int level) -> bool {
-            std::filesystem::path newExtension;
+        auto tryABILevel = [&fullPath, &separator](int level) -> bool {
+            std::filesystem::path newExtension; 
             if (level == 3)
-                newExtension = std::filesystem::u8path(".zn4");
+                newExtension = std::filesystem::u8path(separator + "zn4");
             else if (level == 2)
-                newExtension = std::filesystem::u8path(".avx2");
+                newExtension = std::filesystem::u8path(separator + "avx2");
             newExtension += fullPath.extension();
 
             std::filesystem::path abiLevelPath = std::filesystem::path(fullPath).replace_extension(newExtension);
