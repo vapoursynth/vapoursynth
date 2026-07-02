@@ -286,6 +286,8 @@ class EnvironmentPolicy(object):
         raise NotImplementedError
 
     def is_alive(self, environment):
+        if environment is None:
+            return False
         cdef EnvironmentData env = <EnvironmentData>environment
         return env.alive
 
@@ -532,6 +534,8 @@ atexit.register(lambda: clear_policy(delay=True))
 
 def register_on_destroy(callback):
     cdef EnvironmentData env = get_policy().get_current_environment()
+    if env is None:
+        raise RuntimeError("No environment is currently activated.")
     if env.on_destroy is None:
         raise ValueError("The environment is already being destroyed.")
 
@@ -539,6 +543,8 @@ def register_on_destroy(callback):
 
 def unregister_on_destroy(callback):
     cdef EnvironmentData env = get_policy().get_current_environment()
+    if env is None:
+        raise RuntimeError("No environment is currently activated.")
     if env.on_destroy is None:
         raise ValueError("The environment is already being destroyed.")
 
@@ -635,6 +641,8 @@ cdef class Local:
 
     def __getattr__(self, key):
         cdef EnvironmentData env = get_policy().get_current_environment()
+        if env is None:
+            raise RuntimeError("No environment is currently activated.")
         values = env.env_locals.setdefault(self, {})
         if key not in values:
             raise AttributeError(key)
@@ -642,11 +650,15 @@ cdef class Local:
 
     def __setattr__(self, key, value):
         cdef EnvironmentData env = get_policy().get_current_environment()
+        if env is None:
+            raise RuntimeError("No environment is currently activated.")
         values = env.env_locals.setdefault(self, {})
         values[key] = value
 
     def __delattr__(self, key):
         cdef EnvironmentData env = get_policy().get_current_environment()
+        if env is None:
+            raise RuntimeError("No environment is currently activated.")
         values = env.env_locals.setdefault(self, {})
         values.pop(key)
 
@@ -3559,6 +3571,8 @@ cdef class VSScriptEnvironmentPolicy:
             self._api.destroy_environment(env)
 
     def is_alive(self, EnvironmentData environment):
+        if environment is None:
+            return False
         return environment.alive
 
 
