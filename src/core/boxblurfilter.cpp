@@ -123,18 +123,54 @@ static void blurH(const T * VS_RESTRICT src, T * VS_RESTRICT dst, const int widt
 }
 
 template<typename T>
-static void processPlane(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, int width, int height, int passes, int radius, uint8_t *tmp) {
+static void blurH_inplace(const T *src, T *dst, const int width, const int radius, const FastDivU32 fd, const unsigned round, T *ring) {
+    const int R = std::min(radius + 1, width);
+    const unsigned first = src[0]; // the clamped left border always subtracts src[0]
+    int wr = 0;
+
+    unsigned acc = radius * src[0];
+    for (int x = 0; x < radius; x++)
+        acc += src[std::min(x, width - 1)];
+
+    for (int x = 0; x < std::min(radius, width); x++) {
+        ring[wr] = src[x];
+        if (++wr == R)
+            wr = 0;
+        acc += src[std::min(x + radius, width - 1)];
+        dst[x] = static_cast<T>(fastDivU32(acc + round, fd));
+        acc -= first;
+    }
+
+    if (width > radius) {
+        for (int x = radius; x < width - radius; x++) {
+            ring[wr] = src[x];
+            if (++wr == R)
+                wr = 0;
+            acc += src[x + radius];
+            dst[x] = static_cast<T>(fastDivU32(acc + round, fd));
+            acc -= ring[wr]; // ring[wr] is now the oldest entry == original src[x - radius]
+        }
+
+        for (int x = std::max(width - radius, radius); x < width; x++) {
+            ring[wr] = src[x];
+            if (++wr == R)
+                wr = 0;
+            acc += src[std::min(x + radius, width - 1)];
+            dst[x] = static_cast<T>(fastDivU32(acc + round, fd));
+            acc -= ring[wr];
+        }
+    }
+}
+
+template<typename T>
+static void processPlane(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, int width, int height, int passes, int radius, uint8_t *ring) {
     const unsigned div = radius * 2 + 1;
     const unsigned round = div - 1;
     const FastDivU32 fd = makeFastDivU32(div);
     for (int h = 0; h < height; h++) {
-        uint8_t *dst1 = (passes & 1) ? dst : tmp;
-        uint8_t *dst2 = (passes & 1) ? tmp : dst;
-        blurH(reinterpret_cast<const T *>(src), reinterpret_cast<T *>(dst1), width, radius, fd, round);
-        for (int p = 1; p < passes; p++) {
-            blurH(reinterpret_cast<const T *>(dst1), reinterpret_cast<T *>(dst2), width, radius, fd, (p & 1) ? 0 : round);
-            std::swap(dst1, dst2);
-        }
+        blurH(reinterpret_cast<const T *>(src), reinterpret_cast<T *>(dst), width, radius, fd, round);
+        for (int p = 1; p < passes; p++)
+            blurH_inplace(reinterpret_cast<const T *>(dst), reinterpret_cast<T *>(dst), width, radius, fd, (p & 1) ? 0 : round, reinterpret_cast<T *>(ring));
         src += stride;
         dst += stride;
     }
@@ -167,17 +203,54 @@ static void blurHF(const T * VS_RESTRICT src, T * VS_RESTRICT dst, const int wid
     }
 }
 
+// In-place-capable variant of blurHF; see blurH_inplace for how the ring works.
 template<typename T>
-static void processPlaneF(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, int width, int height, int passes, int radius, uint8_t *tmp) {
+static void blurHF_inplace(const T *src, T *dst, const int width, const int radius, const T div, T *ring) {
+    const int R = std::min(radius + 1, width);
+    const T first = src[0];
+    int wr = 0;
+
+    T acc = radius * src[0];
+    for (int x = 0; x < radius; x++)
+        acc += src[std::min(x, width - 1)];
+
+    for (int x = 0; x < std::min(radius, width); x++) {
+        ring[wr] = src[x];
+        if (++wr == R)
+            wr = 0;
+        acc += src[std::min(x + radius, width - 1)];
+        dst[x] = acc * div;
+        acc -= first;
+    }
+
+    if (width > radius) {
+        for (int x = radius; x < width - radius; x++) {
+            ring[wr] = src[x];
+            if (++wr == R)
+                wr = 0;
+            acc += src[x + radius];
+            dst[x] = acc * div;
+            acc -= ring[wr];
+        }
+
+        for (int x = std::max(width - radius, radius); x < width; x++) {
+            ring[wr] = src[x];
+            if (++wr == R)
+                wr = 0;
+            acc += src[std::min(x + radius, width - 1)];
+            dst[x] = acc * div;
+            acc -= ring[wr];
+        }
+    }
+}
+
+template<typename T>
+static void processPlaneF(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, int width, int height, int passes, int radius, uint8_t *ring) {
     const T div = static_cast<T>(1) / (radius * 2 + 1);
     for (int h = 0; h < height; h++) {
-        uint8_t *dst1 = (passes & 1) ? dst : tmp;
-        uint8_t *dst2 = (passes & 1) ? tmp : dst;
-        blurHF(reinterpret_cast<const T *>(src), reinterpret_cast<T *>(dst1), width, radius, div);
-        for (int p = 1; p < passes; p++) {
-            blurHF(reinterpret_cast<const T *>(dst1), reinterpret_cast<T *>(dst2), width, radius, div);
-            std::swap(dst1, dst2);
-        }
+        blurHF(reinterpret_cast<const T *>(src), reinterpret_cast<T *>(dst), width, radius, div);
+        for (int p = 1; p < passes; p++)
+            blurHF_inplace(reinterpret_cast<const T *>(dst), reinterpret_cast<T *>(dst), width, radius, div, reinterpret_cast<T *>(ring));
         src += stride;
         dst += stride;
     }
@@ -300,7 +373,7 @@ static const VSFrame *VS_CC boxBlurGetframe(int n, int activationReason, void *i
         VSFrame *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
         int bytesPerSample = fi->bytesPerSample;
         int radius = d->radius;
-        uint8_t *tmp = (radius > 1 && d->passes > 1) ? new uint8_t[bytesPerSample * vsapi->getFrameWidth(src, 0)] : nullptr;
+        uint8_t *ring = (radius > 1 && d->passes > 1) ? new uint8_t[bytesPerSample * std::min(radius + 1, vsapi->getFrameWidth(src, 0))] : nullptr;
 
         const uint8_t *srcp = vsapi->getReadPtr(src, 0);
         ptrdiff_t stride = vsapi->getStride(src, 0);
@@ -317,14 +390,14 @@ static const VSFrame *VS_CC boxBlurGetframe(int n, int activationReason, void *i
                 processPlaneR1F<float>(srcp, dstp, stride, w, h, d->passes);
         } else {
             if (bytesPerSample == 1)
-                processPlane<uint8_t>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
+                processPlane<uint8_t>(srcp, dstp, stride, w, h, d->passes, radius, ring);
             else if (bytesPerSample == 2)
-                processPlane<uint16_t>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
+                processPlane<uint16_t>(srcp, dstp, stride, w, h, d->passes, radius, ring);
             else
-                processPlaneF<float>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
+                processPlaneF<float>(srcp, dstp, stride, w, h, d->passes, radius, ring);
         }
 
-        delete[] tmp;
+        delete[] ring;
 
         vsapi->freeFrame(src);
         return dst;
