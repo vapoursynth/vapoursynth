@@ -1691,8 +1691,10 @@ class ExprCompiler512 : public ExprCompiler, private jitasm::function<void, Expr
     typedef jitasm::XmmReg XmmReg;
     typedef jitasm::OpmaskReg OpmaskReg;
 
-#define SPLAT(x) { (x), (x), (x), (x), (x), (x), (x), (x), (x), (x), (x), (x), (x), (x), (x), (x) }
-    static constexpr ExprUnion constData alignas(64)[53][16] = {
+    // Embedded broadcast ({1to16}) reads one dword per constant and replicates it across all 16 lanes in
+    // hardware, so the pool holds a single value each rather than sixteen copies. SPLAT is the identity here.
+#define SPLAT(x) (x)
+    static constexpr ExprUnion constData[53] = {
         SPLAT(0x7FFFFFFF), // absmask
         SPLAT(0x80000000), // negmask
         SPLAT(0x7F), // x7F
@@ -1883,7 +1885,8 @@ class ExprCompiler512 : public ExprCompiler, private jitasm::function<void, Expr
             auto t1 = bytecodeRegs[insn.src1];
             ZmmReg r1;
             Reg a;
-            vminps(r1, t1, zmmword_ptr[constants + ConstantIndex::float_255 * 64]);
+            vminps(r1, t1, dword_ptr[constants + ConstantIndex::float_255 * 4]);
+            vmaxps(r1, r1, zero); // vpmovusdb treats the dword as unsigned, so clamp negatives to 0 here
             vcvtps2dq(r1, r1);
             mov(a, ptr[regptrs]);
             vpmovusdb(xmmword_ptr[a], r1);
@@ -1898,7 +1901,8 @@ class ExprCompiler512 : public ExprCompiler, private jitasm::function<void, Expr
             auto t1 = bytecodeRegs[insn.src1];
             ZmmReg r1;
             Reg a;
-            vminps(r1, t1, zmmword_ptr[constants + (ConstantIndex::float_255 + depth - 8) * 64]);
+            vminps(r1, t1, dword_ptr[constants + (ConstantIndex::float_255 + depth - 8) * 4]);
+            vmaxps(r1, r1, zero); // vpmovusdw treats the dword as unsigned, so clamp negatives to 0 here
             vcvtps2dq(r1, r1);
             mov(a, ptr[regptrs]);
             vpmovusdw(ymmword_ptr[a], r1);
@@ -2017,7 +2021,7 @@ do { \
         {
             auto t1 = bytecodeRegs[insn.src1];
             auto t2 = bytecodeRegs[insn.dst];
-            vandps(t2, t1, zmmword_ptr[constants + ConstantIndex::absmask * 64]);
+            vandps(t2, t1, dword_ptr[constants + ConstantIndex::absmask * 4]);
         });
     }
 
@@ -2027,7 +2031,7 @@ do { \
         {
             auto t1 = bytecodeRegs[insn.src1];
             auto t2 = bytecodeRegs[insn.dst];
-            vxorps(t2, t1, zmmword_ptr[constants + ConstantIndex::negmask * 64]);
+            vxorps(t2, t1, dword_ptr[constants + ConstantIndex::negmask * 4]);
         });
     }
 
@@ -2039,7 +2043,7 @@ do { \
             auto t2 = bytecodeRegs[insn.dst];
             vcmpps(kreg(), t1, zero, static_cast<int>(ComparisonType::LE));
             vpmovm2d(t2, kreg());
-            vandps(t2, t2, zmmword_ptr[constants + ConstantIndex::float_one * 64]);
+            vandps(t2, t2, dword_ptr[constants + ConstantIndex::float_one * 4]);
         });
     }
 
@@ -2054,7 +2058,7 @@ do { \
   vcmpps(kreg(), t2, zero, static_cast<int>(ComparisonType::NLE)); \
   vpmovm2d(t3, kreg()); \
   op(t3, t3, tmp); \
-  vandps(t3, t3, zmmword_ptr[constants + ConstantIndex::float_one * 64]); \
+  vandps(t3, t3, dword_ptr[constants + ConstantIndex::float_one * 4]); \
 } while (0)
 
     void and_(const ExprInstruction &insn) override
@@ -2082,7 +2086,7 @@ do { \
             auto t3 = bytecodeRegs[insn.dst];
             vcmpps(kreg(), t1, t2, insn.op.imm.u);
             vpmovm2d(t3, kreg());
-            vandps(t3, t3, zmmword_ptr[constants + ConstantIndex::float_one * 64]);
+            vandps(t3, t3, dword_ptr[constants + ConstantIndex::float_one * 4]);
         });
     }
 
@@ -2107,29 +2111,29 @@ do { \
     void exp_(ZmmReg x, ZmmReg one, Reg constants)
     {
         ZmmReg fx, emm0, etmp, y, mask, z;
-        vminps(x, x, zmmword_ptr[constants + ConstantIndex::exp_hi * 64]);
-        vmaxps(x, x, zmmword_ptr[constants + ConstantIndex::exp_lo * 64]);
-        vmovaps(fx, zmmword_ptr[constants + ConstantIndex::log2e * 64]);
-        vfmadd213ps(fx, x, zmmword_ptr[constants + ConstantIndex::float_half * 64]);
+        vminps(x, x, dword_ptr[constants + ConstantIndex::exp_hi * 4]);
+        vmaxps(x, x, dword_ptr[constants + ConstantIndex::exp_lo * 4]);
+        vbroadcastss(fx, dword_ptr[constants + ConstantIndex::log2e * 4]);
+        vfmadd213ps(fx, x, dword_ptr[constants + ConstantIndex::float_half * 4]);
         vcvttps2dq(emm0, fx);
         vcvtdq2ps(etmp, emm0);
         vcmpps(kreg(), etmp, fx, static_cast<int>(ComparisonType::NLE));
         vpmovm2d(mask, kreg());
         vandps(mask, mask, one);
         vsubps(fx, etmp, mask);
-        vfnmadd231ps(x, fx, zmmword_ptr[constants + ConstantIndex::exp_c1 * 64]);
-        vfnmadd231ps(x, fx, zmmword_ptr[constants + ConstantIndex::exp_c2 * 64]);
+        vfnmadd231ps(x, fx, dword_ptr[constants + ConstantIndex::exp_c1 * 4]);
+        vfnmadd231ps(x, fx, dword_ptr[constants + ConstantIndex::exp_c2 * 4]);
         vmulps(z, x, x);
-        vmovaps(y, zmmword_ptr[constants + ConstantIndex::exp_p0 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::exp_p1 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::exp_p2 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::exp_p3 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::exp_p4 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::exp_p5 * 64]);
+        vbroadcastss(y, dword_ptr[constants + ConstantIndex::exp_p0 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::exp_p1 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::exp_p2 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::exp_p3 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::exp_p4 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::exp_p5 * 4]);
         vfmadd213ps(y, z, x);
         vaddps(y, y, one);
         vcvttps2dq(emm0, fx);
-        vpaddd(emm0, emm0, zmmword_ptr[constants + ConstantIndex::x7F * 64]);
+        vpaddd(emm0, emm0, dword_ptr[constants + ConstantIndex::x7F * 4]);
         vpslld(emm0, emm0, 23);
         vmulps(x, y, emm0);
     }
@@ -2137,14 +2141,14 @@ do { \
     void log_(ZmmReg x, ZmmReg zero, ZmmReg one, Reg constants)
     {
         ZmmReg emm0, mask, y, etmp, z;
-        vmaxps(x, x, zmmword_ptr[constants + ConstantIndex::min_norm_pos * 64]);
+        vmaxps(x, x, dword_ptr[constants + ConstantIndex::min_norm_pos * 4]);
         vpsrld(emm0, x, 23);
-        vandps(x, x, zmmword_ptr[constants + ConstantIndex::inv_mant_mask * 64]);
-        vorps(x, x, zmmword_ptr[constants + ConstantIndex::float_half * 64]);
-        vpsubd(emm0, emm0, zmmword_ptr[constants + ConstantIndex::x7F * 64]);
+        vandps(x, x, dword_ptr[constants + ConstantIndex::inv_mant_mask * 4]);
+        vorps(x, x, dword_ptr[constants + ConstantIndex::float_half * 4]);
+        vpsubd(emm0, emm0, dword_ptr[constants + ConstantIndex::x7F * 4]);
         vcvtdq2ps(emm0, emm0);
         vaddps(emm0, emm0, one);
-        vcmpps(kreg(), x, zmmword_ptr[constants + ConstantIndex::sqrt_1_2 * 64], static_cast<int>(ComparisonType::LT));
+        vcmpps(kreg(), x, dword_ptr[constants + ConstantIndex::sqrt_1_2 * 4], static_cast<int>(ComparisonType::LT));
         vpmovm2d(mask, kreg());
         vandps(etmp, x, mask);
         vsubps(x, x, one);
@@ -2152,21 +2156,21 @@ do { \
         vsubps(emm0, emm0, mask);
         vaddps(x, x, etmp);
         vmulps(z, x, x);
-        vmovaps(y, zmmword_ptr[constants + ConstantIndex::log_p0 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::log_p1 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::log_p2 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::log_p3 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::log_p4 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::log_p5 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::log_p6 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::log_p7 * 64]);
-        vfmadd213ps(y, x, zmmword_ptr[constants + ConstantIndex::log_p8 * 64]);
+        vbroadcastss(y, dword_ptr[constants + ConstantIndex::log_p0 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p1 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p2 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p3 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p4 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p5 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p6 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p7 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p8 * 4]);
         vmulps(y, y, x);
         vmulps(y, y, z);
-        vfmadd231ps(y, emm0, zmmword_ptr[constants + ConstantIndex::log_q1 * 64]);
-        vfnmadd231ps(y, z, zmmword_ptr[constants + ConstantIndex::float_half * 64]);
+        vfmadd231ps(y, emm0, dword_ptr[constants + ConstantIndex::log_q1 * 4]);
+        vfnmadd231ps(y, z, dword_ptr[constants + ConstantIndex::float_half * 4]);
         vaddps(x, x, y);
-        vfmadd231ps(x, emm0, zmmword_ptr[constants + ConstantIndex::log_q2 * 64]);
+        vfmadd231ps(x, emm0, dword_ptr[constants + ConstantIndex::log_q2 * 4]);
     }
 
     void exp(const ExprInstruction &insn) override
@@ -2176,7 +2180,7 @@ do { \
             auto t1 = bytecodeRegs[insn.src1];
             auto t2 = bytecodeRegs[insn.dst];
             ZmmReg one;
-            vmovaps(one, zmmword_ptr[constants + ConstantIndex::float_one * 64]);
+            vbroadcastss(one, dword_ptr[constants + ConstantIndex::float_one * 4]);
             vmovaps(t1, t2);
             exp_(t1, one, constants);
         });
@@ -2189,7 +2193,7 @@ do { \
             auto t1 = bytecodeRegs[insn.src1];
             auto t2 = bytecodeRegs[insn.dst];
             ZmmReg one;
-            vmovaps(one, zmmword_ptr[constants + ConstantIndex::float_one * 64]);
+            vbroadcastss(one, dword_ptr[constants + ConstantIndex::float_one * 4]);
             vmovaps(t1, t2);
             log_(t1, zero, one, constants);
         });
@@ -2204,7 +2208,7 @@ do { \
             auto t3 = bytecodeRegs[insn.dst];
 
             ZmmReg r1, one;
-            vmovaps(one, zmmword_ptr[constants + ConstantIndex::float_one * 64]);
+            vbroadcastss(one, dword_ptr[constants + ConstantIndex::float_one * 4]);
             vmovaps(r1, t1);
             log_(r1, zero, one, constants);
             vmulps(r1, r1, t2);
@@ -2219,7 +2223,7 @@ do { \
         auto y = bytecodeRegs[insn.dst];
         ZmmReg t1, sign, t2, t3, t4;
         // Remove sign
-        vmovaps(t1, zmmword_ptr[constants + ConstantIndex::absmask * 64]);
+        vbroadcastss(t1, dword_ptr[constants + ConstantIndex::absmask * 4]);
         if (issin) {
             vmovaps(sign, t1);
             vandnps(sign, sign, x);
@@ -2228,33 +2232,33 @@ do { \
         }
         vandps(t1, t1, x);
         // Range reduction
-        vmovaps(t3, zmmword_ptr[constants + ConstantIndex::float_rintf * 64]);
-        vmulps(t2, t1, zmmword_ptr[constants + ConstantIndex::float_invpi * 64]);
+        vbroadcastss(t3, dword_ptr[constants + ConstantIndex::float_rintf * 4]);
+        vmulps(t2, t1, dword_ptr[constants + ConstantIndex::float_invpi * 4]);
         vaddps(t2, t2, t3);
         vpslld(t4, t2, 31);
         vxorps(sign, sign, t4);
         vsubps(t2, t2, t3);
-        vfnmadd231ps(t1, t2, zmmword_ptr[constants + ConstantIndex::float_pi1 * 64]);
-        vfnmadd231ps(t1, t2, zmmword_ptr[constants + ConstantIndex::float_pi2 * 64]);
-        vfnmadd231ps(t1, t2, zmmword_ptr[constants + ConstantIndex::float_pi3 * 64]);
-        vfnmadd231ps(t1, t2, zmmword_ptr[constants + ConstantIndex::float_pi4 * 64]);
+        vfnmadd231ps(t1, t2, dword_ptr[constants + ConstantIndex::float_pi1 * 4]);
+        vfnmadd231ps(t1, t2, dword_ptr[constants + ConstantIndex::float_pi2 * 4]);
+        vfnmadd231ps(t1, t2, dword_ptr[constants + ConstantIndex::float_pi3 * 4]);
+        vfnmadd231ps(t1, t2, dword_ptr[constants + ConstantIndex::float_pi4 * 4]);
         if (issin) {
             // Y <- X + X * X^2 * (C3 + X^2 * (C5 + X^2 * (C7 + X^2 * C9)))
             vmulps(t2, t1, t1);
-            vmovaps(t3, zmmword_ptr[constants + ConstantIndex::float_sinC7 * 64]);
-            vfmadd231ps(t3, t2, zmmword_ptr[constants + ConstantIndex::float_sinC9 * 64]);
-            vfmadd213ps(t3, t2, zmmword_ptr[constants + ConstantIndex::float_sinC5 * 64]);
-            vfmadd213ps(t3, t2, zmmword_ptr[constants + ConstantIndex::float_sinC3 * 64]);
+            vbroadcastss(t3, dword_ptr[constants + ConstantIndex::float_sinC7 * 4]);
+            vfmadd231ps(t3, t2, dword_ptr[constants + ConstantIndex::float_sinC9 * 4]);
+            vfmadd213ps(t3, t2, dword_ptr[constants + ConstantIndex::float_sinC5 * 4]);
+            vfmadd213ps(t3, t2, dword_ptr[constants + ConstantIndex::float_sinC3 * 4]);
             vmulps(t3, t3, t2);
             vfmadd231ps(t1, t1, t3);
         } else {
             // Y <- 1 + X^2 * (C2 + X^2 * (C4 + X^2 * (C6 + X^2 * C8)))
             vmulps(t2, t1, t1);
-            vmovaps(t1, zmmword_ptr[constants + ConstantIndex::float_cosC6 * 64]);
-            vfmadd231ps(t1, t2, zmmword_ptr[constants + ConstantIndex::float_cosC8 * 64]);
-            vfmadd213ps(t1, t2, zmmword_ptr[constants + ConstantIndex::float_cosC4 * 64]);
-            vfmadd213ps(t1, t2, zmmword_ptr[constants + ConstantIndex::float_cosC2 * 64]);
-            vfmadd213ps(t1, t2, zmmword_ptr[constants + ConstantIndex::float_one * 64]);
+            vbroadcastss(t1, dword_ptr[constants + ConstantIndex::float_cosC6 * 4]);
+            vfmadd231ps(t1, t2, dword_ptr[constants + ConstantIndex::float_cosC8 * 4]);
+            vfmadd213ps(t1, t2, dword_ptr[constants + ConstantIndex::float_cosC4 * 4]);
+            vfmadd213ps(t1, t2, dword_ptr[constants + ConstantIndex::float_cosC2 * 4]);
+            vfmadd213ps(t1, t2, dword_ptr[constants + ConstantIndex::float_one * 4]);
         }
         // Apply sign
         vxorps(y, t1, sign);
@@ -2337,7 +2341,7 @@ public:
 #undef EMIT
 };
 
-constexpr ExprUnion ExprCompiler512::constData alignas(64)[53][16];
+constexpr ExprUnion ExprCompiler512::constData[53];
 
 
 } // namespace

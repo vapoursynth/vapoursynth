@@ -1026,6 +1026,11 @@ enum EncodingFlags
 	// L'L = 00/01/10 -> 128/256/512. Its presence also forces EVEX encoding (512-bit has no VEX form).
 	E_EVEX_L2				= 1 << 18,
 
+	// EVEX embedded broadcast of a 32-bit element ({1to16} for a 512-bit op): sets EVEX.b so the memory
+	// r/m is read as a single dword and broadcast to every lane. The disp8 compression tuple size is then
+	// the element size (4 bytes), set in Encode(). Only valid with a memory r/m operand.
+	E_EVEX_BCAST32			= 1 << 19,
+
 	E_VEX_128		= E_VEX,
 	E_VEX_256		= E_VEX | E_VEX_L,
 	E_VEX_512		= E_VEX | E_EVEX_L2,			// EVEX-only: L'L = 10
@@ -1178,10 +1183,10 @@ struct Backend
 		return false;
 	}
 
-	/// Emit a partial EVEX prefix that re-encodes an existing VEX instruction to reach registers 16..31.
-	/// This implements only the register-widening subset of EVEX: no write-mask (aaa=0, z=0), no broadcast
-	/// / embedded rounding / SAE (b=0). Vector length L'L mirrors VEX.L (128/256 only). Opcode map, pp, W
-	/// and the encoded registers/vvvv are taken from the same fields the VEX path would use.
+	/// Emit a partial EVEX prefix that re-encodes an existing VEX instruction to reach registers 16..31,
+	/// 512-bit vectors and (optionally) 32-bit embedded broadcast. No write-mask (aaa=0, z=0) or embedded
+	/// rounding / SAE; EVEX.b is set only for E_EVEX_BCAST32 (a memory-broadcast r/m). Vector length L'L
+	/// comes from the flag. Opcode map, pp, W and the encoded registers/vvvv match the VEX path.
 	void EncodeEvex(uint32 flag, const detail::Opd& reg, const detail::Opd& r_m, const detail::Opd& vex)
 	{
 		const uint32 reg_id = (reg.IsReg() && !reg.GetReg().IsInvalid()) ? reg.GetReg().id : 0;
@@ -1217,10 +1222,12 @@ struct Backend
 		const uint32 LL   = ((flag & E_EVEX_L2) ? 2u : 0u) | ((flag & E_VEX_L) ? 1u : 0u);	// L'L: 00/01/10 = 128/256/512
 		const uint32 vvvv = vex_id & 0xF;
 
+		const uint32 bcast = (flag & E_EVEX_BCAST32) ? 1u : 0u;										// EVEX.b: embedded broadcast
+
 		db(0x62);
 		db(((~R & 1) << 7) | ((~X & 1) << 6) | ((~B & 1) << 5) | ((~Rp & 1) << 4) | (mm & 0x3));	// P0: R X B R' 0 0 m m
 		db((W << 7) | ((~vvvv & 0xF) << 3) | (1 << 2) | (pp & 0x3));									// P1: W vvvv 1 p p
-		db((LL << 5) | ((~Vp & 1) << 3));															// P2: z=0 L'L b=0 V' aaa=000
+		db((LL << 5) | (bcast << 4) | ((~Vp & 1) << 3));											// P2: z=0 L'L b V' aaa=000
 
 		force_disp32_ = r_m.IsMem();	// EVEX disp8 is scaled by the tuple size; make EncodeModRM use disp32
 	}
@@ -1398,7 +1405,9 @@ struct Backend
 			const detail::Opd& r_m = opd2;
 			const detail::Opd& vex = opd3;
 			// Tuple size for EVEX compressed disp8 (0 unless this opcode has an unambiguous tuple).
-			evex_tuple_n_ = (instr.encoding_flag_ & E_VEX) ? EvexTupleN(instr.opcode_, instr.encoding_flag_) : 0;
+			// A 32-bit embedded broadcast reads one dword, so its tuple is always 4 bytes.
+			evex_tuple_n_ = (instr.encoding_flag_ & E_EVEX_BCAST32) ? 4
+				: (instr.encoding_flag_ & E_VEX) ? EvexTupleN(instr.opcode_, instr.encoding_flag_) : 0;
 			EncodePrefixes(instr.encoding_flag_, reg, r_m, vex);
 			EncodeOpcode(opcode);
 			EncodeModRM((uint8) (reg.IsImm() ? reg.GetImm() : reg.GetReg().id), r_m);
@@ -5009,6 +5018,21 @@ struct Frontend
 	void vcmpps(const OpmaskReg& dst, const ZmmReg& src1, const ZmmReg& src2, const Imm8& imm)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1), imm);}
 	void vcmpps(const OpmaskReg& dst, const ZmmReg& src1, const Mem512& src2, const Imm8& imm)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1), imm);}
 	void vpmovm2d(const ZmmReg& dst, const OpmaskReg& src)	{AppendInstr(I_VPMOVM2D, 0x38, E_VEX_512 | E_VEX_F3_0F38 | E_VEX_W0, W(dst), R(src));}
+	// EVEX embedded-broadcast forms ({1to16}): the r/m is a single dword the hardware broadcasts to all 16
+	// lanes, so ExprCompiler512 keeps one float per constant instead of a full 64-byte vector. Only the
+	// operations it actually applies to the constant pool are provided.
+	void vminps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_MINPS, 0x5D, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
+	void vmaxps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_MAXPS, 0x5F, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
+	void vmulps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_MULPS, 0x59, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
+	void vandps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_ANDPS, 0x54, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
+	void vorps (const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_ORPS,  0x56, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
+	void vxorps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_XORPS, 0x57, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
+	void vpaddd(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_PADDD, 0xFE, E_VEX_512_66_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
+	void vpsubd(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_PSUBD, 0xFA, E_VEX_512_66_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
+	void vfmadd213ps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_VFMADD213PS, 0xA8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_BCAST32, RW(dst), R(src2), R(src1));}
+	void vfmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_VFMADD231PS, 0xB8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_BCAST32, RW(dst), R(src2), R(src1));}
+	void vfnmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_VFNMADD231PS, 0xBC, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_BCAST32, RW(dst), R(src2), R(src1));}
+	void vcmpps(const OpmaskReg& dst, const ZmmReg& src1, const Mem32& src2, const Imm8& imm)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1), imm);}
 	void vzeroall()		{AppendInstr(I_VZEROUPPER, 0x77, E_VEX_256_0F_WIG);}
 	void vzeroupper()	{AppendInstr(I_VZEROUPPER, 0x77, E_VEX_128_0F_WIG);}
 
