@@ -26,8 +26,21 @@
 #include <type_traits>
 #include <VSHelper4.h>
 #include "generic.h"
+#include "../float16_helper.h"
 
 namespace {
+
+// Scalar float16 pixel: raw IEEE binary16 bits that widen to float32 on read
+// (operator float) and are produced by the limit/xrint specialisations below on
+// write. Two bytes wide, so arrays, strides and the separable temp buffer size
+// exactly like uint16_t. Conversions go through float16_helper (bit fiddling
+// when the target lacks F16C), so no _Float16 type is required -- this lets the
+// byte/word/float convolution helpers serve half unchanged, just by
+// instantiating them with this type. floatToHalf rounds to nearest-even.
+struct half_t {
+    uint16_t bits;
+    operator float() const { return halfToFloat(bits); }
+};
 
 template <class T>
 T limit(T x, uint16_t maxval)
@@ -38,6 +51,9 @@ T limit(T x, uint16_t maxval)
 template <>
 float limit(float x, uint16_t) { return x; }
 
+template <>
+half_t limit(half_t x, uint16_t) { return x; }
+
 template <class T>
 T xrint(float x)
 {
@@ -46,6 +62,9 @@ T xrint(float x)
 
 template <>
 float xrint(float x) { return x; }
+
+template <>
+half_t xrint(float x) { return half_t{ floatToHalf(x) }; }
 
 template <class T>
 T *line_ptr(T *ptr, unsigned i, ptrdiff_t stride)
@@ -234,6 +253,31 @@ struct ConvolutionOp {
         float tmp = static_cast<float>(accum) * div + bias;
         tmp = saturate ? tmp : std::fabs(tmp);
         return xrint<T>(tmp);
+    }
+};
+
+
+// Scalar float16 fallback: store the plane as raw IEEE binary16 bits (uint16_t)
+// and wrap any float op so each neighbourhood sample is widened to float32 for
+// the arithmetic and the result narrowed back to half. Conversions go through
+// float16_helper (pure bit manipulation when the target lacks F16C), so this
+// path is compiler- and ISA-agnostic. floatToHalf rounds to nearest-even,
+// matching the SIMD store. maxval is 65535 for half, so the driver's uint16_t
+// limit() is an identity.
+template <class FloatOp>
+struct HalfOp {
+    typedef uint16_t type;
+
+    FloatOp inner;
+
+    explicit HalfOp(const vs_generic_params &params) : inner{ params } {}
+
+    uint16_t op(uint16_t a00, uint16_t a01, uint16_t a02, uint16_t a10, uint16_t a11, uint16_t a12, uint16_t a20, uint16_t a21, uint16_t a22) const
+    {
+        return floatToHalf(inner.op(
+            halfToFloat(a00), halfToFloat(a01), halfToFloat(a02),
+            halfToFloat(a10), halfToFloat(a11), halfToFloat(a12),
+            halfToFloat(a20), halfToFloat(a21), halfToFloat(a22)));
     }
 };
 
@@ -664,6 +708,46 @@ void vs_generic_3x3_conv_float_c(const void *src, ptrdiff_t src_stride, void *ds
     filter_plane_3x3<ConvolutionOp<float>>(src, src_stride, dst, dst_stride, *params, width, height);
 }
 
+void vs_generic_3x3_prewitt_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params *params, unsigned width, unsigned height)
+{
+    filter_plane_3x3<HalfOp<PrewittSobelOp<float, false>>>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_3x3_sobel_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params *params, unsigned width, unsigned height)
+{
+    filter_plane_3x3<HalfOp<PrewittSobelOp<float, true>>>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_3x3_min_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params *params, unsigned width, unsigned height)
+{
+    filter_plane_3x3<HalfOp<MinMaxOp<float, false>>>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_3x3_max_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params *params, unsigned width, unsigned height)
+{
+    filter_plane_3x3<HalfOp<MinMaxOp<float, true>>>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_3x3_median_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params *params, unsigned width, unsigned height)
+{
+    filter_plane_3x3<HalfOp<MedianOp<float>>>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_3x3_deflate_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params *params, unsigned width, unsigned height)
+{
+    filter_plane_3x3<HalfOp<DeflateInflateOp<float, false>>>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_3x3_inflate_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params *params, unsigned width, unsigned height)
+{
+    filter_plane_3x3<HalfOp<DeflateInflateOp<float, true>>>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_3x3_conv_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params *params, unsigned width, unsigned height)
+{
+    filter_plane_3x3<HalfOp<ConvolutionOp<float>>>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
 void vs_generic_5x5_conv_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
     conv_plane_5x5<uint8_t>(src, src_stride, dst, dst_stride, *params, width, height);
@@ -722,5 +806,25 @@ void vs_generic_2d_conv_sep_word_c(const void *src, ptrdiff_t src_stride, void *
 void vs_generic_2d_conv_sep_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
     conv_plane_x<float>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_5x5_conv_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+{
+    conv_plane_5x5<half_t>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_1d_conv_h_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+{
+    conv_plane_h<half_t>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_1d_conv_v_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+{
+    conv_plane_v<half_t>(src, src_stride, dst, dst_stride, *params, width, height);
+}
+
+void vs_generic_2d_conv_sep_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
+{
+    conv_plane_x<half_t>(src, src_stride, dst, dst_stride, *params, width, height);
 }
 

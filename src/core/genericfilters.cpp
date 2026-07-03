@@ -292,6 +292,20 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX512(const VSVideoFo
                 return vs_generic_2d_conv_sep_float_avx512;
             break;
         }
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 2) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_half_avx512;
+        case GenericSobel: return vs_generic_3x3_sobel_half_avx512;
+        case GenericMinimum: return vs_generic_3x3_min_half_avx512;
+        case GenericMaximum: return vs_generic_3x3_max_half_avx512;
+        case GenericMedian: return vs_generic_3x3_median_half_avx512;
+        case GenericDeflate: return vs_generic_3x3_deflate_half_avx512;
+        case GenericInflate: return vs_generic_3x3_inflate_half_avx512;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_half_avx512;
+            break;
+        }
     }
     return nullptr;
 }
@@ -356,6 +370,20 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
                 return vs_generic_1d_conv_v_float_avx2;
             else if (d->convolution_type == ConvolutionSeparable)
                 return vs_generic_2d_conv_sep_float_avx2;
+            break;
+        }
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 2) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_half_avx2;
+        case GenericSobel: return vs_generic_3x3_sobel_half_avx2;
+        case GenericMinimum: return vs_generic_3x3_min_half_avx2;
+        case GenericMaximum: return vs_generic_3x3_max_half_avx2;
+        case GenericMedian: return vs_generic_3x3_median_half_avx2;
+        case GenericDeflate: return vs_generic_3x3_deflate_half_avx2;
+        case GenericInflate: return vs_generic_3x3_inflate_half_avx2;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_half_avx2;
             break;
         }
     }
@@ -497,6 +525,28 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
                 return vs_generic_2d_conv_sep_float_c;
             break;
         }
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 2) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_half_c;
+        case GenericSobel: return vs_generic_3x3_sobel_half_c;
+        case GenericMinimum: return vs_generic_3x3_min_half_c;
+        case GenericMaximum: return vs_generic_3x3_max_half_c;
+        case GenericMedian: return vs_generic_3x3_median_half_c;
+        case GenericDeflate: return vs_generic_3x3_deflate_half_c;
+        case GenericInflate: return vs_generic_3x3_inflate_half_c;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_half_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_half_c;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_half_c;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_half_c;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_half_c;
+            break;
+        }
     }
     return nullptr;
 }
@@ -512,8 +562,8 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
         try {
-            if (!is8to16orFloatFormat(*fi))
-                throw std::runtime_error(invalidVideoFormatMessage(*fi, vsapi, nullptr, false, false, true));
+            if (!is8to16orFloatFormat(*fi, true))
+                throw std::runtime_error(invalidVideoFormatMessage(*fi, vsapi, nullptr, true, false, true));
             if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
                 throw std::runtime_error("Width must be bigger than convolution radius.");
             if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
@@ -546,6 +596,16 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
 #endif
         if (!func)
             func = genericSelectC<op>(fi, d);
+
+        // Every accepted format resolves to at least a C kernel; guard anyway so
+        // an unexpected gap errors out instead of emitting an unprocessed
+        // (garbage) plane.
+        if (!func) {
+            vsapi->setFilterError((d->filter_name + ": no kernel available for the clip format"s).c_str(), frameCtx);
+            vsapi->freeFrame(dst);
+            vsapi->freeFrame(src);
+            return nullptr;
+        }
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             if (func && d->process[plane]) {
@@ -587,8 +647,8 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d->vi = vsapi->getVideoInfo(d->node);
 
     try {
-        if (!is8to16orFloatFormat(d->vi->format))
-            throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi));
+        if (!is8to16orFloatFormat(d->vi->format, true))
+            throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi, nullptr, true));
 
         if (d->vi->height && d->vi->width)
             if (planeWidth(d->vi, d->vi->format.numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format.numPlanes - 1) < 4)

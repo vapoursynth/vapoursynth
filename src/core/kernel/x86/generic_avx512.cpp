@@ -118,6 +118,11 @@ struct Backend_AVX512 {
     static fvec float_loadu(const float *p) { return _mm512_loadu_ps(p); }
     static void float_store(float *p, fvec x) { _mm512_store_ps(p, x); }
 
+    // Half (float16): F16C convert on load/store; arithmetic stays float32.
+    static fvec half_load(const _Float16 *p) { return _mm512_cvtph_ps(_mm256_load_si256((const __m256i *)p)); }
+    static fvec half_loadu(const _Float16 *p) { return _mm512_cvtph_ps(_mm256_loadu_si256((const __m256i *)p)); }
+    static void half_store(_Float16 *p, fvec x) { _mm256_store_si256((__m256i *)p, _mm512_cvtps_ph(x, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC)); }
+
     // Edge inserts (whole-register shift-by-one with scalar insert).
     static ivec byte_shl_insert_lo(ivec x, uint8_t y)
     {
@@ -165,3 +170,4 @@ struct Backend_AVX512 {
 #include "generic_impl.h"
 
 VS_GENERIC_ENTRYPOINTS(avx512)
+VS_GENERIC_ENTRYPOINTS_HALF(avx512)
