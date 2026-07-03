@@ -970,6 +970,8 @@ do { \
 public:
     explicit ExprCompiler128(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs), curLabel() {}
 
+    int pixelsPerIteration() const override { return 8; }
+
     std::pair<ProcessLineProc, size_t> getCode() override
     {
         size_t size;
@@ -1652,6 +1654,8 @@ do { \
 public:
     explicit ExprCompiler256(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs) {}
 
+    int pixelsPerIteration() const override { return 8; }
+
     std::pair<ProcessLineProc, size_t> getCode() override
     {
         size_t size;
@@ -2313,6 +2317,8 @@ public:
         // and all caller-saved) -- a large reduction in spills for complex exprs.
         this->AllowExtendedVectorRegs(true);
     }
+
+    int pixelsPerIteration() const override { return 16; }
 
     std::pair<ProcessLineProc, size_t> getCode() override
     {

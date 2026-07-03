@@ -62,7 +62,7 @@ void ExprCompiler::addInstruction(const ExprInstruction &insn)
     }
 }
 
-std::pair<ExprCompiler::ProcessLineProc, size_t> compile_jit(const ExprInstruction *bytecode, size_t numInsns, int numInputs, int cpulevel)
+std::pair<ExprCompiler::ProcessLineProc, size_t> compile_jit(const ExprInstruction *bytecode, size_t numInsns, int numInputs, int cpulevel, int *pixelsPerIterationOut)
 {
 	std::unique_ptr<ExprCompiler> compiler;
 
@@ -77,6 +77,9 @@ std::pair<ExprCompiler::ProcessLineProc, size_t> compile_jit(const ExprInstructi
 
 	if (!compiler)
 		return{};
+
+	if (pixelsPerIterationOut)
+		*pixelsPerIterationOut = compiler->pixelsPerIteration();
 
 	for (size_t i = 0; i < numInsns; ++i) {
 		compiler->addInstruction(bytecode[i]);

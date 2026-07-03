@@ -59,6 +59,7 @@ struct ExprData {
     int numInputs;
     ExprCompiler::ProcessLineProc proc[3];
     size_t procSize[3];
+    int procPixels[3] = { 8, 8, 8 };  // pixels/iteration of the JIT proc (16 for the AVX-512 path)
 
     ExprData() : node(), vi(), plane(), numInputs(), proc() {}
 
@@ -185,16 +186,21 @@ static const VSFrame *VS_CC exprGetFrame(int n, int activationReason, void *inst
 
         const uint8_t *srcp[MAX_EXPR_INPUTS] = {};
         ptrdiff_t src_stride[MAX_EXPR_INPUTS] = {};
-        alignas(32) intptr_t ptroffsets[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = { d->vi.format.bytesPerSample * 8 };
+        alignas(32) intptr_t ptroffsets[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = {};
 
         for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
             if (d->plane[plane] != poProcess)
                 continue;
 
+            // Pixels the compiled proc consumes per iteration (16 on the AVX-512 path,
+            // 8 otherwise). Drives both the per-iteration pointer advance and the count.
+            int lanes = d->procPixels[plane];
+            ptroffsets[0] = d->vi.format.bytesPerSample * lanes;
+
             for (int i = 0; i < numInputs; i++) {
                 srcp[i] = vsapi->getReadPtr(src[i], plane);
                 src_stride[i] = vsapi->getStride(src[i], plane);
-                ptroffsets[i + 1] = vsapi->getVideoFrameFormat(src[i])->bytesPerSample * 8;
+                ptroffsets[i + 1] = vsapi->getVideoFrameFormat(src[i])->bytesPerSample * lanes;
             }
 
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
@@ -204,7 +210,7 @@ static const VSFrame *VS_CC exprGetFrame(int n, int activationReason, void *inst
 
             if (d->proc[plane]) {
                 ExprCompiler::ProcessLineProc proc = d->proc[plane];
-                int niterations = (w + 7) / 8;
+                int niterations = (w + lanes - 1) / lanes;
 
                 for (int y = 0; y < h; y++) {
                     alignas(32) uint8_t *rwptrs[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = { dstp + dst_stride * y };
@@ -330,7 +336,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             d->bytecode[i] = compile(expr[i], vi, d->numInputs, d->vi);
 
             if (cpulevel > VS_CPU_LEVEL_NONE)
-                std::tie(d->proc[i], d->procSize[i]) = expr::compile_jit(d->bytecode[i].data(), d->bytecode[i].size(), d->numInputs, cpulevel);
+                std::tie(d->proc[i], d->procSize[i]) = expr::compile_jit(d->bytecode[i].data(), d->bytecode[i].size(), d->numInputs, cpulevel, &d->procPixels[i]);
         }
 #ifdef VS_TARGET_OS_WINDOWS
         FlushInstructionCache(GetCurrentProcess(), nullptr, 0);

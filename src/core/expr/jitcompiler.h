@@ -67,6 +67,11 @@ public:
     void addInstruction(const ExprInstruction &insn);
 
     virtual std::pair<ProcessLineProc, size_t> getCode() = 0;
+
+    // Number of pixels the generated proc consumes per loop iteration. The caller
+    // uses this for the pointer advance (ptroffsets) and iteration count. XMM/YMM
+    // process 8, the ZMM (AVX-512) path processes 16.
+    virtual int pixelsPerIteration() const = 0;
 };
 
 #ifdef VS_TARGET_CPU_X86
@@ -75,7 +80,7 @@ std::unique_ptr<ExprCompiler> make_ymm_compiler(int numInputs);
 std::unique_ptr<ExprCompiler> make_zmm_compiler(int numInputs);
 #endif
 
-std::pair<ExprCompiler::ProcessLineProc, size_t> compile_jit(const ExprInstruction *bytecode, size_t numInsns, int numInputs, int cpulevel);
+std::pair<ExprCompiler::ProcessLineProc, size_t> compile_jit(const ExprInstruction *bytecode, size_t numInsns, int numInputs, int cpulevel, int *pixelsPerIterationOut = nullptr);
 
 } // namespace expr
 
