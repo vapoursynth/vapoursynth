@@ -50,7 +50,7 @@ import keyword
 from threading import local as ThreadLocal, Lock, RLock
 from types import MappingProxyType
 from collections.abc import ItemsView, Iterable, KeysView, MutableMapping, ValuesView
-from concurrent.futures import Future, CancelledError as FutureCancelledError
+from concurrent.futures import Future, CancelledError as FutureCancelledError, wait as wait_futures
 from fractions import Fraction
 
 
@@ -232,6 +232,7 @@ cdef class EnvironmentData(object):
     cdef object env_locals
     cdef object known_nodes
     cdef object known_frames
+    cdef object active_futures
 
     cdef object __weakref__
 
@@ -406,6 +407,7 @@ cdef class EnvironmentPolicyAPI:
         env.env_locals = weakref.WeakKeyDictionary()
         env.known_nodes = weakref.WeakSet()
         env.known_frames = weakref.WeakSet()
+        env.active_futures = weakref.WeakSet()
         env.alive = True
 
         with self._lock:
@@ -431,6 +433,10 @@ cdef class EnvironmentPolicyAPI:
         self.ensure_policy_matches()
         if not env.alive:
             return
+
+        futs = env.active_futures
+        env.active_futures = None
+        wait_futures(futs)
 
         callbacks = env.on_destroy
         env.on_destroy = None
@@ -1003,7 +1009,9 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNod
         d = <CallbackData>data
 
         try:
-            if f == NULL:
+            if d.node.node == NULL or d.node.core is None:
+                error = Error("Use of invalidated VideoNode (the environment has been destroyed).")
+            elif f == NULL:
                 error_str = 'Internal error - no error message.'
                 if errormsg != NULL:
                     error_str = errormsg.decode('utf-8')
@@ -2035,19 +2043,25 @@ cdef class _audio:
         view.len = view.shape[0] * view.itemsize
         view.buf = _frame.getdata(frame, channel, flags, lib)
 
-cdef _get_handle_future():
-    fut = Future()
-    fut.set_running_or_notify_cancel()
 
-    def _handle_future(result, exception):
+@cython.final
+@cython.internal
+@cython.freelist(16)
+cdef class HandleFuture:
+    cdef object fut
+
+    def __cinit__(self):
+        cdef EnvironmentData env = _env_current()
+        self.fut = Future()
+        self.fut.set_running_or_notify_cancel()
+        env.active_futures.add(self.fut)
+
+    def __call__(self, result, exception):
         if exception is not None:
-            fut.set_exception(exception)
+            self.fut.set_exception(exception)
         else:
-            fut.set_result(result)
+            self.fut.set_result(result)
 
-    _handle_future.fut = fut
-
-    return _handle_future
 
 cdef class RawNode(object):
     cdef VSNode *node
@@ -2075,14 +2089,14 @@ cdef class RawNode(object):
     def get_frame_async(self, int n, object cb = None):
         self.ensure_valid()
         if cb is None:
-            _handle_future = _get_handle_future()
+            handle = HandleFuture()
 
             try:
-                self.get_frame_async(n, _handle_future)
+                self.get_frame_async(n, handle)
             except Exception as e:
-                _handle_future.fut.set_exception(e)
+                handle.fut.set_exception(e)
 
-            return _handle_future.fut
+            return handle.fut
 
         cdef CallbackData data = createCallbackData(self.funcs, self, cb)
         Py_INCREF(data)
@@ -2103,10 +2117,10 @@ cdef class RawNode(object):
             get_frame_async = self.get_frame_async
 
             for n in range(self.num_frames):
-                handle_future = _get_handle_future()
-                get_frame_async(n, handle_future)
+                handle = HandleFuture()
+                get_frame_async(n, handle)
 
-                yield n, handle_future.fut
+                yield n, handle.fut
 
             return None
 
