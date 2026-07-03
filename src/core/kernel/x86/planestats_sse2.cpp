@@ -82,7 +82,7 @@ static double hadd_pd(__m128d x)
 
 void vs_plane_stats_1_byte_sse2(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp = src;
+    const uint8_t *srcp = (const uint8_t *)src;
     unsigned tail = width & ~15;
     unsigned x, y;
 
@@ -115,7 +115,7 @@ void vs_plane_stats_1_byte_sse2(union vs_plane_stats *stats, const void *src, pt
 
 void vs_plane_stats_1_word_sse2(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp = src;
+    const uint8_t *srcp = (const uint8_t *)src;
     unsigned tail = width & ~7;
     unsigned x, y;
 
@@ -163,7 +163,7 @@ void vs_plane_stats_1_word_sse2(union vs_plane_stats *stats, const void *src, pt
 
 void vs_plane_stats_1_float_sse2(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp = src;
+    const uint8_t *srcp = (const uint8_t *)src;
     unsigned tail = width & ~3;
     unsigned x, y;
 
@@ -199,8 +199,8 @@ void vs_plane_stats_1_float_sse2(union vs_plane_stats *stats, const void *src, p
 
 void vs_plane_stats_2_byte_sse2(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
     unsigned tail = width & ~15;
     unsigned x, y;
 
@@ -240,8 +240,8 @@ void vs_plane_stats_2_byte_sse2(union vs_plane_stats *stats, const void *src1, p
 
 void vs_plane_stats_2_word_sse2(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
     unsigned tail = width & ~7;
     unsigned x, y;
 
@@ -303,8 +303,8 @@ void vs_plane_stats_2_word_sse2(union vs_plane_stats *stats, const void *src1, p
 
 void vs_plane_stats_2_float_sse2(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
     unsigned tail = width & ~3;
     unsigned x, y;
 

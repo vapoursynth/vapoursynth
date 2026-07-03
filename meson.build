@@ -291,9 +291,9 @@ filters_sources = files(
     'src/core/genericfilters.cpp',
     'src/core/kernel/cpulevel.cpp',
     'src/core/kernel/generic.cpp',
-    'src/core/kernel/merge.c',
-    'src/core/kernel/planestats.c',
-    'src/core/kernel/transpose.c',
+    'src/core/kernel/merge.cpp',
+    'src/core/kernel/planestats.cpp',
+    'src/core/kernel/transpose.cpp',
     'src/core/lutfilters.cpp',
     'src/core/mergefilters.cpp',
     'src/core/reorderfilters.cpp',
@@ -308,21 +308,21 @@ if enable_x86_asm
         'src/core/expr/jitcompiler_x86.cpp',
         'src/core/kernel/x86/convolution_sse2.cpp',
         'src/core/kernel/x86/generic_sse2.cpp',
-        'src/core/kernel/x86/merge_sse2.c',
-        'src/core/kernel/x86/planestats_sse2.c',
-        'src/core/kernel/x86/transpose_sse2.c',
+        'src/core/kernel/x86/merge_sse2.cpp',
+        'src/core/kernel/x86/planestats_sse2.cpp',
+        'src/core/kernel/x86/transpose_sse2.cpp',
     )
     avx2_kernel_sources = files(
         'src/core/kernel/x86/convolution_avx2.cpp',
         'src/core/kernel/x86/generic_avx2.cpp',
-        'src/core/kernel/x86/merge_avx2.c',
-        'src/core/kernel/x86/planestats_avx2.c',
+        'src/core/kernel/x86/merge_avx2.cpp',
+        'src/core/kernel/x86/planestats_avx2.cpp',
     )
     avx512_kernel_sources = files(
         'src/core/kernel/x86/convolution_avx512.cpp',
         'src/core/kernel/x86/generic_avx512.cpp',
         'src/core/kernel/x86/lut_avx512.cpp',
-        'src/core/kernel/x86/merge_avx512.c',
+        'src/core/kernel/x86/merge_avx512.cpp',
     )
 
     # ISA ladder. The effective -march of a translation unit is the HIGHEST of (its

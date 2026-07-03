@@ -23,7 +23,7 @@
 
 void vs_plane_stats_1_byte_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp = src;
+    const uint8_t *srcp = (const uint8_t *)src;
     unsigned x, y;
     uint8_t imin = UINT8_MAX;
     uint8_t imax = 0;
@@ -46,7 +46,7 @@ void vs_plane_stats_1_byte_c(union vs_plane_stats *stats, const void *src, ptrdi
 
 void vs_plane_stats_1_word_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp = src;
+    const uint8_t *srcp = (const uint8_t *)src;
     unsigned x, y;
     unsigned imin = UINT_MAX;
     unsigned imax = 0;
@@ -69,7 +69,7 @@ void vs_plane_stats_1_word_c(union vs_plane_stats *stats, const void *src, ptrdi
 
 void vs_plane_stats_1_float_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp = src;
+    const uint8_t *srcp = (const uint8_t *)src;
     unsigned x, y;
     float fmin = INFINITY;
     float fmax = -INFINITY;
@@ -92,8 +92,8 @@ void vs_plane_stats_1_float_c(union vs_plane_stats *stats, const void *src, ptrd
 
 void vs_plane_stats_2_byte_c(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
     unsigned x, y;
     uint8_t imin = UINT8_MAX;
     uint8_t imax = 0;
@@ -122,8 +122,8 @@ void vs_plane_stats_2_byte_c(union vs_plane_stats *stats, const void *src1, ptrd
 
 void vs_plane_stats_2_word_c(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
     unsigned x, y;
     unsigned imin = UINT_MAX;
     unsigned imax = 0;
@@ -151,8 +151,8 @@ void vs_plane_stats_2_word_c(union vs_plane_stats *stats, const void *src1, ptrd
 
 void vs_plane_stats_2_float_c(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
     unsigned x, y;
     float fmin = INFINITY;
     float fmax = -INFINITY;

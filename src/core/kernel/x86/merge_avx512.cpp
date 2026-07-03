@@ -67,10 +67,10 @@ static __m512i divX_epu32(__m512i x, unsigned depth)
 
 void vs_mask_merge_byte_avx512(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    const uint8_t *maskp = mask;
-    uint8_t *dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    const uint8_t *maskp = (const uint8_t *)mask;
+    uint8_t *dstp = (uint8_t *)dst;
     unsigned i;
 
     (void)depth;
@@ -97,10 +97,10 @@ void vs_mask_merge_byte_avx512(const void *src1, const void *src2, const void *m
 
 void vs_mask_merge_word_avx512(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    const uint16_t *maskp = mask;
-    uint16_t *dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    const uint16_t *maskp = (const uint16_t *)mask;
+    uint16_t *dstp = (uint16_t *)dst;
     unsigned i;
 
     uint16_t maxval = (1U << depth) - 1;
@@ -159,10 +159,10 @@ static __m512i premul_byte_half(__m512i v1, __m512i v2, __m512i w2, __m512i offs
 
 void vs_mask_merge_premul_byte_avx512(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    const uint8_t *maskp = mask;
-    uint8_t *dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    const uint8_t *maskp = (const uint8_t *)mask;
+    uint8_t *dstp = (uint8_t *)dst;
     unsigned i;
 
     __m512i offs = _mm512_set1_epi16(offset);
@@ -186,10 +186,10 @@ void vs_mask_merge_premul_byte_avx512(const void *src1, const void *src2, const 
 
 void vs_mask_merge_premul_word_avx512(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    const uint16_t *maskp = mask;
-    uint16_t *dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    const uint16_t *maskp = (const uint16_t *)mask;
+    uint16_t *dstp = (uint16_t *)dst;
     unsigned i;
 
     uint16_t maxval = (1U << depth) - 1;

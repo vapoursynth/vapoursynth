@@ -60,9 +60,9 @@ static uint32_t premul_u16(uint16_t x, uint16_t a, unsigned offset, unsigned dep
 
 void vs_premultiply_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    uint8_t * VS_RESTRICT dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    uint8_t *VS_RESTRICT dstp = (uint8_t *)dst;
     unsigned i;
 
     (void)depth;
@@ -76,9 +76,9 @@ void vs_premultiply_byte_c(const void *src1, const void *src2, void *dst, unsign
 
 void vs_premultiply_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    uint16_t * VS_RESTRICT dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
     unsigned i;
 
     for (i = 0; i < n; i++) {
@@ -90,9 +90,9 @@ void vs_premultiply_word_c(const void *src1, const void *src2, void *dst, unsign
 
 void vs_premultiply_float_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const float *srcp1 = src1;
-    const float *srcp2 = src2;
-    float * VS_RESTRICT dstp = dst;
+    const float *srcp1 = (const float *)src1;
+    const float *srcp2 = (const float *)src2;
+    float *VS_RESTRICT dstp = (float *)dst;
     unsigned i;
 
     (void)depth;
@@ -106,9 +106,9 @@ void vs_premultiply_float_c(const void *src1, const void *src2, void *dst, unsig
 
 void vs_merge_byte_c(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    uint8_t * VS_RESTRICT dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    uint8_t *VS_RESTRICT dstp = (uint8_t *)dst;
     unsigned w = weight.u;
     unsigned i;
 
@@ -121,9 +121,9 @@ void vs_merge_byte_c(const void *src1, const void *src2, void *dst, union vs_mer
 
 void vs_merge_word_c(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    uint16_t * VS_RESTRICT dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
     unsigned w = weight.u;
     unsigned i;
 
@@ -136,9 +136,9 @@ void vs_merge_word_c(const void *src1, const void *src2, void *dst, union vs_mer
 
 void vs_merge_float_c(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n)
 {
-    const float *srcp1 = src1;
-    const float *srcp2 = src2;
-    float * VS_RESTRICT dstp = dst;
+    const float *srcp1 = (const float *)src1;
+    const float *srcp2 = (const float *)src2;
+    float *VS_RESTRICT dstp = (float *)dst;
     float w = weight.f;
     unsigned i;
 
@@ -152,10 +152,10 @@ void vs_merge_float_c(const void *src1, const void *src2, void *dst, union vs_me
 
 void vs_mask_merge_byte_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    const uint8_t *maskp = mask;
-    uint8_t * VS_RESTRICT dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    const uint8_t *maskp = (const uint8_t *)mask;
+    uint8_t *VS_RESTRICT dstp = (uint8_t *)dst;
     unsigned i;
 
     (void)offset;
@@ -173,10 +173,10 @@ void vs_mask_merge_byte_c(const void *src1, const void *src2, const void *mask, 
 
 void vs_mask_merge_word_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    const uint16_t *maskp = mask;
-    uint16_t * VS_RESTRICT dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    const uint16_t *maskp = (const uint16_t *)mask;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
     unsigned i;
 
     uint16_t maxval = (1U << depth) - 1;
@@ -197,10 +197,10 @@ void vs_mask_merge_word_c(const void *src1, const void *src2, const void *mask, 
 
 void vs_mask_merge_float_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const float *srcp1 = src1;
-    const float *srcp2 = src2;
-    const float *maskp = mask;
-    float * VS_RESTRICT dstp = dst;
+    const float *srcp1 = (const float *)src1;
+    const float *srcp2 = (const float *)src2;
+    const float *maskp = (const float *)mask;
+    float *VS_RESTRICT dstp = (float *)dst;
     unsigned i;
 
     (void)depth;
@@ -220,10 +220,10 @@ void vs_mask_merge_float_c(const void *src1, const void *src2, const void *mask,
 
 void vs_mask_merge_premul_byte_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    const uint8_t *maskp = mask;
-    uint8_t * VS_RESTRICT dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    const uint8_t *maskp = (const uint8_t *)mask;
+    uint8_t *VS_RESTRICT dstp = (uint8_t *)dst;
     unsigned i;
 
     (void)depth;
@@ -240,10 +240,10 @@ void vs_mask_merge_premul_byte_c(const void *src1, const void *src2, const void 
 
 void vs_mask_merge_premul_word_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    const uint16_t *maskp = mask;
-    uint16_t * VS_RESTRICT dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    const uint16_t *maskp = (const uint16_t *)mask;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
     unsigned i;
 
     uint16_t maxval = (1U << depth) - 1;
@@ -260,10 +260,10 @@ void vs_mask_merge_premul_word_c(const void *src1, const void *src2, const void 
 
 void vs_mask_merge_premul_float_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const float *srcp1 = src1;
-    const float *srcp2 = src2;
-    const float *maskp = mask;
-    float * VS_RESTRICT dstp = dst;
+    const float *srcp1 = (const float *)src1;
+    const float *srcp2 = (const float *)src2;
+    const float *maskp = (const float *)mask;
+    float *VS_RESTRICT dstp = (float *)dst;
     unsigned i;
 
     (void)depth;
@@ -283,9 +283,9 @@ void vs_mask_merge_premul_float_c(const void *src1, const void *src2, const void
 
 void vs_makediff_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    uint8_t * VS_RESTRICT dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    uint8_t *VS_RESTRICT dstp = (uint8_t *)dst;
     unsigned i;
 
     (void)depth;
@@ -299,9 +299,9 @@ void vs_makediff_byte_c(const void *src1, const void *src2, void *dst, unsigned 
 
 void vs_makediff_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    uint16_t * VS_RESTRICT dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
     unsigned i;
 
     int32_t half = 1U << (depth - 1);
@@ -317,9 +317,9 @@ void vs_makediff_word_c(const void *src1, const void *src2, void *dst, unsigned 
 
 void vs_makediff_float_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const float *srcp1 = src1;
-    const float *srcp2 = src2;
-    float * VS_RESTRICT dstp = dst;
+    const float *srcp1 = (const float *)src1;
+    const float *srcp2 = (const float *)src2;
+    float *VS_RESTRICT dstp = (float *)dst;
     unsigned i;
 
     (void)depth;
@@ -330,9 +330,9 @@ void vs_makediff_float_c(const void *src1, const void *src2, void *dst, unsigned
 }
 
 void vs_makefulldiff_byte_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    uint16_t * VS_RESTRICT dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
     unsigned i;
 
     (void)depth;
@@ -345,9 +345,9 @@ void vs_makefulldiff_byte_word_c(const void *src1, const void *src2, void *dst, 
 }
 
 void vs_makefulldiff_word_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    uint16_t * VS_RESTRICT dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
     unsigned i;
 
     uint16_t half = 1U << depth;
@@ -360,9 +360,9 @@ void vs_makefulldiff_word_word_c(const void *src1, const void *src2, void *dst, 
 }
 
 void vs_makefulldiff_word_dword_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    uint32_t * VS_RESTRICT dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint32_t *VS_RESTRICT dstp = (uint32_t *)dst;
     unsigned i;
 
     int32_t half = 1U << depth;
@@ -376,9 +376,9 @@ void vs_makefulldiff_word_dword_c(const void *src1, const void *src2, void *dst,
 
 void vs_mergediff_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    uint8_t * VS_RESTRICT dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    uint8_t *VS_RESTRICT dstp = (uint8_t *)dst;
     unsigned i;
 
     (void)depth;
@@ -392,9 +392,9 @@ void vs_mergediff_byte_c(const void *src1, const void *src2, void *dst, unsigned
 
 void vs_mergediff_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    uint16_t * VS_RESTRICT dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
     unsigned i;
 
     int32_t half = 1U << (depth - 1);
@@ -410,9 +410,9 @@ void vs_mergediff_word_c(const void *src1, const void *src2, void *dst, unsigned
 
 void vs_mergediff_float_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const float *srcp1 = src1;
-    const float *srcp2 = src2;
-    float * VS_RESTRICT dstp = dst;
+    const float *srcp1 = (const float *)src1;
+    const float *srcp2 = (const float *)src2;
+    float *VS_RESTRICT dstp = (float *)dst;
     unsigned i;
 
     (void)depth;
@@ -423,9 +423,9 @@ void vs_mergediff_float_c(const void *src1, const void *src2, void *dst, unsigne
 }
 
 void vs_mergefulldiff_word_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
-    const uint8_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    uint8_t * VS_RESTRICT dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint8_t *VS_RESTRICT dstp = (uint8_t *)dst;
     unsigned i;
 
     (void)depth;
@@ -438,9 +438,9 @@ void vs_mergefulldiff_word_byte_c(const void *src1, const void *src2, void *dst,
 }
 
 void vs_mergefulldiff_word_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    uint16_t * VS_RESTRICT dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
     unsigned i;
 
     int32_t half = 1U << depth;
@@ -455,9 +455,9 @@ void vs_mergefulldiff_word_word_c(const void *src1, const void *src2, void *dst,
 }
 
 void vs_mergefulldiff_dword_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n) {
-    const uint16_t *srcp1 = src1;
-    const uint32_t *srcp2 = src2;
-    uint16_t * VS_RESTRICT dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint32_t *srcp2 = (const uint32_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
     unsigned i;
 
     int32_t half = 1U << depth;
