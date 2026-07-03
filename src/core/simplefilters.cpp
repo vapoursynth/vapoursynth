@@ -18,6 +18,7 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include <cfloat>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -26,11 +27,13 @@
 #include <memory>
 #include <regex>
 #include <algorithm>
+#include <bit>
 #include "VSHelper4.h"
 #include "VSConstants4.h"
 #include "cpufeatures.h"
 #include "internalfilters.h"
 #include "filtershared.h"
+#include "float16_helper.h"
 #include "kernel/cpulevel.h"
 #include "kernel/planestats.h"
 #include "kernel/transpose.h"
@@ -44,50 +47,6 @@ static inline uint32_t doubleToUInt32S(double v) {
     if (v > UINT32_MAX)
         return UINT32_MAX;
     return (uint32_t)(v + 0.5);
-}
-
-static inline uint32_t bit_cast_uint32(float v) {
-    uint32_t ret;
-    memcpy(&ret, &v, sizeof(ret));
-    return ret;
-}
-
-static inline float bit_cast_float(uint32_t v) {
-    float ret;
-    memcpy(&ret, &v, sizeof(ret));
-    return ret;
-}
-
-static inline uint16_t floatToHalf(float x) {
-    float magic = bit_cast_float((uint32_t)15 << 23);
-    uint32_t inf = 255UL << 23;
-    uint32_t f16inf = 31UL << 23;
-    uint32_t sign_mask = 0x80000000UL;
-    uint32_t round_mask = ~0x0FFFU;
-    uint16_t ret;
-    uint32_t f = bit_cast_uint32(x);
-    uint32_t sign = f & sign_mask;
-    f ^= sign;
-
-    if (f >= inf) {
-        ret = f > inf ? 0x7E00 : 0x7C00;
-    } else {
-        f &= round_mask;
-        f = bit_cast_uint32(bit_cast_float(f)* magic);
-        f -= round_mask;
-
-        if (f > f16inf)
-            f = f16inf;
-
-        ret = (uint16_t)(f >> 13);
-    }
-
-    ret |= (uint16_t)(sign >> 16);
-    return ret;
-}
-
-static inline int isInfHalf(uint16_t v) {
-    return (v & 0x7C00) == 0x7C00;
 }
 
 static inline uint32_t doubleToIntPixelValue(double v, int bits, int *err) {
@@ -116,7 +75,7 @@ static inline uint32_t doubleToFloatPixelValue(double v, int *err) {
         return 0;
     }
 
-    return bit_cast_uint32(f);
+    return std::bit_cast<uint32_t>(f);
 }
 
 static inline uint16_t doubleToHalfPixelValue(double v, int *err) {
@@ -1754,7 +1713,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     d->vi.height = temp;
 
     if (!isConstantVideoFormat(&d->vi))
-        RETERROR("Transpose: clip must have constant format and dimensions and must not be CompatYUY2");
+        RETERROR("Transpose: clip must have constant format and dimensions");
 
     vsapi->queryVideoFormat(&d->vi.format, d->vi.format.colorFamily, d->vi.format.sampleType, d->vi.format.bitsPerSample, d->vi.format.subSamplingH, d->vi.format.subSamplingW, core);
     d->cpulevel = vs_get_cpulevel(core);
