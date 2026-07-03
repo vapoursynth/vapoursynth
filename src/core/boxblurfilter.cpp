@@ -26,6 +26,7 @@
 #include "internalfilters.h"
 #include "VSHelper4.h"
 #include "filtershared.h"
+#include "float16_helper.h"
 
 using namespace std::string_literals;
 
@@ -256,6 +257,82 @@ static void processPlaneF(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, in
     }
 }
 
+static void blurHF_half(const uint16_t * VS_RESTRICT src, uint16_t * VS_RESTRICT dst, const int width, const int radius, const float div) {
+    float acc = radius * halfToFloat(src[0]);
+    for (int x = 0; x < radius; x++)
+        acc += halfToFloat(src[std::min(x, width - 1)]);
+
+    for (int x = 0; x < std::min(radius, width); x++) {
+        acc += halfToFloat(src[std::min(x + radius, width - 1)]);
+        dst[x] = floatToHalf(acc * div);
+        acc -= halfToFloat(src[std::max(x - radius, 0)]);
+    }
+
+    if (width > radius) {
+        for (int x = radius; x < width - radius; x++) {
+            acc += halfToFloat(src[x + radius]);
+            dst[x] = floatToHalf(acc * div);
+            acc -= halfToFloat(src[x - radius]);
+        }
+
+        for (int x = std::max(width - radius, radius); x < width; x++) {
+            acc += halfToFloat(src[std::min(x + radius, width - 1)]);
+            dst[x] = floatToHalf(acc * div);
+            acc -= halfToFloat(src[std::max(x - radius, 0)]);
+        }
+    }
+}
+
+static void blurHF_inplace_half(const uint16_t *src, uint16_t *dst, const int width, const int radius, const float div, uint16_t *ring) {
+    const int R = std::min(radius + 1, width);
+    const float first = halfToFloat(src[0]);
+    int wr = 0;
+
+    float acc = radius * halfToFloat(src[0]);
+    for (int x = 0; x < radius; x++)
+        acc += halfToFloat(src[std::min(x, width - 1)]);
+
+    for (int x = 0; x < std::min(radius, width); x++) {
+        ring[wr] = src[x];
+        if (++wr == R)
+            wr = 0;
+        acc += halfToFloat(src[std::min(x + radius, width - 1)]);
+        dst[x] = floatToHalf(acc * div);
+        acc -= first;
+    }
+
+    if (width > radius) {
+        for (int x = radius; x < width - radius; x++) {
+            ring[wr] = src[x];
+            if (++wr == R)
+                wr = 0;
+            acc += halfToFloat(src[x + radius]);
+            dst[x] = floatToHalf(acc * div);
+            acc -= halfToFloat(ring[wr]);
+        }
+
+        for (int x = std::max(width - radius, radius); x < width; x++) {
+            ring[wr] = src[x];
+            if (++wr == R)
+                wr = 0;
+            acc += halfToFloat(src[std::min(x + radius, width - 1)]);
+            dst[x] = floatToHalf(acc * div);
+            acc -= halfToFloat(ring[wr]);
+        }
+    }
+}
+
+static void processPlaneF_half(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, int width, int height, int passes, int radius, uint8_t *ring) {
+    const float div = 1.0f / (radius * 2 + 1);
+    for (int h = 0; h < height; h++) {
+        blurHF_half(reinterpret_cast<const uint16_t *>(src), reinterpret_cast<uint16_t *>(dst), width, radius, div);
+        for (int p = 1; p < passes; p++)
+            blurHF_inplace_half(reinterpret_cast<const uint16_t *>(dst), reinterpret_cast<uint16_t *>(dst), width, radius, div, reinterpret_cast<uint16_t *>(ring));
+        src += stride;
+        dst += stride;
+    }
+}
+
 template<typename T>
 static void blurHR1(const T *src, T *dst, int width, const unsigned round) {
     unsigned tmp[2] = { src[0], src[1] };
@@ -362,6 +439,60 @@ static void processPlaneR1F(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, 
     }
 }
 
+// float16 radius-1 fast path: same read-ahead structure as blurHR1F (so it stays
+// in-place safe), accumulating in float32 and widening/narrowing at the edges.
+static void blurHR1F_half(const uint16_t *src, uint16_t *dst, int width) {
+    float tmp[2] = { halfToFloat(src[0]), halfToFloat(src[1]) };
+    float acc = tmp[0] * 2 + tmp[1];
+    const float div = 1.0f / 3;
+    dst[0] = floatToHalf(acc * div);
+    acc -= tmp[0];
+
+    float v = halfToFloat(src[2]);
+    acc += v;
+    dst[1] = floatToHalf(acc * div);
+    acc -= tmp[0];
+    tmp[0] = v;
+
+    for (int x = 2; x < width - 2; x += 2) {
+        v = halfToFloat(src[x + 1]);
+        acc += v;
+        dst[x] = floatToHalf(acc * div);
+        acc -= tmp[1];
+        tmp[1] = v;
+
+        v = halfToFloat(src[x + 2]);
+        acc += v;
+        dst[x + 1] = floatToHalf(acc * div);
+        acc -= tmp[0];
+        tmp[0] = v;
+    }
+
+    if (width & 1) {
+        acc += tmp[0];
+        dst[width - 1] = floatToHalf(acc * div);
+    }
+    else {
+        v = halfToFloat(src[width - 1]);
+        acc += v;
+        dst[width - 2] = floatToHalf(acc * div);
+        acc -= tmp[1];
+
+        acc += v;
+        dst[width - 1] = floatToHalf(acc * div);
+    }
+}
+
+static void processPlaneR1F_half(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, int width, int height, int passes) {
+    for (int h = 0; h < height; h++) {
+        blurHR1F_half(reinterpret_cast<const uint16_t *>(src), reinterpret_cast<uint16_t *>(dst), width);
+        for (int p = 1; p < passes; p++)
+            blurHR1F_half(reinterpret_cast<const uint16_t *>(dst), reinterpret_cast<uint16_t *>(dst), width);
+        src += stride;
+        dst += stride;
+    }
+}
+
 static const VSFrame *VS_CC boxBlurGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     BoxBlurData *d = reinterpret_cast<BoxBlurData *>(instanceData);
 
@@ -384,15 +515,19 @@ static const VSFrame *VS_CC boxBlurGetframe(int n, int activationReason, void *i
         if (radius == 1) {
             if (bytesPerSample == 1)
                 processPlaneR1<uint8_t>(srcp, dstp, stride, w, h, d->passes);
-            else if (bytesPerSample == 2)
+            else if (fi->sampleType == stInteger && bytesPerSample == 2)
                 processPlaneR1<uint16_t>(srcp, dstp, stride, w, h, d->passes);
+            else if (bytesPerSample == 2)
+                processPlaneR1F_half(srcp, dstp, stride, w, h, d->passes);
             else
                 processPlaneR1F<float>(srcp, dstp, stride, w, h, d->passes);
         } else {
             if (bytesPerSample == 1)
                 processPlane<uint8_t>(srcp, dstp, stride, w, h, d->passes, radius, ring);
-            else if (bytesPerSample == 2)
+            else if (fi->sampleType == stInteger && bytesPerSample == 2)
                 processPlane<uint16_t>(srcp, dstp, stride, w, h, d->passes, radius, ring);
+            else if (bytesPerSample == 2)
+                processPlaneF_half(srcp, dstp, stride, w, h, d->passes, radius, ring);
             else
                 processPlaneF<float>(srcp, dstp, stride, w, h, d->passes, radius, ring);
         }
@@ -447,8 +582,8 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         int err;
         const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-        if (!is8to16orFloatFormat(vi->format))
-            throw std::runtime_error(invalidVideoFormatMessage(vi->format, vsapi));
+        if (!is8to16orFloatFormat(vi->format, true))
+            throw std::runtime_error(invalidVideoFormatMessage(vi->format, vsapi, nullptr, true));
 
         bool process[3];
         getPlanesArg(in, process, vsapi);
