@@ -26,6 +26,16 @@
 #define MERGESHIFT 15
 #define ROUND (1U << (MERGESHIFT - 1))
 
+static __m256 load_half8(const uint16_t *p)
+{
+    return _mm256_cvtph_ps(_mm_load_si128((const __m128i *)p));
+}
+
+static void store_half8(uint16_t *p, __m256 x)
+{
+    _mm_store_si128((__m128i *)p, _mm256_cvtps_ph(x, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+}
+
 void vs_merge_byte_avx2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n)
 {
     const uint8_t *srcp1 = (const uint8_t *)src1;
@@ -448,5 +458,117 @@ void vs_mergediff_float_avx2(const void *src1, const void *src2, void *dst, unsi
         __m256 v1 = _mm256_load_ps(srcp1 + i);
         __m256 v2 = _mm256_load_ps(srcp2 + i);
         _mm256_store_ps(dstp + i, _mm256_add_ps(v1, v2));
+    }
+}
+
+void vs_premultiply_half_avx2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned offset, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *dstp = (uint16_t *)dst;
+    unsigned i;
+
+    (void)depth;
+    (void)offset;
+
+    for (i = 0; i < n; i += 8) {
+        __m256 v1 = load_half8(srcp1 + i);
+        __m256 v2 = load_half8(srcp2 + i);
+        store_half8(dstp + i, _mm256_mul_ps(v1, v2));
+    }
+}
+
+void vs_merge_half_avx2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *dstp = (uint16_t *)dst;
+    unsigned i;
+
+    __m256 w2 = _mm256_set1_ps(weight.f);
+
+    for (i = 0; i < n; i += 8) {
+        __m256 v1 = load_half8(srcp1 + i);
+        __m256 v2 = load_half8(srcp2 + i);
+        // v1 + (v2 - v1) * w2, matching the scalar reference
+        store_half8(dstp + i, _mm256_fmadd_ps(_mm256_sub_ps(v2, v1), w2, v1));
+    }
+}
+
+void vs_mask_merge_half_avx2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    const uint16_t *maskp = (const uint16_t *)mask;
+    uint16_t *dstp = (uint16_t *)dst;
+    unsigned i;
+
+    const __m256 lo = _mm256_setzero_ps();
+    const __m256 hi = _mm256_set1_ps(1.0f);
+
+    (void)depth;
+    (void)offset;
+
+    for (i = 0; i < n; i += 8) {
+        __m256 v1 = load_half8(srcp1 + i);
+        __m256 v2 = load_half8(srcp2 + i);
+        __m256 w2 = _mm256_min_ps(_mm256_max_ps(load_half8(maskp + i), lo), hi);
+        __m256 diff = _mm256_sub_ps(v2, v1);
+        store_half8(dstp + i, _mm256_fmadd_ps(diff, w2, v1));
+    }
+}
+
+void vs_mask_merge_premul_half_avx2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    const uint16_t *maskp = (const uint16_t *)mask;
+    uint16_t *dstp = (uint16_t *)dst;
+    unsigned i;
+
+    const __m256 lo = _mm256_setzero_ps();
+    const __m256 hi = _mm256_set1_ps(1.0f);
+
+    (void)depth;
+    (void)offset;
+
+    for (i = 0; i < n; i += 8) {
+        __m256 v1 = load_half8(srcp1 + i);
+        __m256 v2 = load_half8(srcp2 + i);
+        __m256 mask = _mm256_min_ps(_mm256_max_ps(load_half8(maskp + i), lo), hi);
+        __m256 w1 = _mm256_sub_ps(hi, mask);
+        store_half8(dstp + i, _mm256_fmadd_ps(v1, w1, v2));
+    }
+}
+
+void vs_makediff_half_avx2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *dstp = (uint16_t *)dst;
+    unsigned i;
+
+    (void)depth;
+
+    for (i = 0; i < n; i += 8) {
+        __m256 v1 = load_half8(srcp1 + i);
+        __m256 v2 = load_half8(srcp2 + i);
+        store_half8(dstp + i, _mm256_sub_ps(v1, v2));
+    }
+}
+
+void vs_mergediff_half_avx2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *dstp = (uint16_t *)dst;
+    unsigned i;
+
+    (void)depth;
+
+    for (i = 0; i < n; i += 8) {
+        __m256 v1 = load_half8(srcp1 + i);
+        __m256 v2 = load_half8(srcp2 + i);
+        store_half8(dstp + i, _mm256_add_ps(v1, v2));
     }
 }

@@ -45,22 +45,27 @@ union vs_merge_weight {
 DECL_PREMUL(byte, c)
 DECL_PREMUL(word, c)
 DECL_PREMUL(float, c)
+DECL_PREMUL(half, c)
 
 DECL_MERGE(byte, c)
 DECL_MERGE(word, c)
 DECL_MERGE(float, c)
+DECL_MERGE(half, c)
 
 DECL_MASK_MERGE(byte, c)
 DECL_MASK_MERGE(word, c)
 DECL_MASK_MERGE(float, c)
+DECL_MASK_MERGE(half, c)
 
 DECL_MASK_MERGE_PREMUL(byte, c)
 DECL_MASK_MERGE_PREMUL(word, c)
 DECL_MASK_MERGE_PREMUL(float, c)
+DECL_MASK_MERGE_PREMUL(half, c)
 
 DECL_MAKEDIFF(byte, c)
 DECL_MAKEDIFF(word, c)
 DECL_MAKEDIFF(float, c)
+DECL_MAKEDIFF(half, c)
 
 DECL_MAKEFULLDIFF(byte, word, c)
 DECL_MAKEFULLDIFF(word, word, c)
@@ -69,6 +74,7 @@ DECL_MAKEFULLDIFF(word, dword, c)
 DECL_MERGEDIFF(byte, c)
 DECL_MERGEDIFF(word, c)
 DECL_MERGEDIFF(float, c)
+DECL_MERGEDIFF(half, c)
 
 DECL_MERGEFULLDIFF(word, byte, c)
 DECL_MERGEFULLDIFF(word, word, c)
@@ -95,25 +101,32 @@ DECL_MERGEDIFF(byte, sse2)
 DECL_MERGEDIFF(word, sse2)
 DECL_MERGEDIFF(float, sse2)
 
+DECL_PREMUL(half, avx2)
+
 DECL_MERGE(byte, avx2);
 DECL_MERGE(word, avx2);
 DECL_MERGE(float, avx2);
+DECL_MERGE(half, avx2);
 
 DECL_MASK_MERGE(byte, avx2)
 DECL_MASK_MERGE(word, avx2)
 DECL_MASK_MERGE(float, avx2)
+DECL_MASK_MERGE(half, avx2)
 
 DECL_MASK_MERGE_PREMUL(byte, avx2)
 DECL_MASK_MERGE_PREMUL(word, avx2)
 DECL_MASK_MERGE_PREMUL(float, avx2)
+DECL_MASK_MERGE_PREMUL(half, avx2)
 
 DECL_MAKEDIFF(byte, avx2)
 DECL_MAKEDIFF(word, avx2)
 DECL_MAKEDIFF(float, avx2)
+DECL_MAKEDIFF(half, avx2)
 
 DECL_MERGEDIFF(byte, avx2)
 DECL_MERGEDIFF(word, avx2)
 DECL_MERGEDIFF(float, avx2)
+DECL_MERGEDIFF(half, avx2)
 
 /* AVX-512: only the compute-bound mask-merge / premultiply integer kernels are
    worth the wider path (see merge_avx512.c); the rest stay on AVX2. */

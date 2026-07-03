@@ -137,6 +137,7 @@ static int resolveChromaLocation(const VSFrame *frame, const VSAPI *vsapi) {
 typedef struct {
     const VSVideoInfo *vi;
     bool chroma_dispatch;  // If true, nodes 2-7 are 6 per-chromaloc resizes
+    int cpulevel;
 } PreMultiplyDataExtra;
 
 typedef VariableNodeData<PreMultiplyDataExtra> PreMultiplyData;
@@ -193,12 +194,23 @@ static const VSFrame *VS_CC preMultiplyGetFrame(int n, int activationReason, voi
 
             void (*func)(const void *, const void *, void *, unsigned, unsigned, unsigned) = nullptr;
 
-            if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                func = vs_premultiply_byte_c;
-            else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                func = vs_premultiply_word_c;
-            else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                func = vs_premultiply_float_c;
+#ifdef VS_TARGET_CPU_X86
+            if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                    func = vs_premultiply_half_avx2;
+            }
+#endif
+
+            if (!func) {
+                if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
+                    func = vs_premultiply_byte_c;
+                else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
+                    func = vs_premultiply_word_c;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
+                    func = vs_premultiply_float_c;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                    func = vs_premultiply_half_c;
+            }
 
             if (!func)
                 continue;
@@ -232,14 +244,16 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
 
     const VSVideoInfo *alphavi = vsapi->getVideoInfo(d->nodes[1]);
 
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "PreMultiply").c_str());
+    if (!is8to16orFloatFormat(d->vi->format, true))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "PreMultiply", true).c_str());
 
     if (alphavi->format.colorFamily != cfGray || alphavi->format.sampleType != d->vi->format.sampleType || alphavi->format.bitsPerSample != d->vi->format.bitsPerSample)
         RETERROR("PreMultiply: alpha clip must be grayscale and same sample format and bitdepth as main clip");
 
     if (!isConstantVideoFormat(d->vi) || !isConstantVideoFormat(alphavi) || d->vi->width != alphavi->width || d->vi->height != alphavi->height)
         RETERROR("PreMultiply: both clips must have the same constant format and dimensions");
+
+    d->cpulevel = vs_get_cpulevel(core);
 
     bool subsampled = (d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0);
     d->chroma_dispatch = subsampled;
@@ -323,6 +337,8 @@ static const VSFrame *VS_CC mergeGetFrame(int n, int activationReason, void *ins
                         func = vs_merge_word_avx2;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_merge_float_avx2;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_merge_half_avx2;
                 }
                 if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                     if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
@@ -340,6 +356,8 @@ static const VSFrame *VS_CC mergeGetFrame(int n, int activationReason, void *ins
                         func = vs_merge_word_c;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_merge_float_c;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_merge_half_c;
                 }
 
                 if (!func)
@@ -410,8 +428,8 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "Merge").c_str());
+    if (!is8to16orFloatFormat(d->vi->format, true))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "Merge", true).c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("Merge: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
@@ -521,6 +539,8 @@ static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, voi
                         func = d->premultiplied ? vs_mask_merge_premul_word_avx2 : vs_mask_merge_word_avx2;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = d->premultiplied ? vs_mask_merge_premul_float_avx2 : vs_mask_merge_float_avx2;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = d->premultiplied ? vs_mask_merge_premul_half_avx2 : vs_mask_merge_half_avx2;
                 }
                 if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                     if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
@@ -538,6 +558,8 @@ static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, voi
                         func = d->premultiplied ? vs_mask_merge_premul_word_c : vs_mask_merge_word_c;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = d->premultiplied ? vs_mask_merge_premul_float_c : vs_mask_merge_float_c;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = d->premultiplied ? vs_mask_merge_premul_half_c : vs_mask_merge_half_c;
                 }
 
                 if (!func)
@@ -581,8 +603,8 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     if (maskvi->format.numPlanes == 1)
         d->first_plane = 1;
 
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MaskedMerge").c_str());
+    if (!is8to16orFloatFormat(d->vi->format, true))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MaskedMerge", true).c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->nodes[1])))
         RETERROR(("MaskedMerge: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[1]), vsapi)).c_str());
@@ -695,6 +717,8 @@ static const VSFrame *VS_CC makeDiffGetFrame(int n, int activationReason, void *
                         func = vs_makediff_word_avx2;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_makediff_float_avx2;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_makediff_half_avx2;
                 }
                 if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                     if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
@@ -712,6 +736,8 @@ static const VSFrame *VS_CC makeDiffGetFrame(int n, int activationReason, void *
                         func = vs_makediff_word_c;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_makediff_float_c;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_makediff_half_c;
                 }
 
                 if (!func)
@@ -743,8 +769,8 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MakeDiff").c_str());
+    if (!is8to16orFloatFormat(d->vi->format, true))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MakeDiff", true).c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("MakeDiff: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
@@ -795,6 +821,8 @@ static const VSFrame *VS_CC makeFullDiffGetFrame(int n, int activationReason, vo
             if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
                 if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
                     func = vs_makediff_float_avx2;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
+                    func = vs_makediff_half_avx2;
             }
             if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                 if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
@@ -811,6 +839,8 @@ static const VSFrame *VS_CC makeFullDiffGetFrame(int n, int activationReason, vo
                     func = vs_makefulldiff_word_dword_c;
                 else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
                     func = vs_makediff_float_c;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
+                    func = vs_makediff_half_c;
             }
 
             if (!func)
@@ -842,8 +872,8 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MakeFullDiff").c_str());
+    if (!is8to16orFloatFormat(d->vi->format, true))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MakeFullDiff", true).c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("MakeFullDiff: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
@@ -903,6 +933,8 @@ static const VSFrame *VS_CC mergeDiffGetFrame(int n, int activationReason, void 
                         func = vs_mergediff_word_avx2;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_mergediff_float_avx2;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_mergediff_half_avx2;
                 }
                 if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                     if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
@@ -920,6 +952,8 @@ static const VSFrame *VS_CC mergeDiffGetFrame(int n, int activationReason, void 
                         func = vs_mergediff_word_c;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_mergediff_float_c;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_mergediff_half_c;
                 }
 
                 if (!func)
@@ -951,8 +985,8 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MergeDiff").c_str());
+    if (!is8to16orFloatFormat(d->vi->format, true))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MergeDiff", true).c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("MergeDiff: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
@@ -1003,6 +1037,8 @@ static const VSFrame *VS_CC mergeFullDiffGetFrame(int n, int activationReason, v
             if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
                 if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
                     func = vs_mergediff_float_avx2;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
+                    func = vs_mergediff_half_avx2;
             }
             if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                 if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
@@ -1018,6 +1054,8 @@ static const VSFrame *VS_CC mergeFullDiffGetFrame(int n, int activationReason, v
                     func = vs_mergefulldiff_dword_word_c;
                 else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
                     func = vs_mergediff_float_c;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
+                    func = vs_mergediff_half_c;
             }
 
             if (!func)
@@ -1052,8 +1090,8 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
-    if (!is8to16orFloatFormat(d->vi->format))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MergeFullDiff").c_str());
+    if (!is8to16orFloatFormat(d->vi->format, true))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MergeFullDiff", true).c_str());
 
     if (!isConstantVideoFormat(d->vi) || !mergeFullDiffIsCompatibleVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("MergeFullDiff: both clips must have the same (bitdepth+1 for second clip) constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());

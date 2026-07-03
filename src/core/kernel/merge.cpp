@@ -20,6 +20,7 @@
 
 #define VS_MERGE_IMPL
 #include "merge.h"
+#include "../float16_helper.h"
 #include "VSHelper4.h"
 
 #define MERGESHIFT 15
@@ -104,6 +105,24 @@ void vs_premultiply_float_c(const void *src1, const void *src2, void *dst, unsig
 
 }
 
+// float16 kernels: load/store convert through float16_helper (bit fiddling when
+// the target lacks F16C), arithmetic in float32, matching the float reference.
+// floatToHalf rounds to nearest-even.
+void vs_premultiply_half_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned offset, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
+    unsigned i;
+
+    (void)depth;
+    (void)offset;
+
+    for (i = 0; i < n; i++) {
+        dstp[i] = floatToHalf(halfToFloat(srcp1[i]) * halfToFloat(srcp2[i]));
+    }
+}
+
 void vs_merge_byte_c(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n)
 {
     const uint8_t *srcp1 = (const uint8_t *)src1;
@@ -146,6 +165,21 @@ void vs_merge_float_c(const void *src1, const void *src2, void *dst, union vs_me
         float v1 = srcp1[i];
         float v2 = srcp2[i];
         dstp[i] = v1 + (v2 - v1) * w;
+    }
+}
+
+void vs_merge_half_c(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
+    float w = weight.f;
+    unsigned i;
+
+    for (i = 0; i < n; i++) {
+        float v1 = halfToFloat(srcp1[i]);
+        float v2 = halfToFloat(srcp2[i]);
+        dstp[i] = floatToHalf(v1 + (v2 - v1) * w);
     }
 }
 
@@ -218,6 +252,29 @@ void vs_mask_merge_float_c(const void *src1, const void *src2, const void *mask,
     }
 }
 
+void vs_mask_merge_half_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    const uint16_t *maskp = (const uint16_t *)mask;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
+    unsigned i;
+
+    (void)depth;
+    (void)offset;
+
+    for (i = 0; i < n; i++) {
+        float v1 = halfToFloat(srcp1[i]);
+        float v2 = halfToFloat(srcp2[i]);
+        float mask = halfToFloat(maskp[i]);
+        if (mask < 0.0f)
+            mask = 0.0f;
+        else if (mask > 1.0f)
+            mask = 1.0f;
+        dstp[i] = floatToHalf(v1 + (v2 - v1) * mask);
+    }
+}
+
 void vs_mask_merge_premul_byte_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
     const uint8_t *srcp1 = (const uint8_t *)src1;
@@ -281,6 +338,29 @@ void vs_mask_merge_premul_float_c(const void *src1, const void *src2, const void
     }
 }
 
+void vs_mask_merge_premul_half_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    const uint16_t *maskp = (const uint16_t *)mask;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
+    unsigned i;
+
+    (void)depth;
+    (void)offset;
+
+    for (i = 0; i < n; i++) {
+        float v1 = halfToFloat(srcp1[i]);
+        float v2 = halfToFloat(srcp2[i]);
+        float mask = halfToFloat(maskp[i]);
+        if (mask < 0.0f)
+            mask = 0.0f;
+        else if (mask > 1.0f)
+            mask = 1.0f;
+        dstp[i] = floatToHalf((1.0f - mask) * v1 + v2);
+    }
+}
+
 void vs_makediff_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
     const uint8_t *srcp1 = (const uint8_t *)src1;
@@ -326,6 +406,20 @@ void vs_makediff_float_c(const void *src1, const void *src2, void *dst, unsigned
 
     for (i = 0; i < n; i++) {
         dstp[i] = srcp1[i] - srcp2[i];
+    }
+}
+
+void vs_makediff_half_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
+    unsigned i;
+
+    (void)depth;
+
+    for (i = 0; i < n; i++) {
+        dstp[i] = floatToHalf(halfToFloat(srcp1[i]) - halfToFloat(srcp2[i]));
     }
 }
 
@@ -419,6 +513,20 @@ void vs_mergediff_float_c(const void *src1, const void *src2, void *dst, unsigne
 
     for (i = 0; i < n; i++) {
         dstp[i] = srcp1[i] + srcp2[i];
+    }
+}
+
+void vs_mergediff_half_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *VS_RESTRICT dstp = (uint16_t *)dst;
+    unsigned i;
+
+    (void)depth;
+
+    for (i = 0; i < n; i++) {
+        dstp[i] = floatToHalf(halfToFloat(srcp1[i]) + halfToFloat(srcp2[i]));
     }
 }
 
