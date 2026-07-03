@@ -33,6 +33,7 @@
 #include "VSHelper4.h"
 #include "cpufeatures.h"
 #include "filtershared.h"
+#include "float16_helper.h"
 #include "internalfilters.h"
 #include "kernel/cpulevel.h"
 #include "kernel/generic.h"
@@ -150,8 +151,8 @@ static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, voi
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
-        if (!is8to16orFloatFormat(*fi)) {
-            vsapi->setFilterError(invalidVideoFormatMessage(*fi, vsapi, d->name, false, false, true).c_str(), frameCtx);
+        if (!is8to16orFloatFormat(*fi, true)) {
+            vsapi->setFilterError(invalidVideoFormatMessage(*fi, vsapi, d->name, true, false, true).c_str(), frameCtx);
             vsapi->freeFrame(src);
             return nullptr;
         }
@@ -177,8 +178,10 @@ static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, voi
                 for (int h = 0; h < height; h++) {
                     if (fi->bytesPerSample == 1)
                         OP::template processPlane<uint8_t>(srcp, dstp, width, opts);
-                    else if (fi->bytesPerSample == 2)
+                    else if (fi->sampleType == stInteger && fi->bytesPerSample == 2)
                         OP::template processPlane<uint16_t>(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, opts);
+                    else if (fi->bytesPerSample == 2)
+                        OP::processPlaneH(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, opts);
                     else if (fi->bytesPerSample == 4)
                         OP::template processPlaneF<float>(reinterpret_cast<const float *>(srcp), reinterpret_cast<float *>(dstp), width, opts);
                     srcp += stride;
@@ -196,13 +199,13 @@ static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, voi
 }
 
 template<typename T>
-static void templateInit(T& d, const char *name, bool allowVariableFormat, const VSMap *in, VSMap *out, const VSAPI *vsapi) {
+static void templateInit(T& d, const char *name, bool allowVariableFormat, const VSMap *in, VSMap *out, const VSAPI *vsapi, bool allowHalfFloat = false) {
     d->name = name;
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
 
-    if (!is8to16orFloatFormat(d->vi->format, false, allowVariableFormat))
-        throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi));
+    if (!is8to16orFloatFormat(d->vi->format, allowHalfFloat, allowVariableFormat))
+        throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi, nullptr, allowHalfFloat, allowVariableFormat));
 
     getPlanesArg(in, d->process, vsapi);
 }
@@ -813,13 +816,23 @@ struct InvertOp {
                 dst[w] = 1 - src[w];
         }
     }
+
+    static FORCE_INLINE void processPlaneH(const uint16_t * VS_RESTRICT src, uint16_t * VS_RESTRICT dst, unsigned width, const InvertOp &opts) {
+        if (opts.uv) {
+            for (unsigned w = 0; w < width; w++)
+                dst[w] = static_cast<uint16_t>(src[w] ^ 0x8000u);
+        } else {
+            for (unsigned w = 0; w < width; w++)
+                dst[w] = floatToHalf(1.0f - halfToFloat(src[w]));
+        }
+    }
 };
 
 static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<InvertData> d(new InvertData(vsapi));
 
     try {
-        templateInit(d, userData ? "InvertMask" : "Invert", true, in, out, vsapi);
+        templateInit(d, userData ? "InvertMask" : "Invert", true, in, out, vsapi, true);
         d->mask = !!userData;
     } catch (const std::runtime_error &error) {
         vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
@@ -865,13 +878,18 @@ struct LimitOp {
         for (unsigned w = 0; w < width; w++)
             dst[w] = std::min(opts.maxf, std::max(opts.minf, src[w]));
     }
+
+    static FORCE_INLINE void processPlaneH(const uint16_t * VS_RESTRICT src, uint16_t * VS_RESTRICT dst, unsigned width, const LimitOp &opts) {
+        for (unsigned w = 0; w < width; w++)
+            dst[w] = floatToHalf(std::min(opts.maxf, std::max(opts.minf, halfToFloat(src[w]))));
+    }
 };
 
 static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<LimitData> d(new LimitData(vsapi));
 
     try {
-        templateInit(d, "Limiter", false, in, out, vsapi);
+        templateInit(d, "Limiter", false, in, out, vsapi, true);
         getPlanePixelRangeArgs(d->vi->format, in, "min", d->min, d->minf, RangeLower, false, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "max", d->max, d->maxf, RangeUpper, false, vsapi);
         for (int i = 0; i < 3; i++)
@@ -929,13 +947,20 @@ struct BinarizeOp {
             else
                 dst[w] = opts.v1f;
     }
+
+    static FORCE_INLINE void processPlaneH(const uint16_t * VS_RESTRICT src, uint16_t * VS_RESTRICT dst, unsigned width, const BinarizeOp &opts) {
+        uint16_t v0h = floatToHalf(opts.v0f);
+        uint16_t v1h = floatToHalf(opts.v1f);
+        for (unsigned w = 0; w < width; w++)
+            dst[w] = (halfToFloat(src[w]) < opts.thrf) ? v0h : v1h;
+    }
 };
 
 static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<BinarizeData> d(new BinarizeData(vsapi));
 
     try {
-        templateInit(d, userData ? "BinarizeMask" : "Binarize", false, in, out, vsapi);
+        templateInit(d, userData ? "BinarizeMask" : "Binarize", false, in, out, vsapi, true);
         getPlanePixelRangeArgs(d->vi->format, in, "v0", d->v0, d->v0f, RangeLower, !!userData, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "v1", d->v1, d->v1f, RangeUpper, !!userData, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, RangeMiddle, !!userData, vsapi);
@@ -1062,11 +1087,67 @@ static const VSFrame *VS_CC levelsGetframeF(int n, int activationReason, void *i
     return nullptr;
 }
 
+static const VSFrame *VS_CC levelsGetframeH(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    LevelsData *d = reinterpret_cast<LevelsData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
+        const int pl[] = { 0, 1, 2 };
+        const VSFrame *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
+        VSFrame *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+
+        for (int plane = 0; plane < fi->numPlanes; plane++) {
+            if (d->process[plane]) {
+                const uint16_t * VS_RESTRICT srcp = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(src, plane));
+                ptrdiff_t src_stride = vsapi->getStride(src, plane);
+                uint16_t * VS_RESTRICT dstp = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, plane));
+                ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
+                int h = vsapi->getFrameHeight(src, plane);
+                int w = vsapi->getFrameWidth(src, plane);
+
+                float gamma = d->gamma;
+                float range_in = 1.f / (d->max_in - d->min_in);
+                float range_out = d->max_out - d->min_out;
+                float min_in = d->min_in;
+                float min_out = d->min_out;
+                float max_in = d->max_in;
+
+                if (std::abs(d->gamma - 1.0f) < std::numeric_limits<float>::epsilon()) {
+                    float range_scale = range_out / (d->max_in - d->min_in);
+                    for (int hl = 0; hl < h; hl++) {
+                        for (int x = 0; x < w; x++)
+                            dstp[x] = floatToHalf((std::max(std::min(halfToFloat(srcp[x]), max_in) - min_in, 0.f)) * range_scale + min_out);
+
+                        dstp += dst_stride / sizeof(uint16_t);
+                        srcp += src_stride / sizeof(uint16_t);
+                    }
+                } else {
+                    for (int hl = 0; hl < h; hl++) {
+                        for (int x = 0; x < w; x++)
+                            dstp[x] = floatToHalf(std::pow((std::max(std::min(halfToFloat(srcp[x]), max_in) - min_in, 0.f)) * range_in, gamma) * range_out + min_out);
+
+                        dstp += dst_stride / sizeof(uint16_t);
+                        srcp += src_stride / sizeof(uint16_t);
+                    }
+                }
+            }
+        }
+
+        vsapi->freeFrame(src);
+        return dst;
+    }
+
+    return nullptr;
+}
+
 static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<LevelsData> d(new LevelsData(vsapi));
 
     try {
-        templateInit(d, "Levels", false, in, out, vsapi);
+        templateInit(d, "Levels", false, in, out, vsapi, true);
     } catch (const std::runtime_error &error) {
         vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
         return;
@@ -1119,8 +1200,10 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     if (d->vi->format.bytesPerSample == 1)
         vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframe<uint8_t>, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
-    else if (d->vi->format.bytesPerSample == 2)
+    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
         vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframe<uint16_t>, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
+    else if (d->vi->format.bytesPerSample == 2)
+        vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframeH, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
     else
         vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframeF<float>, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
     d.release();
