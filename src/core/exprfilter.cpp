@@ -32,6 +32,7 @@
 #include "cpufeatures.h"
 #include "internalfilters.h"
 #include "filtershared.h"
+#include "float16_helper.h"
 #include "expr/expr.h"
 #include "expr/jitcompiler.h"
 #include "kernel/cpulevel.h"
@@ -112,7 +113,7 @@ public:
             switch (insn.op.type) {
             case ExprOpType::MEM_LOAD_U8: DST = reinterpret_cast<const uint8_t *>(srcp[insn.op.imm.u])[x]; break;
             case ExprOpType::MEM_LOAD_U16: DST = reinterpret_cast<const uint16_t *>(srcp[insn.op.imm.u])[x]; break;
-            case ExprOpType::MEM_LOAD_F16: DST = 0; break;
+            case ExprOpType::MEM_LOAD_F16: DST = halfToFloat(reinterpret_cast<const uint16_t *>(srcp[insn.op.imm.u])[x]); break;
             case ExprOpType::MEM_LOAD_F32: DST = reinterpret_cast<const float *>(srcp[insn.op.imm.u])[x]; break;
             case ExprOpType::CONSTANT: DST = insn.op.imm.f; break;
             case ExprOpType::ADD: DST = SRC1 + SRC2; break;
@@ -154,7 +155,7 @@ public:
             case ExprOpType::NOT: DST = bool2float(!float2bool(SRC1)); break;
             case ExprOpType::MEM_STORE_U8:  reinterpret_cast<uint8_t *>(dstp)[x] = clamp_int<uint8_t>(SRC1); return;
             case ExprOpType::MEM_STORE_U16: reinterpret_cast<uint16_t *>(dstp)[x] = clamp_int<uint16_t>(SRC1, insn.op.imm.u); return;
-            case ExprOpType::MEM_STORE_F16: reinterpret_cast<uint16_t *>(dstp)[x] = 0; return;
+            case ExprOpType::MEM_STORE_F16: reinterpret_cast<uint16_t *>(dstp)[x] = floatToHalf(SRC1); return;
             case ExprOpType::MEM_STORE_F32: reinterpret_cast<float *>(dstp)[x] = SRC1; return;
             default: fprintf(stderr, "%s", "illegal opcode\n"); std::terminate(); return;
             }
@@ -255,12 +256,14 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     std::unique_ptr<ExprData> d(new ExprData);
     int err;
 
+    // Half input/output is always accepted: the scalar interpreter handles it on any CPU
+    // (via float16_helper). The JIT's half load/store use F16C (vcvtph2ps/vcvtps2ph), so
+    // when the CPU lacks F16C we fall back to the interpreter per-plane (see below) rather
+    // than rejecting half.
 #ifdef VS_TARGET_CPU_X86
-    const CPUFeatures &f = *getCPUFeatures();
-    // The interpreter doesn't support half precision float
-#   define EXPR_F16C_TEST (f.f16c && cpulevel > VS_CPU_LEVEL_NONE)
+    const bool jitHasF16C = getCPUFeatures()->f16c;
 #else
-#   define EXPR_F16C_TEST (false)
+    const bool jitHasF16C = false;
 #endif
 
     try {
@@ -290,8 +293,8 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 throw std::runtime_error("All inputs must have the same number of planes and the same dimensions, subsampling included");
             }
 
-            if (!is8to16orFloatFormat(vi[i]->format, EXPR_F16C_TEST))
-                throw std::runtime_error(invalidVideoFormatMessage(vi[i]->format, vsapi, nullptr, EXPR_F16C_TEST));
+            if (!is8to16orFloatFormat(vi[i]->format, true))
+                throw std::runtime_error(invalidVideoFormatMessage(vi[i]->format, vsapi, nullptr, true));
         }
 
         d->vi = *vi[0];
@@ -305,8 +308,8 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             }
         }
 
-        if (!is8to16orFloatFormat(d->vi.format, EXPR_F16C_TEST))
-            throw std::runtime_error(invalidVideoFormatMessage(d->vi.format, vsapi, nullptr, EXPR_F16C_TEST));
+        if (!is8to16orFloatFormat(d->vi.format, true))
+            throw std::runtime_error(invalidVideoFormatMessage(d->vi.format, vsapi, nullptr, true));
 
         int nexpr = vsapi->mapNumElements(in, "expr");
         if (nexpr > d->vi.format.numPlanes)
@@ -335,7 +338,21 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
             d->bytecode[i] = compile(expr[i], vi, d->numInputs, d->vi);
 
-            if (cpulevel > VS_CPU_LEVEL_NONE)
+            // The JIT converts half via F16C; when that's missing, leave proc[i] null for
+            // any plane that loads or stores half so exprGetFrame runs the interpreter for
+            // it (which does the conversion in software) instead of emitting an illegal
+            // vcvtph2ps.
+            bool planeUsesHalf = false;
+            if (!jitHasF16C) {
+                for (const ExprInstruction &insn : d->bytecode[i]) {
+                    if (insn.op.type == ExprOpType::MEM_LOAD_F16 || insn.op.type == ExprOpType::MEM_STORE_F16) {
+                        planeUsesHalf = true;
+                        break;
+                    }
+                }
+            }
+
+            if (cpulevel > VS_CPU_LEVEL_NONE && !planeUsesHalf)
                 std::tie(d->proc[i], d->procSize[i]) = expr::compile_jit(d->bytecode[i].data(), d->bytecode[i].size(), d->numInputs, cpulevel, &d->procPixels[i]);
         }
 #ifdef VS_TARGET_OS_WINDOWS
