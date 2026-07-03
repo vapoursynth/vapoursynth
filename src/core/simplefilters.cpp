@@ -1767,17 +1767,33 @@ static const VSFrame *VS_CC pemVerifierGetFrame(int n, int activationReason, voi
                 }
                 break;
             case 2:
-                for (int y = 0; y < height; y++) {
-                    for (int x = 0; x < width; x++) {
-                        v = ((const uint16_t *)srcp)[x];
-                        if (v < d->lower[plane] || v > d->upper[plane]) {
-                            snprintf(strbuf, sizeof(strbuf), "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)v, plane, y, x, n);
-                            vsapi->setFilterError(strbuf, frameCtx);
-                            vsapi->freeFrame(src);
-                            return nullptr;
+                if (fi->sampleType == stFloat) {
+                    // float16: widen and bounds-check like the float32 path
+                    for (int y = 0; y < height; y++) {
+                        for (int x = 0; x < width; x++) {
+                            f = halfToFloat(((const uint16_t *)srcp)[x]);
+                            if (f < d->lowerf[plane] || f > d->upperf[plane] || !isfinite(f)) {
+                                snprintf(strbuf, sizeof(strbuf), "PEMVerifier: Illegal sample value (%f) at: plane: %d Y: %d, X: %d, Frame: %d", f, plane, y, x, n);
+                                vsapi->setFilterError(strbuf, frameCtx);
+                                vsapi->freeFrame(src);
+                                return nullptr;
+                            }
                         }
+                        srcp += src_stride;
                     }
-                    srcp += src_stride;
+                } else {
+                    for (int y = 0; y < height; y++) {
+                        for (int x = 0; x < width; x++) {
+                            v = ((const uint16_t *)srcp)[x];
+                            if (v < d->lower[plane] || v > d->upper[plane]) {
+                                snprintf(strbuf, sizeof(strbuf), "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)v, plane, y, x, n);
+                                vsapi->setFilterError(strbuf, frameCtx);
+                                vsapi->freeFrame(src);
+                                return nullptr;
+                            }
+                        }
+                        srcp += src_stride;
+                    }
                 }
                 break;
             case 4:
@@ -1809,8 +1825,8 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
 
-    if (!is8to16orFloatFormat(vi->format))
-        RETERROR(invalidVideoFormatMessage(vi->format, vsapi, "PEMVerifier").c_str());
+    if (!is8to16orFloatFormat(vi->format, true))
+        RETERROR(invalidVideoFormatMessage(vi->format, vsapi, "PEMVerifier", true).c_str());
 
     if (numlower < 0) {
         for (int i = 0; i < vi->format.numPlanes; i++) {
@@ -1892,14 +1908,14 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
             if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_2_byte_avx2; break;
-                case 2: func = vs_plane_stats_2_word_avx2; break;
+                case 2: func = fi->sampleType == stFloat ? vs_plane_stats_2_half_avx2 : vs_plane_stats_2_word_avx2; break;
                 case 4: func = vs_plane_stats_2_float_avx2; break;
                 }
             }
             if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_2_byte_sse2; break;
-                case 2: func = vs_plane_stats_2_word_sse2; break;
+                case 2: if (fi->sampleType == stInteger) func = vs_plane_stats_2_word_sse2; break;
                 case 4: func = vs_plane_stats_2_float_sse2; break;
                 }
             }
@@ -1907,7 +1923,7 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
             if (!func) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_2_byte_c; break;
-                case 2: func = vs_plane_stats_2_word_c; break;
+                case 2: func = fi->sampleType == stFloat ? vs_plane_stats_2_half_c : vs_plane_stats_2_word_c; break;
                 case 4: func = vs_plane_stats_2_float_c; break;
                 }
             }
@@ -1921,14 +1937,14 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
             if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_1_byte_avx2; break;
-                case 2: func = vs_plane_stats_1_word_avx2; break;
+                case 2: func = fi->sampleType == stFloat ? vs_plane_stats_1_half_avx2 : vs_plane_stats_1_word_avx2; break;
                 case 4: func = vs_plane_stats_1_float_avx2; break;
                 }
             }
             if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_1_byte_sse2; break;
-                case 2: func = vs_plane_stats_1_word_sse2; break;
+                case 2: if (fi->sampleType == stInteger) func = vs_plane_stats_1_word_sse2; break;
                 case 4: func = vs_plane_stats_1_float_sse2; break;
                 }
             }
@@ -1936,7 +1952,7 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
             if (!func) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_1_byte_c; break;
-                case 2: func = vs_plane_stats_1_word_c; break;
+                case 2: func = fi->sampleType == stFloat ? vs_plane_stats_1_half_c : vs_plane_stats_1_word_c; break;
                 case 4: func = vs_plane_stats_1_float_c; break;
                 }
             }
@@ -1985,8 +2001,8 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     d->node1 = vsapi->mapGetNode(in, "clipa", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node1);
 
-    if (!is8to16orFloatFormat(vi->format))
-        RETERROR(invalidVideoFormatMessage(vi->format, vsapi, "PlaneStats").c_str());
+    if (!is8to16orFloatFormat(vi->format, true))
+        RETERROR(invalidVideoFormatMessage(vi->format, vsapi, "PlaneStats", true).c_str());
 
     d->plane = vsapi->mapGetIntSaturated(in, "plane", 0, &err);
     if (d->plane < 0 || d->plane >= vi->format.numPlanes)

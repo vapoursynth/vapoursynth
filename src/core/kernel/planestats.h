@@ -50,10 +50,12 @@ union vs_plane_stats {
 DECL_1(byte, c)
 DECL_1(word, c)
 DECL_1(float, c)
+DECL_1(half, c)
 
 DECL_2(byte, c)
 DECL_2(word, c)
 DECL_2(float, c)
+DECL_2(half, c)
 
 #ifdef VS_TARGET_CPU_X86
 DECL_1(byte, sse2)
@@ -67,10 +69,12 @@ DECL_2(float, sse2)
 DECL_1(byte, avx2)
 DECL_1(word, avx2)
 DECL_1(float, avx2)
+DECL_1(half, avx2)
 
 DECL_2(byte, avx2)
 DECL_2(word, avx2)
 DECL_2(float, avx2)
+DECL_2(half, avx2)
 #endif /* VS_TARGET_CPU_X86 */
 
 #undef DECL_2

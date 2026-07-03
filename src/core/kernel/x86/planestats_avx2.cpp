@@ -93,6 +93,13 @@ static double hadd_pd(__m256d x)
     return _mm_cvtsd_f64(_mm_add_sd(tmp, _mm_unpackhi_pd(tmp, tmp)));
 }
 
+// float16: widen 8 half samples to float32 (F16C); available because AVX2
+// (x86-64-v3) implies F16C. The reduction is identical to the float32 path.
+static __m256 load_half8(const uint16_t *p)
+{
+    return _mm256_cvtph_ps(_mm_load_si128((const __m128i *)p));
+}
+
 
 void vs_plane_stats_1_byte_avx2(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
 {
@@ -197,6 +204,42 @@ void vs_plane_stats_1_float_avx2(union vs_plane_stats *stats, const void *src, p
         }
         if (width != tail) {
             __m256 v = _mm256_and_ps(_mm256_load_ps((const float *)srcp + tail), mask);
+            fmmin = _mm256_min_ps(fmmin, _mm256_or_ps(v, posmask));
+            fmmax = _mm256_max_ps(fmmax, _mm256_or_ps(v, negmask));
+            fmacc = _mm256_add_pd(fmacc, _mm256_cvtps_pd(_mm256_castps256_ps128(v)));
+            fmacc = _mm256_add_pd(fmacc, _mm256_cvtps_pd(_mm256_extractf128_ps(v, 1)));
+        }
+        srcp += stride;
+    }
+
+    stats->f.min = hmin_ps(fmmin);
+    stats->f.max = hmax_ps(fmmax);
+    stats->f.acc = hadd_pd(fmacc);
+}
+
+void vs_plane_stats_1_half_avx2(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
+{
+    const uint8_t *srcp = (const uint8_t *)src;
+    unsigned tail = width & ~7;
+    unsigned x, y;
+
+    __m256 fmmin = _mm256_set1_ps(INFINITY);
+    __m256 fmmax = _mm256_set1_ps(-INFINITY);
+    __m256d fmacc = _mm256_setzero_pd();
+    __m256 mask = _mm256_castsi256_ps(_mm256_cmpgt_epi32(_mm256_set1_epi32(width % 8), _mm256_loadu_si256((const __m256i *)ascend32)));
+    __m256 posmask = _mm256_andnot_ps(mask, _mm256_set1_ps(INFINITY));
+    __m256 negmask = _mm256_andnot_ps(mask, _mm256_set1_ps(-INFINITY));
+
+    for (y = 0; y < height; y++) {
+        for (x = 0; x < tail; x += 8) {
+            __m256 v = load_half8((const uint16_t *)srcp + x);
+            fmmin = _mm256_min_ps(fmmin, v);
+            fmmax = _mm256_max_ps(fmmax, v);
+            fmacc = _mm256_add_pd(fmacc, _mm256_cvtps_pd(_mm256_castps256_ps128(v)));
+            fmacc = _mm256_add_pd(fmacc, _mm256_cvtps_pd(_mm256_extractf128_ps(v, 1)));
+        }
+        if (width != tail) {
+            __m256 v = _mm256_and_ps(load_half8((const uint16_t *)srcp + tail), mask);
             fmmin = _mm256_min_ps(fmmin, _mm256_or_ps(v, posmask));
             fmmax = _mm256_max_ps(fmmax, _mm256_or_ps(v, negmask));
             fmacc = _mm256_add_pd(fmacc, _mm256_cvtps_pd(_mm256_castps256_ps128(v)));
@@ -346,6 +389,56 @@ void vs_plane_stats_2_float_avx2(union vs_plane_stats *stats, const void *src1, 
         if (width != tail) {
             __m256 v1 = _mm256_and_ps(_mm256_load_ps((const float *)srcp1 + tail), mask);
             __m256 v2 = _mm256_and_ps(_mm256_load_ps((const float *)srcp2 + tail), mask);
+            __m256 tmp;
+            fmmin = _mm256_min_ps(fmmin, _mm256_or_ps(v1, posmask));
+            fmmax = _mm256_max_ps(fmmax, _mm256_or_ps(v1, negmask));
+            fmacc = _mm256_add_pd(fmacc, _mm256_cvtps_pd(_mm256_castps256_ps128(v1)));
+            fmacc = _mm256_add_pd(fmacc, _mm256_cvtps_pd(_mm256_extractf128_ps(v1, 1)));
+            tmp = _mm256_and_ps(_mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF)), _mm256_sub_ps(v1, v2));
+            fmdiffacc = _mm256_add_pd(fmdiffacc, _mm256_cvtps_pd(_mm256_castps256_ps128(tmp)));
+            fmdiffacc = _mm256_add_pd(fmdiffacc, _mm256_cvtps_pd(_mm256_extractf128_ps(tmp, 1)));
+        }
+        srcp1 += src1_stride;
+        srcp2 += src2_stride;
+    }
+
+    stats->f.min = hmin_ps(fmmin);
+    stats->f.max = hmax_ps(fmmax);
+    stats->f.acc = hadd_pd(fmacc);
+    stats->f.diffacc = hadd_pd(fmdiffacc);
+}
+
+void vs_plane_stats_2_half_avx2(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
+{
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    unsigned tail = width & ~7;
+    unsigned x, y;
+
+    __m256 fmmin = _mm256_set1_ps(INFINITY);
+    __m256 fmmax = _mm256_set1_ps(-INFINITY);
+    __m256d fmacc = _mm256_setzero_pd();
+    __m256d fmdiffacc = _mm256_setzero_pd();
+    __m256 mask = _mm256_castsi256_ps(_mm256_cmpgt_epi32(_mm256_set1_epi32(width % 8), _mm256_loadu_si256((const __m256i *)ascend32)));
+    __m256 posmask = _mm256_andnot_ps(mask, _mm256_set1_ps(INFINITY));
+    __m256 negmask = _mm256_andnot_ps(mask, _mm256_set1_ps(-INFINITY));
+
+    for (y = 0; y < height; y++) {
+        for (x = 0; x < tail; x += 8) {
+            __m256 v1 = load_half8((const uint16_t *)srcp1 + x);
+            __m256 v2 = load_half8((const uint16_t *)srcp2 + x);
+            __m256 tmp;
+            fmmin = _mm256_min_ps(fmmin, v1);
+            fmmax = _mm256_max_ps(fmmax, v1);
+            fmacc = _mm256_add_pd(fmacc, _mm256_cvtps_pd(_mm256_castps256_ps128(v1)));
+            fmacc = _mm256_add_pd(fmacc, _mm256_cvtps_pd(_mm256_extractf128_ps(v1, 1)));
+            tmp = _mm256_and_ps(_mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF)), _mm256_sub_ps(v1, v2));
+            fmdiffacc = _mm256_add_pd(fmdiffacc, _mm256_cvtps_pd(_mm256_castps256_ps128(tmp)));
+            fmdiffacc = _mm256_add_pd(fmdiffacc, _mm256_cvtps_pd(_mm256_extractf128_ps(tmp, 1)));
+        }
+        if (width != tail) {
+            __m256 v1 = _mm256_and_ps(load_half8((const uint16_t *)srcp1 + tail), mask);
+            __m256 v2 = _mm256_and_ps(load_half8((const uint16_t *)srcp2 + tail), mask);
             __m256 tmp;
             fmmin = _mm256_min_ps(fmmin, _mm256_or_ps(v1, posmask));
             fmmax = _mm256_max_ps(fmmax, _mm256_or_ps(v1, negmask));
