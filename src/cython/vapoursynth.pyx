@@ -476,7 +476,8 @@ cdef class EnvironmentPolicyAPI:
         if c is not None:
             if c.core:
                 if c.funcs:
-                    c.funcs.freeCore(c.core)
+                    with nogil:
+                        c.funcs.freeCore(c.core)
                 c.core = NULL
 
         env.core = None
@@ -3000,7 +3001,8 @@ cdef class Core(object):
 
     def __dealloc__(self):
         if self.funcs and self.core != NULL:
-            self.funcs.freeCore(self.core)
+            with nogil:
+                self.funcs.freeCore(self.core)
 
     cdef ensure_valid(self):
         if self.core == NULL:
