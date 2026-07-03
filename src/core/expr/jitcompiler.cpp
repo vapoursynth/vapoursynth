@@ -67,7 +67,9 @@ std::pair<ExprCompiler::ProcessLineProc, size_t> compile_jit(const ExprInstructi
 	std::unique_ptr<ExprCompiler> compiler;
 
 #ifdef VS_TARGET_CPU_X86
-	if (getCPUFeatures()->avx2 && cpulevel >= VS_CPU_LEVEL_AVX2)
+	if (getCPUFeatures()->avx512 && cpulevel >= VS_CPU_LEVEL_AVX512)
+		compiler = make_zmm_compiler(numInputs);
+	else if (getCPUFeatures()->avx2 && cpulevel >= VS_CPU_LEVEL_AVX2)
 		compiler = make_ymm_compiler(numInputs);
 	else
 		compiler = make_xmm_compiler(numInputs);

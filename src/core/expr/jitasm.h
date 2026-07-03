@@ -180,24 +180,43 @@ enum PhysicalRegID
 	ST0=0, ST1, ST2, ST3, ST4, ST5, ST6, ST7,
 	MM0=0, MM1, MM2, MM3, MM4, MM5, MM6, MM7,
 	XMM0=0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7, XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15,
+	XMM16=16, XMM17, XMM18, XMM19, XMM20, XMM21, XMM22, XMM23, XMM24, XMM25, XMM26, XMM27, XMM28, XMM29, XMM30, XMM31,
 	YMM0=0, YMM1, YMM2, YMM3, YMM4, YMM5, YMM6, YMM7, YMM8, YMM9, YMM10, YMM11, YMM12, YMM13, YMM14, YMM15,
+	YMM16=16, YMM17, YMM18, YMM19, YMM20, YMM21, YMM22, YMM23, YMM24, YMM25, YMM26, YMM27, YMM28, YMM29, YMM30, YMM31,
+	ZMM0=0, ZMM1, ZMM2, ZMM3, ZMM4, ZMM5, ZMM6, ZMM7, ZMM8, ZMM9, ZMM10, ZMM11, ZMM12, ZMM13, ZMM14, ZMM15,
+	ZMM16=16, ZMM17, ZMM18, ZMM19, ZMM20, ZMM21, ZMM22, ZMM23, ZMM24, ZMM25, ZMM26, ZMM27, ZMM28, ZMM29, ZMM30, ZMM31,
 };
 
 enum
 {
 	/** \var NUM_OF_PHYSICAL_REG
-	 * Number of physical register
+	 * Number of physical general-purpose (and MMX) registers
+	 */
+	/** \var NUM_OF_PHYSICAL_VECTOR_REG
+	 * Number of physical vector (XMM/YMM/ZMM) registers. On x64 this is 32
+	 * (the AVX-512 register file); whether all 32 are actually usable at runtime
+	 * is a separate, runtime-chosen concern (the per-compile available-register pool).
+	 * It is the *capacity* used for allocator array sizing and the physical/symbolic
+	 * register-id boundary of the vector register family.
+	 */
+	/** \var NUM_OF_PHYSICAL_REG_MAX
+	 * Max physical registers across all families; used to dimension the shared
+	 * register-allocator arrays (interference graph, parallel-move tables).
 	 */
 	/** \var SIZE_OF_GP_REG
 	 * Size of general-purpose register
 	 */
 #ifdef JITASM64
 	NUM_OF_PHYSICAL_REG = 16,
+	NUM_OF_PHYSICAL_VECTOR_REG = 32,
 	SIZE_OF_GP_REG = 8
 #else
 	NUM_OF_PHYSICAL_REG = 8,
+	NUM_OF_PHYSICAL_VECTOR_REG = 8,	// no EVEX register extension in 32-bit mode
 	SIZE_OF_GP_REG = 4
 #endif
+	,
+	NUM_OF_PHYSICAL_REG_MAX = NUM_OF_PHYSICAL_VECTOR_REG > NUM_OF_PHYSICAL_REG ? NUM_OF_PHYSICAL_VECTOR_REG : NUM_OF_PHYSICAL_REG
 };
 
 /// Register type
@@ -211,7 +230,8 @@ enum RegType
 	R_TYPE_SYMBOLIC_GP,		///< Symbolic general purpose register
 	R_TYPE_SYMBOLIC_MMX,	///< Symbolic MMX register
 	R_TYPE_SYMBOLIC_XMM,	///< Symbolic XMM register
-	R_TYPE_SYMBOLIC_YMM		///< Symbolic YMM register
+	R_TYPE_SYMBOLIC_YMM,	///< Symbolic YMM register
+	R_TYPE_K				///< AVX-512 opmask register (k0-k7); physical-only, never allocated
 };
 
 /// Register identifier
@@ -273,6 +293,7 @@ enum OpdSize
 	O_SIZE_128,
 	O_SIZE_224,
 	O_SIZE_256,
+	O_SIZE_512,		// ZMM (AVX-512). Kept in width order (> O_SIZE_256) since UpdateVarSize compares sizes ordinally.
 	O_SIZE_864,
 	O_SIZE_4096
 };
@@ -406,6 +427,7 @@ namespace detail
 	template<> inline OpdSize ToOpdSize<128>() {return O_SIZE_128;}
 	template<> inline OpdSize ToOpdSize<224>() {return O_SIZE_224;}
 	template<> inline OpdSize ToOpdSize<256>() {return O_SIZE_256;}
+	template<> inline OpdSize ToOpdSize<512>() {return O_SIZE_512;}
 	template<> inline OpdSize ToOpdSize<864>() {return O_SIZE_864;}
 	template<> inline OpdSize ToOpdSize<4096>() {return O_SIZE_4096;}
 
@@ -434,6 +456,7 @@ typedef detail::OpdT<80>	Opd80;
 typedef detail::OpdT<128>	Opd128;
 typedef detail::OpdT<224>	Opd224;		// FPU environment
 typedef detail::OpdT<256>	Opd256;
+typedef detail::OpdT<512>	Opd512;		// ZMM (AVX-512)
 typedef detail::OpdT<864>	Opd864;		// FPU state
 typedef detail::OpdT<4096>	Opd4096;	// FPU, MMX, XMM, MXCSR state
 
@@ -482,11 +505,28 @@ struct XmmReg : Opd128 {
 struct YmmReg : Opd256 {
 	YmmReg() : Opd256(RegID::CreateSymbolicRegID(R_TYPE_SYMBOLIC_YMM)) {}
 	explicit YmmReg(PhysicalRegID id) : Opd256(RegID::CreatePhysicalRegID(R_TYPE_YMM, id)) {}
+	explicit YmmReg(RegID reg_id) : Opd256(reg_id) {}
 	XmmReg as128() const {
 		RegID id = reg_;
 		id.type = R_TYPE_SYMBOLIC_XMM;
 		return XmmReg(id);
 	}
+};
+/// ZMM register (AVX-512). Shares the vector register family with XMM/YMM; the 512-bit width is
+/// carried by the operand size (Opd512), and the encoder selects EVEX.L'L=10 from the instruction flag.
+struct ZmmReg : Opd512 {
+	ZmmReg() : Opd512(RegID::CreateSymbolicRegID(R_TYPE_SYMBOLIC_YMM)) {}
+	explicit ZmmReg(PhysicalRegID id) : Opd512(RegID::CreatePhysicalRegID(R_TYPE_YMM, id)) {}
+	explicit ZmmReg(RegID reg_id) : Opd512(reg_id) {}
+	XmmReg as128() const { RegID id = reg_; id.type = R_TYPE_SYMBOLIC_XMM; return XmmReg(id); }
+	YmmReg as256() const { RegID id = reg_; id.type = R_TYPE_SYMBOLIC_YMM; return YmmReg(id); }
+};
+
+/// AVX-512 opmask register (k0-k7). ExprCompiler512 only ever uses a fixed physical
+/// mask register (k1) as the transient destination of vcmpps, immediately expanded
+/// back to a vector with vpmovm2d, so no symbolic form / register allocation is needed.
+struct OpmaskReg : Opd8 {
+	explicit OpmaskReg(PhysicalRegID id) : Opd8(RegID::CreatePhysicalRegID(R_TYPE_K, id)) {}
 };
 
 struct FpuReg_st0 : FpuReg {FpuReg_st0() : FpuReg(ST0) {}};
@@ -504,6 +544,7 @@ typedef MemT<Opd80>		Mem80;
 typedef MemT<Opd128>	Mem128;
 typedef MemT<Opd224>	Mem224;		// FPU environment
 typedef MemT<Opd256>	Mem256;
+typedef MemT<Opd512>	Mem512;		// ZMM (AVX-512)
 typedef MemT<Opd864>	Mem864;		// FPU state
 typedef MemT<Opd4096>	Mem4096;	// FPU, MMX, XMM, MXCSR state
 
@@ -909,6 +950,9 @@ enum InstrID
 	// F16C
 	I_RDFSBASE, I_RDGSBASE, I_RDRAND, I_WRFSBASE, I_WRGSBASE, I_VCVTPH2PS, I_VCVTPS2PH,
 
+	// AVX-512 (subset used by ExprCompiler512)
+	I_VPMOVM2D, I_VPMOVUSDB, I_VPMOVUSDW,
+
 	// BMI
 	I_ANDN, I_BEXTR, I_BLSI, I_BLSMSK, I_BLSR, I_BZHI, I_LZCNT, I_MULX, I_PDEP, I_PEXT, I_RORX, I_SARX, I_SHLX, I_SHRX, I_TZCNT, I_INVPCID,
 
@@ -978,8 +1022,13 @@ enum EncodingFlags
 	E_XOP_P00				= 0 << E_VEX_PP_SHIFT,
 	E_XOP_P01				= 1 << E_VEX_PP_SHIFT,
 
+	// EVEX-only. E_EVEX_L2 is the high bit of the vector-length field L'L (with E_VEX_L the low bit):
+	// L'L = 00/01/10 -> 128/256/512. Its presence also forces EVEX encoding (512-bit has no VEX form).
+	E_EVEX_L2				= 1 << 18,
+
 	E_VEX_128		= E_VEX,
 	E_VEX_256		= E_VEX | E_VEX_L,
+	E_VEX_512		= E_VEX | E_EVEX_L2,			// EVEX-only: L'L = 10
 	E_VEX_LIG		= E_VEX,
 	E_VEX_LZ		= E_VEX,
 	E_VEX_66_0F		= E_VEX_66 | E_VEX_0F,
@@ -1002,10 +1051,15 @@ enum EncodingFlags
 	// Aliases
 	E_VEX_128_0F_WIG = E_VEX_128 | E_VEX_0F | E_VEX_WIG,
 	E_VEX_256_0F_WIG = E_VEX_256 | E_VEX_0F | E_VEX_WIG,
+	E_VEX_512_0F_WIG = E_VEX_512 | E_VEX_0F | E_VEX_WIG,
 	E_VEX_128_66_0F_WIG = E_VEX_128 | E_VEX_66_0F | E_VEX_WIG,
 	E_VEX_256_66_0F_WIG = E_VEX_256 | E_VEX_66_0F | E_VEX_WIG,
+	E_VEX_512_66_0F_WIG = E_VEX_512 | E_VEX_66_0F | E_VEX_WIG,
 	E_VEX_128_66_0F38_WIG = E_VEX_128 | E_VEX_66_0F38 | E_VEX_WIG,
 	E_VEX_256_66_0F38_WIG = E_VEX_256 | E_VEX_66_0F38 | E_VEX_WIG,
+	E_VEX_512_66_0F38_WIG = E_VEX_512 | E_VEX_66_0F38 | E_VEX_WIG,
+	E_VEX_512_66_0F_W1 = E_VEX_512 | E_VEX_66_0F | E_VEX_W1,
+	E_VEX_512_0F_W0 = E_VEX_512 | E_VEX_0F | E_VEX_W0,
 	E_VEX_128_66_0F38_W0 = E_VEX_128 | E_VEX_66_0F38 | E_VEX_W0,
 	E_VEX_256_66_0F38_W0 = E_VEX_256 | E_VEX_66_0F38 | E_VEX_W0,
 	E_VEX_128_66_0F38_W1 = E_VEX_128 | E_VEX_66_0F38 | E_VEX_W1,
@@ -1038,10 +1092,35 @@ struct Backend
 	uint8*	pbuff_;
 	size_t	buffsize_;
 	size_t	size_;
+	bool	force_disp32_;	// set by an EVEX prefix with a memory operand: a raw disp8 would be scaled by
+							// the EVEX tuple size, so EncodeModRM must emit disp32 unless the tuple size is known
+	int		evex_tuple_n_;	// EVEX disp8 scale factor (tuple size in bytes) when known for this instruction,
+							// else 0. Only set for opcodes whose tuple size is unambiguous (see EvexTupleN).
 
-	Backend(void* pbuff = NULL, size_t buffsize = 0) : pbuff_((uint8*) pbuff), buffsize_(buffsize), size_(0)
+	Backend(void* pbuff = NULL, size_t buffsize = 0) : pbuff_((uint8*) pbuff), buffsize_(buffsize), size_(0), force_disp32_(false), evex_tuple_n_(0)
 	{
 		memset(pbuff, 0xCC, buffsize);	// INT3
+	}
+
+	/// EVEX disp8 scale factor (tuple size, bytes) for opcodes whose tuple type is unambiguous, else 0.
+	/// Deliberately narrow: only the FULL-tuple packed moves the register allocator emits for spills
+	/// (movups/movupd, movaps/movapd, movdqa) -- N = the vector length. Everything else returns 0 and
+	/// falls back to disp32 (always correct), avoiding wrong scaling for scalar/broadcast/half-tuple ops.
+	static int EvexTupleN(uint32 opcode, uint32 flag)
+	{
+		if ((flag & E_VEX_MMMMM_MASK) != E_VEX_0F) return 0;			// 0F map only
+		const uint32 pp = flag & E_VEX_PP_MASK;
+		if (pp != 0 && pp != E_VEX_66) return 0;						// packed only (exclude F3/F2 scalar)
+		const int vec_bytes = (flag & E_EVEX_L2) ? 64 : ((flag & E_VEX_L) ? 32 : 16);	// 512/256/128
+		switch (opcode) {
+			case 0x10: case 0x11:	// movups / movupd
+			case 0x28: case 0x29:	// movaps / movapd
+				return vec_bytes;
+			case 0x6F: case 0x7F:	// movdqa (66 only; movdqu is F3, already excluded above)
+				return pp == E_VEX_66 ? vec_bytes : 0;
+			default:
+				return 0;
+		}
 	}
 
 	size_t GetSize() const
@@ -1081,6 +1160,71 @@ struct Backend
 		return wrxb;
 	}
 
+	static bool IsVectorReg(const detail::Opd& o)
+	{
+		return o.IsReg() && !o.GetReg().IsInvalid() && (o.GetReg().type == R_TYPE_XMM || o.GetReg().type == R_TYPE_YMM);
+	}
+
+	/// Does this VEX instruction reference a vector register 16..31 (which has no VEX encoding)?
+	static bool EvexRequired(const detail::Opd& reg, const detail::Opd& r_m, const detail::Opd& vex)
+	{
+		if (IsVectorReg(reg) && reg.GetReg().id >= 16) return true;
+		if (IsVectorReg(r_m) && r_m.GetReg().id >= 16) return true;
+		if (IsVectorReg(vex) && vex.GetReg().id >= 16) return true;
+		if (r_m.IsMem()) {
+			const RegID& idx = r_m.GetIndex();
+			if (!idx.IsInvalid() && (idx.type == R_TYPE_XMM || idx.type == R_TYPE_YMM) && idx.id >= 16) return true;	// VSIB
+		}
+		return false;
+	}
+
+	/// Emit a partial EVEX prefix that re-encodes an existing VEX instruction to reach registers 16..31.
+	/// This implements only the register-widening subset of EVEX: no write-mask (aaa=0, z=0), no broadcast
+	/// / embedded rounding / SAE (b=0). Vector length L'L mirrors VEX.L (128/256 only). Opcode map, pp, W
+	/// and the encoded registers/vvvv are taken from the same fields the VEX path would use.
+	void EncodeEvex(uint32 flag, const detail::Opd& reg, const detail::Opd& r_m, const detail::Opd& vex)
+	{
+		const uint32 reg_id = (reg.IsReg() && !reg.GetReg().IsInvalid()) ? reg.GetReg().id : 0;
+		const uint32 vex_id = vex.IsReg() ? vex.GetReg().id : 0;
+
+		uint32 R  = (reg_id >> 3) & 1;	// ModRM.reg bit 3   -> EVEX.R
+		uint32 Rp = (reg_id >> 4) & 1;	// ModRM.reg bit 4   -> EVEX.R'
+		uint32 B = 0, X = 0;			// ModRM.rm / base / index high bits -> EVEX.B / EVEX.X
+		uint32 Vp = (vex_id >> 4) & 1;	// vvvv bit 4        -> EVEX.V'
+		if (r_m.IsReg()) {
+			const uint32 rm_id = r_m.GetReg().id;
+			B = (rm_id >> 3) & 1;		// register-direct r/m: {X,B} are r/m bits 4,3
+			X = (rm_id >> 4) & 1;
+		} else if (r_m.IsMem()) {
+			const RegID& base = r_m.GetBase();
+			const RegID& index = r_m.GetIndex();
+			if (!base.IsInvalid())  B = (base.id >> 3) & 1;
+			if (!index.IsInvalid()) {
+				// A vector index means VSIB (gather/scatter). The index register itself encodes fine
+				// (bit3 -> X, bit4 -> V'), but EVEX gather/scatter also requires a non-zero write-mask
+				// (k0 is illegal), which this register-widening subset does not emit. Refuse rather than
+				// produce a malformed instruction; gather with a high index register is out of scope here.
+				const bool vsib = (index.type == R_TYPE_XMM || index.type == R_TYPE_YMM);
+				JITASM_ASSERT(!vsib);
+				X = (index.id >> 3) & 1;
+				if (vsib) Vp |= (index.id >> 4) & 1;	// VSIB high index bit -> V' (kept correct for completeness)
+			}
+		}
+
+		const uint32 W    = (flag & E_VEX_W) ? 1u : 0u;
+		const uint32 mm   = (flag & E_VEX_MMMMM_MASK) >> E_VEX_MMMMM_SHIFT;	// 1=0F, 2=0F38, 3=0F3A (fits EVEX mm[1:0])
+		const uint32 pp   = (flag & E_VEX_PP_MASK) >> E_VEX_PP_SHIFT;
+		const uint32 LL   = ((flag & E_EVEX_L2) ? 2u : 0u) | ((flag & E_VEX_L) ? 1u : 0u);	// L'L: 00/01/10 = 128/256/512
+		const uint32 vvvv = vex_id & 0xF;
+
+		db(0x62);
+		db(((~R & 1) << 7) | ((~X & 1) << 6) | ((~B & 1) << 5) | ((~Rp & 1) << 4) | (mm & 0x3));	// P0: R X B R' 0 0 m m
+		db((W << 7) | ((~vvvv & 0xF) << 3) | (1 << 2) | (pp & 0x3));									// P1: W vvvv 1 p p
+		db((LL << 5) | ((~Vp & 1) << 3));															// P2: z=0 L'L b=0 V' aaa=000
+
+		force_disp32_ = r_m.IsMem();	// EVEX disp8 is scaled by the tuple size; make EncodeModRM use disp32
+	}
+
 	void EncodePrefixes(uint32 flag, const detail::Opd& reg, const detail::Opd& r_m, const detail::Opd& vex)
 	{
 		if (flag & (E_VEX | E_XOP)) {
@@ -1088,6 +1232,11 @@ struct Backend
 #ifdef JITASM64
 			if (r_m.IsMem() && r_m.GetAddressBaseSize() != O_SIZE_64) db(0x67);
 #endif
+			// EVEX is required for 512-bit (E_EVEX_L2) and to reach registers 16..31 (no VEX form).
+			if (!(flag & E_XOP) && ((flag & E_EVEX_L2) || EvexRequired(reg, r_m, vex))) {
+				EncodeEvex(flag, reg, r_m, vex);
+				return;
+			}
 			uint8 vvvv = vex.IsReg() ? 0xF - (uint8) vex.GetReg().id : 0xF;
 			uint8 mmmmm = (flag & E_VEX_MMMMM_MASK) >> E_VEX_MMMMM_SHIFT;
 			uint8 pp = static_cast<uint8>((flag & E_VEX_PP_MASK) >> E_VEX_PP_SHIFT);
@@ -1166,10 +1315,18 @@ struct Backend
 				bool sib = index != INVALID || r_m.GetScale() || base == ESP;
 
 				// ModR/M
+				// EVEX (force_disp32_) scales disp8 by the tuple size N. When N is known (evex_tuple_n_)
+				// and the displacement is an exact multiple that fits, emit the compressed disp8 = disp/N;
+				// otherwise fall back to disp32 (never a mis-scaled raw disp8). disp==0 needs no disp byte.
+				const sint64 raw_disp = r_m.GetDisp();
+				const int evex_n = force_disp32_ ? evex_tuple_n_ : 0;	// 0 unless EVEX with a known tuple
+				const bool evex_disp8 = evex_n > 0 && raw_disp != 0 && (raw_disp % evex_n) == 0 && detail::IsInt8(raw_disp / evex_n);
+				const sint64 emit_disp = evex_disp8 ? raw_disp / evex_n : raw_disp;
 				uint8 mod = 0;
-				if (r_m.GetDisp() == 0 || (sib && base == INVALID)) mod = base != EBP ? 0 : 1;
-				else if (detail::IsInt8(r_m.GetDisp())) mod = 1;
-				else if (detail::IsInt32(r_m.GetDisp())) mod = 2;
+				if (raw_disp == 0 || (sib && base == INVALID)) mod = base != EBP ? 0 : 1;
+				else if (evex_disp8) mod = 1;
+				else if (detail::IsInt8(raw_disp) && !force_disp32_) mod = 1;
+				else if (detail::IsInt32(raw_disp)) mod = 2;
 				else JITASM_ASSERT(0);
 				db(mod << 6 | reg << 3 | (sib ? 4 : base));
 
@@ -1193,13 +1350,15 @@ struct Backend
 				}
 
 				// Displacement
-				if (mod == 0 && sib && base == INVALID) dd(r_m.GetDisp());
-				if (mod == 1) db(r_m.GetDisp());
-				if (mod == 2) dd(r_m.GetDisp());
+				if (mod == 0 && sib && base == INVALID) dd(emit_disp);
+				if (mod == 1) db(emit_disp);
+				if (mod == 2) dd(emit_disp);
 			}
 		} else {
 			JITASM_ASSERT(0);
 		}
+		force_disp32_ = false;	// consume the one-shot EVEX flags set by Encode()/EncodeEvex
+		evex_tuple_n_ = 0;
 	}
 
 	void EncodeOpcode(uint32 opcode)
@@ -1238,6 +1397,8 @@ struct Backend
 			const detail::Opd& reg = opd1;
 			const detail::Opd& r_m = opd2;
 			const detail::Opd& vex = opd3;
+			// Tuple size for EVEX compressed disp8 (0 unless this opcode has an unambiguous tuple).
+			evex_tuple_n_ = (instr.encoding_flag_ & E_VEX) ? EvexTupleN(instr.opcode_, instr.encoding_flag_) : 0;
 			EncodePrefixes(instr.encoding_flag_, reg, r_m, vex);
 			EncodeOpcode(opcode);
 			EncodeModRM((uint8) (reg.IsImm() ? reg.GetImm() : reg.GetReg().id), r_m);
@@ -1636,6 +1797,7 @@ struct Frontend
 	AddressingPtr<Opd64>	mmword_ptr;
 	AddressingPtr<Opd128>	xmmword_ptr;
 	AddressingPtr<Opd256>	ymmword_ptr;
+	AddressingPtr<Opd512>	zmmword_ptr;	// ZMM (AVX-512)
 	AddressingPtr<Opd32>	real4_ptr;
 	AddressingPtr<Opd64>	real8_ptr;
 	AddressingPtr<Opd80>	real10_ptr;
@@ -1655,6 +1817,10 @@ struct Frontend
 	InstrList				instrs_;
 	bool					assembled_;
 	bool avx_epilog_; // PF AVS+: avoid AVX transition penalties
+	// Runtime opt-in to the upper 16 vector registers (YMM/XMM 16-31). These require EVEX encoding,
+	// so the caller MUST only enable this when the target CPU has AVX-512VL. Default off keeps the
+	// allocator to the 16 VEX-encodable registers (behavior identical to before this was added).
+	bool allow_extended_vector_regs_;
 	detail::CodeBuffer		codebuff_;
 	detail::SpinLock		codelock_;
 	detail::StackManager	stack_manager_;
@@ -1669,10 +1835,14 @@ struct Frontend
 	LabelList	labels_;
 
 
-	Frontend() : assembled_(false) {}
+	Frontend() : assembled_(false), allow_extended_vector_regs_(false) {}
 	virtual ~Frontend() {}
 
 	virtual void InternalMain() = 0;
+
+	/// Opt in/out of the upper 16 vector registers (YMM/XMM16-31, EVEX-encoded).
+	/// Only enable when the target CPU supports AVX-512VL. Must be called before GetCode()/Assemble().
+	void AllowExtendedVectorRegs(bool allow) { allow_extended_vector_regs_ = allow; }
 
 	/// Declare variable of the function argument on register
 	void DeclareRegArg(const detail::Opd& var, const detail::Opd& arg, const detail::Opd& spill_slot = detail::Opd())
@@ -4779,6 +4949,66 @@ struct Frontend
 	void vxorps(const XmmReg& dst, const XmmReg& src1, const Mem128& src2)	{AppendInstr(I_XORPS, 0x57, E_VEX_128_0F_WIG, W(dst), R(src2), R(src1));}
 	void vxorps(const YmmReg& dst, const YmmReg& src1, const YmmReg& src2)	{AppendInstr(I_XORPS, 0x57, E_VEX_256_0F_WIG, W(dst), R(src2), R(src1));}
 	void vxorps(const YmmReg& dst, const YmmReg& src1, const Mem256& src2)	{AppendInstr(I_XORPS, 0x57, E_VEX_256_0F_WIG, W(dst), R(src2), R(src1));}
+
+	// ---- AVX-512 (ZMM, 512-bit, unmasked) : representative set mirroring the 256-bit forms ----
+	void vmovaps(const ZmmReg& dst, const ZmmReg& src)	{AppendInstr(I_MOVAPS, 0x28, E_VEX_512_0F_WIG, W(dst), R(src));}
+	void vmovaps(const ZmmReg& dst, const Mem512& src)	{AppendInstr(I_MOVAPS, 0x28, E_VEX_512_0F_WIG, W(dst), R(src));}
+	void vmovaps(const Mem512& dst, const ZmmReg& src)	{AppendInstr(I_MOVAPS, 0x29, E_VEX_512_0F_WIG, R(src), W(dst));}
+	void vaddps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_ADDPS, 0x58, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vaddps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_ADDPS, 0x58, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vsubps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_SUBPS, 0x5C, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vsubps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_SUBPS, 0x5C, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vmulps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_MULPS, 0x59, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vmulps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_MULPS, 0x59, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vdivps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_DIVPS, 0x5E, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vminps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_MINPS, 0x5D, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vmaxps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_MAXPS, 0x5F, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vandps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_ANDPS, 0x54, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vxorps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_XORPS, 0x57, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vpaddd(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_PADDD, 0xFE, E_VEX_512_66_0F_WIG, W(dst), R(src2), R(src1));}
+	void vpaddd(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_PADDD, 0xFE, E_VEX_512_66_0F_WIG, W(dst), R(src2), R(src1));}
+	void vpsubd(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_PSUBD, 0xFA, E_VEX_512_66_0F_WIG, W(dst), R(src2), R(src1));}
+
+	// ---- AVX-512 additions for ExprCompiler512 -------------------------------
+	// EVEX.512 encodings; each verified byte-for-byte against llvm-mc/llvm-objdump.
+	void vsqrtps(const ZmmReg& dst, const ZmmReg& src)	{AppendInstr(I_SQRTPS, 0x51, E_VEX_512_0F_WIG, W(dst), R(src));}
+	void vorps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_ORPS, 0x56, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vorps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_ORPS, 0x56, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vandnps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_ANDNPS, 0x55, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vandps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_ANDPS, 0x54, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vxorps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_XORPS, 0x57, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vminps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_MINPS, 0x5D, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vmaxps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_MAXPS, 0x5F, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
+	void vpsubd(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_PSUBD, 0xFA, E_VEX_512_66_0F_WIG, W(dst), R(src2), R(src1));}
+	void vcvtdq2ps(const ZmmReg& dst, const ZmmReg& src)	{AppendInstr(I_CVTDQ2PS, 0x5B, E_VEX_512_0F_WIG, W(dst), R(src));}
+	void vcvttps2dq(const ZmmReg& dst, const ZmmReg& src)	{AppendInstr(I_CVTTPS2DQ, 0x5B, E_VEX_512 | E_VEX_F3_0F | E_VEX_WIG, W(dst), R(src));}
+	void vcvtps2dq(const ZmmReg& dst, const ZmmReg& src)	{AppendInstr(I_CVTPS2DQ, 0x5B, E_VEX_512_66_0F_WIG, W(dst), R(src));}
+	void vpslld(const ZmmReg& dst, const ZmmReg& src, const Imm8& count)	{AppendInstr(I_PSLLD, 0x72, E_VEX_512_66_0F_WIG, Imm8(6), R(src), W(dst), count);}
+	void vpsrld(const ZmmReg& dst, const ZmmReg& src, const Imm8& count)	{AppendInstr(I_PSRLD, 0x72, E_VEX_512_66_0F_WIG, Imm8(2), R(src), W(dst), count);}
+	void vbroadcastss(const ZmmReg& dst, const XmmReg& src)	{AppendInstr(I_VBROADCASTSS, 0x18, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, W(dst), R(src));}
+	void vbroadcastss(const ZmmReg& dst, const Mem32& src)	{AppendInstr(I_VBROADCASTSS, 0x18, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, W(dst), R(src));}
+	void vpmovzxbd(const ZmmReg& dst, const Mem128& src)	{AppendInstr(I_PMOVZXBD, 0x31, E_VEX_512_66_0F38_WIG, W(dst), R(src));}
+	void vpmovzxwd(const ZmmReg& dst, const Mem256& src)	{AppendInstr(I_PMOVZXWD, 0x33, E_VEX_512_66_0F38_WIG, W(dst), R(src));}
+	void vcvtph2ps(const ZmmReg& dst, const Mem256& src)	{AppendInstr(I_VCVTPH2PS, 0x13, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, W(dst), R(src));}
+	void vcvtps2ph(const Mem256& dst, const ZmmReg& src, const Imm8& rc)	{AppendInstr(I_VCVTPS2PH, 0x1D, E_VEX_512 | E_VEX_66_0F3A | E_VEX_W0, R(src), W(dst), rc);}
+	void vpmovusdb(const Mem128& dst, const ZmmReg& src)	{AppendInstr(I_VPMOVUSDB, 0x11, E_VEX_512 | E_VEX_F3_0F38 | E_VEX_W0, R(src), W(dst));}
+	void vpmovusdw(const Mem256& dst, const ZmmReg& src)	{AppendInstr(I_VPMOVUSDW, 0x13, E_VEX_512 | E_VEX_F3_0F38 | E_VEX_W0, R(src), W(dst));}
+	void vfmadd132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFMADD132PS, 0x98, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	void vfmadd213ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFMADD213PS, 0xA8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	void vfmadd213ps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_VFMADD213PS, 0xA8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	void vfmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFMADD231PS, 0xB8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	void vfmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_VFMADD231PS, 0xB8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	void vfmsub132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFMSUB132PS, 0x9A, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	void vfmsub231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFMSUB231PS, 0xBA, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	void vfnmadd132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFNMADD132PS, 0x9C, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	void vfnmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFNMADD231PS, 0xBC, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	void vfnmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_VFNMADD231PS, 0xBC, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	void vfnmsub132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFNMSUB132PS, 0x9E, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	void vfnmsub231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFNMSUB231PS, 0xBE, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
+	// Packed compare -> opmask, then expand the mask to a 0xFFFFFFFF/0 vector.
+	void vcmpps(const OpmaskReg& dst, const ZmmReg& src1, const ZmmReg& src2, const Imm8& imm)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1), imm);}
+	void vcmpps(const OpmaskReg& dst, const ZmmReg& src1, const Mem512& src2, const Imm8& imm)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1), imm);}
+	void vpmovm2d(const ZmmReg& dst, const OpmaskReg& src)	{AppendInstr(I_VPMOVM2D, 0x38, E_VEX_512 | E_VEX_F3_0F38 | E_VEX_W0, W(dst), R(src));}
 	void vzeroall()		{AppendInstr(I_VZEROUPPER, 0x77, E_VEX_256_0F_WIG);}
 	void vzeroupper()	{AppendInstr(I_VZEROUPPER, 0x77, E_VEX_128_0F_WIG);}
 
@@ -6002,11 +6232,20 @@ namespace compiler
 			case R_TYPE_SYMBOLIC_MMX:	return 1;
 			case R_TYPE_SYMBOLIC_XMM:	return 2;
 			case R_TYPE_SYMBOLIC_YMM:	return 2;
+			case R_TYPE_K:				return 1;	// physical-only; share the (unused) MMX family so it is never allocated
 			case R_TYPE_FPU:
 			default:
 				JITASM_ASSERT(0);
 				return 0x7FFFFFFF;
 		}
+	}
+
+	/// Number of physical registers in a register family (also the physical/symbolic id boundary)
+	inline size_t NumPhysicalReg(size_t reg_family)
+	{
+		// GP (0) and MMX (1) keep the general-purpose count; the vector family (2) owns the full
+		// XMM/YMM/ZMM capacity so physical vector regs occupy ids [0, NUM_OF_PHYSICAL_VECTOR_REG).
+		return reg_family == 2 ? static_cast<size_t>(NUM_OF_PHYSICAL_VECTOR_REG) : static_cast<size_t>(NUM_OF_PHYSICAL_REG);
 	}
 
 	inline std::string GetRegName(RegType type, size_t reg_idx)
@@ -6019,12 +6258,13 @@ namespace compiler
 		std::string name;
 		if (type == R_TYPE_GP)					{return s_gp_reg_name[reg_idx];}
 		else if (type == R_TYPE_MMX)			{name.assign("mm");}
+		else if (type == R_TYPE_K)				{name.assign("k");}
 		else if (type == R_TYPE_XMM)			{name.assign("xmm");}
 		else if (type == R_TYPE_YMM)			{name.assign("ymm");}
 		else if (type == R_TYPE_SYMBOLIC_GP)	{name.assign("gpsym"); reg_idx -= NUM_OF_PHYSICAL_REG;}
 		else if (type == R_TYPE_SYMBOLIC_MMX)	{name.assign("mmsym"); reg_idx -= NUM_OF_PHYSICAL_REG;}
-		else if (type == R_TYPE_SYMBOLIC_XMM)	{name.assign("xmmsym"); reg_idx -= NUM_OF_PHYSICAL_REG;}
-		else if (type == R_TYPE_SYMBOLIC_YMM)	{name.assign("ymmsym"); reg_idx -= NUM_OF_PHYSICAL_REG;}
+		else if (type == R_TYPE_SYMBOLIC_XMM)	{name.assign("xmmsym"); reg_idx -= NUM_OF_PHYSICAL_VECTOR_REG;}
+		else if (type == R_TYPE_SYMBOLIC_YMM)	{name.assign("ymmsym"); reg_idx -= NUM_OF_PHYSICAL_VECTOR_REG;}
 		detail::append_num(name, reg_idx);
 		return name;
 	}
@@ -6086,6 +6326,13 @@ namespace compiler
 		/// Allocate stack of spill slots
 		void AllocSpillSlots(detail::StackManager& stack_manager)
 		{
+			// ZMM
+			for (size_t i = 0; i < attributes_[2].size(); ++i) {
+				if (attributes_[2][i].spill && attributes_[2][i].size == O_SIZE_512 && attributes_[2][i].stack_slot.reg_.IsInvalid()) {
+					attributes_[2][i].stack_slot = stack_manager.Alloc(512 / 8, 64); // 64 bytes, 64-byte aligned
+				}
+			}
+
 			// YMM
 			for (size_t i = 0; i < attributes_[2].size(); ++i) {
 				if (attributes_[2][i].spill && attributes_[2][i].size == O_SIZE_256 && attributes_[2][i].stack_slot.reg_.IsInvalid()) {
@@ -6206,7 +6453,7 @@ namespace compiler
 		static const int SpillCost_Read = 2;
 		static const int SpillCost_Write = 3;
 
-		Lifetime() : use_points(NUM_OF_PHYSICAL_REG), dirty_live_out(true) {}
+		Lifetime() : use_points(NUM_OF_PHYSICAL_REG_MAX), dirty_live_out(true) {}
 
 		/// Add register use point
 		void AddUsePoint(size_t instr_idx, const RegID& reg, OpdType opd_type, OpdSize opd_size, uint32 reg_assignable)
@@ -6431,7 +6678,8 @@ namespace compiler
 		struct LessAssignOrder {
 			Interval *interval;
 			const Interval *prior_interval;
-			LessAssignOrder(Interval *cur, const Interval *prior) : interval(cur), prior_interval(prior) {}
+			size_t num_physical_reg;	// physical/symbolic id boundary for this register family
+			LessAssignOrder(Interval *cur, const Interval *prior, size_t num_physical) : interval(cur), prior_interval(prior), num_physical_reg(num_physical) {}
 			bool has_constraints(size_t v) const {return v < interval->reg_assignables.size() ? interval->reg_assignables[v] != 0xFFFFFFFF : false;}
 			uint32 num_of_assignable(size_t v) const {return v < interval->reg_assignables.size() ? detail::Count1Bits(interval->reg_assignables[v]) : 32;}
 			bool operator()(size_t lhs, size_t rhs) const {
@@ -6459,8 +6707,8 @@ namespace compiler
 				}
 
 				// physical register or symbolic register
-				const int lhs_sym_reg = (lhs < NUM_OF_PHYSICAL_REG ? 0 : 1);
-				const int rhs_sym_reg = (rhs < NUM_OF_PHYSICAL_REG ? 0 : 1);
+				const int lhs_sym_reg = (lhs < num_physical_reg ? 0 : 1);
+				const int rhs_sym_reg = (rhs < num_physical_reg ? 0 : 1);
 				if (lhs_sym_reg != rhs_sym_reg) {
 					return lhs_sym_reg < rhs_sym_reg;
 				}
@@ -6485,7 +6733,7 @@ namespace compiler
 		 * \param[in] last_interval	Last Interval as the hint of assignment
 		 * \return Used physical register mask
 		 */
-		uint32 AssignRegister(uint32 available_reg, const Interval *last_interval)
+		uint32 AssignRegister(uint32 available_reg, const Interval *last_interval, size_t num_physical_reg)
 		{
 			uint32 used_reg = 0;
 			std::vector<size_t> live_vars;
@@ -6509,7 +6757,7 @@ namespace compiler
 					cur_interval->assignment_table.resize(live_vars.back() + 1, -1);
 
 					// sort into assignment order
-					std::sort(live_vars.begin(), live_vars.end(), LessAssignOrder(cur_interval, prior_interval));
+					std::sort(live_vars.begin(), live_vars.end(), LessAssignOrder(cur_interval, prior_interval, num_physical_reg));
 				}
 
 				// Assign register
@@ -6521,11 +6769,11 @@ namespace compiler
 					const uint32 reg_assignable = first_try && var < cur_interval->reg_assignables.size() ? cur_interval->reg_assignables[var] : 0xFFFFFFFF;	// Ignore constraint if it is retried
 					JITASM_ASSERT((cur_avail & reg_assignable) != 0);
 					int assigned_reg = -1;
-					if (var < NUM_OF_PHYSICAL_REG && first_try) {
+					if (var < num_physical_reg && first_try) {
 						// Physical register
-						if (cur_avail & reg_assignable & (1 << var)) {
+						if (cur_avail & reg_assignable & (1u << var)) {
 							assigned_reg = static_cast<int>(var);
-						} else if (((1 << var) & available_reg) && !cur_interval->use.get_bit(var)) {
+						} else if (((1u << var) & available_reg) && !cur_interval->use.get_bit(var)) {
 							// Try to assign another physical register if it is not used in this interval. But assign later.
 							live_vars.push_back(var);
 						} else if (reg_assignable != 0xFFFFFFFF && (cur_avail & reg_assignable) && cur_interval->use.get_bit(var)) {
@@ -6534,13 +6782,13 @@ namespace compiler
 							assigned_reg = detail::bit_scan_forward(cur_avail & reg_assignable);
 						} else {
 							// This may be out of assignment register (ESP, EBP and so on...)
-							JITASM_ASSERT(((1 << var) & available_reg) == 0);		// false assignment!?
+							JITASM_ASSERT(((1u << var) & available_reg) == 0);		// false assignment!?
 							assigned_reg = static_cast<int>(var);
 						}
 					} else {
 						// Symbolic register or retried physical register
 						const int last_assigned = prior_interval && var < prior_interval->assignment_table.size() ? prior_interval->assignment_table[var] : -1;
-						if (last_assigned != -1 && (cur_avail & reg_assignable & (1 << last_assigned))) {
+						if (last_assigned != -1 && (cur_avail & reg_assignable & (1u << last_assigned))) {
 							// select last assigned register
 							assigned_reg = last_assigned;
 						} else if (cur_avail & reg_assignable) {
@@ -6555,7 +6803,7 @@ namespace compiler
 
 					if (assigned_reg >= 0) {
 						cur_interval->assignment_table[var] = assigned_reg;
-						cur_avail &= ~(1 << assigned_reg);
+						cur_avail &= ~(1u << assigned_reg);
 					}
 				}
 
@@ -6878,13 +7126,13 @@ namespace compiler
 					for (size_t i = 0; i < block->lifetime[reg_family].live_in.size_bit(); ++i) {
 						if (block->lifetime[reg_family].live_in.get_bit(i)) {
 							live_in.append(" ");
-							live_in.append(GetRegName(static_cast<RegType>(reg_family + (i < NUM_OF_PHYSICAL_REG ? R_TYPE_GP : R_TYPE_SYMBOLIC_GP)), i));
+							live_in.append(GetRegName(static_cast<RegType>(reg_family + (i < NumPhysicalReg(reg_family) ? R_TYPE_GP : R_TYPE_SYMBOLIC_GP)), i));
 						}
 					}
 					for (size_t i = 0; i < block->lifetime[reg_family].live_out.size_bit(); ++i) {
 						if (block->lifetime[reg_family].live_out.get_bit(i)) {
 							live_out.append(" ");
-							live_out.append(GetRegName(static_cast<RegType>(reg_family + (i < NUM_OF_PHYSICAL_REG ? R_TYPE_GP : R_TYPE_SYMBOLIC_GP)), i));
+							live_out.append(GetRegName(static_cast<RegType>(reg_family + (i < NumPhysicalReg(reg_family) ? R_TYPE_GP : R_TYPE_SYMBOLIC_GP)), i));
 						}
 					}
 				}
@@ -6995,9 +7243,11 @@ namespace compiler
 	inline bool PrepareCompile(Frontend::InstrList& instrs, uint32 (&modified_physical_reg)[3], bool (&need_reg_alloc)[3])
 	{
 		struct RegIDMap {
+			int base_id_;			// physical/symbolic id boundary for this register family
 			int next_id_;
 			std::map<int, int> id_map_;
-			RegIDMap() : next_id_(NUM_OF_PHYSICAL_REG) {}
+			RegIDMap() : base_id_(NUM_OF_PHYSICAL_REG), next_id_(NUM_OF_PHYSICAL_REG) {}
+			void SetBase(int base) {base_id_ = next_id_ = base;}
 			int GetNormalizedID(int id) {
 				std::map<int, int>::iterator it = id_map_.find(id);
 				if (it != id_map_.end()) {return it->second;}
@@ -7007,6 +7257,8 @@ namespace compiler
 			}
 		};
 		RegIDMap reg_id_map[3];		// GP, MMX, XMM/YMM
+		// The vector family owns ids [0, NUM_OF_PHYSICAL_VECTOR_REG); its symbolic ids start higher.
+		reg_id_map[2].SetBase(NUM_OF_PHYSICAL_VECTOR_REG);
 		modified_physical_reg[0] = modified_physical_reg[1] = modified_physical_reg[2] = 0;
 		need_reg_alloc[0] = need_reg_alloc[1] = need_reg_alloc[2] = false;
 		bool compile_process = false;
@@ -7027,10 +7279,10 @@ namespace compiler
 					} else {
 						if (opd.IsWrite()) {
 							// This physical register is modified
-							modified_physical_reg[reg_family] |= (1 << reg.id);
+							modified_physical_reg[reg_family] |= (1u << reg.id);
 						}
 
-						if ((opd.reg_assignable_ & (1 << reg.id)) == 0) {
+						if ((opd.reg_assignable_ & (1u << reg.id)) == 0) {
 							// Specified physical register does not fit the instruction.
 							// Let's try to assign optimal physical register by register allocation.
 							need_reg_alloc[reg_family] = true;
@@ -7051,7 +7303,7 @@ namespace compiler
 		}
 
 		for (size_t i = 0; i < 3; ++i) {
-			if (!need_reg_alloc[i] && reg_id_map[i].next_id_ > NUM_OF_PHYSICAL_REG) {
+			if (!need_reg_alloc[i] && reg_id_map[i].next_id_ > reg_id_map[i].base_id_) {
 				need_reg_alloc[i] = true;
 			}
 		}
@@ -7144,7 +7396,10 @@ namespace compiler
 					block->GetLifetime(R_TYPE_GP).AddUsePoint(instr_offset, RegID::CreatePhysicalRegID(R_TYPE_GP, EDI), type, O_SIZE_32, 0xFFFFFFFF);
 					block->GetLifetime(R_TYPE_GP).AddUsePoint(instr_offset, RegID::CreatePhysicalRegID(R_TYPE_GP, ESP), static_cast<OpdType>(O_TYPE_REG | O_TYPE_READ | O_TYPE_WRITE), O_SIZE_32, 0xFFFFFFFF);
 				} else if (instr.GetID() == I_VZEROALL || instr.GetID() == I_VZEROUPPER) {
-					// Add use point of vzeroall/vzeroupper
+					// Add use point of vzeroall/vzeroupper.
+					// NOTE: these instructions only affect the legacy vector registers (YMM0-15 on x64,
+					// YMM0-7 on x86) -- YMM16-31 are unaffected -- so this deliberately iterates the
+					// general-purpose count (== the legacy vector count) and NOT NUM_OF_PHYSICAL_VECTOR_REG.
 					const OpdType type = static_cast<OpdType>(O_TYPE_REG | (instr.GetID() == I_VZEROALL ? O_TYPE_WRITE : O_TYPE_READ | O_TYPE_WRITE));
 					for (int j = 0; j < NUM_OF_PHYSICAL_REG; ++j) {
 						block->GetLifetime(R_TYPE_YMM).AddUsePoint(instr_offset, RegID::CreatePhysicalRegID(R_TYPE_YMM, static_cast<PhysicalRegID>(YMM0 + j)), type, O_SIZE_256, 0xFFFFFFFF);
@@ -7256,7 +7511,7 @@ namespace compiler
 			lifetime.SpillIdentification(available_reg_count, total_spill_cost, (*block)->GetFrequency(), last_loop_depth == loop_depth ? last_interval : NULL, var_attrs);
 
 			// Register assignment
-			used_reg |= lifetime.AssignRegister(available_reg, last_interval);
+			used_reg |= lifetime.AssignRegister(available_reg, last_interval, NumPhysicalReg(reg_family));
 
 #ifdef JITASM_DEBUG_DUMP
 			lifetime.DumpIntervals((*block)->depth, true);
@@ -7347,6 +7602,8 @@ namespace compiler
 					f_->movaps(XmmReg(dst_reg), XmmReg(src_reg));
 			} else if (size == O_SIZE_256) {
 				f_->vmovaps(YmmReg(dst_reg), YmmReg(src_reg));
+			} else if (size == O_SIZE_512) {
+				f_->vmovaps(ZmmReg(dst_reg), ZmmReg(src_reg));
 			} else {
 				JITASM_ASSERT(0);
 			}
@@ -7368,6 +7625,10 @@ namespace compiler
 				f_->vxorps(YmmReg(reg1), YmmReg(reg1), YmmReg(reg2));
 				f_->vxorps(YmmReg(reg2), YmmReg(reg1), YmmReg(reg2));
 				f_->vxorps(YmmReg(reg1), YmmReg(reg1), YmmReg(reg2));
+			} else if (size == O_SIZE_512) {
+				f_->vxorps(ZmmReg(reg1), ZmmReg(reg1), ZmmReg(reg2));
+				f_->vxorps(ZmmReg(reg2), ZmmReg(reg1), ZmmReg(reg2));
+				f_->vxorps(ZmmReg(reg1), ZmmReg(reg1), ZmmReg(reg2));
 			} else {
 				JITASM_ASSERT(0);
 			}
@@ -7383,6 +7644,8 @@ namespace compiler
 					f_->movaps(XmmReg(dst_reg), f_->xmmword_ptr[var_manager_->GetSpillSlot(2, var)]);
 			} else if (size == O_SIZE_256) {
 				f_->vmovaps(YmmReg(dst_reg), f_->ymmword_ptr[var_manager_->GetSpillSlot(2, var)]);
+			} else if (size == O_SIZE_512) {
+				f_->vmovaps(ZmmReg(dst_reg), f_->zmmword_ptr[var_manager_->GetSpillSlot(2, var)]);
 			} else {
 				JITASM_ASSERT(0);
 			}
@@ -7398,6 +7661,8 @@ namespace compiler
 					f_->movaps(f_->xmmword_ptr[var_manager_->GetSpillSlot(2, var)], XmmReg(src_reg));
 			} else if (size == O_SIZE_256) {
 				f_->vmovaps(f_->ymmword_ptr[var_manager_->GetSpillSlot(2, var)], YmmReg(src_reg));
+			} else if (size == O_SIZE_512) {
+				f_->vmovaps(f_->zmmword_ptr[var_manager_->GetSpillSlot(2, var)], ZmmReg(src_reg));
 			} else {
 				JITASM_ASSERT(0);
 			}
@@ -7415,10 +7680,10 @@ namespace compiler
 			int lowlink;
 			Node() : index(-1) {}
 		};
-		Node nodes_[NUM_OF_PHYSICAL_REG];
+		Node nodes_[NUM_OF_PHYSICAL_REG_MAX];
 		int *successors_;
 		int index;
-		FixedArray<int, NUM_OF_PHYSICAL_REG> scc_;
+		FixedArray<int, NUM_OF_PHYSICAL_REG_MAX> scc_;
 
 		/// Is v in scc_?
 		bool IsInsideSCC(int v) const
@@ -7464,7 +7729,7 @@ namespace compiler
 
 		template<class Fn> void operator()(Fn fn)
 		{
-			for (int v = 0; v < NUM_OF_PHYSICAL_REG; ++v) {
+			for (int v = 0; v < NUM_OF_PHYSICAL_REG_MAX; ++v) {
 				if (successors_[v] != -1 && nodes_[v].index == -1) {
 					Find(v, fn);
 				}
@@ -7473,15 +7738,15 @@ namespace compiler
 	};
 
 	struct Operations {
-		int move[NUM_OF_PHYSICAL_REG];
-		int load[NUM_OF_PHYSICAL_REG];
-		int store[NUM_OF_PHYSICAL_REG];
-		OpdSize size[NUM_OF_PHYSICAL_REG];
+		int move[NUM_OF_PHYSICAL_REG_MAX];
+		int load[NUM_OF_PHYSICAL_REG_MAX];
+		int store[NUM_OF_PHYSICAL_REG_MAX];
+		OpdSize size[NUM_OF_PHYSICAL_REG_MAX];
 		std::pair<const Lifetime::Interval *, const Lifetime::Interval *> interval;
 		const std::vector<VarAttribute> *var_attrs;
 
 		Operations(const Lifetime::Interval *first, const Lifetime::Interval *second, const std::vector<VarAttribute> *vattrs) : interval(first, second), var_attrs(vattrs) {
-			for (size_t i = 0; i < NUM_OF_PHYSICAL_REG; ++i) {move[i] = load[i] = store[i] = -1;}
+			for (size_t i = 0; i < NUM_OF_PHYSICAL_REG_MAX; ++i) {move[i] = load[i] = store[i] = -1;}
 		}
 
 		void operator()(size_t var) {
@@ -7582,7 +7847,7 @@ namespace compiler
 		first_interval.liveness.query_bit_indexes(ops);
 
 		// Store instructions
-		for (size_t r = 0; r < NUM_OF_PHYSICAL_REG; ++r) {
+		for (size_t r = 0; r < NUM_OF_PHYSICAL_REG_MAX; ++r) {
 			if (ops.store[r] != -1) {
 				reg_operator.Store(ops.store[r], static_cast<PhysicalRegID>(r));
 				JITASM_TRACE("Store %d (physical reg %d)\n", ops.store[r], r);
@@ -7594,7 +7859,7 @@ namespace compiler
 		scc_finder(MoveGenerator<RegOp>(ops.move, ops.size, &reg_operator));
 
 		// Load instructions
-		for (size_t r = 0; r < NUM_OF_PHYSICAL_REG; ++r) {
+		for (size_t r = 0; r < NUM_OF_PHYSICAL_REG_MAX; ++r) {
 			if (ops.load[r] != -1) {
 				reg_operator.Load(static_cast<PhysicalRegID>(r), ops.load[r]);
 				JITASM_TRACE("Load %d (physical reg %d)\n", ops.load[r], r);
@@ -7951,7 +8216,11 @@ namespace compiler
 	{
 #ifdef JITASM64
 		// Available registers : rax, rcx, rdx, rsi, rdi, r8 ~ r15, mm0 ~ mm7, xmm0/ymm0 ~ xmm15/ymm15
-		const uint32 available_reg[3] = {0xFFC7, 0xFF, 0xFFFF};
+		uint32 available_reg[3] = {0xFFC7, 0xFF, 0xFFFF};
+		// Runtime opt-in (AVX-512VL required): widen the vector pool to all 32 registers (ymm16-31 are
+		// reached via the EVEX encoder). Behavior-preserving when off -- ymm16-31 stay unallocated.
+		if (f.allow_extended_vector_regs_)
+			available_reg[2] = 0xFFFFFFFFu;
 
 #ifdef JITASM_WIN
 		// Win64 preserved registers : rbx, rsi, rdi, r12 ~ r15, xmm6 ~ xmm15

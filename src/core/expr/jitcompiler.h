@@ -72,6 +72,7 @@ public:
 #ifdef VS_TARGET_CPU_X86
 std::unique_ptr<ExprCompiler> make_xmm_compiler(int numInputs);
 std::unique_ptr<ExprCompiler> make_ymm_compiler(int numInputs);
+std::unique_ptr<ExprCompiler> make_zmm_compiler(int numInputs);
 #endif
 
 std::pair<ExprCompiler::ProcessLineProc, size_t> compile_jit(const ExprInstruction *bytecode, size_t numInsns, int numInputs, int cpulevel);
