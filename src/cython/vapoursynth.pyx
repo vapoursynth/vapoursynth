@@ -230,6 +230,8 @@ cdef class EnvironmentData(object):
     cdef VSLogHandle* log
 
     cdef object env_locals
+    cdef object known_nodes
+    cdef object known_frames
 
     cdef object __weakref__
 
@@ -402,6 +404,8 @@ cdef class EnvironmentPolicyAPI:
         env.coreCreationFlags = flags
         env.on_destroy = []
         env.env_locals = weakref.WeakKeyDictionary()
+        env.known_nodes = weakref.WeakSet()
+        env.known_frames = weakref.WeakSet()
         env.alive = True
 
         with self._lock:
@@ -439,7 +443,36 @@ cdef class EnvironmentPolicyAPI:
                     formatted = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
                     env.core.log_message(MessageType.MESSAGE_TYPE_CRITICAL, formatted)
 
+        # Invalidate all remaining nodes and frames from this environment
+        for node in list(env.known_nodes):
+            if not isinstance(node, RawNode):
+                continue
+            rn = <RawNode>node
+            if rn.node:
+                if rn.funcs:
+                    rn.funcs.freeNode(rn.node)
+                rn.node = NULL
+                rn.core = None
+
+        for frame in list(env.known_frames):
+            if not isinstance(frame, RawFrame):
+                continue
+            rf = <RawFrame>frame
+            if rf.constf:
+                if rf.funcs:
+                    rf.funcs.freeFrame(rf.constf)
+                rf.constf = NULL
+
         _unset_logger(env)
+
+        # Invalidate the core wrapper itself
+        cdef Core c = env.core
+        if c is not None:
+            if c.core:
+                if c.funcs:
+                    c.funcs.freeCore(c.core)
+                c.core = NULL
+
         env.core = None
         env.log = NULL
         env.outputs = {}
@@ -447,6 +480,10 @@ cdef class EnvironmentPolicyAPI:
         env.env_locals = None
         env.active_exceptions = None
         env.exc_lock = None
+        env.known_nodes.clear()
+        env.known_nodes = None
+        env.known_frames.clear()
+        env.known_frames = None
         env.alive = False
 
     def unregister_policy(self):
@@ -1692,7 +1729,9 @@ cdef class VideoFrame(RawFrame):
 
 
 cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
-    cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
+    cdef:
+        VideoFrame instance = VideoFrame.__new__(VideoFrame)
+        EnvironmentData env = _env_current()
     instance.constf = constf
     instance.f = NULL
     instance.funcs = funcs
@@ -1701,11 +1740,15 @@ cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs,
     instance.format = createVideoFormat(funcs.getVideoFrameFormat(constf), funcs, core)
     instance.width = funcs.getFrameWidth(constf, 0)
     instance.height = funcs.getFrameHeight(constf, 0)
+    if env is not None and env.known_frames is not None:
+        env.known_frames.add(instance)
     return instance
 
 
 cdef VideoFrame createVideoFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
-    cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
+    cdef:
+        VideoFrame instance = VideoFrame.__new__(VideoFrame)
+        EnvironmentData env = _env_current()
     instance.constf = f
     instance.f = f
     instance.funcs = funcs
@@ -1714,6 +1757,8 @@ cdef VideoFrame createVideoFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     instance.format = createVideoFormat(funcs.getVideoFrameFormat(f), funcs, core)
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
+    if env is not None and env.known_frames is not None:
+        env.known_frames.add(instance)
     return instance
 
 
@@ -1889,34 +1934,42 @@ cdef class AudioFrame(RawFrame):
 
 
 cdef AudioFrame createConstAudioFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
-    cdef AudioFrame instance = AudioFrame.__new__(AudioFrame)
+    cdef:
+        AudioFrame instance = AudioFrame.__new__(AudioFrame)
+        const VSAudioFormat *format = funcs.getAudioFrameFormat(constf)
+        EnvironmentData env = _env_current()
     instance.constf = constf
     instance.f = NULL
     instance.funcs = funcs
     instance.core = core
     instance.flags = 0
-    cdef const VSAudioFormat *format = funcs.getAudioFrameFormat(constf)
     instance.sample_type = SampleType(format.sampleType)
     instance.bits_per_sample = format.bitsPerSample
     instance.bytes_per_sample = format.bytesPerSample
     instance.channel_layout = format.channelLayout
     instance.num_channels = format.numChannels
+    if env is not None and env.known_frames is not None:
+        env.known_frames.add(instance)
     return instance
 
 
 cdef AudioFrame createAudioFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
-    cdef AudioFrame instance = AudioFrame.__new__(AudioFrame)
+    cdef:
+        AudioFrame instance = AudioFrame.__new__(AudioFrame)
+        const VSAudioFormat *format = funcs.getAudioFrameFormat(f)
+        EnvironmentData env = _env_current()
     instance.constf = f
     instance.f = f
     instance.funcs = funcs
     instance.core = core
     instance.flags = -1
-    cdef const VSAudioFormat *format = funcs.getAudioFrameFormat(f)
     instance.sample_type = SampleType(format.sampleType)
     instance.bits_per_sample = format.bitsPerSample
     instance.bytes_per_sample = format.bytesPerSample
     instance.channel_layout = format.channelLayout
     instance.num_channels = format.numChannels
+    if env is not None and env.known_frames is not None:
+        env.known_frames.add(instance)
     return instance
 
 
@@ -2015,7 +2068,12 @@ cdef class RawNode(object):
     def set_output(self, int index = 0):
         raise NotImplementedError
 
+    cdef ensure_valid(self):
+        if self.node == NULL:
+            raise Error(f"Use of invalidated {self.__class__.__name__} (the environment has been destroyed).")
+
     def get_frame_async(self, int n, object cb = None):
+        self.ensure_valid()
         if cb is None:
             _handle_future = _get_handle_future()
 
@@ -2143,6 +2201,7 @@ cdef class RawNode(object):
             gc.collect()
 
     def clear_cache(self):
+        self.ensure_valid()
         self.funcs.clearNodeCache(self.node)
 
     # Inspect API
@@ -2245,8 +2304,9 @@ cdef class RawNode(object):
             return hash(int(<uintptr_t>self.node))
 
     def __dealloc__(self):
-        if self.funcs:
+        if self.funcs != NULL and self.node != NULL:
             self.funcs.freeNode(self.node)
+            self.node = NULL
 
 
 cdef class VideoNode(RawNode):
@@ -2272,6 +2332,7 @@ cdef class VideoNode(RawNode):
             raise AttributeError(f'There is no attribute or namespace named {name}. Did you mistype a plugin namespace or forget to install a plugin?') from None
 
     cdef ensure_valid_frame_number(self, int n):
+        self.ensure_valid()
         if n < 0:
             raise ValueError('Requesting negative frame numbers not allowed')
         if (self.num_frames > 0) and (n >= self.num_frames):
@@ -2297,6 +2358,7 @@ cdef class VideoNode(RawNode):
             return createConstVideoFrame(f, self.funcs, self.core.core)
 
     def set_output(self, int index = 0, VideoNode alpha = None, int alt_output = 0):
+        self.ensure_valid()
         if alpha is not None:
             if (self.vi.width != alpha.vi.width) or (self.vi.height != alpha.vi.height):
                 raise Error('Alpha clip dimensions must match the main video')
@@ -2311,6 +2373,7 @@ cdef class VideoNode(RawNode):
         _get_output_dict("set_output")[index] = VideoOutputTuple(self, alpha, alt_output)
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0, int backlog = -1):
+        self.ensure_valid()
         if (fileobj is sys.stdout or fileobj is sys.stderr):
             # If you are embedded in a vsscript-application, don't allow outputting to stdout/stderr.
             # This is the responsibility of the application, which does know better where to output it.
@@ -2528,7 +2591,9 @@ cdef class VideoNode(RawNode):
         )
 
 cdef VideoNode createVideoNode(VSNode *node, const VSAPI *funcs, Core core):
-    cdef VideoNode instance = VideoNode.__new__(VideoNode)
+    cdef:
+        VideoNode instance = VideoNode.__new__(VideoNode)
+        EnvironmentData env = _env_current()
     instance.core = core
     instance.node = node
     instance.funcs = funcs
@@ -2544,6 +2609,9 @@ cdef VideoNode createVideoNode(VSNode *node, const VSAPI *funcs, Core core):
             <int64_t> instance.vi.fpsNum, <int64_t> instance.vi.fpsDen)
     else:
         instance.fps = Fraction(0, 1)
+
+    if env is not None and env.known_nodes is not None:
+        env.known_nodes.add(instance)
 
     return instance
 
@@ -2574,6 +2642,7 @@ cdef class AudioNode(RawNode):
             raise AttributeError(f'There is no attribute or namespace named {name}. Did you mistype a plugin namespace or forget to install a plugin?')
 
     cdef ensure_valid_frame_number(self, int n):
+        self.ensure_valid()
         if n < 0:
             raise ValueError('Requesting negative frame numbers not allowed')
         if (self.num_frames > 0) and (n >= self.num_frames):
@@ -2596,6 +2665,7 @@ cdef class AudioNode(RawNode):
             return createConstAudioFrame(f, self.funcs, self.core.core)
 
     def output(self, object fileobj not None, bint wav = False, bint w64 = False, object progress_update = None, int prefetch = 0, int backlog = -1):
+        self.ensure_valid()
         if (fileobj is sys.stdout or fileobj is sys.stderr):
             # If you are embedded in a vsscript-application, don't allow outputting to stdout/stderr.
             # This is the responsibility of the application, which does know better where to output it.
@@ -2813,7 +2883,10 @@ cdef class AudioNode(RawNode):
         )
 
 cdef AudioNode createAudioNode(VSNode *node, const VSAPI *funcs, Core core):
-    cdef AudioNode instance = AudioNode.__new__(AudioNode)
+    cdef:
+        AudioNode instance = AudioNode.__new__(AudioNode)
+        EnvironmentData env = _env_current()
+
     instance.core = core
     instance.node = node
     instance.funcs = funcs
@@ -2826,6 +2899,10 @@ cdef AudioNode createAudioNode(VSNode *node, const VSAPI *funcs, Core core):
     instance.bytes_per_sample = instance.ai.format.bytesPerSample
     instance.channel_layout = instance.ai.format.channelLayout
     instance.num_channels = instance.ai.format.numChannels
+
+    if env is not None and env.known_nodes is not None:
+        env.known_nodes.add(instance)
+
     return instance
 
 cdef class LogHandle(object):
@@ -2908,21 +2985,28 @@ cdef class Core(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        if self.funcs:
+        if self.funcs and self.core != NULL:
             self.funcs.freeCore(self.core)
+
+    cdef ensure_valid(self):
+        if self.core == NULL:
+            raise Error("Use of invalidated Core (the environment has been destroyed).")
 
     @property
     def num_threads(self):
+        self.ensure_valid()
         cdef VSCoreInfo2 v
         self.funcs.getCoreInfo2(self.core, &v)
         return v.numThreads
 
     @num_threads.setter
     def num_threads(self, int value):
+        self.ensure_valid()
         self.funcs.setThreadCount(value, self.core)
 
     @property
     def max_cache_size(self):
+        self.ensure_valid()
         cdef VSCoreInfo2 v
         self.funcs.getCoreInfo2(self.core, &v)
         cdef int64_t current_size = <int64_t>v.maxFramebufferSize
@@ -2931,6 +3015,7 @@ cdef class Core(object):
 
     @max_cache_size.setter
     def max_cache_size(self, int mb):
+        self.ensure_valid()
         if mb <= 0:
             raise ValueError("Maximum cache size must be a positive number")
         cdef int64_t new_size = mb
@@ -2939,15 +3024,18 @@ cdef class Core(object):
 
     @property
     def used_cache_size(self):
+        self.ensure_valid()
         cdef VSCoreInfo2 v
         self.funcs.getCoreInfo2(self.core, &v)
         return v.usedFramebufferSize
 
     @property
     def flags(self):
+        self.ensure_valid()
         return self.creationFlags
 
     def __getattr__(self, name):
+        self.ensure_valid()
         cdef VSPlugin *plugin
         tname = name.encode('utf-8')
         cdef const char *cname = tname

@@ -310,6 +310,57 @@ class EnvironmentTest(unittest.TestCase):
 
                 self.assertIsNone(exc_ref())
 
+    @subprocess_runner
+    def test_environment_invalidation_releases_nodes_and_core(self):
+        def modify_func(n, f):
+            return f.copy()
+
+        hold_strong_refs = []
+
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                core = vs.core.core
+                clip = core.std.BlankClip(width=16, height=16, length=2)
+                clip = core.std.ModifyFrame(clip, clip, modify_func)
+                frame = clip.get_frame(0)
+                hold_strong_refs.append(core)
+                hold_strong_refs.append(clip)
+                hold_strong_refs.append(frame)
+
+                # Track weak references to verify garbage collection later
+                core_ref = weakref.ref(core)
+                clip_ref = weakref.ref(clip)
+                frame_ref = weakref.ref(frame)
+
+                self.assertIsNotNone(core_ref())
+                self.assertIsNotNone(clip_ref())
+                self.assertIsNotNone(frame_ref())
+
+            # Now, destroy the environment
+            pol._api.destroy_environment(env)
+            del env
+
+            # Any subsequent access to core or clip should raise vs.Error
+            with self.assertRaises(vs.Error) as ctx1:
+                clip.get_frame(0)
+            self.assertIn("Use of invalidated VideoNode", str(ctx1.exception))
+
+            with self.assertRaises(vs.Error) as ctx2:
+                core.num_threads
+            self.assertIn("Use of invalidated Core", str(ctx2.exception))
+
+            gc.collect()
+            gc.collect()
+            gc.collect()
+
+            self.assertIsNone(wrapped.env())
+            self.assertIsNotNone(core_ref())
+            self.assertIsNotNone(clip_ref())
+            self.assertIsNotNone(frame_ref())
+
 
 if __name__ == "__main__":
     unittest.main()
