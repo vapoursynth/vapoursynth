@@ -1,9 +1,11 @@
 import contextlib
 import gc
 import multiprocessing
+import threading
 import unittest
 import weakref
 from concurrent.futures import ProcessPoolExecutor
+from threading import Lock
 
 import vapoursynth as vs
 
@@ -360,6 +362,70 @@ class EnvironmentTest(unittest.TestCase):
             self.assertIsNotNone(core_ref())
             self.assertIsNotNone(clip_ref())
             self.assertIsNotNone(frame_ref())
+
+    @subprocess_runner
+    def test_environment_waits_for_futures(self):
+        lock = Lock()
+        running = False
+
+        def check_running(func):
+            def wrapper(n, f):
+                nonlocal running
+                running = True
+                r = func(n, f)
+                running = False
+                return r
+            return wrapper
+
+        @check_running
+        def modify_func(n, f):
+            with lock:
+                return f
+
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                core = vs.core.core
+                clip = core.std.BlankClip(width=16, height=16, length=2)
+                clip = core.std.ModifyFrame(clip, clip, modify_func)
+                lock.acquire()
+                fut = clip.get_frame_async(0)
+
+                fut_ref = weakref.ref(fut)
+                self.assertIsNotNone(fut_ref())
+
+            thread = threading.Thread(target=lambda: pol._api.destroy_environment(env))
+
+            thread.start()
+            thread.join(0.25)
+
+            gc.collect()
+            gc.collect()
+            gc.collect()
+
+            # Environment should still be alive because wait_futures blocks destroy_environment
+            # until the pending future resolves.
+            self.assertIsNotNone(wrapped.env())
+            self.assertTrue(running)
+
+            lock.release()
+
+            thread.join()
+
+            # The future should have resolved successfully.
+            self.assertFalse(running)
+            self.assertIsNotNone(fut_ref())
+            self.assertIsNone(fut_ref().exception())
+            self.assertIsInstance(fut_ref().result(), vs.VideoFrame)
+
+            del env
+            gc.collect()
+            gc.collect()
+            gc.collect()
+
+            self.assertIsNone(wrapped.env())
 
 
 if __name__ == "__main__":
