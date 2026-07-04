@@ -55,8 +55,8 @@ static void transpose_block_dword(const uint32_t * VS_RESTRICT src, ptrdiff_t sr
 
 static void transpose_plane_byte(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height)
 {
-    const uint8_t *src_p = src;
-    uint8_t *dst_p = dst;
+    const uint8_t *src_p = (const uint8_t *)src;
+    uint8_t *dst_p = (uint8_t *)dst;
 
     unsigned width_floor = width - width % BLOCK_WIDTH_BYTE;
     unsigned height_floor = height - height % CACHELINE_SIZE_BYTE;
@@ -95,8 +95,8 @@ static void transpose_plane_byte(const void * VS_RESTRICT src, ptrdiff_t src_str
 
 static void transpose_plane_word(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height)
 {
-    const uint16_t *src_p = src;
-    uint16_t *dst_p = dst;
+    const uint16_t *src_p = (const uint16_t *)src;
+    uint16_t *dst_p = (uint16_t *)dst;
 
     unsigned width_floor = width - width % BLOCK_WIDTH_WORD;
     unsigned height_floor = height - height % CACHELINE_SIZE_WORD;
@@ -135,8 +135,8 @@ static void transpose_plane_word(const void * VS_RESTRICT src, ptrdiff_t src_str
 
 static void transpose_plane_dword(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height)
 {
-    const uint32_t *src_p = src;
-    uint32_t *dst_p = dst;
+    const uint32_t *src_p = (const uint32_t *)src;
+    uint32_t *dst_p = (uint32_t *)dst;
 
     unsigned width_floor = width - width % BLOCK_WIDTH_BYTE;
     unsigned height_floor = height - height % CACHELINE_SIZE_BYTE;

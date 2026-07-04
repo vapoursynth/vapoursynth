@@ -109,10 +109,55 @@ struct ISA_AVX512 {
         lo = _mm512_min_epu16(lo, maxval);
         _mm512_store_si512((void *)dst, lo);
     }
+
+    // Unaligned stores for the square-convolution interior (starts at an unaligned column).
+    static void storeu_ps(float *p, fvec v) { _mm512_storeu_ps(p, v); }
+    static void storeu_u8(uint8_t *dst, ivec lo, ivec hi, fvec scale, fvec bias, fvec mask)
+    {
+        fvec t;
+        t = scale_bias_sat(_mm512_cvtepi32_ps(lo), scale, bias, mask); lo = _mm512_cvtps_epi32(t);
+        t = scale_bias_sat(_mm512_cvtepi32_ps(hi), scale, bias, mask); hi = _mm512_cvtps_epi32(t);
+        lo = _mm512_packs_epi32(lo, hi);
+        lo = _mm512_packus_epi16(lo, lo);
+        ivec idx = _mm512_setr_epi64(0, 2, 4, 6, 1, 3, 5, 7);
+        lo = _mm512_permutexvar_epi64(idx, lo);
+        _mm256_storeu_si256((__m256i *)dst, _mm512_castsi512_si256(lo));
+    }
+    static void storeu_u16(uint16_t *dst, ivec lo, ivec hi, fvec scale, fvec bias, fvec mask, ivec maxval)
+    {
+        fvec t;
+        t = scale_bias_sat(_mm512_cvtepi32_ps(lo), scale, bias, mask); lo = _mm512_cvtps_epi32(t);
+        t = scale_bias_sat(_mm512_cvtepi32_ps(hi), scale, bias, mask); hi = _mm512_cvtps_epi32(t);
+        lo = _mm512_packus_epi32(lo, hi);
+        lo = _mm512_min_epu16(lo, maxval);
+        _mm512_storeu_si512((void *)dst, lo);
+    }
+
+    // int64 accumulation for the large-N (9x9/11x11) word path: per-row int32 sums are
+    // widened and spilled into int64 so the total (up to N*N*1023*65535) cannot overflow.
+    static ivec set1_i64(int64_t x) { return _mm512_set1_epi64(x); }
+    static ivec add64(ivec a, ivec b) { return _mm512_add_epi64(a, b); }
+    static ivec sub64(ivec a, ivec b) { return _mm512_sub_epi64(a, b); }
+    static ivec widenlo_i64(ivec x) { return _mm512_cvtepi32_epi64(_mm512_castsi512_si256(x)); }
+    static ivec widenhi_i64(ivec x) { return _mm512_cvtepi32_epi64(_mm512_extracti32x8_epi32(x, 1)); }
+    // Store 32 pixels held as four int64 accumulators. cvtepi64_ps (AVX-512DQ) is exact for our
+    // magnitudes, so this is bit-exact with the int64 C reference; packus re-linearises the scramble.
+    static void storeu_u16_i64(uint16_t *dst, ivec la, ivec lb, ivec ha, ivec hb, fvec scale, fvec bias, fvec mask, ivec maxval)
+    {
+        fvec flo = _mm512_insertf32x8(_mm512_castps256_ps512(_mm512_cvtepi64_ps(la)), _mm512_cvtepi64_ps(lb), 1);
+        fvec fhi = _mm512_insertf32x8(_mm512_castps256_ps512(_mm512_cvtepi64_ps(ha)), _mm512_cvtepi64_ps(hb), 1);
+        flo = scale_bias_sat(flo, scale, bias, mask); ivec ilo = _mm512_cvtps_epi32(flo);
+        fhi = scale_bias_sat(fhi, scale, bias, mask); ivec ihi = _mm512_cvtps_epi32(fhi);
+        ivec out = _mm512_packus_epi32(ilo, ihi);
+        out = _mm512_min_epu16(out, maxval);
+        _mm512_storeu_si512((void *)dst, out);
+    }
 };
 
 } // namespace
 
 #include "convolution_impl.h"
+#include "square_impl.h"
 
 VS_CONV_ENTRYPOINTS(ISA_AVX512, avx512)
+VS_SQUARE_ENTRYPOINTS(ISA_AVX512, avx512)

@@ -1,4 +1,7 @@
 r78:
+a compiler supporting c++20 is now required to build the project, compatibility has been verified with recent msvc, clang(-cl) and gcc
+added 7x7, 9x9 and 11x11 square convolution sizes
+added half-precision float support to all functions where it makes sense at all (basically only lut/lut2 excluded) in a portable way that generates fast code on both aarch64 and avx2 class x86
 all floating point masks passed to maskedmerge are now clamped to the 0-1 range before applying, this includes UV planes as well
 fixed possible memory leak audionode.output if an error is triggered early in the output process
 the core filters have now been split out and on x64 and are also compiled for avx2 and zen4 class cpus

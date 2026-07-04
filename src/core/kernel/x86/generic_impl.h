@@ -43,6 +43,7 @@
 #include <cmath>
 #include <cstdint>
 #include "../generic.h"
+#include "../../float16_helper.h"
 
 #ifdef _MSC_VER
 #define FORCE_INLINE inline __forceinline
@@ -913,6 +914,29 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
 #undef INVOKE
 }
 
+
+/* ---- half (float16) memory adapter ------------------------------------- */
+/*
+* Wraps any float op struct so the plane is loaded/stored as IEEE-754 binary16
+* via F16C, while every arithmetic op stays in float32 (the inherited op() runs
+* unchanged on B::fvec). Only instantiated in the AVX2/AVX-512 tiers, where F16C
+* is guaranteed; SSE2/no-SIMD reject half at the filter level. Stores round to
+* nearest-even to match the scalar half conversion.
+*/
+template <class FloatOp, class B>
+struct HalfMem : FloatOp {
+    using FloatOp::FloatOp;
+    // Half is stored as raw uint16_t (not _Float16): the F16C load/store intrinsics take an integer
+    // vector, and the two scalar edge conversions go through halfToFloat(), so this compiles under MSVC
+    // (no _Float16 type) while still using hardware F16C. Matches merge/planestats.
+    typedef uint16_t T;
+    static typename B::fvec load(const uint16_t *p) { return B::half_load(p); }
+    static typename B::fvec loadu(const uint16_t *p) { return B::half_loadu(p); }
+    static void store(uint16_t *p, typename B::fvec x) { B::half_store(p, x); }
+    static typename B::fvec shl_insert_lo(typename B::fvec x, uint16_t y) { return B::float_shl_insert_lo(x, halfToFloat(y)); }
+    static typename B::fvec shr_insert(typename B::fvec x, uint16_t y, unsigned idx) { return B::float_shr_insert(x, halfToFloat(y), idx); }
+};
+
 } // namespace
 
 
@@ -982,5 +1006,39 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
     VS_GENERIC_3X3_B(deflate, DeflateInflate, false, SUFFIX) \
     VS_GENERIC_3X3_B(inflate, DeflateInflate, true, SUFFIX) \
     VS_GENERIC_3X3(conv, Convolution, SUFFIX)
+
+/* Half (float16) 3x3 entry points -- reuse the float ops through HalfMem, which
+   loads/stores half and keeps arithmetic in float32. F16C tiers (avx2/avx512) only. */
+#define VS_GENERIC_3X3_HALF(kernel, TRAITS, SUFFIX) \
+    void vs_generic_3x3_##kernel##_half_##SUFFIX(const void *src, ptrdiff_t ss, void *dst, ptrdiff_t ds, const struct vs_generic_params *p, unsigned w, unsigned h) \
+    { filter_plane_3x3<HalfMem<TRAITS##Float<BACKEND>, BACKEND>>(src, ss, dst, ds, *p, w, h); }
+
+#define VS_GENERIC_3X3_B_HALF(kernel, TRAITS, FLAG, SUFFIX) \
+    void vs_generic_3x3_##kernel##_half_##SUFFIX(const void *src, ptrdiff_t ss, void *dst, ptrdiff_t ds, const struct vs_generic_params *p, unsigned w, unsigned h) \
+    { filter_plane_3x3<HalfMem<TRAITS##Float<BACKEND, FLAG>, BACKEND>>(src, ss, dst, ds, *p, w, h); }
+
+#define VS_GENERIC_MINMAX_HALF(kernel, MAX, SUFFIX) \
+    static void minmax_##kernel##_half_dispatch(const void *src, ptrdiff_t ss, void *dst, ptrdiff_t ds, const struct vs_generic_params *p, unsigned w, unsigned h) \
+    { \
+        switch (p->stencil) { \
+        case STENCIL_H: filter_plane_3x3<HalfMem<MinMaxFixedFloat<BACKEND, STENCIL_H, MAX>, BACKEND>>(src, ss, dst, ds, *p, w, h); break; \
+        case STENCIL_V: filter_plane_3x3<HalfMem<MinMaxFixedFloat<BACKEND, STENCIL_V, MAX>, BACKEND>>(src, ss, dst, ds, *p, w, h); break; \
+        case STENCIL_PLUS: filter_plane_3x3<HalfMem<MinMaxFixedFloat<BACKEND, STENCIL_PLUS, MAX>, BACKEND>>(src, ss, dst, ds, *p, w, h); break; \
+        case STENCIL_ALL: filter_plane_3x3<HalfMem<MinMaxFixedFloat<BACKEND, STENCIL_ALL, MAX>, BACKEND>>(src, ss, dst, ds, *p, w, h); break; \
+        default: filter_plane_3x3<HalfMem<MinMaxFloat<BACKEND, MAX>, BACKEND>>(src, ss, dst, ds, *p, w, h); break; \
+        } \
+    } \
+    void vs_generic_3x3_##kernel##_half_##SUFFIX(const void *src, ptrdiff_t ss, void *dst, ptrdiff_t ds, const struct vs_generic_params *p, unsigned w, unsigned h) \
+    { minmax_##kernel##_half_dispatch(src, ss, dst, ds, p, w, h); }
+
+#define VS_GENERIC_ENTRYPOINTS_HALF(SUFFIX) \
+    VS_GENERIC_3X3_B_HALF(prewitt, PrewittSobel, false, SUFFIX) \
+    VS_GENERIC_3X3_B_HALF(sobel, PrewittSobel, true, SUFFIX) \
+    VS_GENERIC_MINMAX_HALF(min, false, SUFFIX) \
+    VS_GENERIC_MINMAX_HALF(max, true, SUFFIX) \
+    VS_GENERIC_3X3_HALF(median, Median, SUFFIX) \
+    VS_GENERIC_3X3_B_HALF(deflate, DeflateInflate, false, SUFFIX) \
+    VS_GENERIC_3X3_B_HALF(inflate, DeflateInflate, true, SUFFIX) \
+    VS_GENERIC_3X3_HALF(conv, Convolution, SUFFIX)
 
 #endif // GENERIC_IMPL_H

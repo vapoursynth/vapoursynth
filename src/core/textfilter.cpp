@@ -90,6 +90,27 @@ static void scrawl_character_float(unsigned char c, uint8_t *image, ptrdiff_t st
     }
 }
 
+
+// Half (IEEE binary16) plane: 2 bytes/sample. Written directly as bit patterns -- the Core is C++17,
+// so float16_helper (std::bit_cast, C++20) is unavailable, and the two values needed are constants.
+static void scrawl_character_half(unsigned char c, uint8_t *image, ptrdiff_t stride, int dest_x, int dest_y, int scale) {
+    const uint16_t white = 0x3C00; // 1.0
+    const uint16_t black = 0x0000; // 0.0
+    int x, y;
+
+    for (y = 0; y < character_height * scale; y++) {
+        for (x = 0; x < character_width * scale; x++) {
+            if (__font_bitmap__[c * character_height + y/scale] & (1 << (7 - x/scale))) {
+                reinterpret_cast<uint16_t *>(image)[dest_y*stride/2 + dest_x + x] = white;
+            } else {
+                reinterpret_cast<uint16_t *>(image)[dest_y*stride/2 + dest_x + x] = black;
+            }
+        }
+
+        dest_y++;
+    }
+}
+
 static void sanitise_text(std::string& txt) {
     for (size_t i = 0; i < txt.length(); i++) {
         if (txt[i] == '\r') {
@@ -223,6 +244,8 @@ static void scrawl_text(std::string txt, int alignment, int scale, VSFrame *fram
 
                     if (frame_format->sampleType == stInteger) {
                         scrawl_character_int(iter[i], image, stride, dest_x, dest_y, frame_format->bitsPerSample, scale);
+                    } else if (frame_format->bitsPerSample == 16) {
+                        scrawl_character_half(iter[i], image, stride, dest_x, dest_y, scale);
                     } else {
                         scrawl_character_float(iter[i], image, stride, dest_x, dest_y, scale);
                     }
@@ -235,6 +258,8 @@ static void scrawl_text(std::string txt, int alignment, int scale, VSFrame *fram
                     if (plane == 0) {
                         if (frame_format->sampleType == stInteger) {
                             scrawl_character_int(iter[i], image, stride, dest_x, dest_y, frame_format->bitsPerSample, scale);
+                        } else if (frame_format->bitsPerSample == 16) {
+                            scrawl_character_half(iter[i], image, stride, dest_x, dest_y, scale);
                         } else {
                             scrawl_character_float(iter[i], image, stride, dest_x, dest_y, scale);
                         }
@@ -245,7 +270,11 @@ static void scrawl_text(std::string txt, int alignment, int scale, VSFrame *fram
                         int sub_dest_y = dest_y >> frame_format->subSamplingH;
                         int y;
 
-                        if (frame_format->bitsPerSample == 8) {
+                        if (frame_format->sampleType == stFloat && frame_format->bitsPerSample == 16) {
+                            for (y = 0; y < sub_h; y++) {
+                                vs_memset<uint16_t>(reinterpret_cast<uint16_t *>(image) + (y+sub_dest_y)*stride/2 + sub_dest_x, 0x0000, sub_w); // half 0.0
+                            }
+                        } else if (frame_format->bitsPerSample == 8) {
                             for (y = 0; y < sub_h; y++) {
                                 vs_memset<uint8_t>(image + (y+sub_dest_y)*stride + sub_dest_x, 128, sub_w);
                             }
@@ -669,8 +698,8 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
     d->vi = vsapi->getVideoInfo(d->node);
 
-    if (!is8to16orFloatFormat(d->vi->format, false, true)) {
-        vsapi->mapSetError(out, invalidVideoFormatMessage(d->vi->format, vsapi, "Text", false, true).c_str());
+    if (!is8to16orFloatFormat(d->vi->format, true)) {
+        vsapi->mapSetError(out, invalidVideoFormatMessage(d->vi->format, vsapi, "Text", true).c_str());
         vsapi->freeNode(d->node);
         return;
     }

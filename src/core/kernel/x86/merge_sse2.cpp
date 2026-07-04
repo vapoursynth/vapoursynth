@@ -28,9 +28,9 @@
 
 void vs_merge_byte_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    uint8_t *dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    uint8_t *dstp = (uint8_t *)dst;
     unsigned i;
 
     __m128i w = _mm_set1_epi16(weight.u);
@@ -60,9 +60,9 @@ void vs_merge_byte_sse2(const void *src1, const void *src2, void *dst, union vs_
 
 void vs_merge_word_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    uint16_t *dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *dstp = (uint16_t *)dst;
     unsigned i;
 
     unsigned w2 = VSMIN(VSMAX(weight.u, 1U), (1U << MERGESHIFT) - 1);
@@ -96,9 +96,9 @@ void vs_merge_word_sse2(const void *src1, const void *src2, void *dst, union vs_
 
 void vs_merge_float_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n)
 {
-    const float *srcp1 = src1;
-    const float *srcp2 = src2;
-    float *dstp = dst;
+    const float *srcp1 = (const float *)src1;
+    const float *srcp2 = (const float *)src2;
+    float *dstp = (float *)dst;
     unsigned i;
 
     __m128 w2 = _mm_set_ps1(weight.f);
@@ -142,10 +142,10 @@ static __m128i maskmerge_byte_half(__m128i v1, __m128i v2, __m128i w2)
 
 void vs_mask_merge_byte_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    const uint8_t *maskp = mask;
-    uint8_t *dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    const uint8_t *maskp = (const uint8_t *)mask;
+    uint8_t *dstp = (uint8_t *)dst;
     unsigned i;
 
     __m128i zero = _mm_setzero_si128();
@@ -167,10 +167,10 @@ void vs_mask_merge_byte_sse2(const void *src1, const void *src2, const void *mas
 
 void vs_mask_merge_word_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    const uint16_t *maskp = mask;
-    uint16_t *dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    const uint16_t *maskp = (const uint16_t *)mask;
+    uint16_t *dstp = (uint16_t *)dst;
     unsigned i;
 
     uint16_t maxval = (1U << depth) - 1;
@@ -210,10 +210,10 @@ void vs_mask_merge_word_sse2(const void *src1, const void *src2, const void *mas
 
 void vs_mask_merge_float_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const float *srcp1 = src1;
-    const float *srcp2 = src2;
-    const float *maskp = mask;
-    float *dstp = dst;
+    const float *srcp1 = (const float *)src1;
+    const float *srcp2 = (const float *)src2;
+    const float *maskp = (const float *)mask;
+    float *dstp = (float *)dst;
     unsigned i;
 
     const __m128 lo = _mm_setzero_ps();
@@ -255,10 +255,10 @@ static __m128i premul_byte_half_sse2(__m128i v1, __m128i v2, __m128i w2, __m128i
 
 void vs_mask_merge_premul_byte_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    const uint8_t *maskp = mask;
-    uint8_t *dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    const uint8_t *maskp = (const uint8_t *)mask;
+    uint8_t *dstp = (uint8_t *)dst;
     unsigned i;
 
     __m128i zero = _mm_setzero_si128();
@@ -280,10 +280,10 @@ void vs_mask_merge_premul_byte_sse2(const void *src1, const void *src2, const vo
 
 void vs_mask_merge_premul_word_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    const uint16_t *maskp = mask;
-    uint16_t *dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    const uint16_t *maskp = (const uint16_t *)mask;
+    uint16_t *dstp = (uint16_t *)dst;
     unsigned i;
 
     uint16_t maxval = (1U << depth) - 1;
@@ -333,10 +333,10 @@ void vs_mask_merge_premul_word_sse2(const void *src1, const void *src2, const vo
 
 void vs_mask_merge_premul_float_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n)
 {
-    const float *srcp1 = src1;
-    const float *srcp2 = src2;
-    const float *maskp = mask;
-    float *dstp = dst;
+    const float *srcp1 = (const float *)src1;
+    const float *srcp2 = (const float *)src2;
+    const float *maskp = (const float *)mask;
+    float *dstp = (float *)dst;
     unsigned i;
 
     const __m128 lo = _mm_setzero_ps();
@@ -357,9 +357,9 @@ void vs_mask_merge_premul_float_sse2(const void *src1, const void *src2, const v
 
 void vs_makediff_byte_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    uint8_t *dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    uint8_t *dstp = (uint8_t *)dst;
     unsigned i;
 
     (void)depth;
@@ -375,9 +375,9 @@ void vs_makediff_byte_sse2(const void *src1, const void *src2, void *dst, unsign
 
 void vs_makediff_word_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    uint16_t *dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *dstp = (uint16_t *)dst;
     unsigned i;
 
     int32_t maxval = (1 << (depth - 1)) - 1;
@@ -395,9 +395,9 @@ void vs_makediff_word_sse2(const void *src1, const void *src2, void *dst, unsign
 
 void vs_makediff_float_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const float *srcp1 = src1;
-    const float *srcp2 = src2;
-    float *dstp = dst;
+    const float *srcp1 = (const float *)src1;
+    const float *srcp2 = (const float *)src2;
+    float *dstp = (float *)dst;
     unsigned i;
 
     (void)depth;
@@ -411,9 +411,9 @@ void vs_makediff_float_sse2(const void *src1, const void *src2, void *dst, unsig
 
 void vs_mergediff_byte_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
-    uint8_t *dstp = dst;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    uint8_t *dstp = (uint8_t *)dst;
     unsigned i;
 
     (void)depth;
@@ -429,9 +429,9 @@ void vs_mergediff_byte_sse2(const void *src1, const void *src2, void *dst, unsig
 
 void vs_mergediff_word_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const uint16_t *srcp1 = src1;
-    const uint16_t *srcp2 = src2;
-    uint16_t *dstp = dst;
+    const uint16_t *srcp1 = (const uint16_t *)src1;
+    const uint16_t *srcp2 = (const uint16_t *)src2;
+    uint16_t *dstp = (uint16_t *)dst;
     unsigned i;
 
     int32_t maxval = (1 << (depth - 1)) - 1;
@@ -449,9 +449,9 @@ void vs_mergediff_word_sse2(const void *src1, const void *src2, void *dst, unsig
 
 void vs_mergediff_float_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
 {
-    const float *srcp1 = src1;
-    const float *srcp2 = src2;
-    float *dstp = dst;
+    const float *srcp1 = (const float *)src1;
+    const float *srcp2 = (const float *)src2;
+    float *dstp = (float *)dst;
     unsigned i;
 
     (void)depth;

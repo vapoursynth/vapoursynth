@@ -19,11 +19,12 @@
 */
 
 #include "planestats.h"
+#include "../float16_helper.h"
 #include "VSHelper4.h"
 
 void vs_plane_stats_1_byte_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp = src;
+    const uint8_t *srcp = (const uint8_t *)src;
     unsigned x, y;
     uint8_t imin = UINT8_MAX;
     uint8_t imax = 0;
@@ -46,7 +47,7 @@ void vs_plane_stats_1_byte_c(union vs_plane_stats *stats, const void *src, ptrdi
 
 void vs_plane_stats_1_word_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp = src;
+    const uint8_t *srcp = (const uint8_t *)src;
     unsigned x, y;
     unsigned imin = UINT_MAX;
     unsigned imax = 0;
@@ -69,7 +70,7 @@ void vs_plane_stats_1_word_c(union vs_plane_stats *stats, const void *src, ptrdi
 
 void vs_plane_stats_1_float_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp = src;
+    const uint8_t *srcp = (const uint8_t *)src;
     unsigned x, y;
     float fmin = INFINITY;
     float fmax = -INFINITY;
@@ -90,10 +91,36 @@ void vs_plane_stats_1_float_c(union vs_plane_stats *stats, const void *src, ptrd
     stats->f.acc = facc;
 }
 
+// float16: widen each sample to float32 via float16_helper (bit fiddling when
+// the target lacks F16C), then reuse the float32 reduction. min/max are float,
+// the running sum is double, matching the float path.
+void vs_plane_stats_1_half_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
+{
+    const uint8_t *srcp = (const uint8_t *)src;
+    unsigned x, y;
+    float fmin = INFINITY;
+    float fmax = -INFINITY;
+    double facc = 0;
+
+    for (y = 0; y < height; y++) {
+        for (x = 0; x < width; x++) {
+            float v = halfToFloat(((const uint16_t *)srcp)[x]);
+            fmin = VSMIN(fmin, v);
+            fmax = VSMAX(fmax, v);
+            facc += v;
+        }
+        srcp += stride;
+    }
+
+    stats->f.min = fmin;
+    stats->f.max = fmax;
+    stats->f.acc = facc;
+}
+
 void vs_plane_stats_2_byte_c(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
     unsigned x, y;
     uint8_t imin = UINT8_MAX;
     uint8_t imax = 0;
@@ -122,8 +149,8 @@ void vs_plane_stats_2_byte_c(union vs_plane_stats *stats, const void *src1, ptrd
 
 void vs_plane_stats_2_word_c(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
     unsigned x, y;
     unsigned imin = UINT_MAX;
     unsigned imax = 0;
@@ -151,8 +178,8 @@ void vs_plane_stats_2_word_c(union vs_plane_stats *stats, const void *src1, ptrd
 
 void vs_plane_stats_2_float_c(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
 {
-    const uint8_t *srcp1 = src1;
-    const uint8_t *srcp2 = src2;
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
     unsigned x, y;
     float fmin = INFINITY;
     float fmax = -INFINITY;
@@ -163,6 +190,35 @@ void vs_plane_stats_2_float_c(union vs_plane_stats *stats, const void *src1, ptr
         for (x = 0; x < width; x++) {
             float v = ((const float *)srcp1)[x];
             float t = ((const float *)srcp2)[x];
+            fmin = VSMIN(fmin, v);
+            fmax = VSMAX(fmax, v);
+            facc += v;
+            fdiffacc += fabsf(v - t);
+        }
+        srcp1 += src1_stride;
+        srcp2 += src2_stride;
+    }
+
+    stats->f.min = fmin;
+    stats->f.max = fmax;
+    stats->f.acc = facc;
+    stats->f.diffacc = fdiffacc;
+}
+
+void vs_plane_stats_2_half_c(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height)
+{
+    const uint8_t *srcp1 = (const uint8_t *)src1;
+    const uint8_t *srcp2 = (const uint8_t *)src2;
+    unsigned x, y;
+    float fmin = INFINITY;
+    float fmax = -INFINITY;
+    double facc = 0;
+    double fdiffacc = 0;
+
+    for (y = 0; y < height; y++) {
+        for (x = 0; x < width; x++) {
+            float v = halfToFloat(((const uint16_t *)srcp1)[x]);
+            float t = halfToFloat(((const uint16_t *)srcp2)[x]);
             fmin = VSMIN(fmin, v);
             fmax = VSMAX(fmax, v);
             facc += v;

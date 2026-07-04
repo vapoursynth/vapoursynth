@@ -41,10 +41,10 @@ struct vs_generic_params {
 	/* Minimum, Maximum. */
 	uint8_t stencil;
 
-	/* Convolution. */
+	/* Convolution. Square mode allows up to 11x11 = 121 coefficients. */
 	unsigned matrixsize;
-	int16_t matrix[25];
-	float matrixf[25];
+	int16_t matrix[121];
+	float matrixf[121];
 	float div;
 	float bias;
 	uint8_t saturate;
@@ -85,9 +85,39 @@ DECL_3x3(conv, byte, c)
 DECL_3x3(conv, word, c)
 DECL_3x3(conv, float, c)
 
+/* float16 (half) scalar fallback: 3x3 neighbourhood family + square 3x3
+   convolution. Portable (bit-manipulation conversions), no ISA requirement. */
+DECL_3x3(prewitt, half, c)
+DECL_3x3(sobel, half, c)
+DECL_3x3(min, half, c)
+DECL_3x3(max, half, c)
+DECL_3x3(median, half, c)
+DECL_3x3(deflate, half, c)
+DECL_3x3(inflate, half, c)
+DECL_3x3(conv, half, c)
+DECL(5x5_conv, half, c)
+DECL(7x7_conv, half, c)
+DECL(9x9_conv, half, c)
+DECL(11x11_conv, half, c)
+DECL(1d_conv_h, half, c)
+DECL(1d_conv_v, half, c)
+DECL(2d_conv_sep, half, c)
+
 DECL(5x5_conv, byte, c)
 DECL(5x5_conv, word, c)
 DECL(5x5_conv, float, c)
+
+DECL(7x7_conv, byte, c)
+DECL(7x7_conv, word, c)
+DECL(7x7_conv, float, c)
+
+DECL(9x9_conv, byte, c)
+DECL(9x9_conv, word, c)
+DECL(9x9_conv, float, c)
+
+DECL(11x11_conv, byte, c)
+DECL(11x11_conv, word, c)
+DECL(11x11_conv, float, c)
 
 DECL(1d_conv_h, byte, c)
 DECL(1d_conv_h, word, c)
@@ -233,6 +263,53 @@ DECL(1d_conv_v, float, avx512)
 DECL(2d_conv_sep, byte, avx512)
 DECL(2d_conv_sep, word, avx512)
 DECL(2d_conv_sep, float, avx512)
+
+/* float16 (half): 3x3 neighbourhood family + square 3x3 convolution only.
+   F16C tiers (avx2/avx512); arithmetic runs in float32. */
+DECL_3x3(prewitt, half, avx2)
+DECL_3x3(sobel, half, avx2)
+DECL_3x3(min, half, avx2)
+DECL_3x3(max, half, avx2)
+DECL_3x3(median, half, avx2)
+DECL_3x3(deflate, half, avx2)
+DECL_3x3(inflate, half, avx2)
+DECL_3x3(conv, half, avx2)
+
+DECL_3x3(prewitt, half, avx512)
+DECL_3x3(sobel, half, avx512)
+DECL_3x3(min, half, avx512)
+DECL_3x3(max, half, avx512)
+DECL_3x3(median, half, avx512)
+DECL_3x3(deflate, half, avx512)
+DECL_3x3(inflate, half, avx512)
+DECL_3x3(conv, half, avx512)
+
+/* Square (mode 's') NxN convolution SIMD, byte/word/float for 5x5..11x11. */
+DECL(5x5_conv, byte, avx2)
+DECL(7x7_conv, byte, avx2)
+DECL(9x9_conv, byte, avx2)
+DECL(11x11_conv, byte, avx2)
+DECL(5x5_conv, float, avx2)
+DECL(7x7_conv, float, avx2)
+DECL(9x9_conv, float, avx2)
+DECL(11x11_conv, float, avx2)
+DECL(5x5_conv, word, avx2)
+DECL(7x7_conv, word, avx2)
+DECL(9x9_conv, word, avx2)
+DECL(11x11_conv, word, avx2)
+
+DECL(5x5_conv, byte, avx512)
+DECL(7x7_conv, byte, avx512)
+DECL(9x9_conv, byte, avx512)
+DECL(11x11_conv, byte, avx512)
+DECL(5x5_conv, float, avx512)
+DECL(7x7_conv, float, avx512)
+DECL(9x9_conv, float, avx512)
+DECL(11x11_conv, float, avx512)
+DECL(5x5_conv, word, avx512)
+DECL(7x7_conv, word, avx512)
+DECL(9x9_conv, word, avx512)
+DECL(11x11_conv, word, avx512)
 
 #endif /* VS_TARGET_CPU_X86 */
 

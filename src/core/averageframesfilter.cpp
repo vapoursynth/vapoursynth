@@ -31,6 +31,7 @@
 #include <VapourSynth4.h>
 #include <VSHelper4.h>
 #include "filtershared.h"
+#include "float16_helper.h"
 #include "version.h"
 
 namespace {
@@ -125,6 +126,40 @@ static void average_float_runtime(const float *weights, const void * const *srcs
     }
 }
 
+template <unsigned N>
+static void average_half_n(const float *weights, const void * const *srcs, void *dst_, float rscale, unsigned w, unsigned h, ptrdiff_t stride)
+{
+    for (unsigned i = 0; i < h; ++i) {
+        uint16_t *__restrict dst = reinterpret_cast<uint16_t *>(static_cast<uint8_t *>(dst_) + static_cast<ptrdiff_t>(i) * stride);
+        const uint16_t * __restrict rows[N];
+        for (unsigned k = 0; k < N; ++k)
+            rows[k] = reinterpret_cast<const uint16_t *>(static_cast<const uint8_t *>(srcs[k]) + static_cast<ptrdiff_t>(i) * stride);
+
+        for (unsigned j = 0; j < w; ++j) {
+            float accum = 0.0f;
+            for (unsigned k = 0; k < N; ++k)
+                accum += halfToFloat(rows[k][j]) * weights[k];
+            dst[j] = floatToHalf(accum * rscale);
+        }
+    }
+}
+
+static void average_half_runtime(const float *weights, const void * const *srcs, unsigned num_srcs, void *dst_, float rscale, unsigned w, unsigned h, ptrdiff_t stride)
+{
+    for (unsigned i = 0; i < h; ++i) {
+        uint16_t *__restrict dst = reinterpret_cast<uint16_t *>(static_cast<uint8_t *>(dst_) + static_cast<ptrdiff_t>(i) * stride);
+
+        for (unsigned j = 0; j < w; ++j) {
+            float accum = 0.0f;
+            for (unsigned k = 0; k < num_srcs; ++k) {
+                const uint16_t *src = reinterpret_cast<const uint16_t *>(static_cast<const uint8_t *>(srcs[k]) + static_cast<ptrdiff_t>(i) * stride);
+                accum += halfToFloat(src[j]) * weights[k];
+            }
+            dst[j] = floatToHalf(accum * rscale);
+        }
+    }
+}
+
 template <class T>
 static void average_int(const int *weights, const void * const *srcs, unsigned num_srcs, void *dst, int scale, unsigned depth, unsigned w, unsigned h, ptrdiff_t stride, bool chroma)
 {
@@ -153,6 +188,21 @@ static void average_float(const float *weights, const void * const *srcs, unsign
     AVG_CASE(17) AVG_CASE(18) AVG_CASE(19) AVG_CASE(20) AVG_CASE(21) AVG_CASE(22) AVG_CASE(23) AVG_CASE(24)
     AVG_CASE(25) AVG_CASE(26) AVG_CASE(27) AVG_CASE(28) AVG_CASE(29) AVG_CASE(30) AVG_CASE(31)
     default: average_float_runtime(weights, srcs, num_srcs, dst, rscale, w, h, stride); return;
+    }
+#undef AVG_CASE
+}
+
+static void average_half(const float *weights, const void * const *srcs, unsigned num_srcs, void *dst, float scale, unsigned w, unsigned h, ptrdiff_t stride)
+{
+    float rscale = 1.0f / scale;
+
+#define AVG_CASE(k) case k: average_half_n<k>(weights, srcs, dst, rscale, w, h, stride); return;
+    switch (num_srcs) {
+    AVG_CASE(1)  AVG_CASE(2)  AVG_CASE(3)  AVG_CASE(4)  AVG_CASE(5)  AVG_CASE(6)  AVG_CASE(7)  AVG_CASE(8)
+    AVG_CASE(9)  AVG_CASE(10) AVG_CASE(11) AVG_CASE(12) AVG_CASE(13) AVG_CASE(14) AVG_CASE(15) AVG_CASE(16)
+    AVG_CASE(17) AVG_CASE(18) AVG_CASE(19) AVG_CASE(20) AVG_CASE(21) AVG_CASE(22) AVG_CASE(23) AVG_CASE(24)
+    AVG_CASE(25) AVG_CASE(26) AVG_CASE(27) AVG_CASE(28) AVG_CASE(29) AVG_CASE(30) AVG_CASE(31)
+    default: average_half_runtime(weights, srcs, num_srcs, dst, rscale, w, h, stride); return;
     }
 #undef AVG_CASE
 }
@@ -290,8 +340,10 @@ static const VSFrame *VS_CC averageFramesGetFrame(int n, int activationReason, v
 
             if (fi->bytesPerSample == 1)
                 average_int<uint8_t>(weights.data(), src_ptrs, num, dstp, static_cast<int>(d->scale), fi->bitsPerSample, pw, ph, pstride, chroma);
-            else if (fi->bytesPerSample == 2)
+            else if (fi->sampleType == stInteger && fi->bytesPerSample == 2)
                 average_int<uint16_t>(weights.data(), src_ptrs, num, dstp, static_cast<int>(d->scale), fi->bitsPerSample, pw, ph, pstride, chroma);
+            else if (fi->bytesPerSample == 2)
+                average_half(fweights.data(), src_ptrs, num, dstp, d->fscale, pw, ph, pstride);
             else
                 average_float(fweights.data(), src_ptrs, num, dstp, d->fscale, pw, ph, pstride);
         }
@@ -332,7 +384,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
 
         d->vi = *vsapi->getVideoInfo(d->nodes[0]);
         if (!is8to16orFloatFormat(d->vi.format))
-            throw std::runtime_error(invalidVideoFormatMessage(d->vi.format, vsapi));
+            throw std::runtime_error(invalidVideoFormatMessage(d->vi.format, vsapi, nullptr));
 
         for (size_t i = 1; i < d->nodes.size(); i++) {
             const VSVideoInfo *vi = vsapi->getVideoInfo(d->nodes[i]);

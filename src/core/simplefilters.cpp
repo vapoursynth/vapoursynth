@@ -18,6 +18,7 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include <cfloat>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -26,11 +27,13 @@
 #include <memory>
 #include <regex>
 #include <algorithm>
+#include <bit>
 #include "VSHelper4.h"
 #include "VSConstants4.h"
 #include "cpufeatures.h"
 #include "internalfilters.h"
 #include "filtershared.h"
+#include "float16_helper.h"
 #include "kernel/cpulevel.h"
 #include "kernel/planestats.h"
 #include "kernel/transpose.h"
@@ -44,50 +47,6 @@ static inline uint32_t doubleToUInt32S(double v) {
     if (v > UINT32_MAX)
         return UINT32_MAX;
     return (uint32_t)(v + 0.5);
-}
-
-static inline uint32_t bit_cast_uint32(float v) {
-    uint32_t ret;
-    memcpy(&ret, &v, sizeof(ret));
-    return ret;
-}
-
-static inline float bit_cast_float(uint32_t v) {
-    float ret;
-    memcpy(&ret, &v, sizeof(ret));
-    return ret;
-}
-
-static inline uint16_t floatToHalf(float x) {
-    float magic = bit_cast_float((uint32_t)15 << 23);
-    uint32_t inf = 255UL << 23;
-    uint32_t f16inf = 31UL << 23;
-    uint32_t sign_mask = 0x80000000UL;
-    uint32_t round_mask = ~0x0FFFU;
-    uint16_t ret;
-    uint32_t f = bit_cast_uint32(x);
-    uint32_t sign = f & sign_mask;
-    f ^= sign;
-
-    if (f >= inf) {
-        ret = f > inf ? 0x7E00 : 0x7C00;
-    } else {
-        f &= round_mask;
-        f = bit_cast_uint32(bit_cast_float(f)* magic);
-        f -= round_mask;
-
-        if (f > f16inf)
-            f = f16inf;
-
-        ret = (uint16_t)(f >> 13);
-    }
-
-    ret |= (uint16_t)(sign >> 16);
-    return ret;
-}
-
-static inline int isInfHalf(uint16_t v) {
-    return (v & 0x7C00) == 0x7C00;
 }
 
 static inline uint32_t doubleToIntPixelValue(double v, int bits, int *err) {
@@ -116,7 +75,7 @@ static inline uint32_t doubleToFloatPixelValue(double v, int *err) {
         return 0;
     }
 
-    return bit_cast_uint32(f);
+    return std::bit_cast<uint32_t>(f);
 }
 
 static inline uint16_t doubleToHalfPixelValue(double v, int *err) {
@@ -1754,7 +1713,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     d->vi.height = temp;
 
     if (!isConstantVideoFormat(&d->vi))
-        RETERROR("Transpose: clip must have constant format and dimensions and must not be CompatYUY2");
+        RETERROR("Transpose: clip must have constant format and dimensions");
 
     vsapi->queryVideoFormat(&d->vi.format, d->vi.format.colorFamily, d->vi.format.sampleType, d->vi.format.bitsPerSample, d->vi.format.subSamplingH, d->vi.format.subSamplingW, core);
     d->cpulevel = vs_get_cpulevel(core);
@@ -1808,17 +1767,33 @@ static const VSFrame *VS_CC pemVerifierGetFrame(int n, int activationReason, voi
                 }
                 break;
             case 2:
-                for (int y = 0; y < height; y++) {
-                    for (int x = 0; x < width; x++) {
-                        v = ((const uint16_t *)srcp)[x];
-                        if (v < d->lower[plane] || v > d->upper[plane]) {
-                            snprintf(strbuf, sizeof(strbuf), "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)v, plane, y, x, n);
-                            vsapi->setFilterError(strbuf, frameCtx);
-                            vsapi->freeFrame(src);
-                            return nullptr;
+                if (fi->sampleType == stFloat) {
+                    // float16: widen and bounds-check like the float32 path
+                    for (int y = 0; y < height; y++) {
+                        for (int x = 0; x < width; x++) {
+                            f = halfToFloat(((const uint16_t *)srcp)[x]);
+                            if (f < d->lowerf[plane] || f > d->upperf[plane] || !isfinite(f)) {
+                                snprintf(strbuf, sizeof(strbuf), "PEMVerifier: Illegal sample value (%f) at: plane: %d Y: %d, X: %d, Frame: %d", f, plane, y, x, n);
+                                vsapi->setFilterError(strbuf, frameCtx);
+                                vsapi->freeFrame(src);
+                                return nullptr;
+                            }
                         }
+                        srcp += src_stride;
                     }
-                    srcp += src_stride;
+                } else {
+                    for (int y = 0; y < height; y++) {
+                        for (int x = 0; x < width; x++) {
+                            v = ((const uint16_t *)srcp)[x];
+                            if (v < d->lower[plane] || v > d->upper[plane]) {
+                                snprintf(strbuf, sizeof(strbuf), "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)v, plane, y, x, n);
+                                vsapi->setFilterError(strbuf, frameCtx);
+                                vsapi->freeFrame(src);
+                                return nullptr;
+                            }
+                        }
+                        srcp += src_stride;
+                    }
                 }
                 break;
             case 4:
@@ -1933,14 +1908,14 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
             if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_2_byte_avx2; break;
-                case 2: func = vs_plane_stats_2_word_avx2; break;
+                case 2: func = fi->sampleType == stFloat ? vs_plane_stats_2_half_avx2 : vs_plane_stats_2_word_avx2; break;
                 case 4: func = vs_plane_stats_2_float_avx2; break;
                 }
             }
             if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_2_byte_sse2; break;
-                case 2: func = vs_plane_stats_2_word_sse2; break;
+                case 2: if (fi->sampleType == stInteger) func = vs_plane_stats_2_word_sse2; break;
                 case 4: func = vs_plane_stats_2_float_sse2; break;
                 }
             }
@@ -1948,7 +1923,7 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
             if (!func) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_2_byte_c; break;
-                case 2: func = vs_plane_stats_2_word_c; break;
+                case 2: func = fi->sampleType == stFloat ? vs_plane_stats_2_half_c : vs_plane_stats_2_word_c; break;
                 case 4: func = vs_plane_stats_2_float_c; break;
                 }
             }
@@ -1962,14 +1937,14 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
             if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_1_byte_avx2; break;
-                case 2: func = vs_plane_stats_1_word_avx2; break;
+                case 2: func = fi->sampleType == stFloat ? vs_plane_stats_1_half_avx2 : vs_plane_stats_1_word_avx2; break;
                 case 4: func = vs_plane_stats_1_float_avx2; break;
                 }
             }
             if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_1_byte_sse2; break;
-                case 2: func = vs_plane_stats_1_word_sse2; break;
+                case 2: if (fi->sampleType == stInteger) func = vs_plane_stats_1_word_sse2; break;
                 case 4: func = vs_plane_stats_1_float_sse2; break;
                 }
             }
@@ -1977,7 +1952,7 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
             if (!func) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_1_byte_c; break;
-                case 2: func = vs_plane_stats_1_word_c; break;
+                case 2: func = fi->sampleType == stFloat ? vs_plane_stats_1_half_c : vs_plane_stats_1_word_c; break;
                 case 4: func = vs_plane_stats_1_float_c; break;
                 }
             }

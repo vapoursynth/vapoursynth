@@ -156,18 +156,19 @@ static inline bool getProcessPlanesArg(const VSMap *in, VSMap *out, const char *
     return true;
 }
 
-static inline bool is8to16orFloatFormat(const VSVideoFormat &fi, bool allowHalfFloat = false, bool allowVariable = false) {
+static inline bool is8to16orFloatFormat(const VSVideoFormat &fi, bool allowVariable = false) {
     if (fi.colorFamily == cfUndefined && !allowVariable)
         return false;
 
-    if ((fi.sampleType == stInteger && fi.bitsPerSample > 16) || (fi.sampleType == stFloat && !(fi.bitsPerSample == 32 || (allowHalfFloat && fi.bitsPerSample == 16))))
+    // Half (16-bit float) is accepted everywhere now, so the only float restriction is 16/32-bit.
+    if ((fi.sampleType == stInteger && fi.bitsPerSample > 16) || (fi.sampleType == stFloat && !(fi.bitsPerSample == 32 || fi.bitsPerSample == 16)))
         return false;
 
     return true;
 }
 
 static inline std::string invalidVideoFormatMessage(
-    const VSVideoFormat &fi, const VSAPI *vsapi, const char * filterName = nullptr, bool allowHalfFloat = false, bool allowVariable = false,
+    const VSVideoFormat &fi, const VSAPI *vsapi, const char * filterName = nullptr, bool allowVariable = false,
     bool isFrame = false
 ) {
     std::ostringstream errorMessage;
@@ -180,12 +181,7 @@ static inline std::string invalidVideoFormatMessage(
     if (!allowVariable)
         errorMessage << " constant format";
 
-    errorMessage << " 8..16 bit integer or ";
-
-    if (allowHalfFloat)
-        errorMessage << "16-";
-
-    errorMessage << "32 bit float, passed " << videoFormatToName(fi, vsapi) << ".";
+    errorMessage << " 8..16 bit integer or 16-32 bit float, passed " << videoFormatToName(fi, vsapi) << ".";
 
     return errorMessage.str();
 }

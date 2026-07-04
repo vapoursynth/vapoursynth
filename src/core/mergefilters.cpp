@@ -137,6 +137,7 @@ static int resolveChromaLocation(const VSFrame *frame, const VSAPI *vsapi) {
 typedef struct {
     const VSVideoInfo *vi;
     bool chroma_dispatch;  // If true, nodes 2-7 are 6 per-chromaloc resizes
+    int cpulevel;
 } PreMultiplyDataExtra;
 
 typedef VariableNodeData<PreMultiplyDataExtra> PreMultiplyData;
@@ -193,12 +194,23 @@ static const VSFrame *VS_CC preMultiplyGetFrame(int n, int activationReason, voi
 
             void (*func)(const void *, const void *, void *, unsigned, unsigned, unsigned) = nullptr;
 
-            if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                func = vs_premultiply_byte_c;
-            else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                func = vs_premultiply_word_c;
-            else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                func = vs_premultiply_float_c;
+#ifdef VS_TARGET_CPU_X86
+            if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                    func = vs_premultiply_half_avx2;
+            }
+#endif
+
+            if (!func) {
+                if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
+                    func = vs_premultiply_byte_c;
+                else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
+                    func = vs_premultiply_word_c;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
+                    func = vs_premultiply_float_c;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                    func = vs_premultiply_half_c;
+            }
 
             if (!func)
                 continue;
@@ -240,6 +252,8 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
 
     if (!isConstantVideoFormat(d->vi) || !isConstantVideoFormat(alphavi) || d->vi->width != alphavi->width || d->vi->height != alphavi->height)
         RETERROR("PreMultiply: both clips must have the same constant format and dimensions");
+
+    d->cpulevel = vs_get_cpulevel(core);
 
     bool subsampled = (d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0);
     d->chroma_dispatch = subsampled;
@@ -323,6 +337,8 @@ static const VSFrame *VS_CC mergeGetFrame(int n, int activationReason, void *ins
                         func = vs_merge_word_avx2;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_merge_float_avx2;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_merge_half_avx2;
                 }
                 if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                     if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
@@ -340,6 +356,8 @@ static const VSFrame *VS_CC mergeGetFrame(int n, int activationReason, void *ins
                         func = vs_merge_word_c;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_merge_float_c;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_merge_half_c;
                 }
 
                 if (!func)
@@ -521,6 +539,8 @@ static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, voi
                         func = d->premultiplied ? vs_mask_merge_premul_word_avx2 : vs_mask_merge_word_avx2;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = d->premultiplied ? vs_mask_merge_premul_float_avx2 : vs_mask_merge_float_avx2;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = d->premultiplied ? vs_mask_merge_premul_half_avx2 : vs_mask_merge_half_avx2;
                 }
                 if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                     if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
@@ -538,6 +558,8 @@ static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, voi
                         func = d->premultiplied ? vs_mask_merge_premul_word_c : vs_mask_merge_word_c;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = d->premultiplied ? vs_mask_merge_premul_float_c : vs_mask_merge_float_c;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = d->premultiplied ? vs_mask_merge_premul_half_c : vs_mask_merge_half_c;
                 }
 
                 if (!func)
@@ -695,6 +717,8 @@ static const VSFrame *VS_CC makeDiffGetFrame(int n, int activationReason, void *
                         func = vs_makediff_word_avx2;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_makediff_float_avx2;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_makediff_half_avx2;
                 }
                 if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                     if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
@@ -712,6 +736,8 @@ static const VSFrame *VS_CC makeDiffGetFrame(int n, int activationReason, void *
                         func = vs_makediff_word_c;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_makediff_float_c;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_makediff_half_c;
                 }
 
                 if (!func)
@@ -795,6 +821,8 @@ static const VSFrame *VS_CC makeFullDiffGetFrame(int n, int activationReason, vo
             if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
                 if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
                     func = vs_makediff_float_avx2;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
+                    func = vs_makediff_half_avx2;
             }
             if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                 if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
@@ -811,6 +839,8 @@ static const VSFrame *VS_CC makeFullDiffGetFrame(int n, int activationReason, vo
                     func = vs_makefulldiff_word_dword_c;
                 else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
                     func = vs_makediff_float_c;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
+                    func = vs_makediff_half_c;
             }
 
             if (!func)
@@ -903,6 +933,8 @@ static const VSFrame *VS_CC mergeDiffGetFrame(int n, int activationReason, void 
                         func = vs_mergediff_word_avx2;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_mergediff_float_avx2;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_mergediff_half_avx2;
                 }
                 if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                     if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
@@ -920,6 +952,8 @@ static const VSFrame *VS_CC mergeDiffGetFrame(int n, int activationReason, void 
                         func = vs_mergediff_word_c;
                     else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
                         func = vs_mergediff_float_c;
+                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
+                        func = vs_mergediff_half_c;
                 }
 
                 if (!func)
@@ -1003,6 +1037,8 @@ static const VSFrame *VS_CC mergeFullDiffGetFrame(int n, int activationReason, v
             if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
                 if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
                     func = vs_mergediff_float_avx2;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
+                    func = vs_mergediff_half_avx2;
             }
             if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                 if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
@@ -1018,6 +1054,8 @@ static const VSFrame *VS_CC mergeFullDiffGetFrame(int n, int activationReason, v
                     func = vs_mergefulldiff_dword_word_c;
                 else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
                     func = vs_mergediff_float_c;
+                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
+                    func = vs_mergediff_half_c;
             }
 
             if (!func)

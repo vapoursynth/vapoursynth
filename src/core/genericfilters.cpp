@@ -33,6 +33,7 @@
 #include "VSHelper4.h"
 #include "cpufeatures.h"
 #include "filtershared.h"
+#include "float16_helper.h"
 #include "internalfilters.h"
 #include "kernel/cpulevel.h"
 #include "kernel/generic.h"
@@ -127,8 +128,8 @@ struct GenericDataExtra {
 
     // Convolution
     ConvolutionTypes convolution_type;
-    int matrix[25];
-    float matrixf[25];
+    int matrix[121];
+    float matrixf[121];
     int matrix_sum;
     int matrix_elements;
     float rdiv;
@@ -151,7 +152,7 @@ static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, voi
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
         if (!is8to16orFloatFormat(*fi)) {
-            vsapi->setFilterError(invalidVideoFormatMessage(*fi, vsapi, d->name, false, false, true).c_str(), frameCtx);
+            vsapi->setFilterError(invalidVideoFormatMessage(*fi, vsapi, d->name, false, true).c_str(), frameCtx);
             vsapi->freeFrame(src);
             return nullptr;
         }
@@ -177,8 +178,10 @@ static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, voi
                 for (int h = 0; h < height; h++) {
                     if (fi->bytesPerSample == 1)
                         OP::template processPlane<uint8_t>(srcp, dstp, width, opts);
-                    else if (fi->bytesPerSample == 2)
+                    else if (fi->sampleType == stInteger && fi->bytesPerSample == 2)
                         OP::template processPlane<uint16_t>(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, opts);
+                    else if (fi->bytesPerSample == 2)
+                        OP::processPlaneH(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, opts);
                     else if (fi->bytesPerSample == 4)
                         OP::template processPlaneF<float>(reinterpret_cast<const float *>(srcp), reinterpret_cast<float *>(dstp), width, opts);
                     srcp += stride;
@@ -201,8 +204,8 @@ static void templateInit(T& d, const char *name, bool allowVariableFormat, const
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
 
-    if (!is8to16orFloatFormat(d->vi->format, false, allowVariableFormat))
-        throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi));
+    if (!is8to16orFloatFormat(d->vi->format, allowVariableFormat))
+        throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi, nullptr, allowVariableFormat));
 
     getPlanesArg(in, d->process, vsapi);
 }
@@ -244,6 +247,14 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX512(const VSVideoFo
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_byte_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_byte_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_byte_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_byte_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_byte_avx512;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_byte_avx512;
             else if (d->convolution_type == ConvolutionVertical)
@@ -264,6 +275,14 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX512(const VSVideoFo
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_word_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_word_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_word_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_word_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_word_avx512;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_word_avx512;
             else if (d->convolution_type == ConvolutionVertical)
@@ -284,12 +303,34 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX512(const VSVideoFo
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_float_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_float_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_float_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_float_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_float_avx512;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_float_avx512;
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_float_avx512;
             else if (d->convolution_type == ConvolutionSeparable)
                 return vs_generic_2d_conv_sep_float_avx512;
+            break;
+        }
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 2) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_half_avx512;
+        case GenericSobel: return vs_generic_3x3_sobel_half_avx512;
+        case GenericMinimum: return vs_generic_3x3_min_half_avx512;
+        case GenericMaximum: return vs_generic_3x3_max_half_avx512;
+        case GenericMedian: return vs_generic_3x3_median_half_avx512;
+        case GenericDeflate: return vs_generic_3x3_deflate_half_avx512;
+        case GenericInflate: return vs_generic_3x3_inflate_half_avx512;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_half_avx512;
             break;
         }
     }
@@ -310,6 +351,14 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_byte_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_byte_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_byte_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_byte_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_byte_avx2;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_byte_avx2;
             else if (d->convolution_type == ConvolutionVertical)
@@ -330,6 +379,14 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_word_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_word_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_word_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_word_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_word_avx2;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_word_avx2;
             else if (d->convolution_type == ConvolutionVertical)
@@ -350,12 +407,34 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_float_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_float_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_float_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_float_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_float_avx2;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_float_avx2;
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_float_avx2;
             else if (d->convolution_type == ConvolutionSeparable)
                 return vs_generic_2d_conv_sep_float_avx2;
+            break;
+        }
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 2) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_half_avx2;
+        case GenericSobel: return vs_generic_3x3_sobel_half_avx2;
+        case GenericMinimum: return vs_generic_3x3_min_half_avx2;
+        case GenericMaximum: return vs_generic_3x3_max_half_avx2;
+        case GenericMedian: return vs_generic_3x3_median_half_avx2;
+        case GenericDeflate: return vs_generic_3x3_deflate_half_avx2;
+        case GenericInflate: return vs_generic_3x3_inflate_half_avx2;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_half_avx2;
             break;
         }
     }
@@ -445,6 +524,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
                 return vs_generic_3x3_conv_byte_c;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
                 return vs_generic_5x5_conv_byte_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_byte_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_byte_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_byte_c;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_byte_c;
             else if (d->convolution_type == ConvolutionVertical)
@@ -467,6 +552,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
                 return vs_generic_3x3_conv_word_c;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
                 return vs_generic_5x5_conv_word_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_word_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_word_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_word_c;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_word_c;
             else if (d->convolution_type == ConvolutionVertical)
@@ -489,12 +580,46 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
                 return vs_generic_3x3_conv_float_c;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
                 return vs_generic_5x5_conv_float_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_float_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_float_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_float_c;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_float_c;
             else if (d->convolution_type == ConvolutionVertical)
                 return vs_generic_1d_conv_v_float_c;
             else if (d->convolution_type == ConvolutionSeparable)
                 return vs_generic_2d_conv_sep_float_c;
+            break;
+        }
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 2) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_half_c;
+        case GenericSobel: return vs_generic_3x3_sobel_half_c;
+        case GenericMinimum: return vs_generic_3x3_min_half_c;
+        case GenericMaximum: return vs_generic_3x3_max_half_c;
+        case GenericMedian: return vs_generic_3x3_median_half_c;
+        case GenericDeflate: return vs_generic_3x3_deflate_half_c;
+        case GenericInflate: return vs_generic_3x3_inflate_half_c;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_half_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_half_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_half_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_half_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_half_c;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_half_c;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_half_c;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_half_c;
             break;
         }
     }
@@ -513,7 +638,7 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
 
         try {
             if (!is8to16orFloatFormat(*fi))
-                throw std::runtime_error(invalidVideoFormatMessage(*fi, vsapi, nullptr, false, false, true));
+                throw std::runtime_error(invalidVideoFormatMessage(*fi, vsapi, nullptr, false, true));
             if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
                 throw std::runtime_error("Width must be bigger than convolution radius.");
             if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
@@ -546,6 +671,16 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
 #endif
         if (!func)
             func = genericSelectC<op>(fi, d);
+
+        // Every accepted format resolves to at least a C kernel; guard anyway so
+        // an unexpected gap errors out instead of emitting an unprocessed
+        // (garbage) plane.
+        if (!func) {
+            vsapi->setFilterError((d->filter_name + ": no kernel available for the clip format"s).c_str(), frameCtx);
+            vsapi->freeFrame(dst);
+            vsapi->freeFrame(src);
+            return nullptr;
+        }
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             if (func && d->process[plane]) {
@@ -588,7 +723,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     try {
         if (!is8to16orFloatFormat(d->vi->format))
-            throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi));
+            throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi, nullptr));
 
         if (d->vi->height && d->vi->width)
             if (planeWidth(d->vi, d->vi->format.numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format.numPlanes - 1) < 4)
@@ -653,8 +788,8 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             if (err || mode == "s"s) {
                 d->convolution_type = ConvolutionSquare;
 
-                if (d->matrix_elements != 9 && d->matrix_elements != 25)
-                    throw std::runtime_error("When mode starts with 's', matrix must contain exactly 9 or exactly 25 numbers.");
+                if (d->matrix_elements != 9 && d->matrix_elements != 25 && d->matrix_elements != 49 && d->matrix_elements != 81 && d->matrix_elements != 121)
+                    throw std::runtime_error("When mode starts with 's', matrix must contain exactly 9, 25, 49, 81 or 121 numbers (a 3x3, 5x5, 7x7, 9x9 or 11x11 square).");
             } else if (mode == "h"s || mode == "v"s || mode == "hv"s || mode == "vh"s) {
                 if (mode == "h"s)
                     d->convolution_type = ConvolutionHorizontal;
@@ -753,6 +888,16 @@ struct InvertOp {
                 dst[w] = 1 - src[w];
         }
     }
+
+    static FORCE_INLINE void processPlaneH(const uint16_t * VS_RESTRICT src, uint16_t * VS_RESTRICT dst, unsigned width, const InvertOp &opts) {
+        if (opts.uv) {
+            for (unsigned w = 0; w < width; w++)
+                dst[w] = static_cast<uint16_t>(src[w] ^ 0x8000u);
+        } else {
+            for (unsigned w = 0; w < width; w++)
+                dst[w] = floatToHalf(1.0f - halfToFloat(src[w]));
+        }
+    }
 };
 
 static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -804,6 +949,11 @@ struct LimitOp {
     static FORCE_INLINE void processPlaneF(const T * VS_RESTRICT src, T * VS_RESTRICT dst, unsigned width, const LimitOp &opts) {
         for (unsigned w = 0; w < width; w++)
             dst[w] = std::min(opts.maxf, std::max(opts.minf, src[w]));
+    }
+
+    static FORCE_INLINE void processPlaneH(const uint16_t * VS_RESTRICT src, uint16_t * VS_RESTRICT dst, unsigned width, const LimitOp &opts) {
+        for (unsigned w = 0; w < width; w++)
+            dst[w] = floatToHalf(std::min(opts.maxf, std::max(opts.minf, halfToFloat(src[w]))));
     }
 };
 
@@ -868,6 +1018,13 @@ struct BinarizeOp {
                 dst[w] = opts.v0f;
             else
                 dst[w] = opts.v1f;
+    }
+
+    static FORCE_INLINE void processPlaneH(const uint16_t * VS_RESTRICT src, uint16_t * VS_RESTRICT dst, unsigned width, const BinarizeOp &opts) {
+        uint16_t v0h = floatToHalf(opts.v0f);
+        uint16_t v1h = floatToHalf(opts.v1f);
+        for (unsigned w = 0; w < width; w++)
+            dst[w] = (halfToFloat(src[w]) < opts.thrf) ? v0h : v1h;
     }
 };
 
@@ -1002,6 +1159,62 @@ static const VSFrame *VS_CC levelsGetframeF(int n, int activationReason, void *i
     return nullptr;
 }
 
+static const VSFrame *VS_CC levelsGetframeH(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    LevelsData *d = reinterpret_cast<LevelsData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
+        const int pl[] = { 0, 1, 2 };
+        const VSFrame *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
+        VSFrame *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+
+        for (int plane = 0; plane < fi->numPlanes; plane++) {
+            if (d->process[plane]) {
+                const uint16_t * VS_RESTRICT srcp = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(src, plane));
+                ptrdiff_t src_stride = vsapi->getStride(src, plane);
+                uint16_t * VS_RESTRICT dstp = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, plane));
+                ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
+                int h = vsapi->getFrameHeight(src, plane);
+                int w = vsapi->getFrameWidth(src, plane);
+
+                float gamma = d->gamma;
+                float range_in = 1.f / (d->max_in - d->min_in);
+                float range_out = d->max_out - d->min_out;
+                float min_in = d->min_in;
+                float min_out = d->min_out;
+                float max_in = d->max_in;
+
+                if (std::abs(d->gamma - 1.0f) < std::numeric_limits<float>::epsilon()) {
+                    float range_scale = range_out / (d->max_in - d->min_in);
+                    for (int hl = 0; hl < h; hl++) {
+                        for (int x = 0; x < w; x++)
+                            dstp[x] = floatToHalf((std::max(std::min(halfToFloat(srcp[x]), max_in) - min_in, 0.f)) * range_scale + min_out);
+
+                        dstp += dst_stride / sizeof(uint16_t);
+                        srcp += src_stride / sizeof(uint16_t);
+                    }
+                } else {
+                    for (int hl = 0; hl < h; hl++) {
+                        for (int x = 0; x < w; x++)
+                            dstp[x] = floatToHalf(std::pow((std::max(std::min(halfToFloat(srcp[x]), max_in) - min_in, 0.f)) * range_in, gamma) * range_out + min_out);
+
+                        dstp += dst_stride / sizeof(uint16_t);
+                        srcp += src_stride / sizeof(uint16_t);
+                    }
+                }
+            }
+        }
+
+        vsapi->freeFrame(src);
+        return dst;
+    }
+
+    return nullptr;
+}
+
 static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<LevelsData> d(new LevelsData(vsapi));
 
@@ -1059,8 +1272,10 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     if (d->vi->format.bytesPerSample == 1)
         vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframe<uint8_t>, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
-    else if (d->vi->format.bytesPerSample == 2)
+    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
         vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframe<uint16_t>, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
+    else if (d->vi->format.bytesPerSample == 2)
+        vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframeH, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
     else
         vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframeF<float>, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
     d.release();

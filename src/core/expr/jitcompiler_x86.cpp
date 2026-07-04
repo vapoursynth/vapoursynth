@@ -970,6 +970,8 @@ do { \
 public:
     explicit ExprCompiler128(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs), curLabel() {}
 
+    int pixelsPerIteration() const override { return 8; }
+
     std::pair<ProcessLineProc, size_t> getCode() override
     {
         size_t size;
@@ -1652,6 +1654,8 @@ do { \
 public:
     explicit ExprCompiler256(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs) {}
 
+    int pixelsPerIteration() const override { return 8; }
+
     std::pair<ProcessLineProc, size_t> getCode() override
     {
         size_t size;
@@ -1672,6 +1676,664 @@ public:
 constexpr ExprUnion ExprCompiler256::constData alignas(32)[53][8];
 
 
+// AVX-512 compiler: processes 16 lanes per iteration in a single ZMM register,
+// mirroring ExprCompiler256 op-for-op. The only structural difference is the
+// compare-based ops: AVX-512 vcmpps writes an opmask (k1) register, which is then
+// consumed directly -- a zero-masked broadcast of 1.0 for boolean results, and
+// vblendmps for ternary/select -- instead of expanding it back to a vector mask.
+class ExprCompiler512 : public ExprCompiler, private jitasm::function<void, ExprCompiler512, uint8_t *, const intptr_t *, intptr_t> {
+    typedef jitasm::function<void, ExprCompiler512, uint8_t *, const intptr_t *, intptr_t> jit;
+    friend struct jitasm::function<void, ExprCompiler512, uint8_t *, const intptr_t *, intptr_t>;
+    friend struct jitasm::function_cdecl<void, ExprCompiler512, uint8_t *, const intptr_t *, intptr_t>;
+
+    typedef jitasm::ZmmReg ZmmReg;
+    typedef jitasm::XmmReg XmmReg;
+    // Fixed opmask register used to hold a vcmpps result and predicate the masked ops that consume it.
+    // k-registers are caller-saved and chosen explicitly, so this is never register-allocated.
+    static constexpr jitasm::KReg k1 = jitasm::k1;
+
+    // Embedded broadcast ({1to16}) reads one dword per constant and replicates it across all 16 lanes in
+    // hardware, so the pool holds a single value each rather than sixteen copies. SPLAT is the identity here.
+#define SPLAT(x) (x)
+    static constexpr ExprUnion constData[53] = {
+        SPLAT(0x7FFFFFFF), // absmask
+        SPLAT(0x80000000), // negmask
+        SPLAT(0x7F), // x7F
+        SPLAT(0x00800000), // min_norm_pos
+        SPLAT(~0x7F800000), // inv_mant_mask
+        SPLAT(1.0f), // float_one
+        SPLAT(0.5f), // float_half
+        SPLAT(255.0f), // float_255
+        SPLAT(511.0f), // float_511
+        SPLAT(1023.0f), // float_1023
+        SPLAT(2047.0f), // float_2047
+        SPLAT(4095.0f), // float_4095
+        SPLAT(8191.0f), // float_8191
+        SPLAT(16383.0f), // float_16383
+        SPLAT(32767.0f), // float_32767
+        SPLAT(65535.0f), // float_65535
+        SPLAT(static_cast<int32_t>(0x80008000)), // i16min_epi16
+        SPLAT(static_cast<int32_t>(0xFFFF8000)), // i16min_epi32
+        SPLAT(88.3762626647949f), // exp_hi
+        SPLAT(-88.3762626647949f), // exp_lo
+        SPLAT(1.44269504088896341f), // log2e
+        SPLAT(0.693359375f), // exp_c1
+        SPLAT(-2.12194440e-4f), // exp_c2
+        SPLAT(1.9875691500E-4f), // exp_p0
+        SPLAT(1.3981999507E-3f), // exp_p1
+        SPLAT(8.3334519073E-3f), // exp_p2
+        SPLAT(4.1665795894E-2f), // exp_p3
+        SPLAT(1.6666665459E-1f), // exp_p4
+        SPLAT(5.0000001201E-1f), // exp_p5
+        SPLAT(0.707106781186547524f), // sqrt_1_2
+        SPLAT(7.0376836292E-2f), // log_p0
+        SPLAT(-1.1514610310E-1f), // log_p1
+        SPLAT(1.1676998740E-1f), // log_p2
+        SPLAT(-1.2420140846E-1f), // log_p3
+        SPLAT(+1.4249322787E-1f), // log_p4
+        SPLAT(-1.6668057665E-1f), // log_p5
+        SPLAT(+2.0000714765E-1f), // log_p6
+        SPLAT(-2.4999993993E-1f), // log_p7
+        SPLAT(+3.3333331174E-1f), // log_p8
+        SPLAT(0x3ea2f983), // float_invpi, 1/pi
+        SPLAT(0x4b400000), // float_rintf
+        SPLAT(0x40490000), // float_pi1
+        SPLAT(0x3a7da000), // float_pi2
+        SPLAT(0x34222000), // float_pi3
+        SPLAT(0x2cb4611a), // float_pi4
+        SPLAT(0xbe2aaaa6), // float_sinC3
+        SPLAT(0x3c08876a), // float_sinC5
+        SPLAT(0xb94fb7ff), // float_sinC7
+        SPLAT(0x362edef8), // float_sinC9
+        SPLAT(static_cast<int32_t>(0xBEFFFFE2)), // float_cosC2
+        SPLAT(0x3D2AA73C), // float_cosC4
+        SPLAT(static_cast<int32_t>(0XBAB58D50)), // float_cosC6
+        SPLAT(0x37C1AD76), // float_cosC8
+    };
+
+    struct ConstantIndex {
+        static constexpr int absmask = 0;
+        static constexpr int negmask = 1;
+        static constexpr int x7F = 2;
+        static constexpr int min_norm_pos = 3;
+        static constexpr int inv_mant_mask = 4;
+        static constexpr int float_one = 5;
+        static constexpr int float_half = 6;
+        static constexpr int float_255 = 7;
+        static constexpr int i16min_epi16 = 16;
+        static constexpr int i16min_epi32 = 17;
+        static constexpr int exp_hi = 18;
+        static constexpr int exp_lo = 19;
+        static constexpr int log2e = 20;
+        static constexpr int exp_c1 = 21;
+        static constexpr int exp_c2 = 22;
+        static constexpr int exp_p0 = 23;
+        static constexpr int exp_p1 = 24;
+        static constexpr int exp_p2 = 25;
+        static constexpr int exp_p3 = 26;
+        static constexpr int exp_p4 = 27;
+        static constexpr int exp_p5 = 28;
+        static constexpr int sqrt_1_2 = 29;
+        static constexpr int log_p0 = 30;
+        static constexpr int log_p1 = 31;
+        static constexpr int log_p2 = 32;
+        static constexpr int log_p3 = 33;
+        static constexpr int log_p4 = 34;
+        static constexpr int log_p5 = 35;
+        static constexpr int log_p6 = 36;
+        static constexpr int log_p7 = 37;
+        static constexpr int log_p8 = 38;
+        static constexpr int log_q1 = exp_c2;
+        static constexpr int log_q2 = exp_c1;
+        static constexpr int float_invpi = 39;
+        static constexpr int float_rintf = 40;
+        static constexpr int float_pi1 = 41;
+        static constexpr int float_pi2 = float_pi1 + 1;
+        static constexpr int float_pi3 = float_pi1 + 2;
+        static constexpr int float_pi4 = float_pi1 + 3;
+        static constexpr int float_sinC3 = 45;
+        static constexpr int float_sinC5 = float_sinC3 + 1;
+        static constexpr int float_sinC7 = float_sinC3 + 2;
+        static constexpr int float_sinC9 = float_sinC3 + 3;
+        static constexpr int float_cosC2 = 49;
+        static constexpr int float_cosC4 = float_cosC2 + 1;
+        static constexpr int float_cosC6 = float_cosC2 + 2;
+        static constexpr int float_cosC8 = float_cosC2 + 3;
+    };
+#undef SPLAT
+
+    std::vector<std::function<void(Reg, ZmmReg, Reg, std::unordered_map<int, ZmmReg> &)>> deferred;
+
+    CPUFeatures cpuFeatures;
+    int numInputs;
+    int curLabel;
+
+#define EMIT() [this, insn](Reg regptrs, ZmmReg zero, Reg constants, std::unordered_map<int, ZmmReg> &bytecodeRegs)
+
+    void load8(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.dst];
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            vpmovzxbd(t1, xmmword_ptr[a]);
+            vcvtdq2ps(t1, t1);
+        });
+    }
+
+    void load16(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.dst];
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            vpmovzxwd(t1, ymmword_ptr[a]);
+            vcvtdq2ps(t1, t1);
+        });
+    }
+
+    void loadF16(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.dst];
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            vcvtph2ps(t1, ymmword_ptr[a]);
+        });
+    }
+
+    void loadF32(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.dst];
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            vmovaps(t1, zmmword_ptr[a]);
+        });
+    }
+
+    void loadConst(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.dst];
+
+            if (insn.op.imm.f == 0.0f) {
+                vmovaps(t1, zero);
+                return;
+            }
+
+            XmmReg r1;
+            Reg32 a;
+            mov(a, insn.op.imm.u);
+            vmovd(r1, a);
+            vbroadcastss(t1, r1);
+        });
+    }
+
+    void store8(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            ZmmReg r1;
+            Reg a;
+            vminps(r1, t1, dword_ptr[constants + ConstantIndex::float_255 * 4]);
+            vmaxps(r1, r1, zero); // vpmovusdb treats the dword as unsigned, so clamp negatives to 0 here
+            vcvtps2dq(r1, r1);
+            mov(a, ptr[regptrs]);
+            vpmovusdb(xmmword_ptr[a], r1);
+        });
+    }
+
+    void store16(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            int depth = insn.op.imm.u;
+            auto t1 = bytecodeRegs[insn.src1];
+            ZmmReg r1;
+            Reg a;
+            vminps(r1, t1, dword_ptr[constants + (ConstantIndex::float_255 + depth - 8) * 4]);
+            vmaxps(r1, r1, zero); // vpmovusdw treats the dword as unsigned, so clamp negatives to 0 here
+            vcvtps2dq(r1, r1);
+            mov(a, ptr[regptrs]);
+            vpmovusdw(ymmword_ptr[a], r1);
+        });
+    }
+
+    void storeF16(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            Reg a;
+            mov(a, ptr[regptrs]);
+            vcvtps2ph(ymmword_ptr[a], t1, 0);
+        });
+    }
+
+    void storeF32(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            Reg a;
+            mov(a, ptr[regptrs]);
+            vmovaps(zmmword_ptr[a], t1);
+        });
+    }
+
+#define BINARYOP(op) \
+do { \
+  auto t1 = bytecodeRegs[insn.src1]; \
+  auto t2 = bytecodeRegs[insn.src2]; \
+  auto t3 = bytecodeRegs[insn.dst]; \
+  op(t3, t1, t2); \
+} while (0)
+    void add(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT() { BINARYOP(vaddps); });
+    }
+
+    void sub(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT() { BINARYOP(vsubps); });
+    }
+
+    void mul(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT() { BINARYOP(vmulps); });
+    }
+
+    void div(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT() { BINARYOP(vdivps); });
+    }
+
+    void fma(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            FMAType type = static_cast<FMAType>(insn.op.imm.u);
+
+            // t1 + t2 * t3
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.src3];
+            auto t4 = bytecodeRegs[insn.dst];
+
+#define FMA3(op) \
+do { \
+  if (insn.dst == insn.src1) { \
+    op##231ps(t1, t2, t3); \
+  } else if (insn.dst == insn.src2) { \
+    op##132ps(t2, t1, t3); \
+  } else if (insn.dst == insn.src3) { \
+    op##132ps(t3, t1, t2); \
+  } else { \
+    vmovaps(t4, t1); \
+    op##231ps(t4, t2, t3); \
+  } \
+} while (0)
+            switch (type) {
+            case FMAType::FMADD: FMA3(vfmadd); break;
+            case FMAType::FMSUB: FMA3(vfmsub); break;
+            case FMAType::FNMADD: FMA3(vfnmadd); break;
+            case FMAType::FNMSUB: FMA3(vfnmsub); break;
+            }
+#undef FMA3
+        });
+    }
+
+    void max(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT() { BINARYOP(vmaxps); });
+    }
+
+    void min(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT() { BINARYOP(vminps); });
+    }
+#undef BINARYOP
+
+    void sqrt(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            vmaxps(t2, t1, zero);
+            vsqrtps(t2, t2);
+        });
+    }
+
+    void abs(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            vandps(t2, t1, dword_ptr[constants + ConstantIndex::absmask * 4]);
+        });
+    }
+
+    void neg(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            vxorps(t2, t1, dword_ptr[constants + ConstantIndex::negmask * 4]);
+        });
+    }
+
+    void not_(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            // t2 = (t1 <= 0) ? 1.0 : 0.0 -- zero-masked broadcast of 1.0 under the vcmpps mask
+            vcmpps(k1, t1, zero, static_cast<int>(ComparisonType::LE));
+            vbroadcastss(t2, dword_ptr[constants + ConstantIndex::float_one * 4], k1.z());
+        });
+    }
+
+#define LOGICOP(op) \
+do { \
+  auto t1 = bytecodeRegs[insn.src1]; \
+  auto t2 = bytecodeRegs[insn.src2]; \
+  auto t3 = bytecodeRegs[insn.dst]; \
+  ZmmReg tmp; \
+  /* materialize each operand's truth as 1.0/0.0, then combine bitwise (1.0 & 1.0 == 1.0, etc.) */ \
+  vcmpps(k1, t1, zero, static_cast<int>(ComparisonType::NLE)); \
+  vbroadcastss(tmp, dword_ptr[constants + ConstantIndex::float_one * 4], k1.z()); \
+  vcmpps(k1, t2, zero, static_cast<int>(ComparisonType::NLE)); \
+  vbroadcastss(t3, dword_ptr[constants + ConstantIndex::float_one * 4], k1.z()); \
+  op(t3, t3, tmp); \
+} while (0)
+
+    void and_(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT() { LOGICOP(vandps); });
+    }
+
+    void or_(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT() { LOGICOP(vorps); });
+    }
+
+    void xor_(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT() { LOGICOP(vxorps); });
+    }
+#undef LOGICOP
+
+    void cmp(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.dst];
+            // t3 = (t1 CMP t2) ? 1.0 : 0.0
+            vcmpps(k1, t1, t2, insn.op.imm.u);
+            vbroadcastss(t3, dword_ptr[constants + ConstantIndex::float_one * 4], k1.z());
+        });
+    }
+
+    void ternary(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.src3];
+            auto t4 = bytecodeRegs[insn.dst];
+            // t4 = (t1 > 0) ? t2 : t3 -- vblendmps selects src2 under the mask, src1 elsewhere
+            vcmpps(k1, t1, zero, static_cast<int>(ComparisonType::NLE));
+            vblendmps(t4, t3, t2, k1);
+        });
+    }
+
+    void exp_(ZmmReg x, ZmmReg one, Reg constants)
+    {
+        ZmmReg fx, emm0, etmp, y, mask, z;
+        vminps(x, x, dword_ptr[constants + ConstantIndex::exp_hi * 4]);
+        vmaxps(x, x, dword_ptr[constants + ConstantIndex::exp_lo * 4]);
+        vbroadcastss(fx, dword_ptr[constants + ConstantIndex::log2e * 4]);
+        vfmadd213ps(fx, x, dword_ptr[constants + ConstantIndex::float_half * 4]);
+        vcvttps2dq(emm0, fx);
+        vcvtdq2ps(etmp, emm0);
+        vcmpps(k1, etmp, fx, static_cast<int>(ComparisonType::NLE));
+        vmovaps(mask, one, k1.z());   // mask = (etmp > fx) ? 1.0 : 0.0
+        vsubps(fx, etmp, mask);
+        vfnmadd231ps(x, fx, dword_ptr[constants + ConstantIndex::exp_c1 * 4]);
+        vfnmadd231ps(x, fx, dword_ptr[constants + ConstantIndex::exp_c2 * 4]);
+        vmulps(z, x, x);
+        vbroadcastss(y, dword_ptr[constants + ConstantIndex::exp_p0 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::exp_p1 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::exp_p2 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::exp_p3 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::exp_p4 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::exp_p5 * 4]);
+        vfmadd213ps(y, z, x);
+        vaddps(y, y, one);
+        vcvttps2dq(emm0, fx);
+        vpaddd(emm0, emm0, dword_ptr[constants + ConstantIndex::x7F * 4]);
+        vpslld(emm0, emm0, 23);
+        vmulps(x, y, emm0);
+    }
+
+    void log_(ZmmReg x, ZmmReg zero, ZmmReg one, Reg constants)
+    {
+        ZmmReg emm0, y, etmp, z;
+        vmaxps(x, x, dword_ptr[constants + ConstantIndex::min_norm_pos * 4]);
+        vpsrld(emm0, x, 23);
+        vandps(x, x, dword_ptr[constants + ConstantIndex::inv_mant_mask * 4]);
+        vorps(x, x, dword_ptr[constants + ConstantIndex::float_half * 4]);
+        vpsubd(emm0, emm0, dword_ptr[constants + ConstantIndex::x7F * 4]);
+        vcvtdq2ps(emm0, emm0);
+        vaddps(emm0, emm0, one);
+        vcmpps(k1, x, dword_ptr[constants + ConstantIndex::sqrt_1_2 * 4], static_cast<int>(ComparisonType::LT));
+        vmovaps(etmp, x, k1.z());        // etmp = (x < sqrt_1_2) ? x : 0
+        vsubps(x, x, one);
+        vsubps(emm0, emm0, one, k1.m()); // emm0 = (x < sqrt_1_2) ? emm0 - 1 : emm0
+        vaddps(x, x, etmp);
+        vmulps(z, x, x);
+        vbroadcastss(y, dword_ptr[constants + ConstantIndex::log_p0 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p1 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p2 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p3 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p4 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p5 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p6 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p7 * 4]);
+        vfmadd213ps(y, x, dword_ptr[constants + ConstantIndex::log_p8 * 4]);
+        vmulps(y, y, x);
+        vmulps(y, y, z);
+        vfmadd231ps(y, emm0, dword_ptr[constants + ConstantIndex::log_q1 * 4]);
+        vfnmadd231ps(y, z, dword_ptr[constants + ConstantIndex::float_half * 4]);
+        vaddps(x, x, y);
+        vfmadd231ps(x, emm0, dword_ptr[constants + ConstantIndex::log_q2 * 4]);
+    }
+
+    void exp(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            ZmmReg one;
+            vbroadcastss(one, dword_ptr[constants + ConstantIndex::float_one * 4]);
+            vmovaps(t1, t2);
+            exp_(t1, one, constants);
+        });
+    }
+
+    void log(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            ZmmReg one;
+            vbroadcastss(one, dword_ptr[constants + ConstantIndex::float_one * 4]);
+            vmovaps(t1, t2);
+            log_(t1, zero, one, constants);
+        });
+    }
+
+    void pow(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.dst];
+
+            ZmmReg r1, one;
+            vbroadcastss(one, dword_ptr[constants + ConstantIndex::float_one * 4]);
+            vmovaps(r1, t1);
+            log_(r1, zero, one, constants);
+            vmulps(r1, r1, t2);
+            exp_(r1, one, constants);
+            vmovaps(t3, r1);
+        });
+    }
+
+    void sincos_(bool issin, const ExprInstruction &insn, Reg constants, std::unordered_map<int, ZmmReg> &bytecodeRegs)
+    {
+        auto x = bytecodeRegs[insn.src1];
+        auto y = bytecodeRegs[insn.dst];
+        ZmmReg t1, sign, t2, t3, t4;
+        // Remove sign
+        vbroadcastss(t1, dword_ptr[constants + ConstantIndex::absmask * 4]);
+        if (issin) {
+            vmovaps(sign, t1);
+            vandnps(sign, sign, x);
+        } else {
+            vxorps(sign, sign, sign);
+        }
+        vandps(t1, t1, x);
+        // Range reduction
+        vbroadcastss(t3, dword_ptr[constants + ConstantIndex::float_rintf * 4]);
+        vmulps(t2, t1, dword_ptr[constants + ConstantIndex::float_invpi * 4]);
+        vaddps(t2, t2, t3);
+        vpslld(t4, t2, 31);
+        vxorps(sign, sign, t4);
+        vsubps(t2, t2, t3);
+        vfnmadd231ps(t1, t2, dword_ptr[constants + ConstantIndex::float_pi1 * 4]);
+        vfnmadd231ps(t1, t2, dword_ptr[constants + ConstantIndex::float_pi2 * 4]);
+        vfnmadd231ps(t1, t2, dword_ptr[constants + ConstantIndex::float_pi3 * 4]);
+        vfnmadd231ps(t1, t2, dword_ptr[constants + ConstantIndex::float_pi4 * 4]);
+        if (issin) {
+            // Y <- X + X * X^2 * (C3 + X^2 * (C5 + X^2 * (C7 + X^2 * C9)))
+            vmulps(t2, t1, t1);
+            vbroadcastss(t3, dword_ptr[constants + ConstantIndex::float_sinC7 * 4]);
+            vfmadd231ps(t3, t2, dword_ptr[constants + ConstantIndex::float_sinC9 * 4]);
+            vfmadd213ps(t3, t2, dword_ptr[constants + ConstantIndex::float_sinC5 * 4]);
+            vfmadd213ps(t3, t2, dword_ptr[constants + ConstantIndex::float_sinC3 * 4]);
+            vmulps(t3, t3, t2);
+            vfmadd231ps(t1, t1, t3);
+        } else {
+            // Y <- 1 + X^2 * (C2 + X^2 * (C4 + X^2 * (C6 + X^2 * C8)))
+            vmulps(t2, t1, t1);
+            vbroadcastss(t1, dword_ptr[constants + ConstantIndex::float_cosC6 * 4]);
+            vfmadd231ps(t1, t2, dword_ptr[constants + ConstantIndex::float_cosC8 * 4]);
+            vfmadd213ps(t1, t2, dword_ptr[constants + ConstantIndex::float_cosC4 * 4]);
+            vfmadd213ps(t1, t2, dword_ptr[constants + ConstantIndex::float_cosC2 * 4]);
+            vfmadd213ps(t1, t2, dword_ptr[constants + ConstantIndex::float_one * 4]);
+        }
+        // Apply sign
+        vxorps(y, t1, sign);
+    }
+
+    void sin(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT() { sincos_(true, insn, constants, bytecodeRegs); });
+    }
+
+    void cos(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT() { sincos_(false, insn, constants, bytecodeRegs); });
+    }
+
+    void main(Reg regptrs, Reg regoffs, Reg niter)
+    {
+        std::unordered_map<int, ZmmReg> bytecodeRegs;
+        ZmmReg zero;
+        vxorps(zero, zero, zero);
+        Reg constants;
+        mov(constants, (uintptr_t)constData);
+
+        L("wloop");
+
+        for (const auto &f : deferred) {
+            f(regptrs, zero, constants, bytecodeRegs);
+        }
+
+        // Advance the source/destination pointers. This is independent of the
+        // data width, so keep it on 256-bit moves like ExprCompiler256.
+#if UINTPTR_MAX > UINT32_MAX
+        for (int i = 0; i < numInputs / 4 + 1; i++) {
+            YmmReg r1, r2;
+            vmovdqu(r1, ymmword_ptr[regptrs + 32 * i]);
+            vmovdqu(r2, ymmword_ptr[regoffs + 32 * i]);
+            vpaddq(r1, r1, r2);
+            vmovdqu(ymmword_ptr[regptrs + 32 * i], r1);
+        }
+#else
+        for (int i = 0; i < numInputs / 8 + 1; i++) {
+            YmmReg r1, r2;
+            vmovdqu(r1, ymmword_ptr[regptrs + 32 * i]);
+            vmovdqu(r2, ymmword_ptr[regoffs + 32 * i]);
+            vpaddd(r1, r1, r2);
+            vmovdqu(ymmword_ptr[regptrs + 32 * i], r1);
+        }
+#endif
+
+        jit::sub(niter, 1);
+        jnz("wloop");
+    }
+
+public:
+    explicit ExprCompiler512(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs), curLabel()
+    {
+        // AVX-512 exposes 32 vector registers (zmm0-31), not 16. This tier is only
+        // selected when the aggregate avx512 feature (which includes AVX-512VL) is
+        // present, so it is safe to let the allocator use the upper 16 (EVEX-encoded,
+        // and all caller-saved) -- a large reduction in spills for complex exprs.
+        this->AllowExtendedVectorRegs(true);
+    }
+
+    int pixelsPerIteration() const override { return 16; }
+
+    std::pair<ProcessLineProc, size_t> getCode() override
+    {
+        size_t size;
+        if (jit::GetCode(true) && (size = GetCodeSize())) {
+#ifdef VS_TARGET_OS_WINDOWS
+            void *ptr = VirtualAlloc(nullptr, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+#else
+            void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+#endif
+            memcpy(ptr, jit::GetCode(true), size);
+            return { reinterpret_cast<ProcessLineProc>(ptr), size };
+        }
+        return { nullptr, 0 };
+    }
+#undef EMIT
+};
+
+constexpr ExprUnion ExprCompiler512::constData[53];
+
+
 } // namespace
 
 std::unique_ptr<ExprCompiler> make_xmm_compiler(int numInputs)
@@ -1682,6 +2344,11 @@ std::unique_ptr<ExprCompiler> make_xmm_compiler(int numInputs)
 std::unique_ptr<ExprCompiler> make_ymm_compiler(int numInputs)
 {
     return std::make_unique<ExprCompiler256>(numInputs);
+}
+
+std::unique_ptr<ExprCompiler> make_zmm_compiler(int numInputs)
+{
+    return std::make_unique<ExprCompiler512>(numInputs);
 }
 
 } // namespace expr
