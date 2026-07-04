@@ -247,6 +247,14 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX512(const VSVideoFo
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_byte_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_byte_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_byte_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_byte_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_byte_avx512;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_byte_avx512;
             else if (d->convolution_type == ConvolutionVertical)
@@ -267,6 +275,14 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX512(const VSVideoFo
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_word_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_word_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_word_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_word_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_word_avx512;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_word_avx512;
             else if (d->convolution_type == ConvolutionVertical)
@@ -287,6 +303,14 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX512(const VSVideoFo
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_float_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_float_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_float_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_float_avx512;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_float_avx512;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_float_avx512;
             else if (d->convolution_type == ConvolutionVertical)
@@ -327,6 +351,14 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_byte_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_byte_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_byte_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_byte_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_byte_avx2;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_byte_avx2;
             else if (d->convolution_type == ConvolutionVertical)
@@ -347,6 +379,14 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_word_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_word_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_word_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_word_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_word_avx2;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_word_avx2;
             else if (d->convolution_type == ConvolutionVertical)
@@ -367,6 +407,14 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoForm
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_float_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_float_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_float_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_float_avx2;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_float_avx2;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_float_avx2;
             else if (d->convolution_type == ConvolutionVertical)

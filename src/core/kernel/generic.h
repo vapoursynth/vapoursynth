@@ -284,6 +284,33 @@ DECL_3x3(deflate, half, avx512)
 DECL_3x3(inflate, half, avx512)
 DECL_3x3(conv, half, avx512)
 
+/* Square (mode 's') NxN convolution SIMD, byte/word/float for 5x5..11x11. */
+DECL(5x5_conv, byte, avx2)
+DECL(7x7_conv, byte, avx2)
+DECL(9x9_conv, byte, avx2)
+DECL(11x11_conv, byte, avx2)
+DECL(5x5_conv, float, avx2)
+DECL(7x7_conv, float, avx2)
+DECL(9x9_conv, float, avx2)
+DECL(11x11_conv, float, avx2)
+DECL(5x5_conv, word, avx2)
+DECL(7x7_conv, word, avx2)
+DECL(9x9_conv, word, avx2)
+DECL(11x11_conv, word, avx2)
+
+DECL(5x5_conv, byte, avx512)
+DECL(7x7_conv, byte, avx512)
+DECL(9x9_conv, byte, avx512)
+DECL(11x11_conv, byte, avx512)
+DECL(5x5_conv, float, avx512)
+DECL(7x7_conv, float, avx512)
+DECL(9x9_conv, float, avx512)
+DECL(11x11_conv, float, avx512)
+DECL(5x5_conv, word, avx512)
+DECL(7x7_conv, word, avx512)
+DECL(9x9_conv, word, avx512)
+DECL(11x11_conv, word, avx512)
+
 #endif /* VS_TARGET_CPU_X86 */
 
 #undef DECL_3x3

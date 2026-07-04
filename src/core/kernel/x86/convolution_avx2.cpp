@@ -101,10 +101,63 @@ struct ISA_AVX2 {
         lo = _mm256_min_epu16(lo, maxval);
         _mm256_store_si256((__m256i *)dst, lo);
     }
+
+    // Unaligned stores for the square-convolution interior (starts at an unaligned column).
+    static void storeu_ps(float *p, fvec v) { _mm256_storeu_ps(p, v); }
+    static void storeu_u8(uint8_t *dst, ivec lo, ivec hi, fvec scale, fvec bias, fvec mask)
+    {
+        fvec t;
+        t = scale_bias_sat(_mm256_cvtepi32_ps(lo), scale, bias, mask); lo = _mm256_cvtps_epi32(t);
+        t = scale_bias_sat(_mm256_cvtepi32_ps(hi), scale, bias, mask); hi = _mm256_cvtps_epi32(t);
+        lo = _mm256_packs_epi32(lo, hi);
+        lo = _mm256_packus_epi16(lo, lo);
+        lo = _mm256_permute4x64_epi64(lo, _MM_SHUFFLE(3, 1, 2, 0));
+        _mm_storeu_si128((__m128i *)dst, _mm256_castsi256_si128(lo));
+    }
+    static void storeu_u16(uint16_t *dst, ivec lo, ivec hi, fvec scale, fvec bias, fvec mask, ivec maxval)
+    {
+        fvec t;
+        t = scale_bias_sat(_mm256_cvtepi32_ps(lo), scale, bias, mask); lo = _mm256_cvtps_epi32(t);
+        t = scale_bias_sat(_mm256_cvtepi32_ps(hi), scale, bias, mask); hi = _mm256_cvtps_epi32(t);
+        lo = _mm256_packus_epi32(lo, hi);
+        lo = _mm256_min_epu16(lo, maxval);
+        _mm256_storeu_si256((__m256i *)dst, lo);
+    }
+
+    // int64 accumulation for the large-N (9x9/11x11) word path: per-row int32 sums are
+    // widened and spilled into int64 so the total (up to N*N*1023*65535) cannot overflow.
+    static ivec set1_i64(int64_t x) { return _mm256_set1_epi64x(x); }
+    static ivec add64(ivec a, ivec b) { return _mm256_add_epi64(a, b); }
+    static ivec sub64(ivec a, ivec b) { return _mm256_sub_epi64(a, b); }
+    static ivec widenlo_i64(ivec x) { return _mm256_cvtepi32_epi64(_mm256_castsi256_si128(x)); }
+    static ivec widenhi_i64(ivec x) { return _mm256_cvtepi32_epi64(_mm256_extracti128_si256(x, 1)); }
+    // int64 -> double, exact for |x| < 2^51 (here |x| < 2^34). AVX2 has no native int64->fp,
+    // so use the magic-number trick: bias into [0,2^52), OR into a 2^52-exponent double, subtract back.
+    static __m256d i64_to_pd(ivec x)
+    {
+        ivec u = _mm256_add_epi64(x, _mm256_set1_epi64x(1LL << 51));
+        u = _mm256_or_si256(u, _mm256_set1_epi64x(0x4330000000000000LL));
+        return _mm256_sub_pd(_mm256_castsi256_pd(u), _mm256_set1_pd(6755399441055744.0));
+    }
+    // Store 16 pixels held as four int64 accumulators (la/lb = pixel groups of accum_lo, ha/hb of accum_hi).
+    // The int64 -> float conversion is exact, so this stays bit-exact with the int64 C reference; packus
+    // re-linearises the same lane scramble as store_u16.
+    static void storeu_u16_i64(uint16_t *dst, ivec la, ivec lb, ivec ha, ivec hb, fvec scale, fvec bias, fvec mask, ivec maxval)
+    {
+        fvec flo = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(i64_to_pd(la))), _mm256_cvtpd_ps(i64_to_pd(lb)), 1);
+        fvec fhi = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm256_cvtpd_ps(i64_to_pd(ha))), _mm256_cvtpd_ps(i64_to_pd(hb)), 1);
+        flo = scale_bias_sat(flo, scale, bias, mask); ivec ilo = _mm256_cvtps_epi32(flo);
+        fhi = scale_bias_sat(fhi, scale, bias, mask); ivec ihi = _mm256_cvtps_epi32(fhi);
+        ivec out = _mm256_packus_epi32(ilo, ihi);
+        out = _mm256_min_epu16(out, maxval);
+        _mm256_storeu_si256((__m256i *)dst, out);
+    }
 };
 
 } // namespace
 
 #include "convolution_impl.h"
+#include "square_impl.h"
 
 VS_CONV_ENTRYPOINTS(ISA_AVX2, avx2)
+VS_SQUARE_ENTRYPOINTS(ISA_AVX2, avx2)
