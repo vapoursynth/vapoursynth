@@ -293,8 +293,8 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 throw std::runtime_error("All inputs must have the same number of planes and the same dimensions, subsampling included");
             }
 
-            if (!is8to16orFloatFormat(vi[i]->format, true))
-                throw std::runtime_error(invalidVideoFormatMessage(vi[i]->format, vsapi, nullptr, true));
+            if (!is8to16orFloatFormat(vi[i]->format))
+                throw std::runtime_error(invalidVideoFormatMessage(vi[i]->format, vsapi, nullptr));
         }
 
         d->vi = *vi[0];
@@ -308,8 +308,8 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             }
         }
 
-        if (!is8to16orFloatFormat(d->vi.format, true))
-            throw std::runtime_error(invalidVideoFormatMessage(d->vi.format, vsapi, nullptr, true));
+        if (!is8to16orFloatFormat(d->vi.format))
+            throw std::runtime_error(invalidVideoFormatMessage(d->vi.format, vsapi, nullptr));
 
         int nexpr = vsapi->mapNumElements(in, "expr");
         if (nexpr > d->vi.format.numPlanes)

@@ -151,8 +151,8 @@ static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, voi
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
-        if (!is8to16orFloatFormat(*fi, true)) {
-            vsapi->setFilterError(invalidVideoFormatMessage(*fi, vsapi, d->name, true, false, true).c_str(), frameCtx);
+        if (!is8to16orFloatFormat(*fi)) {
+            vsapi->setFilterError(invalidVideoFormatMessage(*fi, vsapi, d->name, false, true).c_str(), frameCtx);
             vsapi->freeFrame(src);
             return nullptr;
         }
@@ -199,13 +199,13 @@ static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, voi
 }
 
 template<typename T>
-static void templateInit(T& d, const char *name, bool allowVariableFormat, const VSMap *in, VSMap *out, const VSAPI *vsapi, bool allowHalfFloat = false) {
+static void templateInit(T& d, const char *name, bool allowVariableFormat, const VSMap *in, VSMap *out, const VSAPI *vsapi) {
     d->name = name;
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
 
-    if (!is8to16orFloatFormat(d->vi->format, allowHalfFloat, allowVariableFormat))
-        throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi, nullptr, allowHalfFloat, allowVariableFormat));
+    if (!is8to16orFloatFormat(d->vi->format, allowVariableFormat))
+        throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi, nullptr, allowVariableFormat));
 
     getPlanesArg(in, d->process, vsapi);
 }
@@ -565,8 +565,8 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
         try {
-            if (!is8to16orFloatFormat(*fi, true))
-                throw std::runtime_error(invalidVideoFormatMessage(*fi, vsapi, nullptr, true, false, true));
+            if (!is8to16orFloatFormat(*fi))
+                throw std::runtime_error(invalidVideoFormatMessage(*fi, vsapi, nullptr, false, true));
             if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
                 throw std::runtime_error("Width must be bigger than convolution radius.");
             if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
@@ -650,8 +650,8 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d->vi = vsapi->getVideoInfo(d->node);
 
     try {
-        if (!is8to16orFloatFormat(d->vi->format, true))
-            throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi, nullptr, true));
+        if (!is8to16orFloatFormat(d->vi->format))
+            throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi, nullptr));
 
         if (d->vi->height && d->vi->width)
             if (planeWidth(d->vi, d->vi->format.numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format.numPlanes - 1) < 4)
@@ -832,7 +832,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     std::unique_ptr<InvertData> d(new InvertData(vsapi));
 
     try {
-        templateInit(d, userData ? "InvertMask" : "Invert", true, in, out, vsapi, true);
+        templateInit(d, userData ? "InvertMask" : "Invert", true, in, out, vsapi);
         d->mask = !!userData;
     } catch (const std::runtime_error &error) {
         vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
@@ -889,7 +889,7 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     std::unique_ptr<LimitData> d(new LimitData(vsapi));
 
     try {
-        templateInit(d, "Limiter", false, in, out, vsapi, true);
+        templateInit(d, "Limiter", false, in, out, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "min", d->min, d->minf, RangeLower, false, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "max", d->max, d->maxf, RangeUpper, false, vsapi);
         for (int i = 0; i < 3; i++)
@@ -960,7 +960,7 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
     std::unique_ptr<BinarizeData> d(new BinarizeData(vsapi));
 
     try {
-        templateInit(d, userData ? "BinarizeMask" : "Binarize", false, in, out, vsapi, true);
+        templateInit(d, userData ? "BinarizeMask" : "Binarize", false, in, out, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "v0", d->v0, d->v0f, RangeLower, !!userData, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "v1", d->v1, d->v1f, RangeUpper, !!userData, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, RangeMiddle, !!userData, vsapi);
@@ -1147,7 +1147,7 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     std::unique_ptr<LevelsData> d(new LevelsData(vsapi));
 
     try {
-        templateInit(d, "Levels", false, in, out, vsapi, true);
+        templateInit(d, "Levels", false, in, out, vsapi);
     } catch (const std::runtime_error &error) {
         vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
         return;

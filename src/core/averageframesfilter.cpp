@@ -383,8 +383,8 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
             d->nodes.push_back(vsapi->mapGetNode(in, "clips", i, 0));
 
         d->vi = *vsapi->getVideoInfo(d->nodes[0]);
-        if (!is8to16orFloatFormat(d->vi.format, true))
-            throw std::runtime_error(invalidVideoFormatMessage(d->vi.format, vsapi, nullptr, true));
+        if (!is8to16orFloatFormat(d->vi.format))
+            throw std::runtime_error(invalidVideoFormatMessage(d->vi.format, vsapi, nullptr));
 
         for (size_t i = 1; i < d->nodes.size(); i++) {
             const VSVideoInfo *vi = vsapi->getVideoInfo(d->nodes[i]);

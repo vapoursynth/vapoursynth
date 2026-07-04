@@ -244,8 +244,8 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
 
     const VSVideoInfo *alphavi = vsapi->getVideoInfo(d->nodes[1]);
 
-    if (!is8to16orFloatFormat(d->vi->format, true))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "PreMultiply", true).c_str());
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "PreMultiply").c_str());
 
     if (alphavi->format.colorFamily != cfGray || alphavi->format.sampleType != d->vi->format.sampleType || alphavi->format.bitsPerSample != d->vi->format.bitsPerSample)
         RETERROR("PreMultiply: alpha clip must be grayscale and same sample format and bitdepth as main clip");
@@ -428,8 +428,8 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    if (!is8to16orFloatFormat(d->vi->format, true))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "Merge", true).c_str());
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "Merge").c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("Merge: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
@@ -603,8 +603,8 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     if (maskvi->format.numPlanes == 1)
         d->first_plane = 1;
 
-    if (!is8to16orFloatFormat(d->vi->format, true))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MaskedMerge", true).c_str());
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MaskedMerge").c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->nodes[1])))
         RETERROR(("MaskedMerge: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[1]), vsapi)).c_str());
@@ -769,8 +769,8 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
-    if (!is8to16orFloatFormat(d->vi->format, true))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MakeDiff", true).c_str());
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MakeDiff").c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("MakeDiff: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
@@ -872,8 +872,8 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
-    if (!is8to16orFloatFormat(d->vi->format, true))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MakeFullDiff", true).c_str());
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MakeFullDiff").c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("MakeFullDiff: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
@@ -985,8 +985,8 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
-    if (!is8to16orFloatFormat(d->vi->format, true))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MergeDiff", true).c_str());
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MergeDiff").c_str());
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("MergeDiff: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
@@ -1090,8 +1090,8 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
-    if (!is8to16orFloatFormat(d->vi->format, true))
-        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MergeFullDiff", true).c_str());
+    if (!is8to16orFloatFormat(d->vi->format))
+        RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "MergeFullDiff").c_str());
 
     if (!isConstantVideoFormat(d->vi) || !mergeFullDiffIsCompatibleVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("MergeFullDiff: both clips must have the same (bitdepth+1 for second clip) constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());

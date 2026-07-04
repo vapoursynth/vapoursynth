@@ -582,8 +582,8 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         int err;
         const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-        if (!is8to16orFloatFormat(vi->format, true))
-            throw std::runtime_error(invalidVideoFormatMessage(vi->format, vsapi, nullptr, true));
+        if (!is8to16orFloatFormat(vi->format))
+            throw std::runtime_error(invalidVideoFormatMessage(vi->format, vsapi, nullptr));
 
         bool process[3];
         getPlanesArg(in, process, vsapi);
