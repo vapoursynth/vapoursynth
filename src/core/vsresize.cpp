@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cstring>
 #include <algorithm>
+#include <atomic>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -465,9 +466,9 @@ class vszimg {
             dst_format(dst_format) {}
     };
 
-    std::shared_ptr<graph_data> m_graph_data_p;
-    std::shared_ptr<graph_data> m_graph_data_t;
-    std::shared_ptr<graph_data> m_graph_data_b;
+    std::atomic<std::shared_ptr<graph_data>> m_graph_data_p;
+    std::atomic<std::shared_ptr<graph_data>> m_graph_data_t;
+    std::atomic<std::shared_ptr<graph_data>> m_graph_data_b;
 
     VSNode *m_node = nullptr;
     VSVideoInfo m_vi{};
@@ -607,7 +608,7 @@ class vszimg {
     }
 
     std::shared_ptr<graph_data> get_graph_data(const zimg_image_format &src_format, const zimg_image_format &dst_format) {
-        std::shared_ptr<graph_data> *data_ptr;
+        std::atomic<std::shared_ptr<graph_data>> *data_ptr;
 
         if (src_format.field_parity == ZIMG_FIELD_TOP)
             data_ptr = &m_graph_data_t;
@@ -616,10 +617,10 @@ class vszimg {
         else
             data_ptr = &m_graph_data_p;
 
-        std::shared_ptr<graph_data> data = std::atomic_load(data_ptr);
+        std::shared_ptr<graph_data> data = data_ptr->load();
         if (!data || data->src_format != src_format || data->dst_format != dst_format) {
             data = std::make_shared<graph_data>(src_format, dst_format, m_params);
-            std::atomic_store(data_ptr, data);
+            data_ptr->store(data);
         }
 
         return data;

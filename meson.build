@@ -1,5 +1,5 @@
 project('VapourSynth', 'c', 'cpp', 'cython',
-    default_options: ['buildtype=release', 'b_lto=true', 'b_ndebug=if-release', 'c_std=c11', 'cpp_std=c++17'],
+    default_options: ['buildtype=release', 'b_lto=true', 'b_ndebug=if-release', 'c_std=c11', 'cpp_std=c++20'],
     license: 'LGPL-2.1-or-later',
     license_files: 'COPYING.LESSER',
     meson_version: '>=1.3.0',
@@ -34,6 +34,15 @@ endif
 # does not affect).
 if math_errno_args.length() > 0
     add_project_arguments(math_errno_args, language: ['c', 'cpp'])
+endif
+
+# Disable C++20 char8_t project-wide. The code predates char8_t and treats
+# std::filesystem u8string()/u8path() as std::string throughout; keeping char8_t off
+# preserves that behaviour under C++20 without any source changes.
+if cxx.get_argument_syntax() == 'gcc'
+    add_project_arguments('-fno-char8_t', language: 'cpp')
+else
+    add_project_arguments('/Zc:char8_t-', language: 'cpp')
 endif
 
 host_system = host_machine.system()
@@ -360,7 +369,6 @@ if enable_x86_asm
             cpp_args: march_levels[avx2_level.to_string()],
             gnu_symbol_visibility: 'hidden',
             include_directories: incdir,
-            override_options: ['cpp_std=c++20'],
         )
 
         vlibs += static_library('vsfilters_avx512_' + tag,
@@ -369,7 +377,6 @@ if enable_x86_asm
             cpp_args: march_levels[avx512_level.to_string()],
             gnu_symbol_visibility: 'hidden',
             include_directories: incdir,
-            override_options: ['cpp_std=c++20'],
         )
 
         shared_module(v['name'],
@@ -378,7 +385,6 @@ if enable_x86_asm
             cpp_args: march_levels[g.to_string()],
             gnu_symbol_visibility: 'hidden',
             include_directories: incdir,
-            override_options: ['cpp_std=c++20'],
             link_with: vlibs,
             name_prefix: '',
             install: true,
@@ -390,7 +396,6 @@ else
         filters_sources,
         gnu_symbol_visibility: 'hidden',
         include_directories: incdir,
-        override_options: ['cpp_std=c++20'],
         name_prefix: '',
         install: true,
         install_dir: install_dir,
