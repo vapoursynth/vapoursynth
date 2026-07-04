@@ -1688,7 +1688,9 @@ class ExprCompiler512 : public ExprCompiler, private jitasm::function<void, Expr
 
     typedef jitasm::ZmmReg ZmmReg;
     typedef jitasm::XmmReg XmmReg;
-    typedef jitasm::OpmaskReg OpmaskReg;
+    // Fixed opmask register used to hold a vcmpps result and predicate the masked ops that consume it.
+    // k-registers are caller-saved and chosen explicitly, so this is never register-allocated.
+    static constexpr jitasm::KReg k1 = jitasm::k1;
 
     // Embedded broadcast ({1to16}) reads one dword per constant and replicates it across all 16 lanes in
     // hardware, so the pool holds a single value each rather than sixteen copies. SPLAT is the identity here.
@@ -1805,10 +1807,6 @@ class ExprCompiler512 : public ExprCompiler, private jitasm::function<void, Expr
     CPUFeatures cpuFeatures;
     int numInputs;
     int curLabel;
-
-    // Fixed opmask register (k1) holding a vcmpps result, then used as the predicate for a
-    // masked broadcast / vblendmps (k1z()/k1m() in jitasm.h). Never allocated (see jitasm.h).
-    static OpmaskReg kreg() { return OpmaskReg(static_cast<jitasm::PhysicalRegID>(1)); }
 
 #define EMIT() [this, insn](Reg regptrs, ZmmReg zero, Reg constants, std::unordered_map<int, ZmmReg> &bytecodeRegs)
 
@@ -2041,8 +2039,8 @@ do { \
             auto t1 = bytecodeRegs[insn.src1];
             auto t2 = bytecodeRegs[insn.dst];
             // t2 = (t1 <= 0) ? 1.0 : 0.0 -- zero-masked broadcast of 1.0 under the vcmpps mask
-            vcmpps(kreg(), t1, zero, static_cast<int>(ComparisonType::LE));
-            vbroadcastss(k1z(t2), dword_ptr[constants + ConstantIndex::float_one * 4]);
+            vcmpps(k1, t1, zero, static_cast<int>(ComparisonType::LE));
+            vbroadcastss(t2, dword_ptr[constants + ConstantIndex::float_one * 4], k1.z());
         });
     }
 
@@ -2053,10 +2051,10 @@ do { \
   auto t3 = bytecodeRegs[insn.dst]; \
   ZmmReg tmp; \
   /* materialize each operand's truth as 1.0/0.0, then combine bitwise (1.0 & 1.0 == 1.0, etc.) */ \
-  vcmpps(kreg(), t1, zero, static_cast<int>(ComparisonType::NLE)); \
-  vbroadcastss(k1z(tmp), dword_ptr[constants + ConstantIndex::float_one * 4]); \
-  vcmpps(kreg(), t2, zero, static_cast<int>(ComparisonType::NLE)); \
-  vbroadcastss(k1z(t3), dword_ptr[constants + ConstantIndex::float_one * 4]); \
+  vcmpps(k1, t1, zero, static_cast<int>(ComparisonType::NLE)); \
+  vbroadcastss(tmp, dword_ptr[constants + ConstantIndex::float_one * 4], k1.z()); \
+  vcmpps(k1, t2, zero, static_cast<int>(ComparisonType::NLE)); \
+  vbroadcastss(t3, dword_ptr[constants + ConstantIndex::float_one * 4], k1.z()); \
   op(t3, t3, tmp); \
 } while (0)
 
@@ -2084,8 +2082,8 @@ do { \
             auto t2 = bytecodeRegs[insn.src2];
             auto t3 = bytecodeRegs[insn.dst];
             // t3 = (t1 CMP t2) ? 1.0 : 0.0
-            vcmpps(kreg(), t1, t2, insn.op.imm.u);
-            vbroadcastss(k1z(t3), dword_ptr[constants + ConstantIndex::float_one * 4]);
+            vcmpps(k1, t1, t2, insn.op.imm.u);
+            vbroadcastss(t3, dword_ptr[constants + ConstantIndex::float_one * 4], k1.z());
         });
     }
 
@@ -2098,8 +2096,8 @@ do { \
             auto t3 = bytecodeRegs[insn.src3];
             auto t4 = bytecodeRegs[insn.dst];
             // t4 = (t1 > 0) ? t2 : t3 -- vblendmps selects src2 under the mask, src1 elsewhere
-            vcmpps(kreg(), t1, zero, static_cast<int>(ComparisonType::NLE));
-            vblendmps(t4, t3, t2);
+            vcmpps(k1, t1, zero, static_cast<int>(ComparisonType::NLE));
+            vblendmps(t4, t3, t2, k1);
         });
     }
 
@@ -2112,8 +2110,8 @@ do { \
         vfmadd213ps(fx, x, dword_ptr[constants + ConstantIndex::float_half * 4]);
         vcvttps2dq(emm0, fx);
         vcvtdq2ps(etmp, emm0);
-        vcmpps(kreg(), etmp, fx, static_cast<int>(ComparisonType::NLE));
-        vmovaps(k1z(mask), one);   // mask = (etmp > fx) ? 1.0 : 0.0
+        vcmpps(k1, etmp, fx, static_cast<int>(ComparisonType::NLE));
+        vmovaps(mask, one, k1.z());   // mask = (etmp > fx) ? 1.0 : 0.0
         vsubps(fx, etmp, mask);
         vfnmadd231ps(x, fx, dword_ptr[constants + ConstantIndex::exp_c1 * 4]);
         vfnmadd231ps(x, fx, dword_ptr[constants + ConstantIndex::exp_c2 * 4]);
@@ -2142,10 +2140,10 @@ do { \
         vpsubd(emm0, emm0, dword_ptr[constants + ConstantIndex::x7F * 4]);
         vcvtdq2ps(emm0, emm0);
         vaddps(emm0, emm0, one);
-        vcmpps(kreg(), x, dword_ptr[constants + ConstantIndex::sqrt_1_2 * 4], static_cast<int>(ComparisonType::LT));
-        vmovaps(k1z(etmp), x);        // etmp = (x < sqrt_1_2) ? x : 0
+        vcmpps(k1, x, dword_ptr[constants + ConstantIndex::sqrt_1_2 * 4], static_cast<int>(ComparisonType::LT));
+        vmovaps(etmp, x, k1.z());        // etmp = (x < sqrt_1_2) ? x : 0
         vsubps(x, x, one);
-        vsubps(k1m(emm0), emm0, one); // emm0 = (x < sqrt_1_2) ? emm0 - 1 : emm0
+        vsubps(emm0, emm0, one, k1.m()); // emm0 = (x < sqrt_1_2) ? emm0 - 1 : emm0
         vaddps(x, x, etmp);
         vmulps(z, x, x);
         vbroadcastss(y, dword_ptr[constants + ConstantIndex::log_p0 * 4]);

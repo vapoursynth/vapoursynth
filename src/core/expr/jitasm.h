@@ -522,16 +522,26 @@ struct ZmmReg : Opd512 {
 	YmmReg as256() const { RegID id = reg_; id.type = R_TYPE_SYMBOLIC_YMM; return YmmReg(id); }
 };
 
-/// A ZMM destination annotated with an EVEX write-mask, e.g. `zmm{k1}{z}`. The mask register is
-/// always k1 (all ExprCompiler512 needs), so only `zero` (zero- vs merge-masking) is carried. Build
-/// one with k1z()/k1m(); masked instruction overloads translate it to E_EVEX_K1 (+ E_EVEX_Z).
-struct ZmmRegWithMask { ZmmReg reg; bool zero; };
-inline ZmmRegWithMask k1z(const ZmmReg& r) { return { r, true }; }   ///< r{k1}{z} (zero-masking)
-inline ZmmRegWithMask k1m(const ZmmReg& r) { return { r, false }; }  ///< r{k1}    (merge-masking)
+/// AVX-512 write-mask predicate for the EVEX aaa/z fields. `no` is the opmask register (0..7; 0 == k0 ==
+/// "no masking"); `zero` picks {z} zero-masking vs merge-masking. k-registers are caller-saved and chosen
+/// explicitly (never register-allocated), so a KReg is just this small value. EVEX instruction methods take
+/// one as a trailing default argument -- k0 (the default) is unmasked, k1.z() is {k1}{z}, k1 / k1.m() is {k1}.
+struct KReg {
+	uint8 no;
+	bool  zero;
+	constexpr KReg(int n = 0, bool z = false) : no((uint8)n), zero(z) {}
+	constexpr KReg z() const { return { no, true  }; }   ///< {k}{z} (zero-masking)
+	constexpr KReg m() const { return { no, false }; }   ///< {k}    (merge-masking)
+};
+inline constexpr KReg k0{0}, k1{1}, k2{2}, k3{3}, k4{4}, k5{5}, k6{6}, k7{7};
 
-/// AVX-512 opmask register (k0-k7). ExprCompiler512 only ever uses a fixed physical
-/// mask register (k1) as the destination of vcmpps and the predicate of the masked
-/// forms below, so no symbolic form / register allocation is needed.
+/// EVEX embedded rounding {er}: static rounding + SAE (ignores MXCSR). Valid only on reg-reg 512-bit float
+/// arithmetic (it repurposes L'L for the rounding mode). RC_MXCSR == no {er} (normal MXCSR rounding).
+enum RoundCtl : uint8 { RC_MXCSR = 0, RC_RN, RC_RD, RC_RU, RC_RZ };
+
+/// AVX-512 opmask register operand (k0-k7). Internal detail: the public API uses KReg; instructions that
+/// take a k register as a ModRM operand (vcmpps destination, vpmovm2d source) build an OpmaskReg from
+/// KReg.no. k-registers are caller-saved and chosen explicitly, so there is no symbolic form / allocation.
 struct OpmaskReg : Opd8 {
 	explicit OpmaskReg(PhysicalRegID id) : Opd8(RegID::CreatePhysicalRegID(R_TYPE_K, id)) {}
 };
@@ -1038,10 +1048,14 @@ enum EncodingFlags
 	// the element size (4 bytes), set in Encode(). Only valid with a memory r/m operand.
 	E_EVEX_BCAST32			= 1 << 19,
 
-	// EVEX write-mask. E_EVEX_K1 sets the opmask field aaa = 1 (predicate with k1); E_EVEX_Z sets z = 1
-	// (zero-masking, else merge-masking). Only k1 is expressible, which is all ExprCompiler512 needs.
-	E_EVEX_K1				= 1 << 20,
-	E_EVEX_Z				= 1 << 21,
+	// EVEX write-mask + embedded rounding, packed by evexK(KReg, RoundCtl) so instruction methods can take
+	// them as trailing default args. AAA (bits 20..22) = opmask register (0 == k0 == unmasked); Z = {z}
+	// zero-masking; ER + RC (bits 25..26) = embedded rounding {er} (forces b=1, L'L := RC, SAE implied).
+	E_EVEX_AAA_SHIFT		= 20,
+	E_EVEX_AAA_MASK			= 7 << 20,
+	E_EVEX_Z				= 1 << 23,
+	E_EVEX_ER				= 1 << 24,
+	E_EVEX_RC_SHIFT			= 25,
 
 	E_VEX_128		= E_VEX,
 	E_VEX_256		= E_VEX | E_VEX_L,
@@ -1084,6 +1098,14 @@ enum EncodingFlags
 	E_VEX_128_66_0F3A_W0 = E_VEX_128 | E_VEX_66_0F3A | E_VEX_W0,
 	E_VEX_256_66_0F3A_W0 = E_VEX_256 | E_VEX_66_0F3A | E_VEX_W0,
 };
+
+/// Pack a KReg write-mask predicate (+ optional embedded rounding) into the EVEX flag bits that EncodeEvex
+/// consumes. evexK(k0) == 0, so an unmasked instruction encodes exactly as before.
+static constexpr uint32 evexK(KReg k, RoundCtl rc = RC_MXCSR) {
+	return ((uint32)k.no << E_EVEX_AAA_SHIFT)
+	     | (k.zero ? (uint32)E_EVEX_Z : 0u)
+	     | (rc ? ((uint32)E_EVEX_ER | ((uint32)(rc - 1) << E_EVEX_RC_SHIFT)) : 0u);
+}
 
 /// Instruction
 struct Instr
@@ -1196,9 +1218,9 @@ struct Backend
 	}
 
 	/// Emit a partial EVEX prefix that re-encodes an existing VEX instruction to reach registers 16..31,
-	/// 512-bit vectors and (optionally) 32-bit embedded broadcast. No write-mask (aaa=0, z=0) or embedded
-	/// rounding / SAE; EVEX.b is set only for E_EVEX_BCAST32 (a memory-broadcast r/m). Vector length L'L
-	/// comes from the flag. Opcode map, pp, W and the encoded registers/vvvv match the VEX path.
+	/// 512-bit vectors, 32-bit embedded broadcast, an opmask write-mask (aaa/z), and embedded rounding {er}.
+	/// The write-mask/rounding fields come from evexK() (packed into the flag); EVEX.b is set for either
+	/// E_EVEX_BCAST32 (memory-broadcast r/m) or {er} (which also overrides L'L with the rounding mode).
 	void EncodeEvex(uint32 flag, const detail::Opd& reg, const detail::Opd& r_m, const detail::Opd& vex)
 	{
 		const uint32 reg_id = (reg.IsReg() && !reg.GetReg().IsInvalid()) ? reg.GetReg().id : 0;
@@ -1234,14 +1256,19 @@ struct Backend
 		const uint32 LL   = ((flag & E_EVEX_L2) ? 2u : 0u) | ((flag & E_VEX_L) ? 1u : 0u);	// L'L: 00/01/10 = 128/256/512
 		const uint32 vvvv = vex_id & 0xF;
 
-		const uint32 bcast = (flag & E_EVEX_BCAST32) ? 1u : 0u;										// EVEX.b: embedded broadcast
+		uint32 bcast      = (flag & E_EVEX_BCAST32) ? 1u : 0u;										// EVEX.b: embedded broadcast
 		const uint32 z    = (flag & E_EVEX_Z) ? 1u : 0u;											// EVEX.z: zero-masking
-		const uint32 aaa  = (flag & E_EVEX_K1) ? 1u : 0u;											// EVEX.aaa: opmask (k1, or k0=unmasked)
+		const uint32 aaa  = (flag & E_EVEX_AAA_MASK) >> E_EVEX_AAA_SHIFT;							// EVEX.aaa: opmask (0 = unmasked)
+		uint32 LLbits     = LL;
+		if (flag & E_EVEX_ER) {																		// embedded rounding {er}: b=1, L'L := RC (SAE implied)
+			bcast  = 1;
+			LLbits = (flag >> E_EVEX_RC_SHIFT) & 0x3;
+		}
 
 		db(0x62);
 		db(((~R & 1) << 7) | ((~X & 1) << 6) | ((~B & 1) << 5) | ((~Rp & 1) << 4) | (mm & 0x3));	// P0: R X B R' 0 0 m m
 		db((W << 7) | ((~vvvv & 0xF) << 3) | (1 << 2) | (pp & 0x3));									// P1: W vvvv 1 p p
-		db((z << 7) | (LL << 5) | (bcast << 4) | ((~Vp & 1) << 3) | (aaa & 0x7));					// P2: z L'L b V' aaa
+		db((z << 7) | (LLbits << 5) | (bcast << 4) | ((~Vp & 1) << 3) | (aaa & 0x7));				// P2: z L'L b V' aaa
 
 		force_disp32_ = r_m.IsMem();	// EVEX disp8 is scaled by the tuple size; make EncodeModRM use disp32
 	}
@@ -4973,87 +5000,81 @@ struct Frontend
 	void vxorps(const YmmReg& dst, const YmmReg& src1, const YmmReg& src2)	{AppendInstr(I_XORPS, 0x57, E_VEX_256_0F_WIG, W(dst), R(src2), R(src1));}
 	void vxorps(const YmmReg& dst, const YmmReg& src1, const Mem256& src2)	{AppendInstr(I_XORPS, 0x57, E_VEX_256_0F_WIG, W(dst), R(src2), R(src1));}
 
-	// ---- AVX-512 (ZMM, 512-bit, unmasked) : representative set mirroring the 256-bit forms ----
-	void vmovaps(const ZmmReg& dst, const ZmmReg& src)	{AppendInstr(I_MOVAPS, 0x28, E_VEX_512_0F_WIG, W(dst), R(src));}
-	void vmovaps(const ZmmReg& dst, const Mem512& src)	{AppendInstr(I_MOVAPS, 0x28, E_VEX_512_0F_WIG, W(dst), R(src));}
-	void vmovaps(const Mem512& dst, const ZmmReg& src)	{AppendInstr(I_MOVAPS, 0x29, E_VEX_512_0F_WIG, R(src), W(dst));}
-	void vaddps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_ADDPS, 0x58, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vaddps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_ADDPS, 0x58, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vsubps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_SUBPS, 0x5C, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vsubps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_SUBPS, 0x5C, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vmulps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_MULPS, 0x59, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vmulps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_MULPS, 0x59, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vdivps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_DIVPS, 0x5E, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vminps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_MINPS, 0x5D, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vmaxps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_MAXPS, 0x5F, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vandps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_ANDPS, 0x54, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vxorps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_XORPS, 0x57, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vpaddd(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_PADDD, 0xFE, E_VEX_512_66_0F_WIG, W(dst), R(src2), R(src1));}
-	void vpaddd(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_PADDD, 0xFE, E_VEX_512_66_0F_WIG, W(dst), R(src2), R(src1));}
-	void vpsubd(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_PSUBD, 0xFA, E_VEX_512_66_0F_WIG, W(dst), R(src2), R(src1));}
+	// ---- AVX-512 (ZMM, 512-bit). Every form takes a trailing KReg write-mask (default k0 == unmasked, so
+	// evexK(k0)==0 keeps the plain encoding byte-identical); reg-reg float-arithmetic forms also take a
+	// RoundCtl for embedded rounding {er}. Broadcast ({1to16}) is spelled with a Mem32 source. All the EVEX
+	// encodings verified byte-for-byte against llvm-mc/llvm-objdump.
+	void vmovaps(const ZmmReg& dst, const ZmmReg& src, KReg k = k0)	{AppendInstr(I_MOVAPS, 0x28, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src));}
+	void vmovaps(const ZmmReg& dst, const Mem512& src, KReg k = k0)	{AppendInstr(I_MOVAPS, 0x28, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src));}
+	void vmovaps(const Mem512& dst, const ZmmReg& src, KReg k = k0)	{AppendInstr(I_MOVAPS, 0x29, E_VEX_512_0F_WIG | evexK(k), R(src), W(dst));}
+	void vaddps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_ADDPS, 0x58, E_VEX_512_0F_WIG | evexK(k, rc), W(dst), R(src2), R(src1));}
+	void vaddps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_ADDPS, 0x58, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vsubps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_SUBPS, 0x5C, E_VEX_512_0F_WIG | evexK(k, rc), W(dst), R(src2), R(src1));}
+	void vsubps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_SUBPS, 0x5C, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vmulps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_MULPS, 0x59, E_VEX_512_0F_WIG | evexK(k, rc), W(dst), R(src2), R(src1));}
+	void vmulps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_MULPS, 0x59, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vdivps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_DIVPS, 0x5E, E_VEX_512_0F_WIG | evexK(k, rc), W(dst), R(src2), R(src1));}
+	void vminps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0)	{AppendInstr(I_MINPS, 0x5D, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vmaxps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0)	{AppendInstr(I_MAXPS, 0x5F, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vandps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0)	{AppendInstr(I_ANDPS, 0x54, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vxorps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0)	{AppendInstr(I_XORPS, 0x57, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vpaddd(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0)	{AppendInstr(I_PADDD, 0xFE, E_VEX_512_66_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vpaddd(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_PADDD, 0xFE, E_VEX_512_66_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vpsubd(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0)	{AppendInstr(I_PSUBD, 0xFA, E_VEX_512_66_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
 
-	// ---- AVX-512 additions for ExprCompiler512 -------------------------------
-	// EVEX.512 encodings; each verified byte-for-byte against llvm-mc/llvm-objdump.
-	void vsqrtps(const ZmmReg& dst, const ZmmReg& src)	{AppendInstr(I_SQRTPS, 0x51, E_VEX_512_0F_WIG, W(dst), R(src));}
-	void vorps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_ORPS, 0x56, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vorps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_ORPS, 0x56, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vandnps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_ANDNPS, 0x55, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vandps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_ANDPS, 0x54, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vxorps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_XORPS, 0x57, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vminps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_MINPS, 0x5D, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vmaxps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_MAXPS, 0x5F, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1));}
-	void vpsubd(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_PSUBD, 0xFA, E_VEX_512_66_0F_WIG, W(dst), R(src2), R(src1));}
-	void vcvtdq2ps(const ZmmReg& dst, const ZmmReg& src)	{AppendInstr(I_CVTDQ2PS, 0x5B, E_VEX_512_0F_WIG, W(dst), R(src));}
-	void vcvttps2dq(const ZmmReg& dst, const ZmmReg& src)	{AppendInstr(I_CVTTPS2DQ, 0x5B, E_VEX_512 | E_VEX_F3_0F | E_VEX_WIG, W(dst), R(src));}
-	void vcvtps2dq(const ZmmReg& dst, const ZmmReg& src)	{AppendInstr(I_CVTPS2DQ, 0x5B, E_VEX_512_66_0F_WIG, W(dst), R(src));}
-	void vpslld(const ZmmReg& dst, const ZmmReg& src, const Imm8& count)	{AppendInstr(I_PSLLD, 0x72, E_VEX_512_66_0F_WIG, Imm8(6), R(src), W(dst), count);}
-	void vpsrld(const ZmmReg& dst, const ZmmReg& src, const Imm8& count)	{AppendInstr(I_PSRLD, 0x72, E_VEX_512_66_0F_WIG, Imm8(2), R(src), W(dst), count);}
-	void vbroadcastss(const ZmmReg& dst, const XmmReg& src)	{AppendInstr(I_VBROADCASTSS, 0x18, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, W(dst), R(src));}
-	void vbroadcastss(const ZmmReg& dst, const Mem32& src)	{AppendInstr(I_VBROADCASTSS, 0x18, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, W(dst), R(src));}
-	void vpmovzxbd(const ZmmReg& dst, const Mem128& src)	{AppendInstr(I_PMOVZXBD, 0x31, E_VEX_512_66_0F38_WIG, W(dst), R(src));}
-	void vpmovzxwd(const ZmmReg& dst, const Mem256& src)	{AppendInstr(I_PMOVZXWD, 0x33, E_VEX_512_66_0F38_WIG, W(dst), R(src));}
-	void vcvtph2ps(const ZmmReg& dst, const Mem256& src)	{AppendInstr(I_VCVTPH2PS, 0x13, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, W(dst), R(src));}
-	void vcvtps2ph(const Mem256& dst, const ZmmReg& src, const Imm8& rc)	{AppendInstr(I_VCVTPS2PH, 0x1D, E_VEX_512 | E_VEX_66_0F3A | E_VEX_W0, R(src), W(dst), rc);}
-	void vpmovusdb(const Mem128& dst, const ZmmReg& src)	{AppendInstr(I_VPMOVUSDB, 0x11, E_VEX_512 | E_VEX_F3_0F38 | E_VEX_W0, R(src), W(dst));}
-	void vpmovusdw(const Mem256& dst, const ZmmReg& src)	{AppendInstr(I_VPMOVUSDW, 0x13, E_VEX_512 | E_VEX_F3_0F38 | E_VEX_W0, R(src), W(dst));}
-	void vfmadd132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFMADD132PS, 0x98, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	void vfmadd213ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFMADD213PS, 0xA8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	void vfmadd213ps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_VFMADD213PS, 0xA8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	void vfmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFMADD231PS, 0xB8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	void vfmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_VFMADD231PS, 0xB8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	void vfmsub132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFMSUB132PS, 0x9A, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	void vfmsub231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFMSUB231PS, 0xBA, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	void vfnmadd132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFNMADD132PS, 0x9C, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	void vfnmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFNMADD231PS, 0xBC, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	void vfnmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2)	{AppendInstr(I_VFNMADD231PS, 0xBC, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	void vfnmsub132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFNMSUB132PS, 0x9E, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	void vfnmsub231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VFNMSUB231PS, 0xBE, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0, RW(dst), R(src2), R(src1));}
-	// Packed compare -> opmask, then expand the mask to a 0xFFFFFFFF/0 vector.
-	void vcmpps(const OpmaskReg& dst, const ZmmReg& src1, const ZmmReg& src2, const Imm8& imm)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1), imm);}
-	void vcmpps(const OpmaskReg& dst, const ZmmReg& src1, const Mem512& src2, const Imm8& imm)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1), imm);}
-	void vpmovm2d(const ZmmReg& dst, const OpmaskReg& src)	{AppendInstr(I_VPMOVM2D, 0x38, E_VEX_512 | E_VEX_F3_0F38 | E_VEX_W0, W(dst), R(src));}
-	// EVEX write-masked forms (predicate = k1) that consume a vcmpps opmask directly instead of expanding
-	// it to a vector. k1z() = zero-masking (unmasked lanes cleared); k1m() = merge-masking (unmasked lanes
-	// keep dst, so dst is read-modify-write). vblendmps selects with the mask: dst = k1 ? src2 : src1.
-	void vmovaps(const ZmmRegWithMask& dst, const ZmmReg& src)	{AppendInstr(I_MOVAPS, 0x28, E_VEX_512_0F_WIG | E_EVEX_K1 | (dst.zero ? E_EVEX_Z : 0u), W(dst.reg), R(src));}
-	void vbroadcastss(const ZmmRegWithMask& dst, const Mem32& src)	{AppendInstr(I_VBROADCASTSS, 0x18, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_K1 | (dst.zero ? E_EVEX_Z : 0u), W(dst.reg), R(src));}
-	void vsubps(const ZmmRegWithMask& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_SUBPS, 0x5C, E_VEX_512_0F_WIG | E_EVEX_K1 | (dst.zero ? E_EVEX_Z : 0u), RW(dst.reg), R(src2), R(src1));}
-	void vblendmps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VBLENDMPS, 0x65, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_K1, W(dst), R(src2), R(src1));}
-	// EVEX embedded-broadcast forms ({1to16}): the r/m is a single dword the hardware broadcasts to all 16
-	// lanes, so ExprCompiler512 keeps one float per constant instead of a full 64-byte vector. Only the
-	// operations it actually applies to the constant pool are provided.
-	void vminps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_MINPS, 0x5D, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
-	void vmaxps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_MAXPS, 0x5F, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
-	void vmulps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_MULPS, 0x59, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
-	void vandps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_ANDPS, 0x54, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
-	void vorps (const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_ORPS,  0x56, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
-	void vxorps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_XORPS, 0x57, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
-	void vpaddd(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_PADDD, 0xFE, E_VEX_512_66_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
-	void vpsubd(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_PSUBD, 0xFA, E_VEX_512_66_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1));}
-	void vfmadd213ps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_VFMADD213PS, 0xA8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_BCAST32, RW(dst), R(src2), R(src1));}
-	void vfmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_VFMADD231PS, 0xB8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_BCAST32, RW(dst), R(src2), R(src1));}
-	void vfnmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2)	{AppendInstr(I_VFNMADD231PS, 0xBC, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_BCAST32, RW(dst), R(src2), R(src1));}
-	void vcmpps(const OpmaskReg& dst, const ZmmReg& src1, const Mem32& src2, const Imm8& imm)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG | E_EVEX_BCAST32, W(dst), R(src2), R(src1), imm);}
+	void vsqrtps(const ZmmReg& dst, const ZmmReg& src, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_SQRTPS, 0x51, E_VEX_512_0F_WIG | evexK(k, rc), W(dst), R(src));}
+	void vorps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0)	{AppendInstr(I_ORPS, 0x56, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vorps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_ORPS, 0x56, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vandnps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0)	{AppendInstr(I_ANDNPS, 0x55, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vandps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_ANDPS, 0x54, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vxorps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_XORPS, 0x57, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vminps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_MINPS, 0x5D, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vmaxps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_MAXPS, 0x5F, E_VEX_512_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vpsubd(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_PSUBD, 0xFA, E_VEX_512_66_0F_WIG | evexK(k), W(dst), R(src2), R(src1));}
+	void vcvtdq2ps(const ZmmReg& dst, const ZmmReg& src, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_CVTDQ2PS, 0x5B, E_VEX_512_0F_WIG | evexK(k, rc), W(dst), R(src));}
+	void vcvttps2dq(const ZmmReg& dst, const ZmmReg& src, KReg k = k0)	{AppendInstr(I_CVTTPS2DQ, 0x5B, E_VEX_512 | E_VEX_F3_0F | E_VEX_WIG | evexK(k), W(dst), R(src));}
+	void vcvtps2dq(const ZmmReg& dst, const ZmmReg& src, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_CVTPS2DQ, 0x5B, E_VEX_512_66_0F_WIG | evexK(k, rc), W(dst), R(src));}
+	void vpslld(const ZmmReg& dst, const ZmmReg& src, const Imm8& count, KReg k = k0)	{AppendInstr(I_PSLLD, 0x72, E_VEX_512_66_0F_WIG | evexK(k), Imm8(6), R(src), W(dst), count);}
+	void vpsrld(const ZmmReg& dst, const ZmmReg& src, const Imm8& count, KReg k = k0)	{AppendInstr(I_PSRLD, 0x72, E_VEX_512_66_0F_WIG | evexK(k), Imm8(2), R(src), W(dst), count);}
+	void vbroadcastss(const ZmmReg& dst, const XmmReg& src, KReg k = k0)	{AppendInstr(I_VBROADCASTSS, 0x18, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k), W(dst), R(src));}
+	void vbroadcastss(const ZmmReg& dst, const Mem32& src, KReg k = k0)	{AppendInstr(I_VBROADCASTSS, 0x18, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k), W(dst), R(src));}
+	void vpmovzxbd(const ZmmReg& dst, const Mem128& src, KReg k = k0)	{AppendInstr(I_PMOVZXBD, 0x31, E_VEX_512_66_0F38_WIG | evexK(k), W(dst), R(src));}
+	void vpmovzxwd(const ZmmReg& dst, const Mem256& src, KReg k = k0)	{AppendInstr(I_PMOVZXWD, 0x33, E_VEX_512_66_0F38_WIG | evexK(k), W(dst), R(src));}
+	void vcvtph2ps(const ZmmReg& dst, const Mem256& src, KReg k = k0)	{AppendInstr(I_VCVTPH2PS, 0x13, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k), W(dst), R(src));}
+	void vcvtps2ph(const Mem256& dst, const ZmmReg& src, const Imm8& imm, KReg k = k0)	{AppendInstr(I_VCVTPS2PH, 0x1D, E_VEX_512 | E_VEX_66_0F3A | E_VEX_W0 | evexK(k), R(src), W(dst), imm);}
+	void vpmovusdb(const Mem128& dst, const ZmmReg& src, KReg k = k0)	{AppendInstr(I_VPMOVUSDB, 0x11, E_VEX_512 | E_VEX_F3_0F38 | E_VEX_W0 | evexK(k), R(src), W(dst));}
+	void vpmovusdw(const Mem256& dst, const ZmmReg& src, KReg k = k0)	{AppendInstr(I_VPMOVUSDW, 0x13, E_VEX_512 | E_VEX_F3_0F38 | E_VEX_W0 | evexK(k), R(src), W(dst));}
+	void vfmadd132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_VFMADD132PS, 0x98, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k, rc), RW(dst), R(src2), R(src1));}
+	void vfmadd213ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_VFMADD213PS, 0xA8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k, rc), RW(dst), R(src2), R(src1));}
+	void vfmadd213ps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_VFMADD213PS, 0xA8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k), RW(dst), R(src2), R(src1));}
+	void vfmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_VFMADD231PS, 0xB8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k, rc), RW(dst), R(src2), R(src1));}
+	void vfmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_VFMADD231PS, 0xB8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k), RW(dst), R(src2), R(src1));}
+	void vfmsub132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_VFMSUB132PS, 0x9A, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k, rc), RW(dst), R(src2), R(src1));}
+	void vfmsub231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_VFMSUB231PS, 0xBA, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k, rc), RW(dst), R(src2), R(src1));}
+	void vfnmadd132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_VFNMADD132PS, 0x9C, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k, rc), RW(dst), R(src2), R(src1));}
+	void vfnmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_VFNMADD231PS, 0xBC, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k, rc), RW(dst), R(src2), R(src1));}
+	void vfnmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem512& src2, KReg k = k0)	{AppendInstr(I_VFNMADD231PS, 0xBC, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k), RW(dst), R(src2), R(src1));}
+	void vfnmsub132ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_VFNMSUB132PS, 0x9E, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k, rc), RW(dst), R(src2), R(src1));}
+	void vfnmsub231ps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k = k0, RoundCtl rc = RC_MXCSR)	{AppendInstr(I_VFNMSUB231PS, 0xBE, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k, rc), RW(dst), R(src2), R(src1));}
+	// Compare -> opmask (dst), optionally predicated by KReg k; vpmovm2d expands a mask back to a vector.
+	void vcmpps(KReg dst, const ZmmReg& src1, const ZmmReg& src2, const Imm8& imm, KReg k = k0)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG | evexK(k), W(OpmaskReg(static_cast<PhysicalRegID>(dst.no))), R(src2), R(src1), imm);}
+	void vcmpps(KReg dst, const ZmmReg& src1, const Mem512& src2, const Imm8& imm, KReg k = k0)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG | evexK(k), W(OpmaskReg(static_cast<PhysicalRegID>(dst.no))), R(src2), R(src1), imm);}
+	void vcmpps(KReg dst, const ZmmReg& src1, const Mem32& src2, const Imm8& imm, KReg k = k0)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG | E_EVEX_BCAST32 | evexK(k), W(OpmaskReg(static_cast<PhysicalRegID>(dst.no))), R(src2), R(src1), imm);}
+	void vpmovm2d(const ZmmReg& dst, KReg src)	{AppendInstr(I_VPMOVM2D, 0x38, E_VEX_512 | E_VEX_F3_0F38 | E_VEX_W0, W(dst), R(OpmaskReg(static_cast<PhysicalRegID>(src.no))));}
+	// Blend: dst = k ? src2 : src1. The mask is the selector, so it is required (no k0 default).
+	void vblendmps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2, KReg k)	{AppendInstr(I_VBLENDMPS, 0x65, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | evexK(k), W(dst), R(src2), R(src1));}
+	// Embedded-broadcast ({1to16}) source forms: the r/m is a single dword the hardware broadcasts to all 16 lanes.
+	void vminps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2, KReg k = k0)	{AppendInstr(I_MINPS, 0x5D, E_VEX_512_0F_WIG | E_EVEX_BCAST32 | evexK(k), W(dst), R(src2), R(src1));}
+	void vmaxps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2, KReg k = k0)	{AppendInstr(I_MAXPS, 0x5F, E_VEX_512_0F_WIG | E_EVEX_BCAST32 | evexK(k), W(dst), R(src2), R(src1));}
+	void vmulps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2, KReg k = k0)	{AppendInstr(I_MULPS, 0x59, E_VEX_512_0F_WIG | E_EVEX_BCAST32 | evexK(k), W(dst), R(src2), R(src1));}
+	void vandps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2, KReg k = k0)	{AppendInstr(I_ANDPS, 0x54, E_VEX_512_0F_WIG | E_EVEX_BCAST32 | evexK(k), W(dst), R(src2), R(src1));}
+	void vorps (const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2, KReg k = k0)	{AppendInstr(I_ORPS,  0x56, E_VEX_512_0F_WIG | E_EVEX_BCAST32 | evexK(k), W(dst), R(src2), R(src1));}
+	void vxorps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2, KReg k = k0)	{AppendInstr(I_XORPS, 0x57, E_VEX_512_0F_WIG | E_EVEX_BCAST32 | evexK(k), W(dst), R(src2), R(src1));}
+	void vpaddd(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2, KReg k = k0)	{AppendInstr(I_PADDD, 0xFE, E_VEX_512_66_0F_WIG | E_EVEX_BCAST32 | evexK(k), W(dst), R(src2), R(src1));}
+	void vpsubd(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2, KReg k = k0)	{AppendInstr(I_PSUBD, 0xFA, E_VEX_512_66_0F_WIG | E_EVEX_BCAST32 | evexK(k), W(dst), R(src2), R(src1));}
+	void vfmadd213ps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2, KReg k = k0)	{AppendInstr(I_VFMADD213PS, 0xA8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_BCAST32 | evexK(k), RW(dst), R(src2), R(src1));}
+	void vfmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2, KReg k = k0)	{AppendInstr(I_VFMADD231PS, 0xB8, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_BCAST32 | evexK(k), RW(dst), R(src2), R(src1));}
+	void vfnmadd231ps(const ZmmReg& dst, const ZmmReg& src1, const Mem32& src2, KReg k = k0)	{AppendInstr(I_VFNMADD231PS, 0xBC, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_BCAST32 | evexK(k), RW(dst), R(src2), R(src1));}
 	void vzeroall()		{AppendInstr(I_VZEROUPPER, 0x77, E_VEX_256_0F_WIG);}
 	void vzeroupper()	{AppendInstr(I_VZEROUPPER, 0x77, E_VEX_128_0F_WIG);}
 
