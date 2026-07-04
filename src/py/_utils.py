@@ -305,10 +305,10 @@ def vapoursynth_config():
             if py_symbol_path is not None:
                 f.truncate(0)
                 vsscript_path = _mangle_vsscript_key(get_vsscript())
-                contents[vsscript_path] = [sys.executable, py_symbol_path]
+                contents[vsscript_path] = [sys.executable, py_symbol_path, os.stat(sys.executable).st_mtime]
                 for key in contents:
                     f.write(
-                        f"{_escape_toml_string(key)} = [{_escape_toml_string(contents[key][0])},{_escape_toml_string(contents[key][1])}]\n".encode(
+                        f"{_escape_toml_string(key)} = [{_escape_toml_string(contents[key][0])},{_escape_toml_string(contents[key][1])},{_escape_toml_string(contents[key][2])}]\n".encode(
                             "utf-8"
                         )
                     )

@@ -143,7 +143,19 @@ static std::pair<std::filesystem::path, std::filesystem::path> readEnvConfig(con
         if (s1.first == vsscriptStrPath) {
             auto s2 = getTOMLString(line, s1.second);
             auto s3 = getTOMLString(line, s2.second);
-            return { std::filesystem::u8path(s2.first), std::filesystem::u8path(s3.first) };
+            auto s4 = getTOMLString(line, s3.second);
+
+#ifdef VS_TARGET_OS_WINDOWS
+            struct _stat64 buffer = {};
+            _wstati64(std::filesystem::u8path(s2.first).c_str(), &buffer);
+            time_t mtime = buffer.st_mtime;
+#else
+            struct stat buffer = {};
+            stat(std::filesystem::u8path(s2.first).c_str(), &buffer);
+            time_t mtime = buffer.st_mtime;
+#endif
+            if (atoll(s4.first.c_str()) == mtime)
+                return { std::filesystem::u8path(s2.first), std::filesystem::u8path(s3.first) };
         }
     }
     return {};
