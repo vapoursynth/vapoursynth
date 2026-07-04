@@ -21,9 +21,9 @@
 #include <cmath>
 #include <cstring>
 #include <algorithm>
-#include <atomic>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -466,9 +466,10 @@ class vszimg {
             dst_format(dst_format) {}
     };
 
-    std::atomic<std::shared_ptr<graph_data>> m_graph_data_p;
-    std::atomic<std::shared_ptr<graph_data>> m_graph_data_t;
-    std::atomic<std::shared_ptr<graph_data>> m_graph_data_b;
+    std::shared_ptr<graph_data> m_graph_data_p;
+    std::shared_ptr<graph_data> m_graph_data_t;
+    std::shared_ptr<graph_data> m_graph_data_b;
+    std::mutex m_graph_mutex;
 
     VSNode *m_node = nullptr;
     VSVideoInfo m_vi{};
@@ -608,7 +609,7 @@ class vszimg {
     }
 
     std::shared_ptr<graph_data> get_graph_data(const zimg_image_format &src_format, const zimg_image_format &dst_format) {
-        std::atomic<std::shared_ptr<graph_data>> *data_ptr;
+        std::shared_ptr<graph_data> *data_ptr;
 
         if (src_format.field_parity == ZIMG_FIELD_TOP)
             data_ptr = &m_graph_data_t;
@@ -617,13 +618,14 @@ class vszimg {
         else
             data_ptr = &m_graph_data_p;
 
-        std::shared_ptr<graph_data> data = data_ptr->load();
-        if (!data || data->src_format != src_format || data->dst_format != dst_format) {
-            data = std::make_shared<graph_data>(src_format, dst_format, m_params);
-            data_ptr->store(data);
-        }
+        // A plain mutex rather than std::atomic<std::shared_ptr<>>: that C++20 type is still
+        // unimplemented in libc++ (macOS). The lock is only held briefly on the cache-hit path,
+        // and it also dedupes the (rare) graph rebuild across threads.
+        std::lock_guard<std::mutex> lock(m_graph_mutex);
+        if (!*data_ptr || (*data_ptr)->src_format != src_format || (*data_ptr)->dst_format != dst_format)
+            *data_ptr = std::make_shared<graph_data>(src_format, dst_format, m_params);
 
-        return data;
+        return *data_ptr;
     }
 
     void set_frame_params(const frame_params &params, zimg_image_format *format) {
