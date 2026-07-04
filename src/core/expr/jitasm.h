@@ -522,9 +522,16 @@ struct ZmmReg : Opd512 {
 	YmmReg as256() const { RegID id = reg_; id.type = R_TYPE_SYMBOLIC_YMM; return YmmReg(id); }
 };
 
+/// A ZMM destination annotated with an EVEX write-mask, e.g. `zmm{k1}{z}`. The mask register is
+/// always k1 (all ExprCompiler512 needs), so only `zero` (zero- vs merge-masking) is carried. Build
+/// one with k1z()/k1m(); masked instruction overloads translate it to E_EVEX_K1 (+ E_EVEX_Z).
+struct ZmmRegWithMask { ZmmReg reg; bool zero; };
+inline ZmmRegWithMask k1z(const ZmmReg& r) { return { r, true }; }   ///< r{k1}{z} (zero-masking)
+inline ZmmRegWithMask k1m(const ZmmReg& r) { return { r, false }; }  ///< r{k1}    (merge-masking)
+
 /// AVX-512 opmask register (k0-k7). ExprCompiler512 only ever uses a fixed physical
-/// mask register (k1) as the transient destination of vcmpps, immediately expanded
-/// back to a vector with vpmovm2d, so no symbolic form / register allocation is needed.
+/// mask register (k1) as the destination of vcmpps and the predicate of the masked
+/// forms below, so no symbolic form / register allocation is needed.
 struct OpmaskReg : Opd8 {
 	explicit OpmaskReg(PhysicalRegID id) : Opd8(RegID::CreatePhysicalRegID(R_TYPE_K, id)) {}
 };
@@ -951,7 +958,7 @@ enum InstrID
 	I_RDFSBASE, I_RDGSBASE, I_RDRAND, I_WRFSBASE, I_WRGSBASE, I_VCVTPH2PS, I_VCVTPS2PH,
 
 	// AVX-512 (subset used by ExprCompiler512)
-	I_VPMOVM2D, I_VPMOVUSDB, I_VPMOVUSDW,
+	I_VPMOVM2D, I_VPMOVUSDB, I_VPMOVUSDW, I_VBLENDMPS,
 
 	// BMI
 	I_ANDN, I_BEXTR, I_BLSI, I_BLSMSK, I_BLSR, I_BZHI, I_LZCNT, I_MULX, I_PDEP, I_PEXT, I_RORX, I_SARX, I_SHLX, I_SHRX, I_TZCNT, I_INVPCID,
@@ -1030,6 +1037,11 @@ enum EncodingFlags
 	// r/m is read as a single dword and broadcast to every lane. The disp8 compression tuple size is then
 	// the element size (4 bytes), set in Encode(). Only valid with a memory r/m operand.
 	E_EVEX_BCAST32			= 1 << 19,
+
+	// EVEX write-mask. E_EVEX_K1 sets the opmask field aaa = 1 (predicate with k1); E_EVEX_Z sets z = 1
+	// (zero-masking, else merge-masking). Only k1 is expressible, which is all ExprCompiler512 needs.
+	E_EVEX_K1				= 1 << 20,
+	E_EVEX_Z				= 1 << 21,
 
 	E_VEX_128		= E_VEX,
 	E_VEX_256		= E_VEX | E_VEX_L,
@@ -1223,11 +1235,13 @@ struct Backend
 		const uint32 vvvv = vex_id & 0xF;
 
 		const uint32 bcast = (flag & E_EVEX_BCAST32) ? 1u : 0u;										// EVEX.b: embedded broadcast
+		const uint32 z    = (flag & E_EVEX_Z) ? 1u : 0u;											// EVEX.z: zero-masking
+		const uint32 aaa  = (flag & E_EVEX_K1) ? 1u : 0u;											// EVEX.aaa: opmask (k1, or k0=unmasked)
 
 		db(0x62);
 		db(((~R & 1) << 7) | ((~X & 1) << 6) | ((~B & 1) << 5) | ((~Rp & 1) << 4) | (mm & 0x3));	// P0: R X B R' 0 0 m m
 		db((W << 7) | ((~vvvv & 0xF) << 3) | (1 << 2) | (pp & 0x3));									// P1: W vvvv 1 p p
-		db((LL << 5) | (bcast << 4) | ((~Vp & 1) << 3));											// P2: z=0 L'L b V' aaa=000
+		db((z << 7) | (LL << 5) | (bcast << 4) | ((~Vp & 1) << 3) | (aaa & 0x7));					// P2: z L'L b V' aaa
 
 		force_disp32_ = r_m.IsMem();	// EVEX disp8 is scaled by the tuple size; make EncodeModRM use disp32
 	}
@@ -5018,6 +5032,13 @@ struct Frontend
 	void vcmpps(const OpmaskReg& dst, const ZmmReg& src1, const ZmmReg& src2, const Imm8& imm)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1), imm);}
 	void vcmpps(const OpmaskReg& dst, const ZmmReg& src1, const Mem512& src2, const Imm8& imm)	{AppendInstr(I_CMPPS, 0xC2, E_VEX_512_0F_WIG, W(dst), R(src2), R(src1), imm);}
 	void vpmovm2d(const ZmmReg& dst, const OpmaskReg& src)	{AppendInstr(I_VPMOVM2D, 0x38, E_VEX_512 | E_VEX_F3_0F38 | E_VEX_W0, W(dst), R(src));}
+	// EVEX write-masked forms (predicate = k1) that consume a vcmpps opmask directly instead of expanding
+	// it to a vector. k1z() = zero-masking (unmasked lanes cleared); k1m() = merge-masking (unmasked lanes
+	// keep dst, so dst is read-modify-write). vblendmps selects with the mask: dst = k1 ? src2 : src1.
+	void vmovaps(const ZmmRegWithMask& dst, const ZmmReg& src)	{AppendInstr(I_MOVAPS, 0x28, E_VEX_512_0F_WIG | E_EVEX_K1 | (dst.zero ? E_EVEX_Z : 0u), W(dst.reg), R(src));}
+	void vbroadcastss(const ZmmRegWithMask& dst, const Mem32& src)	{AppendInstr(I_VBROADCASTSS, 0x18, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_K1 | (dst.zero ? E_EVEX_Z : 0u), W(dst.reg), R(src));}
+	void vsubps(const ZmmRegWithMask& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_SUBPS, 0x5C, E_VEX_512_0F_WIG | E_EVEX_K1 | (dst.zero ? E_EVEX_Z : 0u), RW(dst.reg), R(src2), R(src1));}
+	void vblendmps(const ZmmReg& dst, const ZmmReg& src1, const ZmmReg& src2)	{AppendInstr(I_VBLENDMPS, 0x65, E_VEX_512 | E_VEX_66_0F38 | E_VEX_W0 | E_EVEX_K1, W(dst), R(src2), R(src1));}
 	// EVEX embedded-broadcast forms ({1to16}): the r/m is a single dword the hardware broadcasts to all 16
 	// lanes, so ExprCompiler512 keeps one float per constant instead of a full 64-byte vector. Only the
 	// operations it actually applies to the constant pool are provided.
