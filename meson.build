@@ -360,6 +360,7 @@ if enable_x86_asm
             cpp_args: march_levels[avx2_level.to_string()],
             gnu_symbol_visibility: 'hidden',
             include_directories: incdir,
+            override_options: ['cpp_std=c++20'],
         )
 
         vlibs += static_library('vsfilters_avx512_' + tag,
@@ -368,6 +369,7 @@ if enable_x86_asm
             cpp_args: march_levels[avx512_level.to_string()],
             gnu_symbol_visibility: 'hidden',
             include_directories: incdir,
+            override_options: ['cpp_std=c++20'],
         )
 
         shared_module(v['name'],
