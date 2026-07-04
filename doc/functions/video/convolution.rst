@@ -24,8 +24,8 @@ Convolution
    *matrix*
       Coefficients for the convolution.
       
-      When *mode* is "s", this must be an array of 9 or 25 numbers, for
-      a 3x3 or 5x5 convolution, respectively.
+      When *mode* is "s", this must be an array of 9, 25, 49, 81 or 121
+      numbers, for a 3x3, 5x5, 7x7, 9x9 or 11x11 convolution, respectively.
 
       When *mode* is not "s", this must be an array of 3 to 25 numbers,
       with an odd number of elements.

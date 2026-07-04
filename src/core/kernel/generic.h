@@ -41,10 +41,10 @@ struct vs_generic_params {
 	/* Minimum, Maximum. */
 	uint8_t stencil;
 
-	/* Convolution. */
+	/* Convolution. Square mode allows up to 11x11 = 121 coefficients. */
 	unsigned matrixsize;
-	int16_t matrix[25];
-	float matrixf[25];
+	int16_t matrix[121];
+	float matrixf[121];
 	float div;
 	float bias;
 	uint8_t saturate;
@@ -96,6 +96,9 @@ DECL_3x3(deflate, half, c)
 DECL_3x3(inflate, half, c)
 DECL_3x3(conv, half, c)
 DECL(5x5_conv, half, c)
+DECL(7x7_conv, half, c)
+DECL(9x9_conv, half, c)
+DECL(11x11_conv, half, c)
 DECL(1d_conv_h, half, c)
 DECL(1d_conv_v, half, c)
 DECL(2d_conv_sep, half, c)
@@ -103,6 +106,18 @@ DECL(2d_conv_sep, half, c)
 DECL(5x5_conv, byte, c)
 DECL(5x5_conv, word, c)
 DECL(5x5_conv, float, c)
+
+DECL(7x7_conv, byte, c)
+DECL(7x7_conv, word, c)
+DECL(7x7_conv, float, c)
+
+DECL(9x9_conv, byte, c)
+DECL(9x9_conv, word, c)
+DECL(9x9_conv, float, c)
+
+DECL(11x11_conv, byte, c)
+DECL(11x11_conv, word, c)
+DECL(11x11_conv, float, c)
 
 DECL(1d_conv_h, byte, c)
 DECL(1d_conv_h, word, c)

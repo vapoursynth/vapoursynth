@@ -128,8 +128,8 @@ struct GenericDataExtra {
 
     // Convolution
     ConvolutionTypes convolution_type;
-    int matrix[25];
-    float matrixf[25];
+    int matrix[121];
+    float matrixf[121];
     int matrix_sum;
     int matrix_elements;
     float rdiv;
@@ -476,6 +476,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
                 return vs_generic_3x3_conv_byte_c;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
                 return vs_generic_5x5_conv_byte_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_byte_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_byte_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_byte_c;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_byte_c;
             else if (d->convolution_type == ConvolutionVertical)
@@ -498,6 +504,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
                 return vs_generic_3x3_conv_word_c;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
                 return vs_generic_5x5_conv_word_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_word_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_word_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_word_c;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_word_c;
             else if (d->convolution_type == ConvolutionVertical)
@@ -520,6 +532,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
                 return vs_generic_3x3_conv_float_c;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
                 return vs_generic_5x5_conv_float_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_float_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_float_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_float_c;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_float_c;
             else if (d->convolution_type == ConvolutionVertical)
@@ -542,6 +560,12 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
                 return vs_generic_3x3_conv_half_c;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
                 return vs_generic_5x5_conv_half_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_half_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_half_c;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_half_c;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_half_c;
             else if (d->convolution_type == ConvolutionVertical)
@@ -716,8 +740,8 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             if (err || mode == "s"s) {
                 d->convolution_type = ConvolutionSquare;
 
-                if (d->matrix_elements != 9 && d->matrix_elements != 25)
-                    throw std::runtime_error("When mode starts with 's', matrix must contain exactly 9 or exactly 25 numbers.");
+                if (d->matrix_elements != 9 && d->matrix_elements != 25 && d->matrix_elements != 49 && d->matrix_elements != 81 && d->matrix_elements != 121)
+                    throw std::runtime_error("When mode starts with 's', matrix must contain exactly 9, 25, 49, 81 or 121 numbers (a 3x3, 5x5, 7x7, 9x9 or 11x11 square).");
             } else if (mode == "h"s || mode == "v"s || mode == "hv"s || mode == "vh"s) {
                 if (mode == "h"s)
                     d->convolution_type = ConvolutionHorizontal;

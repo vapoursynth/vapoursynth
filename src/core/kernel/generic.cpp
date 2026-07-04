@@ -327,11 +327,41 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
     }
 }
 
-template <class T>
-void conv_plane_5x5(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
+// Half-sample symmetric mirror of an out-of-range coordinate, matching the legacy
+// 5x5 edge handling: a single reflection (-1 -> 0, len -> len-1) then a clamp, so a
+// filter wider than the plane still stays in bounds.
+inline unsigned mirror_index(int pos, int len)
 {
-    typedef typename std::conditional<std::is_integral<T>::value, int32_t, float>::type Accum;
+    if (pos < 0)
+        pos = -pos - 1;
+    else if (pos >= len)
+        pos = 2 * len - 1 - pos;
+    if (pos < 0)
+        pos = 0;
+    else if (pos >= len)
+        pos = len - 1;
+    return static_cast<unsigned>(pos);
+}
+
+// Square (non-separable) NxN convolution, N odd. Plain scalar so the existing per-format
+// C dispatch reaches it, but written to auto-vectorise: __restrict row and destination
+// pointers prove the store cannot alias the loads, and N is a compile-time constant. Only
+// the first/last N/2 columns take the mirrored-index slow path; the interior is the hot
+// loop. Small kernels (N<=7) vectorise a per-pixel reduction with the N*N taps unrolled;
+// larger kernels exceed the unroller's budget and would fall back to scalar, so their
+// interior is register-blocked (see below) to keep the inner loop vectorised. Every path
+// accumulates in the same (tap-column outer, row inner) order, so 5x5 results are bit-exact
+// with the historic kernel (integer) and unchanged (float). Integer accumulation is int32,
+// widened to int64 for 16-bit input at N>5 where the worst case (N*N * 1023 * 65535)
+// exceeds int32.
+template <class T, unsigned N>
+void conv_plane_square(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
+{
+    typedef typename std::conditional<std::is_integral<T>::value,
+        typename std::conditional<(sizeof(T) > 1 && N > 5), int64_t, int32_t>::type,
+        float>::type Accum;
     typedef typename std::conditional<std::is_integral<T>::value, int16_t, float>::type Weight;
+    constexpr unsigned S = N / 2;
 
     const Weight *coeffs = std::is_integral<T>::value ? (const Weight *)params.matrix : (const Weight *)params.matrixf;
     uint16_t maxval = params.maxval;
@@ -339,82 +369,86 @@ void conv_plane_5x5(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t 
     float bias = params.bias;
     bool saturate = params.saturate;
 
+    const unsigned edge = std::min(width, S);
+
     for (unsigned i = 0; i < height; ++i) {
-        unsigned dist_from_bottom = height - 1 - i;
+        const T *__restrict rows[N];
+        for (unsigned r = 0; r < N; ++r)
+            rows[r] = static_cast<const T *>(line_ptr(src, mirror_index(static_cast<int>(i) + static_cast<int>(r) - static_cast<int>(S), static_cast<int>(height)), src_stride));
+        T *__restrict dst_p = static_cast<T *>(line_ptr(dst, i, dst_stride));
 
-        unsigned above2_idx = i < 2 ? std::min(1 - i, height - 1) : i - 2;
-        unsigned above1_idx = i < 1 ? 0 : i - 1;
-        unsigned below1_idx = dist_from_bottom < 1 ? height - 1 : i + 1;
-        unsigned below2_idx = dist_from_bottom < 2 ? height - 1 - (1 - dist_from_bottom) : i + 2;
-
-        const T *srcp0 = static_cast<const T *>(line_ptr(src, above2_idx, src_stride));
-        const T *srcp1 = static_cast<const T *>(line_ptr(src, above1_idx, src_stride));
-        const T *srcp2 = static_cast<const T *>(line_ptr(src, i, src_stride));
-        const T *srcp3 = static_cast<const T *>(line_ptr(src, below1_idx, src_stride));
-        const T *srcp4 = static_cast<const T *>(line_ptr(src, below2_idx, src_stride));
-        T *dst_p = static_cast<T *>(line_ptr(dst, i, dst_stride));
-
-        for (unsigned j = 0; j < std::min(width, 2U); ++j) {
-            unsigned dist_from_right = width - 1 - j;
-            unsigned idx[5];
-
-            idx[0] = j < 2 ? std::min(1 - j, width - 1) : j - 2;
-            idx[1] = j < 1 ? 0 : j - 1;
-            idx[2] = j;
-            idx[3] = dist_from_right < 1 ? width - 1 : j + 1;
-            idx[4] = dist_from_right < 2 ? width - 1 - (1 - dist_from_right) : j + 2;
-
+        // Left edge columns (mirrored horizontal indexing).
+        for (unsigned j = 0; j < edge; ++j) {
             Accum accum = 0;
-
-            for (unsigned k = 0; k < 5; ++k) {
-                accum += coeffs[5 * 0 + k] * static_cast<Accum>(srcp0[idx[k]]);
-                accum += coeffs[5 * 1 + k] * static_cast<Accum>(srcp1[idx[k]]);
-                accum += coeffs[5 * 2 + k] * static_cast<Accum>(srcp2[idx[k]]);
-                accum += coeffs[5 * 3 + k] * static_cast<Accum>(srcp3[idx[k]]);
-                accum += coeffs[5 * 4 + k] * static_cast<Accum>(srcp4[idx[k]]);
+            for (unsigned k = 0; k < N; ++k) {
+                unsigned col = mirror_index(static_cast<int>(j) + static_cast<int>(k) - static_cast<int>(S), static_cast<int>(width));
+                for (unsigned r = 0; r < N; ++r)
+                    accum += coeffs[r * N + k] * static_cast<Accum>(rows[r][col]);
             }
-
             float tmp = static_cast<float>(accum) * div + bias;
             tmp = saturate ? tmp : std::fabs(tmp);
             dst_p[j] = limit(xrint<T>(tmp), maxval);
         }
 
-        for (unsigned j = 2; j < width - std::min(width, 2U); ++j) {
-            Accum accum = 0;
-
-            for (unsigned k = 0; k < 5; ++k) {
-                accum += coeffs[5 * 0 + k] * static_cast<Accum>(srcp0[j - 2 + k]);
-                accum += coeffs[5 * 1 + k] * static_cast<Accum>(srcp1[j - 2 + k]);
-                accum += coeffs[5 * 2 + k] * static_cast<Accum>(srcp2[j - 2 + k]);
-                accum += coeffs[5 * 3 + k] * static_cast<Accum>(srcp3[j - 2 + k]);
-                accum += coeffs[5 * 4 + k] * static_cast<Accum>(srcp4[j - 2 + k]);
+        // Interior columns (no bounds logic). Both paths accumulate in the same
+        // (tap-column outer, row inner) order, so results are bit-exact with the historic
+        // 5x5 kernel regardless of which is chosen.
+        if constexpr (N <= 7) {
+            // Small kernels: the compiler fully unrolls the N*N taps and vectorises the
+            // per-pixel reduction across columns directly.
+            for (unsigned j = S; j + S < width; ++j) {
+                Accum accum = 0;
+                for (unsigned k = 0; k < N; ++k)
+                    for (unsigned r = 0; r < N; ++r)
+                        accum += coeffs[r * N + k] * static_cast<Accum>(rows[r][j - S + k]);
+                float tmp = static_cast<float>(accum) * div + bias;
+                tmp = saturate ? tmp : std::fabs(tmp);
+                dst_p[j] = limit(xrint<T>(tmp), maxval);
             }
-
-            float tmp = static_cast<float>(accum) * div + bias;
-            tmp = saturate ? tmp : std::fabs(tmp);
-            dst_p[j] = limit(xrint<T>(tmp), maxval);
+        } else if (width > 2 * S) {
+            // Large kernels: N*N exceeds the unroller's budget, so a plain per-pixel
+            // reduction stays scalar. Process the interior in register-blocked strips of
+            // BLK instead -- acc[] lives in vector registers across the tap loop and the
+            // innermost loop is a contiguous multiply-add the compiler always vectorises.
+            const unsigned interior_end = width - S;
+            constexpr unsigned BLK = 16;
+            unsigned j = S;
+            for (; j + BLK <= interior_end; j += BLK) {
+                Accum acc[BLK];
+                for (unsigned t = 0; t < BLK; ++t)
+                    acc[t] = 0;
+                for (unsigned k = 0; k < N; ++k)
+                    for (unsigned r = 0; r < N; ++r) {
+                        Weight w = coeffs[r * N + k];
+                        const T *__restrict row = rows[r] + (j - S + k);
+                        for (unsigned t = 0; t < BLK; ++t)
+                            acc[t] += w * static_cast<Accum>(row[t]);
+                    }
+                for (unsigned t = 0; t < BLK; ++t) {
+                    float tmp = static_cast<float>(acc[t]) * div + bias;
+                    tmp = saturate ? tmp : std::fabs(tmp);
+                    dst_p[j + t] = limit(xrint<T>(tmp), maxval);
+                }
+            }
+            for (; j < interior_end; ++j) {
+                Accum accum = 0;
+                for (unsigned k = 0; k < N; ++k)
+                    for (unsigned r = 0; r < N; ++r)
+                        accum += coeffs[r * N + k] * static_cast<Accum>(rows[r][j - S + k]);
+                float tmp = static_cast<float>(accum) * div + bias;
+                tmp = saturate ? tmp : std::fabs(tmp);
+                dst_p[j] = limit(xrint<T>(tmp), maxval);
+            }
         }
 
-        for (unsigned j = std::max(2U, width - std::min(width, 2U)); j < width; ++j) {
-            unsigned dist_from_right = width - 1 - j;
-            unsigned idx[5];
-
-            idx[0] = j < 2 ? std::min(1 - j, width - 1) : j - 2;
-            idx[1] = j < 1 ? 0 : j - 1;
-            idx[2] = j;
-            idx[3] = dist_from_right < 1 ? width - 1 : j + 1;
-            idx[4] = dist_from_right < 2 ? width - 1 - (1 - dist_from_right) : j + 2;
-
+        // Right edge columns (mirrored horizontal indexing).
+        for (unsigned j = std::max(S, width - edge); j < width; ++j) {
             Accum accum = 0;
-
-            for (unsigned k = 0; k < 5; ++k) {
-                accum += coeffs[5 * 0 + k] * static_cast<Accum>(srcp0[idx[k]]);
-                accum += coeffs[5 * 1 + k] * static_cast<Accum>(srcp1[idx[k]]);
-                accum += coeffs[5 * 2 + k] * static_cast<Accum>(srcp2[idx[k]]);
-                accum += coeffs[5 * 3 + k] * static_cast<Accum>(srcp3[idx[k]]);
-                accum += coeffs[5 * 4 + k] * static_cast<Accum>(srcp4[idx[k]]);
+            for (unsigned k = 0; k < N; ++k) {
+                unsigned col = mirror_index(static_cast<int>(j) + static_cast<int>(k) - static_cast<int>(S), static_cast<int>(width));
+                for (unsigned r = 0; r < N; ++r)
+                    accum += coeffs[r * N + k] * static_cast<Accum>(rows[r][col]);
             }
-
             float tmp = static_cast<float>(accum) * div + bias;
             tmp = saturate ? tmp : std::fabs(tmp);
             dst_p[j] = limit(xrint<T>(tmp), maxval);
@@ -748,20 +782,24 @@ void vs_generic_3x3_conv_half_c(const void *src, ptrdiff_t src_stride, void *dst
     filter_plane_3x3<HalfOp<ConvolutionOp<float>>>(src, src_stride, dst, dst_stride, *params, width, height);
 }
 
-void vs_generic_5x5_conv_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    conv_plane_5x5<uint8_t>(src, src_stride, dst, dst_stride, *params, width, height);
-}
+// Square (mode 's') convolution entry points: one plain-C function per (size, pixel).
+// N is a compile-time template argument so conv_plane_square auto-vectorises per size.
+#define VS_SQUARE_CONV_ENTRY(SIZE, N) \
+    void vs_generic_##SIZE##_conv_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height) \
+    { conv_plane_square<uint8_t, N>(src, src_stride, dst, dst_stride, *params, width, height); } \
+    void vs_generic_##SIZE##_conv_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height) \
+    { conv_plane_square<uint16_t, N>(src, src_stride, dst, dst_stride, *params, width, height); } \
+    void vs_generic_##SIZE##_conv_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height) \
+    { conv_plane_square<float, N>(src, src_stride, dst, dst_stride, *params, width, height); } \
+    void vs_generic_##SIZE##_conv_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height) \
+    { conv_plane_square<half_t, N>(src, src_stride, dst, dst_stride, *params, width, height); }
 
-void vs_generic_5x5_conv_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    conv_plane_5x5<uint16_t>(src, src_stride, dst, dst_stride, *params, width, height);
-}
+VS_SQUARE_CONV_ENTRY(5x5, 5)
+VS_SQUARE_CONV_ENTRY(7x7, 7)
+VS_SQUARE_CONV_ENTRY(9x9, 9)
+VS_SQUARE_CONV_ENTRY(11x11, 11)
 
-void vs_generic_5x5_conv_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    conv_plane_5x5<float>(src, src_stride, dst, dst_stride, *params, width, height);
-}
+#undef VS_SQUARE_CONV_ENTRY
 
 void vs_generic_1d_conv_h_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
@@ -806,11 +844,6 @@ void vs_generic_2d_conv_sep_word_c(const void *src, ptrdiff_t src_stride, void *
 void vs_generic_2d_conv_sep_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
     conv_plane_x<float>(src, src_stride, dst, dst_stride, *params, width, height);
-}
-
-void vs_generic_5x5_conv_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    conv_plane_5x5<half_t>(src, src_stride, dst, dst_stride, *params, width, height);
 }
 
 void vs_generic_1d_conv_h_half_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
