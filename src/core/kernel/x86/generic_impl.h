@@ -43,6 +43,7 @@
 #include <cmath>
 #include <cstdint>
 #include "../generic.h"
+#include "../../float16_helper.h"
 
 #ifdef _MSC_VER
 #define FORCE_INLINE inline __forceinline
@@ -925,12 +926,15 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
 template <class FloatOp, class B>
 struct HalfMem : FloatOp {
     using FloatOp::FloatOp;
-    typedef _Float16 T;
-    static typename B::fvec load(const _Float16 *p) { return B::half_load(p); }
-    static typename B::fvec loadu(const _Float16 *p) { return B::half_loadu(p); }
-    static void store(_Float16 *p, typename B::fvec x) { B::half_store(p, x); }
-    static typename B::fvec shl_insert_lo(typename B::fvec x, _Float16 y) { return B::float_shl_insert_lo(x, static_cast<float>(y)); }
-    static typename B::fvec shr_insert(typename B::fvec x, _Float16 y, unsigned idx) { return B::float_shr_insert(x, static_cast<float>(y), idx); }
+    // Half is stored as raw uint16_t (not _Float16): the F16C load/store intrinsics take an integer
+    // vector, and the two scalar edge conversions go through halfToFloat(), so this compiles under MSVC
+    // (no _Float16 type) while still using hardware F16C. Matches merge/planestats.
+    typedef uint16_t T;
+    static typename B::fvec load(const uint16_t *p) { return B::half_load(p); }
+    static typename B::fvec loadu(const uint16_t *p) { return B::half_loadu(p); }
+    static void store(uint16_t *p, typename B::fvec x) { B::half_store(p, x); }
+    static typename B::fvec shl_insert_lo(typename B::fvec x, uint16_t y) { return B::float_shl_insert_lo(x, halfToFloat(y)); }
+    static typename B::fvec shr_insert(typename B::fvec x, uint16_t y, unsigned idx) { return B::float_shr_insert(x, halfToFloat(y), idx); }
 };
 
 } // namespace
