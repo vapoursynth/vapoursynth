@@ -37,6 +37,10 @@ using namespace vsh;
 //////////////////////////////////////////
 // Lut
 
+#ifdef VS_TARGET_CPU_X86
+extern "C" void vs_lut1_b_b_avx512vbmi(const uint8_t *src, uint8_t *dst, int w, const uint8_t *lut);
+#endif
+
 namespace {
 
 typedef struct LutDataExtra {
@@ -44,6 +48,7 @@ typedef struct LutDataExtra {
     const VSVideoInfo *vi;
     void *lut;
     bool process[3];
+    bool use_vbmi;
     ~LutDataExtra() { free(lut); };
 } LutDataExtra;
 
@@ -76,12 +81,19 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
 
                 const U * VS_RESTRICT lut = reinterpret_cast<const U *>(d->lut);
 
-                for (int hl = 0; hl < h; hl++) {
-                    for (int x = 0; x < w; x++)
-                        dstp[x] = lut[srcp[x]]; /* LUT padded to the full input container, so no per-pixel clamp is needed */
-
-                    dstp += dst_stride / sizeof(U);
-                    srcp += src_stride / sizeof(T);
+                if (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t> && d->use_vbmi) {
+                    for (int hl = 0; hl < h; hl++) {
+                        vs_lut1_b_b_avx512vbmi(src, dst, w, lut);
+                        dstp += dst_stride / sizeof(U);
+                        srcp += src_stride / sizeof(T);
+                    }
+                } else {
+                    for (int hl = 0; hl < h; hl++) {
+                        for (int x = 0; x < w; x++)
+                            dstp[x] = lut[srcp[x]]; /* LUT padded to the full input container, so no per-pixel clamp is needed */
+                        dstp += dst_stride / sizeof(U);
+                        srcp += src_stride / sizeof(T);
+                    }
                 }
             }
         }
@@ -259,6 +271,12 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         }
 
         vsapi->queryVideoFormat(&d->vi_out.format, d->vi->format.colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi->format.subSamplingW, d->vi->format.subSamplingH, core);
+
+        d->use_vbmi = false;
+#ifdef VS_TARGET_CPU_X86
+        if (getCPUFeatures()->avx512_vbmi && vs_get_cpulevel(core) >= VS_CPU_LEVEL_AVX512)
+            d->use_vbmi = true;
+#endif
 
         if (d->vi->format.bytesPerSample == 1 && bitsout == 8)
             lutCreateHelper<uint8_t, uint8_t>(in, out, func, d, core, vsapi);
