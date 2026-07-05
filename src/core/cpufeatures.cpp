@@ -108,6 +108,7 @@ static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
                 cpuFeatures->avx512_vnni = !!(ecx & (1 << 11));
                 cpuFeatures->avx512_bitalg = !!(ecx & (1 << 12));
                 cpuFeatures->avx512_vpopcntdq = !!(ecx & (1 << 14));
+                cpuFeatures->avx512_fp16 = !!(edx & (1 << 23));
             }
 
             cpuFeatures->avx512 = cpuFeatures->avx512_f && cpuFeatures->avx512_cd &&
@@ -135,7 +136,7 @@ int doGetX86ABILevel(void) {
         return 1;
     if (!c->avx512)
         return 2;
-    if (!(c->avx512 && c->vaes && c->avx512_ifma && c->avx512_bf16 && c->avx512_vbmi && c->avx512_vbmi2 && c->avx512_vnni && c->avx512_bitalg && c->avx512_vpopcntdq && c->gfni))
+    if (!(c->avx512 && c->vaes && c->avx512_ifma && c->avx512_bf16 && c->avx512_fp16 && c->avx512_vbmi && c->avx512_vbmi2 && c->avx512_vnni && c->avx512_bitalg && c->avx512_vpopcntdq && c->gfni))
         return 3;
     return 4;
 }
