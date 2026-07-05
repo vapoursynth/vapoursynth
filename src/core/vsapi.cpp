@@ -28,6 +28,9 @@
 
 using namespace vsh;
 
+static constexpr int64_t staticZero = 0;
+static constexpr int64_t staticOne = 1;
+
 static int VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) VS_NOEXCEPT {
     assert(identifier && defaultNamespace && name && plugin);
     return plugin->configPlugin(identifier, defaultNamespace, name, pluginVersion, apiVersion, flags);
@@ -862,9 +865,19 @@ static int VS_CC getPluginVersion(const VSPlugin *plugin) VS_NOEXCEPT {
 }
 
 static const int64_t *VS_CC mapGetIntArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
-    const VSArrayBase *arr = propGetShared(map, remapColorRange(key), 0, error, ptInt);
+    bool remapRange = !strcmp(key, "_ColorRange");
+    const VSArrayBase *arr = propGetShared(map, remapRange ? "_Range" : key, 0, error, ptInt);
     if (arr) {
-        return reinterpret_cast<const VSIntArray *>(arr)->getDataPointer();
+        if (remapRange) {
+            auto *intArr = reinterpret_cast<const VSIntArray *>(arr);
+            if (intArr->size() == 1)
+                return flipRangeProperty(intArr->at(0)) == 1 ? &staticOne : &staticZero;
+            else
+                return intArr->getDataPointer();
+
+        } else {
+            return reinterpret_cast<const VSIntArray *>(arr)->getDataPointer();
+        }
     } else {
         return nullptr;
     }
