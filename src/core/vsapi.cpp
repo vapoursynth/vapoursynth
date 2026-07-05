@@ -862,7 +862,7 @@ static int VS_CC getPluginVersion(const VSPlugin *plugin) VS_NOEXCEPT {
 }
 
 static const int64_t *VS_CC mapGetIntArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
-    const VSArrayBase *arr = propGetShared(map, key, 0, error, ptInt);
+    const VSArrayBase *arr = propGetShared(map, remapColorRange(key), 0, error, ptInt);
     if (arr) {
         return reinterpret_cast<const VSIntArray *>(arr)->getDataPointer();
     } else {
@@ -885,18 +885,15 @@ static int VS_CC mapSetIntArray(VSMap *map, const char *key, const int64_t *i, i
         return 1;
     if (!isValidVSMapKey(key))
         return 1;
-    map->insert(key, new VSIntArray(i, size));
-    const char *extraKey = nullptr;
-    if (!strcmp(key, "_Range"))
-        extraKey = "_ColorRange";
-    else if (!strcmp(key, "_ColorRange"))
-        extraKey = "_Range";
-    if (extraKey) {
+    bool remapRange = !strcmp(key, "_ColorRange");
+    if (remapRange) {
         std::vector<int64_t> flipped;
         flipped.resize(size);
         for (int j = 0; j < size; j++)
             flipped[j] = flipRangeProperty(i[j]);
-        map->insert(extraKey, new VSIntArray(flipped.data(), size));
+        map->insert("_Range", new VSIntArray(flipped.data(), size));
+    } else {
+        map->insert(key, new VSIntArray(i, size));
     }
     return 0;
 }
