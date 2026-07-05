@@ -19,11 +19,13 @@
 */
 
 /*
- * AVX-512 masked gather for Lut2, dispatched only when the LUT spills L2
+ * AVX-512 gather for Lut2, dispatched only when the LUT spills L2
  * (integer output, >= ~512 KB) on CPUs with AVX-512 (a safe fast-gather gate).
- * Mask registers handle the width remainder in-lane, so there is no scalar
- * tail. uint16/uint8 tables are gathered as dwords (reading entry[i] plus a
- * few overread bytes), so lutCreateHelper pads the table by 64 bytes.
+ * Frames are 64-byte aligned with rows padded to a multiple of 64 bytes when this
+ * runs (AVX-512 implies avx512_f), and the min-clamp keeps every gather index within
+ * the range the in-range lanes already read, so the width tail runs in full vectors
+ * with no mask and no scalar tail. uint16/uint8 tables are gathered as dwords (reading
+ * entry[i] plus a few overread bytes), so lutCreateHelper pads the table by 64 bytes.
  */
 
 #include <cstdint>
@@ -42,21 +44,21 @@
 namespace {
 
 template<typename T>
-inline __m512i load_widen(const T *p, __mmask16 k) {
+inline __m512i load_widen(const T *p) {
     if constexpr (sizeof(T) == 1)
-        return _mm512_cvtepu8_epi32(_mm_maskz_loadu_epi8(k, p));
+        return _mm512_cvtepu8_epi32(_mm_loadu_si128((const __m128i *)p));
     else
-        return _mm512_cvtepu16_epi32(_mm256_maskz_loadu_epi16(k, p));
+        return _mm512_cvtepu16_epi32(_mm256_loadu_si256((const __m256i *)p));
 }
 
 template<typename V>
-inline void gather_store(V *d, __mmask16 k, const V *lut, __m512i idx) {
+inline void gather_store(V *d, const V *lut, __m512i idx) {
     if constexpr (sizeof(V) == 2) {
-        __m512i g = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), k, idx, (const int *)lut, 2);
-        _mm256_mask_storeu_epi16(d, k, _mm512_cvtepi32_epi16(g));
+        __m512i g = _mm512_i32gather_epi32(idx, (const int *)lut, 2);
+        _mm256_storeu_si256((__m256i *)d, _mm512_cvtepi32_epi16(g));
     } else {
-        __m512i g = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), k, idx, (const int *)lut, 1);
-        _mm_mask_storeu_epi8(d, k, _mm512_cvtepi32_epi8(g));
+        __m512i g = _mm512_i32gather_epi32(idx, (const int *)lut, 1);
+        _mm_storeu_si128((__m128i *)d, _mm512_cvtepi32_epi8(g));
     }
 }
 
@@ -65,11 +67,10 @@ void lut2_gather(const T *sx, const U *sy, V *d, int w, const V *lut, int bitsx,
     __m512i vmx = _mm512_set1_epi32(mx), vmy = _mm512_set1_epi32(my);
     __m128i sh = _mm_cvtsi32_si128(bitsx);
     for (int x = 0; x < w; x += 16) {
-        __mmask16 k = (x + 16 <= w) ? (__mmask16)0xFFFF : (__mmask16)((1u << (w - x)) - 1);
-        __m512i ix = _mm512_min_epu32(load_widen<T>(sx + x, k), vmx);
-        __m512i iy = _mm512_min_epu32(load_widen<U>(sy + x, k), vmy);
+        __m512i ix = _mm512_min_epu32(load_widen<T>(sx + x), vmx);
+        __m512i iy = _mm512_min_epu32(load_widen<U>(sy + x), vmy);
         __m512i idx = _mm512_add_epi32(_mm512_sll_epi32(iy, sh), ix);
-        gather_store<V>(d + x, k, lut, idx);
+        gather_store<V>(d + x, lut, idx);
     }
 }
 
