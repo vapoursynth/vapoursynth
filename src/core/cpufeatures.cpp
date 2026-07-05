@@ -133,9 +133,11 @@ int doGetX86ABILevel(void) {
     auto c = getCPUFeatures();
     if (!(c->cmpxchg16b && c->popcnt && c->avx2 && c->f16c && c->fma3 && c->bmi2 && c->movbe))
         return 1;
-    if (!(c->avx512_f && c->avx512_bw && c->avx512_cd && c->avx512_dq && c->avx512_vl && c->vaes && c->avx512_ifma && c->avx512_bf16 && c->avx512_vbmi && c->avx512_vbmi2 && c->avx512_vnni && c->avx512_bitalg && c->avx512_vpopcntdq && c->gfni))
+    if (!c->avx512)
         return 2;
-    return 3;
+    if (!(c->avx512 && c->vaes && c->avx512_ifma && c->avx512_bf16 && c->avx512_vbmi && c->avx512_vbmi2 && c->avx512_vnni && c->avx512_bitalg && c->avx512_vpopcntdq && c->gfni))
+        return 3;
+    return 4;
 }
 
 #elif defined(VS_TARGET_CPU_RISCV)

@@ -1,5 +1,6 @@
 r78:
 a compiler supporting c++20 is now required to build the project, compatibility has been verified with recent msvc, clang(-cl) and gcc
+added basic avx512 as an additional cpu instruction level meaning that on x64 it's now baseline, avx2, avx512 and zen4 level
 many fixes to the python bindings such as fixing potention deadlocks when freeing the core and using frames and other references after a core has been destroyed (ichunjo)
 added 7x7, 9x9 and 11x11 square convolution sizes
 added half-precision float support to all functions where it makes sense at all (basically only lut/lut2 excluded) in a portable way that generates fast code on both aarch64 and avx2 class x86

@@ -2148,8 +2148,10 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
 
         auto tryABILevel = [&fullPath, &separator](int level) -> bool {
             std::filesystem::path newExtension; 
-            if (level == 3)
+            if (level == 4)
                 newExtension = std::filesystem::u8path(separator + "zn4");
+            else if (level == 3)
+                newExtension = std::filesystem::u8path(separator + "avx512");
             else if (level == 2)
                 newExtension = std::filesystem::u8path(separator + "avx2");
             newExtension += fullPath.extension();
