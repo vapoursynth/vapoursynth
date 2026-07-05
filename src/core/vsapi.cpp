@@ -310,21 +310,25 @@ static const char *VS_CC mapGetKey(const VSMap *map, int index) VS_NOEXCEPT {
     return map->key(static_cast<size_t>(index));
 }
 
+static const char *remapColorRange(const char *key) {
+    return !strcmp(key, "_ColorRange") ? "_Range" : key;
+}
+
 static int VS_CC mapNumElements(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    VSArrayBase *val = map->find(key);
+    VSArrayBase *val = map->find(remapColorRange(key));
     return val ? static_cast<int>(val->size()) : -1;
 }
 
 static int VS_CC mapGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    VSArrayBase *val = map->find(key);
+    VSArrayBase *val = map->find(remapColorRange(key));
     return val ? val->type() : ptUnset;
 }
 
 static char VS_CC propGetType3(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    VSArrayBase *val = map->find(key);
+    VSArrayBase *val = map->find(remapColorRange(key));
     VSPropertyType pt = val ? val->type() : ptUnset;
     switch (pt) {
         case ptInt:
@@ -388,7 +392,7 @@ static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, 
 }
 
 static int64_t VS_CC mapGetInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    VSArrayBase *arr = propGetShared(map, key, index, error, ptInt);
+    VSArrayBase *arr = propGetShared(map, remapColorRange(key), index, error, ptInt);
     if (arr)
         return reinterpret_cast<const VSIntArray *>(arr)->at(index);
     else
@@ -479,11 +483,7 @@ static const VSFrame *VS_CC mapGetFrame(const VSMap *map, const char *key, int i
 
 static int VS_CC mapDeleteKey(VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    bool result = map->erase(key);
-    if (!strcmp(key, "_Range"))
-        map->erase("_ColorRange");
-    else if (!strcmp(key, "_ColorRange"))
-        map->erase("_Range");
+    bool result = map->erase(remapColorRange(key));
     return result;
 }
 
@@ -515,34 +515,34 @@ static int VS_CC mapSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT 
     if (!isValidVSMapKey(key))
         return 1;
 
-    std::string skey = key;
+    std::string skey = (type == ptInt) ? remapColorRange(key) : key;
     if (map->find(skey))
         return 1;
 
     switch (type) {
         case ptInt:
-            map->insert(key, new VSIntArray);
+            map->insert(skey, new VSIntArray);
             break;
         case ptFloat:
-            map->insert(key, new VSFloatArray);
+            map->insert(skey, new VSFloatArray);
             break;
         case ptData:
-            map->insert(key, new VSDataArray);
+            map->insert(skey, new VSDataArray);
             break;
         case ptVideoNode:
-            map->insert(key, new VSVideoNodeArray);
+            map->insert(skey, new VSVideoNodeArray);
             break;
         case ptAudioNode:
-            map->insert(key, new VSAudioNodeArray);
+            map->insert(skey, new VSAudioNodeArray);
             break;
         case ptVideoFrame:
-            map->insert(key, new VSVideoFrameArray);
+            map->insert(skey, new VSVideoFrameArray);
             break;
         case ptAudioFrame:
-            map->insert(key, new VSAudioFrameArray);
+            map->insert(skey, new VSAudioFrameArray);
             break;
         case ptFunction:
-            map->insert(key, new VSFunctionArray);
+            map->insert(skey, new VSFunctionArray);
             break;
         default:
             return 1;
@@ -594,17 +594,9 @@ static int64_t flipRangeProperty(int64_t range) {
 }
 
 static int VS_CC mapSetInt(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT {
-    bool result = !propSetShared<int64_t, ptInt>(map, key, i, append);
-    if (!result) {
-        const char *extraKey = nullptr;
-        if (!strcmp(key, "_Range"))
-            extraKey = "_ColorRange";
-        else if (!strcmp(key, "_ColorRange"))
-            extraKey = "_Range";
-        if (extraKey)
-            propSetShared<int64_t, ptInt>(map, extraKey, flipRangeProperty(i), append);
-    }
-    return result;
+    bool remapRange = !strcmp(key, "_ColorRange");
+    const char *key_ = remapRange ? "_Range" : key;
+    return !propSetShared<int64_t, ptInt>(map, key_, remapRange ? flipRangeProperty(i) : i, append);
 }
 
 static int VS_CC mapSetFloat(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT {
