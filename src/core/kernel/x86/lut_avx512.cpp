@@ -30,6 +30,7 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <cstddef>
 #include <immintrin.h>
 
 // vs_lut1_b_b_avx512vbmi needs AVX-512-VBMI, which is not part of x86-64-v4 (the level this
