@@ -2154,7 +2154,8 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
                 newExtension = std::filesystem::u8path(separator + "avx2");
             newExtension += fullPath.extension();
 
-            std::filesystem::path abiLevelPath = std::filesystem::path(fullPath).replace_extension(newExtension);
+            std::filesystem::path abiLevelPath = std::filesystem::path(fullPath).replace_extension();
+            abiLevelPath += newExtension;
             if (std::filesystem::exists(abiLevelPath)) {
                 fullPath = abiLevelPath;
                 return true;
