@@ -83,8 +83,10 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
 
                 if (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t> && d->use_vbmi) {
                     for (int hl = 0; hl < h; hl++) {
+#ifdef VS_TARGET_CPU_X86
                         if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>)
                             vs_lut1_b_b_avx512vbmi(srcp, dstp, w, lut);
+#endif
                         dstp += dst_stride / sizeof(U);
                         srcp += src_stride / sizeof(T);
                     }
