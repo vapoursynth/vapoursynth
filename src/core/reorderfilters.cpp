@@ -350,8 +350,10 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 typedef struct {
     std::vector<int> offsets;
+    std::vector<int> tailOffsets; // offsets surviving in the final partial cycle, in output order
     int cycle;
     int num;
+    int fullCycles;
     bool modifyDuration;
 } SelectEveryDataExtra;
 
@@ -361,7 +363,11 @@ static const VSFrame *VS_CC selectEveryGetframe(int n, int activationReason, voi
     SelectEveryData *d = reinterpret_cast<SelectEveryData *>(instanceData);
 
     if (activationReason == arInitial) {
-        n = (n / d->num) * d->cycle + d->offsets[n % d->num];
+        int cyc = n / d->num;
+        if (cyc == d->fullCycles)
+            n = cyc * d->cycle + d->tailOffsets[n % d->num];
+        else
+            n = cyc * d->cycle + d->offsets[n % d->num];
         frameData[0] = reinterpret_cast<void *>(static_cast<intptr_t>(n));
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
@@ -424,11 +430,14 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
 
     VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
     int inputnframes = vi.numFrames;
+    d->fullCycles = inputnframes / d->cycle;
     if (inputnframes) {
         vi.numFrames = (inputnframes / d->cycle) * d->num;
         for (int i = 0; i < d->num; i++)
-            if (d->offsets[i] < inputnframes % d->cycle)
+            if (d->offsets[i] < inputnframes % d->cycle) {
                 vi.numFrames++;
+                d->tailOffsets.push_back(d->offsets[i]);
+            }
     }
 
     if (vi.numFrames == 0)
