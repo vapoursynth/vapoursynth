@@ -14,12 +14,12 @@ cxx = meson.get_compiler('cpp')
 if cxx.get_argument_syntax() == 'gcc'
     avx2_args = '-march=x86-64-v3'
     avx512_args = '-march=x86-64-v4'
-    znver4_args = ['-march=znver4', '-mno-sse4a']
+    znver4_args = ['-march=znver4', '-mno-sse4a', '-mno-avx512bf16']
     math_errno_args = ['-fno-math-errno']
 elif cxx.get_id() == 'clang-cl'
     avx2_args = '/clang:-march=x86-64-v3'
     avx512_args = '/clang:-march=x86-64-v4'
-    znver4_args = ['/clang:-march=znver4', '/clang:-mno-sse4a']
+    znver4_args = ['/clang:-march=znver4', '/clang:-mno-sse4a', '/clang:-mno-avx512bf16']
     math_errno_args = ['/clang:-fno-math-errno']
 else
     avx2_args = '/arch:AVX2'
