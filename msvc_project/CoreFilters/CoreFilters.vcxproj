@@ -164,6 +164,8 @@
     <ClInclude Include="..\..\src\core\kernel\transpose.h" />
     <ClInclude Include="..\..\src\core\kernel\x86\convolution_impl.h" />
     <ClInclude Include="..\..\src\core\kernel\x86\generic_impl.h" />
+    <ClInclude Include="..\..\src\core\kernel\x86\square_impl.h" />
+    <ClInclude Include="..\..\src\core\kernel\x86\square_vnni_impl.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
