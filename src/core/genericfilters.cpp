@@ -135,6 +135,7 @@ struct GenericDataExtra {
     float rdiv;
     float bias;
     bool saturate;
+    bool conv_int8;   // all coefficients fit int8 -> byte square conv may take the VNNI path
 
     int cpulevel;
 };
@@ -233,6 +234,13 @@ vs_generic_params make_generic_params(const GenericData *d, const VSVideoFormat 
 }
 
 #ifdef VS_TARGET_CPU_X86
+// The byte square 7x7..11x11 VNNI kernels are bit-exact fast paths, valid only when every
+// coefficient fits int8 and the CPU reports both VNNI (vpdpbusd) and VBMI (vpermb window).
+static bool convByteVNNI(const GenericData *d) {
+    const CPUFeatures *cpu = getCPUFeatures();
+    return d->conv_int8 && cpu->avx512_vnni && cpu->avx512_vbmi;
+}
+
 template <GenericOperations op>
 static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX512(const VSVideoFormat *fi, GenericData *d) {
     if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
@@ -250,11 +258,11 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX512(const VSVideoFo
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
                 return vs_generic_5x5_conv_byte_avx512;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
-                return vs_generic_7x7_conv_byte_avx512;
+                return convByteVNNI(d) ? vs_generic_7x7_conv_byte_avx512vnni : vs_generic_7x7_conv_byte_avx512;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
-                return vs_generic_9x9_conv_byte_avx512;
+                return convByteVNNI(d) ? vs_generic_9x9_conv_byte_avx512vnni : vs_generic_9x9_conv_byte_avx512;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
-                return vs_generic_11x11_conv_byte_avx512;
+                return convByteVNNI(d) ? vs_generic_11x11_conv_byte_avx512vnni : vs_generic_11x11_conv_byte_avx512;
             else if (d->convolution_type == ConvolutionHorizontal)
                 return vs_generic_1d_conv_h_byte_avx512;
             else if (d->convolution_type == ConvolutionVertical)
@@ -824,6 +832,11 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 matrix_sumf += d->matrixf[i];
                 d->matrix_sum += d->matrix[i];
             }
+
+            d->conv_int8 = true;
+            for (int i = 0; i < d->matrix_elements; i++)
+                if (d->matrix[i] < -128 || d->matrix[i] > 127)
+                    d->conv_int8 = false;
 
             if (std::abs(matrix_sumf) < std::numeric_limits<float>::epsilon())
                 matrix_sumf = 1.0;

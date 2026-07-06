@@ -158,6 +158,8 @@ struct ISA_AVX512 {
 
 #include "convolution_impl.h"
 #include "square_impl.h"
+#include "square_vnni_impl.h"
 
 VS_CONV_ENTRYPOINTS(ISA_AVX512, avx512)
 VS_SQUARE_ENTRYPOINTS(ISA_AVX512, avx512)
+VS_SQUARE_VNNI_ENTRYPOINTS
