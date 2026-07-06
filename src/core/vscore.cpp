@@ -2133,6 +2133,14 @@ VSPlugin::VSPlugin(VSCore *core)
     : libHandle(0), core(core) {
 }
 
+int VSCore::getCpuLevel() const {
+    return cpuLevel;
+}
+
+int VSCore::setCpuLevel(int cpu) {
+    return cpuLevel.exchange(cpu);
+}
+
 static void VS_CC configPlugin3(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) VS_NOEXCEPT {
     assert(identifier && defaultNamespace && name && plugin);
     plugin->configPlugin(identifier, defaultNamespace, name, -1, apiVersion, readOnly ? 0 : pcModifiable);

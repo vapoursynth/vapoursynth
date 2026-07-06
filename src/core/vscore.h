@@ -1143,8 +1143,8 @@ public:
     void createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);
     VSNode *createAudioFilter(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);
 
-    int getCpuLevel() const { return cpuLevel; }
-    int setCpuLevel(int cpu) { return cpuLevel.exchange(cpu); }
+    virtual int getCpuLevel() const;
+    virtual int setCpuLevel(int cpu);
 
     VSMap *getPlugins3();
     VSPlugin *getPluginByID(const std::string &identifier);
