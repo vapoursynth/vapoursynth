@@ -503,11 +503,10 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
         for (int i = 0; i < d->numclips; i++) {
             d->numframes[i] = (vsapi->getVideoInfo(d->nodes[i]))->numFrames;
-            vi.numFrames += d->numframes[i];
 
-            // did it overflow?
-            if (vi.numFrames < d->numframes[i])
+            if (d->numframes[i] > INT_MAX - vi.numFrames)
                 RETERROR("Splice: the resulting clip is too long");
+            vi.numFrames += d->numframes[i];
         }
 
         std::vector<VSFilterDependency> deps;
@@ -567,7 +566,7 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
 
     std::sort(d->dups.begin(), d->dups.end());
 
-    if (vi.numFrames + d->num_dups < vi.numFrames)
+    if (d->num_dups > INT_MAX - vi.numFrames)
         RETERROR("DuplicateFrames: resulting clip is too long");
 
     vi.numFrames += d->num_dups;
