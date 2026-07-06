@@ -256,7 +256,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX512(const VSVideoFo
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_byte_avx512;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
-                return vs_generic_5x5_conv_byte_avx512;
+                return convByteVNNI(d) ? vs_generic_5x5_conv_byte_avx512vnni : vs_generic_5x5_conv_byte_avx512;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
                 return convByteVNNI(d) ? vs_generic_7x7_conv_byte_avx512vnni : vs_generic_7x7_conv_byte_avx512;
             else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)

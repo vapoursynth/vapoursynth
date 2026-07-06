@@ -311,8 +311,9 @@ DECL(7x7_conv, word, avx512)
 DECL(9x9_conv, word, avx512)
 DECL(11x11_conv, word, avx512)
 
-/* AVX-512-VNNI byte square convolution (7x7..11x11); used when the CPU reports VNNI+VBMI
+/* AVX-512-VNNI byte square convolution (5x5..11x11); used when the CPU reports VNNI+VBMI
    and every coefficient fits int8. Bit-exact with the plain avx512 byte kernels. */
+DECL(5x5_conv, byte, avx512vnni)
 DECL(7x7_conv, byte, avx512vnni)
 DECL(9x9_conv, byte, avx512vnni)
 DECL(11x11_conv, byte, avx512vnni)

@@ -19,7 +19,7 @@
 */
 
 /*
-* AVX-512-VNNI byte square (non-separable) NxN convolution, N in {7,9,11} -- a faster
+* AVX-512-VNNI byte square (non-separable) NxN convolution, N in {5,7,9,11} -- a faster
 * interior for sq_plane's byte path, dispatched only when the CPU reports VNNI+VBMI and every
 * coefficient fits int8. vpdpbusd reduces 4 uint8*int8 products into an int32 lane in one op
 * (no byte->word widening); one vpermb builds the 4-consecutive-pixel sliding window per lane,
@@ -47,8 +47,8 @@
 
 namespace {
 
-// SIMD interior: 16 output pixels/iter, one vpdpbusd per 4-tap group per row. Returns the first
-// column not covered (the scalar edges handle [0,S) and [returned, W)).
+// SIMD interior: 4 independent 16-output blocks per iteration (single-block + masked tail for the
+// remainder). Returns the first column not covered (the scalar edges handle [0,S) and [returned, W)).
 template <unsigned N>
 VS_TARGET_SQ_VNNI
 static unsigned sq_interior_byte_vnni(const uint8_t *const *rows, uint8_t *dst, unsigned S, unsigned W,
@@ -72,8 +72,25 @@ static unsigned sq_interior_byte_vnni(const uint8_t *const *rows, uint8_t *dst, 
     };
     unsigned end = W > S ? W - S : 0, j = S;
     constexpr ptrdiff_t maxoff = static_cast<ptrdiff_t>((G - 1) * 4);
-    // Fast path: plain 64-byte window loads while even the widest one stays inside the row
-    // stride (the load may reach into stride padding, which is safe -- like the 3x3 kernel).
+    constexpr unsigned B = 4;   // independent 16-output blocks processed per iteration
+    // Fast path: B blocks in parallel. The B window loads (rb + g*4 + 16*a) overlap, one shared
+    // coefficient broadcast feeds all B, and the B independent vpdpbusd chains expose enough ILP
+    // to hide the ~4-cycle latency a single accumulator can't (~1.3-1.9x over one block). Bounded
+    // so even the widest load (block B-1, into stride padding) stays inside the row.
+    for (; j + 16 * B <= end && static_cast<ptrdiff_t>(j - S) + maxoff + 16 * (B - 1) + 64 <= ss; j += 16 * B) {
+        __m512i acc[B];
+        for (unsigned a = 0; a < B; ++a) acc[a] = _mm512_setzero_si512();
+        for (unsigned r = 0; r < N; ++r) {
+            const uint8_t *rb = rows[r] + (j - S);
+            for (unsigned g = 0; g < G; ++g) {
+                __m512i cf = _mm512_set1_epi32(static_cast<int>(pk[r][g]));   // shared across the B blocks
+                for (unsigned a = 0; a < B; ++a)
+                    acc[a] = _mm512_dpbusd_epi32(acc[a], _mm512_permutexvar_epi8(widx, _mm512_loadu_si512(rb + g * 4 + 16 * a)), cf);
+            }
+        }
+        for (unsigned a = 0; a < B; ++a) store16(j + 16 * a, acc[a]);
+    }
+    // Single-block fast path for the < B leftover full blocks (plain 64-byte loads into padding).
     for (; j + 16 <= end && static_cast<ptrdiff_t>(j - S) + maxoff + 64 <= ss; j += 16) {
         __m512i acc = _mm512_setzero_si512();
         for (unsigned r = 0; r < N; ++r) {
@@ -131,6 +148,7 @@ static void sq_plane_byte_vnni(const void *src, ptrdiff_t ss, void *dst, ptrdiff
     { sq_plane_byte_vnni<N>(src, src_stride, dst, dst_stride, *params, width, height); }
 
 #define VS_SQUARE_VNNI_ENTRYPOINTS \
+    VS_SQUARE_VNNI_ENTRY(5x5,   5) \
     VS_SQUARE_VNNI_ENTRY(7x7,   7) \
     VS_SQUARE_VNNI_ENTRY(9x9,   9) \
     VS_SQUARE_VNNI_ENTRY(11x11, 11)
