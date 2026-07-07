@@ -20,7 +20,9 @@
 
 #include <cstdlib>
 #include <cstdio>
+#include <cstring>
 #include <cinttypes>
+#include <bit>
 #include <memory>
 #include <limits>
 #include <string>
@@ -82,9 +84,6 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
                 const U * VS_RESTRICT lut = reinterpret_cast<const U *>(d->lut);
 
 #ifdef VS_TARGET_CPU_X86
-                // The AVX-512-VBMI byte-LUT kernel only exists on x86, so the whole branch is compiled
-                // out elsewhere -- the scalar fallback below is then the only path, independent of the
-                // value of d->use_vbmi (which is likewise only ever set on x86).
                 if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>) {
                     if (d->use_vbmi) {
                         for (int hl = 0; hl < h; hl++) {
@@ -97,8 +96,23 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
                 }
 #endif
                 for (int hl = 0; hl < h; hl++) {
-                    for (int x = 0; x < w; x++)
-                        dstp[x] = lut[srcp[x]]; /* LUT padded to the full input container, so no per-pixel clamp is needed */
+                    int x = 0;
+                    if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>) {
+                        constexpr bool le = std::endian::native == std::endian::little;
+                        for (; x + 8 <= w; x += 8) {
+                            uint64_t p = ((uint64_t)lut[srcp[x + 0]] << (le ?  0 : 56))
+                                | ((uint64_t)lut[srcp[x + 1]] << (le ?  8 : 48))
+                                | ((uint64_t)lut[srcp[x + 2]] << (le ? 16 : 40))
+                                | ((uint64_t)lut[srcp[x + 3]] << (le ? 24 : 32))
+                                | ((uint64_t)lut[srcp[x + 4]] << (le ? 32 : 24))
+                                | ((uint64_t)lut[srcp[x + 5]] << (le ? 40 : 16))
+                                | ((uint64_t)lut[srcp[x + 6]] << (le ? 48 :  8))
+                                | ((uint64_t)lut[srcp[x + 7]] << (le ? 56 :  0));
+                            std::memcpy(dstp + x, &p, sizeof(p));
+                        }
+                    }
+                    for (; x < w; x++)
+                        dstp[x] = lut[srcp[x]];
                     dstp += dst_stride / sizeof(U);
                     srcp += src_stride / sizeof(T);
                 }
