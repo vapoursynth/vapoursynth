@@ -38,7 +38,7 @@ using namespace vsh;
 // Lut
 
 #ifdef VS_TARGET_CPU_X86
-extern "C" void vs_lut1_b_b_avx512vbmi(const uint8_t *src, uint8_t *dst, int w, const uint8_t *lut);
+void vs_lut1_b_b_avx512vbmi(const uint8_t *src, uint8_t *dst, int w, const uint8_t *lut);
 #endif
 
 namespace {
@@ -315,14 +315,12 @@ struct Lut2DataExtra {
 typedef DualNodeData<Lut2DataExtra> Lut2Data;
 
 #ifdef VS_TARGET_CPU_X86
-extern "C" {
 void vs_lut2_gather_ww_w_avx512(const uint16_t *, const uint16_t *, uint16_t *, int, const uint16_t *, int, unsigned, unsigned);
 void vs_lut2_gather_ww_b_avx512(const uint16_t *, const uint16_t *, uint8_t *, int, const uint8_t *, int, unsigned, unsigned);
 void vs_lut2_gather_wb_w_avx512(const uint16_t *, const uint8_t *, uint16_t *, int, const uint16_t *, int, unsigned, unsigned);
 void vs_lut2_gather_wb_b_avx512(const uint16_t *, const uint8_t *, uint8_t *, int, const uint8_t *, int, unsigned, unsigned);
 void vs_lut2_gather_bw_w_avx512(const uint8_t *, const uint16_t *, uint16_t *, int, const uint16_t *, int, unsigned, unsigned);
 void vs_lut2_gather_bw_b_avx512(const uint8_t *, const uint16_t *, uint8_t *, int, const uint8_t *, int, unsigned, unsigned);
-}
 #endif
 
 /* Dispatch one row to the AVX-512 gather kernel for the current type combo.

@@ -24,10 +24,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 union vs_plane_stats {
     struct {
         unsigned min;
@@ -79,9 +75,5 @@ DECL_2(half, avx2)
 
 #undef DECL_2
 #undef DECL_1
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
 
 #endif

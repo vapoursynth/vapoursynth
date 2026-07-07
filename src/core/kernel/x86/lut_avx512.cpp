@@ -77,7 +77,6 @@ void lut2_gather(const T *sx, const U *sy, V *d, int w, const V *lut, int bitsx,
 
 } // namespace
 
-extern "C" {
 void vs_lut2_gather_ww_w_avx512(const uint16_t *sx, const uint16_t *sy, uint16_t *d, int w, const uint16_t *lut, int bitsx, unsigned mx, unsigned my) { lut2_gather<uint16_t, uint16_t, uint16_t>(sx, sy, d, w, lut, bitsx, mx, my); }
 void vs_lut2_gather_ww_b_avx512(const uint16_t *sx, const uint16_t *sy, uint8_t *d, int w, const uint8_t *lut, int bitsx, unsigned mx, unsigned my) { lut2_gather<uint16_t, uint16_t, uint8_t>(sx, sy, d, w, lut, bitsx, mx, my); }
 void vs_lut2_gather_wb_w_avx512(const uint16_t *sx, const uint8_t *sy, uint16_t *d, int w, const uint16_t *lut, int bitsx, unsigned mx, unsigned my) { lut2_gather<uint16_t, uint8_t, uint16_t>(sx, sy, d, w, lut, bitsx, mx, my); }
@@ -102,4 +101,3 @@ void vs_lut1_b_b_avx512vbmi(const uint8_t *src, uint8_t *dst, int w, const uint8
         _mm512_store_si512(dst + i, _mm512_or_si512(a, b));
     }
 }
-} // extern "C"

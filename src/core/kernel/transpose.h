@@ -25,10 +25,6 @@
 #include <stdint.h>
 #include "VSHelper4.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void vs_transpose_plane_byte_c(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
 void vs_transpose_plane_word_c(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
 void vs_transpose_plane_dword_c(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
@@ -173,9 +169,5 @@ static void transpose_plane_dword(const void * VS_RESTRICT src, ptrdiff_t src_st
     }
 }
 #endif /* VS_TRANSPOSE_IMPL */
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

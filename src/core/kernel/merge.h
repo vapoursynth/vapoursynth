@@ -24,10 +24,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 union vs_merge_weight {
     unsigned u;
     float f;
@@ -152,10 +148,6 @@ DECL_MASK_MERGE_PREMUL(word, avx512)
 */
 static const uint32_t div_table[8] = { 0x80402011, 0x80200803, 0x80100201, 0x80080081, 0x80040021, 0x80020009, 0x80010003, 0x80008001 };
 static const uint8_t shift_table[8] = { 8, 9, 10, 11, 12, 13, 14, 15 };
-#endif
-
-#ifdef __cplusplus
-} // extern "C"
 #endif
 
 #endif // MERGE_H

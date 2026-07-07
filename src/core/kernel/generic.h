@@ -24,10 +24,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct vs_generic_params {
 	uint16_t maxval;
 
@@ -322,9 +318,5 @@ DECL(11x11_conv, byte, avx512vnni)
 
 #undef DECL_3x3
 #undef DECL
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
 
 #endif
