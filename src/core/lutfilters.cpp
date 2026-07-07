@@ -81,22 +81,26 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
 
                 const U * VS_RESTRICT lut = reinterpret_cast<const U *>(d->lut);
 
-                if (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t> && d->use_vbmi) {
-                    for (int hl = 0; hl < h; hl++) {
 #ifdef VS_TARGET_CPU_X86
-                        if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>)
+                // The AVX-512-VBMI byte-LUT kernel only exists on x86, so the whole branch is compiled
+                // out elsewhere -- the scalar fallback below is then the only path, independent of the
+                // value of d->use_vbmi (which is likewise only ever set on x86).
+                if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>) {
+                    if (d->use_vbmi) {
+                        for (int hl = 0; hl < h; hl++) {
                             vs_lut1_b_b_avx512vbmi(srcp, dstp, w, lut);
+                            dstp += dst_stride / sizeof(U);
+                            srcp += src_stride / sizeof(T);
+                        }
+                        continue; // plane done; skip the scalar fallback
+                    }
+                }
 #endif
-                        dstp += dst_stride / sizeof(U);
-                        srcp += src_stride / sizeof(T);
-                    }
-                } else {
-                    for (int hl = 0; hl < h; hl++) {
-                        for (int x = 0; x < w; x++)
-                            dstp[x] = lut[srcp[x]]; /* LUT padded to the full input container, so no per-pixel clamp is needed */
-                        dstp += dst_stride / sizeof(U);
-                        srcp += src_stride / sizeof(T);
-                    }
+                for (int hl = 0; hl < h; hl++) {
+                    for (int x = 0; x < w; x++)
+                        dstp[x] = lut[srcp[x]]; /* LUT padded to the full input container, so no per-pixel clamp is needed */
+                    dstp += dst_stride / sizeof(U);
+                    srcp += src_stride / sizeof(T);
                 }
             }
         }
