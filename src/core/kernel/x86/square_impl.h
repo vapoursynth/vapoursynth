@@ -111,6 +111,46 @@ static unsigned sq_interior_byte(const uint8_t *const *rows, uint8_t *dst, unsig
     return j;
 }
 
+// One run of the int32 word interior: BLK independent IPELS-pixel blocks per iteration. BLK>1
+// exposes the ILP that the 2-chain (lo/hi) single-block loop leaves on the table -- the b loop is
+// innermost so the BLK blocks' madds issue back to back. Bit-identical to BLK=1 (same integer
+// math, only reassociated). Returns the first interior column not covered.
+template <class ISA, unsigned N, unsigned BLK>
+static unsigned sq_word_i32_run(const uint16_t *const *rows, uint16_t *dst, unsigned S, unsigned end, unsigned j,
+                                const int16_t *m, typename ISA::fvec sc, typename ISA::fvec bi, typename ISA::fvec sm,
+                                typename ISA::ivec mv, typename ISA::ivec bias16, typename ISA::ivec wbv)
+{
+    typedef typename ISA::ivec ivec;
+    for (; j + ISA::IPELS * BLK <= end; j += ISA::IPELS * BLK) {
+        ivec lo[BLK], hi[BLK];
+        for (unsigned b = 0; b < BLK; ++b) { lo[b] = ISA::zero_i(); hi[b] = ISA::zero_i(); }
+        for (unsigned r = 0; r < N; ++r) {
+            const uint16_t *rb[BLK];
+            for (unsigned b = 0; b < BLK; ++b) rb[b] = rows[r] + (j - S + ISA::IPELS * b);
+            unsigned k = 0;
+            for (; k + 1 < N; k += 2) {
+                ivec w = ISA::set1_i32((static_cast<uint16_t>(m[r * N + k + 1]) << 16) | static_cast<uint16_t>(m[r * N + k]));
+                for (unsigned b = 0; b < BLK; ++b) {
+                    ivec x0 = ISA::load_word_biased(rb[b] + k, bias16), x1 = ISA::load_word_biased(rb[b] + k + 1, bias16);
+                    lo[b] = ISA::add32(lo[b], ISA::madd(ISA::unpacklo16(x0, x1), w));
+                    hi[b] = ISA::add32(hi[b], ISA::madd(ISA::unpackhi16(x0, x1), w));
+                }
+            }
+            if constexpr (N & 1) {
+                ivec w = ISA::set1_i32(static_cast<uint16_t>(m[r * N + k]));
+                for (unsigned b = 0; b < BLK; ++b) {
+                    ivec x0 = ISA::load_word_biased(rb[b] + k, bias16);
+                    lo[b] = ISA::add32(lo[b], ISA::madd(ISA::unpacklo16(x0, ISA::zero_i()), w));
+                    hi[b] = ISA::add32(hi[b], ISA::madd(ISA::unpackhi16(x0, ISA::zero_i()), w));
+                }
+            }
+        }
+        for (unsigned b = 0; b < BLK; ++b)
+            ISA::storeu_u16(dst + j + ISA::IPELS * b, ISA::sub32(lo[b], wbv), ISA::sub32(hi[b], wbv), sc, bi, sm, mv);
+    }
+    return j;
+}
+
 template <class ISA, unsigned N>
 static unsigned sq_interior_word(const uint16_t *const *rows, uint16_t *dst, unsigned S, unsigned W,
                                  const int16_t *m, typename ISA::fvec sc, typename ISA::fvec bi, typename ISA::fvec sm, typename ISA::ivec mv)
@@ -121,34 +161,60 @@ static unsigned sq_interior_word(const uint16_t *const *rows, uint16_t *dst, uns
     for (unsigned i = 0; i < N * N; ++i) wb += static_cast<int32_t>(INT16_MIN) * m[i];
     ivec wbv = ISA::set1_i32(static_cast<uint32_t>(wb));
     unsigned end = W > S ? W - S : 0, j = S;
-    for (; j + ISA::IPELS <= end; j += ISA::IPELS) {
-        ivec lo = ISA::zero_i(), hi = ISA::zero_i();
+    // 512-bit tier (32 regs): 4 blocks -> ~1.4-1.6x over the 2-chain loop; 256-bit tier stays at 1.
+    constexpr unsigned B = ISA::IPELS >= 32 ? 4 : 1;
+    if constexpr (B > 1)
+        j = sq_word_i32_run<ISA, N, B>(rows, dst, S, end, j, m, sc, bi, sm, mv, bias16, wbv);
+    return sq_word_i32_run<ISA, N, 1>(rows, dst, S, end, j, m, sc, bi, sm, mv, bias16, wbv);
+}
+
+// Word path for N>=9, where N*N taps overflow int32: each row summed in int32 (always safe),
+// spilled into int64 accumulators, exact int64 -> float at the end -- bit-exact with the int64 C
+// reference. One run of BLK independent blocks (b loop innermost for ILP). The 64-bit accumulators
+// are heavy, so the 512-bit tier uses 2 blocks (4 spills registers past 9x9); 256-bit stays at 1.
+template <class ISA, unsigned N, unsigned BLK>
+static unsigned sq_word_i64_run(const uint16_t *const *rows, uint16_t *dst, unsigned S, unsigned end, unsigned j,
+                                const int16_t *m, typename ISA::fvec sc, typename ISA::fvec bi, typename ISA::fvec sm,
+                                typename ISA::ivec mv, typename ISA::ivec bias16, typename ISA::ivec wbv)
+{
+    typedef typename ISA::ivec ivec;
+    for (; j + ISA::IPELS * BLK <= end; j += ISA::IPELS * BLK) {
+        ivec la[BLK], lb[BLK], ha[BLK], hb[BLK];
+        for (unsigned b = 0; b < BLK; ++b) { la[b] = ISA::zero_i(); lb[b] = ISA::zero_i(); ha[b] = ISA::zero_i(); hb[b] = ISA::zero_i(); }
         for (unsigned r = 0; r < N; ++r) {
-            const uint16_t *row = rows[r] + (j - S);
+            const uint16_t *rb[BLK];
+            for (unsigned b = 0; b < BLK; ++b) rb[b] = rows[r] + (j - S + ISA::IPELS * b);
+            ivec rlo[BLK], rhi[BLK];
+            for (unsigned b = 0; b < BLK; ++b) { rlo[b] = ISA::zero_i(); rhi[b] = ISA::zero_i(); }
             unsigned k = 0;
             for (; k + 1 < N; k += 2) {
-                ivec x0 = ISA::load_word_biased(row + k, bias16), x1 = ISA::load_word_biased(row + k + 1, bias16);
                 ivec w = ISA::set1_i32((static_cast<uint16_t>(m[r * N + k + 1]) << 16) | static_cast<uint16_t>(m[r * N + k]));
-                lo = ISA::add32(lo, ISA::madd(ISA::unpacklo16(x0, x1), w));
-                hi = ISA::add32(hi, ISA::madd(ISA::unpackhi16(x0, x1), w));
+                for (unsigned b = 0; b < BLK; ++b) {
+                    ivec x0 = ISA::load_word_biased(rb[b] + k, bias16), x1 = ISA::load_word_biased(rb[b] + k + 1, bias16);
+                    rlo[b] = ISA::add32(rlo[b], ISA::madd(ISA::unpacklo16(x0, x1), w));
+                    rhi[b] = ISA::add32(rhi[b], ISA::madd(ISA::unpackhi16(x0, x1), w));
+                }
             }
             if constexpr (N & 1) {
-                ivec x0 = ISA::load_word_biased(row + k, bias16);
                 ivec w = ISA::set1_i32(static_cast<uint16_t>(m[r * N + k]));
-                lo = ISA::add32(lo, ISA::madd(ISA::unpacklo16(x0, ISA::zero_i()), w));
-                hi = ISA::add32(hi, ISA::madd(ISA::unpackhi16(x0, ISA::zero_i()), w));
+                for (unsigned b = 0; b < BLK; ++b) {
+                    ivec x0 = ISA::load_word_biased(rb[b] + k, bias16);
+                    rlo[b] = ISA::add32(rlo[b], ISA::madd(ISA::unpacklo16(x0, ISA::zero_i()), w));
+                    rhi[b] = ISA::add32(rhi[b], ISA::madd(ISA::unpackhi16(x0, ISA::zero_i()), w));
+                }
+            }
+            for (unsigned b = 0; b < BLK; ++b) {
+                la[b] = ISA::add64(la[b], ISA::widenlo_i64(rlo[b])); lb[b] = ISA::add64(lb[b], ISA::widenhi_i64(rlo[b]));
+                ha[b] = ISA::add64(ha[b], ISA::widenlo_i64(rhi[b])); hb[b] = ISA::add64(hb[b], ISA::widenhi_i64(rhi[b]));
             }
         }
-        lo = ISA::sub32(lo, wbv);
-        hi = ISA::sub32(hi, wbv);
-        ISA::storeu_u16(dst + j, lo, hi, sc, bi, sm, mv);
+        for (unsigned b = 0; b < BLK; ++b)
+            ISA::storeu_u16_i64(dst + j + ISA::IPELS * b, ISA::sub64(la[b], wbv), ISA::sub64(lb[b], wbv),
+                                ISA::sub64(ha[b], wbv), ISA::sub64(hb[b], wbv), sc, bi, sm, mv);
     }
     return j;
 }
 
-// Word path for N>=9, where N*N taps overflow int32. Each row's taps are summed in int32
-// (a single row is always int32-safe), then spilled into int64 accumulators; the total and the
-// final int64 -> float conversion are exact, so this stays bit-exact with the int64 C reference.
 template <class ISA, unsigned N>
 static unsigned sq_interior_word_i64(const uint16_t *const *rows, uint16_t *dst, unsigned S, unsigned W,
                                      const int16_t *m, typename ISA::fvec sc, typename ISA::fvec bi, typename ISA::fvec sm, typename ISA::ivec mv)
@@ -159,32 +225,10 @@ static unsigned sq_interior_word_i64(const uint16_t *const *rows, uint16_t *dst,
     for (unsigned i = 0; i < N * N; ++i) wb += static_cast<int64_t>(INT16_MIN) * m[i];
     ivec wbv = ISA::set1_i64(wb);
     unsigned end = W > S ? W - S : 0, j = S;
-    for (; j + ISA::IPELS <= end; j += ISA::IPELS) {
-        ivec la = ISA::zero_i(), lb = ISA::zero_i(), ha = ISA::zero_i(), hb = ISA::zero_i();
-        for (unsigned r = 0; r < N; ++r) {
-            const uint16_t *row = rows[r] + (j - S);
-            ivec rlo = ISA::zero_i(), rhi = ISA::zero_i();
-            unsigned k = 0;
-            for (; k + 1 < N; k += 2) {
-                ivec x0 = ISA::load_word_biased(row + k, bias16), x1 = ISA::load_word_biased(row + k + 1, bias16);
-                ivec w = ISA::set1_i32((static_cast<uint16_t>(m[r * N + k + 1]) << 16) | static_cast<uint16_t>(m[r * N + k]));
-                rlo = ISA::add32(rlo, ISA::madd(ISA::unpacklo16(x0, x1), w));
-                rhi = ISA::add32(rhi, ISA::madd(ISA::unpackhi16(x0, x1), w));
-            }
-            if constexpr (N & 1) {
-                ivec x0 = ISA::load_word_biased(row + k, bias16);
-                ivec w = ISA::set1_i32(static_cast<uint16_t>(m[r * N + k]));
-                rlo = ISA::add32(rlo, ISA::madd(ISA::unpacklo16(x0, ISA::zero_i()), w));
-                rhi = ISA::add32(rhi, ISA::madd(ISA::unpackhi16(x0, ISA::zero_i()), w));
-            }
-            la = ISA::add64(la, ISA::widenlo_i64(rlo)); lb = ISA::add64(lb, ISA::widenhi_i64(rlo));
-            ha = ISA::add64(ha, ISA::widenlo_i64(rhi)); hb = ISA::add64(hb, ISA::widenhi_i64(rhi));
-        }
-        la = ISA::sub64(la, wbv); lb = ISA::sub64(lb, wbv);
-        ha = ISA::sub64(ha, wbv); hb = ISA::sub64(hb, wbv);
-        ISA::storeu_u16_i64(dst + j, la, lb, ha, hb, sc, bi, sm, mv);
-    }
-    return j;
+    constexpr unsigned B = ISA::IPELS >= 32 ? 2 : 1;
+    if constexpr (B > 1)
+        j = sq_word_i64_run<ISA, N, B>(rows, dst, S, end, j, m, sc, bi, sm, mv, bias16, wbv);
+    return sq_word_i64_run<ISA, N, 1>(rows, dst, S, end, j, m, sc, bi, sm, mv, bias16, wbv);
 }
 
 template <class ISA, unsigned N>
