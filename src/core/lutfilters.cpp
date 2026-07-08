@@ -96,10 +96,9 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
                 }
 #endif
                 for (int hl = 0; hl < h; hl++) {
-                    int x = 0;
-                    if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>) {
+                    if constexpr (std::is_same_v<U, uint8_t>) {
                         constexpr bool le = std::endian::native == std::endian::little;
-                        for (; x + 8 <= w; x += 8) {
+                        for (int x = 0; x < w; x += 8) {
                             uint64_t p = ((uint64_t)lut[srcp[x + 0]] << (le ?  0 : 56))
                                 | ((uint64_t)lut[srcp[x + 1]] << (le ?  8 : 48))
                                 | ((uint64_t)lut[srcp[x + 2]] << (le ? 16 : 40))
@@ -110,9 +109,19 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
                                 | ((uint64_t)lut[srcp[x + 7]] << (le ? 56 :  0));
                             std::memcpy(dstp + x, &p, sizeof(p));
                         }
+                    } else if constexpr (std::is_same_v<U, uint16_t>) {
+                        constexpr bool le = std::endian::native == std::endian::little;
+                        for (int x = 0; x < w; x += 4) {
+                            uint64_t p = ((uint64_t)lut[srcp[x + 0]] << (le ?  0 : 48))
+                                | ((uint64_t)lut[srcp[x + 1]] << (le ? 16 : 32))
+                                | ((uint64_t)lut[srcp[x + 2]] << (le ? 32 : 16))
+                                | ((uint64_t)lut[srcp[x + 3]] << (le ? 48 :  0));
+                            std::memcpy(dstp + x, &p, sizeof(p));
+                        }
+                    } else {
+                        for (int x = 0; x < w; x++)
+                            dstp[x] = lut[srcp[x]];
                     }
-                    for (; x < w; x++)
-                        dstp[x] = lut[srcp[x]];
                     dstp += dst_stride / sizeof(U);
                     srcp += src_stride / sizeof(T);
                 }
