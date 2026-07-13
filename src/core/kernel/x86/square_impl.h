@@ -24,9 +24,11 @@
 * traits struct (the same one convolution_impl.h uses) and include this file to
 * instantiate the kernels.
 *
-* Interior columns run SIMD; only the first/last N/2 columns (plus the sub-vector
-* interior remainder) use the scalar reference, so the bit-exactness / mirror
-* behaviour matches kernel/generic.cpp conv_plane_square exactly. Integer paths pair
+* Interior columns run SIMD; only the first/last N/2 mirror columns use the scalar
+* reference -- the sub-vector interior remainder is covered by an overlapping final
+* vector (re-storing already-written columns, which is safe since the SIMD interior
+* is bit-exact with the scalar reference), so the bit-exactness / mirror behaviour
+* matches kernel/generic.cpp conv_plane_square exactly. Integer paths pair
 * two taps per pmaddwd (a trick the auto-vectoriser does not apply). byte accumulates in
 * int32 (never overflows). word at N<=7 accumulates in int32 (worst case N*N*1023*32768 <
 * INT32_MAX at 7x7); word at N>=9 sums each row in int32 (a single row is always safe) and
@@ -87,11 +89,10 @@ static unsigned sq_interior_byte(const uint8_t *const *rows, uint8_t *dst, unsig
                                  const int16_t *m, typename ISA::fvec sc, typename ISA::fvec bi, typename ISA::fvec sm)
 {
     typedef typename ISA::ivec ivec;
-    unsigned end = W > S ? W - S : 0, j = S;
-    for (; j + ISA::IPELS <= end; j += ISA::IPELS) {
+    auto block = [&](unsigned jj) {
         ivec lo = ISA::zero_i(), hi = ISA::zero_i();
         for (unsigned r = 0; r < N; ++r) {
-            const uint8_t *row = rows[r] + (j - S);
+            const uint8_t *row = rows[r] + (jj - S);
             unsigned k = 0;
             for (; k + 1 < N; k += 2) {
                 ivec x0 = ISA::widen_byte(row + k), x1 = ISA::widen_byte(row + k + 1);
@@ -106,8 +107,13 @@ static unsigned sq_interior_byte(const uint8_t *const *rows, uint8_t *dst, unsig
                 hi = ISA::add32(hi, ISA::madd(ISA::unpackhi16(x0, ISA::zero_i()), w));
             }
         }
-        ISA::storeu_u8(dst + j, lo, hi, sc, bi, sm);
-    }
+        ISA::storeu_u8(dst + jj, lo, hi, sc, bi, sm);
+    };
+    unsigned end = W > S ? W - S : 0, j = S;
+    for (; j + ISA::IPELS <= end; j += ISA::IPELS) block(j);
+    // Overlapping final block: cover the sub-IPELS interior remainder with SIMD (re-storing
+    // some already-written columns) instead of dropping ~IPELS columns to the scalar tail.
+    if (j < end && end >= S + ISA::IPELS) { block(end - ISA::IPELS); j = end; }
     return j;
 }
 
@@ -165,7 +171,11 @@ static unsigned sq_interior_word(const uint16_t *const *rows, uint16_t *dst, uns
     constexpr unsigned B = ISA::IPELS >= 32 ? 4 : 1;
     if constexpr (B > 1)
         j = sq_word_i32_run<ISA, N, B>(rows, dst, S, end, j, m, sc, bi, sm, mv, bias16, wbv);
-    return sq_word_i32_run<ISA, N, 1>(rows, dst, S, end, j, m, sc, bi, sm, mv, bias16, wbv);
+    j = sq_word_i32_run<ISA, N, 1>(rows, dst, S, end, j, m, sc, bi, sm, mv, bias16, wbv);
+    // Overlapping final block covers the sub-IPELS interior remainder in SIMD (see sq_interior_byte).
+    if (j < end && end >= S + ISA::IPELS)
+        j = sq_word_i32_run<ISA, N, 1>(rows, dst, S, end, end - ISA::IPELS, m, sc, bi, sm, mv, bias16, wbv);
+    return j;
 }
 
 // Word path for N>=9, where N*N taps overflow int32: each row summed in int32 (always safe),
@@ -228,7 +238,11 @@ static unsigned sq_interior_word_i64(const uint16_t *const *rows, uint16_t *dst,
     constexpr unsigned B = ISA::IPELS >= 32 ? 2 : 1;
     if constexpr (B > 1)
         j = sq_word_i64_run<ISA, N, B>(rows, dst, S, end, j, m, sc, bi, sm, mv, bias16, wbv);
-    return sq_word_i64_run<ISA, N, 1>(rows, dst, S, end, j, m, sc, bi, sm, mv, bias16, wbv);
+    j = sq_word_i64_run<ISA, N, 1>(rows, dst, S, end, j, m, sc, bi, sm, mv, bias16, wbv);
+    // Overlapping final block covers the sub-IPELS interior remainder in SIMD (see sq_interior_byte).
+    if (j < end && end >= S + ISA::IPELS)
+        j = sq_word_i64_run<ISA, N, 1>(rows, dst, S, end, end - ISA::IPELS, m, sc, bi, sm, mv, bias16, wbv);
+    return j;
 }
 
 template <class ISA, unsigned N>
@@ -237,20 +251,24 @@ static unsigned sq_interior_float(const float *const *rows, float *dst, unsigned
 {
     typedef typename ISA::fvec fvec;
     constexpr unsigned STEP = 2 * ISA::FLANES;
-    unsigned end = W > S ? W - S : 0, j = S;
-    for (; j + STEP <= end; j += STEP) {
+    auto block = [&](unsigned jj) {
         fvec a0 = ISA::fzero(), a1 = ISA::fzero();
         for (unsigned r = 0; r < N; ++r) {
-            const float *row = rows[r] + (j - S);
+            const float *row = rows[r] + (jj - S);
             for (unsigned k = 0; k < N; ++k) {
                 fvec w = ISA::set1_ps(m[r * N + k]);
                 a0 = ISA::fmadd(ISA::loadu_ps(row + k), w, a0);
                 a1 = ISA::fmadd(ISA::loadu_ps(row + k + ISA::FLANES), w, a1);
             }
         }
-        ISA::storeu_ps(dst + j, ISA::scale_bias_sat(a0, sc, bi, sm));
-        ISA::storeu_ps(dst + j + ISA::FLANES, ISA::scale_bias_sat(a1, sc, bi, sm));
-    }
+        ISA::storeu_ps(dst + jj, ISA::scale_bias_sat(a0, sc, bi, sm));
+        ISA::storeu_ps(dst + jj + ISA::FLANES, ISA::scale_bias_sat(a1, sc, bi, sm));
+    };
+    unsigned end = W > S ? W - S : 0, j = S;
+    for (; j + STEP <= end; j += STEP) block(j);
+    // Overlapping final block covers the sub-STEP interior remainder in SIMD (see sq_interior_byte).
+    // Float uses FMA, so these columns now match the SIMD interior rather than the non-FMA scalar tail.
+    if (j < end && end >= S + STEP) { block(end - STEP); j = end; }
     return j;
 }
 
