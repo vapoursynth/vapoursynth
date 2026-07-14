@@ -88,6 +88,22 @@ static inline void getPlanePixelRangeArgs(const VSVideoFormat &fi, const VSMap *
     }
 }
 
+static inline void getPlaneFloatArgs(const VSVideoFormat &fi, const VSMap *in, const char *propName, float *fval, float defval, const VSAPI *vsapi) {
+    if (vsapi->mapNumElements(in, propName) > fi.numPlanes)
+        throw std::runtime_error(std::string(propName) + " has more values specified than there are planes");
+    bool prevValid = false;
+    for (int plane = 0; plane < 3; plane++) {
+        int err;
+        double temp = vsapi->mapGetFloat(in, propName, plane, &err);
+        if (err) {
+            fval[plane] = prevValid ? fval[plane - 1] : defval;
+        } else {
+            fval[plane] = static_cast<float>(temp);
+            prevValid = true;
+        }
+    }
+}
+
 enum GenericOperations {
     GenericPrewitt,
     GenericSobel,
@@ -1066,9 +1082,9 @@ struct LevelsDataExtra {
     const VSVideoInfo *vi;
     const char *name;
     bool process[3];
-    float gamma;
-    float max_in, max_out, min_in, min_out;
-    std::vector<uint8_t> lut;
+    float gamma[3];
+    float max_in[3], max_out[3], min_in[3], min_out[3];
+    std::vector<uint8_t> lut[3];
 };
 
 typedef SingleNodeData<LevelsDataExtra> LevelsData;
@@ -1096,7 +1112,7 @@ static const VSFrame *VS_CC levelsGetframe(int n, int activationReason, void *in
                 int w = vsapi->getFrameWidth(src, plane);
 
                 T maxval = static_cast<T>((static_cast<int64_t>(1) << fi->bitsPerSample) - 1);
-                const T * VS_RESTRICT lut = reinterpret_cast<const T *>(d->lut.data());
+                const T * VS_RESTRICT lut = reinterpret_cast<const T *>(d->lut[plane].data());
 
                 for (int hl = 0; hl < h; hl++) {
                     for (int x = 0; x < w; x++)
@@ -1137,15 +1153,15 @@ static const VSFrame *VS_CC levelsGetframeF(int n, int activationReason, void *i
                 int h = vsapi->getFrameHeight(src, plane);
                 int w = vsapi->getFrameWidth(src, plane);
 
-                T gamma = d->gamma;
-                T range_in = 1.f / (d->max_in - d->min_in);
-                T range_out = d->max_out - d->min_out;
-                T min_in = d->min_in;
-                T min_out = d->min_out;
-                T max_in = d->max_in;
+                T gamma = d->gamma[plane];
+                T range_in = 1.f / (d->max_in[plane] - d->min_in[plane]);
+                T range_out = d->max_out[plane] - d->min_out[plane];
+                T min_in = d->min_in[plane];
+                T min_out = d->min_out[plane];
+                T max_in = d->max_in[plane];
 
-                if (std::abs(d->gamma - static_cast<T>(1.0)) < std::numeric_limits<T>::epsilon()) {
-                    T range_scale = range_out / (d->max_in - d->min_in);
+                if (std::abs(gamma - static_cast<T>(1.0)) < std::numeric_limits<T>::epsilon()) {
+                    T range_scale = range_out / (max_in - min_in);
                     for (int hl = 0; hl < h; hl++) {
                         for (int x = 0; x < w; x++)
                             dstp[x] = (std::max(std::min(srcp[x], max_in) - min_in, 0.f)) * range_scale + min_out;
@@ -1193,15 +1209,15 @@ static const VSFrame *VS_CC levelsGetframeH(int n, int activationReason, void *i
                 int h = vsapi->getFrameHeight(src, plane);
                 int w = vsapi->getFrameWidth(src, plane);
 
-                float gamma = d->gamma;
-                float range_in = 1.f / (d->max_in - d->min_in);
-                float range_out = d->max_out - d->min_out;
-                float min_in = d->min_in;
-                float min_out = d->min_out;
-                float max_in = d->max_in;
+                float gamma = d->gamma[plane];
+                float range_in = 1.f / (d->max_in[plane] - d->min_in[plane]);
+                float range_out = d->max_out[plane] - d->min_out[plane];
+                float min_in = d->min_in[plane];
+                float min_out = d->min_out[plane];
+                float max_in = d->max_in[plane];
 
-                if (std::abs(d->gamma - 1.0f) < std::numeric_limits<float>::epsilon()) {
-                    float range_scale = range_out / (d->max_in - d->min_in);
+                if (std::abs(gamma - 1.0f) < std::numeric_limits<float>::epsilon()) {
+                    float range_scale = range_out / (max_in - min_in);
                     for (int hl = 0; hl < h; hl++) {
                         for (int x = 0; x < w; x++)
                             dstp[x] = floatToHalf((std::max(std::min(halfToFloat(srcp[x]), max_in) - min_in, 0.f)) * range_scale + min_out);
@@ -1233,53 +1249,50 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     try {
         templateInit(d, "Levels", false, in, out, vsapi);
+
+        float maxvalf = 1.0f;
+        if (d->vi->format.sampleType == stInteger)
+            maxvalf = static_cast<float>((1 << d->vi->format.bitsPerSample) - 1);
+
+        getPlaneFloatArgs(d->vi->format, in, "min_in", d->min_in, 0.f, vsapi);
+        getPlaneFloatArgs(d->vi->format, in, "min_out", d->min_out, 0.f, vsapi);
+        getPlaneFloatArgs(d->vi->format, in, "max_in", d->max_in, maxvalf, vsapi);
+        getPlaneFloatArgs(d->vi->format, in, "max_out", d->max_out, maxvalf, vsapi);
+        getPlaneFloatArgs(d->vi->format, in, "gamma", d->gamma, 1.f, vsapi);
+        for (int plane = 0; plane < 3; plane++)
+            d->gamma[plane] = 1.f / d->gamma[plane];
+
+        // Implement with a simple per-plane lut for integer formats
+        if (d->vi->format.sampleType == stInteger) {
+            int maxval = (1 << d->vi->format.bitsPerSample) - 1;
+
+            for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
+                if (!d->process[plane])
+                    continue;
+
+                float min_in = std::round(d->min_in[plane]);
+                float min_out = std::round(d->min_out[plane]);
+                float max_in = std::round(d->max_in[plane]);
+                float max_out = std::round(d->max_out[plane]);
+                float gamma = d->gamma[plane];
+
+                if (std::abs(max_in - min_in) < std::numeric_limits<float>::epsilon())
+                    throw std::runtime_error("max_in and min_in are too close");
+
+                d->lut[plane].resize(d->vi->format.bytesPerSample * (1 << d->vi->format.bitsPerSample));
+                if (d->vi->format.bytesPerSample == 1) {
+                    for (int v = 0; v <= 255; v++)
+                        d->lut[plane][v] = static_cast<uint8_t>(std::max(std::min(std::pow(std::max(std::min<float>(v, max_in) - min_in, 0.f) / (max_in - min_in), gamma) * (max_out - min_out) + min_out, 255.f), 0.f) + 0.5f);
+                } else {
+                    uint16_t *lptr = reinterpret_cast<uint16_t *>(d->lut[plane].data());
+                    for (int v = 0; v <= maxval; v++)
+                        lptr[v] = static_cast<uint16_t>(std::max(std::min(std::pow(std::max(std::min<float>(v, max_in) - min_in, 0.f) / (max_in - min_in), gamma) * (max_out - min_out) + min_out, maxvalf), 0.f) + 0.5f);
+                }
+            }
+        }
     } catch (const std::runtime_error &error) {
         vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
         return;
-    }
-
-    int err;
-    float maxvalf = 1.0f;
-    if (d->vi->format.sampleType == stInteger)
-        maxvalf = static_cast<float>((1 << d->vi->format.bitsPerSample) - 1);
-
-    d->min_in = static_cast<float>(vsapi->mapGetFloat(in, "min_in", 0, &err));
-    d->min_out = static_cast<float>(vsapi->mapGetFloat(in, "min_out", 0, &err));
-    d->max_in = static_cast<float>(vsapi->mapGetFloat(in, "max_in", 0, &err));
-    if (err)
-        d->max_in = maxvalf;
-    d->max_out = static_cast<float>(vsapi->mapGetFloat(in, "max_out", 0, &err));
-    if (err)
-        d->max_out = maxvalf;
-    d->gamma = static_cast<float>(vsapi->mapGetFloat(in, "gamma", 0, &err));
-    if (err)
-        d->gamma = 1.f;
-    else
-        d->gamma = 1.f / d->gamma;
-
-    // Implement with simple lut for integer
-    if (d->vi->format.sampleType == stInteger) {
-        int maxval = (1 << d->vi->format.bitsPerSample) - 1;
-        d->lut.resize(d->vi->format.bytesPerSample * (1 << d->vi->format.bitsPerSample));
-
-        d->min_in = std::round(d->min_in);
-        d->min_out = std::round(d->min_out);
-        d->max_in = std::round(d->max_in);
-        d->max_out = std::round(d->max_out);
-
-        if (std::abs(d->max_in - d->min_in) < std::numeric_limits<float>::epsilon()) {
-            vsapi->mapSetError(out, (d->name + ": max_in and min_in are too close"s).c_str());
-            return;
-        }
-
-        if (d->vi->format.bytesPerSample == 1) {
-            for (int v = 0; v <= 255; v++)
-                d->lut[v] = static_cast<uint8_t>(std::max(std::min(std::pow(std::max(std::min<float>(v, d->max_in) - d->min_in, 0.f) / (d->max_in - d->min_in), d->gamma) * (d->max_out - d->min_out) + d->min_out, 255.f), 0.f) + 0.5f);
-        } else {
-            uint16_t *lptr = reinterpret_cast<uint16_t *>(d->lut.data());
-            for (int v = 0; v <= maxval; v++)
-                lptr[v] = static_cast<uint16_t>(std::max(std::min(std::pow(std::max(std::min<float>(v, d->max_in) - d->min_in, 0.f) / (d->max_in - d->min_in), d->gamma) * (d->max_out - d->min_out) + d->min_out, maxvalf), 0.f) + 0.5f);
-        }
     }
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
