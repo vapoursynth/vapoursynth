@@ -146,7 +146,6 @@ struct GenericDataExtra {
     ConvolutionTypes convolution_type;
     int matrix[121];
     float matrixf[121];
-    int matrix_sum;
     int matrix_elements;
     float rdiv;
     float bias;
@@ -797,27 +796,27 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             }
 
             float matrix_sumf = 0;
-            d->matrix_sum = 0;
             const double *matrix = vsapi->mapGetFloatArray(in, "matrix", nullptr);
+            d->conv_int8 = true;
             for (int i = 0; i < d->matrix_elements; i++) {
+                double c = matrix[i];
+                if (!std::isfinite(c))
+                    throw std::runtime_error("coefficients must be finite");
                 if (d->vi->format.sampleType == stInteger) {
-                    d->matrix[i] = lround(matrix[i]);
-                    d->matrixf[i] = d->matrix[i];
-                    if (d->vi->format.sampleType == stInteger && std::abs(d->matrix[i]) > 1023)
+                    double r = std::round(c);
+                    if (r < -1023.0 || r > 1023.0)
                         throw std::runtime_error("coefficients may only be between -1023 and 1023");
+                    int ci = static_cast<int>(r);
+                    d->matrix[i] = ci;
+                    d->matrixf[i] = static_cast<float>(ci);
+                    if (ci < -128 || ci > 127)
+                        d->conv_int8 = false;
                 } else {
-                    d->matrix[i] = lround(matrix[i]);
-                    d->matrixf[i] = static_cast<float>(matrix[i]);
+                    d->matrixf[i] = static_cast<float>(c);
                 }
 
                 matrix_sumf += d->matrixf[i];
-                d->matrix_sum += d->matrix[i];
             }
-
-            d->conv_int8 = true;
-            for (int i = 0; i < d->matrix_elements; i++)
-                if (d->matrix[i] < -128 || d->matrix[i] > 127)
-                    d->conv_int8 = false;
 
             if (std::abs(matrix_sumf) < std::numeric_limits<float>::epsilon())
                 matrix_sumf = 1.0;

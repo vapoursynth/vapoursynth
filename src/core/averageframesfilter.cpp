@@ -394,10 +394,19 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         }
 
         for (int i = 0; i < numWeights; i++) {
-            d->fweights.push_back(static_cast<float>(vsapi->mapGetFloat(in, "weights", i, 0)));
-            d->weights.push_back(std::lround(vsapi->mapGetFloat(in, "weights", i, 0)));
-            if (d->vi.format.sampleType == stInteger && std::abs(d->weights[i]) > 1023)
-                throw std::runtime_error("coefficients may only be between -1023 and 1023");
+            double w = vsapi->mapGetFloat(in, "weights", i, 0);
+            if (!std::isfinite(w))
+                throw std::runtime_error("weights must be finite");
+            d->fweights.push_back(static_cast<float>(w));
+            if (d->vi.format.sampleType == stInteger) {
+                double r = std::round(w);
+                if (r < -1023.0 || r > 1023.0)
+                    throw std::runtime_error("coefficients may only be between -1023 and 1023");
+                d->weights.push_back(static_cast<int>(r));
+            } else {
+                // Required because weights.size() is referenced to get the radius
+                d->weights.push_back(0);
+            }
         }
 
         float scale = static_cast<float>(vsapi->mapGetFloat(in, "scale", 0, &err));
