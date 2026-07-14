@@ -653,6 +653,20 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
 }
 
 template <GenericOperations op>
+static const char *checkPlaneDims(const GenericData *d, int width, int height) {
+    if (width < 4 || height < 4)
+        return "Cannot process planes smaller than 4x4.";
+    if constexpr (op == GenericConvolution) {
+        int radius = d->matrix_elements / 2;
+        if ((d->convolution_type == ConvolutionHorizontal || d->convolution_type == ConvolutionSeparable) && radius >= width)
+            return "Width must be bigger than convolution radius.";
+        if ((d->convolution_type == ConvolutionVertical || d->convolution_type == ConvolutionSeparable) && radius >= height)
+            return "Height must be bigger than convolution radius.";
+    }
+    return nullptr;
+}
+
+template <GenericOperations op>
 static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     GenericData *d = static_cast<GenericData *>(instanceData);
 
@@ -661,6 +675,20 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
     } else if (activationReason == arAllFramesReady) {
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
+
+        // Variable-size clips can't be validated at creation (declared width/height is 0); check
+        // each processed plane against the actual frame here.
+        if (!d->vi->width || !d->vi->height) {
+            for (int plane = 0; plane < fi->numPlanes; plane++) {
+                if (d->process[plane]) {
+                    if (const char *msg = checkPlaneDims<op>(d, vsapi->getFrameWidth(src, plane), vsapi->getFrameHeight(src, plane))) {
+                        vsapi->setFilterError((d->filter_name + ": "s + msg).c_str(), frameCtx);
+                        vsapi->freeFrame(src);
+                        return nullptr;
+                    }
+                }
+            }
+        }
 
         const int pl[] = { 0, 1, 2 };
         const VSFrame *fr[] = {
@@ -712,10 +740,6 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
     try {
         if (!is8to16orFloatFormat(d->vi->format))
             throw std::runtime_error(invalidVideoFormatMessage(d->vi->format, vsapi, nullptr));
-
-        if (d->vi->height && d->vi->width)
-            if (planeWidth(d->vi, d->vi->format.numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format.numPlanes - 1) < 4)
-                throw std::runtime_error("Cannot process frames with subsampled planes smaller than 4x4.");
 
         getPlanesArg(in, d->process, vsapi);
 
@@ -828,10 +852,12 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             d->rdiv = 1.0f / d->rdiv;
         }
 
-        if (op == GenericConvolution && (d->convolution_type == ConvolutionHorizontal || d->convolution_type == ConvolutionSeparable) && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
-            throw std::runtime_error("Width must be bigger than convolution radius.");
-        if (op == GenericConvolution && (d->convolution_type == ConvolutionVertical || d->convolution_type == ConvolutionSeparable) && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
-            throw std::runtime_error("Height must be bigger than convolution radius.");
+        if (d->vi->width && d->vi->height) {
+            for (int plane = 0; plane < d->vi->format.numPlanes; plane++)
+                if (d->process[plane])
+                    if (const char *msg = checkPlaneDims<op>(d.get(), planeWidth(d->vi, plane), planeHeight(d->vi, plane)))
+                        throw std::runtime_error(msg);
+        }
 
         d->cpulevel = vs_get_cpulevel(core);
 
