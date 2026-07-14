@@ -154,6 +154,9 @@ struct GenericDataExtra {
     bool conv_int8;   // all coefficients fit int8 -> byte square conv may take the VNNI path
 
     int cpulevel;
+
+    void (*func)(const void *, ptrdiff_t, void *, ptrdiff_t, const vs_generic_params *, unsigned, unsigned);
+    vs_generic_params params;
 };
 
 typedef SingleNodeData<GenericDataExtra> GenericData;
@@ -227,7 +230,7 @@ static void templateInit(T& d, const char *name, bool allowVariableFormat, const
     getPlanesArg(in, d->process, vsapi);
 }
 
-vs_generic_params make_generic_params(const GenericData *d, const VSVideoFormat *fi, int plane) {
+vs_generic_params make_generic_params(const GenericData *d, const VSVideoFormat *fi) {
     vs_generic_params params{};
 
     params.maxval = ((1 << fi->bitsPerSample) - 1);
@@ -660,19 +663,6 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
-        try {
-            if (!is8to16orFloatFormat(*fi))
-                throw std::runtime_error(invalidVideoFormatMessage(*fi, vsapi, nullptr, false, true));
-            if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
-                throw std::runtime_error("Width must be bigger than convolution radius.");
-            if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
-                throw std::runtime_error("Height must be bigger than convolution radius.");
-        } catch (const std::runtime_error &error) {
-            vsapi->setFilterError((d->filter_name + ": "s + error.what()).c_str(), frameCtx);
-            vsapi->freeFrame(src);
-            return 0;
-        }
-
         const int pl[] = { 0, 1, 2 };
         const VSFrame *fr[] = {
             d->process[0] ? nullptr : src,
@@ -682,32 +672,8 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
 
         VSFrame *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
-        void (*func)(const void *, ptrdiff_t, void *, ptrdiff_t, const vs_generic_params *, unsigned, unsigned) = nullptr;
-
-#ifdef VS_TARGET_CPU_X86
-        const CPUFeatures *cpu = getCPUFeatures();
-        if (cpu->avx512 && d->cpulevel >= VS_CPU_LEVEL_AVX512)
-            func = genericSelectAVX512<op>(fi, d);
-        if (!func && cpu->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2)
-            func = genericSelectAVX2<op>(fi, d);
-        if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2)
-            func = genericSelectSSE2<op>(fi, d);
-#endif
-        if (!func)
-            func = genericSelectC<op>(fi, d);
-
-        // Every accepted format resolves to at least a C kernel; guard anyway so
-        // an unexpected gap errors out instead of emitting an unprocessed
-        // (garbage) plane.
-        if (!func) {
-            vsapi->setFilterError((d->filter_name + ": no kernel available for the clip format"s).c_str(), frameCtx);
-            vsapi->freeFrame(dst);
-            vsapi->freeFrame(src);
-            return nullptr;
-        }
-
         for (int plane = 0; plane < fi->numPlanes; plane++) {
-            if (func && d->process[plane]) {
+            if (d->process[plane]) {
                 uint8_t *dstp = vsapi->getWritePtr(dst, plane);
                 const uint8_t *srcp = vsapi->getReadPtr(src, plane);
                 int width = vsapi->getFrameWidth(src, plane);
@@ -715,8 +681,7 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
                 ptrdiff_t src_stride = vsapi->getStride(src, plane);
                 ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
 
-                vs_generic_params params = make_generic_params(d, fi, plane);
-                func(srcp, src_stride, dstp, dst_stride, &params, width, height);
+                d->func(srcp, src_stride, dstp, dst_stride, &d->params, width, height);
             }
         }
 
@@ -870,6 +835,24 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             throw std::runtime_error("Height must be bigger than convolution radius.");
 
         d->cpulevel = vs_get_cpulevel(core);
+
+        const VSVideoFormat *fi = &d->vi->format;
+        d->func = nullptr;
+#ifdef VS_TARGET_CPU_X86
+        const CPUFeatures *cpu = getCPUFeatures();
+        if (cpu->avx512 && d->cpulevel >= VS_CPU_LEVEL_AVX512)
+            d->func = genericSelectAVX512<op>(fi, d.get());
+        if (!d->func && cpu->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2)
+            d->func = genericSelectAVX2<op>(fi, d.get());
+        if (!d->func && d->cpulevel >= VS_CPU_LEVEL_SSE2)
+            d->func = genericSelectSSE2<op>(fi, d.get());
+#endif
+        if (!d->func)
+            d->func = genericSelectC<op>(fi, d.get());
+        if (!d->func)
+            throw std::runtime_error("no kernel available for the clip format");
+
+        d->params = make_generic_params(d.get(), fi);
     } catch (const std::runtime_error &error) {
         vsapi->mapSetError(out, (d->filter_name + ": "s + error.what()).c_str());
         return;
