@@ -394,6 +394,15 @@ static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, 
     return arr;
 }
 
+static int64_t flipRangeProperty(int64_t range) {
+    if (range == 0)
+        return 1;
+    else if (range == 1)
+        return 0;
+    else
+        return range;
+}
+
 static int64_t VS_CC mapGetInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     bool remapColorRange = !strcmp(key, "_ColorRange");
     VSArrayBase *arr = propGetShared(map, remapColorRange ? "_Range" : key, index, error, ptInt);
@@ -586,15 +595,6 @@ bool propSetShared(VSMap *map, const char *key, const T &val, int append) {
     } else /* if (append == vs3::paTouch) */ {
         return !mapSetEmpty(map, key, propType);
     }
-}
-
-static int64_t flipRangeProperty(int64_t range) {
-    if (range == 0)
-        return 1;
-    else if (range == 1)
-        return 0;
-    else
-        return range;
 }
 
 static int VS_CC mapSetInt(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT {
