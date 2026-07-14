@@ -395,9 +395,10 @@ static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, 
 }
 
 static int64_t VS_CC mapGetInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    VSArrayBase *arr = propGetShared(map, remapColorRange(key), index, error, ptInt);
+    bool remapColorRange = !strcmp(key, "_ColorRange");
+    VSArrayBase *arr = propGetShared(map, remapColorRange ? "_Range" : key, index, error, ptInt);
     if (arr)
-        return reinterpret_cast<const VSIntArray *>(arr)->at(index);
+        return remapColorRange ? flipRangeProperty(reinterpret_cast<const VSIntArray *>(arr)->at(index)) : reinterpret_cast<const VSIntArray *>(arr)->at(index);
     else
         return 0;
 }
