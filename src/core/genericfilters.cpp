@@ -1259,8 +1259,18 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         getPlaneFloatArgs(d->vi->format, in, "max_in", d->max_in, maxvalf, vsapi);
         getPlaneFloatArgs(d->vi->format, in, "max_out", d->max_out, maxvalf, vsapi);
         getPlaneFloatArgs(d->vi->format, in, "gamma", d->gamma, 1.f, vsapi);
-        for (int plane = 0; plane < 3; plane++)
+
+        for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
+            if (!d->process[plane])
+                continue;
+            if (!std::isfinite(d->min_in[plane]) || !std::isfinite(d->max_in[plane]) || !std::isfinite(d->min_out[plane]) || !std::isfinite(d->max_out[plane]))
+                throw std::runtime_error("min_in, max_in, min_out and max_out must be finite");
+            if (d->max_in[plane] <= d->min_in[plane])
+                throw std::runtime_error("max_in must be greater than min_in");
+            if (!std::isfinite(d->gamma[plane]) || d->gamma[plane] <= 0.f)
+                throw std::runtime_error("gamma must be finite and positive");
             d->gamma[plane] = 1.f / d->gamma[plane];
+        }
 
         // Implement with a simple per-plane lut for integer formats
         if (d->vi->format.sampleType == stInteger) {
