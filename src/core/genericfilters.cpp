@@ -699,6 +699,8 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
 
         VSFrame *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
+        const vs_generic_params params = d->params;
+
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             if (d->process[plane]) {
                 uint8_t *dstp = vsapi->getWritePtr(dst, plane);
@@ -708,7 +710,7 @@ static const VSFrame *VS_CC genericGetframe(int n, int activationReason, void *i
                 ptrdiff_t src_stride = vsapi->getStride(src, plane);
                 ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
 
-                d->func(srcp, src_stride, dstp, dst_stride, &d->params, width, height);
+                d->func(srcp, src_stride, dstp, dst_stride, &params, width, height);
             }
         }
 
