@@ -787,6 +787,10 @@ private:
             fixedSize = fixed;
         }
 
+        inline bool getFixedSize() const {
+            return fixedSize;
+        }
+
         inline size_t size() const {
             return hash.size();
         }
@@ -1057,7 +1061,7 @@ private:
     std::atomic<long> numFunctionInstances;
     int creationFlags;
     bool coreFreed = false;
-    bool enableFilterTiming = false;
+    std::atomic<bool> enableFilterTiming{false};
     std::atomic<int64_t> freedNodeProcessingTime;
 
     std::map<std::string, VSPlugin *> plugins;

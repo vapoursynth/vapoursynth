@@ -742,7 +742,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
 
     if (makeLinear && !hasVideoNodes) {
         this->apiMajor = 4;
-        MakeLinearWrapper *wrapper = new MakeLinearWrapper(filterGetFrame, freeFunc, instanceData, setLinear());
+        MakeLinearWrapper *wrapper = new MakeLinearWrapper(filterGetFrame, freeFunc, this->instanceData, setLinear());
         filterGetFrame = MakeLinearWrapper::getFrame;
         this->freeFunc = MakeLinearWrapper::freeFilter;
         this->instanceData = reinterpret_cast<void *>(wrapper);
@@ -1134,7 +1134,7 @@ void VSNode::cacheFrame(const VSFrame *frame, int n) {
 void VSNode::clearCache(bool resetSize) {
     std::lock_guard<std::mutex> lock(cacheMutex);
     cache.clear();
-    if (resetSize)
+    if (resetSize && !cacheLinear && !cache.getFixedSize())
         cache.setMaxFrames(20);
 }
 
