@@ -93,7 +93,7 @@ void VSThreadPool::runTasks(bool &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Fast path if a frame is cached
 
-            if (node->cacheEnabled) {
+            if (node->cacheEnabled && frameContext->first) {
                 PVSFrame f = node->getCachedFrameInternal(frameContext->key.second);
 
                 if (f) {
