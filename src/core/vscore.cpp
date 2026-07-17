@@ -1331,7 +1331,7 @@ bool VSCore::isValidFormatPointer(const void *f) {
 }
 
 VSLogHandle *VSCore::addLogHandler(VSLogHandler handler, VSLogHandlerFree freeFunc, void *userData) {
-    std::lock_guard<std::mutex> lock(logMutex);
+    std::lock_guard<std::recursive_mutex> lock(logMutex);
     VSLogHandle *handle = *(messageHandlers.insert(new VSLogHandle{ handler, freeFunc, userData }).first);
 
     for (const auto &iter : storedMessages)
@@ -1343,7 +1343,7 @@ VSLogHandle *VSCore::addLogHandler(VSLogHandler handler, VSLogHandlerFree freeFu
 }
 
 bool VSCore::removeLogHandler(VSLogHandle *rec) {
-    std::lock_guard<std::mutex> lock(logMutex);
+    std::lock_guard<std::recursive_mutex> lock(logMutex);
     auto f = messageHandlers.find(rec);
     if (f != messageHandlers.end()) {
         delete rec;
@@ -1356,7 +1356,7 @@ bool VSCore::removeLogHandler(VSLogHandle *rec) {
 
 void VSCore::logMessage(VSMessageType type, const char *msg) {
     assert(msg);
-    std::lock_guard<std::mutex> lock(logMutex);
+    std::lock_guard<std::recursive_mutex> lock(logMutex);
     for (auto iter : messageHandlers)
         iter->handler(type, msg, iter->userData);
     if (messageHandlers.empty() && storedMessages.size() < maxStoredLogMessages)
