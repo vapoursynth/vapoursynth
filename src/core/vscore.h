@@ -839,6 +839,7 @@ private:
     // used for fmFrameState and fmParallel (mutex only)
     std::mutex serialMutex;
     int serialFrame;
+    VSFrameContext *serialOwner = nullptr;
 
     std::vector<VSFilterDependency> dependencies;
     std::vector<VSFilterDependency> consumers;
@@ -952,7 +953,8 @@ private:
     size_t reqMemCounter;
     size_t maxThreads;
     size_t currentMaxThreads;
-    size_t ticks;
+    std::atomic<size_t> ticks;
+    std::atomic<bool> cacheSweepActive;
     bool stopThreads;
     bool flushCaches;
     std::list<PVSFrameContext> altTasks;

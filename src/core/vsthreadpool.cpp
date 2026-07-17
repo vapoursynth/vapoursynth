@@ -156,8 +156,8 @@ void VSThreadPool::runTasks(bool &stop) {
                 if (filterMode == fmFrameState) {
                     if (node->serialFrame == -1) {
                         node->serialFrame = frameContext->key.second;
-                        // another frame already in progress?
-                    } else if (node->serialFrame != frameContext->key.second) {
+                        node->serialOwner = frameContext;
+                    } else if (node->serialOwner != frameContext) {
                         node->serialMutex.unlock();
                         continue;
                     }
@@ -198,8 +198,10 @@ void VSThreadPool::runTasks(bool &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
             if (useSerialLock) {
-                if (frameProcessingDone && filterMode == fmFrameState)
+                if (frameProcessingDone && filterMode == fmFrameState) {
                     node->serialFrame = -1;
+                    node->serialOwner = nullptr;
+                }
                 node->serialMutex.unlock();
             }
 
@@ -211,6 +213,22 @@ void VSThreadPool::runTasks(bool &stop) {
 
             bool needsSort = requestedFrames;
 
+            if (requestedFrames) {
+                if (core->memory->is_over_limit()) {
+                    ticks = 0;
+                    if (!cacheSweepActive.exchange(true)) {
+                        core->notifyCaches(true);
+                        cacheSweepActive = false;
+                    }
+                } else if (++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
+                    ticks = 0;
+                    if (!cacheSweepActive.exchange(true)) {
+                        core->notifyCaches(false);
+                        cacheSweepActive = false;
+                    }
+                }
+            }
+
             lock.lock();
 
             if (requestedFrames) {
@@ -221,15 +239,6 @@ void VSThreadPool::runTasks(bool &stop) {
 
                 frameContext->numFrameRequests = frameContext->reqList.size();
                 frameContext->reqList.clear();
-
-                // check to see if it's time to reevaluate cache sizes
-                if (core->memory->is_over_limit()) {
-                    ticks = 0;
-                    core->notifyCaches(true);
-                } else if (++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
-                    ticks = 0;
-                    core->notifyCaches(false);
-                }
 
                 if (currentMaxThreads >= activeThreads * 2 && core->memory->is_over_limit() && activeThreads > 0) {
                     --currentMaxThreads;
@@ -329,7 +338,7 @@ void VSThreadPool::runTasks(bool &stop) {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), reqMemCounter(0), ticks(0), stopThreads(false), flushCaches(false) {
+VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), reqMemCounter(0), ticks(0), cacheSweepActive(false), stopThreads(false), flushCaches(false) {
     setThreadCount(0);
 }
 
