@@ -383,7 +383,12 @@ void VSThreadPool::startExternal(const PVSFrameContext &context) {
     if (context->reserveThread)
         --activeThreads;
     assert(context);
-    if (flushCaches) {
+    // A reserveThread request comes from a pool thread that immediately blocks waiting for this exact
+    // frame. Parking it in altTasks during a flush would deadlock: the blocked thread never becomes idle,
+    // so the altTasks->tasks swap (which only fires once every pool thread is idle) can never run, so the
+    // request that would unblock it is never processed. Queue those normally; only genuinely external
+    // (non-pool-thread) requests can be safely deferred until the flush completes.
+    if (flushCaches && !context->reserveThread) {
         altTasks.push_back(context);
     } else {
         tasks.push_back(context); // external requests can't be combined so just add to queue
