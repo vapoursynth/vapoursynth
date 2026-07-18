@@ -94,13 +94,11 @@ bool VSMap::isV3Compatible() const noexcept {
 }
 
 VSFunction::VSFunction(VSPublicFunction func, void *userData, VSFreeFunctionData freeFunction, VSCore *core, int apiMajor) : refcount(1), func(func), userData(userData), freeFunction(freeFunction), core(core), apiMajor(apiMajor) {
-    core->functionInstanceCreated();
 }
 
 VSFunction::~VSFunction() {
     if (freeFunction)
         freeFunction(userData);
-    core->functionInstanceDestroyed();
 }
 
 void VSFunction::call(const VSMap *in, VSMap *out) {
@@ -1829,16 +1827,6 @@ bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path, bool plugin
     return true;
 }
 
-void VSCore::functionInstanceCreated() noexcept {
-    ++numFunctionInstances;
-    filterInstanceCreated();
-}
-
-void VSCore::functionInstanceDestroyed() noexcept {
-    --numFunctionInstances;
-    filterInstanceDestroyed();
-}
-
 void VSCore::filterInstanceCreated() noexcept {
     ++numFilterInstances;
 }
@@ -1926,7 +1914,6 @@ void internalFiltersInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 
 VSCore::VSCore(int flags) :
     numFilterInstances(1),
-    numFunctionInstances(0),
     creationFlags(flags & (ccfEnableGraphInspection | ccfDisableAutoLoading | ccfDisableLibraryUnloading | ccfEnableFrameRefDebug)),
     freedNodeProcessingTime(0),
     videoFormatIdOffset(1000),
@@ -2007,13 +1994,10 @@ void VSCore::freeCore() {
         logFatal("Double free of core");
     coreFreed = true;
     threadPool->waitForDone();
-    long filterCount = numFilterInstances - numFunctionInstances - 1;
-    if (filterCount > 0)
-        logMessage(mtWarning, "Core freed but " + safe_to_string(filterCount) + " filter instance(s) still exist");
+    if (numFilterInstances > 1)
+        logMessage(mtWarning, "Core freed but " + safe_to_string(numFilterInstances.load() - 1) + " filter instance(s) still exist");
     if (memory->allocated_bytes())
         logMessage(mtWarning, "Core freed but " + safe_to_string(memory->allocated_bytes()) + " bytes still allocated in framebuffers");
-    if (numFunctionInstances > 0)
-        logMessage(mtWarning, "Core freed but " + safe_to_string(numFunctionInstances.load()) + " function instance(s) still exist");
     // Remove all message handlers on free to prevent a zombie core from crashing the whole application by calling a no longer usable
     // message handler
     while (!messageHandlers.empty())

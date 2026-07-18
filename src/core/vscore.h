@@ -105,7 +105,7 @@ private:
     VSPublicFunction func;
     void *userData;
     VSFreeFunctionData freeFunction;
-    VSCore *core;
+    VSCore *core; // never dereferenced, only passed on to the callback and may therefore be NULL
     int apiMajor;
     ~VSFunction();
 public:
@@ -1056,11 +1056,9 @@ struct VSLogHandle {
 struct VSCore {
     friend struct VSNode;
 private:
-    // counts everything that keeps the core alive, filter and function instances plus one
-    // reference released by freeCore; the core is freed once it reaches 0
+    // counts filter instances plus one reference released by freeCore;
+    // the core is freed once it reaches 0
     std::atomic<long> numFilterInstances;
-    // used for leak warnings in freeCore
-    std::atomic<long> numFunctionInstances;
     int creationFlags;
     bool coreFreed = false;
     std::atomic<bool> enableFilterTiming{false};
@@ -1167,8 +1165,6 @@ public:
     static bool getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept;
     static bool getVideoFormatName(const VSVideoFormat &format, char *buffer) noexcept;
 
-    void functionInstanceCreated() noexcept;
-    void functionInstanceDestroyed() noexcept;
     void filterInstanceCreated() noexcept;
     void filterInstanceDestroyed() noexcept;
     void destroyFilterInstance(VSNode *node);
