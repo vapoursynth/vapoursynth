@@ -1153,7 +1153,9 @@ struct VSAPI
    void freeCore(VSCore_ \*core)
 
       Frees a core. Should only be done after all frame requests have completed
-      and all objects belonging to the core have been released.
+      and all objects belonging to the core have been released. References that
+      erroneously outlive the core must at least be released one at a time, i.e.
+      not concurrently from multiple threads.
 
 ----------
 

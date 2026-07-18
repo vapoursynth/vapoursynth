@@ -179,7 +179,7 @@ uint8_t *MemoryUse::allocate_from_freelist(size_t size)
     return nullptr;
 }
 
-size_t MemoryUse::deallocate_to_system(uint8_t *ptr, size_t size)
+void MemoryUse::deallocate_to_system(uint8_t *ptr, size_t size)
 {
 #ifdef DEBUG_STATS
     if (size > SYSTEM_ALLOCATOR_THRESHOLD)
@@ -189,15 +189,15 @@ size_t MemoryUse::deallocate_to_system(uint8_t *ptr, size_t size)
 #endif
 
     do_deallocate(ptr);
-    return m_allocated.fetch_sub(size) - size;
+    m_allocated -= size;
 }
 
-size_t MemoryUse::deallocate_to_freelist(uint8_t *ptr, size_t size)
+void MemoryUse::deallocate_to_freelist(uint8_t *ptr, size_t size)
 {
     std::lock_guard<std::mutex> lock{ m_mutex };
     m_freelist.emplace(size, ptr);
     m_freelist_size += size;
-    return m_allocated.fetch_sub(size) - size;
+    m_allocated -= size;
 }
 
 void MemoryUse::gc_freelist()
@@ -270,21 +270,18 @@ void MemoryUse::deallocate(uint8_t *buf)
     assert(header->size);
 
     size_t size = header->size;
-    bool to_freelist = size > SYSTEM_ALLOCATOR_THRESHOLD;
 
-    size_t allocated;
-    if (to_freelist)
-        allocated = deallocate_to_freelist(raw_ptr, size);
-    else
-        allocated = deallocate_to_system(raw_ptr, size);
-
-    if (m_core_freed && allocated == 0) {
-        delete this;
-        return;
+    if (size > SYSTEM_ALLOCATOR_THRESHOLD) {
+        deallocate_to_freelist(raw_ptr, size);
+        gc_freelist();
+    } else {
+        deallocate_to_system(raw_ptr, size);
     }
 
-    if (to_freelist)
-        gc_freelist();
+    // self delete when the last buffer is returned after the core is gone, plain reads are
+    // enough since references that outlive freeCore may only be released one at a time
+    if (m_core_freed && !m_allocated)
+        delete this;
 }
 
 size_t MemoryUse::set_limit(size_t bytes)
@@ -296,15 +293,12 @@ size_t MemoryUse::set_limit(size_t bytes)
 
 void MemoryUse::on_core_freed()
 {
-    bool was_idle = m_allocated == 0;
-
     m_core_freed = true;
 
-    // Only the core can create a new allocation from the zero-memory state.
-    if (was_idle) {
-        assert(!m_allocated);
+    // Only the core can create new allocations and references that outlive the core may
+    // only be released one at a time, so plain reads are enough here as well.
+    if (!m_allocated)
         delete this;
-    }
 }
 
 } // namespace vs

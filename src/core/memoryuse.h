@@ -64,9 +64,9 @@ class MemoryUse {
 
     uint8_t *allocate_from_freelist(size_t size);
 
-    size_t deallocate_to_system(uint8_t *ptr, size_t size);
+    void deallocate_to_system(uint8_t *ptr, size_t size);
 
-    size_t deallocate_to_freelist(uint8_t *ptr, size_t size);
+    void deallocate_to_freelist(uint8_t *ptr, size_t size);
 
     void gc_freelist();
 public:
