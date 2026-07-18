@@ -720,8 +720,8 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         d->scale = 1;
     }
 
-    if (d->scale < 1) {
-        vsapi->mapSetError(out, "Text: scale must be a positive integer");
+    if (d->scale < 1 || d->scale > (1 << 16)) {
+        vsapi->mapSetError(out, "Text: scale must be a positive integer no larger than 65536");
         vsapi->freeNode(d->node);
         return;
     }

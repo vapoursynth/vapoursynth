@@ -68,10 +68,10 @@ static inline void getPlanePixelRangeArgs(const VSVideoFormat &fi, const VSMap *
                 ival[plane] = 0;
                 fval[plane] = uv ? -.5f : 0;
             } else if (mode == RangeUpper) { // top of pixel range
-                ival[plane] = (1 << fi.bitsPerSample) - 1;
+                ival[plane] = static_cast<uint16_t>((static_cast<int64_t>(1) << fi.bitsPerSample) - 1);
                 fval[plane] = uv ? .5f : 1.f;
             } else if (mode == RangeMiddle) { // middle of pixel range
-                ival[plane] = (1 << fi.bitsPerSample) / 2;
+                ival[plane] = static_cast<uint16_t>((static_cast<int64_t>(1) << fi.bitsPerSample) / 2);
                 fval[plane] = uv ? 0.f : .5f;
             }
         } else {
@@ -232,7 +232,7 @@ static void templateInit(T& d, const char *name, bool allowVariableFormat, const
 vs_generic_params make_generic_params(const GenericData *d, const VSVideoFormat *fi) {
     vs_generic_params params{};
 
-    params.maxval = ((1 << fi->bitsPerSample) - 1);
+    params.maxval = static_cast<uint16_t>((static_cast<int64_t>(1) << fi->bitsPerSample) - 1);
     params.scale = d->scale;
     params.threshold = d->th;
     params.thresholdf = d->thf;
@@ -750,9 +750,11 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         if (op == GenericMinimum || op == GenericMaximum || op == GenericDeflate || op == GenericInflate) {
             d->thf = static_cast<float>(vsapi->mapGetFloat(in, "threshold", 0, &err));
             if (err) {
-                d->th = ((1 << d->vi->format.bitsPerSample) - 1);
+                d->th = static_cast<uint16_t>((static_cast<int64_t>(1) << d->vi->format.bitsPerSample) - 1);
                 d->thf = std::numeric_limits<float>::max();
             } else {
+                if (!std::isfinite(d->thf))
+                    throw std::runtime_error("threshold must be finite.");
                 if (d->vi->format.sampleType == stInteger) {
                     int64_t ith = floatToInt64S(d->thf);
                     if (ith < 0 || ith > ((1 << d->vi->format.bitsPerSample) - 1))
@@ -785,12 +787,14 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             if (err)
                 d->scale = 1.0f;
 
-            if (d->scale < 0)
+            if (!std::isfinite(d->scale) || d->scale < 0)
                 throw std::runtime_error("scale must not be negative.");
         }
 
         if (op == GenericConvolution) {
             d->bias = static_cast<float>(vsapi->mapGetFloat(in, "bias", 0, &err));
+            if (!std::isfinite(d->bias))
+                throw std::runtime_error("bias must be finite.");
 
             d->saturate = !!vsapi->mapGetInt(in, "saturate", 0, &err);
             if (err)
@@ -848,6 +852,8 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 matrix_sumf = 1.0;
 
             d->rdiv = static_cast<float>(vsapi->mapGetFloat(in, "divisor", 0, &err));
+            if (!err && !std::isfinite(d->rdiv))
+                throw std::runtime_error("divisor must be finite.");
             if (d->rdiv == 0.0f)
                 d->rdiv = static_cast<float>(matrix_sumf);
 

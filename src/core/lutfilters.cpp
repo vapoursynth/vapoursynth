@@ -185,7 +185,7 @@ static bool funcToLut(int nin, int nout, void *vlut, VSFunction *func, const VSA
 template<typename T, typename U>
 static void lutCreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std::unique_ptr<LutData> &d, VSCore *core, const VSAPI *vsapi) {
     int inrange = 1 << d->vi->format.bitsPerSample;
-    int maxval = 1 << d->vi_out.format.bitsPerSample;
+    int maxval = (d->vi_out.format.sampleType == stInteger) ? (1 << d->vi_out.format.bitsPerSample) : 0;
     /* Allocate the LUT for the full input container (256 or 65536 entries) rather
        than just the valid range, so out-of-range samples index a padded entry
        instead of needing a per-pixel clamp in the hot loop. */
@@ -475,6 +475,8 @@ static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFunction *fun
                 lut[j + i * nxin] = static_cast<T>(v);
             }
         }
+        if (!errstr.empty())
+            break;
     }
 
     vsapi->freeMap(in);
@@ -485,7 +487,7 @@ static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFunction *fun
 template<typename T, typename U, typename V>
 static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std::unique_ptr<Lut2Data> &d, VSCore *core, const VSAPI *vsapi) {
     int inrange = (1 << d->vi[0]->format.bitsPerSample) * (1 << d->vi[1]->format.bitsPerSample);
-    int maxval = 1 << d->vi_out.format.bitsPerSample;
+    int maxval = (d->vi_out.format.sampleType == stInteger) ? (1 << d->vi_out.format.bitsPerSample) : 0;
 
     /* +64 bytes so the AVX-512 gather's dword-granularity overread past the last
        entry stays in bounds (see lut2GatherRow). */

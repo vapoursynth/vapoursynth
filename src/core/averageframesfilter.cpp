@@ -385,6 +385,8 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         d->vi = *vsapi->getVideoInfo(d->nodes[0]);
         if (!is8to16orFloatFormat(d->vi.format))
             throw std::runtime_error(invalidVideoFormatMessage(d->vi.format, vsapi, nullptr));
+        if (!d->vi.width || !d->vi.height)
+            throw std::runtime_error("clips must have constant dimensions");
 
         for (size_t i = 1; i < d->nodes.size(); i++) {
             const VSVideoInfo *vi = vsapi->getVideoInfo(d->nodes[i]);
@@ -427,6 +429,8 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
             else
                 d->fscale = scalef;
         } else {
+            if (!std::isfinite(scale))
+                throw std::runtime_error("scale must be a positive number");
             if (d->vi.format.sampleType == stInteger) {
                 int scalei = floatToIntS(scale);
                 if (scalei < 1)
