@@ -130,6 +130,7 @@ void vs_plane_stats_1_word_sse2(union vs_plane_stats *stats, const void *src, pt
     for (y = 0; y < height; y++) {
         __m128i racc = _mm_setzero_si128(); /* per-row 4x int32 madd accumulator */
         __m128i sign;
+        unsigned pending = 0;
         for (x = 0; x < tail; x += 8) {
             __m128i v = _mm_load_si128((const __m128i *)((const uint16_t *)srcp + x));
             __m128i v_signed = _mm_add_epi16(v, mbias);
@@ -137,6 +138,14 @@ void vs_plane_stats_1_word_sse2(union vs_plane_stats *stats, const void *src, pt
             mmax = _mm_max_epi16(mmax, v_signed);
             /* sum of (v - 32768) via pmaddwd; corrected by +32768*N at the end */
             racc = _mm_add_epi32(racc, _mm_madd_epi16(v_signed, ones));
+            /* each madd term is at most 2*32768 in magnitude so the int32 lanes must be
+               spilled at least every 32768 terms to stay exact on very wide rows */
+            if (++pending == 32768) {
+                sign = _mm_srai_epi32(racc, 31);
+                macc = _mm_add_epi64(macc, _mm_add_epi64(_mm_unpacklo_epi32(racc, sign), _mm_unpackhi_epi32(racc, sign)));
+                racc = _mm_setzero_si128();
+                pending = 0;
+            }
         }
         if (width != tail) {
             __m128i v = _mm_and_si128(_mm_load_si128((const __m128i *)((const uint16_t *)srcp + tail)), mask);
@@ -258,6 +267,7 @@ void vs_plane_stats_2_word_sse2(union vs_plane_stats *stats, const void *src1, p
         __m128i racc = _mm_setzero_si128();
         __m128i rdiffacc = _mm_setzero_si128();
         __m128i sign;
+        unsigned pending = 0;
         for (x = 0; x < tail; x += 8) {
             __m128i v1 = _mm_load_si128((const __m128i *)((const uint16_t *)srcp1 + x));
             __m128i v2 = _mm_load_si128((const __m128i *)((const uint16_t *)srcp2 + x));
@@ -268,6 +278,16 @@ void vs_plane_stats_2_word_sse2(union vs_plane_stats *stats, const void *src1, p
             mmax = _mm_max_epi16(mmax, v1_signed);
             racc = _mm_add_epi32(racc, _mm_madd_epi16(v1_signed, ones));
             rdiffacc = _mm_add_epi32(rdiffacc, _mm_madd_epi16(_mm_add_epi16(udiff, mbias), ones));
+            /* spill to int64 at least every 32768 terms so the int32 lanes can never overflow */
+            if (++pending == 32768) {
+                sign = _mm_srai_epi32(racc, 31);
+                macc = _mm_add_epi64(macc, _mm_add_epi64(_mm_unpacklo_epi32(racc, sign), _mm_unpackhi_epi32(racc, sign)));
+                racc = _mm_setzero_si128();
+                sign = _mm_srai_epi32(rdiffacc, 31);
+                mdiffacc = _mm_add_epi64(mdiffacc, _mm_add_epi64(_mm_unpacklo_epi32(rdiffacc, sign), _mm_unpackhi_epi32(rdiffacc, sign)));
+                rdiffacc = _mm_setzero_si128();
+                pending = 0;
+            }
         }
         if (width != tail) {
             __m128i v1 = _mm_and_si128(_mm_load_si128((const __m128i *)((const uint16_t *)srcp1 + tail)), mask);

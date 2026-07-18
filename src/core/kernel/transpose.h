@@ -134,9 +134,9 @@ static void transpose_plane_dword(const void * VS_RESTRICT src, ptrdiff_t src_st
     const uint32_t *src_p = (const uint32_t *)src;
     uint32_t *dst_p = (uint32_t *)dst;
 
-    unsigned width_floor = width - width % BLOCK_WIDTH_BYTE;
-    unsigned height_floor = height - height % CACHELINE_SIZE_BYTE;
-    unsigned height_floor2 = height - height % BLOCK_HEIGHT_BYTE;
+    unsigned width_floor = width - width % BLOCK_WIDTH_DWORD;
+    unsigned height_floor = height - height % CACHELINE_SIZE_DWORD;
+    unsigned height_floor2 = height - height % BLOCK_HEIGHT_DWORD;
     unsigned i, j, ii;
 
     for (i = 0; i < height_floor; i += CACHELINE_SIZE_DWORD) {

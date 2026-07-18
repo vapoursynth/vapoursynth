@@ -150,12 +150,22 @@ void vs_plane_stats_1_word_avx2(union vs_plane_stats *stats, const void *src, pt
 
     for (y = 0; y < height; y++) {
         __m256i racc = _mm256_setzero_si256(); /* per-row 8x int32 madd accumulator */
+        unsigned pending = 0;
         for (x = 0; x < tail; x += 16) {
             __m256i v = _mm256_load_si256((const __m256i *)((const uint16_t *)srcp + x));
             mmin = _mm256_min_epu16(mmin, v);
             mmax = _mm256_max_epu16(mmax, v);
             /* sum of (v - 32768) via pmaddwd; corrected by +32768*N at the end */
             racc = _mm256_add_epi32(racc, _mm256_madd_epi16(_mm256_add_epi16(v, mbias), ones));
+            /* each madd term is at most 2*32768 in magnitude so the int32 lanes must be
+               spilled at least every 32768 terms to stay exact on very wide rows */
+            if (++pending == 32768) {
+                macc = _mm256_add_epi64(macc, _mm256_add_epi64(
+                    _mm256_cvtepi32_epi64(_mm256_castsi256_si128(racc)),
+                    _mm256_cvtepi32_epi64(_mm256_extracti128_si256(racc, 1))));
+                racc = _mm256_setzero_si256();
+                pending = 0;
+            }
         }
         if (width != tail) {
             __m256i v = _mm256_and_si256(_mm256_load_si256((const __m256i *)((const uint16_t *)srcp + tail)), mask);
@@ -313,6 +323,7 @@ void vs_plane_stats_2_word_avx2(union vs_plane_stats *stats, const void *src1, p
     for (y = 0; y < height; y++) {
         __m256i racc = _mm256_setzero_si256();
         __m256i rdiffacc = _mm256_setzero_si256();
+        unsigned pending = 0;
         for (x = 0; x < tail; x += 16) {
             __m256i v1 = _mm256_load_si256((const __m256i *)((const uint16_t *)srcp1 + x));
             __m256i v2 = _mm256_load_si256((const __m256i *)((const uint16_t *)srcp2 + x));
@@ -322,6 +333,18 @@ void vs_plane_stats_2_word_avx2(union vs_plane_stats *stats, const void *src1, p
             mmax = _mm256_max_epu16(mmax, v1);
             racc = _mm256_add_epi32(racc, _mm256_madd_epi16(_mm256_add_epi16(v1, mbias), ones));
             rdiffacc = _mm256_add_epi32(rdiffacc, _mm256_madd_epi16(_mm256_add_epi16(udiff, mbias), ones));
+            /* spill to int64 at least every 32768 terms so the int32 lanes can never overflow */
+            if (++pending == 32768) {
+                macc = _mm256_add_epi64(macc, _mm256_add_epi64(
+                    _mm256_cvtepi32_epi64(_mm256_castsi256_si128(racc)),
+                    _mm256_cvtepi32_epi64(_mm256_extracti128_si256(racc, 1))));
+                racc = _mm256_setzero_si256();
+                mdiffacc = _mm256_add_epi64(mdiffacc, _mm256_add_epi64(
+                    _mm256_cvtepi32_epi64(_mm256_castsi256_si128(rdiffacc)),
+                    _mm256_cvtepi32_epi64(_mm256_extracti128_si256(rdiffacc, 1))));
+                rdiffacc = _mm256_setzero_si256();
+                pending = 0;
+            }
         }
         if (width != tail) {
             __m256i v1 = _mm256_and_si256(_mm256_load_si256((const __m256i *)((const uint16_t *)srcp1 + tail)), mask);
