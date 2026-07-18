@@ -1759,12 +1759,16 @@ namespace detail
 	private:
 		Addr stack_base_;
 		uint32 stack_size_;
+		uint32 max_alignment_;
 
 	public:
-		StackManager() : stack_base_(RegID::CreatePhysicalRegID(R_TYPE_GP, EBX), 0), stack_size_(0) {}
+		StackManager() : stack_base_(RegID::CreatePhysicalRegID(R_TYPE_GP, EBX), 0), stack_size_(0), max_alignment_(16) {}
 
 		/// Get allocated stack size
 		uint32 GetSize() const {return (stack_size_ + 15) / 16 * 16; /* 16 bytes aligned*/}
+
+		/// Get the widest alignment any allocated slot required (used to align the spill base)
+		uint32 GetAlignment() const {return max_alignment_;}
 
 		/// Get stack base
 		Addr GetStackBase() const {return stack_base_;}
@@ -1775,6 +1779,8 @@ namespace detail
 		/// Allocate stack
 		Addr Alloc(uint32 size, uint32 alignment)
 		{
+			if (alignment > max_alignment_)
+				max_alignment_ = alignment;
 			stack_size_ = (stack_size_ + alignment - 1) / alignment * alignment;
 			stack_size_ += size;
 			return stack_base_ - stack_size_;
@@ -7986,16 +7992,20 @@ namespace compiler
 				// odd  -> rsp 8 byte aligned
 				f.mov(f.rbx, f.rsp);
 				// Now rbx becomes the pointer for saving spilled XMM6-15 (x64-compulsory) and
-				// temporary storage for the local variables (reg, xmm, ymm)
-				// Because we use vmovaps (aligned store/load) for ymm, 32 byte alignment needed for base
-				// like and rbx, -32; ffffffffffffffe0H (r64 with imm32: sign extended)
-				f.and_(f.rbx, -32); // align 32 bytes
+				// temporary storage for the local variables (reg, xmm, ymm, zmm)
+				// Because we use vmovaps (aligned store/load) the base must match the widest spill slot:
+				// 32 bytes for ymm, 64 bytes for zmm (AVX-512). Aligning down loses up to (align - rsp
+				// alignment) bytes, compensated by the padding below.
+				uint32 spill_align = f.stack_manager_.GetAlignment();
+				if (spill_align < 32)
+					spill_align = 32;
+				f.and_(f.rbx, -static_cast<int>(spill_align));
 
-				// padding for keep alignment (16 bytes for rsp)
+				// padding to keep rsp aligned after the and above reduced rbx (worst case align - rsp align)
 				if (num_of_preserved_gp_reg & 1)
-					stack_size += 16+8; // 8 or 24. Worst case.
+					stack_size += spill_align - 8; // rsp is 8-byte aligned here
 				else
-					stack_size += 16; // 0 or 16 Worst case.
+					stack_size += spill_align - 16; // rsp is 16-byte aligned here
 			} else if (num_of_preserved_gp_reg & 1) {
 				// Copy with alignment
 				f.lea(f.rbx, f.ptr[f.rsp - 8]);
@@ -8006,10 +8016,13 @@ namespace compiler
 		}
 #else
 		if (stack_size > 0) {
-			// Align stack pointer
-			if (f.avx_epilog_)
-				f.and_(f.esp, 0xFFFFFFE0); // 32 byte alignment for aligned local ymm spill register storage
-			else
+			// Align stack pointer to the widest spill slot (32 for ymm, 64 for zmm)
+			if (f.avx_epilog_) {
+				uint32 spill_align = f.stack_manager_.GetAlignment();
+				if (spill_align < 32)
+					spill_align = 32;
+				f.and_(f.esp, static_cast<uint32>(0u - spill_align));
+			} else
 				f.and_(f.esp, 0xFFFFFFF0); // 16 byte alignment
 			// in x86 we don't adjust stack_size here, esp is restored by ebp
 			// Stack base
@@ -8068,10 +8081,13 @@ namespace compiler
 		if (stack_size > 0) {
 			// same calculation like in prolog
 			if (f.avx_epilog_) {
+				uint32 spill_align = f.stack_manager_.GetAlignment();
+				if (spill_align < 32)
+					spill_align = 32;
 				if (num_of_preserved_gp_reg & 1)
-					stack_size += 16 + 8; // 8 or 24. Worst case.
+					stack_size += spill_align - 8;
 				else
-					stack_size += 16; // 0 or 16 Worst case.
+					stack_size += spill_align - 16;
 			} else if (num_of_preserved_gp_reg & 1) {
 				stack_size += 8;	// padding for keep alignment
 			}

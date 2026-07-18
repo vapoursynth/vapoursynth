@@ -301,11 +301,13 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         int format = vsapi->mapGetIntSaturated(in, "format", 0, &err);
         if (!err) {
             VSVideoFormat f;
-            if (vsapi->getVideoFormatByID(&f, format, core) && f.colorFamily != cfUndefined) {
-                if (d->vi.format.numPlanes != f.numPlanes)
-                    throw std::runtime_error("The number of planes in the inputs and output must match");
-                vsapi->queryVideoFormat(&d->vi.format, d->vi.format.colorFamily, f.sampleType, f.bitsPerSample, d->vi.format.subSamplingW, d->vi.format.subSamplingH, core);
-            }
+            if (!vsapi->getVideoFormatByID(&f, format, core) || f.colorFamily == cfUndefined)
+                throw std::runtime_error("the format id specified in format is invalid");
+            if (d->vi.format.colorFamily != f.colorFamily || d->vi.format.subSamplingW != f.subSamplingW || d->vi.format.subSamplingH != f.subSamplingH)
+                throw std::runtime_error("the output format must have the same color family and subsampling as the input");
+            if (d->vi.format.numPlanes != f.numPlanes)
+                throw std::runtime_error("The number of planes in the inputs and output must match");
+            vsapi->queryVideoFormat(&d->vi.format, f.colorFamily, f.sampleType, f.bitsPerSample, f.subSamplingW, f.subSamplingH, core);
         }
 
         if (!is8to16orFloatFormat(d->vi.format))

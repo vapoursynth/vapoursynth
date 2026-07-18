@@ -1212,6 +1212,7 @@ bool applyStrengthReduction(ExpressionTree &tree)
             node.op = ExprOpType::SUB;
             replaceNode(*node.left, *node.left->left);
             std::swap(node.left, node.right);
+            changed = true;
         }
 
         // -(a - b) = b - a
@@ -1233,9 +1234,13 @@ bool applyStrengthReduction(ExpressionTree &tree)
 
         // x / y = x * (1 / y)
         if (node.op == ExprOpType::DIV && isConstant(*node.right)) {
-            node.op = ExprOpType::MUL;
-            node.right->op.imm.f = 1.0f / node.right->op.imm.f;
-            changed = true;
+            float recip = 1.0f / node.right->op.imm.f;
+            // skip when the reciprocal isn't finite (e.g. a denormal divisor gives inf) since x/c is still finite there
+            if (std::isfinite(recip)) {
+                node.op = ExprOpType::MUL;
+                node.right->op.imm.f = recip;
+                changed = true;
+            }
         }
 
         // (1 / x) * y = y / x

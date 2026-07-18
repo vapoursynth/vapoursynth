@@ -341,6 +341,10 @@ do { \
                 VEX2(packssdw, r1, r1, r2);
                 if (depth >= 16)
                     VEX2(psubw, r1, r1, xmmword_ptr[constants + ConstantIndex::i16min_epi16 * 16]);
+                else
+                    // packssdw signed-saturates, so a negative result survives as a negative int16;
+                    // without SSE4.1's packusdw clamp it up to 0 to match the interpreter/other tiers
+                    VEX2(pmaxsw, r1, r1, zero);
             }
             mov(a, ptr[regptrs]);
             VEX1(movaps, xmmword_ptr[a], r1);
@@ -1514,8 +1518,8 @@ do { \
             auto t2 = bytecodeRegs[insn.dst];
             YmmReg one;
             vmovaps(one, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
-            vmovaps(t1, t2);
-            exp_(t1, one, constants);
+            vmovaps(t2, t1);
+            exp_(t2, one, constants);
         });
     }
 
@@ -1527,8 +1531,8 @@ do { \
             auto t2 = bytecodeRegs[insn.dst];
             YmmReg one;
             vmovaps(one, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
-            vmovaps(t1, t2);
-            log_(t1, zero, one, constants);
+            vmovaps(t2, t1);
+            log_(t2, zero, one, constants);
         });
     }
 
@@ -2171,8 +2175,8 @@ do { \
             auto t2 = bytecodeRegs[insn.dst];
             ZmmReg one;
             vbroadcastss(one, dword_ptr[constants + ConstantIndex::float_one * 4]);
-            vmovaps(t1, t2);
-            exp_(t1, one, constants);
+            vmovaps(t2, t1);
+            exp_(t2, one, constants);
         });
     }
 
@@ -2184,8 +2188,8 @@ do { \
             auto t2 = bytecodeRegs[insn.dst];
             ZmmReg one;
             vbroadcastss(one, dword_ptr[constants + ConstantIndex::float_one * 4]);
-            vmovaps(t1, t2);
-            log_(t1, zero, one, constants);
+            vmovaps(t2, t1);
+            log_(t2, zero, one, constants);
         });
     }
 
