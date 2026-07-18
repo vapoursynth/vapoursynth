@@ -486,7 +486,7 @@ struct VSAPI {
 
     /* Message handler */
     void (VS_CC *logMessage)(int msgType, const char *msg, VSCore *core) VS_NOEXCEPT;
-    VSLogHandle *(VS_CC *addLogHandler)(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT; /* free and userData can be NULL, returns a handle that can be passed to removeLogHandler, handlers may call logMessage but must never add or remove log handlers */
+    VSLogHandle *(VS_CC *addLogHandler)(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT; /* free and userData can be NULL, returns a handle that can be passed to removeLogHandler, handlers must only pass the message on and return quickly, calling logMessage is allowed but no other api function and a handler must never add or remove log handlers or wait for frame requests to complete */
     int (VS_CC *removeLogHandler)(VSLogHandle *handle, VSCore *core) VS_NOEXCEPT; /* returns non-zero if successfully removed */
     
     /* Added in API 4.1, mostly graph and node inspection, PLEASE DON'T USE INSIDE FILTERS */

@@ -74,7 +74,19 @@ void VSThreadPool::runTasks(bool &stop) {
 
     std::unique_lock<std::mutex> lock(taskLock);
 
+    std::string deferredLog;
+
     while (true) {
+        // status messages are built while holding taskLock but only emitted here after releasing it,
+        // log handlers can block on locks whose holders in turn take taskLock (the python bindings
+        // acquire the GIL in their handler) so dispatching them under the lock can deadlock
+        if (!deferredLog.empty()) {
+            lock.unlock();
+            core->logMessage(mtInformation, deferredLog);
+            deferredLog.clear();
+            lock.lock();
+        }
+
         bool ranTask = false;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -244,14 +256,14 @@ void VSThreadPool::runTasks(bool &stop) {
                     --currentMaxThreads;
                     assert(currentMaxThreads > 0);
                     if (flushCaches) {
-                        core->logMessage(mtInformation, "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage");
+                        deferredLog = "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage";
                     } else {
-                        core->logMessage(mtInformation, "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage, flushing pipeline");
+                        deferredLog = "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage, flushing pipeline";
                         flushCaches = true;
                     }
                 } else if (currentMaxThreads < maxThreads && core->memory->is_under_limit() && ++reqMemCounter % 500 == 0) {
                     ++currentMaxThreads;
-                    core->logMessage(mtInformation, "Maximum running threads increased to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to more memory being available");
+                    deferredLog = "Maximum running threads increased to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to more memory being available";
                 }
             }
 
@@ -313,8 +325,9 @@ void VSThreadPool::runTasks(bool &stop) {
                 if (flushCaches) {
                     core->clearCaches(true);
                     flushCaches = false;
+                    ticks = 0;
                     std::swap(tasks, altTasks);
-                    core->logMessage(mtInformation, "Pipeline flushed, resuming processing");
+                    deferredLog = "Pipeline flushed, resuming processing";
                     // the thread can't notify itself ahead of waiting so instead skip the wait and just loop back around to check for work immediately
                     shouldWait = false;
                     ++activeThreads;
@@ -354,14 +367,21 @@ void VSThreadPool::spawnThread() {
 }
 
 size_t VSThreadPool::setThreadCount(size_t threads) {
-    std::lock_guard<std::mutex> l(taskLock);
-    maxThreads = threads > 0 ? threads : getNumAvailableThreads();
-    if (maxThreads == 0) {
-        maxThreads = 1;
-        core->logMessage(mtWarning, "Couldn't detect optimal number of threads. Thread count set to 1.");
+    bool countWarning = false;
+    size_t result;
+    {
+        std::lock_guard<std::mutex> l(taskLock);
+        maxThreads = threads > 0 ? threads : getNumAvailableThreads();
+        if (maxThreads == 0) {
+            maxThreads = 1;
+            countWarning = true;
+        }
+        currentMaxThreads = maxThreads;
+        result = maxThreads;
     }
-    currentMaxThreads = maxThreads;
-    return maxThreads;
+    if (countWarning)
+        core->logMessage(mtWarning, "Couldn't detect optimal number of threads. Thread count set to 1.");
+    return result;
 }
 
 void VSThreadPool::queueTask(const PVSFrameContext &ctx) {

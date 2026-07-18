@@ -1228,6 +1228,11 @@ struct VSAPI
       will be delivered as soon as a log handler is attached. This behavior exists
       mostly so that warnings when auto-loading plugins (default behavior) won't disappear-
 
+      A handler must only pass the message on and return quickly. Calling
+      logMessage_ from a handler is allowed but no other api function is, and a
+      handler must never add or remove log handlers or wait for frame requests
+      to complete.
+
       *handler*
          typedef void (VS_CC \*VSLogHandler)(int msgType, const char \*msg, void \*userdata)
 

@@ -292,9 +292,12 @@ Classes and Functions
    .. py:method:: add_log_handler(handler_func)
 
       Installs a custom handler for the various error messages VapourSynth emits.
-      The message handler is currently global, i.e. per process, not per VSCore instance.
+      The message handler is per Core instance.
       Returns a LogHandle object.
       *handler_func* is a callback function of the form *func(MessageType, message)*.
+      The handler may only present or record the message; it must not call into
+      the VapourSynth bindings (request frames, query cores or nodes, add or
+      remove log handlers) or block waiting for processing to finish.
 
    .. py:method:: remove_log_handler(handle)
 
