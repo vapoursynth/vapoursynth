@@ -175,7 +175,8 @@ void VSFrame::setAllocationInfo() noexcept {
 }
 
 VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
-    if (core->enableFrameRefDebug) {
+    frameRefDebug = core->enableFrameRefDebug;
+    if (frameRefDebug) {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
         core->frameRefs.insert(this);
     }
@@ -204,12 +205,13 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
         data[2] = new VSPlaneData(size23, *core->memory);
     }
 
-    if (core->enableFrameRefDebug)
+    if (frameRefDebug)
         setAllocationInfo();
 }
 
 VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
-    if (core->enableFrameRefDebug) {
+    frameRefDebug = core->enableFrameRefDebug;
+    if (frameRefDebug) {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
         core->frameRefs.insert(this);
     }
@@ -248,13 +250,14 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
         }
     }
 
-    if (core->enableFrameRefDebug)
+    if (frameRefDebug)
         setAllocationInfo();
 }
 
 VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc, VSCore *core) noexcept
     : refcount(1), contentType(mtAudio), v3format(nullptr), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
-    if (core->enableFrameRefDebug) {
+    frameRefDebug = core->enableFrameRefDebug;
+    if (frameRefDebug) {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
         core->frameRefs.insert(this);
     }
@@ -271,13 +274,14 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc,
 
     data[0] = new VSPlaneData(stride[0] * format.af.numChannels, *core->memory);
 
-    if (core->enableFrameRefDebug)
+    if (frameRefDebug)
         setAllocationInfo();
 }
 
 VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *channelSrc, const int *channel, const VSFrame *propSrc, VSCore *core) noexcept
     : refcount(1), contentType(mtAudio), v3format(nullptr), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
-    if (core->enableFrameRefDebug) {
+    frameRefDebug = core->enableFrameRefDebug;
+    if (frameRefDebug) {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
         core->frameRefs.insert(this);
     }
@@ -304,12 +308,13 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *
         }
     }
 
-    if (core->enableFrameRefDebug)
+    if (frameRefDebug)
         setAllocationInfo();
 }
 
 VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), v3format(nullptr), core(f.core) {
-    if (core->enableFrameRefDebug) {
+    frameRefDebug = core->enableFrameRefDebug;
+    if (frameRefDebug) {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
         core->frameRefs.insert(this);
     }
@@ -331,7 +336,7 @@ VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), v3format(nullptr), co
     stride[2] = f.stride[2];
     properties = f.properties;
 
-    if (core->enableFrameRefDebug)
+    if (frameRefDebug)
         setAllocationInfo();
 }
 
@@ -342,7 +347,7 @@ VSFrame::~VSFrame() {
         data[2]->release();
     }
 
-    if (core->enableFrameRefDebug) {
+    if (frameRefDebug) {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
         core->frameRefs.erase(this);
     }
@@ -1825,10 +1830,12 @@ bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path, bool plugin
 
 void VSCore::functionInstanceCreated() noexcept {
     ++numFunctionInstances;
+    filterInstanceCreated();
 }
 
 void VSCore::functionInstanceDestroyed() noexcept {
     --numFunctionInstances;
+    filterInstanceDestroyed();
 }
 
 void VSCore::filterInstanceCreated() noexcept {
@@ -1999,8 +2006,9 @@ void VSCore::freeCore() {
         logFatal("Double free of core");
     coreFreed = true;
     threadPool->waitForDone();
-    if (numFilterInstances > 1)
-        logMessage(mtWarning, "Core freed but " + safe_to_string(numFilterInstances.load() - 1) + " filter instance(s) still exist");
+    long filterCount = numFilterInstances - numFunctionInstances - 1;
+    if (filterCount > 0)
+        logMessage(mtWarning, "Core freed but " + safe_to_string(filterCount) + " filter instance(s) still exist");
     if (memory->allocated_bytes())
         logMessage(mtWarning, "Core freed but " + safe_to_string(memory->allocated_bytes()) + " bytes still allocated in framebuffers");
     if (numFunctionInstances > 0)

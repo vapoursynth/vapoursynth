@@ -421,6 +421,7 @@ private:
     int numPlanes;
     VSMap properties;
     VSCore *core;
+    bool frameRefDebug = false;
 
     std::string debugAllocationInfo;
     static std::atomic<uint64_t> allocationSeq;
@@ -1055,9 +1056,10 @@ struct VSLogHandle {
 struct VSCore {
     friend struct VSNode;
 private:
-    //number of filter instances plus one, freeing the core reduces it by one
-    // the core will be freed once it reaches 0
+    // counts everything that keeps the core alive, filter and function instances plus one
+    // reference released by freeCore; the core is freed once it reaches 0
     std::atomic<long> numFilterInstances;
+    // used for leak warnings in freeCore
     std::atomic<long> numFunctionInstances;
     int creationFlags;
     bool coreFreed = false;
