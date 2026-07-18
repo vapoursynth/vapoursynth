@@ -362,7 +362,8 @@ const vs3::VSVideoFormat *VSFrame::getVideoFormatV3() const noexcept {
 
 ptrdiff_t VSFrame::getStride(int plane) const {
     assert(contentType == mtVideo);
-    if (plane < 0 || plane >= numPlanes)
+    // numPlanes is the channel count for audio frames and can exceed the array size
+    if (plane < 0 || plane >= numPlanes || plane >= 3)
         return 0;
     return stride[plane];
 }

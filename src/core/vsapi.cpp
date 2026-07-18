@@ -496,7 +496,9 @@ static const VSFrame *VS_CC mapGetFrame(const VSMap *map, const char *key, int i
 
 static int VS_CC mapDeleteKey(VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    bool result = map->erase(remapColorRange(key));
+    bool result = map->erase(key);
+    if (!strcmp(key, "_ColorRange"))
+        result = map->erase("_Range") || result;
     return result;
 }
 
