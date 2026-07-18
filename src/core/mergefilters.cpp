@@ -402,7 +402,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     }
 
     for (int i = 0; i < 3; i++) {
-        if (d->fweight[i] < 0 || d->fweight[i] > 1)
+        if (!(d->fweight[i] >= 0 && d->fweight[i] <= 1))
             RETERROR("Merge: weights must be between 0 and 1");
         d->weight[i] = std::min<unsigned>((d->fweight[i] * (1 << MergeShift) + 0.5f), (1U << MergeShift) - 1);
     }
@@ -480,8 +480,8 @@ static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, voi
         const VSFrame *mask23 = nullptr;
 
         // With subsampled chroma, clipa and clipb chroma must sample the same
-        // locations to be meaningfully merged.
-        if (d->vi->format.subSamplingW > 0 || d->vi->format.subSamplingH > 0) {
+        // locations to be meaningfully merged, only relevant when chroma is processed.
+        if ((d->process[1] || d->process[2]) && (d->vi->format.subSamplingW > 0 || d->vi->format.subSamplingH > 0)) {
             int loc1 = resolveChromaLocation(src1, vsapi);
             int loc2 = resolveChromaLocation(src2, vsapi);
             if (loc1 != loc2) {
@@ -1080,7 +1080,7 @@ static const VSFrame *VS_CC mergeFullDiffGetFrame(int n, int activationReason, v
 }
 
 static bool mergeFullDiffIsCompatibleVideoInfo(const VSVideoInfo *v1, const VSVideoInfo *v2) {
-    return v1->height == v2->height && v1->width == v2->width && v1->format.colorFamily == v2->format.colorFamily && v1->format.sampleType == v2->format.sampleType && v1->format.bitsPerSample == v2->format.bitsPerSample - 1 && v1->format.subSamplingW == v2->format.subSamplingW && v1->format.subSamplingH == v2->format.subSamplingH;
+    return v1->height == v2->height && v1->width == v2->width && v1->format.colorFamily == v2->format.colorFamily && v1->format.sampleType == v2->format.sampleType && v1->format.bitsPerSample == v2->format.bitsPerSample - ((v1->format.sampleType == stInteger) ? 1 : 0) && v1->format.subSamplingW == v2->format.subSamplingW && v1->format.subSamplingH == v2->format.subSamplingH;
 }
 
 static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {

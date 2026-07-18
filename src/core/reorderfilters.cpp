@@ -238,7 +238,6 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
             RETERROR(("Interleave: clips are mismatched in " + mismatchToText(mminfo) + " starting at clip #" + std::to_string(mminfo.clipnum) + ", passed " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum - 1]), vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum]), vsapi)).c_str());
 
         bool overflow = false;
-        int maxNumFrames = d->numclips;
 
         if (extend) {
             if (d->vi.numFrames > INT_MAX / d->numclips)
@@ -261,6 +260,9 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
 
         if (d->modifyDuration)
             muldivRational(&d->vi.fpsNum, &d->vi.fpsDen, d->numclips, 1);
+
+        // frames requested per input clip, only clips at least this long never get a repeated clamped request
+        int maxNumFrames = (d->vi.numFrames + d->numclips - 1) / d->numclips;
 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < d->numclips; i++)
@@ -432,12 +434,15 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     int inputnframes = vi.numFrames;
     d->fullCycles = inputnframes / d->cycle;
     if (inputnframes) {
-        vi.numFrames = (inputnframes / d->cycle) * d->num;
+        int64_t numFrames = static_cast<int64_t>(d->fullCycles) * d->num;
         for (int i = 0; i < d->num; i++)
             if (d->offsets[i] < inputnframes % d->cycle) {
-                vi.numFrames++;
+                numFrames++;
                 d->tailOffsets.push_back(d->offsets[i]);
             }
+        if (numFrames > INT_MAX)
+            RETERROR("SelectEvery: resulting clip is too long");
+        vi.numFrames = static_cast<int>(numFrames);
     }
 
     if (vi.numFrames == 0)

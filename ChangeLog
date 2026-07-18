@@ -3,6 +3,8 @@ a compiler supporting c++20 is now required to build the project, compatibility 
 relaxed the zen4 level instruction check to not include avx512bf16 since compilers never use these instructions on their own, this allows the faster binaries to be used on intel ice lake cpus and later as well
 fixed multiple rare threading issues, the most likely of these to be actually encountered in r76 and r77 was a deadlock that could happen when sycnhronous getFrame() is called from a filter getFrame function and a pipeline flush is in progress 
 added basic avx512 as an additional cpu instruction level meaning that on x64 it's now baseline, avx2, avx512 and zen4 level
+mergefulldiff now handles float appropriately
+maskedmerge and premultiply will no longer reject clips with different chroma location if only luma is being processed
 generic filters now checks the minimum plane dimension restrictions only the actually processed planes
 fixed the levels filter not actually reading the second and third plane gamma/max_in/min_in and so on values
 many fixes to the python bindings such as fixing potential deadlocks when freeing the core and using frames and other references after a core has been destroyed (ichunjo)

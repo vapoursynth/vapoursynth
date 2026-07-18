@@ -504,7 +504,6 @@ static const VSFrame *VS_CC boxBlurGetframe(int n, int activationReason, void *i
         VSFrame *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
         int bytesPerSample = fi->bytesPerSample;
         int radius = d->radius;
-        uint8_t *ring = (radius > 1 && d->passes > 1) ? new uint8_t[bytesPerSample * std::min(radius + 1, vsapi->getFrameWidth(src, 0))] : nullptr;
 
         const uint8_t *srcp = vsapi->getReadPtr(src, 0);
         ptrdiff_t stride = vsapi->getStride(src, 0);
@@ -512,7 +511,12 @@ static const VSFrame *VS_CC boxBlurGetframe(int n, int activationReason, void *i
         int h = vsapi->getFrameHeight(src, 0);
         int w = vsapi->getFrameWidth(src, 0);
 
-        if (radius == 1) {
+        // the radius 1 fast path reads three pixels unconditionally so narrower planes are
+        // routed through the general clamped path instead
+        bool useR1 = radius == 1 && w >= 3;
+        uint8_t *ring = (!useR1 && d->passes > 1) ? new uint8_t[bytesPerSample * std::min(radius + 1, w)] : nullptr;
+
+        if (useR1) {
             if (bytesPerSample == 1)
                 processPlaneR1<uint8_t>(srcp, dstp, stride, w, h, d->passes);
             else if (fi->sampleType == stInteger && bytesPerSample == 2)
