@@ -113,7 +113,8 @@ static std::pair<std::filesystem::path, std::filesystem::path> readEnvConfig(con
     if (std::filesystem::exists(directPythonExePath, ec) && std::filesystem::exists(directPythonDLLPath, ec))
         return { directPythonExePath, directPythonDLLPath };
 
-    std::filesystem::path configPath = _wgetenv(L"APPDATA");
+    const wchar_t *appData = _wgetenv(L"APPDATA");
+    std::filesystem::path configPath = appData ? appData : L"";
 #else
     std::filesystem::path configPath;
     const auto xdg_config_home = std::getenv("XDG_CONFIG_HOME");

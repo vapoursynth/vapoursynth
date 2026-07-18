@@ -458,7 +458,10 @@ cdef class EnvironmentPolicyAPI:
                     callback()
                 except Exception as e:
                     formatted = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
-                    env.core.log_message(MessageType.MESSAGE_TYPE_CRITICAL, formatted)
+                    if env.core is not None:
+                        env.core.log_message(MessageType.MESSAGE_TYPE_CRITICAL, formatted)
+                    else:
+                        sys.stderr.write(formatted)
 
         # Invalidate all remaining nodes and frames from this environment
         for node in list(env.known_nodes):
@@ -1682,9 +1685,10 @@ cdef class VideoFrame(RawFrame):
         frame = <VSFrame*> self.constf
         format = lib.getVideoFrameFormat(frame)
 
-        # reuse the same _2dview for each plane
+        # reuse the same _2dview for each plane; the views need to hold their own frame
+        # reference so the data stays valid even after close()
         view = _video.allocinfo(format)
-        view.base.obj = self
+        view.base.obj = createFramePtr(lib.addFrameRef(self.constf), lib)
         view.base.readonly = not self.flags & 1
 
         for plane in range(format.numPlanes):
@@ -2414,6 +2418,9 @@ cdef class VideoNode(RawNode):
                 raise TypeError("progress_update must be a callable")
             progress_update(0, self.num_frames)
 
+        if self.format is None or self.width == 0 or self.height == 0:
+            raise ValueError("Cannot output clips with variable format or size")
+
         if y4m:
             if self.format.color_family == cfGray:
                 y4mformat = "mono"
@@ -2684,7 +2691,10 @@ cdef class AudioNode(RawNode):
             f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
         if f == NULL:
             if (errorMsg[0]):
-                raise Error(ep.decode('utf-8'))
+                msg_str = ep.decode('utf-8')
+                env = _env_current()
+                py_exc = env.retrieve_exception(msg_str) if env is not None else None
+                raise py_exc or Error(msg_str)
             else:
                 raise Error('Internal error - no error given')
         else:
@@ -3762,13 +3772,14 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename):
             _vpy_replace_pyenvdict(se, pyenvdict)
 
         pyenvdict["__name__"] = "__vapoursynth__"
-        code = compile(script, filename=filename, dont_inherit=True, mode="exec")
 
         if filename is None or (filename.startswith("<") and filename.endswith(">")):
             filename = "<string>"
             pyenvdict.pop("__file__", None)
         else:
             pyenvdict["__file__"] = filename
+
+        code = compile(script, filename=filename, dont_inherit=True, mode="exec")
 
         if se.errstr:
             errstr = <bytes>se.errstr
@@ -3780,7 +3791,10 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename):
             exec(code, pyenvdict, pyenvdict)
 
     except SystemExit, e:
-        se.exitCode = e.code
+        try:
+            se.exitCode = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+        except OverflowError:
+            se.exitCode = 1
         errstr = 'Python exit with code ' + str(e.code) + '\n'
         errstr = errstr.encode('utf-8')
         Py_INCREF(errstr)
