@@ -986,12 +986,20 @@ cdef class CallbackData(object):
 
     cdef EnvironmentData env
 
+    cdef object fut
+
     def __init__(self, object node, EnvironmentData env, object callback):
         # Keeps the node alive during the call.
         self.node = node
 
         self.callback = callback
         self.env = env
+        # tracked so environment teardown can wait for every outstanding request and not
+        # just the future returning form
+        self.fut = Future()
+        self.fut.set_running_or_notify_cancel()
+        if env is not None and env.active_futures is not None:
+            env.active_futures.add(self.fut)
 
 
 cdef createCallbackData(const VSAPI* funcs, RawNode node, object cb):
@@ -1025,6 +1033,8 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNod
 
         try:
             if d.node.node == NULL or d.node.core is None:
+                if f != NULL:
+                    d.funcs.freeFrame(f)
                 error = Error("Use of invalidated VideoNode (the environment has been destroyed).")
             elif f == NULL:
                 error_str = 'Internal error - no error message.'
@@ -1041,6 +1051,7 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNod
             except:
                 traceback.print_exc()
         finally:
+            d.fut.set_result(None)
             Py_DECREF(d)
 
 cdef object intToRangeFilter(int64_t value, str key):
@@ -2067,10 +2078,10 @@ cdef class HandleFuture:
     cdef object fut
 
     def __cinit__(self):
-        cdef EnvironmentData env = _env_current()
+        # teardown tracking lives in CallbackData so no environment access is needed here,
+        # _env_current() may also legitimately return None on user created threads
         self.fut = Future()
         self.fut.set_running_or_notify_cancel()
-        env.active_futures.add(self.fut)
 
     def __call__(self, result, exception):
         if exception is not None:
@@ -2373,13 +2384,22 @@ cdef class VideoNode(RawNode):
         cdef char *ep = errorMsg
         cdef const VSFrame *f
         self.ensure_valid_frame_number(n)
+        cdef EnvironmentData env = _env_current()
 
-        with nogil:
-            f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
+        # tracked so environment teardown can wait for blocking requests as well
+        fut = Future()
+        fut.set_running_or_notify_cancel()
+        if env is not None and env.active_futures is not None:
+            env.active_futures.add(fut)
+        try:
+            with nogil:
+                f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
+        finally:
+            fut.set_result(None)
+
         if f == NULL:
             if (errorMsg[0]):
                 msg_str = ep.decode('utf-8')
-                env = _env_current()
                 py_exc = env.retrieve_exception(msg_str) if env is not None else None
                 raise py_exc or Error(msg_str)
             else:
@@ -2686,13 +2706,22 @@ cdef class AudioNode(RawNode):
         cdef char *ep = errorMsg
         cdef const VSFrame *f
         self.ensure_valid_frame_number(n)
+        cdef EnvironmentData env = _env_current()
 
-        with nogil:
-            f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
+        # tracked so environment teardown can wait for blocking requests as well
+        fut = Future()
+        fut.set_running_or_notify_cancel()
+        if env is not None and env.active_futures is not None:
+            env.active_futures.add(fut)
+        try:
+            with nogil:
+                f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
+        finally:
+            fut.set_result(None)
+
         if f == NULL:
             if (errorMsg[0]):
                 msg_str = ep.decode('utf-8')
-                env = _env_current()
                 py_exc = env.retrieve_exception(msg_str) if env is not None else None
                 raise py_exc or Error(msg_str)
             else:
