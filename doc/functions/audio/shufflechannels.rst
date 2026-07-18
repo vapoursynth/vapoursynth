@@ -16,9 +16,13 @@ ShuffleChannels
 
    The argument *channels_in* controls which of the input clips' channels to use and
    takes a channel constants as its argument. Specifying a non-existent channel
-   is an error. If more *channels_in* than *clips* values are specified then the last
-   clip in the *clips* list is reused as a source. In addition to the channel constant
-   it's also possible to specify the nth channel by using negative numbers.
+   is an error, with one exception: *FRONT_LEFT* (channel 0) always resolves to the
+   input clip's first channel regardless of that clip's actual layout. This allows a
+   mono clip of any single channel to be addressed as *FRONT_LEFT*, which is what makes
+   the "merge two mono clips" example below work. If more *channels_in* than *clips*
+   values are specified then the last clip in the *clips* list is reused as a source.
+   In addition to the channel constant it's also possible to specify the nth channel
+   by using negative numbers.
 
    The output channel mapping is determined by *channels_out* and corresponds to the
    input channel order. The number of *channels_out* entries must be the same as the

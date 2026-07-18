@@ -406,6 +406,14 @@ bool operator==(const zimg_image_format &a, const zimg_image_format &b) {
     if (a.color_family == ZIMG_COLOR_YUV && (a.subsample_w || a.subsample_h))
         ret = ret && a.chroma_location == b.chroma_location;
 
+    // active_region varies at runtime (halved for interlaced frames), so it must be part of the key or
+    // a halved and an unhalved crop can collide in the same cached graph. NaN means unset; NaN == NaN here.
+    auto region_eq = [](double x, double y) { return (std::isnan(x) && std::isnan(y)) || x == y; };
+    ret = ret && region_eq(a.active_region.left, b.active_region.left);
+    ret = ret && region_eq(a.active_region.top, b.active_region.top);
+    ret = ret && region_eq(a.active_region.width, b.active_region.width);
+    ret = ret && region_eq(a.active_region.height, b.active_region.height);
+
     return ret;
 }
 
@@ -868,8 +876,11 @@ void VS_CC bobCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, 
     if (const char *filterName = vsapi->mapGetData(in, "filter", 0, &_)) {
         auto it = g_resample_filter_table.find(filterName);
 
-        if (it != g_resample_filter_table.end())
-            u.filter = it->second;
+        if (it == g_resample_filter_table.end()) {
+            vsapi->mapSetError(out, "Bob: invalid filter specified");
+            return;
+        }
+        u.filter = it->second;
     }
 
     tmp_map = vsapi->createMap();

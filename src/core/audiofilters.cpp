@@ -98,11 +98,11 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
     int err;
     int64_t trimlen;
 
-    d->first = vsapi->mapGetIntSaturated(in, "first", 0, &err);
+    d->first = vsapi->mapGetInt(in, "first", 0, &err);
     bool firstset = !err;
-    int64_t last = vsapi->mapGetIntSaturated(in, "last", 0, &err);
+    int64_t last = vsapi->mapGetInt(in, "last", 0, &err);
     bool lastset = !err;
-    int64_t length = vsapi->mapGetIntSaturated(in, "length", 0, &err);
+    int64_t length = vsapi->mapGetInt(in, "length", 0, &err);
     bool lengthset = !err;
 
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
@@ -977,6 +977,10 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
                 break;
             }
         } else {
+            // channel 0 (front left) is intentionally exempt from the presence check: it resolves to
+            // the clip's first channel whatever that is, so a mono clip can be addressed as front left
+            // (e.g. merging two mono clips with channels_in=[FRONT_LEFT, FRONT_LEFT]). Any other channel
+            // must actually be present in the source layout.
             if ((d->sourceNodes[i].idx > 0) && !(ai->format.channelLayout & (static_cast<uint64_t>(1) << d->sourceNodes[i].idx))) {
                 err = "ShuffleChannels: specified channel is not present in input";
                 break;
