@@ -347,14 +347,25 @@ cdef const VSAPI *_vsapi = NULL
 cdef void _set_logger(EnvironmentData env, VSLogHandler handler, VSLogHandlerFree free, void *userData):
     vsscript_get_core_internal(env)
     _unset_logger(env)
-    env.log = env.core.funcs.addLogHandler(handler, free, userData, env.core.core)
+    # released gil, the log api dispatches to handlers that acquire the gil so calling in while
+    # holding it can deadlock against a thread mid message delivery
+    cdef const VSAPI *funcs = env.core.funcs
+    cdef VSCore *core = env.core.core
+    cdef VSLogHandle *log
+    with nogil:
+        log = funcs.addLogHandler(handler, free, userData, core)
+    env.log = log
 
 cdef void _unset_logger(EnvironmentData env):
     if env.log == NULL or env.core is None:
         env.log = NULL # if the core has been freed then so has the log as well
         return
 
-    env.core.funcs.removeLogHandler(env.log, env.core.core)
+    cdef const VSAPI *funcs = env.core.funcs
+    cdef VSCore *core = env.core.core
+    cdef VSLogHandle *log = env.log
+    with nogil:
+        funcs.removeLogHandler(log, core)
     env.log = NULL
 
 
@@ -3091,17 +3102,30 @@ cdef class Core(object):
         return createVideoFrame(ref, self.funcs, self.core)
 
     def log_message(self, int message_type, str message):
-        self.funcs.logMessage(message_type, message.encode('utf-8'), self.core)
+        # released gil, the log api dispatches to handlers that acquire the gil so calling in
+        # while holding it can deadlock against a thread mid message delivery
+        cdef bytes message_bytes = message.encode('utf-8')
+        cdef const char *message_cstr = message_bytes
+        with nogil:
+            self.funcs.logMessage(message_type, message_cstr, self.core)
 
     def add_log_handler(self, handler_func):
         handler_func(mtDebug, 'New message handler installed from python')
         cdef LogHandle lh = createLogHandle(handler_func)
         Py_INCREF(lh)
-        lh.handle = self.funcs.addLogHandler(log_handler_wrapper, log_handler_free, <void *>lh, self.core)
+        cdef void *userData = <void *>lh
+        cdef VSLogHandle *handle
+        with nogil:
+            handle = self.funcs.addLogHandler(log_handler_wrapper, log_handler_free, userData, self.core)
+        lh.handle = handle
         return lh
 
     def remove_log_handler(self, LogHandle handle):
-        return self.funcs.removeLogHandler(handle.handle, self.core)
+        cdef VSLogHandle *h = handle.handle
+        cdef bint result
+        with nogil:
+            result = self.funcs.removeLogHandler(h, self.core)
+        return result
 
     def clear_cache(self):
         self.funcs.clearCoreCaches(self.core)
