@@ -52,6 +52,19 @@ class MemoryUse {
 
     std::atomic_bool m_core_freed{ false };
 
+    static thread_local int64_t s_call_delta;
+    static thread_local int64_t s_call_peak;
+
+    static void track_allocated(size_t size) {
+        s_call_delta += static_cast<int64_t>(size);
+        if (s_call_delta > s_call_peak)
+            s_call_peak = s_call_delta;
+    }
+
+    static void track_deallocated(size_t size) {
+        s_call_delta -= static_cast<int64_t>(size);
+    }
+
     static uint8_t *init_block(uint8_t *raw_ptr, size_t allocation_size);
 
     ~MemoryUse();
@@ -89,6 +102,28 @@ public:
     bool is_over_limit() const { return m_allocated > m_limit; }
 
     bool is_under_limit() const { return m_allocated < (m_limit >> 1); }
+
+    struct CallTracking {
+        int64_t delta;
+        int64_t peak;
+    };
+
+    // Measures the peak net increase of allocated bytes caused by the calling thread between the
+    // begin and end calls, used to predict how much memory a filter call will need. The state
+    // returned by begin must be passed to the matching end call so nested measurements compose.
+    static CallTracking begin_call_tracking() {
+        CallTracking prev = { s_call_delta, s_call_peak };
+        s_call_delta = 0;
+        s_call_peak = 0;
+        return prev;
+    }
+
+    static int64_t end_call_tracking(const CallTracking &prev) {
+        int64_t peak = s_call_peak;
+        s_call_peak = (prev.delta + peak > prev.peak) ? (prev.delta + peak) : prev.peak;
+        s_call_delta += prev.delta;
+        return peak;
+    }
 
     // Called only from VSCore destructor.
     void on_core_freed();

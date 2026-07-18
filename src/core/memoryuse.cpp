@@ -78,6 +78,9 @@ struct MemoryUse::DebugStats {
 };
 #endif
 
+thread_local int64_t MemoryUse::s_call_delta = 0;
+thread_local int64_t MemoryUse::s_call_peak = 0;
+
 MemoryUse::MemoryUse()
 {
 #if SIZE_MAX > UINT32_MAX
@@ -156,6 +159,7 @@ uint8_t *MemoryUse::allocate_from_system(size_t size)
 
     uint8_t *user_ptr = init_block(raw_ptr, size);
     m_allocated += size;
+    track_allocated(size);
     return user_ptr;
 }
 
@@ -173,6 +177,7 @@ uint8_t *MemoryUse::allocate_from_freelist(size_t size)
         m_freelist.erase(iter);
         m_freelist_size -= block_size;
         m_allocated += block_size;
+        track_allocated(block_size);
 
         return raw_ptr + ALIGNMENT;
     }
@@ -190,6 +195,7 @@ void MemoryUse::deallocate_to_system(uint8_t *ptr, size_t size)
 
     do_deallocate(ptr);
     m_allocated -= size;
+    track_deallocated(size);
 }
 
 void MemoryUse::deallocate_to_freelist(uint8_t *ptr, size_t size)
@@ -198,6 +204,7 @@ void MemoryUse::deallocate_to_freelist(uint8_t *ptr, size_t size)
     m_freelist.emplace(size, ptr);
     m_freelist_size += size;
     m_allocated -= size;
+    track_deallocated(size);
 }
 
 void MemoryUse::gc_freelist()
