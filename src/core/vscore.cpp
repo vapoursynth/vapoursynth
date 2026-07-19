@@ -2602,7 +2602,6 @@ void VSNode::VSCache::adjustSize(bool memoryComfortable, uint64_t completedExtFr
         // current size remain detectable, history nodes hold no frame data so this is nearly free
         if (getMaxHistory() < getMaxFrames())
             setMaxHistory(getMaxFrames());
-
     }
 }
 

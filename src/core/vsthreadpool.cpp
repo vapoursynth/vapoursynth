@@ -346,7 +346,7 @@ void VSThreadPool::runTasks(bool &stop) {
             break;
         }
 
-        if (!ranTask || (core->memory->is_over_limit() && activeThreads > 1)) {
+        if (!ranTask || (activeThreads > maxThreads) || (core->memory->is_over_limit() && activeThreads > 1)) {
             --activeThreads;
             if (stop) {
                 lock.unlock();
