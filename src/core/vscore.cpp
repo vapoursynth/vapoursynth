@@ -1194,6 +1194,7 @@ int64_t VSNode::expectedTransientAllocation() const {
 
 void VSCore::notifyCaches(bool needMemory) {
     uint64_t completedExtFrames = threadPool->getCompletedExternalFrames();
+    std::lock_guard<std::mutex> lock(cacheLock);
 
     if (needMemory) {
         // free the excess in a single pass by taking frames from the caches where each held byte
@@ -1201,54 +1202,40 @@ void VSCore::notifyCaches(bool needMemory) {
         size_t allocated = memory->allocated_bytes();
         size_t memLimit = memory->limit();
         size_t targetUsage = memLimit - memLimit / 10;
-        size_t evictableBytes = 0;
+        if (allocated <= targetUsage)
+            return;
+        size_t excess = allocated - targetUsage;
 
-        {
-            std::lock_guard<std::mutex> lock(cacheLock);
+        struct CacheEntry {
+            VSNode *node;
+            size_t bytes;
+            int value;
+        };
 
-            struct CacheEntry {
-                VSNode *node;
-                size_t bytes;
-                int value;
-            };
-
-            std::vector<CacheEntry> entries;
-            entries.reserve(caches.size());
-            for (auto &node : caches) {
-                VSNode::CachePressureInfo info = node->getCachePressureInfo();
-                if (!info.fixedSize && info.bytes > 0) {
-                    entries.push_back({ node, info.bytes, info.value });
-                    evictableBytes += info.bytes;
-                }
-            }
-
-            if (allocated > targetUsage) {
-                size_t excess = allocated - targetUsage;
-
-                // caches without a single hit or near miss hold pure dead weight and go first, biggest
-                // first, the rest follow in order of ascending value provided per held byte
-                std::sort(entries.begin(), entries.end(), [](const CacheEntry &a, const CacheEntry &b) {
-                    if ((a.value == 0) != (b.value == 0))
-                        return a.value == 0;
-                    if (a.value == 0)
-                        return a.bytes > b.bytes;
-                    return static_cast<double>(a.value) * b.bytes < static_cast<double>(b.value) * a.bytes;
-                });
-
-                for (const CacheEntry &entry : entries) {
-                    excess -= std::min(entry.node->evictCacheBytes(excess), excess);
-                    if (excess == 0)
-                        break;
-                }
-            }
+        std::vector<CacheEntry> entries;
+        entries.reserve(caches.size());
+        for (auto &node : caches) {
+            VSNode::CachePressureInfo info = node->getCachePressureInfo();
+            if (!info.fixedSize && info.bytes > 0)
+                entries.push_back({ node, info.bytes, info.value });
         }
 
-        // whatever isn't held by the caches is pinned by in-flight requests and can't be freed
-        // by any amount of evicting or throttling, tell the thread pool so it can stand down
-        // when the limit is unmeetable, reported after dropping cacheLock since it may log
-        threadPool->updateLimitFeasibility(allocated > memLimit && allocated > evictableBytes && allocated - evictableBytes > memLimit);
+        // caches without a single hit or near miss hold pure dead weight and go first, biggest
+        // first, the rest follow in order of ascending value provided per held byte
+        std::sort(entries.begin(), entries.end(), [](const CacheEntry &a, const CacheEntry &b) {
+            if ((a.value == 0) != (b.value == 0))
+                return a.value == 0;
+            if (a.value == 0)
+                return a.bytes > b.bytes;
+            return static_cast<double>(a.value) * b.bytes < static_cast<double>(b.value) * a.bytes;
+        });
+
+        for (const CacheEntry &entry : entries) {
+            excess -= std::min(entry.node->evictCacheBytes(excess), excess);
+            if (excess == 0)
+                break;
+        }
     } else {
-        std::lock_guard<std::mutex> lock(cacheLock);
         // caches only get to grow while memory usage stays comfortably under the limit
         size_t memLimit = memory->limit();
         bool memoryComfortable = memory->allocated_bytes() < memLimit - memLimit * 3 / 20;

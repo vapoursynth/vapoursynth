@@ -1031,7 +1031,6 @@ private:
     size_t activeThreads;
     size_t idleThreads;
     size_t reqCounter;
-    std::atomic<size_t> activeExternalRequests;
     size_t maxThreads;
     size_t currentMaxThreads;
 
@@ -1040,33 +1039,18 @@ private:
     int64_t lastShrink;
     int64_t lastGrow;
     int64_t overLimitSince;
-    int64_t underLimitSince;
-    size_t allocatedAtShrink;
     bool inPressureEpisode;
 
     std::atomic<int64_t> lastCacheSweep;
     std::atomic<uint64_t> completedExternalFrames;
     std::atomic<int64_t> inflightAllocation;
     std::atomic<size_t> processingThreads;
-
-    // set when the pressure sweep determines that the frames pinned by in-flight requests alone
-    // exceed the memory limit, meaning no amount of throttling or evicting can meet it, all the
-    // over limit gates stand down until the pinned frames drain so they complete sooner
-    std::atomic<bool> limitInfeasible;
-    std::atomic<uint32_t> infeasibleStreak;
-
     std::atomic<bool> cacheSweepActive;
     bool stopThreads;
     bool flushCaches;
     std::list<PVSFrameContext> altTasks;
-
-    // external requests parked while memory is over the limit, bounding the number of in-flight
-    // external requests bounds the frames pinned by their contexts which is exactly the memory
-    // that no amount of cache eviction can free
-    std::list<PVSFrameContext> heldExternalTasks;
     size_t getNumAvailableThreads();
     void queueTask(const PVSFrameContext &ctx);
-    void releaseHeldExternal();
     void wakeThread();
     void startInternalRequest(const PVSFrameContext &notify, NodeOutputKey key);
     void spawnThread();
@@ -1084,7 +1068,6 @@ public:
     uint64_t getCompletedExternalFrames() const {
         return completedExternalFrames.load(std::memory_order_relaxed);
     }
-    void updateLimitFeasibility(bool pinnedOverLimit);
 };
 
 struct VSPluginFunction {
