@@ -452,6 +452,11 @@ void VSThreadPool::runTasks(bool &stop) {
                     lastShrink = lastCacheSweep; // require another full interval at the floor before flushing again
                     activeExternalRequests += altTasks.size();
                     std::swap(tasks, altTasks);
+                    // parked requests can't be released while a flush is pending so the pen may
+                    // have been left without a single admitted request to drive further releases,
+                    // top it back up to the floor or the pipeline stalls with work still parked
+                    while (activeExternalRequests.load(std::memory_order_relaxed) < minExternalKeep && !heldExternalTasks.empty())
+                        releaseHeldExternal();
                     deferredLog = "Pipeline flushed, resuming processing";
                     // the thread can't notify itself ahead of waiting so instead skip the wait and just loop back around to check for work immediately
                     shouldWait = false;
