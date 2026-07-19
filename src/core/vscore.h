@@ -689,9 +689,6 @@ private:
         // by memory pressure so a pressure episode can't erase what the cache has learned
         int steadySize = 20;
 
-        // consecutive grow decisions, used to accelerate growth for large working sets
-        int growSteps = 0;
-
         // size explicitly requested through setCacheOptions, acts as a floor for all automatic
         // adjustment and eviction so caching can be forced to stick on nodes whose request
         // patterns wouldn't sustain it on their own, like output nodes, 0 means not set
@@ -878,7 +875,6 @@ private:
         inline void resetSizeTuning() {
             userSize = 0;
             steadySize = 20;
-            growSteps = 0;
         }
 
         size_t dropLRUFrames(size_t maxBytes);
@@ -1034,12 +1030,10 @@ private:
     size_t maxThreads;
     size_t currentMaxThreads;
 
-    // AIMD style controller state for scaling the running thread ceiling based on memory usage
-    size_t threadsThresh;
+    // state for pacing the running thread ceiling based on memory usage
     int64_t lastShrink;
     int64_t lastGrow;
     int64_t overLimitSince;
-    bool inPressureEpisode;
 
     std::atomic<int64_t> lastCacheSweep;
     std::atomic<uint64_t> completedExternalFrames;

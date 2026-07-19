@@ -40,16 +40,14 @@
 static constexpr int64_t normalCacheSweepInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(500)).count();
 static constexpr int64_t pressureCacheSweepInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(150)).count();
 
-// pacing for the AIMD style thread ceiling controller, over limit usage must persist for the
-// confirm interval before the ceiling is halved since brief spikes from single allocation heavy
-// filter calls resolve on their own, after that the ceiling steps down while usage stays over
-// the limit and a pipeline flush only happens as a last resort when a single running thread
-// still isn't enough, regrowth is slower above the level where memory last ran out
-static constexpr int64_t episodeConfirmInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(100)).count();
+// pacing for the thread ceiling controller, usage must stay over the limit for a full shrink
+// interval before the first step down so brief spikes from single allocation heavy filter calls
+// resolve on their own, the emergency reaction to going over the limit is handled by the idle
+// parking below so the ceiling only needs to pace how far concurrency recovers, a pipeline
+// flush only happens as a last resort when a single running thread still isn't enough
 static constexpr int64_t ceilingShrinkInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(250)).count();
+static constexpr int64_t ceilingGrowInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(1000)).count();
 static constexpr int64_t flushAtFloorInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(1000)).count();
-static constexpr int64_t ceilingGrowIntervalFast = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(1000)).count();
-static constexpr int64_t ceilingGrowIntervalSlow = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(4000)).count();
 
 static int64_t steadyClockNow() {
     return std::chrono::steady_clock::now().time_since_epoch().count();
@@ -297,20 +295,9 @@ void VSThreadPool::runTasks(bool &stop) {
             }
 
             if (overLimit) {
-                if (!inPressureEpisode) {
-                    if (!overLimitSince) {
-                        overLimitSince = timeNow;
-                    } else if (timeNow - overLimitSince >= episodeConfirmInterval) {
-                        // sustained overrun and not just a brief spike from a single allocation
-                        // heavy filter call, halve the ceiling and continue stepping from there
-                        inPressureEpisode = true;
-                        threadsThresh = std::max<size_t>(currentMaxThreads / 2, 1);
-                        if (currentMaxThreads != threadsThresh) {
-                            currentMaxThreads = threadsThresh;
-                            deferredLog = "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage";
-                        }
-                        lastShrink = timeNow;
-                    }
+                if (!overLimitSince) {
+                    overLimitSince = timeNow;
+                    lastShrink = timeNow;
                 } else if (timeNow - lastShrink >= ceilingShrinkInterval) {
                     if (currentMaxThreads > 1) {
                         --currentMaxThreads;
@@ -325,17 +312,10 @@ void VSThreadPool::runTasks(bool &stop) {
                 }
             } else {
                 overLimitSince = 0;
-                if (core->memory->is_under_limit()) {
-                    inPressureEpisode = false;
-                    if (currentMaxThreads < maxThreads) {
-                        // probe more carefully once past the level where memory last ran out
-                        int64_t interval = (currentMaxThreads < threadsThresh) ? ceilingGrowIntervalFast : ceilingGrowIntervalSlow;
-                        if (timeNow - lastGrow >= interval) {
-                            ++currentMaxThreads;
-                            lastGrow = timeNow;
-                            deferredLog = "Maximum running threads increased to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to more memory being available";
-                        }
-                    }
+                if (core->memory->is_under_limit() && currentMaxThreads < maxThreads && timeNow - lastGrow >= ceilingGrowInterval) {
+                    ++currentMaxThreads;
+                    lastGrow = timeNow;
+                    deferredLog = "Maximum running threads increased to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to more memory being available";
                 }
             }
 
@@ -424,7 +404,7 @@ void VSThreadPool::runTasks(bool &stop) {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), threadsThresh(0), lastShrink(0), lastGrow(0), overLimitSince(0), inPressureEpisode(false), lastCacheSweep(0), completedExternalFrames(0), inflightAllocation(0), processingThreads(0), cacheSweepActive(false), stopThreads(false), flushCaches(false) {
+VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), lastShrink(0), lastGrow(0), overLimitSince(0), lastCacheSweep(0), completedExternalFrames(0), inflightAllocation(0), processingThreads(0), cacheSweepActive(false), stopThreads(false), flushCaches(false) {
     setThreadCount(0);
 }
 
@@ -450,8 +430,6 @@ size_t VSThreadPool::setThreadCount(size_t threads) {
             countWarning = true;
         }
         currentMaxThreads = maxThreads;
-        threadsThresh = maxThreads;
-        inPressureEpisode = false;
         overLimitSince = 0;
         result = maxThreads;
     }

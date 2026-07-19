@@ -2589,27 +2589,20 @@ void VSNode::VSCache::adjustSize(bool memoryComfortable, uint64_t completedExtFr
         case VSCache::CacheAction::Clear:
             clear();
             setMaxFrames(std::max(getMaxFrames() - 2, userSize));
-            growSteps = 0;
             break;
         case VSCache::CacheAction::Grow:
             // growing right up to the limit only triggers the pressure machinery and creates a
-            // grow and evict sawtooth so growth requires comfortable headroom, consecutive grow
-            // decisions accelerate so large working sets are reached in a few decisions
+            // grow and evict sawtooth so growth requires comfortable headroom
             if (memoryComfortable) {
-                setMaxFrames(getMaxFrames() + (2 << std::min(growSteps, 2)));
-                if (growSteps < 2)
-                    growSteps++;
+                setMaxFrames(getMaxFrames() + 2);
                 if (getMaxFrames() > steadySize)
                     steadySize = getMaxFrames();
             }
             break;
         case VSCache::CacheAction::Shrink:
             setMaxFrames(std::max(getMaxFrames() - 1, userSize));
-            growSteps = 0;
             break;
         default:
-            if (total >= 30) // an actual decision to keep the current size, not merely a lack of samples
-                growSteps = 0;
             break;
         }
 
