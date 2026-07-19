@@ -51,6 +51,18 @@ static constexpr int64_t flushAtFloorInterval = std::chrono::duration_cast<std::
 static constexpr int64_t ceilingGrowIntervalFast = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(1000)).count();
 static constexpr int64_t ceilingGrowIntervalSlow = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(4000)).count();
 
+// consecutive pressure sweeps that must measure more pinned than the limit before the limit is
+// declared unmeetable and the thread ceiling is restored, clearing the verdict again requires
+// staying under the limit for a sustained time since the amount of pinned memory depends on the
+// thread count itself and instant clearing makes the two modes oscillate
+static constexpr uint32_t infeasibleConfirmSweeps = 3;
+
+// number of in-flight external requests that always stay admitted so the pipeline can never
+// stall, everything beyond it gets parked while memory is over the limit since fewer requests
+// in flight directly means fewer pinned frames
+static constexpr size_t minExternalKeep = 2;
+static constexpr int64_t infeasibleClearInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(1000)).count();
+
 static int64_t steadyClockNow() {
     return std::chrono::steady_clock::now().time_since_epoch().count();
 }
@@ -189,7 +201,7 @@ void VSThreadPool::runTasks(bool &stop) {
 // since tasks are always admitted when no other filter call is running
 
             int64_t expectedAlloc = node->expectedTransientAllocation();
-            if (expectedAlloc > 0 && processingThreads.load(std::memory_order_relaxed) > 0) {
+            if (expectedAlloc > 0 && processingThreads.load(std::memory_order_relaxed) > 0 && !limitInfeasible.load(std::memory_order_relaxed)) {
                 int64_t memLimit = static_cast<int64_t>(core->memory->limit());
                 if (static_cast<int64_t>(core->memory->allocated_bytes()) + inflightAllocation.load(std::memory_order_relaxed) + expectedAlloc > memLimit + memLimit / 4)
                     continue;
@@ -297,7 +309,18 @@ void VSThreadPool::runTasks(bool &stop) {
             }
 
             if (overLimit) {
-                if (!inPressureEpisode) {
+                underLimitSince = 0;
+                if (limitInfeasible.load(std::memory_order_relaxed)) {
+                    // no amount of throttling can meet the limit when the pinned frames alone
+                    // exceed it, running at full speed completes and releases them the fastest
+                    overLimitSince = 0;
+                    inPressureEpisode = false;
+                    if (currentMaxThreads != maxThreads) {
+                        currentMaxThreads = maxThreads;
+                        deferredLog = "Maximum running threads restored to " + std::to_string(maxThreads) + "/" + std::to_string(maxThreads) + " since the memory limit can't be met by reducing them";
+                        newWork.notify_all();
+                    }
+                } else if (!inPressureEpisode) {
                     if (!overLimitSince) {
                         overLimitSince = timeNow;
                     } else if (timeNow - overLimitSince >= episodeConfirmInterval) {
@@ -310,11 +333,21 @@ void VSThreadPool::runTasks(bool &stop) {
                             deferredLog = "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage";
                         }
                         lastShrink = timeNow;
+                        allocatedAtShrink = core->memory->allocated_bytes();
                     }
                 } else if (timeNow - lastShrink >= ceilingShrinkInterval) {
-                    if (currentMaxThreads > 1) {
+                    size_t allocatedNow = core->memory->allocated_bytes();
+                    size_t memLimit = core->memory->limit();
+                    if (allocatedNow + memLimit / 32 < allocatedAtShrink) {
+                        // the last reduction is still paying off since pinned frames take a while
+                        // to drain, hold while memory keeps falling instead of overshooting all
+                        // the way to the floor and flushing
+                        lastShrink = timeNow;
+                        allocatedAtShrink = allocatedNow;
+                    } else if (currentMaxThreads > 1) {
                         --currentMaxThreads;
                         lastShrink = timeNow;
+                        allocatedAtShrink = allocatedNow;
                         deferredLog = "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage";
                     } else if (!flushCaches && timeNow - lastShrink >= flushAtFloorInterval) {
                         // reducing concurrency didn't help so the memory must be held by caches
@@ -325,6 +358,19 @@ void VSThreadPool::runTasks(bool &stop) {
                 }
             } else {
                 overLimitSince = 0;
+                if (limitInfeasible.load(std::memory_order_relaxed)) {
+                    if (!underLimitSince) {
+                        underLimitSince = timeNow;
+                    } else if (timeNow - underLimitSince >= infeasibleClearInterval) {
+                        limitInfeasible.store(false, std::memory_order_relaxed);
+                        infeasibleStreak.store(0, std::memory_order_relaxed);
+                        underLimitSince = 0;
+                    }
+                } else {
+                    underLimitSince = 0;
+                    if (infeasibleStreak.load(std::memory_order_relaxed))
+                        infeasibleStreak.store(0, std::memory_order_relaxed);
+                }
                 if (core->memory->is_under_limit()) {
                     inPressureEpisode = false;
                     if (currentMaxThreads < maxThreads) {
@@ -338,6 +384,11 @@ void VSThreadPool::runTasks(bool &stop) {
                     }
                 }
             }
+
+            // once memory recedes readmit one parked external request per completed task so the
+            // backlog drains gradually instead of restoring the whole inventory in one burst
+            if (!overLimit && !heldExternalTasks.empty())
+                releaseHeldExternal();
 
             if (frameProcessingDone && !frameContext->external)
                 allContexts.erase(frameContext->key);
@@ -384,7 +435,7 @@ void VSThreadPool::runTasks(bool &stop) {
             break;
         }
 
-        if (!ranTask || (activeThreads > currentMaxThreads) || (core->memory->is_over_limit() && activeThreads > 1)) {
+        if (!ranTask || (activeThreads > currentMaxThreads) || (core->memory->is_over_limit() && activeThreads > 1 && !limitInfeasible.load(std::memory_order_relaxed))) {
             --activeThreads;
             if (stop) {
                 lock.unlock();
@@ -399,6 +450,7 @@ void VSThreadPool::runTasks(bool &stop) {
                     flushCaches = false;
                     lastCacheSweep = steadyClockNow();
                     lastShrink = lastCacheSweep; // require another full interval at the floor before flushing again
+                    activeExternalRequests += altTasks.size();
                     std::swap(tasks, altTasks);
                     deferredLog = "Pipeline flushed, resuming processing";
                     // the thread can't notify itself ahead of waiting so instead skip the wait and just loop back around to check for work immediately
@@ -424,7 +476,7 @@ void VSThreadPool::runTasks(bool &stop) {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), threadsThresh(0), lastShrink(0), lastGrow(0), overLimitSince(0), inPressureEpisode(false), lastCacheSweep(0), completedExternalFrames(0), inflightAllocation(0), processingThreads(0), cacheSweepActive(false), stopThreads(false), flushCaches(false) {
+VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), activeExternalRequests(0), threadsThresh(0), lastShrink(0), lastGrow(0), overLimitSince(0), underLimitSince(0), allocatedAtShrink(0), inPressureEpisode(false), lastCacheSweep(0), completedExternalFrames(0), inflightAllocation(0), processingThreads(0), limitInfeasible(false), infeasibleStreak(0), cacheSweepActive(false), stopThreads(false), flushCaches(false) {
     setThreadCount(0);
 }
 
@@ -453,11 +505,30 @@ size_t VSThreadPool::setThreadCount(size_t threads) {
         threadsThresh = maxThreads;
         inPressureEpisode = false;
         overLimitSince = 0;
+        underLimitSince = 0;
+        limitInfeasible = false;
+        infeasibleStreak = 0;
         result = maxThreads;
     }
     if (countWarning)
         core->logMessage(mtWarning, "Couldn't detect optimal number of threads. Thread count set to 1.");
     return result;
+}
+
+void VSThreadPool::updateLimitFeasibility(bool pinnedOverLimit) {
+    // the pinned memory only counts as unmeetable once the number of in-flight external requests
+    // is already at the floor, above it the admission valve hasn't finished draining inventory
+    if (pinnedOverLimit && activeExternalRequests.load(std::memory_order_relaxed) <= minExternalKeep) {
+        if (infeasibleStreak.fetch_add(1, std::memory_order_relaxed) + 1 >= infeasibleConfirmSweeps) {
+            if (!limitInfeasible.exchange(true, std::memory_order_relaxed))
+                core->logMessage(mtWarning, "Memory limit can't be met, the frames held by in-flight requests alone exceed it, thread count restored until they drain");
+        }
+    } else if (!pinnedOverLimit) {
+        // only reset the streak here, the verdict itself is cleared by staying under the limit
+        // for a sustained time, the pinned estimate briefly dipping below the limit at a single
+        // sweep mostly reflects how full the caches happened to be at that instant
+        infeasibleStreak.store(0, std::memory_order_relaxed);
+    }
 }
 
 void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
@@ -466,10 +537,19 @@ void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
     wakeThread();
 }
 
+void VSThreadPool::releaseHeldExternal() {
+    if (!heldExternalTasks.empty() && !flushCaches) {
+        tasks.push_back(std::move(heldExternalTasks.front()));
+        heldExternalTasks.pop_front();
+        ++activeExternalRequests;
+        wakeThread();
+    }
+}
+
 void VSThreadPool::wakeThread() {
     size_t numActive = activeThreads;
     if (numActive < currentMaxThreads) {
-        if (core->memory->is_over_limit() && numActive > 0) {
+        if (core->memory->is_over_limit() && numActive > 0 && !limitInfeasible.load(std::memory_order_relaxed)) {
             // do nothing
         } else {
             if (idleThreads == 0) // newly spawned threads are active so no need to notify an additional thread
@@ -495,7 +575,15 @@ void VSThreadPool::startExternal(const PVSFrameContext &context) {
     // (non-pool-thread) requests can be safely deferred until the flush completes.
     if (flushCaches && !context->reserveThread) {
         altTasks.push_back(context);
+    } else if (!context->reserveThread && (!heldExternalTasks.empty() || (core->memory->is_over_limit() && activeExternalRequests.load(std::memory_order_relaxed) >= minExternalKeep))) {
+        // park new external requests while memory is over the limit since fewer requests in
+        // flight directly means fewer pinned frames, this applies even when the limit has been
+        // declared unmeetable because a bounded overshoot still beats an unbounded one, a non
+        // empty pen also always parks so requests can't overtake each other and reserveThread
+        // requests are exempt for the same reason as above
+        heldExternalTasks.push_back(context);
     } else {
+        ++activeExternalRequests;
         tasks.push_back(context); // external requests can't be combined so just add to queue
         wakeThread();
     }
@@ -504,6 +592,12 @@ void VSThreadPool::startExternal(const PVSFrameContext &context) {
 void VSThreadPool::returnFrame(VSFrameContext *rCtx, const PVSFrame &f, std::unique_lock<std::mutex> &lock) {
     assert(rCtx->frameDone);
     completedExternalFrames.fetch_add(1, std::memory_order_relaxed);
+    assert(activeExternalRequests > 0);
+    --activeExternalRequests;
+    // guarantees progress no matter the memory state, a parked request always gets admitted
+    // once the number in flight falls below the floor
+    if (activeExternalRequests < minExternalKeep)
+        releaseHeldExternal();
     bool outputLock = rCtx->lockOnOutput;
     bool reserveThread = rCtx->reserveThread;
     // we need to unlock here so the callback may request more frames without causing a deadlock
