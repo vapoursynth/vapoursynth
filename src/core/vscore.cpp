@@ -1208,7 +1208,6 @@ void VSCore::notifyCaches(bool needMemory) {
 
         struct CacheEntry {
             VSNode *node;
-            size_t bytes;
             int value;
         };
 
@@ -1217,17 +1216,13 @@ void VSCore::notifyCaches(bool needMemory) {
         for (auto &node : caches) {
             VSNode::CachePressureInfo info = node->getCachePressureInfo();
             if (!info.fixedSize && info.bytes > 0)
-                entries.push_back({ node, info.bytes, info.value });
+                entries.push_back({ node, info.value });
         }
 
-        // caches without a single hit or near miss hold pure dead weight and go first, biggest
-        // first, the rest follow in order of ascending value provided per held byte
+        // take frames from the caches that provided the least value recently, caches without a
+        // single hit or near miss hold pure dead weight and naturally sort first
         std::sort(entries.begin(), entries.end(), [](const CacheEntry &a, const CacheEntry &b) {
-            if ((a.value == 0) != (b.value == 0))
-                return a.value == 0;
-            if (a.value == 0)
-                return a.bytes > b.bytes;
-            return static_cast<double>(a.value) * b.bytes < static_cast<double>(b.value) * a.bytes;
+            return a.value < b.value;
         });
 
         for (const CacheEntry &entry : entries) {
@@ -2593,11 +2588,8 @@ void VSNode::VSCache::adjustSize(bool memoryComfortable, uint64_t completedExtFr
         case VSCache::CacheAction::Grow:
             // growing right up to the limit only triggers the pressure machinery and creates a
             // grow and evict sawtooth so growth requires comfortable headroom
-            if (memoryComfortable) {
+            if (memoryComfortable)
                 setMaxFrames(getMaxFrames() + 2);
-                if (getMaxFrames() > steadySize)
-                    steadySize = getMaxFrames();
-            }
             break;
         case VSCache::CacheAction::Shrink:
             setMaxFrames(std::max(getMaxFrames() - 1, userSize));
@@ -2611,9 +2603,6 @@ void VSNode::VSCache::adjustSize(bool memoryComfortable, uint64_t completedExtFr
         if (getMaxHistory() < getMaxFrames())
             setMaxHistory(getMaxFrames());
 
-        // slowly forget steady sizes that are no longer asked for
-        if (memoryComfortable && steadySize > getMaxFrames())
-            steadySize = std::max(getMaxFrames(), steadySize - std::max(steadySize / 16, 1));
     }
 }
 

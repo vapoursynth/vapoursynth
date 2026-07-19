@@ -40,14 +40,10 @@
 static constexpr int64_t normalCacheSweepInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(500)).count();
 static constexpr int64_t pressureCacheSweepInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(150)).count();
 
-// pacing for the thread ceiling controller, usage must stay over the limit for a full shrink
-// interval before the first step down so brief spikes from single allocation heavy filter calls
-// resolve on their own, the emergency reaction to going over the limit is handled by the idle
-// parking below so the ceiling only needs to pace how far concurrency recovers, a pipeline
-// flush only happens as a last resort when a single running thread still isn't enough
-static constexpr int64_t ceilingShrinkInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(250)).count();
-static constexpr int64_t ceilingGrowInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(1000)).count();
-static constexpr int64_t flushAtFloorInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(1000)).count();
+// staying over the limit is handled by parking all threads but one and letting the pressure
+// sweeps evict, only when that hasn't gotten usage back under the limit for this long is the
+// memory held by something only a full pipeline flush can reach, flush as a last resort
+static constexpr int64_t flushAfterOverInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(2000)).count();
 
 static int64_t steadyClockNow() {
     return std::chrono::steady_clock::now().time_since_epoch().count();
@@ -297,26 +293,12 @@ void VSThreadPool::runTasks(bool &stop) {
             if (overLimit) {
                 if (!overLimitSince) {
                     overLimitSince = timeNow;
-                    lastShrink = timeNow;
-                } else if (timeNow - lastShrink >= ceilingShrinkInterval) {
-                    if (currentMaxThreads > 1) {
-                        --currentMaxThreads;
-                        lastShrink = timeNow;
-                        deferredLog = "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage";
-                    } else if (!flushCaches && timeNow - lastShrink >= flushAtFloorInterval) {
-                        // reducing concurrency didn't help so the memory must be held by caches
-                        // or by allocations the core can't see, flush as a last resort
-                        flushCaches = true;
-                        deferredLog = "Memory usage still over the limit with a single running thread, flushing pipeline";
-                    }
+                } else if (!flushCaches && timeNow - overLimitSince >= flushAfterOverInterval) {
+                    flushCaches = true;
+                    deferredLog = "Memory usage still over the limit, flushing pipeline";
                 }
             } else {
                 overLimitSince = 0;
-                if (core->memory->is_under_limit() && currentMaxThreads < maxThreads && timeNow - lastGrow >= ceilingGrowInterval) {
-                    ++currentMaxThreads;
-                    lastGrow = timeNow;
-                    deferredLog = "Maximum running threads increased to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to more memory being available";
-                }
             }
 
             if (frameProcessingDone && !frameContext->external)
@@ -364,7 +346,7 @@ void VSThreadPool::runTasks(bool &stop) {
             break;
         }
 
-        if (!ranTask || (activeThreads > currentMaxThreads) || (core->memory->is_over_limit() && activeThreads > 1)) {
+        if (!ranTask || (core->memory->is_over_limit() && activeThreads > 1)) {
             --activeThreads;
             if (stop) {
                 lock.unlock();
@@ -378,7 +360,7 @@ void VSThreadPool::runTasks(bool &stop) {
                     core->clearCaches(true);
                     flushCaches = false;
                     lastCacheSweep = steadyClockNow();
-                    lastShrink = lastCacheSweep; // require another full interval at the floor before flushing again
+                    overLimitSince = 0; // require another full interval over the limit before flushing again
                     std::swap(tasks, altTasks);
                     deferredLog = "Pipeline flushed, resuming processing";
                     // the thread can't notify itself ahead of waiting so instead skip the wait and just loop back around to check for work immediately
@@ -396,7 +378,7 @@ void VSThreadPool::runTasks(bool &stop) {
                 // Wait predicates don't work since they're the equivalent of a wrapping while loop
                 do {
                     newWork.wait(lock);
-                } while (activeThreads >= currentMaxThreads && !stop);
+                } while (activeThreads >= maxThreads && !stop);
                 --idleThreads;
                 ++activeThreads;
             }
@@ -404,7 +386,7 @@ void VSThreadPool::runTasks(bool &stop) {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), lastShrink(0), lastGrow(0), overLimitSince(0), lastCacheSweep(0), completedExternalFrames(0), inflightAllocation(0), processingThreads(0), cacheSweepActive(false), stopThreads(false), flushCaches(false) {
+VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), overLimitSince(0), lastCacheSweep(0), completedExternalFrames(0), inflightAllocation(0), processingThreads(0), cacheSweepActive(false), stopThreads(false), flushCaches(false) {
     setThreadCount(0);
 }
 
@@ -429,7 +411,6 @@ size_t VSThreadPool::setThreadCount(size_t threads) {
             maxThreads = 1;
             countWarning = true;
         }
-        currentMaxThreads = maxThreads;
         overLimitSince = 0;
         result = maxThreads;
     }
@@ -446,7 +427,7 @@ void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
 
 void VSThreadPool::wakeThread() {
     size_t numActive = activeThreads;
-    if (numActive < currentMaxThreads) {
+    if (numActive < maxThreads) {
         if (core->memory->is_over_limit() && numActive > 0) {
             // do nothing
         } else {

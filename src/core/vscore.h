@@ -684,11 +684,6 @@ private:
 
         size_t currentBytes;
 
-        // biggest size this cache wanted while memory usage was comfortable, it's what the cache
-        // gets restored to after a flush or pressure eviction, unlike maxSize it's never reduced
-        // by memory pressure so a pressure episode can't erase what the cache has learned
-        int steadySize = 20;
-
         // size explicitly requested through setCacheOptions, acts as a floor for all automatic
         // adjustment and eviction so caching can be forced to stick on nodes whose request
         // patterns wouldn't sustain it on their own, like output nodes, 0 means not set
@@ -864,17 +859,15 @@ private:
 
         // the size flushed and pressure evicted caches get restored to, never below the default
         // starting size so the near miss horizon stays wide enough to relearn the working set
-        int reSeedSize() const { return std::max({20, steadySize / 2, userSize}); }
+        int reSeedSize() const { return std::max(20, userSize); }
 
         inline void setUserMaxFrames(int m) {
             userSize = m;
-            steadySize = std::max(steadySize, m);
             setMaxFrames(m);
         }
 
         inline void resetSizeTuning() {
             userSize = 0;
-            steadySize = 20;
         }
 
         size_t dropLRUFrames(size_t maxBytes);
@@ -1028,11 +1021,8 @@ private:
     size_t idleThreads;
     size_t reqCounter;
     size_t maxThreads;
-    size_t currentMaxThreads;
 
-    // state for pacing the running thread ceiling based on memory usage
-    int64_t lastShrink;
-    int64_t lastGrow;
+    // when usage first went over the limit, used to pace the last resort pipeline flush
     int64_t overLimitSince;
 
     std::atomic<int64_t> lastCacheSweep;
