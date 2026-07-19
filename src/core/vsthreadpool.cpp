@@ -266,18 +266,18 @@ void VSThreadPool::runTasks(bool &stop) {
                 core->logFatal("A frame was returned at the end of processing by " + node->name + " but there are still outstanding requests");
 
             bool needsSort = requestedFrames;
-            bool overLimit = false;
-            int64_t timeNow = 0;
 
-            if (requestedFrames) {
-                overLimit = core->memory->is_over_limit();
-                timeNow = steadyClockNow();
-                if (timeNow - lastCacheSweep.load(std::memory_order_relaxed) >= (overLimit ? pressureCacheSweepInterval : normalCacheSweepInterval)) {
-                    if (!cacheSweepActive.exchange(true)) {
-                        lastCacheSweep = timeNow;
-                        core->notifyCaches(overLimit);
-                        cacheSweepActive = false;
-                    }
+            // memory pressure is sampled after every completed call and not only after request
+            // issuing ones, request cascades mostly happen up front so gating on them leaves long
+            // stretches of pure frame production completely unmanaged exactly when usage climbs
+            // the fastest, the wall clock pacing keeps the cost of this at a single clock read
+            bool overLimit = core->memory->is_over_limit();
+            int64_t timeNow = steadyClockNow();
+            if (timeNow - lastCacheSweep.load(std::memory_order_relaxed) >= (overLimit ? pressureCacheSweepInterval : normalCacheSweepInterval)) {
+                if (!cacheSweepActive.exchange(true)) {
+                    lastCacheSweep = timeNow;
+                    core->notifyCaches(overLimit);
+                    cacheSweepActive = false;
                 }
             }
 
@@ -294,46 +294,46 @@ void VSThreadPool::runTasks(bool &stop) {
 
                 frameContext->numFrameRequests = frameContext->reqList.size();
                 frameContext->reqList.clear();
+            }
 
-                if (overLimit) {
-                    if (!inPressureEpisode) {
-                        if (!overLimitSince) {
-                            overLimitSince = timeNow;
-                        } else if (timeNow - overLimitSince >= episodeConfirmInterval) {
-                            // sustained overrun and not just a brief spike from a single allocation
-                            // heavy filter call, halve the ceiling and continue stepping from there
-                            inPressureEpisode = true;
-                            threadsThresh = std::max<size_t>(currentMaxThreads / 2, 1);
-                            if (currentMaxThreads != threadsThresh) {
-                                currentMaxThreads = threadsThresh;
-                                deferredLog = "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage";
-                            }
-                            lastShrink = timeNow;
-                        }
-                    } else if (timeNow - lastShrink >= ceilingShrinkInterval) {
-                        if (currentMaxThreads > 1) {
-                            --currentMaxThreads;
-                            lastShrink = timeNow;
+            if (overLimit) {
+                if (!inPressureEpisode) {
+                    if (!overLimitSince) {
+                        overLimitSince = timeNow;
+                    } else if (timeNow - overLimitSince >= episodeConfirmInterval) {
+                        // sustained overrun and not just a brief spike from a single allocation
+                        // heavy filter call, halve the ceiling and continue stepping from there
+                        inPressureEpisode = true;
+                        threadsThresh = std::max<size_t>(currentMaxThreads / 2, 1);
+                        if (currentMaxThreads != threadsThresh) {
+                            currentMaxThreads = threadsThresh;
                             deferredLog = "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage";
-                        } else if (!flushCaches && timeNow - lastShrink >= flushAtFloorInterval) {
-                            // reducing concurrency didn't help so the memory must be held by caches
-                            // or by allocations the core can't see, flush as a last resort
-                            flushCaches = true;
-                            deferredLog = "Memory usage still over the limit with a single running thread, flushing pipeline";
                         }
+                        lastShrink = timeNow;
                     }
-                } else {
-                    overLimitSince = 0;
-                    if (core->memory->is_under_limit()) {
-                        inPressureEpisode = false;
-                        if (currentMaxThreads < maxThreads) {
-                            // probe more carefully once past the level where memory last ran out
-                            int64_t interval = (currentMaxThreads < threadsThresh) ? ceilingGrowIntervalFast : ceilingGrowIntervalSlow;
-                            if (timeNow - lastGrow >= interval) {
-                                ++currentMaxThreads;
-                                lastGrow = timeNow;
-                                deferredLog = "Maximum running threads increased to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to more memory being available";
-                            }
+                } else if (timeNow - lastShrink >= ceilingShrinkInterval) {
+                    if (currentMaxThreads > 1) {
+                        --currentMaxThreads;
+                        lastShrink = timeNow;
+                        deferredLog = "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage";
+                    } else if (!flushCaches && timeNow - lastShrink >= flushAtFloorInterval) {
+                        // reducing concurrency didn't help so the memory must be held by caches
+                        // or by allocations the core can't see, flush as a last resort
+                        flushCaches = true;
+                        deferredLog = "Memory usage still over the limit with a single running thread, flushing pipeline";
+                    }
+                }
+            } else {
+                overLimitSince = 0;
+                if (core->memory->is_under_limit()) {
+                    inPressureEpisode = false;
+                    if (currentMaxThreads < maxThreads) {
+                        // probe more carefully once past the level where memory last ran out
+                        int64_t interval = (currentMaxThreads < threadsThresh) ? ceilingGrowIntervalFast : ceilingGrowIntervalSlow;
+                        if (timeNow - lastGrow >= interval) {
+                            ++currentMaxThreads;
+                            lastGrow = timeNow;
+                            deferredLog = "Maximum running threads increased to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to more memory being available";
                         }
                     }
                 }
