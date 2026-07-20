@@ -92,6 +92,8 @@ x64/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 [Aa][Rr][Mm]64[Ee][Cc]/
+# The VS build-output patterns above must not hide the AArch64 kernel sources.
+!src/core/kernel/arm/
 bld/
 [Oo]bj/
 [Oo]ut/

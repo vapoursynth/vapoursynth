@@ -8,6 +8,7 @@ project('VapourSynth', 'c', 'cpp', 'cython',
 
 enable_guard_pattern = get_option('enable_guard_pattern')
 enable_x86_asm = get_option('enable_x86_asm')
+enable_arm_asm = get_option('enable_arm_asm')
 
 cxx = meson.get_compiler('cpp')
 
@@ -62,6 +63,10 @@ endif
 
 if not host_cpu_family.startswith('x86')
     enable_x86_asm = false
+endif
+
+if host_cpu_family != 'aarch64'
+    enable_arm_asm = false
 endif
 
 incdir = include_directories('include')
@@ -161,6 +166,95 @@ soversion = is_win ? '' : run_command(
 
 if enable_x86_asm
     add_project_arguments('-DVS_TARGET_CPU_X86', language: ['c', 'cpp'])
+endif
+
+# --- AArch64 SIMD tiers ------------------------------------------------------
+# NEON is the AArch64 baseline and its kernels ride along with the plain filter
+# sources. fp16/dotprod kernels get their own TUs with a raised -march; they are
+# runtime-dispatched. Non-streaming SVE exists only off Apple platforms. SME
+# kernels are compiled in a dedicated TU where every function is
+# __arm_locally_streaming: with +sme enabled the auto-vectoriser may otherwise
+# emit streaming-only SVE in regular functions, which faults outside streaming
+# mode; keeping the whole unit streaming prevents that.
+arm_have_sve = false
+arm_have_sme = false
+arm_have_i8mm = false
+arm_have_fhm = false
+if enable_arm_asm
+    add_project_arguments('-DVS_TARGET_CPU_ARM64', language: ['c', 'cpp'])
+
+    arm_fp16_args = ['-march=armv8.2-a+fp16']
+    arm_dotprod_args = ['-march=armv8.2-a+dotprod']
+    arm_i8mm_args = ['-march=armv8.2-a+i8mm']
+    arm_fhm_args = ['-march=armv8.2-a+fp16+fp16fml']
+    arm_sve_args = ['-march=armv8.2-a+sve']
+    arm_sve_i8mm_args = ['-march=armv8.2-a+sve+i8mm']
+    arm_sme_args = ['-march=armv8.6-a+sme2+sme-i16i64']
+
+    arm_have_i8mm = cxx.compiles('''
+#include <arm_neon.h>
+int32x4_t f(int32x4_t a, uint8x16_t b, int8x16_t c) { return vusdotq_s32(a, b, c); }
+''',
+        args: arm_i8mm_args,
+        name: 'AArch64 i8mm usdot intrinsics',
+    )
+
+    arm_have_fhm = cxx.compiles('''
+#include <arm_neon.h>
+float32x4_t f(float32x4_t r, float16x8_t a, float16x8_t b) { return vfmlalq_low_f16(r, a, b); }
+''',
+        args: arm_fhm_args,
+        name: 'AArch64 fp16fml (FEAT_FHM) intrinsics',
+    )
+
+    arm_have_sve_i8mm = false
+    if host_system != 'darwin'
+        arm_have_sve = cxx.compiles('''
+#include <arm_sve.h>
+svfloat32_t f(svfloat32_t a, svfloat32_t b) { return svmla_f32_x(svptrue_b32(), a, a, b); }
+''',
+            args: arm_sve_args,
+            name: 'AArch64 non-streaming SVE intrinsics',
+        )
+        if arm_have_sve
+            arm_have_sve_i8mm = cxx.compiles('''
+#include <arm_sve.h>
+svint32_t f(svint32_t a, svuint8_t b, svint8_t c) { return svusdot_s32(a, b, c); }
+''',
+                args: arm_sve_i8mm_args,
+                name: 'AArch64 SVE i8mm usdot intrinsics',
+            )
+        endif
+    endif
+
+    arm_have_sme = cxx.compiles('''
+#include <arm_sme.h>
+__arm_locally_streaming __arm_new("za") void f(const int16_t *p) {
+    svbool_t pg = svptrue_b16();
+    svint16_t v = svld1_s16(pg, p);
+    svmopa_za32_s16_m(0, pg, pg, v, v);
+    svmopa_za64_s16_m(0, pg, pg, v, v);
+}
+''',
+        args: arm_sme_args,
+        name: 'AArch64 SME2 streaming intrinsics',
+    )
+
+    if arm_have_i8mm
+        add_project_arguments('-DVS_TARGET_ARM_I8MM', language: ['c', 'cpp'])
+    endif
+    if arm_have_fhm
+        add_project_arguments('-DVS_TARGET_ARM_FHM', language: ['c', 'cpp'])
+    endif
+    if arm_have_sve
+        add_project_arguments('-DVS_TARGET_ARM_SVE', language: ['c', 'cpp'])
+    endif
+    if arm_have_sve_i8mm
+        add_project_arguments('-DVS_TARGET_ARM_SVE_I8MM', language: ['c', 'cpp'])
+    endif
+    if arm_have_sme
+        add_project_arguments('-DVS_TARGET_ARM_SME', language: ['c', 'cpp'])
+    endif
 endif
 
 libvapoursynth = library('libvapoursynth',
@@ -392,10 +486,83 @@ if enable_x86_asm
         )
     endforeach
 else
+    arm_filter_sources = []
+    arm_vlibs = []
+    if enable_arm_asm
+        # NEON is the AArch64 baseline; its kernels ride with the plugin proper.
+        arm_filter_sources += files(
+            'src/core/kernel/arm/convolution_neon.cpp',
+            'src/core/kernel/arm/lut_neon.cpp',
+            'src/core/kernel/arm/square_neon.cpp',
+        )
+        if arm_have_i8mm
+            # usdot byte square conv. Its own TU so the NEON baseline sources are
+            # never built with +i8mm.
+            arm_vlibs += static_library('vsfilters_i8mm',
+                files('src/core/kernel/arm/square_dot_neon.cpp'),
+                cpp_args: arm_i8mm_args,
+                gnu_symbol_visibility: 'hidden',
+                include_directories: incdir,
+            )
+        endif
+        if arm_have_fhm
+            # fmlal widening f16 MAC kernels. Separated so NEON baseline
+            # sources aren't built with +fp16fml.
+            # Kept out of LTO deliberately. Under gcc 13 + -flto, growing this
+            # unit changes how the link re-optimises the UNTOUCHED half
+            # scanlines in convolution_neon.cpp: adding the 1D kernels below
+            # cost half nof16 h25 -10..-13% and hv9 -14..-17% on V1/V2/V3, on
+            # a function whose source never changed (verified in the
+            # disassembly: same source, different codegen). Compiling to real
+            # object code keeps it out of the LTO partition and the regression
+            # disappears (nof16 back to +-0%). It costs the fhm kernels
+            # themselves almost nothing; the squares measure identical to the
+            # LTO build. Only f16 h25 gives up ~3% because they're
+            # self-contained with header inlines as helpers.
+            arm_vlibs += static_library('vsfilters_fhm',
+                files('src/core/kernel/arm/convolution_fhm_neon.cpp'),
+                cpp_args: arm_fhm_args,
+                gnu_symbol_visibility: 'hidden',
+                include_directories: incdir,
+                override_options: ['b_lto=false'],
+            )
+        endif
+        if arm_have_sve
+            arm_vlibs += static_library('vsfilters_sve',
+                files('src/core/kernel/arm/convolution_sve.cpp',
+                      'src/core/kernel/arm/lut_sve.cpp'),
+                cpp_args: arm_sve_args,
+                gnu_symbol_visibility: 'hidden',
+                include_directories: incdir,
+            )
+        endif
+        if arm_have_sve_i8mm
+            # A CPU may have SVE without I8MM (A64FX), so these live apart from
+            # the plain SVE kernels.
+            arm_vlibs += static_library('vsfilters_sve_i8mm',
+                files('src/core/kernel/arm/square_dot_sve.cpp'),
+                cpp_args: arm_sve_i8mm_args,
+                gnu_symbol_visibility: 'hidden',
+                include_directories: incdir,
+            )
+        endif
+        if arm_have_sme
+            # Every function in this TU is __arm_locally_streaming; nothing
+            # else may be compiled with +sme (see the SME notes above).
+            arm_vlibs += static_library('vsfilters_sme',
+                files('src/core/kernel/arm/convolution_sme.cpp'),
+                cpp_args: arm_sme_args,
+                gnu_symbol_visibility: 'hidden',
+                include_directories: incdir,
+            )
+        endif
+    endif
+
     shared_module('libvapoursynthfilters',
-        filters_sources,
+        filters_sources + arm_filter_sources,
         gnu_symbol_visibility: 'hidden',
         include_directories: incdir,
+        link_with: arm_vlibs,
         name_prefix: '',
         install: true,
         install_dir: install_dir,

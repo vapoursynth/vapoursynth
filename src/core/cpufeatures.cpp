@@ -141,6 +141,97 @@ int doGetX86ABILevel(void) {
     return 4;
 }
 
+#elif defined(VS_TARGET_CPU_ARM64)
+
+#if defined(__APPLE__)
+#include <sys/sysctl.h>
+
+static char vs_sysctl_flag(const char *name) {
+    int val = 0;
+    size_t len = sizeof(val);
+    if (sysctlbyname(name, &val, &len, nullptr, 0) != 0)
+        return 0;
+    return !!val;
+}
+
+static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
+    *cpuFeatures = {};
+    cpuFeatures->can_run_vs = 1;
+    cpuFeatures->dotprod = vs_sysctl_flag("hw.optional.arm.FEAT_DotProd");
+    cpuFeatures->fp16 = vs_sysctl_flag("hw.optional.arm.FEAT_FP16");
+    cpuFeatures->fhm = vs_sysctl_flag("hw.optional.arm.FEAT_FHM");
+    cpuFeatures->i8mm = vs_sysctl_flag("hw.optional.arm.FEAT_I8MM");
+    // Apple silicon has no non-streaming SVE; SVE instructions exist only inside
+    // SME streaming mode. Leave sve/sve2 unset so no non-streaming kernel is picked.
+    cpuFeatures->sme = vs_sysctl_flag("hw.optional.arm.FEAT_SME");
+    cpuFeatures->sme2 = vs_sysctl_flag("hw.optional.arm.FEAT_SME2");
+    cpuFeatures->sme_i16i64 = vs_sysctl_flag("hw.optional.arm.FEAT_SME_I16I64");
+    cpuFeatures->sme_f64f64 = vs_sysctl_flag("hw.optional.arm.FEAT_SME_F64F64");
+}
+
+#elif defined(__linux__)
+#include <sys/auxv.h>
+
+/* Bits from linux arch/arm64/include/uapi/asm/hwcap.h; defined here so old
+   toolchain headers don't limit runtime detection. */
+#ifndef HWCAP_FPHP
+#define HWCAP_FPHP (1UL << 9)
+#endif
+#ifndef HWCAP_ASIMDHP
+#define HWCAP_ASIMDHP (1UL << 10)
+#endif
+#ifndef HWCAP_ASIMDDP
+#define HWCAP_ASIMDDP (1UL << 20)
+#endif
+#ifndef HWCAP_ASIMDFHM
+#define HWCAP_ASIMDFHM (1UL << 23)
+#endif
+#ifndef HWCAP_SVE
+#define HWCAP_SVE (1UL << 22)
+#endif
+#ifndef HWCAP2_SVE2
+#define HWCAP2_SVE2 (1UL << 1)
+#endif
+#ifndef HWCAP2_I8MM
+#define HWCAP2_I8MM (1UL << 13)
+#endif
+#ifndef HWCAP2_SME
+#define HWCAP2_SME (1UL << 23)
+#endif
+#ifndef HWCAP2_SME_I16I64
+#define HWCAP2_SME_I16I64 (1UL << 24)
+#endif
+#ifndef HWCAP2_SME_F64F64
+#define HWCAP2_SME_F64F64 (1UL << 25)
+#endif
+#ifndef HWCAP2_SME2
+#define HWCAP2_SME2 (1UL << 37)
+#endif
+
+static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
+    *cpuFeatures = {};
+    cpuFeatures->can_run_vs = 1;
+    unsigned long hwcap = getauxval(AT_HWCAP);
+    unsigned long hwcap2 = getauxval(AT_HWCAP2);
+    cpuFeatures->dotprod = !!(hwcap & HWCAP_ASIMDDP);
+    cpuFeatures->fp16 = !!(hwcap & HWCAP_FPHP) && !!(hwcap & HWCAP_ASIMDHP);
+    cpuFeatures->fhm = !!(hwcap & HWCAP_ASIMDFHM);
+    cpuFeatures->i8mm = !!(hwcap2 & HWCAP2_I8MM);
+    cpuFeatures->sve = !!(hwcap & HWCAP_SVE);
+    cpuFeatures->sve2 = !!(hwcap2 & HWCAP2_SVE2);
+    cpuFeatures->sme = !!(hwcap2 & HWCAP2_SME);
+    cpuFeatures->sme2 = !!(hwcap2 & HWCAP2_SME2);
+    cpuFeatures->sme_i16i64 = !!(hwcap2 & HWCAP2_SME_I16I64);
+    cpuFeatures->sme_f64f64 = !!(hwcap2 & HWCAP2_SME_F64F64);
+}
+
+#else
+static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
+    *cpuFeatures = {};
+    cpuFeatures->can_run_vs = 1;
+}
+#endif
+
 #elif defined(VS_TARGET_CPU_RISCV)
 static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
     *cpuFeatures = {};

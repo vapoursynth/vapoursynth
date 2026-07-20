@@ -151,6 +151,7 @@ struct GenericDataExtra {
     float bias;
     bool saturate;
     bool conv_int8;   // all coefficients fit int8 -> byte square conv may take the VNNI path
+    bool conv_f16;    // all coefficients survive a round trip through half -> SME FMOPA is lossless
 
     int cpulevel;
 
@@ -534,6 +535,317 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
 }
 #endif
 
+#ifdef VS_TARGET_CPU_ARM64
+// The byte square usdot kernels are bit-exact fast paths, valid only when every
+// coefficient fits int8 and the CPU reports i8mm (the ARM analog of convByteVNNI).
+// They are ~2-3.5x the vmlal kernels, which rewrites the SVE and SME byte square
+// policies below -- but only where they actually apply, so wide-coefficient
+// convolutions keep the old (still correct) tier choices.
+#ifdef VS_TARGET_ARM_I8MM
+static bool convByteDot(const GenericData *d) {
+    return d->conv_int8 && getCPUFeatures()->i8mm;
+}
+#else
+static bool convByteDot(const GenericData *) { return false; }
+#endif
+
+// Only the convolution family has hand-written ARM kernels; every other op
+// falls through to the (auto-vectorised) C tier.
+template <GenericOperations op>
+static decltype(&vs_generic_3x3_conv_byte_c) genericSelectNEON(const VSVideoFormat *fi, GenericData *d) {
+    if (op != GenericConvolution)
+        return nullptr;
+
+    if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
+#ifdef VS_TARGET_ARM_I8MM
+        // usdot folds 4 taps per op with no byte->word widening; bit-exact with
+        // the vmlal kernels, but only valid when every coefficient fits int8.
+        if (convByteDot(d)) {
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_byte_neon_dot;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_byte_neon_dot;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_byte_neon_dot;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_byte_neon_dot;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_byte_neon_dot;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_byte_neon_dot;
+            // Separable runs its vertical half on vmlal and its horizontal half
+            // on usdot; the vertical taps run across rows, so there is no
+            // scanline window for dot to fold there.
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_byte_neon_dot;
+        }
+#endif
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+            return vs_generic_3x3_conv_byte_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+            return vs_generic_5x5_conv_byte_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_byte_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+            return vs_generic_9x9_conv_byte_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+            return vs_generic_11x11_conv_byte_neon;
+        else if (d->convolution_type == ConvolutionHorizontal)
+            return vs_generic_1d_conv_h_byte_neon;
+        else if (d->convolution_type == ConvolutionVertical)
+            return vs_generic_1d_conv_v_byte_neon;
+        else if (d->convolution_type == ConvolutionSeparable)
+            return vs_generic_2d_conv_sep_byte_neon;
+    } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+            return vs_generic_3x3_conv_word_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+            return vs_generic_5x5_conv_word_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_word_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+            return vs_generic_9x9_conv_word_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+            return vs_generic_11x11_conv_word_neon;
+        else if (d->convolution_type == ConvolutionHorizontal)
+            return vs_generic_1d_conv_h_word_neon;
+        else if (d->convolution_type == ConvolutionVertical)
+            return vs_generic_1d_conv_v_word_neon;
+        else if (d->convolution_type == ConvolutionSeparable)
+            return vs_generic_2d_conv_sep_word_neon;
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
+        // 3x3 float has no NEON kernel: its C tier autovectorises to a tighter
+        // loop (fewer vector ops/px) that NEON cannot beat at a full thread pool
+        // on M4 (0.89x), and the single-thread win it did hold on Neoverse was
+        // not worth carrying a shape that loses on the primary target. It falls
+        // through to the C tier. (See notes/.../3x3-float-diagnosis.md.)
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+            return vs_generic_5x5_conv_float_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_float_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+            return vs_generic_9x9_conv_float_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+            return vs_generic_11x11_conv_float_neon;
+        else if (d->convolution_type == ConvolutionHorizontal)
+            return vs_generic_1d_conv_h_float_neon;
+        else if (d->convolution_type == ConvolutionVertical)
+            return vs_generic_1d_conv_v_float_neon;
+        else if (d->convolution_type == ConvolutionSeparable)
+            return vs_generic_2d_conv_sep_float_neon;
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 2) {
+#ifdef VS_TARGET_ARM_FHM
+        // fmlal folds the f16->f32 convert into the MAC; the baseline half
+        // kernels are conversion-bound (3x3 only TIES C). Both fmlal operands
+        // are f16, so the coefficients must narrow exactly -- the SME FMOPA
+        // conv_f16 rule. Covers every half convolution shape: squares, and the
+        // 1D horizontal/vertical/separable scanlines.
+        if (d->conv_f16 && getCPUFeatures()->fhm) {
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_half_neon_fhm;
+        }
+#endif
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+            return vs_generic_3x3_conv_half_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+            return vs_generic_5x5_conv_half_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_half_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+            return vs_generic_9x9_conv_half_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+            return vs_generic_11x11_conv_half_neon;
+        else if (d->convolution_type == ConvolutionHorizontal)
+            return vs_generic_1d_conv_h_half_neon;
+        else if (d->convolution_type == ConvolutionVertical)
+            return vs_generic_1d_conv_v_half_neon;
+        else if (d->convolution_type == ConvolutionSeparable)
+            return vs_generic_2d_conv_sep_half_neon;
+    }
+    return nullptr;
+}
+
+#ifdef VS_TARGET_ARM_SVE
+// The SVE kernels run at 32-bit lane density, so they only beat the NEON
+// kernels when vectors are wider than NEON's 128 bits (Graviton4/Neoverse V2
+// runs SVE2 at 128 bits and loses everywhere; Graviton3 at 256 bits wins the
+// shapes below). Within a wide-vector machine the winners measured on
+// Graviton3 are: integer squares (except word 7x7), float squares >= 9x9,
+// byte horizontal/separable, and word 3x3; vertical 1D and the small float
+// kernels stay on NEON.
+template <GenericOperations op>
+static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSVE(const VSVideoFormat *fi, GenericData *d) {
+    if (op != GenericConvolution)
+        return nullptr;
+
+    if (vs_sve_vector_length() <= 16)
+        return nullptr;
+
+    // svdot_s64 word squares. SDOT folds 4 int16 products into a 64-bit lane, so
+    // its MAC density beats vmlal_s16 at any vector length -- but it accumulates
+    // into 64-bit lanes, so the scale/bias/round/clamp/narrow store is amortised
+    // over only svcntd() outputs (2 at a 128-bit VL, 4 at 256). That store cost is
+    // fixed per output and swamps the MAC saving unless the tap count is high,
+    // which is why this pays only from 7x7 up, and only on wide vectors:
+    //
+    //   Graviton3 (256-bit) vs NEON:  7x7 +17%, 9x9 +39%, 11x11 +57% (1 thread)
+    //                                 3x3 -19%, 5x5 -14%   -> left on the old kernels
+    //   Graviton4 (128-bit) vs NEON:  loses everywhere except 11x11 (parity), so
+    //                                 the VL gate above still sends it to NEON.
+    // 7x7 was a wash (won single-thread, lost contended) once the round-2 NEON
+    // lane-coefficient word squares landed, so it is pruned -> NEON; 9x9/11x11
+    // still win at every pool size.
+    if (fi->sampleType == stInteger && fi->bytesPerSample == 2 && d->convolution_type == ConvolutionSquare) {
+        if (d->matrix_elements == 81)
+            return vs_generic_9x9_conv_word_sve_dot;
+        else if (d->matrix_elements == 121)
+            return vs_generic_11x11_conv_word_sve_dot;
+    }
+
+    if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
+        // Where the usdot kernels apply they beat the lane-density SVE squares by
+        // ~2x, so those step aside. SVE has its own usdot kernels (2x the outputs
+        // per op at a 256-bit VL); prefer them, and otherwise fall through to the
+        // NEON tier. 3x3 has no SVE usdot kernel, but the NEON dot 3x3 beats the
+        // plain 256-bit SVE kernel anyway (804 vs 609 fps on Graviton3), so it
+        // yields through the nullptr below like everything else.
+        if (convByteDot(d) && d->convolution_type == ConvolutionSquare) {
+#ifdef VS_TARGET_ARM_SVE_I8MM
+            // A thread-count sweep on Graviton3 (SVE/NEON ratio, raw curves in
+            // bench/logs/sve_usdot_thread_sweep_g3.log) split the shapes: 7x7 and
+            // 9x9 win at every pool size (7x7 1.23-1.48x, 9x9 1.10-1.24x, only 9x9
+            // dips to ~0.97 at 16 which is within noise) and take SVE unconditionally.
+            // 5x5 and 11x11 won only while nearly unloaded (5x5 tie by 4t, 11x11 a
+            // loss by 4t), so they were thread-gated -- and have now been pruned:
+            // int8 5x5/11x11 fall through to the NEON usdot squares, which match SVE
+            // at a full pool anyway. usdot has no 3x3 SVE kernel either (NEON dot
+            // wins there, 804 vs 609 fps on Graviton3), so it also yields below.
+            if (d->matrix_elements == 49)
+                return vs_generic_7x7_conv_byte_sve_dot;
+            else if (d->matrix_elements == 81)
+                return vs_generic_9x9_conv_byte_sve_dot;
+#endif
+            return nullptr;
+        }
+
+        // wide-coefficient byte squares: SVE lane density wins through 7x7; 9x9
+        // and 11x11 lost to the round-2 NEON lane-coefficient squares and are
+        // pruned -> NEON. The byte separable path is pruned for the same reason
+        // (the round-2 usdot NEON separable wins).
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+            return vs_generic_3x3_conv_byte_sve;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+            return vs_generic_5x5_conv_byte_sve;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_byte_sve;
+        else if (d->convolution_type == ConvolutionHorizontal)
+            // The NEON usdot h kernel beats the 256-bit SVE one on Graviton3
+            // (388 vs 215 fps, h25 byte int8 1080p t1) -- yield to it when it
+            // applies. Revisit if wider-than-256 SVE hardware ever ships.
+            return convByteDot(d) ? nullptr : vs_generic_1d_conv_h_byte_sve;
+    } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
+        // word 5x5 lost to the round-2 NEON word squares and is pruned; 3x3 still
+        // wins. (9x9/11x11 are served by the svdot block above.)
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+            return vs_generic_3x3_conv_word_sve;
+    }
+    // float SVE squares (9x9/11x11) lost to the round-2 NEON lane-coefficient
+    // float squares on Graviton3 (the only SVE-conv machine), so they are pruned
+    // and float falls through to NEON.
+    return nullptr;
+}
+#endif // VS_TARGET_ARM_SVE
+
+#ifdef VS_TARGET_ARM_SME
+// SME covers the compute-dense shapes where the outer-product unit pays off:
+// the larger square NxN convolutions and vertical 1D.
+//
+// The SME unit is shared per core cluster, so with a full thread pool the
+// aggregate throughput of the cheaper shapes is better on NEON even though SME
+// wins them decisively single-threaded (measured on M4 Max: 5x5 byte 4.1x
+// single-thread vs 0.63x at 16 threads). Those thread-contested shapes were
+// only ever dispatched on tiny thread pools, which are false by default on the
+// only hardware that has SME (hardware_concurrency() is 10-16 on an M4), so
+// they have been pruned entirely and fall back to the NEON tier -- SME only
+// keeps the shapes that win even fully contended: the >= 7x7 squares and the
+// vertical 1D kernels. Byte squares here serve WIDE coefficients only; int8
+// coefficients go to the NEON usdot kernels, which win outright.
+template <GenericOperations op>
+static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSME(const VSVideoFormat *fi, GenericData *d) {
+    if (op != GenericConvolution)
+        return nullptr;
+
+    if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
+        // int8 coefficients: NEON usdot wins every byte square outright (it scales
+        // per core while SME is a shared per-cluster unit), so yield the squares to
+        // it. The SME byte squares below exist for WIDE coefficients only. Vertical
+        // 1D still takes SME for both coefficient kinds (usdot has no vertical form).
+        if (convByteDot(d) && d->convolution_type == ConvolutionSquare)
+            return nullptr;
+
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_byte_sme;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+            return vs_generic_9x9_conv_byte_sme;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+            return vs_generic_11x11_conv_byte_sme;
+        else if (d->convolution_type == ConvolutionVertical)
+            return vs_generic_1d_conv_v_byte_sme;
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 2) {
+        // Native 2-way f16 FMOPA: one outer product folds two source rows, and the
+        // pixels are consumed as f16 with no widening load. It wins the >= 7x7
+        // squares and the vertical kernel on a full pool; 3x3/5x5 half are pruned
+        // (break-even to thread-contested) and fall back to NEON.
+        //
+        // FMOPA takes both operands in f16, so it is only correct to use where the
+        // coefficients survive that narrowing exactly (conv_f16) -- the same rule
+        // the VNNI byte path follows with conv_int8. Otherwise the coefficients
+        // would be silently degraded, which no other tier does, so those clips stay
+        // on NEON and its float32 coefficients. In practice the usual matrices are
+        // integers or dyadic fractions and pass the gate.
+        if (!d->conv_f16)
+            return nullptr;
+
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_half_sme;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+            return vs_generic_9x9_conv_half_sme;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+            return vs_generic_11x11_conv_half_sme;
+        else if (d->convolution_type == ConvolutionVertical)
+            return vs_generic_1d_conv_v_half_sme;
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
+        // float FMOPA wins the >= 7x7 squares and vertical even fully contended;
+        // 3x3/5x5 float are pruned (thread-contested) and fall back to NEON.
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_float_sme;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+            return vs_generic_9x9_conv_float_sme;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+            return vs_generic_11x11_conv_float_sme;
+        else if (d->convolution_type == ConvolutionVertical)
+            return vs_generic_1d_conv_v_float_sme;
+    }
+    // word: all SME word kernels were thread-contested and are pruned -> NEON.
+    return nullptr;
+}
+#endif // VS_TARGET_ARM_SME
+#endif // VS_TARGET_CPU_ARM64
+
 template <GenericOperations op>
 static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat *fi, GenericData *d) {
     if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
@@ -824,6 +1136,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             float matrix_sumf = 0;
             const double *matrix = vsapi->mapGetFloatArray(in, "matrix", nullptr);
             d->conv_int8 = true;
+            d->conv_f16 = true;
             for (int i = 0; i < d->matrix_elements; i++) {
                 double c = matrix[i];
                 if (!std::isfinite(c))
@@ -840,6 +1153,13 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 } else {
                     d->matrixf[i] = static_cast<float>(c);
                 }
+
+                // Kernels that must take their coefficients in a narrower type may
+                // only do so when the value survives the trip exactly -- same rule
+                // conv_int8 applies to the VNNI path. Rounding a coefficient to buy
+                // speed is not on the table.
+                if (halfToFloat(floatToHalf(d->matrixf[i])) != d->matrixf[i])
+                    d->conv_f16 = false;
 
                 matrix_sumf += d->matrixf[i];
             }
@@ -873,6 +1193,19 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             d->func = genericSelectAVX2<op>(fi, d.get());
         if (!d->func && d->cpulevel >= VS_CPU_LEVEL_SSE2)
             d->func = genericSelectSSE2<op>(fi, d.get());
+#elif defined(VS_TARGET_CPU_ARM64)
+        const CPUFeatures *cpu = getCPUFeatures();
+        (void)cpu;
+#ifdef VS_TARGET_ARM_SME
+        if (cpu->sme2 && d->cpulevel >= VS_CPU_LEVEL_SME)
+            d->func = genericSelectSME<op>(fi, d.get());
+#endif
+#ifdef VS_TARGET_ARM_SVE
+        if (!d->func && cpu->sve && d->cpulevel >= VS_CPU_LEVEL_SVE)
+            d->func = genericSelectSVE<op>(fi, d.get());
+#endif
+        if (!d->func && d->cpulevel >= VS_CPU_LEVEL_NEON)
+            d->func = genericSelectNEON<op>(fi, d.get());
 #endif
         if (!d->func)
             d->func = genericSelectC<op>(fi, d.get());

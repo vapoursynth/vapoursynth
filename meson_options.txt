@@ -9,3 +9,9 @@ option('enable_x86_asm',
     value: true,
     description: 'Enable assembler code for x86 CPUs',
 )
+
+option('enable_arm_asm',
+    type: 'boolean',
+    value: true,
+    description: 'Enable SIMD kernels (NEON/SVE/SME) for AArch64 CPUs',
+)

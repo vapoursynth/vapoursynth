@@ -33,6 +33,13 @@ enum {
     VS_CPU_LEVEL_SSE2 = 1,
     VS_CPU_LEVEL_AVX2 = 2,
     VS_CPU_LEVEL_AVX512 = 3,
+#elif defined(VS_TARGET_CPU_ARM64)
+    /* NEON is the AArch64 baseline. SVE (non-streaming, servers) and SME
+       (streaming, Apple M4+ and newer server cores) rank above it so
+       SetMaxCPU can clamp each tier independently of runtime detection. */
+    VS_CPU_LEVEL_NEON = 1,
+    VS_CPU_LEVEL_SVE = 2,
+    VS_CPU_LEVEL_SME = 3,
 #endif
     VS_CPU_LEVEL_MAX = INT_MAX
 };

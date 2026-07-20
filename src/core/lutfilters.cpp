@@ -42,6 +42,16 @@ using namespace vsh;
 #ifdef VS_TARGET_CPU_X86
 void vs_lut1_b_b_avx512vbmi(const uint8_t *src, uint8_t *dst, int w, const uint8_t *lut);
 #endif
+#ifdef VS_TARGET_CPU_ARM64
+void vs_lut1_b_b_neon(const uint8_t *src, uint8_t *dst, int w, const uint8_t *lut);
+#ifdef VS_TARGET_ARM_SVE
+/* 16-bit source: the table is 65536 entries, too large to permute, so every other
+   ISA runs this scalar. SVE gathers svcntw() lookups at a time. */
+unsigned vs_sve_vector_length(void);
+void vs_lut1_w_w_sve(const uint16_t *src, uint16_t *dst, int w, const uint16_t *lut);
+void vs_lut1_w_b_sve(const uint16_t *src, uint8_t *dst, int w, const uint8_t *lut);
+#endif
+#endif
 
 namespace {
 
@@ -51,6 +61,8 @@ typedef struct LutDataExtra {
     void *lut;
     bool process[3];
     bool use_vbmi;
+    bool use_neon;
+    bool use_sve_gather;
     ~LutDataExtra() { free(lut); };
 } LutDataExtra;
 
@@ -94,6 +106,40 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
                         continue; // plane done; skip the scalar fallback
                     }
                 }
+#endif
+#ifdef VS_TARGET_CPU_ARM64
+                if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>) {
+                    if (d->use_neon) {
+                        for (int hl = 0; hl < h; hl++) {
+                            vs_lut1_b_b_neon(srcp, dstp, w, lut);
+                            dstp += dst_stride / sizeof(U);
+                            srcp += src_stride / sizeof(T);
+                        }
+                        continue; // plane done; skip the scalar fallback
+                    }
+                }
+#ifdef VS_TARGET_ARM_SVE
+                if constexpr (std::is_same_v<T, uint16_t> && std::is_same_v<U, uint16_t>) {
+                    if (d->use_sve_gather) {
+                        for (int hl = 0; hl < h; hl++) {
+                            vs_lut1_w_w_sve(srcp, dstp, w, lut);
+                            dstp += dst_stride / sizeof(U);
+                            srcp += src_stride / sizeof(T);
+                        }
+                        continue;
+                    }
+                }
+                if constexpr (std::is_same_v<T, uint16_t> && std::is_same_v<U, uint8_t>) {
+                    if (d->use_sve_gather) {
+                        for (int hl = 0; hl < h; hl++) {
+                            vs_lut1_w_b_sve(srcp, dstp, w, lut);
+                            dstp += dst_stride / sizeof(U);
+                            srcp += src_stride / sizeof(T);
+                        }
+                        continue;
+                    }
+                }
+#endif
 #endif
                 for (int hl = 0; hl < h; hl++) {
                     if constexpr (std::is_same_v<U, uint8_t>) {
@@ -303,9 +349,30 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         vsapi->queryVideoFormat(&d->vi_out.format, d->vi->format.colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi->format.subSamplingW, d->vi->format.subSamplingH, core);
 
         d->use_vbmi = false;
+        d->use_neon = false;
+        d->use_sve_gather = false;
 #ifdef VS_TARGET_CPU_X86
         if (getCPUFeatures()->avx512_vbmi && vs_get_cpulevel(core) >= VS_CPU_LEVEL_AVX512)
             d->use_vbmi = true;
+#elif defined(VS_TARGET_CPU_ARM64)
+        if (vs_get_cpulevel(core) >= VS_CPU_LEVEL_NEON)
+            d->use_neon = true;
+#ifdef VS_TARGET_ARM_SVE
+        // A gather retires svcntw() lookups, so the win scales with vector length,
+        // and it has to beat a scalar path that is already good: for byte output
+        // that path packs 8 lookups into a uint64 and stores once. Measured in the
+        // filter (not a microbenchmark, which flatters the gather by comparing it
+        // against a naive scalar loop):
+        //
+        //   256-bit  word->word +26%, word->byte +14%   (Graviton3)
+        //   128-bit  word->word  -7%, word->byte  -8%   (Graviton4)
+        //
+        // so a gather only pays above 128 bits, for either destination width.
+        if (getCPUFeatures()->sve && vs_get_cpulevel(core) >= VS_CPU_LEVEL_SVE) {
+            if (d->vi->format.bytesPerSample == 2 && vs_sve_vector_length() > 16)
+                d->use_sve_gather = true;
+        }
+#endif
 #endif
 
         if (d->vi->format.bytesPerSample == 1 && bitsout == 8)
@@ -349,8 +416,16 @@ void vs_lut2_gather_wb_b_avx512(const uint16_t *, const uint8_t *, uint8_t *, in
 void vs_lut2_gather_bw_w_avx512(const uint8_t *, const uint16_t *, uint16_t *, int, const uint16_t *, int, unsigned, unsigned);
 void vs_lut2_gather_bw_b_avx512(const uint8_t *, const uint16_t *, uint8_t *, int, const uint8_t *, int, unsigned, unsigned);
 #endif
+#if defined(VS_TARGET_CPU_ARM64) && defined(VS_TARGET_ARM_SVE)
+void vs_lut2_gather_ww_w_sve(const uint16_t *, const uint16_t *, uint16_t *, int, const uint16_t *, int, unsigned, unsigned);
+void vs_lut2_gather_ww_b_sve(const uint16_t *, const uint16_t *, uint8_t *, int, const uint8_t *, int, unsigned, unsigned);
+void vs_lut2_gather_wb_w_sve(const uint16_t *, const uint8_t *, uint16_t *, int, const uint16_t *, int, unsigned, unsigned);
+void vs_lut2_gather_wb_b_sve(const uint16_t *, const uint8_t *, uint8_t *, int, const uint8_t *, int, unsigned, unsigned);
+void vs_lut2_gather_bw_w_sve(const uint8_t *, const uint16_t *, uint16_t *, int, const uint16_t *, int, unsigned, unsigned);
+void vs_lut2_gather_bw_b_sve(const uint8_t *, const uint16_t *, uint8_t *, int, const uint8_t *, int, unsigned, unsigned);
+#endif
 
-/* Dispatch one row to the AVX-512 gather kernel for the current type combo.
+/* Dispatch one row to the gather kernel for the current type combo.
    Returns false (compile-time) for combos without a kernel so the caller falls
    back to the scalar path; only ever called when d->use_gather is set. */
 template<typename T, typename U, typename V>
@@ -368,6 +443,22 @@ static inline bool lut2GatherRow(const T *sx, const U *sy, V *d, int w, const V 
         } else if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint16_t>) {
             if constexpr (sizeof(V) == 2) vs_lut2_gather_bw_w_avx512(sx, sy, d, w, lut, bitsx, mx, my);
             else vs_lut2_gather_bw_b_avx512(sx, sy, d, w, lut, bitsx, mx, my);
+            return true;
+        }
+    }
+#elif defined(VS_TARGET_CPU_ARM64) && defined(VS_TARGET_ARM_SVE)
+    if constexpr (std::is_integral_v<V>) {
+        if constexpr (std::is_same_v<T, uint16_t> && std::is_same_v<U, uint16_t>) {
+            if constexpr (sizeof(V) == 2) vs_lut2_gather_ww_w_sve(sx, sy, d, w, lut, bitsx, mx, my);
+            else vs_lut2_gather_ww_b_sve(sx, sy, d, w, lut, bitsx, mx, my);
+            return true;
+        } else if constexpr (std::is_same_v<T, uint16_t> && std::is_same_v<U, uint8_t>) {
+            if constexpr (sizeof(V) == 2) vs_lut2_gather_wb_w_sve(sx, sy, d, w, lut, bitsx, mx, my);
+            else vs_lut2_gather_wb_b_sve(sx, sy, d, w, lut, bitsx, mx, my);
+            return true;
+        } else if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint16_t>) {
+            if constexpr (sizeof(V) == 2) vs_lut2_gather_bw_w_sve(sx, sy, d, w, lut, bitsx, mx, my);
+            else vs_lut2_gather_bw_b_sve(sx, sy, d, w, lut, bitsx, mx, my);
             return true;
         }
     }
@@ -529,6 +620,37 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std:
     if constexpr (std::is_integral_v<V>) {
         if (getCPUFeatures()->avx512 && d->cpulevel >= VS_CPU_LEVEL_AVX512 && (size_t)inrange * sizeof(V) >= (512u << 10))
             d->use_gather = true;
+    }
+#elif defined(VS_TARGET_CPU_ARM64) && defined(VS_TARGET_ARM_SVE)
+    /* Measured with bench/bench_lut2_stream.py against a streaming source.
+       Round 1 gated this from a bench that convolved one *cached* frame, which
+       flatters the gather by leaving the source hot: it read 1.63x for a 1 MB
+       word table on Neoverse-V2 where streaming measures 0.91x.
+
+       Above 128 bits the gather retires 8+ lookups per instruction and wins on
+       throughput -- 1.61x-2.39x on Neoverse-V1, both resolutions and thread
+       counts -- except at the largest table Lut2 can build. 2 MB requires a word
+       destination and so streams the heaviest sources; on an already
+       bandwidth-bound part it drops to 0.69x on a full pool. Tested against the
+       20-bit index cap rather than a byte count, so that raising the cap cannot
+       silently admit a byte destination, whose table tops out at half the size.
+
+       At 128 bits the gather only ever paid once the table outgrew L2, which
+       makes that threshold L2-relative -- and L2 is not assumable here: 2 MB on
+       Graviton4/5, 1 MB on Grace despite the same Neoverse-V2 core, 512 KB-3 MB
+       across Cortex-X925 and C1 mobile parts, and mixed between core tiers
+       within one SoC. A 3 MB part would hold the 2 MB table resident and lose,
+       so 128-bit stays scalar until it can be measured across that spread. */
+    if constexpr (std::is_integral_v<V>) {
+        /* vs_sve_vector_length() executes an SVE instruction, so it must stay
+           inside the feature check -- reading it earlier faults on a core
+           without SVE. */
+        if (getCPUFeatures()->sve && d->cpulevel >= VS_CPU_LEVEL_SVE) {
+            const bool wide_vl = vs_sve_vector_length() > 16;
+            const bool full_word_table = sizeof(V) == 2
+                && (d->vi[0]->format.bitsPerSample + d->vi[1]->format.bitsPerSample) == 20;
+            d->use_gather = wide_vl && !full_word_table;
+        }
     }
 #endif
 
