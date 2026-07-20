@@ -2510,22 +2510,24 @@ bool VSNode::VSCache::insert(const int akey, const PVSFrame &aobject) {
     if (!last)
         last = first;
 
-    trim(maxSize, maxHistorySize);
+    evictFrames(maxSize, SIZE_MAX);
 
     return true;
 }
 
 
-void VSNode::VSCache::trim(int max, int maxHistory) {
-    // first adjust the number of cached frames and extra history length
-    while (currentSize > max) {
+size_t VSNode::VSCache::evictFrames(int maxCount, size_t byteBudget) {
+    size_t freed = 0;
+
+    // turn cached frames into history nodes until both the count and byte conditions hold
+    while (currentSize > maxCount && freed < byteBudget) {
         if (!weakpoint)
             weakpoint = last;
         else
             weakpoint = weakpoint->prevNode;
 
         if (weakpoint) {
-            subtractFrameBytes(*weakpoint);
+            freed += subtractFrameBytes(*weakpoint);
             weakpoint->frame.reset();
         }
 
@@ -2534,33 +2536,14 @@ void VSNode::VSCache::trim(int max, int maxHistory) {
     }
 
     // remove history until the tail is small enough
-    while (last && historySize > maxHistory) {
+    while (last && historySize > maxHistorySize)
         unlink(*last);
-    }
+
+    return freed;
 }
 
 size_t VSNode::VSCache::dropLRUFrames(size_t maxBytes) {
-    size_t freed = 0;
-
-    while (currentSize > 0 && freed < maxBytes) {
-        if (!weakpoint)
-            weakpoint = last;
-        else
-            weakpoint = weakpoint->prevNode;
-
-        if (weakpoint && weakpoint->frame) {
-            size_t frameBytes = weakpoint->frame->totalByteSize();
-            currentBytes -= frameBytes;
-            freed += frameBytes;
-            weakpoint->frame.reset();
-        }
-
-        currentSize--;
-        historySize++;
-    }
-
-    while (last && historySize > maxHistorySize)
-        unlink(*last);
+    size_t freed = evictFrames(0, maxBytes);
 
     // lower the ceiling to match so the freed memory doesn't immediately get reclaimed but never
     // below the reseed size so the cache can relearn its working set once the pressure is gone

@@ -695,9 +695,12 @@ private:
 
         static constexpr uint64_t deadBranchDelay = 3;
 
-        inline void subtractFrameBytes(const Node &n) {
-            if (n.frame)
-                currentBytes -= n.frame->totalByteSize();
+        inline size_t subtractFrameBytes(const Node &n) {
+            if (!n.frame)
+                return 0;
+            size_t frameBytes = n.frame->totalByteSize();
+            currentBytes -= frameBytes;
+            return frameBytes;
         }
 
         inline void unlink(Node &n) {
@@ -780,7 +783,7 @@ private:
             return n.frame;
         }
 
-        void trim(int max, int maxHistory);
+        size_t evictFrames(int maxCount, size_t byteBudget);
     public:
         enum class CacheAction {
             Grow,
@@ -801,7 +804,7 @@ private:
 
         inline void setMaxFrames(int m) {
             maxSize = m;
-            trim(maxSize, maxHistorySize);
+            evictFrames(maxSize, SIZE_MAX);
         }
 
         inline int getMaxHistory() const {
@@ -810,7 +813,7 @@ private:
 
         inline void setMaxHistory(int m) {
             maxHistorySize = m;
-            trim(maxSize, maxHistorySize);
+            evictFrames(maxSize, SIZE_MAX);
         }
 
         inline void setFixedSize(bool fixed) {
