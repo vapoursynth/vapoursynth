@@ -8,6 +8,7 @@ project('VapourSynth', 'c', 'cpp', 'cython',
 
 enable_guard_pattern = get_option('enable_guard_pattern')
 enable_x86_asm = get_option('enable_x86_asm')
+enable_arm_asm = get_option('enable_arm_asm')
 
 cxx = meson.get_compiler('cpp')
 
@@ -62,6 +63,10 @@ endif
 
 if not host_cpu_family.startswith('x86')
     enable_x86_asm = false
+endif
+
+if host_cpu_family != 'aarch64'
+    enable_arm_asm = false
 endif
 
 incdir = include_directories('include')
@@ -161,6 +166,42 @@ soversion = is_win ? '' : run_command(
 
 if enable_x86_asm
     add_project_arguments('-DVS_TARGET_CPU_X86', language: ['c', 'cpp'])
+endif
+
+# --- AArch64 SIMD kernels ----------------------------------------------------
+# NEON is the AArch64 baseline and its kernels ride along with the plain filter
+# sources. fp16fml/i8mm kernels get their own TUs with a raised -march; they are
+# runtime-dispatched.
+arm_have_i8mm = false
+arm_have_fhm = false
+if enable_arm_asm
+    add_project_arguments('-DVS_TARGET_CPU_ARM64', language: ['c', 'cpp'])
+
+    arm_i8mm_args = ['-march=armv8.2-a+i8mm']
+    arm_fhm_args = ['-march=armv8.2-a+fp16+fp16fml']
+
+    arm_have_i8mm = cxx.compiles('''
+#include <arm_neon.h>
+int32x4_t f(int32x4_t a, uint8x16_t b, int8x16_t c) { return vusdotq_s32(a, b, c); }
+''',
+        args: arm_i8mm_args,
+        name: 'AArch64 i8mm usdot intrinsics',
+    )
+
+    arm_have_fhm = cxx.compiles('''
+#include <arm_neon.h>
+float32x4_t f(float32x4_t r, float16x8_t a, float16x8_t b) { return vfmlalq_low_f16(r, a, b); }
+''',
+        args: arm_fhm_args,
+        name: 'AArch64 fp16fml (FEAT_FHM) intrinsics',
+    )
+
+    if arm_have_i8mm
+        add_project_arguments('-DVS_TARGET_ARM_I8MM', language: ['c', 'cpp'])
+    endif
+    if arm_have_fhm
+        add_project_arguments('-DVS_TARGET_ARM_FHM', language: ['c', 'cpp'])
+    endif
 endif
 
 libvapoursynth = library('libvapoursynth',
@@ -392,10 +433,54 @@ if enable_x86_asm
         )
     endforeach
 else
+    arm_filter_sources = []
+    arm_vlibs = []
+    if enable_arm_asm
+        # NEON is the AArch64 baseline; its kernels ride with the plugin proper.
+        arm_filter_sources += files(
+            'src/core/kernel/arm/convolution_neon.cpp',
+            'src/core/kernel/arm/lut_neon.cpp',
+            'src/core/kernel/arm/square_neon.cpp',
+        )
+        if arm_have_i8mm
+            # usdot byte square conv. Its own TU so the NEON baseline sources are
+            # never built with +i8mm.
+            arm_vlibs += static_library('vsfilters_i8mm',
+                files('src/core/kernel/arm/square_dot_neon.cpp'),
+                cpp_args: arm_i8mm_args,
+                gnu_symbol_visibility: 'hidden',
+                include_directories: incdir,
+            )
+        endif
+        if arm_have_fhm
+            # fmlal widening f16 MAC kernels. Separated so NEON baseline
+            # sources aren't built with +fp16fml.
+            # Kept out of LTO deliberately. Under gcc 13 + -flto, growing this
+            # unit changes how the link re-optimises the UNTOUCHED half
+            # scanlines in convolution_neon.cpp: adding the 1D kernels below
+            # cost half nof16 h25 -10..-13% and hv9 -14..-17% on V1/V2/V3, on
+            # a function whose source never changed (verified in the
+            # disassembly: same source, different codegen). Compiling to real
+            # object code keeps it out of the LTO partition and the regression
+            # disappears (nof16 back to +-0%). It costs the fhm kernels
+            # themselves almost nothing; the squares measure identical to the
+            # LTO build. Only f16 h25 gives up ~3% because they're
+            # self-contained with header inlines as helpers.
+            arm_vlibs += static_library('vsfilters_fhm',
+                files('src/core/kernel/arm/convolution_fhm_neon.cpp'),
+                cpp_args: arm_fhm_args,
+                gnu_symbol_visibility: 'hidden',
+                include_directories: incdir,
+                override_options: ['b_lto=false'],
+            )
+        endif
+    endif
+
     shared_module('libvapoursynthfilters',
-        filters_sources,
+        filters_sources + arm_filter_sources,
         gnu_symbol_visibility: 'hidden',
         include_directories: incdir,
+        link_with: arm_vlibs,
         name_prefix: '',
         install: true,
         install_dir: install_dir,
