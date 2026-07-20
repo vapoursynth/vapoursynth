@@ -21,6 +21,7 @@
 #include "vscore.h"
 #include <cassert>
 #include <bitset>
+#include <chrono>
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
 #endif
@@ -32,6 +33,20 @@
 #include <sys/_cpuset.h>
 #include <sys/cpuset.h>
 #endif
+
+// how often caches may adjust their size based on recent hit/miss statistics, wall clock based
+// memory pressure only shortens the interval instead of forcing a sweep on every completed task
+static constexpr int64_t normalCacheSweepInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(500)).count();
+static constexpr int64_t pressureCacheSweepInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(150)).count();
+
+// staying over the limit is handled by parking all threads but one and letting the pressure
+// sweeps evict, only when that hasn't gotten usage back under the limit for this long is the
+// memory held by something only a full pipeline flush can reach, flush as a last resort
+static constexpr int64_t flushAfterOverInterval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(2000)).count();
+
+static int64_t steadyClockNow() {
+    return std::chrono::steady_clock::now().time_since_epoch().count();
+}
 
 size_t VSThreadPool::getNumAvailableThreads() {
     size_t nthreads = std::thread::hardware_concurrency();
@@ -159,6 +174,19 @@ void VSThreadPool::runTasks(bool &stop) {
                     seenNodes[seenCount++] = node;
             }
 
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Some filters allocate several frames worth of temporary memory in a
+// single call and having many threads enter such calls at once can overshoot the memory limit
+// by a large factor before any other mechanism gets a chance to react, so don't start calls
+// whose predicted allocations don't fit in the allowed overshoot
+
+            int64_t expectedAlloc = node->expectedTransientAllocation();
+            if (expectedAlloc > 0 && processingThreads.load(std::memory_order_relaxed) > 0) {
+                int64_t memLimit = static_cast<int64_t>(core->memory->limit());
+                if (static_cast<int64_t>(core->memory->allocated_bytes()) + inflightAllocation.load(std::memory_order_relaxed) + expectedAlloc > memLimit + memLimit / 4)
+                    continue;
+            }
+
             // Does the filter need the per instance mutex? fmFrameState, fmUnordered and fmParallelRequests (when in the arAllFramesReady state) use this
             bool useSerialLock = (filterMode == fmFrameState || filterMode == fmUnordered || (filterMode == fmParallelRequests && !frameContext->first));
 
@@ -198,10 +226,16 @@ void VSThreadPool::runTasks(bool &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Do the actual processing
 
+            processingThreads.fetch_add(1, std::memory_order_relaxed);
+            inflightAllocation.fetch_add(expectedAlloc, std::memory_order_relaxed);
+
             lock.unlock();
 
             PVSFrame f = node->getFrameInternal(frameContext->key.second, ar, frameContext);
             ranTask = true;
+
+            inflightAllocation.fetch_sub(expectedAlloc, std::memory_order_relaxed);
+            processingThreads.fetch_sub(1, std::memory_order_relaxed);
 
             bool frameProcessingDone = f || frameContext->hasError();
             if (frameContext->hasError() && f)
@@ -225,23 +259,24 @@ void VSThreadPool::runTasks(bool &stop) {
 
             bool needsSort = requestedFrames;
 
-            if (requestedFrames) {
-                if (core->memory->is_over_limit()) {
-                    ticks = 0;
-                    if (!cacheSweepActive.exchange(true)) {
-                        core->notifyCaches(true);
-                        cacheSweepActive = false;
-                    }
-                } else if (++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
-                    ticks = 0;
-                    if (!cacheSweepActive.exchange(true)) {
-                        core->notifyCaches(false);
-                        cacheSweepActive = false;
-                    }
+            // memory pressure is sampled after every completed call
+            // request cascades mostly happen up front so gating on them leaves long
+            // stretches of pure frame production completely unmanaged exactly when usage climbs
+            // the fastest, the wall clock pacing keeps the cost of this at a single clock read
+            bool overLimit = core->memory->is_over_limit();
+            int64_t timeNow = steadyClockNow();
+            if (timeNow - lastCacheSweep.load(std::memory_order_relaxed) >= (overLimit ? pressureCacheSweepInterval : normalCacheSweepInterval)) {
+                if (!cacheSweepActive.exchange(true)) {
+                    lastCacheSweep = timeNow;
+                    core->notifyCaches(overLimit);
+                    cacheSweepActive = false;
                 }
             }
 
             lock.lock();
+
+            if (expectedAlloc > 0 && idleThreads > 0)
+                newWork.notify_one(); // tasks skipped by admission control may fit now
 
             if (requestedFrames) {
                 assert(frameContext->numFrameRequests == 0);
@@ -251,20 +286,17 @@ void VSThreadPool::runTasks(bool &stop) {
 
                 frameContext->numFrameRequests = frameContext->reqList.size();
                 frameContext->reqList.clear();
+            }
 
-                if (currentMaxThreads >= activeThreads * 2 && core->memory->is_over_limit() && activeThreads > 0) {
-                    --currentMaxThreads;
-                    assert(currentMaxThreads > 0);
-                    if (flushCaches) {
-                        deferredLog = "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage";
-                    } else {
-                        deferredLog = "Maximum running threads reduced to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to excessive memory usage, flushing pipeline";
-                        flushCaches = true;
-                    }
-                } else if (currentMaxThreads < maxThreads && core->memory->is_under_limit() && ++reqMemCounter % 500 == 0) {
-                    ++currentMaxThreads;
-                    deferredLog = "Maximum running threads increased to " + std::to_string(currentMaxThreads) + "/" + std::to_string(maxThreads) + " due to more memory being available";
+            if (overLimit) {
+                if (!overLimitSince) {
+                    overLimitSince = timeNow;
+                } else if (!flushCaches && timeNow - overLimitSince >= flushAfterOverInterval) {
+                    flushCaches = true;
+                    deferredLog = "Memory usage still over the limit, flushing pipeline";
                 }
+            } else {
+                overLimitSince = 0;
             }
 
             if (frameProcessingDone && !frameContext->external)
@@ -312,7 +344,7 @@ void VSThreadPool::runTasks(bool &stop) {
             break;
         }
 
-        if (!ranTask || (activeThreads > currentMaxThreads) || (core->memory->is_over_limit() && activeThreads > 1)) {
+        if (!ranTask || (activeThreads > maxThreads) || (core->memory->is_over_limit() && activeThreads > 1)) {
             --activeThreads;
             if (stop) {
                 lock.unlock();
@@ -325,7 +357,8 @@ void VSThreadPool::runTasks(bool &stop) {
                 if (flushCaches) {
                     core->clearCaches(true);
                     flushCaches = false;
-                    ticks = 0;
+                    lastCacheSweep = steadyClockNow();
+                    overLimitSince = 0; // require another full interval over the limit before flushing again
                     std::swap(tasks, altTasks);
                     deferredLog = "Pipeline flushed, resuming processing";
                     // the thread can't notify itself ahead of waiting so instead skip the wait and just loop back around to check for work immediately
@@ -343,7 +376,7 @@ void VSThreadPool::runTasks(bool &stop) {
                 // Wait predicates don't work since they're the equivalent of a wrapping while loop
                 do {
                     newWork.wait(lock);
-                } while (activeThreads >= currentMaxThreads && !stop);
+                } while (activeThreads >= maxThreads && !stop);
                 --idleThreads;
                 ++activeThreads;
             }
@@ -351,7 +384,7 @@ void VSThreadPool::runTasks(bool &stop) {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), reqMemCounter(0), ticks(0), cacheSweepActive(false), stopThreads(false), flushCaches(false) {
+VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), overLimitSince(0), lastCacheSweep(0), completedExternalFrames(0), inflightAllocation(0), processingThreads(0), cacheSweepActive(false), stopThreads(false), flushCaches(false) {
     setThreadCount(0);
 }
 
@@ -376,7 +409,7 @@ size_t VSThreadPool::setThreadCount(size_t threads) {
             maxThreads = 1;
             countWarning = true;
         }
-        currentMaxThreads = maxThreads;
+        overLimitSince = 0;
         result = maxThreads;
     }
     if (countWarning)
@@ -392,7 +425,7 @@ void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
 
 void VSThreadPool::wakeThread() {
     size_t numActive = activeThreads;
-    if (numActive < currentMaxThreads) {
+    if (numActive < maxThreads) {
         if (core->memory->is_over_limit() && numActive > 0) {
             // do nothing
         } else {
@@ -427,6 +460,7 @@ void VSThreadPool::startExternal(const PVSFrameContext &context) {
 
 void VSThreadPool::returnFrame(VSFrameContext *rCtx, const PVSFrame &f, std::unique_lock<std::mutex> &lock) {
     assert(rCtx->frameDone);
+    completedExternalFrames.fetch_add(1, std::memory_order_relaxed);
     bool outputLock = rCtx->lockOnOutput;
     bool reserveThread = rCtx->reserveThread;
     // we need to unlock here so the callback may request more frames without causing a deadlock

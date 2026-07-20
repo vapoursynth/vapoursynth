@@ -488,6 +488,13 @@ public:
         assert(contentType == mtAudio);
         return width;
     }
+    size_t totalByteSize() const {
+        size_t total = 0;
+        for (int i = 0; i < 3; i++)
+            if (data[i])
+                total += data[i]->size;
+        return total;
+    }
     ptrdiff_t getStride(int plane) const;
     const uint8_t *getReadPtr(int plane) const;
     uint8_t *getWritePtr(int plane);
@@ -675,6 +682,24 @@ private:
         int nearMiss;
         int farMiss;
 
+        size_t currentBytes;
+
+        // size explicitly requested through setCacheOptions, acts as a floor for all automatic
+        // adjustment and eviction so caching can be forced to stick on nodes whose request
+        // patterns wouldn't sustain it on their own, like output nodes, 0 means not set
+        int userSize = 0;
+
+        // count of externally delivered frames at the last sweep that saw any cache traffic, used
+        // to tell dead branches apart from merely slow scripts before emptying a request-less cache
+        uint64_t lastActivityExtFrames = 0;
+
+        static constexpr uint64_t deadBranchDelay = 3;
+
+        inline void subtractFrameBytes(const Node &n) {
+            if (n.frame)
+                currentBytes -= n.frame->totalByteSize();
+        }
+
         inline void unlink(Node &n) {
             if (&n == weakpoint)
                 weakpoint = weakpoint->nextNode;
@@ -691,10 +716,12 @@ private:
             if (first == &n)
                 first = n.nextNode;
 
-            if (n.frame)
+            if (n.frame) {
+                subtractFrameBytes(n);
                 currentSize--;
-            else
+            } else {
                 historySize--;
+            }
 
             hash.erase(n.key);
         }
@@ -739,10 +766,12 @@ private:
             if (!weakpoint) {
                 if (currentSize > maxSize) {
                     weakpoint = last;
+                    subtractFrameBytes(*weakpoint);
                     weakpoint->frame.reset();
                 }
             } else if (&n == origWeakPoint || historySize > maxHistorySize) {
                 weakpoint = weakpoint->prevNode;
+                subtractFrameBytes(*weakpoint);
                 weakpoint->frame.reset();
             }
 
@@ -803,6 +832,7 @@ private:
             weakpoint = nullptr;
             currentSize = 0;
             historySize = 0;
+            currentBytes = 0;
             clearStats();
         }
 
@@ -822,7 +852,25 @@ private:
 
         CacheAction recommendSize();
 
-        void adjustSize(bool needMemory);
+        void adjustSize(bool memoryComfortable, uint64_t completedExtFrames);
+
+        size_t bytesHeld() const { return currentBytes; }
+        int recentValue() const { return hits + nearMiss; }
+
+        // the size flushed and pressure evicted caches get restored to, never below the default
+        // starting size so the near miss horizon stays wide enough to relearn the working set
+        int reSeedSize() const { return std::max(20, userSize); }
+
+        inline void setUserMaxFrames(int m) {
+            userSize = m;
+            setMaxFrames(m);
+        }
+
+        inline void resetSizeTuning() {
+            userSize = 0;
+        }
+
+        size_t dropLRUFrames(size_t maxBytes);
     };
 
     std::atomic<long> refcount;
@@ -851,6 +899,10 @@ private:
 
     std::atomic<int64_t> processingTime;
 
+    // peak net bytes allocated during a single filter call, biased towards remembering peaks,
+    // -1 means no call has been measured yet
+    std::atomic<int64_t> transientAllocEstimate = -1;
+
     std::mutex cacheMutex;
     bool cacheLinear = false;
     bool cacheOverride = false;
@@ -864,6 +916,7 @@ private:
     void registerCache(bool add);
     PVSFrame getCachedFrameInternal(int n);
     PVSFrame getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
+    void updateTransientAllocEstimate(int64_t sample);
 public:
     VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
     VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core);
@@ -939,7 +992,19 @@ public:
     void cacheFrame(const VSFrame *frame, int n);
     void clearCache(bool resetSize);
 
-    void notifyCache(bool needMemory);
+    void notifyCache(bool memoryComfortable, uint64_t completedExtFrames);
+
+    struct CachePressureInfo {
+        size_t bytes;
+        int value;
+        bool fixedSize;
+    };
+
+    CachePressureInfo getCachePressureInfo();
+    size_t evictCacheBytes(size_t maxBytes);
+
+    // used by the thread pool to predict whether starting another filter call fits in memory
+    int64_t expectedTransientAllocation() const;
 };
 
 class VSThreadPool {
@@ -955,10 +1020,15 @@ private:
     size_t activeThreads;
     size_t idleThreads;
     size_t reqCounter;
-    size_t reqMemCounter;
     size_t maxThreads;
-    size_t currentMaxThreads;
-    std::atomic<size_t> ticks;
+
+    // when usage first went over the limit, used to pace the last resort pipeline flush
+    int64_t overLimitSince;
+
+    std::atomic<int64_t> lastCacheSweep;
+    std::atomic<uint64_t> completedExternalFrames;
+    std::atomic<int64_t> inflightAllocation;
+    std::atomic<size_t> processingThreads;
     std::atomic<bool> cacheSweepActive;
     bool stopThreads;
     bool flushCaches;
@@ -979,6 +1049,9 @@ public:
     size_t setThreadCount(size_t threads);
     void startExternal(const PVSFrameContext &context);
     void waitForDone();
+    uint64_t getCompletedExternalFrames() const {
+        return completedExternalFrames.load(std::memory_order_relaxed);
+    }
 };
 
 struct VSPluginFunction {

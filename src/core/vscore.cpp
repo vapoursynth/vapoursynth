@@ -1011,6 +1011,7 @@ void VSNode::setCacheMode(int mode) {
 
         // always reset to defaults on mode change
         cache.setFixedSize(false);
+        cache.resetSizeTuning();
         cache.setMaxFrames(20);
         cache.setMaxHistory(20);
         if (!cacheEnabled)
@@ -1024,7 +1025,7 @@ void VSNode::setCacheOptions(int fixedSize, int maxSize, int maxHistorySize) {
     if (fixedSize >= 0)
         cache.setFixedSize(!!fixedSize);
     if (maxSize >= 0)
-        cache.setMaxFrames(maxSize);
+        cache.setUserMaxFrames(maxSize);
     if (maxHistorySize >= 0)
         cache.setMaxHistory(maxHistorySize);
 }
@@ -1043,9 +1044,13 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     if (enableFilterTiming)
         startTime = std::chrono::high_resolution_clock::now();
 
+    vs::MemoryUse::CallTracking savedTracking = vs::MemoryUse::begin_call_tracking();
+
     core->currentProcessingNode = this;
     const VSFrame *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi3);
     core->currentProcessingNode = nullptr;
+
+    updateTransientAllocEstimate(vs::MemoryUse::end_call_tracking(savedTracking));
 
     if (enableFilterTiming) {
         std::chrono::nanoseconds duration = std::chrono::high_resolution_clock::now() - startTime;
@@ -1139,18 +1144,99 @@ void VSNode::clearCache(bool resetSize) {
     std::lock_guard<std::mutex> lock(cacheMutex);
     cache.clear();
     if (resetSize && !cacheLinear && !cache.getFixedSize())
-        cache.setMaxFrames(20);
+        cache.setMaxFrames(cache.reSeedSize());
 }
 
-void VSNode::notifyCache(bool needMemory) {
+void VSNode::notifyCache(bool memoryComfortable, uint64_t completedExtFrames) {
     std::lock_guard<std::mutex> lock(cacheMutex);
-    cache.adjustSize(needMemory);
+    cache.adjustSize(memoryComfortable, completedExtFrames);
+}
+
+VSNode::CachePressureInfo VSNode::getCachePressureInfo() {
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    return { cache.bytesHeld(), cache.recentValue(), cache.getFixedSize() };
+}
+
+size_t VSNode::evictCacheBytes(size_t maxBytes) {
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    return cache.dropLRUFrames(maxBytes);
+}
+
+void VSNode::updateTransientAllocEstimate(int64_t sample) {
+    // biased towards remembering peaks since rare big allocations are exactly what admission
+    // control in the thread pool needs to predict, decays slowly when calls allocate less
+    int64_t est = transientAllocEstimate.load(std::memory_order_relaxed);
+    if (est >= 0)
+        sample = std::max(sample, est - (est >> 7));
+    transientAllocEstimate.store(sample, std::memory_order_relaxed);
+}
+
+int64_t VSNode::expectedTransientAllocation() const {
+    int64_t est = transientAllocEstimate.load(std::memory_order_relaxed);
+    if (est >= 0)
+        return est;
+    // no call measured yet, assume the output frame plus as much again in temporary allocations,
+    // variable format clips simply get no estimate until the first call completes
+    int64_t frameBytes = 0;
+    if (nodeType == mtVideo) {
+        if (vi.width > 0 && vi.height > 0) {
+            for (int p = 0; p < vi.format.numPlanes; p++) {
+                int64_t w = vi.width >> (p ? vi.format.subSamplingW : 0);
+                int64_t h = vi.height >> (p ? vi.format.subSamplingH : 0);
+                frameBytes += w * h * vi.format.bytesPerSample;
+            }
+        }
+    } else {
+        frameBytes = static_cast<int64_t>(ai.format.bytesPerSample) * ai.format.numChannels * VS_AUDIO_FRAME_SAMPLES;
+    }
+    return 2 * frameBytes;
 }
 
 void VSCore::notifyCaches(bool needMemory) {
+    uint64_t completedExtFrames = threadPool->getCompletedExternalFrames();
     std::lock_guard<std::mutex> lock(cacheLock);
-    for (auto &cache : caches)
-        cache->notifyCache(needMemory);
+
+    if (needMemory) {
+        // free the excess in a single pass by taking frames from the caches where each held byte
+        // has demonstrably provided the least value instead of uniformly decaying every cache
+        size_t allocated = memory->allocated_bytes();
+        size_t memLimit = memory->limit();
+        size_t targetUsage = memLimit - memLimit / 10;
+        if (allocated <= targetUsage)
+            return;
+        size_t excess = allocated - targetUsage;
+
+        struct CacheEntry {
+            VSNode *node;
+            int value;
+        };
+
+        std::vector<CacheEntry> entries;
+        entries.reserve(caches.size());
+        for (auto &node : caches) {
+            VSNode::CachePressureInfo info = node->getCachePressureInfo();
+            if (!info.fixedSize && info.bytes > 0)
+                entries.push_back({ node, info.value });
+        }
+
+        // take frames from the caches that provided the least value recently, caches without a
+        // single hit or near miss hold pure dead weight and naturally sort first
+        std::sort(entries.begin(), entries.end(), [](const CacheEntry &a, const CacheEntry &b) {
+            return a.value < b.value;
+        });
+
+        for (const CacheEntry &entry : entries) {
+            excess -= std::min(entry.node->evictCacheBytes(excess), excess);
+            if (excess == 0)
+                break;
+        }
+    } else {
+        // caches only get to grow while memory usage stays comfortably under the limit
+        size_t memLimit = memory->limit();
+        bool memoryComfortable = memory->allocated_bytes() < memLimit - memLimit * 3 / 20;
+        for (auto &cache : caches)
+            cache->notifyCache(memoryComfortable, completedExtFrames);
+    }
 }
 
 const vs3::VSVideoFormat *VSCore::getV3VideoFormat(int id) {
@@ -2412,6 +2498,7 @@ bool VSNode::VSCache::insert(const int akey, const PVSFrame &aobject) {
     remove(akey);
     auto i = hash.insert(std::make_pair(akey, Node(akey, aobject)));
     currentSize++;
+    currentBytes += aobject->totalByteSize();
     Node *n = &i.first->second;
 
     if (first)
@@ -2437,8 +2524,10 @@ void VSNode::VSCache::trim(int max, int maxHistory) {
         else
             weakpoint = weakpoint->prevNode;
 
-        if (weakpoint)
+        if (weakpoint) {
+            subtractFrameBytes(*weakpoint);
             weakpoint->frame.reset();
+        }
 
         currentSize--;
         historySize++;
@@ -2450,39 +2539,69 @@ void VSNode::VSCache::trim(int max, int maxHistory) {
     }
 }
 
-void VSNode::VSCache::adjustSize(bool needMemory) {
-    if (!fixedSize) {
-        if (!needMemory) {
-            switch (recommendSize()) {
-            case VSCache::CacheAction::Clear:
-                clear();
-                setMaxFrames(std::max(getMaxFrames() - 2, 0));
-                break;
-            case VSCache::CacheAction::Grow:
-                setMaxFrames(getMaxFrames() + 2);
-                break;
-            case VSCache::CacheAction::Shrink:
-                setMaxFrames(std::max(getMaxFrames() - 1, 0));
-                break;
-            default:;
-            }
-        } else {
-            switch (recommendSize()) {
-            case VSCache::CacheAction::Clear:
-                clear();
-                setMaxFrames(std::max(getMaxFrames() - 2, 0));
-                break;
-            case VSCache::CacheAction::Shrink:
-                setMaxFrames(std::max(getMaxFrames() - 2, 0));
-                break;
-            case VSCache::CacheAction::NoChange:
-                if (getMaxFrames() <= 1)
-                    clear();
-                setMaxFrames(std::max(getMaxFrames() - 1, 1));
-                break;
-            default:;
-            }
+size_t VSNode::VSCache::dropLRUFrames(size_t maxBytes) {
+    size_t freed = 0;
+
+    while (currentSize > 0 && freed < maxBytes) {
+        if (!weakpoint)
+            weakpoint = last;
+        else
+            weakpoint = weakpoint->prevNode;
+
+        if (weakpoint && weakpoint->frame) {
+            size_t frameBytes = weakpoint->frame->totalByteSize();
+            currentBytes -= frameBytes;
+            freed += frameBytes;
+            weakpoint->frame.reset();
         }
+
+        currentSize--;
+        historySize++;
+    }
+
+    while (last && historySize > maxHistorySize)
+        unlink(*last);
+
+    // lower the ceiling to match so the freed memory doesn't immediately get reclaimed but never
+    // below the reseed size so the cache can relearn its working set once the pressure is gone
+    if (maxSize > reSeedSize())
+        maxSize = std::max(reSeedSize(), currentSize);
+    return freed;
+}
+
+void VSNode::VSCache::adjustSize(bool memoryComfortable, uint64_t completedExtFrames) {
+    if (!fixedSize) {
+        // A cache without any requests since the last sweep is either on a dead branch or the
+        // script is simply slow enough that no request reached it in the interval, tell the two
+        // apart by how many output frames were delivered without any traffic here
+        int total = hits + nearMiss + farMiss;
+        if (total > 0)
+            lastActivityExtFrames = completedExtFrames;
+        else if (completedExtFrames - lastActivityExtFrames < deadBranchDelay)
+            return;
+
+        switch (recommendSize()) {
+        case VSCache::CacheAction::Clear:
+            clear();
+            setMaxFrames(std::max(getMaxFrames() - 2, userSize));
+            break;
+        case VSCache::CacheAction::Grow:
+            // growing right up to the limit only triggers the pressure machinery and creates a
+            // grow and evict sawtooth so growth requires comfortable headroom
+            if (memoryComfortable)
+                setMaxFrames(getMaxFrames() + 2);
+            break;
+        case VSCache::CacheAction::Shrink:
+            setMaxFrames(std::max(getMaxFrames() - 1, userSize));
+            break;
+        default:
+            break;
+        }
+
+        // grow the near miss horizon together with the cache so reuse patterns bigger than the
+        // current size remain detectable, history nodes hold no frame data so this is nearly free
+        if (getMaxHistory() < getMaxFrames())
+            setMaxHistory(getMaxFrames());
     }
 }
 

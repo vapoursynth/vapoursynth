@@ -20,6 +20,7 @@ boxblur optimization
 improved planestats optimizations
 improved merge filters optimization and added avx512 path
 added avx512 optimizations to min, max, convolution and other filters internally known as genericfilters
+greatly improved the memory management and speed in very memory constrained scenarios, speedups of 2-3x are possible if you run scripts with far too low memory max cache size
 now the initial max cache size default is half of the physical available ram (HolyWu)
 remembered to actually remove avfs from the source tree
 several more small fixes for ai found bugs
