@@ -565,6 +565,7 @@ class vszimg {
 
             m_params.cpu_type = ZIMG_CPU_AUTO_64B;
             m_params.allow_approximate_gamma = propGetScalarDef<int>(in, "approximate_gamma", 1, vsapi);
+            m_params.chromatic_adaptation = propGetScalarDef<int>(in, "chromatic_adaptation", 1, vsapi);
             m_params.resample_filter = u.filter;
             m_params.filter_param_a = propGetScalarDef<double>(in, "filter_param_a", m_params.filter_param_a, vsapi);
             m_params.filter_param_b = propGetScalarDef<double>(in, "filter_param_b", m_params.filter_param_b, vsapi);
@@ -937,7 +938,8 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
   FLOAT_OPT(src_width) \
   FLOAT_OPT(src_height) \
   FLOAT_OPT(nominal_luminance) \
-  INT_OPT(approximate_gamma)
+  INT_OPT(approximate_gamma) \
+  INT_OPT(chromatic_adaptation)
 
     static const char RESAMPLE_ARGS[] =
         "clip:vnode;"

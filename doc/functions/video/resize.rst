@@ -1,7 +1,7 @@
 Resize
 ======
 
-.. function::   Bilinear(vnode clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type="none", string cpu_type, float src_left, float src_top, float src_width, float src_height, float nominal_luminance, bint approximate_gamma=True])
+.. function::   Bilinear(vnode clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type="none", string cpu_type, float src_left, float src_top, float src_width, float src_height, float nominal_luminance, bint approximate_gamma=True, bint chromatic_adaptation=True])
                 Bicubic(vnode clip[, ...])
                 Point(vnode clip[, ...])
                 Lanczos(vnode clip[, ...])
@@ -134,7 +134,17 @@ Resize
    *approximate_gamma*:
 
       Use LUT to evaluate transfer functions. Defaults to True.
-      
+
+   *chromatic_adaptation*:
+
+      Apply chromatic adaptation (Bradford method) when converting between
+      primaries with different white points, so that the source white is mapped
+      to the destination white. If disabled, the absolute XYZ values are
+      preserved instead, which retains the original white point and typically
+      leaves a visible color cast. Only has an effect when the input and output
+      primaries differ in white point, for example *st431-2* (DCI white) to
+      *709* (D65). Defaults to True.
+
    To convert to YV12::
 
       Bicubic(clip=clip, format=vs.YUV420P8, matrix_s="709")
