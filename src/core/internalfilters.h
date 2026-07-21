@@ -28,6 +28,7 @@ void internalFiltersInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void mergeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void reorderInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
+void audioResamplingInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void exprInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void genericInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void lutInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);

@@ -331,6 +331,7 @@ endif
 # Cross-platform sources (the kernel/*.{c,cpp} dispatchers carry scalar fallbacks).
 filters_sources = files(
     'src/core/audiofilters.cpp',
+    'src/core/audioresampling.cpp',
     'src/core/averageframesfilter.cpp',
     'src/core/boxblurfilter.cpp',
     'src/core/coreplugins.cpp',

@@ -3,6 +3,7 @@ a compiler supporting c++20 is now required to build the project, compatibility 
 relaxed the zen4 level instruction check to not include avx512bf16 since compilers never use these instructions on their own, this allows the faster binaries to be used on intel ice lake cpus and later as well
 fixed multiple rare threading issues, the most likely of these to be actually encountered in r76 and r77 was a deadlock that could happen when synchronous getFrame() is called from a filter getFrame function and a pipeline flush is in progress 
 added basic avx512 as an additional cpu instruction level meaning that on x64 it's now baseline, avx2, avx512 and zen4 level
+added the AudioResample filter for audio sample rate, channel layout and sample format conversion, the downmix coefficients follow itu-r bs.775 and the mix matrix is derived from the two layouts so any combination works
 added chromatic_adaptation argument to resize filters, it defaults to True which is identical to the previous behavior
 mergefulldiff now handles float appropriately
 maskedmerge and premultiply will no longer reject clips with different chroma location if only luma is being processed

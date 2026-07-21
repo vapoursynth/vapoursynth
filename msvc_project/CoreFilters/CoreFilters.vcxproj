@@ -93,6 +93,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\core\audiofilters.cpp" />
+    <ClCompile Include="..\..\src\core\audioresampling.cpp" />
     <ClCompile Include="..\..\src\core\averageframesfilter.cpp" />
     <ClCompile Include="..\..\src\core\boxblurfilter.cpp" />
     <ClCompile Include="..\..\src\core\coreplugins.cpp" />

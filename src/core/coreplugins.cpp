@@ -35,5 +35,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
     mergeInitialize(plugin, vspapi);
     reorderInitialize(plugin, vspapi);
     audioInitialize(plugin, vspapi);
+    audioResamplingInitialize(plugin, vspapi);
     stdlibInitialize(plugin, vspapi);
 }
