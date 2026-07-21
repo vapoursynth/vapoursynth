@@ -25,6 +25,7 @@ greatly improved the memory management and speed in very memory constrained scen
 now the initial max cache size default is half of the physical available ram (HolyWu)
 remembered to actually remove avfs from the source tree
 several more small fixes for ai found bugs
+added aarch64 neon intrinsics for many for many functions
 
 r77:
 fixed deadlock introduced in r76
