@@ -523,52 +523,60 @@ VSPluginFunction::VSPluginFunction(const std::string &name, const std::string &a
         parseArgString(returnType, retArgs, plugin->apiMajor);
 }
 
+std::string VSPluginFunction::checkValues(const std::vector<FilterArgument> &fargs, const VSMap &m, const char *kind) {
+    std::set<std::string> remainingValues;
+    for (size_t i = 0; i < m.size(); i++)
+        remainingValues.insert(m.key(i));
+
+    for (const FilterArgument &fa : fargs) {
+        // ptUnset as a declared type means any value is accepted beyond the explicitly listed ones
+        if (fa.type == ptUnset) {
+            // this will always be the last entry, therefore it's safe to clear out the remaining ones since they'll
+            // already have been checked
+            remainingValues.clear();
+            continue;
+        }
+
+        int propType = vs_internal_vsapi.mapGetType(&m, fa.name.c_str());
+
+        if (propType != ptUnset) {
+            remainingValues.erase(fa.name);
+
+            if (fa.type != propType)
+                return std::string(kind) + " " + fa.name + " is not of the correct type";
+
+            VSArrayBase *arr = m.find(fa.name);
+
+            if (!fa.arr && arr->size() > 1)
+                return std::string(kind) + " " + fa.name + " is not of array type but more than one value was supplied";
+
+            if (!fa.empty && arr->size() < 1)
+                return std::string(kind) + " " + fa.name + " does not accept empty arrays";
+
+        } else if (!fa.opt) {
+            return std::string(kind) + " " + fa.name + " is required";
+        }
+    }
+
+    if (!remainingValues.empty()) {
+        auto iter = remainingValues.cbegin();
+        std::string s = *iter;
+        ++iter;
+        for (; iter != remainingValues.cend(); ++iter)
+            s += ", " + *iter;
+        return "no " + std::string(kind) + "(s) named " + s;
+    }
+
+    return {};
+}
+
 VSMap *VSPluginFunction::invoke(const VSMap &args) {
     VSMap *v = new VSMap;
 
     try {
-        std::set<std::string> remainingArgs;
-        for (size_t i = 0; i < args.size(); i++)
-            remainingArgs.insert(args.key(i));
-
-        for (const FilterArgument &fa : inArgs) {
-            // ptUnset as an argument type means any value is accepted beyond the declared ones
-            if (fa.type == ptUnset) {
-                // this will always be the last argument, therefore it's safe to clear out the remaining ones since they'll
-                // already have been checked
-                remainingArgs.clear();
-                continue;
-            }
-
-            int propType = vs_internal_vsapi.mapGetType(&args, fa.name.c_str());
-
-            if (propType != ptUnset) {
-                remainingArgs.erase(fa.name);
-
-                if (fa.type != propType)
-                    throw VSException(name + ": argument " + fa.name + " is not of the correct type");
-
-                VSArrayBase *arr = args.find(fa.name);
-
-                if (!fa.arr && arr->size() > 1)
-                    throw VSException(name + ": argument " + fa.name + " is not of array type but more than one value was supplied");
-
-                if (!fa.empty && arr->size() < 1)
-                    throw VSException(name + ": argument " + fa.name + " does not accept empty arrays");
-
-            } else if (!fa.opt) {
-                throw VSException(name + ": argument " + fa.name + " is required");
-            }
-        }
-
-        if (!remainingArgs.empty()) {
-            auto iter = remainingArgs.cbegin();
-            std::string s = *iter;
-            ++iter;
-            for (; iter != remainingArgs.cend(); ++iter)
-                s += ", " + *iter;
-            throw VSException(name + ": no argument(s) named " + s);
-        }
+        std::string mismatch = checkValues(inArgs, args, "argument");
+        if (!mismatch.empty())
+            throw VSException(name + ": " + mismatch);
 
         bool enableGraphInspection = plugin->core->enableGraphInspection;
         if (enableGraphInspection) {
@@ -582,6 +590,13 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
 
         if (plugin->apiMajor == VAPOURSYNTH3_API_MAJOR && !v->isV3Compatible())
             plugin->core->logFatal(name + ": filter node returned not yet supported type");
+
+        // the declared return type can't be enforced retroactively without breaking existing plugins so only warn for now
+        if (returnType != "any" && !v->hasError()) {
+            std::string mismatch = checkValues(retArgs, *v, "return value");
+            if (!mismatch.empty())
+                plugin->core->logMessage(mtWarning, name + ": " + mismatch);
+        }
 
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(v, e.what());
