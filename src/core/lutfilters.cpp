@@ -42,6 +42,9 @@ using namespace vsh;
 #ifdef VS_TARGET_CPU_X86
 void vs_lut1_b_b_avx512vbmi(const uint8_t *src, uint8_t *dst, int w, const uint8_t *lut);
 #endif
+#ifdef VS_TARGET_CPU_ARM64
+void vs_lut1_b_b_neon(const uint8_t *src, uint8_t *dst, int w, const uint8_t *lut);
+#endif
 
 namespace {
 
@@ -51,6 +54,7 @@ typedef struct LutDataExtra {
     void *lut;
     bool process[3];
     bool use_vbmi;
+    bool use_neon;
     ~LutDataExtra() { free(lut); };
 } LutDataExtra;
 
@@ -88,6 +92,18 @@ static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *insta
                     if (d->use_vbmi) {
                         for (int hl = 0; hl < h; hl++) {
                             vs_lut1_b_b_avx512vbmi(srcp, dstp, w, lut);
+                            dstp += dst_stride / sizeof(U);
+                            srcp += src_stride / sizeof(T);
+                        }
+                        continue; // plane done; skip the scalar fallback
+                    }
+                }
+#endif
+#ifdef VS_TARGET_CPU_ARM64
+                if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>) {
+                    if (d->use_neon) {
+                        for (int hl = 0; hl < h; hl++) {
+                            vs_lut1_b_b_neon(srcp, dstp, w, lut);
                             dstp += dst_stride / sizeof(U);
                             srcp += src_stride / sizeof(T);
                         }
@@ -303,9 +319,13 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         vsapi->queryVideoFormat(&d->vi_out.format, d->vi->format.colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi->format.subSamplingW, d->vi->format.subSamplingH, core);
 
         d->use_vbmi = false;
+        d->use_neon = false;
 #ifdef VS_TARGET_CPU_X86
         if (getCPUFeatures()->avx512_vbmi && vs_get_cpulevel(core) >= VS_CPU_LEVEL_AVX512)
             d->use_vbmi = true;
+#elif defined(VS_TARGET_CPU_ARM64)
+        if (vs_get_cpulevel(core) >= VS_CPU_LEVEL_NEON)
+            d->use_neon = true;
 #endif
 
         if (d->vi->format.bytesPerSample == 1 && bitsout == 8)
@@ -350,7 +370,7 @@ void vs_lut2_gather_bw_w_avx512(const uint8_t *, const uint16_t *, uint16_t *, i
 void vs_lut2_gather_bw_b_avx512(const uint8_t *, const uint16_t *, uint8_t *, int, const uint8_t *, int, unsigned, unsigned);
 #endif
 
-/* Dispatch one row to the AVX-512 gather kernel for the current type combo.
+/* Dispatch one row to the gather kernel for the current type combo.
    Returns false (compile-time) for combos without a kernel so the caller falls
    back to the scalar path; only ever called when d->use_gather is set. */
 template<typename T, typename U, typename V>
