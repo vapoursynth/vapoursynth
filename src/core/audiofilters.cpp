@@ -1107,9 +1107,73 @@ static void VS_CC assumeSampleRateCreate(const VSMap *in, VSMap *out, void *user
 //////////////////////////////////////////
 // BlankAudio
 
+enum class WaveForm {
+    None,
+    Slope,
+    Sine,
+    Square,
+    Triangle
+};
+
+// The phase is carried as a fraction of a full turn in a 64 bit fixed point value, so advancing it
+// wraps on its own and the phase of any sample can be computed straight from that sample's position
+// by a single multiply. That keeps a frame produced after a seek identical to the same frame
+// produced by a linear pass and stops the phase drifting over long clips.
+static const double phaseToTurns = 1.0 / 18446744073709551616.0;   // 2^-64
+
+static uint64_t phaseStepFromFrequency(double frequency, int sampleRate) {
+    double cyclesPerSample = frequency / sampleRate;
+    // a frequency at or above the sample rate genuinely aliases, and taking the fractional part
+    // here is what the sampled signal actually is
+    double frac = cyclesPerSample - std::floor(cyclesPerSample);
+    double scaled = frac * 18446744073709551616.0;
+    if (scaled >= 18446744073709551616.0)
+        return std::numeric_limits<uint64_t>::max();
+    return static_cast<uint64_t>(scaled);
+}
+
+// Amplitude relative value of one turn of the given waveform, all of them start at zero going
+// positive apart from square which starts at its positive level.
+static double waveformValue(WaveForm waveform, double turns) {
+    switch (waveform) {
+        case WaveForm::Slope:
+            return 2.0 * turns - 1.0;
+        case WaveForm::Sine:
+            return std::sin(6.28318530717958647692 * turns);
+        case WaveForm::Square:
+            return (turns < 0.5) ? 1.0 : -1.0;
+        case WaveForm::Triangle:
+            if (turns < 0.25)
+                return 4.0 * turns;
+            else if (turns < 0.75)
+                return 2.0 - 4.0 * turns;
+            else
+                return 4.0 * turns - 4.0;
+        default:
+            return 0.0;
+    }
+}
+
+template<typename T>
+static void generateWaveform(uint8_t *dstp, int length, uint64_t phase, uint64_t phaseStep, WaveForm waveform, double amplitude, double scale, double minV, double maxV) {
+    T * VS_RESTRICT dst = reinterpret_cast<T *>(dstp);
+
+    for (int i = 0; i < length; i++) {
+        double value = amplitude * waveformValue(waveform, static_cast<double>(phase) * phaseToTurns);
+        if constexpr (std::is_integral_v<T>)
+            dst[i] = static_cast<T>(std::clamp(std::round(value * scale), minV, maxV));
+        else
+            dst[i] = static_cast<T>(value);
+        phase += phaseStep;
+    }
+}
+
 typedef struct {
     VSFrame *f;
     VSAudioInfo ai;
+    WaveForm waveform;
+    double amplitude;
+    uint64_t phaseStep;
     bool keep;
 } BlankAudioData;
 
@@ -1117,9 +1181,36 @@ static const VSFrame *VS_CC blankAudioGetframe(int n, int activationReason, void
     BlankAudioData *d = reinterpret_cast<BlankAudioData *>(instanceData);
 
     if (activationReason == arInitial) {
+        int64_t startSample = n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
+        int samples = static_cast<int>(std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - startSample));
+
+        // every frame of a waveform differs so there is nothing to hand out a second reference to
+        if (d->waveform != WaveForm::None) {
+            VSFrame *frame = vsapi->newAudioFrame(&d->ai.format, samples, nullptr, core);
+            uint8_t *first = vsapi->getWritePtr(frame, 0);
+            uint64_t phase = static_cast<uint64_t>(startSample) * d->phaseStep;
+
+            if (d->ai.format.sampleType == stFloat) {
+                generateWaveform<float>(first, samples, phase, d->phaseStep, d->waveform, d->amplitude, 1.0, 0.0, 0.0);
+            } else {
+                double scale = std::ldexp(1.0, d->ai.format.bitsPerSample - 1);
+                double maxV = scale - 1.0;
+                double minV = -scale;
+                if (d->ai.format.bytesPerSample == 2)
+                    generateWaveform<int16_t>(first, samples, phase, d->phaseStep, d->waveform, d->amplitude, scale, minV, maxV);
+                else
+                    generateWaveform<int32_t>(first, samples, phase, d->phaseStep, d->waveform, d->amplitude, scale, minV, maxV);
+            }
+
+            // the same waveform goes in every channel
+            for (int channel = 1; channel < d->ai.format.numChannels; channel++)
+                memcpy(vsapi->getWritePtr(frame, channel), first, samples * d->ai.format.bytesPerSample);
+
+            return frame;
+        }
+
         VSFrame *frame = nullptr;
         if (!d->f) {
-            int samples = static_cast<int>(std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES)));
             frame = vsapi->newAudioFrame(&d->ai.format, samples, nullptr, core);
             for (int channel = 0; channel < d->ai.format.numChannels; channel++)
                 memset(vsapi->getWritePtr(frame, channel), 0, samples * d->ai.format.bytesPerSample);
@@ -1224,6 +1315,41 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
     if (!vsapi->queryAudioFormat(&d->ai.format, d->ai.format.sampleType, d->ai.format.bitsPerSample, d->ai.format.channelLayout, core))
         RETERROR("BlankAudio: invalid format");
 
+    d->waveform = WaveForm::None;
+    const char *waveformName = vsapi->mapGetData(in, "waveform", 0, &err);
+    if (!err) {
+        std::string waveformStr(waveformName, vsapi->mapGetDataSize(in, "waveform", 0, nullptr));
+        if (waveformStr == "none")
+            d->waveform = WaveForm::None;
+        else if (waveformStr == "slope")
+            d->waveform = WaveForm::Slope;
+        else if (waveformStr == "sine")
+            d->waveform = WaveForm::Sine;
+        else if (waveformStr == "square")
+            d->waveform = WaveForm::Square;
+        else if (waveformStr == "triangle")
+            d->waveform = WaveForm::Triangle;
+        else
+            RETERROR("BlankAudio: invalid waveform, must be none, slope, sine, square or triangle");
+    }
+
+    d->amplitude = vsapi->mapGetFloat(in, "amplitude", 0, &err);
+    if (err)
+        d->amplitude = 1.0;
+    if (!std::isfinite(d->amplitude))
+        RETERROR("BlankAudio: amplitude must be a finite value");
+
+    double frequency = vsapi->mapGetFloat(in, "frequency", 0, &err);
+    if (err)
+        frequency = 440.0;
+    if (!std::isfinite(frequency))
+        RETERROR("BlankAudio: frequency must be a finite value");
+    d->phaseStep = phaseStepFromFrequency(frequency, d->ai.sampleRate);
+
+    // keeping one frame around only makes sense while every frame is the same
+    if (d->waveform != WaveForm::None)
+        d->keep = false;
+
     vsapi->createAudioFilter(out, "BlankAudio", &d->ai, blankAudioGetframe, blankAudioFree, d->keep ? fmUnordered : fmParallel, nullptr, 0, d.get(), core);
     d.release();
 }
@@ -1241,5 +1367,5 @@ void audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("ShuffleChannels", "clips:anode[];channels_in:int[];channels_out:int[];", "clip:anode;", shuffleChannelsCreate, 0, plugin);
     vspapi->registerFunction("SplitChannels", "clip:anode;", "clip:anode[];", splitChannelsCreate, 0, plugin);
     vspapi->registerFunction("AssumeSampleRate", "clip:anode;src:anode:opt;samplerate:int:opt;", "clip:anode;", assumeSampleRateCreate, 0, plugin);
-    vspapi->registerFunction("BlankAudio", "clip:anode:opt;channels:int[]:opt;bits:int:opt;sampletype:int:opt;samplerate:int:opt;length:int:opt;keep:int:opt;", "clip:anode;", blankAudioCreate, 0, plugin);
+    vspapi->registerFunction("BlankAudio", "clip:anode:opt;channels:int[]:opt;bits:int:opt;sampletype:int:opt;samplerate:int:opt;length:int:opt;keep:int:opt;waveform:data:opt;amplitude:float:opt;frequency:float:opt;", "clip:anode;", blankAudioCreate, 0, plugin);
 }
