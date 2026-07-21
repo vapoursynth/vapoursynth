@@ -33,6 +33,9 @@ enum {
     VS_CPU_LEVEL_SSE2 = 1,
     VS_CPU_LEVEL_AVX2 = 2,
     VS_CPU_LEVEL_AVX512 = 3,
+#elif defined(VS_TARGET_CPU_ARM64)
+    /* NEON is the AArch64 baseline. */
+    VS_CPU_LEVEL_NEON = 1,
 #endif
     VS_CPU_LEVEL_MAX = INT_MAX
 };

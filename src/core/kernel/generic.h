@@ -316,6 +316,80 @@ DECL(11x11_conv, byte, avx512vnni)
 
 #endif /* VS_TARGET_CPU_X86 */
 
+#ifdef VS_TARGET_CPU_ARM64
+/* NEON baseline kernels: the whole convolution family (square 3x3..11x11,
+   1D horizontal/vertical, separable) for byte/word/float/half. Integer paths
+   are bit-exact with the C reference; float/half use FMA. */
+DECL_3x3(conv, byte, neon)
+DECL_3x3(conv, word, neon)
+/* 3x3 float: no NEON kernel -- loses to its autovectorised C tier at a full
+   thread pool on M4, so it is dispatched to C. */
+DECL_3x3(conv, half, neon)
+
+DECL(5x5_conv, byte, neon)
+DECL(7x7_conv, byte, neon)
+DECL(9x9_conv, byte, neon)
+DECL(11x11_conv, byte, neon)
+DECL(5x5_conv, word, neon)
+DECL(7x7_conv, word, neon)
+DECL(9x9_conv, word, neon)
+DECL(11x11_conv, word, neon)
+DECL(5x5_conv, float, neon)
+DECL(7x7_conv, float, neon)
+DECL(9x9_conv, float, neon)
+DECL(11x11_conv, float, neon)
+DECL(5x5_conv, half, neon)
+DECL(7x7_conv, half, neon)
+DECL(9x9_conv, half, neon)
+DECL(11x11_conv, half, neon)
+
+DECL(1d_conv_h, byte, neon)
+DECL(1d_conv_h, word, neon)
+DECL(1d_conv_h, float, neon)
+DECL(1d_conv_h, half, neon)
+
+DECL(1d_conv_v, byte, neon)
+DECL(1d_conv_v, word, neon)
+DECL(1d_conv_v, float, neon)
+DECL(1d_conv_v, half, neon)
+
+DECL(2d_conv_sep, byte, neon)
+DECL(2d_conv_sep, word, neon)
+DECL(2d_conv_sep, float, neon)
+DECL(2d_conv_sep, half, neon)
+
+#ifdef VS_TARGET_ARM_I8MM
+/* usdot byte square conv; valid only when every coefficient fits int8. */
+DECL_3x3(conv, byte, neon_dot)
+DECL(5x5_conv, byte, neon_dot)
+DECL(7x7_conv, byte, neon_dot)
+DECL(9x9_conv, byte, neon_dot)
+DECL(11x11_conv, byte, neon_dot)
+DECL(1d_conv_h, byte, neon_dot)
+/* Separable byte: vmlal vertical pass, usdot horizontal pass. Same int8
+   coefficient requirement as the rest of this block. */
+DECL(2d_conv_sep, byte, neon_dot)
+/* One horizontal scanline of the above, exported from the i8mm TU so the
+   separable driver (built without i8mm) can call it per row. */
+void vs_generic_1d_conv_h_byte_scanline_neon_dot(const void *srcp, void *dstp, const struct vs_generic_params *params, unsigned width);
+#endif /* VS_TARGET_ARM_I8MM */
+
+#ifdef VS_TARGET_ARM_FHM
+/* fmlal widening f16 MAC; valid only when coefficients are f16-exact (conv_f16). */
+DECL_3x3(conv, half, neon_fhm)
+DECL(5x5_conv, half, neon_fhm)
+DECL(7x7_conv, half, neon_fhm)
+DECL(9x9_conv, half, neon_fhm)
+DECL(11x11_conv, half, neon_fhm)
+DECL(1d_conv_h, half, neon_fhm)
+DECL(1d_conv_v, half, neon_fhm)
+/* Separable: both halves are half-format, so this drives its own row loop and
+   runs the vertical and horizontal passes on fmlal. */
+DECL(2d_conv_sep, half, neon_fhm)
+#endif /* VS_TARGET_ARM_FHM */
+
+#endif /* VS_TARGET_CPU_ARM64 */
+
 #undef DECL_3x3
 #undef DECL
 

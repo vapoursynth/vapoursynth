@@ -151,6 +151,7 @@ struct GenericDataExtra {
     float bias;
     bool saturate;
     bool conv_int8;   // all coefficients fit int8 -> byte square conv may take the VNNI path
+    bool conv_f16;    // all coefficients survive a round trip through half -> fmlal (FHM) is lossless
 
     int cpulevel;
 
@@ -534,6 +535,152 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoForm
 }
 #endif
 
+#ifdef VS_TARGET_CPU_ARM64
+// The byte square usdot kernels are bit-exact fast paths, valid only when every
+// coefficient fits int8 and the CPU reports i8mm (the ARM analog of convByteVNNI);
+// they are ~2-3.5x the vmlal kernels. Wide-coefficient convolutions keep the
+// plain (still correct) NEON kernels.
+#ifdef VS_TARGET_ARM_I8MM
+static bool convByteDot(const GenericData *d) {
+    return d->conv_int8 && getCPUFeatures()->i8mm;
+}
+#else
+static bool convByteDot(const GenericData *) { return false; }
+#endif
+
+// Only the convolution family has hand-written ARM kernels; every other op
+// falls through to the (auto-vectorised) C tier.
+template <GenericOperations op>
+static decltype(&vs_generic_3x3_conv_byte_c) genericSelectNEON(const VSVideoFormat *fi, GenericData *d) {
+    if (op != GenericConvolution)
+        return nullptr;
+
+    if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
+#ifdef VS_TARGET_ARM_I8MM
+        // usdot folds 4 taps per op with no byte->word widening; bit-exact with
+        // the vmlal kernels, but only valid when every coefficient fits int8.
+        if (convByteDot(d)) {
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_byte_neon_dot;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_byte_neon_dot;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_byte_neon_dot;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_byte_neon_dot;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_byte_neon_dot;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_byte_neon_dot;
+            // Separable runs its vertical half on vmlal and its horizontal half
+            // on usdot; the vertical taps run across rows, so there is no
+            // scanline window for dot to fold there.
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_byte_neon_dot;
+        }
+#endif
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+            return vs_generic_3x3_conv_byte_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+            return vs_generic_5x5_conv_byte_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_byte_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+            return vs_generic_9x9_conv_byte_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+            return vs_generic_11x11_conv_byte_neon;
+        else if (d->convolution_type == ConvolutionHorizontal)
+            return vs_generic_1d_conv_h_byte_neon;
+        else if (d->convolution_type == ConvolutionVertical)
+            return vs_generic_1d_conv_v_byte_neon;
+        else if (d->convolution_type == ConvolutionSeparable)
+            return vs_generic_2d_conv_sep_byte_neon;
+    } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+            return vs_generic_3x3_conv_word_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+            return vs_generic_5x5_conv_word_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_word_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+            return vs_generic_9x9_conv_word_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+            return vs_generic_11x11_conv_word_neon;
+        else if (d->convolution_type == ConvolutionHorizontal)
+            return vs_generic_1d_conv_h_word_neon;
+        else if (d->convolution_type == ConvolutionVertical)
+            return vs_generic_1d_conv_v_word_neon;
+        else if (d->convolution_type == ConvolutionSeparable)
+            return vs_generic_2d_conv_sep_word_neon;
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
+        // 3x3 float has no NEON kernel: its C tier autovectorises to a tighter
+        // loop (fewer vector ops/px) that NEON cannot beat at a full thread pool
+        // on M4 (0.89x), and the single-thread win it did hold on Neoverse was
+        // not worth carrying a shape that loses on the primary target. It falls
+        // through to the C tier.
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+            return vs_generic_5x5_conv_float_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_float_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+            return vs_generic_9x9_conv_float_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+            return vs_generic_11x11_conv_float_neon;
+        else if (d->convolution_type == ConvolutionHorizontal)
+            return vs_generic_1d_conv_h_float_neon;
+        else if (d->convolution_type == ConvolutionVertical)
+            return vs_generic_1d_conv_v_float_neon;
+        else if (d->convolution_type == ConvolutionSeparable)
+            return vs_generic_2d_conv_sep_float_neon;
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 2) {
+#ifdef VS_TARGET_ARM_FHM
+        // fmlal folds the f16->f32 convert into the MAC; the baseline half
+        // kernels are conversion-bound (3x3 only TIES C). Both fmlal operands
+        // are f16, so the coefficients must narrow exactly (conv_f16). Covers
+        // every half convolution shape: squares, and the 1D
+        // horizontal/vertical/separable scanlines.
+        if (d->conv_f16 && getCPUFeatures()->fhm) {
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+                return vs_generic_5x5_conv_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+                return vs_generic_7x7_conv_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+                return vs_generic_9x9_conv_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+                return vs_generic_11x11_conv_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionHorizontal)
+                return vs_generic_1d_conv_h_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionVertical)
+                return vs_generic_1d_conv_v_half_neon_fhm;
+            else if (d->convolution_type == ConvolutionSeparable)
+                return vs_generic_2d_conv_sep_half_neon_fhm;
+        }
+#endif
+        if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+            return vs_generic_3x3_conv_half_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
+            return vs_generic_5x5_conv_half_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 49)
+            return vs_generic_7x7_conv_half_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 81)
+            return vs_generic_9x9_conv_half_neon;
+        else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 121)
+            return vs_generic_11x11_conv_half_neon;
+        else if (d->convolution_type == ConvolutionHorizontal)
+            return vs_generic_1d_conv_h_half_neon;
+        else if (d->convolution_type == ConvolutionVertical)
+            return vs_generic_1d_conv_v_half_neon;
+        else if (d->convolution_type == ConvolutionSeparable)
+            return vs_generic_2d_conv_sep_half_neon;
+    }
+    return nullptr;
+}
+
+
+#endif // VS_TARGET_CPU_ARM64
+
 template <GenericOperations op>
 static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat *fi, GenericData *d) {
     if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
@@ -828,6 +975,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             float matrix_sumf = 0;
             const double *matrix = vsapi->mapGetFloatArray(in, "matrix", nullptr);
             d->conv_int8 = true;
+            d->conv_f16 = true;
             for (int i = 0; i < d->matrix_elements; i++) {
                 double c = matrix[i];
                 if (!std::isfinite(c))
@@ -844,6 +992,13 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 } else {
                     d->matrixf[i] = static_cast<float>(c);
                 }
+
+                // Kernels that must take their coefficients in a narrower type may
+                // only do so when the value survives the trip exactly -- same rule
+                // conv_int8 applies to the VNNI path. Rounding a coefficient to buy
+                // speed is not on the table.
+                if (halfToFloat(floatToHalf(d->matrixf[i])) != d->matrixf[i])
+                    d->conv_f16 = false;
 
                 matrix_sumf += d->matrixf[i];
             }
@@ -879,6 +1034,9 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             d->func = genericSelectAVX2<op>(fi, d.get());
         if (!d->func && d->cpulevel >= VS_CPU_LEVEL_SSE2)
             d->func = genericSelectSSE2<op>(fi, d.get());
+#elif defined(VS_TARGET_CPU_ARM64)
+        if (!d->func && d->cpulevel >= VS_CPU_LEVEL_NEON)
+            d->func = genericSelectNEON<op>(fi, d.get());
 #endif
         if (!d->func)
             d->func = genericSelectC<op>(fi, d.get());
