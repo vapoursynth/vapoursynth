@@ -79,6 +79,7 @@ struct ConvertSpec {
     double mul = 1.0;
     double minV = 0.0;
     double maxV = 0.0;
+    double outputShift = 1.0;   // left aligns the quantized value in its container, see below
     int64_t positionBase = 0;   // absolute position of the first sample, seeds the dither hash
     int channel = 0;            // decorrelates the dither between channels
 };
@@ -95,6 +96,7 @@ static bool convertPlane(const uint8_t *srcp, uint8_t *dstp, int length, const C
     if constexpr (std::is_integral_v<D>) {
         double minV = spec.minV;
         double maxV = spec.maxV;
+        double outputShift = spec.outputShift;
         bool clipped = false;
         for (int i = 0; i < length; i++) {
             // rounding has to happen before clamping, the dither offset can push a sample that is
@@ -102,7 +104,9 @@ static bool convertPlane(const uint8_t *srcp, uint8_t *dstp, int length, const C
             double rounded = std::round(static_cast<double>(src[i]) * mul + ditherValue<DT>(spec.positionBase + i, spec.channel));
             double limited = std::clamp(rounded, minV, maxV);
             clipped |= (limited != rounded);
-            dst[i] = static_cast<D>(limited);
+            // quantization happens on the significant bit grid, the shift then moves the result up
+            // into the container so the padding ends up in the unused low bits
+            dst[i] = static_cast<D>(limited * outputShift);
         }
         return clipped;
     } else {
@@ -147,14 +151,27 @@ static ConvertFunc selectConvertFunc(const VSAudioFormat &src, const VSAudioForm
         return selectDstFunc<int32_t>(dst, dither);
 }
 
-// Integer samples are stored right aligned in the [-2^(bits-1), 2^(bits-1)-1] range and float
-// samples use the nominal [-1, 1) range, so every conversion is a single exact power of two scale.
-static double formatToNorm(const VSAudioFormat &f) {
-    return (f.sampleType == stFloat) ? 1.0 : std::ldexp(1.0, -(f.bitsPerSample - 1));
+// Integer samples fill the whole width of their container with the significant bits left aligned,
+// so 24 bit samples sit in the top 24 bits of a 32 bit container and the unused low bits are
+// padding. That is the layout the wave writers and every source filter use.
+static int containerBits(const VSAudioFormat &f) {
+    return f.bytesPerSample * 8;
 }
 
+// Float samples use the nominal [-1, 1) range, so reading an integer sample normalizes against the
+// range of the container it fills rather than against its significant bits.
+static double formatToNorm(const VSAudioFormat &f) {
+    return (f.sampleType == stFloat) ? 1.0 : std::ldexp(1.0, -(containerBits(f) - 1));
+}
+
+// Writing goes the other way but stops at the significant bits, since quantizing has to land on the
+// grid the format actually resolves. ConvertSpec::outputShift moves the result into the container.
 static double normToFormat(const VSAudioFormat &f) {
     return (f.sampleType == stFloat) ? 1.0 : std::ldexp(1.0, f.bitsPerSample - 1);
+}
+
+static double formatOutputShift(const VSAudioFormat &f) {
+    return (f.sampleType == stFloat) ? 1.0 : std::ldexp(1.0, containerBits(f) - f.bitsPerSample);
 }
 
 // Only quantization to a coarser representation benefits from dither, widening an integer format
@@ -517,6 +534,7 @@ struct AudioResampleDataExtra {
     double srcScale = 1.0;
     double minV = 0.0;
     double maxV = 0.0;
+    double outputShift = 1.0;
     int srcNumFrames = 0;
     int srcBytesPerSample = 0;
     int numInChannels = 0;
@@ -534,6 +552,7 @@ static void planOutputStage(AudioResampleData *d, const VSAudioFormat &working, 
     const VSAudioFormat &dst = d->ai.format;
     d->convert = selectConvertFunc(working, dst, resolveDither(requested, working, dst));
     d->mul = formatToNorm(working) * normToFormat(dst);
+    d->outputShift = formatOutputShift(dst);
 
     if (dst.sampleType == stInteger) {
         d->maxV = static_cast<double>((static_cast<int64_t>(1) << (dst.bitsPerSample - 1)) - 1);
@@ -578,7 +597,7 @@ static const VSFrame *VS_CC audioResampleGetFrame(int n, int activationReason, v
         bool clipped = false;
 
         for (int p = 0; p < d->numOutChannels; p++)
-            clipped |= d->convert(vsapi->getReadPtr(src, p), vsapi->getWritePtr(dst, p), length, {.mul = d->mul, .minV = d->minV, .maxV = d->maxV, .positionBase = startSample, .channel = p});
+            clipped |= d->convert(vsapi->getReadPtr(src, p), vsapi->getWritePtr(dst, p), length, {.mul = d->mul, .minV = d->minV, .maxV = d->maxV, .outputShift = d->outputShift, .positionBase =startSample, .channel = p});
 
         vsapi->freeFrame(src);
 
@@ -707,7 +726,7 @@ static const VSFrame *VS_CC audioResampleGetFrameFloat(int n, int activationReas
                 quantSrc = outBuf.data();
             }
 
-            clipped |= d->convert(reinterpret_cast<const uint8_t *>(quantSrc), vsapi->getWritePtr(dst, oc), outCount, {.mul = d->mul, .minV = d->minV, .maxV = d->maxV, .positionBase = firstOutSample, .channel = oc});
+            clipped |= d->convert(reinterpret_cast<const uint8_t *>(quantSrc), vsapi->getWritePtr(dst, oc), outCount, {.mul = d->mul, .minV = d->minV, .maxV = d->maxV, .outputShift = d->outputShift, .positionBase =firstOutSample, .channel = oc});
         }
 
         for (const VSFrame *f : srcFrames)

@@ -8,17 +8,21 @@ AudioResample
    Every argument defaults to the corresponding property of the input clip, so
    only the parts that are explicitly specified are changed.
 
-   Integer samples are stored right aligned in the range
-   -2\ :sup:`bits-1`\  to 2\ :sup:`bits-1`\ -1 and float samples use the nominal
-   -1.0 to 1.0 range, so 16 bit integer -32768 corresponds to float -1.0.
-   Converting to a wider integer format or to float is exact and reversible.
+   Integer samples fill the whole width of the container they are stored in,
+   with the significant bits left aligned and any spare low bits left as zero
+   padding. A 24 bit sample therefore occupies the top 24 bits of a 32 bit
+   value, which is the same layout the wave writers and the source filters use.
+   Float samples use the nominal -1.0 to 1.0 range, so a full scale negative
+   sample corresponds to float -1.0 at every bit depth. Converting to a wider
+   integer format or to float is exact and reversible.
 
    Note that only pure format conversions are exact to the last bit. Sample rate
    conversion and channel mixing work on 32 bit floating point values
    internally, so anything that changes the rate or the layout carries about 24
    significant bits through the conversion. That resolves more than any real
-   signal chain but means 32 and 24 bit integer input doesn't survive those
-   operations bit exactly even when the output format could represent it.
+   signal chain, and 16 and 24 bit material passes through it exactly, but 32
+   bit integer input doesn't survive those operations bit exactly even when the
+   output format could represent it.
 
    *clip*:
 

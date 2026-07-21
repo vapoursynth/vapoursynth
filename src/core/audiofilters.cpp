@@ -432,6 +432,38 @@ static void VS_CC audioReverseCreate(const VSMap *in, VSMap *out, void *userData
 }
 
 //////////////////////////////////////////
+// Integer sample quantization
+//
+// Integer audio samples fill the whole width of their container with the significant bits left
+// aligned, so a 24 bit sample occupies the top 24 bits of a 32 bit word and the spare low bits are
+// zero padding. Quantizing therefore has to happen on the significant bit grid and the result is
+// shifted back up into the container, and clamping has to use the significant range rather than
+// the container range. For formats where the two coincide, 16 and 32 bit, the shift is one.
+
+struct IntSampleRange {
+    double step = 1.0;   // container units per significant step
+    double minV = 0.0;
+    double maxV = 0.0;
+};
+
+static IntSampleRange intSampleRange(const VSAudioFormat &format) {
+    IntSampleRange range;
+    range.step = std::ldexp(1.0, format.bytesPerSample * 8 - format.bitsPerSample);
+    range.maxV = std::ldexp(1.0, format.bitsPerSample - 1) - 1.0;
+    range.minV = -std::ldexp(1.0, format.bitsPerSample - 1);
+    return range;
+}
+
+// Takes and returns a value in container units. Everything stays in double so that a wild gain
+// can't overflow the conversion the way lround() of an unclamped value could.
+static double quantizeIntSample(double value, const IntSampleRange &range, bool &clipped) {
+    double rounded = std::round(value / range.step);
+    double limited = std::clamp(rounded, range.minV, range.maxV);
+    clipped = (limited != rounded);
+    return limited * range.step;
+}
+
+//////////////////////////////////////////
 // AudioGain
 
 struct AudioGainDataExtra {
@@ -454,15 +486,17 @@ static const VSFrame *VS_CC audioGainGetFrame16(int n, int activationReason, voi
         VSFrame *dst = vsapi->newAudioFrame(&d->ai->format, length, src, core);
         bool error = false;
 
+        IntSampleRange range = intSampleRange(d->ai->format);
+
         for (int p = 0; p < d->ai->format.numChannels; p++) {
-            float gain = d->gain[(d->gain.size() > 1) ? p : 0];
+            double gain = d->gain[(d->gain.size() > 1) ? p : 0];
             const int16_t * VS_RESTRICT srcPtr = reinterpret_cast<const int16_t *>(vsapi->getReadPtr(src, p));
             int16_t * VS_RESTRICT dstPtr = reinterpret_cast<int16_t *>(vsapi->getWritePtr(dst, p));
-            
+
             for (int i = 0; i < length; i++) {
-                long vclamped = std::lround(std::clamp<float>(srcPtr[i] * gain, std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max()));
-                long vrounded = std::lround(srcPtr[i] * gain);
-                if (vclamped != vrounded) {
+                bool sampleClipped;
+                double value = quantizeIntSample(static_cast<double>(srcPtr[i]) * gain, range, sampleClipped);
+                if (sampleClipped) {
                     if (d->overflowError) {
                         vsapi->setFilterError(("AudioGain: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + length - 1)).c_str(), frameCtx);
                         error = true;
@@ -471,8 +505,8 @@ static const VSFrame *VS_CC audioGainGetFrame16(int n, int activationReason, voi
                     }
                 }
 
-                dstPtr[i] = static_cast<int16_t>(vclamped);
-            }           
+                dstPtr[i] = static_cast<int16_t>(value);
+            }
         }
 
         vsapi->freeFrame(src);
@@ -498,8 +532,7 @@ static const VSFrame *VS_CC audioGainGetFrame32(int n, int activationReason, voi
         VSFrame *dst = vsapi->newAudioFrame(&d->ai->format, length, src, core);
         bool error = false;
 
-        double maxV = ((static_cast<int64_t>(1) << (d->ai->format.bitsPerSample - 1)) - 1);
-        double minV = -(static_cast<int64_t>(1) << (d->ai->format.bitsPerSample - 1));
+        IntSampleRange range = intSampleRange(d->ai->format);
 
         for (int p = 0; p < d->ai->format.numChannels; p++) {
             double gain = d->gain[(d->gain.size() > 1) ? p : 0];
@@ -507,9 +540,9 @@ static const VSFrame *VS_CC audioGainGetFrame32(int n, int activationReason, voi
             int32_t * VS_RESTRICT dstPtr = reinterpret_cast<int32_t *>(vsapi->getWritePtr(dst, p));
 
             for (int i = 0; i < length; i++) {
-                long vclamped = std::lround(std::clamp(srcPtr[i] *gain, minV, maxV));
-                long vrounded = std::lround(srcPtr[i] * gain);
-                if (vclamped != vrounded) {
+                bool sampleClipped;
+                double value = quantizeIntSample(static_cast<double>(srcPtr[i]) * gain, range, sampleClipped);
+                if (sampleClipped) {
                     if (d->overflowError) {
                         vsapi->setFilterError(("AudioGain: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + length - 1)).c_str(), frameCtx);
                         error = true;
@@ -518,7 +551,7 @@ static const VSFrame *VS_CC audioGainGetFrame32(int n, int activationReason, voi
                     }
                 }
 
-                dstPtr[i] = static_cast<int32_t>(vclamped);
+                dstPtr[i] = static_cast<int32_t>(value);
             }
         }
 
@@ -629,15 +662,17 @@ static const VSFrame *VS_CC audioMixGetFrame16(int n, int activationReason, void
         for (int idx = 0; idx < numOutChannels; idx++)
             dstPtrs[idx] = reinterpret_cast<int16_t *>(vsapi->getWritePtr(dst, d->outputIdx[idx]));
 
+        IntSampleRange range = intSampleRange(d->ai.format);
+
         for (int i = 0; i < srcLength; i++) {
             for (size_t dstIdx = 0; dstIdx < static_cast<size_t>(numOutChannels); dstIdx++) {
                 double tmp = 0;
                 for (size_t srcIdx = 0; srcIdx < srcPtrs.size(); srcIdx++)
                     tmp += srcPtrs[srcIdx][i] * d->sourceNodes[srcIdx].weights[dstIdx];
 
-                long vclamped = std::lround(std::clamp<float>(tmp, std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max()));
-                long vrounded = std::lround(tmp);
-                if (vclamped != vrounded) {
+                bool sampleClipped;
+                double value = quantizeIntSample(tmp, range, sampleClipped);
+                if (sampleClipped) {
                     if (d->overflowError) {
                         vsapi->setFilterError(("AudioMix: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + srcLength - 1)).c_str(), frameCtx);
                         error = true;
@@ -646,7 +681,7 @@ static const VSFrame *VS_CC audioMixGetFrame16(int n, int activationReason, void
                     }
                 }
 
-                dstPtrs[dstIdx][i] = static_cast<int16_t>(vclamped);
+                dstPtrs[dstIdx][i] = static_cast<int16_t>(value);
             }
         }
 
@@ -676,8 +711,7 @@ static const VSFrame *VS_CC audioMixGetFrame32(int n, int activationReason, void
         srcFrames.reserve(d->sourceNodes.size());
         bool error = false;
 
-        double maxV = ((static_cast<int64_t>(1) << (d->ai.format.bitsPerSample - 1)) - 1);
-        double minV = -(static_cast<int64_t>(1) << (d->ai.format.bitsPerSample - 1));
+        IntSampleRange range = intSampleRange(d->ai.format);
 
         for (size_t idx = 0; idx < d->sourceNodes.size(); idx++) {
             const VSFrame *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);
@@ -699,9 +733,9 @@ static const VSFrame *VS_CC audioMixGetFrame32(int n, int activationReason, void
                 for (size_t srcIdx = 0; srcIdx < srcPtrs.size(); srcIdx++)
                     tmp += static_cast<double>(srcPtrs[srcIdx][i]) * d->sourceNodes[srcIdx].weights[dstIdx];
 
-                long vclamped = std::lround(std::clamp(tmp, minV, maxV));
-                long vrounded = std::lround(tmp);
-                if (vclamped != vrounded) {
+                bool sampleClipped;
+                double value = quantizeIntSample(tmp, range, sampleClipped);
+                if (sampleClipped) {
                     if (d->overflowError) {
                         vsapi->setFilterError(("AudioMix: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + srcLength - 1)).c_str(), frameCtx);
                         error = true;
@@ -710,7 +744,7 @@ static const VSFrame *VS_CC audioMixGetFrame32(int n, int activationReason, void
                     }
                 }
 
-                dstPtrs[dstIdx][i] = static_cast<int32_t>(vclamped);
+                dstPtrs[dstIdx][i] = static_cast<int32_t>(value);
             }
         }
 
@@ -1155,13 +1189,15 @@ static double waveformValue(WaveForm waveform, double turns) {
 }
 
 template<typename T>
-static void generateWaveform(uint8_t *dstp, int length, uint64_t phase, uint64_t phaseStep, WaveForm waveform, double amplitude, double scale, double minV, double maxV) {
+static void generateWaveform(uint8_t *dstp, int length, uint64_t phase, uint64_t phaseStep, WaveForm waveform, double amplitude, double scale, double minV, double maxV, double outputShift) {
     T * VS_RESTRICT dst = reinterpret_cast<T *>(dstp);
 
     for (int i = 0; i < length; i++) {
         double value = amplitude * waveformValue(waveform, static_cast<double>(phase) * phaseToTurns);
         if constexpr (std::is_integral_v<T>)
-            dst[i] = static_cast<T>(std::clamp(std::round(value * scale), minV, maxV));
+            // quantized on the significant bit grid, then shifted up because integer samples are
+            // stored left aligned in their container
+            dst[i] = static_cast<T>(std::clamp(std::round(value * scale), minV, maxV) * outputShift);
         else
             dst[i] = static_cast<T>(value);
         phase += phaseStep;
@@ -1191,15 +1227,16 @@ static const VSFrame *VS_CC blankAudioGetframe(int n, int activationReason, void
             uint64_t phase = static_cast<uint64_t>(startSample) * d->phaseStep;
 
             if (d->ai.format.sampleType == stFloat) {
-                generateWaveform<float>(first, samples, phase, d->phaseStep, d->waveform, d->amplitude, 1.0, 0.0, 0.0);
+                generateWaveform<float>(first, samples, phase, d->phaseStep, d->waveform, d->amplitude, 1.0, 0.0, 0.0, 1.0);
             } else {
                 double scale = std::ldexp(1.0, d->ai.format.bitsPerSample - 1);
                 double maxV = scale - 1.0;
                 double minV = -scale;
+                double outputShift = std::ldexp(1.0, d->ai.format.bytesPerSample * 8 - d->ai.format.bitsPerSample);
                 if (d->ai.format.bytesPerSample == 2)
-                    generateWaveform<int16_t>(first, samples, phase, d->phaseStep, d->waveform, d->amplitude, scale, minV, maxV);
+                    generateWaveform<int16_t>(first, samples, phase, d->phaseStep, d->waveform, d->amplitude, scale, minV, maxV, outputShift);
                 else
-                    generateWaveform<int32_t>(first, samples, phase, d->phaseStep, d->waveform, d->amplitude, scale, minV, maxV);
+                    generateWaveform<int32_t>(first, samples, phase, d->phaseStep, d->waveform, d->amplitude, scale, minV, maxV, outputShift);
             }
 
             // the same waveform goes in every channel
