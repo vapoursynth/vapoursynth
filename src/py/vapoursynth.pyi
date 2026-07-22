@@ -120,14 +120,14 @@ __all__ = [
         'RGB',
         'RGB24', 'RGB27', 'RGB30', 'RGB36', 'RGB42', 'RGB48', 'RGBH', 'RGBS',
         'YUV',
-        'YUV410P8',
-        'YUV411P8',
+        'YUV410P8', 'YUV410P16',
+        'YUV411P8', 'YUV411P16',
         'YUV420P8', 'YUV420P9', 'YUV420P10', 'YUV420P12', 'YUV420P14', 'YUV420P16',
         'YUV422P8', 'YUV422P9', 'YUV422P10', 'YUV422P12', 'YUV422P14', 'YUV422P16',
-        'YUV440P8',
+        'YUV440P8', 'YUV440P16',
         'YUV444P8', 'YUV444P9', 'YUV444P10', 'YUV444P12', 'YUV444P14', 'YUV444P16',
-        'YUV420PH', 'YUV422PH', 'YUV444PH',
-        'YUV420PS', 'YUV422PS', 'YUV444PS',
+        'YUV410PH', 'YUV411PH', 'YUV440PH', 'YUV420PH', 'YUV422PH', 'YUV444PH',
+        'YUV410PS', 'YUV411PS', 'YUV440PS', 'YUV420PS', 'YUV422PS', 'YUV444PS',
         'NONE',
 
     'AudioChannels',
@@ -416,9 +416,22 @@ class PresetVideoFormat(IntEnum):
     YUV422P14 = cast(PresetVideoFormat, ...)
     YUV444P14 = cast(PresetVideoFormat, ...)
 
+    YUV410P16 = cast(PresetVideoFormat, ...)
+    YUV411P16 = cast(PresetVideoFormat, ...)
+    YUV440P16 = cast(PresetVideoFormat, ...)
+
     YUV420P16 = cast(PresetVideoFormat, ...)
     YUV422P16 = cast(PresetVideoFormat, ...)
     YUV444P16 = cast(PresetVideoFormat, ...)
+
+    YUV410PH = cast(PresetVideoFormat, ...)
+    YUV410PS = cast(PresetVideoFormat, ...)
+
+    YUV411PH = cast(PresetVideoFormat, ...)
+    YUV411PS = cast(PresetVideoFormat, ...)
+
+    YUV440PH = cast(PresetVideoFormat, ...)
+    YUV440PS = cast(PresetVideoFormat, ...)
 
     YUV420PH = cast(PresetVideoFormat, ...)
     YUV420PS = cast(PresetVideoFormat, ...)

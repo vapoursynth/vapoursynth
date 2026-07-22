@@ -101,9 +101,20 @@ cdef extern from "include/VapourSynth4.h" nogil:
         pfYUV422P14
         pfYUV444P14
 
+        pfYUV410P16
+        pfYUV411P16
+        pfYUV440P16
+
         pfYUV420P16
         pfYUV422P16
         pfYUV444P16
+
+        pfYUV410PH
+        pfYUV410PS
+        pfYUV411PH
+        pfYUV411PS
+        pfYUV440PH
+        pfYUV440PS
 
         pfYUV420PH
         pfYUV420PS

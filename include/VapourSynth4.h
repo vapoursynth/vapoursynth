@@ -135,9 +135,20 @@ typedef enum VSPresetVideoFormat {
     pfYUV422P14 = VS_MAKE_VIDEO_ID(cfYUV, stInteger, 14, 1, 0),
     pfYUV444P14 = VS_MAKE_VIDEO_ID(cfYUV, stInteger, 14, 0, 0),
 
+    pfYUV410P16 = VS_MAKE_VIDEO_ID(cfYUV, stInteger, 16, 2, 2),
+    pfYUV411P16 = VS_MAKE_VIDEO_ID(cfYUV, stInteger, 16, 2, 0),
+    pfYUV440P16 = VS_MAKE_VIDEO_ID(cfYUV, stInteger, 16, 0, 1),
+
     pfYUV420P16 = VS_MAKE_VIDEO_ID(cfYUV, stInteger, 16, 1, 1),
     pfYUV422P16 = VS_MAKE_VIDEO_ID(cfYUV, stInteger, 16, 1, 0),
     pfYUV444P16 = VS_MAKE_VIDEO_ID(cfYUV, stInteger, 16, 0, 0),
+
+    pfYUV410PH = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 16, 2, 2),
+    pfYUV410PS = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 32, 2, 2),
+    pfYUV411PH = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 16, 2, 0),
+    pfYUV411PS = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 32, 2, 0),
+    pfYUV440PH = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 16, 0, 1),
+    pfYUV440PS = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 32, 0, 1),
 
     pfYUV420PH = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 16, 1, 1),
     pfYUV420PS = VS_MAKE_VIDEO_ID(cfYUV, stFloat, 32, 1, 1),
