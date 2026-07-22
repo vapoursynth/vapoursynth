@@ -37,6 +37,8 @@ jobs:
       fail-fast: false
 
     runs-on: ${{ matrix.runs-on }}
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v7
@@ -74,28 +76,28 @@ jobs:
         vspipe --version
         python -m unittest discover -s test -p "*test.py"
 
-  installer:
-    # Builds the Windows installer and the two portable packages by running the
-    # normal local build script. Always builds and uploads them as artifacts;
-    # the packages are attached to the GitHub Release only on release tags.
-    runs-on: windows-2025-vs2026
-    permissions:
-      contents: write
-
-    steps:
-    - uses: actions/checkout@v7
-
-    - name: Install build requirements
+    # The Windows wheel just built is the same one the installer and portable
+    # packages ship, so package them here instead of recompiling the wheel in a
+    # separate job. Everything below only runs on the Windows leg.
+    - name: Install documentation tools
+      if: ${{ runner.os == 'Windows' }}
       run: |
         py -3.14 -m ensurepip
         py -3.14 -m pip install --upgrade -r python-requirements.txt
 
-    - name: Build installer and portable packages
-      run: .\compile_all.bat
+    - name: Build docs and package installer and portable
+      if: ${{ runner.os == 'Windows' }}
+      shell: cmd
       env:
         SKIP_WAIT: '1'
+      run: |
+        call docs_build.bat
+        cd installer
+        call make_portable.bat
+        call make_installers.bat
 
-    - name: Check produced artifacts
+    - name: Check installer artifacts
+      if: ${{ runner.os == 'Windows' }}
       run: |
         $dir = 'installer/Compiled'
         $exe = @(Get-ChildItem $dir -Filter *.exe -ErrorAction SilentlyContinue)
@@ -104,13 +106,15 @@ jobs:
         if ($zip.Count -lt 2) { throw "expected the two portable zips, found $($zip.Count)" }
         Get-ChildItem $dir | Select-Object Name, Length
 
-    - uses: actions/upload-artifact@v7
+    - name: Upload installer and portable
+      if: ${{ runner.os == 'Windows' }}
+      uses: actions/upload-artifact@v7
       with:
-        name: vapoursynth-windows-installer
+        name: windows-installer
         path: installer/Compiled/*
 
-    - name: Publish to release
-      if: ${{ startsWith(github.ref, 'refs/tags/R') }}
+    - name: Publish installer to release
+      if: ${{ runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/R') }}
       uses: softprops/action-gh-release@v2
       with:
         files: installer/Compiled/*
@@ -126,6 +130,7 @@ jobs:
     - uses: actions/download-artifact@v8
       with:
         path: dist
+        pattern: vapoursynth-*
         merge-multiple: true
 
     - uses: pypa/gh-action-pypi-publish@release/v1
