@@ -76,8 +76,8 @@ jobs:
 
   installer:
     # Builds the Windows installer and the two portable packages by running the
-    # normal local build script. Runs on release tags and on manual dispatch.
-    if: ${{ startsWith(github.ref, 'refs/tags/R') || github.event_name == 'workflow_dispatch' }}
+    # normal local build script. Always builds and uploads them as artifacts;
+    # the packages are attached to the GitHub Release only on release tags.
     runs-on: windows-2025-vs2026
     permissions:
       contents: write
