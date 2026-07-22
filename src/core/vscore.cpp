@@ -1348,7 +1348,7 @@ const vs3::VSVideoFormat *VSCore::queryVideoFormat3(vs3::VSColorFamily colorFami
         if (sampleType == stFloat)
             strcpy(suffix, (bitsPerSample == 32) ? "S" : "H");
         else
-            sprintf(suffix, "%d", (colorFamily == vs3::cmRGB ? 3:1) * bitsPerSample);
+            snprintf(suffix, sizeof(suffix), "%d", (colorFamily == vs3::cmRGB ? 3:1) * bitsPerSample);
 
         const char *yuvName = nullptr;
 
@@ -1725,7 +1725,7 @@ bool VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexc
     if (format.sampleType == stFloat)
         strcpy(suffix, (format.bitsPerSample == 32) ? "S" : "H");
     else
-        sprintf(suffix, "%d", (format.colorFamily == cfRGB ? 3:1) * format.bitsPerSample);
+        snprintf(suffix, sizeof(suffix), "%d", (format.colorFamily == cfRGB ? 3:1) * format.bitsPerSample);
 
     const char *yuvName = nullptr;
 

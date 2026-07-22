@@ -1154,7 +1154,7 @@ private:
 
     static std::filesystem::path getLibraryPath();
 
-    ~VSCore();
+    virtual ~VSCore();
 
     void registerFormats();
 
