@@ -3,6 +3,6 @@ del vapoursynth.*.pyd
 del /q dist\*.whl
 py -3.14 -m build --sdist --wheel -Csetup-args=--debug
 pushd dist
-for %%i in (*.whl) do wheel tags --remove --python-tag cp312 %%i
+for %%i in (*.whl) do py -3.14 -m wheel tags --remove --python-tag cp312 %%i
 popd
 if not defined CI pause
