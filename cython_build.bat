@@ -5,4 +5,4 @@ py -3.14 -m build --sdist --wheel -Csetup-args=--debug
 pushd dist
 for %%i in (*.whl) do wheel tags --remove --python-tag cp312 %%i
 popd
-pause
+if not defined CI pause

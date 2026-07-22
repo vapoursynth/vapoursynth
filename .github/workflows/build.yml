@@ -74,6 +74,47 @@ jobs:
         vspipe --version
         python -m unittest discover -s test -p "*test.py"
 
+  installer:
+    # Builds the Windows installer and the two portable packages by running the
+    # normal local build script. Runs on release tags and on manual dispatch.
+    if: ${{ startsWith(github.ref, 'refs/tags/R') || github.event_name == 'workflow_dispatch' }}
+    runs-on: windows-2025-vs2026
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install build requirements
+      run: |
+        py -3.14 -m ensurepip
+        py -3.14 -m pip install --upgrade -r python-requirements.txt
+
+    - name: Build installer and portable packages
+      run: .\compile_all.bat
+      env:
+        SKIP_WAIT: '1'
+
+    - name: Check produced artifacts
+      run: |
+        $dir = 'installer/Compiled'
+        $exe = @(Get-ChildItem $dir -Filter *.exe -ErrorAction SilentlyContinue)
+        $zip = @(Get-ChildItem $dir -Filter *.zip -ErrorAction SilentlyContinue)
+        if ($exe.Count -lt 1) { throw 'installer .exe was not produced' }
+        if ($zip.Count -lt 2) { throw "expected the two portable zips, found $($zip.Count)" }
+        Get-ChildItem $dir | Select-Object Name, Length
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: vapoursynth-windows-installer
+        path: installer/Compiled/*
+
+    - name: Publish to release
+      if: ${{ startsWith(github.ref, 'refs/tags/R') }}
+      uses: softprops/action-gh-release@v2
+      with:
+        files: installer/Compiled/*
+
   publish:
     permissions:
       id-token: write

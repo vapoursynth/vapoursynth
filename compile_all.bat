@@ -16,4 +16,4 @@ goto endc
 
 :endc
 
-pause
+if not defined CI pause
