@@ -31,6 +31,12 @@ extensions = ["sphinx.ext.imgmath"]
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
+# The API structs are documented in a flat style where several of them share
+# member names (bitsPerSample, versionString, and so on). Sphinx' C domain sees
+# those as duplicate declarations since they aren't scoped to a c:struct, so
+# silence that specific, intentional warning.
+suppress_warnings = ["duplicate_declaration.c"]
+
 # The suffix of source filenames.
 source_suffix = ".rst"
 
