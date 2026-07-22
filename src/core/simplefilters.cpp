@@ -1639,11 +1639,18 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
 }
 
 //////////////////////////////////////////
-// Transpose
+// Transpose/Turn90/Turn270
+
+enum TransposeMode {
+    tmTranspose = 0,
+    tmTurn90 = 1,
+    tmTurn270 = 2
+};
 
 typedef struct {
     VSVideoInfo vi;
     int cpulevel;
+    int mode;
 } TransposeDataExtra;
 
 typedef SingleNodeData<TransposeDataExtra> TransposeData;
@@ -1690,6 +1697,14 @@ static const VSFrame *VS_CC transposeGetFrame(int n, int activationReason, void 
             dstp = vsapi->getWritePtr(dst, plane);
             dst_stride = vsapi->getStride(dst, plane);
 
+            if (d->mode == tmTurn90) {
+                srcp += src_stride * (height - 1);
+                src_stride = -src_stride;
+            } else if (d->mode == tmTurn270) {
+                dstp += dst_stride * (width - 1);
+                dst_stride = -dst_stride;
+            }
+
             if (func)
                 func(srcp, src_stride, dstp, dst_stride, width, height);
         }
@@ -1706,6 +1721,9 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     std::unique_ptr<TransposeData> d(new TransposeData(vsapi));
     int temp;
 
+    d->mode = static_cast<int>(reinterpret_cast<intptr_t>(userData));
+    const char *name = (d->mode == tmTurn90) ? "Turn90" : ((d->mode == tmTurn270) ? "Turn270" : "Transpose");
+
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(d->node);
     temp = d->vi.width;
@@ -1713,13 +1731,13 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     d->vi.height = temp;
 
     if (!isConstantVideoFormat(&d->vi))
-        RETERROR("Transpose: clip must have constant format and dimensions");
+        RETERROR((std::string(name) + ": clip must have constant format and dimensions").c_str());
 
     vsapi->queryVideoFormat(&d->vi.format, d->vi.format.colorFamily, d->vi.format.sampleType, d->vi.format.bitsPerSample, d->vi.format.subSamplingH, d->vi.format.subSamplingW, core);
     d->cpulevel = vs_get_cpulevel(core);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "Transpose", &d->vi, transposeGetFrame, filterFree<TransposeData>, fmParallel, deps, 1, d.get(), core);
+    vsapi->createVideoFilter(out, name, &d->vi, transposeGetFrame, filterFree<TransposeData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
 
@@ -2537,6 +2555,8 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("FlipVertical", "clip:vnode;", "clip:vnode;", flipVerticalCreate, 0, plugin);
     vspapi->registerFunction("FlipHorizontal", "clip:vnode;", "clip:vnode;", flipHorizontalCreate, 0, plugin);
     vspapi->registerFunction("Turn180", "clip:vnode;", "clip:vnode;", flipHorizontalCreate, (void *)1, plugin);
+    vspapi->registerFunction("Turn90", "clip:vnode;", "clip:vnode;", transposeCreate, (void *)tmTurn90, plugin);
+    vspapi->registerFunction("Turn270", "clip:vnode;", "clip:vnode;", transposeCreate, (void *)tmTurn270, plugin);
     vspapi->registerFunction("StackVertical", "clips:vnode[];", "clip:vnode;", stackCreate, (void *)1, plugin);
     vspapi->registerFunction("StackHorizontal", "clips:vnode[];", "clip:vnode;", stackCreate, 0, plugin);
     vspapi->registerFunction("BlankClip", "clip:vnode:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;varsize:int:opt;varformat:int:opt;", "clip:vnode;", blankClipCreate, 0, plugin);

@@ -5,9 +5,9 @@ Transpose
    :module: std
 
    Flips the contents of the frames in the same way as a matrix transpose would
-   do. Combine it with FlipVertical or FlipHorizontal to synthesize a left or
-   right rotation. Calling Transpose twice in a row is the same as doing nothing
-   (but slower).
+   do. Use Turn90 or Turn270 to rotate a clip instead, they do the same amount of
+   work as a transpose. Calling Transpose twice in a row is the same as doing
+   nothing (but slower).
 
    Here is a picture to illustrate what Transpose does::
 
