@@ -46,7 +46,14 @@ namespace {
 // Round to nearest, ties to even (matches SSE cvtps_epi32).
 static inline int32_t round_nearest_i32(float x)
 {
+#if defined(__aarch64__)
+    // lrintf returns long, so the vectorizer widens through f64 (frintx + fcvtl +
+    // fcvtzs.2d + repack per half). roundevenf keeps 32-bit lanes (frintn + fcvtzs)
+    // and gives the same ties-to-even result independent of the rounding mode.
+    return static_cast<int32_t>(__builtin_roundevenf(x));
+#else
     return static_cast<int32_t>(std::lrintf(x));
+#endif
 }
 
 template <class T, unsigned N>
