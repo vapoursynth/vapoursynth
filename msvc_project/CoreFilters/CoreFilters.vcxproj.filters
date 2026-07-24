@@ -149,7 +149,7 @@
     <ClInclude Include="..\..\src\core\kernel\x86\convolution_impl.h">
       <Filter>Header Files\kernel</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\core\kernel\x86\generic_impl.h">
+    <ClInclude Include="..\..\src\core\kernel\generic_impl.h">
       <Filter>Header Files\kernel</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core\kernel\merge.h">

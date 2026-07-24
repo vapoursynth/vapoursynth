@@ -42,8 +42,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include "../generic.h"
-#include "../../float16_helper.h"
+#include "generic.h"
+#include "../float16_helper.h"
 
 #ifdef _MSC_VER
 #define FORCE_INLINE inline __forceinline
@@ -213,18 +213,17 @@ struct PrewittSobelWord : PrewittSobelTraits, WordTraits<B> {
         gy_hi = B::sub32(gy_hi, Sobel ? B::slli32(HI(a10)) : HI(a10));
         gy_hi = B::sub32(gy_hi, HI(a20));
 
-        auto gxsq_lo = B::cvt_f(gx_lo);
-        auto gxsq_hi = B::cvt_f(gx_hi);
-        auto gysq_lo = B::cvt_f(gy_lo);
-        auto gysq_hi = B::cvt_f(gy_hi);
-        gxsq_lo = B::fmul(gxsq_lo, gxsq_lo);
-        gxsq_hi = B::fmul(gxsq_hi, gxsq_hi);
-        gysq_lo = B::fmul(gysq_lo, gysq_lo);
-        gysq_hi = B::fmul(gysq_hi, gysq_hi);
+        auto gxf_lo = B::cvt_f(gx_lo);
+        auto gxf_hi = B::cvt_f(gx_hi);
+        auto gyf_lo = B::cvt_f(gy_lo);
+        auto gyf_hi = B::cvt_f(gy_hi);
 
+        // gx*gx + gy*gy goes through the backend's fsumsq so each tier can
+        // reproduce what the compiler does to the C reference's expression on
+        // that architecture (arm contracts it to an FMA; x86 baseline cannot).
         auto sc = B::set1_f(scale);
-        auto gxy_lo = B::fmul(B::fsqrt(B::fadd(gxsq_lo, gysq_lo)), sc);
-        auto gxy_hi = B::fmul(B::fsqrt(B::fadd(gxsq_hi, gysq_hi)), sc);
+        auto gxy_lo = B::fmul(B::fsqrt(B::fsumsq(gxf_lo, gyf_lo)), sc);
+        auto gxy_hi = B::fmul(B::fsqrt(B::fsumsq(gxf_hi, gyf_hi)), sc);
 
         auto tmpi_lo = B::wsign32(B::cvt_i(gxy_lo));
         auto tmpi_hi = B::wsign32(B::cvt_i(gxy_hi));
@@ -259,9 +258,7 @@ struct PrewittSobelFloat : PrewittSobelTraits, FloatTraits<B> {
         gy = B::fsub(gy, Sobel ? B::fmul(a10, two) : a10);
         gy = B::fsub(gy, a20);
 
-        gx = B::fmul(gx, gx);
-        gy = B::fmul(gy, gy);
-        auto tmp = B::fsqrt(B::fadd(gx, gy));
+        auto tmp = B::fsqrt(B::fsumsq(gx, gy));
         return B::fmul(tmp, B::set1_f(scale));
     }
 };
