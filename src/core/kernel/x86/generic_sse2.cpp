@@ -86,6 +86,25 @@ struct Backend_SSE2 {
     static fvec fmin(fvec a, fvec b) { return _mm_min_ps(a, b); }
     static fvec fmax(fvec a, fvec b) { return _mm_max_ps(a, b); }
     static fvec fsqrt(fvec a) { return _mm_sqrt_ps(a); }
+    // a*a + b*b, contraction-proof. gcc implements the arithmetic intrinsics
+    // as plain vector ops and its default -ffp-contract=fast fuses mul+add
+    // ACROSS statements whenever the target arch has FMA (-march=native, or
+    // distro defaults like x86-64-v3), silently changing word Prewitt/Sobel
+    // by +-1 vs the never-fused baseline C tier. The empty asm makes the
+    // products opaque so the add can never contract; MSVC never contracts
+    // intrinsics and needs no barrier.
+    static fvec fsumsq(fvec a, fvec b)
+    {
+        fvec asq = _mm_mul_ps(a, a);
+        fvec bsq = _mm_mul_ps(b, b);
+#if !defined(_MSC_VER) || defined(__clang__)
+        // clang-cl defines _MSC_VER but contracts like clang and supports
+        // GNU asm, so it takes the barrier; only true MSVC cl (which never
+        // contracts intrinsics) goes without.
+        __asm__("" : "+x"(asq), "+x"(bsq));
+#endif
+        return _mm_add_ps(asq, bsq);
+    }
     static fvec fand(fvec a, fvec b) { return _mm_and_ps(a, b); }
     static fvec fmadd(fvec a, fvec b, fvec c) { return _mm_add_ps(_mm_mul_ps(a, b), c); }
     static fvec satmask(uint8_t saturate) { return _mm_castsi128_ps(_mm_set1_epi32(saturate ? 0xFFFFFFFF : 0x7FFFFFFF)); }
@@ -137,6 +156,6 @@ struct Backend_SSE2 {
 } // namespace
 
 #define BACKEND Backend_SSE2
-#include "generic_impl.h"
+#include "../generic_impl.h"
 
 VS_GENERIC_ENTRYPOINTS(sse2)

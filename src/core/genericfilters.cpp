@@ -548,10 +548,81 @@ static bool convByteDot(const GenericData *d) {
 static bool convByteDot(const GenericData *) { return false; }
 #endif
 
-// Only the convolution family has hand-written ARM kernels; every other op
-// falls through to the (auto-vectorised) C tier.
+// The convolution family has hand-written ARM kernels; the rest of the 3x3
+// neighborhood family comes from the generic_impl.h Backend instantiation in
+// generic_neon.cpp (fixed-stencil min/max specialisation happens inside those
+// entry points, keyed on params.stencil, exactly like x86).
 template <GenericOperations op>
 static decltype(&vs_generic_3x3_conv_byte_c) genericSelectNEON(const VSVideoFormat *fi, GenericData *d) {
+    if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_byte_neon;
+        case GenericSobel: return vs_generic_3x3_sobel_byte_neon;
+        case GenericMinimum: return vs_generic_3x3_min_byte_neon;
+        case GenericMaximum: return vs_generic_3x3_max_byte_neon;
+        case GenericMedian: return vs_generic_3x3_median_byte_neon;
+        // Deflate/Inflate stay on the plain NEON kernels: a usdot ones-matrix
+        // variant won +3-17% at a full pool on M4 but regressed inflate 6-8%
+        // on Neoverse-V3/gcc, so it does not replace a kernel that wins on
+        // both.
+        case GenericDeflate: return vs_generic_3x3_deflate_byte_neon;
+        case GenericInflate: return vs_generic_3x3_inflate_byte_neon;
+        default: break;
+        }
+    } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
+        // Deflate/Inflate word: the C tier autovectorises the u32 accumulation
+        // tighter than the ported unpack+add32 shape (0.8x under streaming on
+        // M4), so like 3x3 conv float they fall through to C.
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_word_neon;
+        case GenericSobel: return vs_generic_3x3_sobel_word_neon;
+        case GenericMinimum: return vs_generic_3x3_min_word_neon;
+        case GenericMaximum: return vs_generic_3x3_max_word_neon;
+        case GenericMedian: return vs_generic_3x3_median_word_neon;
+        default: break;
+        }
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
+        // Only min/max/median earn their float dispatch; the C tier
+        // autovectorises deflate/inflate/prewitt/sobel float to parity or
+        // better at a full thread pool.
+        switch (op) {
+        case GenericMinimum: return vs_generic_3x3_min_float_neon;
+        case GenericMaximum: return vs_generic_3x3_max_float_neon;
+        case GenericMedian: return vs_generic_3x3_median_float_neon;
+        default: break;
+        }
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 2) {
+        // Sobel half loses to C (the two extra scaling multiplies per
+        // gradient tip it under); Prewitt half wins and stays.
+        // Min/Max/Median take the native-f16 kernels (8 lanes, comparisons
+        // are exact in any precision) when the CPU has FEAT_FP16; the fhm
+        // flag is a strict superset of that requirement.
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_half_neon;
+        case GenericMinimum:
+#ifdef VS_TARGET_ARM_FHM
+            if (getCPUFeatures()->fhm)
+                return vs_generic_3x3_min_half_neon_fp16;
+#endif
+            return vs_generic_3x3_min_half_neon;
+        case GenericMaximum:
+#ifdef VS_TARGET_ARM_FHM
+            if (getCPUFeatures()->fhm)
+                return vs_generic_3x3_max_half_neon_fp16;
+#endif
+            return vs_generic_3x3_max_half_neon;
+        case GenericMedian:
+#ifdef VS_TARGET_ARM_FHM
+            if (getCPUFeatures()->fhm)
+                return vs_generic_3x3_median_half_neon_fp16;
+#endif
+            return vs_generic_3x3_median_half_neon;
+        case GenericDeflate: return vs_generic_3x3_deflate_half_neon;
+        case GenericInflate: return vs_generic_3x3_inflate_half_neon;
+        default: break;
+        }
+    }
+
     if (op != GenericConvolution)
         return nullptr;
 
