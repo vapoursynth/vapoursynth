@@ -264,11 +264,18 @@ static std::string buildResampleBank(ResampleBank &bank, int inRate, int outRate
     // The kernel has to stop the lower of the two nyquist frequencies. Decimation lowers the
     // cutoff, which stretches the kernel over proportionally more input samples.
     double ratio = std::min(1.0, static_cast<double>(bank.p) / static_cast<double>(bank.q));
-    bank.halfTaps = static_cast<int>(std::ceil(resampleTapsPerSide / ratio));
+
+    // The tap count has to be range checked while it is still a double. Decimating by a large
+    // enough factor, such as resampling a megahertz rate clip down to a few hertz, makes it exceed
+    // what an int can hold and narrowing it first is undefined behavior that lands on a garbage
+    // value small enough to slip past the check below.
+    double halfTapsNeeded = std::ceil(resampleTapsPerSide / ratio);
+    if (!(halfTapsNeeded * 2.0 <= resampleMaxTaps))
+        return "the sample rate ratio requires an impractically long filter, convert in several steps instead";
+
+    bank.halfTaps = static_cast<int>(halfTapsNeeded);
     bank.tapCount = 2 * bank.halfTaps;
 
-    if (bank.tapCount > resampleMaxTaps)
-        return "the sample rate ratio requires an impractically long filter, convert in several steps instead";
     if (static_cast<uint64_t>(bank.p) * static_cast<uint64_t>(bank.tapCount) * sizeof(float) > resampleMaxBankBytes)
         return "the sample rate ratio reduces to a fraction with too many phases to build a filter for";
 

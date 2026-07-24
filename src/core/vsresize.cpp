@@ -27,7 +27,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
+#include <string_view>
 
 #define ZIMGXX_NAMESPACE vszimgxx
 #include <zimg++.hpp>
@@ -44,7 +44,22 @@ namespace {
 
 using namespace std::string_literals;
 
-const std::unordered_map<std::string, zimg_cpu_type_e> g_cpu_type_table{
+template<class T>
+struct EnumEntry {
+    std::string_view name;
+    T value;
+};
+
+template<class T, size_t N>
+const T *findEnum(const EnumEntry<T> (&table)[N], std::string_view name) {
+    for (const EnumEntry<T> &entry : table) {
+        if (entry.name == name)
+            return &entry.value;
+    }
+    return nullptr;
+}
+
+constexpr EnumEntry<zimg_cpu_type_e> g_cpu_type_table[] = {
     { "none",      ZIMG_CPU_NONE },
     { "auto",      ZIMG_CPU_AUTO },
     { "auto64",    ZIMG_CPU_AUTO_64B },
@@ -66,12 +81,12 @@ const std::unordered_map<std::string, zimg_cpu_type_e> g_cpu_type_table{
 #endif
 };
 
-const std::unordered_map<std::string, zimg_pixel_range_e> g_range_table{
+constexpr EnumEntry<zimg_pixel_range_e> g_range_table[] = {
     { "limited", ZIMG_RANGE_LIMITED },
     { "full",    ZIMG_RANGE_FULL },
 };
 
-const std::unordered_map<std::string, zimg_chroma_location_e> g_chromaloc_table{
+constexpr EnumEntry<zimg_chroma_location_e> g_chromaloc_table[] = {
     { "left",        ZIMG_CHROMA_LEFT },
     { "center",      ZIMG_CHROMA_CENTER },
     { "top_left",    ZIMG_CHROMA_TOP_LEFT },
@@ -80,7 +95,7 @@ const std::unordered_map<std::string, zimg_chroma_location_e> g_chromaloc_table{
     { "bottom",      ZIMG_CHROMA_BOTTOM },
 };
 
-const std::unordered_map<std::string, zimg_matrix_coefficients_e> g_matrix_table{
+constexpr EnumEntry<zimg_matrix_coefficients_e> g_matrix_table[] = {
     { "rgb",         ZIMG_MATRIX_RGB },
     { "709",         ZIMG_MATRIX_BT709 },
     { "unspec",      ZIMG_MATRIX_UNSPECIFIED },
@@ -96,7 +111,7 @@ const std::unordered_map<std::string, zimg_matrix_coefficients_e> g_matrix_table
     { "ictcp",       ZIMG_MATRIX_ICTCP },
 };
 
-const std::unordered_map<std::string, zimg_transfer_characteristics_e> g_transfer_table{
+constexpr EnumEntry<zimg_transfer_characteristics_e> g_transfer_table[] = {
     { "709",     ZIMG_TRANSFER_BT709 },
     { "unspec",  ZIMG_TRANSFER_UNSPECIFIED },
     { "601",     ZIMG_TRANSFER_BT601 },
@@ -115,7 +130,7 @@ const std::unordered_map<std::string, zimg_transfer_characteristics_e> g_transfe
     { "xvycc",   ZIMG_TRANSFER_IEC_61966_2_4 },
 };
 
-const std::unordered_map<std::string, zimg_color_primaries_e> g_primaries_table{
+constexpr EnumEntry<zimg_color_primaries_e> g_primaries_table[] = {
     { "709",       ZIMG_PRIMARIES_BT709 },
     { "unspec",    ZIMG_PRIMARIES_UNSPECIFIED },
     { "170m",      ZIMG_PRIMARIES_ST170_M },
@@ -131,14 +146,14 @@ const std::unordered_map<std::string, zimg_color_primaries_e> g_primaries_table{
     { "ebu3213-e", ZIMG_PRIMARIES_EBU3213_E },
 };
 
-const std::unordered_map<std::string, zimg_dither_type_e> g_dither_type_table{
+constexpr EnumEntry<zimg_dither_type_e> g_dither_type_table[] = {
     { "none",            ZIMG_DITHER_NONE },
     { "ordered",         ZIMG_DITHER_ORDERED },
     { "random",          ZIMG_DITHER_RANDOM },
     { "error_diffusion", ZIMG_DITHER_ERROR_DIFFUSION },
 };
 
-const std::unordered_map<std::string, zimg_resample_filter_e> g_resample_filter_table{
+constexpr EnumEntry<zimg_resample_filter_e> g_resample_filter_table[] = {
     { "point",    ZIMG_RESIZE_POINT },
     { "bilinear", ZIMG_RESIZE_BILINEAR },
     { "bicubic",  ZIMG_RESIZE_BICUBIC },
@@ -490,13 +505,12 @@ class vszimg {
 
     FieldOp m_field_op = FieldOp::NONE;
 
-    template <class T, class Map>
-    static void lookup_enum_str(const VSMap *map, const char *key, const Map &enum_table, std::optional<T> *out, const VSAPI *vsapi) {
+    template <class T, class Table>
+    static void lookup_enum_str(const VSMap *map, const char *key, const Table &enum_table, std::optional<T> *out, const VSAPI *vsapi) {
         if (vsapi->mapNumElements(map, key) > 0) {
             const char *enum_str = propGetScalar<const char *>(map, key, vsapi);
-            auto it = enum_table.find(enum_str);
-            if (it != enum_table.end())
-                *out = it->second;
+            if (const auto *value = findEnum(enum_table, enum_str))
+                *out = *value;
             else
                 throw std::runtime_error{ "bad value: "s + key };
         }
@@ -875,13 +889,13 @@ void VS_CC bobCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, 
     int _;
 
     if (const char *filterName = vsapi->mapGetData(in, "filter", 0, &_)) {
-        auto it = g_resample_filter_table.find(filterName);
+        const zimg_resample_filter_e *filter = findEnum(g_resample_filter_table, filterName);
 
-        if (it == g_resample_filter_table.end()) {
+        if (!filter) {
             vsapi->mapSetError(out, "Bob: invalid filter specified");
             return;
         }
-        u.filter = it->second;
+        u.filter = *filter;
     }
 
     tmp_map = vsapi->createMap();

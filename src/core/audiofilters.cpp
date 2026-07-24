@@ -463,6 +463,11 @@ static double quantizeIntSample(double value, const IntSampleRange &range, bool 
     return limited * range.step;
 }
 
+static std::string clippingMessage(const char *filterName, int n, int length) {
+    int64_t start = static_cast<int64_t>(n) * VS_AUDIO_FRAME_SAMPLES;
+    return std::string(filterName) + ": clipping detected in the sample interval " + std::to_string(start) + " to " + std::to_string(start + length - 1);
+}
+
 //////////////////////////////////////////
 // AudioGain
 
@@ -488,7 +493,7 @@ static const VSFrame *VS_CC audioGainGetFrame16(int n, int activationReason, voi
 
         IntSampleRange range = intSampleRange(d->ai->format);
 
-        for (int p = 0; p < d->ai->format.numChannels; p++) {
+        for (int p = 0; p < d->ai->format.numChannels && !error; p++) {
             double gain = d->gain[(d->gain.size() > 1) ? p : 0];
             const int16_t * VS_RESTRICT srcPtr = reinterpret_cast<const int16_t *>(vsapi->getReadPtr(src, p));
             int16_t * VS_RESTRICT dstPtr = reinterpret_cast<int16_t *>(vsapi->getWritePtr(dst, p));
@@ -498,10 +503,10 @@ static const VSFrame *VS_CC audioGainGetFrame16(int n, int activationReason, voi
                 double value = quantizeIntSample(static_cast<double>(srcPtr[i]) * gain, range, sampleClipped);
                 if (sampleClipped) {
                     if (d->overflowError) {
-                        vsapi->setFilterError(("AudioGain: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + length - 1)).c_str(), frameCtx);
                         error = true;
+                        break;
                     } else if (!d->overflowWarned.exchange(true)) {
-                        vsapi->logMessage(mtWarning, ("AudioGain: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES  + length - 1) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
+                        vsapi->logMessage(mtWarning, (clippingMessage("AudioGain", n, length) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
                     }
                 }
 
@@ -511,10 +516,12 @@ static const VSFrame *VS_CC audioGainGetFrame16(int n, int activationReason, voi
 
         vsapi->freeFrame(src);
 
-        if (error)
+        if (error) {
+            vsapi->setFilterError(clippingMessage("AudioGain", n, length).c_str(), frameCtx);
             vsapi->freeFrame(dst);
-        else
+        } else {
             return dst;
+        }
     }
 
     return nullptr;
@@ -534,7 +541,7 @@ static const VSFrame *VS_CC audioGainGetFrame32(int n, int activationReason, voi
 
         IntSampleRange range = intSampleRange(d->ai->format);
 
-        for (int p = 0; p < d->ai->format.numChannels; p++) {
+        for (int p = 0; p < d->ai->format.numChannels && !error; p++) {
             double gain = d->gain[(d->gain.size() > 1) ? p : 0];
             const int32_t * VS_RESTRICT srcPtr = reinterpret_cast<const int32_t *>(vsapi->getReadPtr(src, p));
             int32_t * VS_RESTRICT dstPtr = reinterpret_cast<int32_t *>(vsapi->getWritePtr(dst, p));
@@ -544,10 +551,10 @@ static const VSFrame *VS_CC audioGainGetFrame32(int n, int activationReason, voi
                 double value = quantizeIntSample(static_cast<double>(srcPtr[i]) * gain, range, sampleClipped);
                 if (sampleClipped) {
                     if (d->overflowError) {
-                        vsapi->setFilterError(("AudioGain: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + length - 1)).c_str(), frameCtx);
                         error = true;
+                        break;
                     } else if (!d->overflowWarned.exchange(true)) {
-                        vsapi->logMessage(mtWarning, ("AudioGain: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + length - 1) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
+                        vsapi->logMessage(mtWarning, (clippingMessage("AudioGain", n, length) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
                     }
                 }
 
@@ -557,10 +564,12 @@ static const VSFrame *VS_CC audioGainGetFrame32(int n, int activationReason, voi
 
         vsapi->freeFrame(src);
 
-        if (error)
+        if (error) {
+            vsapi->setFilterError(clippingMessage("AudioGain", n, length).c_str(), frameCtx);
             vsapi->freeFrame(dst);
-        else
+        } else {
             return dst;
+        }
     }
 
     return nullptr;
@@ -664,7 +673,7 @@ static const VSFrame *VS_CC audioMixGetFrame16(int n, int activationReason, void
 
         IntSampleRange range = intSampleRange(d->ai.format);
 
-        for (int i = 0; i < srcLength; i++) {
+        for (int i = 0; i < srcLength && !error; i++) {
             for (size_t dstIdx = 0; dstIdx < static_cast<size_t>(numOutChannels); dstIdx++) {
                 double tmp = 0;
                 for (size_t srcIdx = 0; srcIdx < srcPtrs.size(); srcIdx++)
@@ -674,10 +683,10 @@ static const VSFrame *VS_CC audioMixGetFrame16(int n, int activationReason, void
                 double value = quantizeIntSample(tmp, range, sampleClipped);
                 if (sampleClipped) {
                     if (d->overflowError) {
-                        vsapi->setFilterError(("AudioMix: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + srcLength - 1)).c_str(), frameCtx);
                         error = true;
+                        break;
                     } else if (!d->overflowWarned.exchange(true)) {
-                        vsapi->logMessage(mtWarning, ("AudioMix: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + srcLength - 1) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
+                        vsapi->logMessage(mtWarning, (clippingMessage("AudioMix", n, srcLength) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
                     }
                 }
 
@@ -688,10 +697,12 @@ static const VSFrame *VS_CC audioMixGetFrame16(int n, int activationReason, void
         for (auto iter : srcFrames)
             vsapi->freeFrame(iter);
 
-        if (error)
+        if (error) {
+            vsapi->setFilterError(clippingMessage("AudioMix", n, srcLength).c_str(), frameCtx);
             vsapi->freeFrame(dst);
-        else
+        } else {
             return dst;
+        }
     }
 
     return nullptr;
@@ -727,7 +738,7 @@ static const VSFrame *VS_CC audioMixGetFrame32(int n, int activationReason, void
         for (int idx = 0; idx < numOutChannels; idx++)
             dstPtrs[idx] = reinterpret_cast<int32_t *>(vsapi->getWritePtr(dst, d->outputIdx[idx]));
 
-        for (int i = 0; i < srcLength; i++) {
+        for (int i = 0; i < srcLength && !error; i++) {
             for (size_t dstIdx = 0; dstIdx < static_cast<size_t>(numOutChannels); dstIdx++) {
                 double tmp = 0;
                 for (size_t srcIdx = 0; srcIdx < srcPtrs.size(); srcIdx++)
@@ -737,10 +748,10 @@ static const VSFrame *VS_CC audioMixGetFrame32(int n, int activationReason, void
                 double value = quantizeIntSample(tmp, range, sampleClipped);
                 if (sampleClipped) {
                     if (d->overflowError) {
-                        vsapi->setFilterError(("AudioMix: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + srcLength - 1)).c_str(), frameCtx);
                         error = true;
+                        break;
                     } else if (!d->overflowWarned.exchange(true)) {
-                        vsapi->logMessage(mtWarning, ("AudioMix: clipping detected in the sample interval " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES) + " to " + std::to_string(n * VS_AUDIO_FRAME_SAMPLES + srcLength - 1) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
+                        vsapi->logMessage(mtWarning, (clippingMessage("AudioMix", n, srcLength) + ", only the first encountered clipped segment has a warning printed").c_str(), core);
                     }
                 }
 
@@ -751,10 +762,12 @@ static const VSFrame *VS_CC audioMixGetFrame32(int n, int activationReason, void
         for (auto iter : srcFrames)
             vsapi->freeFrame(iter);
 
-        if (error)
+        if (error) {
+            vsapi->setFilterError(clippingMessage("AudioMix", n, srcLength).c_str(), frameCtx);
             vsapi->freeFrame(dst);
-        else
+        } else {
             return dst;
+        }
     }
 
     return nullptr;
