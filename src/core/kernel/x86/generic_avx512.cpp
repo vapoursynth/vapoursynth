@@ -103,6 +103,23 @@ struct Backend_AVX512 {
     static fvec fmin(fvec a, fvec b) { return _mm512_min_ps(a, b); }
     static fvec fmax(fvec a, fvec b) { return _mm512_max_ps(a, b); }
     static fvec fsqrt(fvec a) { return _mm512_sqrt_ps(a); }
+    // a*a + b*b; kept as mul+add (NOT fmadd) to stay bit-identical with the
+    // baseline-compiled (never-fused) C reference. The asm barrier stops
+    // gcc's -ffp-contract=fast from fusing it -- this TU always has FMA
+    // available; "+v" because __m512 needs the EVEX register class. See the
+    // SSE2 backend's note.
+    static fvec fsumsq(fvec a, fvec b)
+    {
+        fvec asq = _mm512_mul_ps(a, a);
+        fvec bsq = _mm512_mul_ps(b, b);
+#if !defined(_MSC_VER) || defined(__clang__)
+        // clang-cl defines _MSC_VER but contracts like clang and supports
+        // GNU asm, so it takes the barrier; only true MSVC cl (which never
+        // contracts intrinsics) goes without.
+        __asm__("" : "+v"(asq), "+v"(bsq));
+#endif
+        return _mm512_add_ps(asq, bsq);
+    }
     static fvec fand(fvec a, fvec b) { return _mm512_and_ps(a, b); }
     static fvec fmadd(fvec a, fvec b, fvec c) { return _mm512_fmadd_ps(a, b, c); }
     static fvec satmask(uint8_t saturate) { return _mm512_castsi512_ps(_mm512_set1_epi32(saturate ? 0xFFFFFFFF : 0x7FFFFFFF)); }
@@ -167,7 +184,7 @@ struct Backend_AVX512 {
 } // namespace
 
 #define BACKEND Backend_AVX512
-#include "generic_impl.h"
+#include "../generic_impl.h"
 
 VS_GENERIC_ENTRYPOINTS(avx512)
 VS_GENERIC_ENTRYPOINTS_HALF(avx512)

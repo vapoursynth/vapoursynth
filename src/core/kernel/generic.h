@@ -317,6 +317,41 @@ DECL(11x11_conv, byte, avx512vnni)
 #endif /* VS_TARGET_CPU_X86 */
 
 #ifdef VS_TARGET_CPU_ARM64
+/* NEON 3x3 neighborhood family (generic_neon.cpp, a Backend instantiation of
+   generic_impl.h). Integer paths are bit-exact with the C reference; the half
+   tier converts f16<->f32 at the loads/stores (baseline AArch64, no feature
+   gate) and keeps arithmetic in float32 like the x86 F16C tiers.
+   Formats with no declaration here (deflate/inflate word+float, prewitt
+   float, sobel float+half) lose or tie against their autovectorised C tier
+   under streaming sources on M4 and are not built, like 3x3 conv float. */
+DECL_3x3(prewitt, byte, neon)
+DECL_3x3(prewitt, word, neon)
+DECL_3x3(prewitt, half, neon)
+
+DECL_3x3(sobel, byte, neon)
+DECL_3x3(sobel, word, neon)
+
+DECL_3x3(min, byte, neon)
+DECL_3x3(min, word, neon)
+DECL_3x3(min, float, neon)
+DECL_3x3(min, half, neon)
+
+DECL_3x3(max, byte, neon)
+DECL_3x3(max, word, neon)
+DECL_3x3(max, float, neon)
+DECL_3x3(max, half, neon)
+
+DECL_3x3(median, byte, neon)
+DECL_3x3(median, word, neon)
+DECL_3x3(median, float, neon)
+DECL_3x3(median, half, neon)
+
+DECL_3x3(deflate, byte, neon)
+DECL_3x3(deflate, half, neon)
+
+DECL_3x3(inflate, byte, neon)
+DECL_3x3(inflate, half, neon)
+
 /* NEON baseline kernels: the whole convolution family (square 3x3..11x11,
    1D horizontal/vertical, separable) for byte/word/float/half. Integer paths
    are bit-exact with the C reference; float/half use FMA. */
@@ -386,6 +421,12 @@ DECL(1d_conv_v, half, neon_fhm)
 /* Separable: both halves are half-format, so this drives its own row loop and
    runs the vertical and horizontal passes on fmlal. */
 DECL(2d_conv_sep, half, neon_fhm)
+/* Native-f16 half Min/Max/Median (8 lanes, no f32 conversion; comparisons are
+   exact in any precision). Needs only FEAT_FP16; lives in the FHM TU and is
+   gated on the fhm flag, a strict superset. */
+DECL_3x3(min, half, neon_fp16)
+DECL_3x3(max, half, neon_fp16)
+DECL_3x3(median, half, neon_fp16)
 #endif /* VS_TARGET_ARM_FHM */
 
 #endif /* VS_TARGET_CPU_ARM64 */

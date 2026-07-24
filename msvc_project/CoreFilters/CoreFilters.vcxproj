@@ -164,7 +164,7 @@
     <ClInclude Include="..\..\src\core\kernel\planestats.h" />
     <ClInclude Include="..\..\src\core\kernel\transpose.h" />
     <ClInclude Include="..\..\src\core\kernel\x86\convolution_impl.h" />
-    <ClInclude Include="..\..\src\core\kernel\x86\generic_impl.h" />
+    <ClInclude Include="..\..\src\core\kernel\generic_impl.h" />
     <ClInclude Include="..\..\src\core\kernel\x86\square_impl.h" />
     <ClInclude Include="..\..\src\core\kernel\x86\square_vnni_impl.h" />
   </ItemGroup>

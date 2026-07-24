@@ -440,6 +440,7 @@ else
         # NEON is the AArch64 baseline; its kernels ride with the plugin proper.
         arm_filter_sources += files(
             'src/core/kernel/arm/convolution_neon.cpp',
+            'src/core/kernel/arm/generic_neon.cpp',
             'src/core/kernel/arm/lut_neon.cpp',
             'src/core/kernel/arm/square_neon.cpp',
         )
@@ -468,7 +469,8 @@ else
             # LTO build. Only f16 h25 gives up ~3% because they're
             # self-contained with header inlines as helpers.
             arm_vlibs += static_library('vsfilters_fhm',
-                files('src/core/kernel/arm/convolution_fhm_neon.cpp'),
+                files('src/core/kernel/arm/convolution_fhm_neon.cpp',
+                      'src/core/kernel/arm/generic_fp16_neon.cpp'),
                 cpp_args: arm_fhm_args,
                 gnu_symbol_visibility: 'hidden',
                 include_directories: incdir,
