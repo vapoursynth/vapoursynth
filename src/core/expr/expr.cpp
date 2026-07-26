@@ -71,26 +71,62 @@ struct ExpressionTreeNode {
             right->parent = this;
     }
 
+    // Both traversals keep their own stack instead of recursing. An expression like
+    // "x 1 + 2 + 3 + ..." builds a tree as deep as it is long, and recursing once per level
+    // overflowed the real stack and killed the process at a few thousand nested operations.
+    //
+    // The stage counter reproduces the order the recursive versions read things in: a child
+    // pointer is only fetched once the previous subtree has been fully visited, which matters
+    // because the visitors rewrite the tree as they go.
+    struct TraversalFrame {
+        ExpressionTreeNode *node;
+        int stage;
+    };
+
     template <class T>
     void preorder(T visitor)
     {
-        if (visitor(*this))
-            return;
+        std::vector<TraversalFrame> stack{ { this, 0 } };
 
-        if (left)
-            left->preorder(visitor);
-        if (right)
-            right->preorder(visitor);
+        while (!stack.empty()) {
+            ExpressionTreeNode *node = stack.back().node;
+            int stage = stack.back().stage++;
+
+            if (stage == 0) {
+                if (visitor(*node))
+                    stack.pop_back();   // visitor pruned this subtree
+            } else if (stage == 1) {
+                if (node->left)
+                    stack.push_back({ node->left, 0 });
+            } else if (stage == 2) {
+                if (node->right)
+                    stack.push_back({ node->right, 0 });
+            } else {
+                stack.pop_back();
+            }
+        }
     }
 
     template <class T>
     void postorder(T visitor)
     {
-        if (left)
-            left->postorder(visitor);
-        if (right)
-            right->postorder(visitor);
-        visitor(*this);
+        std::vector<TraversalFrame> stack{ { this, 0 } };
+
+        while (!stack.empty()) {
+            ExpressionTreeNode *node = stack.back().node;
+            int stage = stack.back().stage++;
+
+            if (stage == 0) {
+                if (node->left)
+                    stack.push_back({ node->left, 0 });
+            } else if (stage == 1) {
+                if (node->right)
+                    stack.push_back({ node->right, 0 });
+            } else {
+                stack.pop_back();
+                visitor(*node);
+            }
+        }
     }
 };
 
@@ -256,10 +292,17 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const srcF
     };
     static_assert(sizeof(numOperands) == static_cast<unsigned>(ExprOpType::SWAP) + 1, "invalid table");
 
+    // Several of the optimizer and code generator helpers still walk the tree recursively, so a
+    // deeply nested expression would run the real stack out and take the process down with it.
+    // Nothing anyone writes by hand comes close to this, and generated expressions that do can be
+    // rebalanced, so cap the nesting and report it as an ordinary error.
+    constexpr size_t maxNesting = 5000;
+
     auto tokens = tokenize(expr);
 
     ExpressionTree tree;
     std::vector<ExpressionTreeNode *> stack;
+    std::vector<size_t> depths;   // tree depth of the matching stack entry
 
     for (std::string_view tok : tokens) {
         ExprOp op = decodeToken(tok);
@@ -288,17 +331,24 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const srcF
 
         // Apply DUP and SWAP in the frontend.
         if (op.type == ExprOpType::DUP) {
-            stack.push_back(tree.clone(stack[stack.size() - 1 - op.imm.u]));
+            size_t src = stack.size() - 1 - op.imm.u;
+            stack.push_back(tree.clone(stack[src]));
+            depths.push_back(depths[src]);
         } else if (op.type == ExprOpType::SWAP) {
-            std::swap(stack.back(), stack[stack.size() - 1 - op.imm.u]);
+            size_t other = stack.size() - 1 - op.imm.u;
+            std::swap(stack.back(), stack[other]);
+            std::swap(depths.back(), depths[other]);
         } else {
             size_t operands = numOperands[static_cast<size_t>(op.type)];
+            size_t depth = 1;
 
             if (operands == 0) {
                 stack.push_back(tree.makeNode(op));
             } else if (operands == 1) {
                 ExpressionTreeNode *child = stack.back();
+                depth = 1 + depths.back();
                 stack.pop_back();
+                depths.pop_back();
 
                 ExpressionTreeNode *node = tree.makeNode(op);
                 node->setLeft(child);
@@ -306,7 +356,9 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const srcF
             } else if (operands == 2) {
                 ExpressionTreeNode *left = stack[stack.size() - 2];
                 ExpressionTreeNode *right = stack[stack.size() - 1];
+                depth = 1 + std::max(depths[depths.size() - 2], depths[depths.size() - 1]);
                 stack.resize(stack.size() - 2);
+                depths.resize(depths.size() - 2);
 
                 ExpressionTreeNode *node = tree.makeNode(op);
                 node->setLeft(left);
@@ -316,7 +368,11 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const srcF
                 ExpressionTreeNode *arg1 = stack[stack.size() - 3];
                 ExpressionTreeNode *arg2 = stack[stack.size() - 2];
                 ExpressionTreeNode *arg3 = stack[stack.size() - 1];
+                // the ternary becomes node(arg1, mux(arg2, arg3)), so the mux adds a level
+                size_t muxDepth = 1 + std::max(depths[depths.size() - 2], depths[depths.size() - 1]);
+                depth = 1 + std::max(depths[depths.size() - 3], muxDepth);
                 stack.resize(stack.size() - 3);
+                depths.resize(depths.size() - 3);
 
                 ExpressionTreeNode *mux = tree.makeNode(ExprOpType::MUX);
                 mux->setLeft(arg2);
@@ -327,7 +383,12 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const srcF
                 node->setRight(mux);
                 stack.push_back(node);
             }
+
+            depths.push_back(depth);
         }
+
+        if (depths.back() > maxNesting)
+            throw std::runtime_error("expression nested too deeply, rewrite it to be less deeply nested: " + expr);
     }
 
     if (stack.empty())
@@ -1405,6 +1466,19 @@ bool applyOpFusion(ExpressionTree &tree)
 
 void renameRegisters(std::vector<ExprInstruction> &code)
 {
+    // Index of the last instruction that reads each register, so telling whether a value is dead
+    // is a lookup rather than a scan over everything that follows. The scan made the whole pass
+    // quadratic in the instruction count, which got slow well before expressions got unusual.
+    std::unordered_map<int, size_t> lastUse;
+
+    for (size_t i = 0; i < code.size(); ++i) {
+        const ExprInstruction &insn = code[i];
+        for (int reg : { insn.src1, insn.src2, insn.src3 }) {
+            if (reg >= 0)
+                lastUse[reg] = i;
+        }
+    }
+
     std::unordered_map<int, int> table;
     std::set<int> freeList;
 
@@ -1421,15 +1495,9 @@ void renameRegisters(std::vector<ExprInstruction> &code)
             if (it != table.end())
                 renamed[n] = it->second;
 
-            bool dead = true;
-
-            for (size_t j = i + 1; j < code.size(); ++j) {
-                const ExprInstruction &insn2 = code[j];
-                if (insn2.src1 == origRegs[n] || insn2.src2 == origRegs[n] || insn2.src3 == origRegs[n]) {
-                    dead = false;
-                    break;
-                }
-            }
+            // this instruction reads the register, so it is dead exactly when nothing later does
+            auto use = lastUse.find(origRegs[n]);
+            bool dead = (use == lastUse.end() || use->second <= i);
 
             if (dead)
                 freeList.insert(renamed[n]);
