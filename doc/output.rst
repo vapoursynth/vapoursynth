@@ -36,8 +36,13 @@ Options
 ``-r, --requests N``
     Set number of concurrent frame requests
 
-``-c, --container <y4m/wav/w64>``
-    Add headers for the specified format to the output
+``-c, --container <y4m/wav/w64/mkv>``
+    Add headers for the specified format to the output.
+
+    Unlike the other types, which wrap the single selected output, ``mkv`` writes a Matroska
+    file containing *every* output the script sets, so a script with both video and audio
+    outputs produces one file carrying all of them. ``--outputindex`` is ignored in that case.
+    See `Matroska output`_ for the formats it accepts.
 
 ``-t, --timecodes FILE``
     Write timecodes v2 file
@@ -92,6 +97,35 @@ Pipe to x264 and write timecodes file:
 
 Pass values to a script:
     ``vspipe --arg deinterlace=yes --arg "message=fluffy kittens" script.vpy output.raw``
+
+Mux every output, video and audio together, and pipe it to ffmpeg:
+    ``vspipe script.vpy - -c mkv | ffmpeg -i - -c:v ffv1 -c:a flac out.mkv``
+
+Matroska output
+***************
+
+``-c mkv`` writes uncompressed video and PCM audio into a Matroska file. It exists to hand a
+whole script, video and audio at once, to a program like ffmpeg through a single pipe, which
+neither the raw output nor y4m can do. Frames are stored exactly as VapourSynth holds them,
+so no pixel is converted on the way out.
+
+Timestamps come from the clip's frame rate when it has one, computed per frame from the frame
+index so that nothing drifts over a long clip. A clip with no frame rate is treated as variable
+and its timeline is accumulated from the ``_DurationNum`` and ``_DurationDen`` frame properties,
+which must then be present on every frame.
+
+Supported formats
+-----------------
+
+Every integer format is supported: Gray, YUV and RGB at 8 to 16 bits, in all of VapourSynth's
+subsamplings. RGB is additionally supported at half and single precision float.
+
+Not supported are float Gray and float YUV, which have no equivalent to decode into on the
+reading side, and compat formats. Audio is written as PCM and covers every audio format
+VapourSynth produces.
+
+The output is written as a single stream with no seek index, which suits a pipe. Players may
+therefore have to scan the file to seek in a saved copy.
 
 AVFS
 ####

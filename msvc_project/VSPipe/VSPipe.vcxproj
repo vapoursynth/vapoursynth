@@ -86,6 +86,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\common\wave.cpp" />
+    <ClCompile Include="..\..\src\vspipe\ebml.cpp" />
+    <ClCompile Include="..\..\src\vspipe\matroska.cpp" />
     <ClCompile Include="..\..\src\vspipe\printgraph.cpp" />
     <ClCompile Include="..\..\src\vspipe\vsjson.cpp" />
     <ClCompile Include="..\..\src\vspipe\vspipe.cpp" />
@@ -95,6 +97,8 @@
     <ClInclude Include="..\..\include\VSHelper4.h" />
     <ClInclude Include="..\..\include\VSScript4.h" />
     <ClInclude Include="..\..\src\common\wave.h" />
+    <ClInclude Include="..\..\src\vspipe\ebml.h" />
+    <ClInclude Include="..\..\src\vspipe\matroska.h" />
     <ClInclude Include="..\..\src\vspipe\printgraph.h" />
     <ClInclude Include="..\..\src\vspipe\vsjson.h" />
   </ItemGroup>

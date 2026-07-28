@@ -24,6 +24,7 @@
 #include "../core/version.h"
 #include "printgraph.h"
 #include "vsjson.h"
+#include "matroska.h"
 #include <string>
 #include <map>
 #include <vector>
@@ -92,7 +93,8 @@ enum class VSPipeHeaders {
     None,
     Y4M,
     WAVE,
-    WAVE64
+    WAVE64,
+    MATROSKA
 };
 
 // Struct used to return the parsed command line options
@@ -617,6 +619,468 @@ static bool outputNode(const VSPipeOptions &opts, VSPipeOutputData *data, VSCore
     return data->outputError;
 }
 
+/////////////////////////////////////////////
+/* Matroska muxing. Unlike the other container types, which wrap a single selected output, this
+   takes every output the script set and interleaves them into one file. */
+
+namespace {
+
+/* Shared by every stream being muxed. Frames arrive on the worker threads and are written on the
+   thread running the mux loop, so everything here is guarded. */
+struct MuxContext {
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool error = false;
+    std::string errorMessage;
+
+    void fail(std::string message) {
+        if (!error) {
+            errorMessage = std::move(message);
+            error = true;
+        }
+    }
+};
+
+struct MuxStream {
+    VSNode *node = nullptr;
+    int outputIndex = -1;
+    int trackIndex = -1;
+    bool isVideo = false;
+    const VSVideoInfo *vi = nullptr;
+    const VSAudioInfo *ai = nullptr;
+
+    /* Set for formats VapourSynth does not already hold in the layout the fourcc describes, which
+       have to be interleaved into a buffer before they can be written. */
+
+    int frameIndex = 0;
+    int64_t framesWritten = 0;
+    int64_t samplesWritten = 0;
+    /* Running position in nanoseconds, only used by clips with no nominal frame rate. */
+    int64_t currentTimeNs = 0;
+
+    const VSFrame *pendingFrame = nullptr;
+    int64_t pendingTimeNs = 0;
+
+    /* Requests are in flight on every stream at once rather than one stream at a time. The stream
+       context itself is handed to the callback as its user data, instead of looking the stream up
+       from the node it reports, because two outputs are allowed to be the same node. */
+    MuxContext *ctx = nullptr;
+    int requestCursor = 0;
+    int inFlight = 0;
+    std::map<int, const VSFrame *> arrived;
+
+    int frameCount() const {
+        return isVideo ? vi->numFrames : ai->numFrames;
+    }
+
+    bool exhausted() const {
+        return frameIndex >= frameCount();
+    }
+
+    /* Frames already delivered plus those still outstanding. Capping this is what stops a stream
+       whose timestamps run ahead from buffering while the muxer waits on a slower one. */
+    int held() const {
+        return static_cast<int>(arrived.size()) + inFlight + (pendingFrame ? 1 : 0);
+    }
+};
+
+void VS_CC muxFrameDoneCallback(void *userData, const VSFrame *f, int n, VSNode *rnode, const char *errorMsg) {
+    MuxStream *stream = static_cast<MuxStream *>(userData);
+    MuxContext *ctx = stream->ctx;
+
+    std::lock_guard<std::mutex> lock(ctx->mutex);
+    stream->inFlight--;
+
+    if (f) {
+        stream->arrived[n] = f;
+    } else {
+        std::string message = "Error: failed to retrieve frame " + std::to_string(n) + " from output " + std::to_string(stream->outputIndex);
+        if (errorMsg)
+            message += std::string(": ") + errorMsg;
+        ctx->fail(std::move(message));
+    }
+
+    ctx->condition.notify_all();
+}
+
+size_t muxVideoFrameSize(const VSVideoInfo *vi) {
+    size_t size = 0;
+    for (int p = 0; p < vi->format.numPlanes; p++) {
+        int width = vi->width >> ((p == 1 || p == 2) ? vi->format.subSamplingW : 0);
+        int height = vi->height >> ((p == 1 || p == 2) ? vi->format.subSamplingH : 0);
+        size += static_cast<size_t>(width) * static_cast<size_t>(height) * vi->format.bytesPerSample;
+    }
+    return size;
+}
+
+size_t muxAudioFrameSize(const VSFrame *frame, const VSAPI *vsapi) {
+    const VSAudioFormat *fi = vsapi->getAudioFrameFormat(frame);
+    size_t bytesPerOutputSample = (fi->bitsPerSample + 7) / 8;
+    return bytesPerOutputSample * static_cast<size_t>(vsapi->getFrameLength(frame)) * static_cast<size_t>(fi->numChannels);
+}
+
+/* Frames are written exactly as VapourSynth holds them, plane after plane, which is the whole
+   reason the fourcc mapping only accepts layouts that already match. */
+bool muxWriteFrame(const VSFrame *frame, const VSAPI *vsapi, FILE *outFile, std::vector<uint8_t> &buffer, std::string &errorMessage) {
+    if (!outFile)
+        return true;
+
+    if (vsapi->getFrameType(frame) == mtVideo) {
+        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(frame);
+
+        /* The planar RGB fourcc describes G, B, R, whereas VapourSynth holds R, G, B, so the
+           planes are written in a different order. No pixel is touched either way. */
+        const int rgbRemap[] = { 1, 2, 0 };
+
+        for (int i = 0; i < fi->numPlanes; i++) {
+            int p = (fi->colorFamily == cfRGB) ? rgbRemap[i] : i;
+            ptrdiff_t stride = vsapi->getStride(frame, p);
+            const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
+            ptrdiff_t rowSize = static_cast<ptrdiff_t>(vsapi->getFrameWidth(frame, p)) * fi->bytesPerSample;
+            int height = vsapi->getFrameHeight(frame, p);
+
+            /* Padded rows have to be compacted first, since a single large write beats one call
+               per row by a wide margin when the target is a pipe. */
+            if (rowSize != stride) {
+                bitblt(buffer.data(), rowSize, readPtr, stride, rowSize, height);
+                readPtr = buffer.data();
+            }
+
+            size_t toWrite = static_cast<size_t>(rowSize) * height;
+            if (fwrite(readPtr, 1, toWrite, outFile) != toWrite) {
+                errorMessage = "Error: fwrite() call failed when writing video plane " + std::to_string(p) + ", errno: " + std::to_string(errno);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    const VSAudioFormat *fi = vsapi->getAudioFrameFormat(frame);
+    int numChannels = fi->numChannels;
+    int numSamples = vsapi->getFrameLength(frame);
+    size_t bytesPerOutputSample = (fi->bitsPerSample + 7) / 8;
+    size_t toOutput = bytesPerOutputSample * numSamples * numChannels;
+
+    std::vector<const uint8_t *> srcPtrs;
+    srcPtrs.reserve(numChannels);
+    for (int channel = 0; channel < numChannels; channel++)
+        srcPtrs.push_back(vsapi->getReadPtr(frame, channel));
+
+    /* Matroska carries PCM interleaved, whereas VapourSynth keeps one plane per channel. */
+    if (bytesPerOutputSample == 2)
+        PackChannels16to16le(srcPtrs.data(), buffer.data(), numSamples, numChannels);
+    else if (bytesPerOutputSample == 3)
+        PackChannels32to24le(srcPtrs.data(), buffer.data(), numSamples, numChannels);
+    else if (bytesPerOutputSample == 4)
+        PackChannels32to32le(srcPtrs.data(), buffer.data(), numSamples, numChannels);
+
+    if (fwrite(buffer.data(), 1, toOutput, outFile) != toOutput) {
+        errorMessage = "Error: fwrite() call failed when writing audio, errno: " + std::to_string(errno);
+        return false;
+    }
+
+    return true;
+}
+
+/* Exact presentation time of a frame in a constant rate clip. Derived from the frame index rather
+   than by adding up a per frame duration, so the rounding of one frame never carries into the
+   next and the last frame of a long clip is as accurate as the first. The division is split to
+   keep the intermediate product away from the range where it would overflow. */
+int64_t muxCfrTimeNs(int64_t frameIndex, int64_t fpsNum, int64_t fpsDen) {
+    int64_t ticks = frameIndex * fpsDen;
+    return (ticks / fpsNum) * 1000000000LL + ((ticks % fpsNum) * 1000000000LL) / fpsNum;
+}
+
+/* Only used for clips with no nominal rate, where the timeline has to be built by accumulating
+   what each frame says its own duration is. */
+bool muxFrameDurationNs(const VSFrame *frame, const VSAPI *vsapi, int64_t &durationNs) {
+    const VSMap *props = vsapi->getFramePropertiesRO(frame);
+    int errNum = 0;
+    int errDen = 0;
+    int64_t durationNum = vsapi->mapGetInt(props, "_DurationNum", 0, &errNum);
+    int64_t durationDen = vsapi->mapGetInt(props, "_DurationDen", 0, &errDen);
+    if (errNum || errDen || durationNum <= 0 || durationDen <= 0)
+        return false;
+    durationNs = 1000000000LL * durationNum / durationDen;
+    return true;
+}
+
+} // namespace
+
+/* Collects every output the script set, describes each one to the muxer, and then writes frames in
+   timestamp order until all of them run out. Returns true on failure to match outputNode(). */
+static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *se, const VSAPI *vsapi, const VSSCRIPTAPI *vssapi) {
+    std::string errorMessage;
+
+    int numOutputs = vssapi->getAvailableOutputNodes(se, 0, nullptr);
+    if (numOutputs < 1) {
+        fprintf(stderr, "Error: no outputs set for Matroska muxing\n");
+        return true;
+    }
+
+    std::vector<int> outputIndices(numOutputs);
+    vssapi->getAvailableOutputNodes(se, numOutputs, outputIndices.data());
+
+    std::vector<MuxStream> streams;
+    std::vector<MatroskaTrackInfo> trackInfos;
+    size_t maxBufferSize = 0;
+    bool failed = false;
+
+    for (int outputIndex : outputIndices) {
+        VSNode *node = vssapi->getOutputNode(se, outputIndex);
+        if (!node) {
+            fprintf(stderr, "Error: failed to retrieve output node %d\n", outputIndex);
+            failed = true;
+            break;
+        }
+
+        MuxStream stream;
+        stream.node = node;
+        stream.outputIndex = outputIndex;
+        stream.trackIndex = static_cast<int>(streams.size());
+        stream.isVideo = vsapi->getNodeType(node) == mtVideo;
+
+        MatroskaTrackInfo info;
+        info.isVideo = stream.isVideo;
+
+        if (stream.isVideo) {
+            stream.vi = vsapi->getVideoInfo(node);
+            if (!isConstantVideoFormat(stream.vi)) {
+                fprintf(stderr, "Error: output %d has varying dimensions or format\n", outputIndex);
+                vsapi->freeNode(node);
+                failed = true;
+                break;
+            }
+            if (!MatroskaWriter::getVideoFourCC(stream.vi->format, info.fourCC)) {
+                fprintf(stderr, "Error: output %d uses a video format Matroska has no raw layout for\n", outputIndex);
+                vsapi->freeNode(node);
+                failed = true;
+                break;
+            }
+            info.width = stream.vi->width;
+            info.height = stream.vi->height;
+            info.frameDurationNum = stream.vi->fpsDen;
+            info.frameDurationDen = stream.vi->fpsNum;
+            if (stream.vi->fpsNum > 0 && stream.vi->fpsDen > 0)
+                info.durationNs = 1000000000LL * stream.vi->numFrames * stream.vi->fpsDen / stream.vi->fpsNum;
+            /* The buffer only ever holds one plane at a time, to compact rows whose stride is
+               padded, so the largest plane is all it has to fit. */
+            maxBufferSize = std::max(maxBufferSize, static_cast<size_t>(stream.vi->width) * stream.vi->height * stream.vi->format.bytesPerSample);
+        } else {
+            stream.ai = vsapi->getAudioInfo(node);
+            if (!MatroskaWriter::isAudioFormatSupported(stream.ai->format)) {
+                fprintf(stderr, "Error: output %d uses an unsupported audio format\n", outputIndex);
+                vsapi->freeNode(node);
+                failed = true;
+                break;
+            }
+            info.sampleRate = stream.ai->sampleRate;
+            info.channels = stream.ai->format.numChannels;
+            info.bitsPerSample = stream.ai->format.bitsPerSample;
+            info.isFloat = stream.ai->format.sampleType == stFloat;
+            if (stream.ai->sampleRate > 0)
+                info.durationNs = 1000000000LL * stream.ai->numSamples / stream.ai->sampleRate;
+            maxBufferSize = std::max(maxBufferSize, static_cast<size_t>(stream.ai->format.numChannels) * VS_AUDIO_FRAME_SAMPLES * stream.ai->format.bytesPerSample);
+        }
+
+        streams.push_back(stream);
+        trackInfos.push_back(info);
+    }
+
+    std::vector<uint8_t> buffer(maxBufferSize);
+    MatroskaWriter writer;
+
+    if (!failed && !writer.initialize(outFile, trackInfos, errorMessage)) {
+        fprintf(stderr, "%s\n", errorMessage.c_str());
+        failed = true;
+    }
+
+    /* Caching is pointless here, every frame is requested exactly once. */
+    for (const auto &stream : streams)
+        vsapi->setCacheMode(stream.node, cmForceDisable);
+
+    MuxContext ctx;
+    for (auto &stream : streams)
+        stream.ctx = &ctx;
+
+    /* Spread the request budget evenly. The cap is per stream rather than global so that the one
+       the muxer is about to need can never be crowded out by a stream running ahead of it. */
+    int budget = opts.requests;
+    if (budget < 1) {
+        VSCoreInfo info;
+        vsapi->getCoreInfo(vssapi->getCore(se), &info);
+        budget = info.numThreads;
+    }
+    /* The stream list is empty when setting the tracks up failed, and the loop below never runs in
+       that case, but the division still has to be kept away from zero. */
+    const int perStream = streams.empty() ? 1 : std::max(1, budget / static_cast<int>(streams.size()));
+    std::vector<std::pair<MuxStream *, int>> toRequest;
+
+    auto startTime = std::chrono::steady_clock::now();
+    auto lastReportTime = startTime;
+
+    while (!failed) {
+        int nextStream = -1;
+        toRequest.clear();
+
+        {
+            std::unique_lock<std::mutex> lock(ctx.mutex);
+
+            for (;;) {
+                /* Take delivery of whatever turned up and work out what is still missing. A stream
+                   only reveals the timestamp of a frame once it holds it, so every stream that has
+                   not run out needs one in hand before the next frame to write can be chosen. */
+                bool allReady = true;
+                for (auto &stream : streams) {
+                    if (!stream.pendingFrame && !stream.exhausted()) {
+                        auto it = stream.arrived.find(stream.frameIndex);
+                        if (it != stream.arrived.end()) {
+                            stream.pendingFrame = it->second;
+                            stream.arrived.erase(it);
+
+                            if (stream.isVideo && stream.vi->fpsNum > 0) {
+                                stream.pendingTimeNs = muxCfrTimeNs(stream.frameIndex, stream.vi->fpsNum, stream.vi->fpsDen);
+                            } else if (stream.isVideo) {
+                                /* No nominal rate, so the timeline is whatever the frames add up
+                                   to. Safe to accumulate here because a frame is only taken once
+                                   its predecessor has been written. */
+                                stream.pendingTimeNs = stream.currentTimeNs;
+                                int64_t durationNs = 0;
+                                if (!muxFrameDurationNs(stream.pendingFrame, vsapi, durationNs)) {
+                                    ctx.fail("Error: frame " + std::to_string(stream.frameIndex) + " of output " + std::to_string(stream.outputIndex) +
+                                        " has no usable duration and the clip has no frame rate");
+                                    break;
+                                }
+                                stream.currentTimeNs += durationNs;
+                            } else {
+                                stream.pendingTimeNs = 1000000000LL * stream.samplesWritten / stream.ai->sampleRate;
+                            }
+                        }
+                    }
+                    if (!stream.pendingFrame && !stream.exhausted())
+                        allReady = false;
+                }
+
+                if (ctx.error)
+                    break;
+
+                /* Top up what is in flight, nearest required frame first. */
+                for (auto &stream : streams) {
+                    while (stream.held() < perStream && stream.requestCursor < stream.frameCount()) {
+                        toRequest.emplace_back(&stream, stream.requestCursor);
+                        stream.requestCursor++;
+                        stream.inFlight++;
+                    }
+                }
+
+                if (!toRequest.empty())
+                    break;
+
+                if (allReady) {
+                    /* Lowest timestamp wins, with track order breaking ties so output is stable. */
+                    for (size_t i = 0; i < streams.size(); i++) {
+                        if (!streams[i].pendingFrame)
+                            continue;
+                        if (nextStream < 0 || streams[i].pendingTimeNs < streams[nextStream].pendingTimeNs)
+                            nextStream = static_cast<int>(i);
+                    }
+                    break;
+                }
+
+                ctx.condition.wait(lock);
+            }
+        }
+
+        /* Issued with the lock released, since the callback takes it and can run before the call
+           requesting the frame has even returned. */
+        for (const auto &request : toRequest)
+            vsapi->getFrameAsync(request.second, request.first->node, muxFrameDoneCallback, request.first);
+        if (!toRequest.empty())
+            continue;
+
+        if (ctx.error || nextStream < 0)
+            break;
+
+        MuxStream &stream = streams[nextStream];
+        size_t frameSize = stream.isVideo ? muxVideoFrameSize(stream.vi) : muxAudioFrameSize(stream.pendingFrame, vsapi);
+
+        if (!writer.writeFrameHeader(stream.trackIndex, stream.pendingTimeNs, frameSize, true, errorMessage) ||
+            !muxWriteFrame(stream.pendingFrame, vsapi, outFile, buffer, errorMessage)) {
+            fprintf(stderr, "%s\n", errorMessage.c_str());
+            failed = true;
+            break;
+        }
+        writer.notePayloadWritten(frameSize);
+
+        if (stream.isVideo)
+            stream.framesWritten++;
+        else
+            stream.samplesWritten += vsapi->getFrameLength(stream.pendingFrame);
+
+        vsapi->freeFrame(stream.pendingFrame);
+        stream.pendingFrame = nullptr;
+        stream.frameIndex++;
+
+        if (opts.printProgress) {
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration<double>(now - lastReportTime).count() > .5) {
+                lastReportTime = now;
+                int64_t done = 0;
+                int64_t total = 0;
+                for (const auto &iter : streams) {
+                    done += iter.frameIndex;
+                    total += iter.frameCount();
+                }
+                fprintf(stderr, "Frame: %" PRId64 "/%" PRId64 "\r", done, total);
+            }
+        }
+    }
+
+    /* Nothing may be torn down while a request is still outstanding, since the callback writes into
+       the stream it was handed. Both a clean finish and an aborted one end up here. */
+    {
+        std::unique_lock<std::mutex> lock(ctx.mutex);
+        for (;;) {
+            int outstanding = 0;
+            for (const auto &stream : streams)
+                outstanding += stream.inFlight;
+            if (!outstanding)
+                break;
+            ctx.condition.wait(lock);
+        }
+    }
+
+    if (ctx.error) {
+        fprintf(stderr, "%s\n", ctx.errorMessage.c_str());
+        failed = true;
+    }
+
+    if (!failed && !writer.finalize(errorMessage)) {
+        fprintf(stderr, "%s\n", errorMessage.c_str());
+        failed = true;
+    }
+
+    int64_t videoFrames = 0;
+    int64_t audioSamples = 0;
+    for (auto &stream : streams) {
+        if (stream.pendingFrame)
+            vsapi->freeFrame(stream.pendingFrame);
+        for (const auto &iter : stream.arrived)
+            vsapi->freeFrame(iter.second);
+        stream.arrived.clear();
+        videoFrames += stream.framesWritten;
+        audioSamples += stream.samplesWritten;
+        vsapi->freeNode(stream.node);
+    }
+
+    if (!failed && opts.mode == VSPipeMode::Output) {
+        std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - startTime;
+        fprintf(stderr, "Output %" PRId64 " video frames and %" PRId64 " audio samples in %.2f seconds\n", videoFrames, audioSamples, elapsed.count());
+    }
+
+    return failed;
+}
+
 static const char *colorFamilyToString(int colorFamily) {
     switch (colorFamily) {
     case cfGray: return "Gray";
@@ -661,7 +1125,9 @@ static void printHelp() {
         "  -e, --end N                      Set output frame/sample range end (inclusive)\n"
         "  -o, --outputindex N              Select output index\n"
         "  -r, --requests N                 Set number of concurrent frame requests\n"
-        "  -c, --container <y4m/wav/w64>    Add headers for the specified format to the output\n"
+        "  -c, --container <y4m/wav/w64/mkv> Add headers for the specified format to the output\n"
+        "                                    mkv muxes every output the script sets, the other\n"
+        "                                    types only ever carry the single selected output\n"
         "  -t, --timecodes FILE             Write timecodes v2 file\n"
         "  -j, --json FILE                  Write properties of output frames in json format to file\n"
         "  -p, --progress                   Print progress to stderr\n"
@@ -719,6 +1185,8 @@ static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
                 opts.outputHeaders = VSPipeHeaders::WAVE;
             } else if (optString == "w64") {
                 opts.outputHeaders = VSPipeHeaders::WAVE64;
+            } else if (optString == "mkv") {
+                opts.outputHeaders = VSPipeHeaders::MATROSKA;
             } else {
                 fprintf(stderr, "Unknown container type specified: %s\n", argv[arg + 1]);
                 return 1;
@@ -1168,6 +1636,20 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Failed to set stdout to binary mode\n");
         }
 #endif
+
+        /* Matroska carries every output rather than the selected one, so the node picked above is
+           not used and the whole single output path below is bypassed. */
+        if (opts.outputHeaders == VSPipeHeaders::MATROSKA) {
+            vsapi->freeNode(node);
+            vsapi->freeNode(alphaNode);
+            bool muxFailed = outputMatroska(opts, outFile, se, vsapi, vssapi);
+            if (outFile)
+                fflush(outFile);
+            if (outFile && outFile != stdout)
+                fclose(outFile);
+            vssapi->freeScript(se);
+            return muxFailed ? 1 : 0;
+        }
 
         int nodeType = vsapi->getNodeType(node);
 

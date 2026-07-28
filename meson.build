@@ -281,6 +281,8 @@ endif
 executable('vspipe',
     files(
         'src/common/wave.cpp',
+        'src/vspipe/ebml.cpp',
+        'src/vspipe/matroska.cpp',
         'src/vspipe/printgraph.cpp',
         'src/vspipe/vsjson.cpp',
         'src/vspipe/vspipe.cpp',
