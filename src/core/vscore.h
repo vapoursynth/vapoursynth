@@ -681,6 +681,7 @@ private:
         int hits;
         int nearMiss;
         int farMiss;
+        int deepestNearMiss = 0;
 
         size_t currentBytes;
 
@@ -693,7 +694,8 @@ private:
         // to tell dead branches apart from merely slow scripts before emptying a request-less cache
         uint64_t lastActivityExtFrames = 0;
 
-        static constexpr uint64_t deadBranchDelay = 3;
+        static constexpr int cacheHistoryLookahead = 100;
+        static constexpr uint64_t deadBranchDelay = 2 * cacheHistoryLookahead;
 
         inline size_t subtractFrameBytes(const Node &n) {
             if (!n.frame)
@@ -741,6 +743,11 @@ private:
 
             if (!n.frame) {
                 nearMiss++;
+                int position = 1;
+                for (const Node *walk = first; walk && walk != &n; walk = walk->nextNode)
+                    position++;
+                if (position > deepestNearMiss)
+                    deepestNearMiss = position;
                 return nullptr;
             }
 
@@ -789,7 +796,7 @@ private:
             Grow,
             NoChange,
             Shrink,
-            Clear
+            Decay
         };
 
         VSCache(int maxSize = 20, int maxHistorySize = 20, bool fixedSize = false);
@@ -843,6 +850,7 @@ private:
             hits = 0;
             nearMiss = 0;
             farMiss = 0;
+            deepestNearMiss = 0;
         }
 
         bool insert(const int key, const PVSFrame &object);

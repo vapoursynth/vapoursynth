@@ -2466,7 +2466,7 @@ VSNode::VSCache::CacheAction VSNode::VSCache::recommendSize() {
     int total = hits + nearMiss + farMiss;
 
     if (total == 0)
-        return CacheAction::Clear;
+        return CacheAction::Decay;
 
     if (total < 30)
         return CacheAction::NoChange; // not enough requests to know what to do so keep it this way
@@ -2568,39 +2568,34 @@ size_t VSNode::VSCache::dropLRUFrames(size_t maxBytes) {
 }
 
 void VSNode::VSCache::adjustSize(bool memoryComfortable, uint64_t completedExtFrames) {
-    if (!fixedSize) {
-        // A cache without any requests since the last sweep is either on a dead branch or the
-        // script is simply slow enough that no request reached it in the interval, tell the two
-        // apart by how many output frames were delivered without any traffic here
-        int total = hits + nearMiss + farMiss;
-        if (total > 0)
-            lastActivityExtFrames = completedExtFrames;
-        else if (completedExtFrames - lastActivityExtFrames < deadBranchDelay)
-            return;
+    if (fixedSize)
+        return;
 
-        switch (recommendSize()) {
-        case VSCache::CacheAction::Clear:
-            clear();
-            setMaxFrames(std::max(getMaxFrames() - 2, userSize));
-            break;
-        case VSCache::CacheAction::Grow:
-            // growing right up to the limit only triggers the pressure machinery and creates a
-            // grow and evict sawtooth so growth requires comfortable headroom
-            if (memoryComfortable)
-                setMaxFrames(getMaxFrames() + 2);
-            break;
-        case VSCache::CacheAction::Shrink:
-            setMaxFrames(std::max(getMaxFrames() - 1, userSize));
-            break;
-        default:
-            break;
-        }
+    if (hits + nearMiss + farMiss > 0)
+        lastActivityExtFrames = completedExtFrames;
+    else if (completedExtFrames - lastActivityExtFrames < deadBranchDelay)
+        return;
 
-        // grow the near miss horizon together with the cache so reuse patterns bigger than the
-        // current size remain detectable, history nodes hold no frame data so this is nearly free
-        if (getMaxHistory() < getMaxFrames())
-            setMaxHistory(getMaxFrames());
+    // recommendSize clears the counters, so the measured reuse distance has to be taken first
+    int wantedSize = deepestNearMiss;
+
+    switch (recommendSize()) {
+    case VSCache::CacheAction::Decay:
+        setMaxFrames(std::max(getMaxFrames() - 2, userSize));
+        break;
+    case VSCache::CacheAction::Grow:
+        if (memoryComfortable)
+            setMaxFrames(std::max(getMaxFrames() + 2, wantedSize));
+        break;
+    case VSCache::CacheAction::Shrink:
+        setMaxFrames(std::max(getMaxFrames() - 1, userSize));
+        break;
+    default:
+        break;
     }
+
+    if (getMaxHistory() != cacheHistoryLookahead)
+        setMaxHistory(cacheHistoryLookahead);
 }
 
 std::string VSCore::getFrameRefInfo() {
