@@ -1027,8 +1027,6 @@ void VSNode::setCacheMode(int mode) {
         // always reset to defaults on mode change
         cache.setFixedSize(false);
         cache.resetSizeTuning();
-        cache.setMaxFrames(20);
-        cache.setMaxHistory(20);
         if (!cacheEnabled)
             cache.clear();
     }
@@ -2588,14 +2586,18 @@ void VSNode::VSCache::adjustSize(bool memoryComfortable, uint64_t completedExtFr
             setMaxFrames(std::max(getMaxFrames() + 2, wantedSize));
         break;
     case VSCache::CacheAction::Shrink:
-        setMaxFrames(std::max(getMaxFrames() - 1, userSize));
+        // No hits and nothing even close to one. That is either a linear scan, where the cache is
+        // useless and should shrink, or a cycle longer than the window, where it should grow a lot.
+        // The two are indistinguishable until the window is extended, so probe further out first
+        // and only conclude the cache is useless once a full length history still finds nothing.
+        if (getMaxHistory() < cacheHistoryMax)
+            setMaxHistory(std::min(getMaxHistory() * 2, cacheHistoryMax));
+        else
+            setMaxFrames(std::max(getMaxFrames() - 1, userSize));
         break;
     default:
         break;
     }
-
-    if (getMaxHistory() != cacheHistoryLookahead)
-        setMaxHistory(cacheHistoryLookahead);
 }
 
 std::string VSCore::getFrameRefInfo() {

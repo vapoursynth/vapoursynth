@@ -694,7 +694,9 @@ private:
         // to tell dead branches apart from merely slow scripts before emptying a request-less cache
         uint64_t lastActivityExtFrames = 0;
 
+        static constexpr int defaultCacheSize = 20;
         static constexpr int cacheHistoryLookahead = 100;
+        static constexpr int cacheHistoryMax = 4096;
         static constexpr uint64_t deadBranchDelay = 2 * cacheHistoryLookahead;
 
         inline size_t subtractFrameBytes(const Node &n) {
@@ -799,7 +801,7 @@ private:
             Decay
         };
 
-        VSCache(int maxSize = 20, int maxHistorySize = 20, bool fixedSize = false);
+        VSCache(int maxSize = defaultCacheSize, int maxHistorySize = cacheHistoryLookahead, bool fixedSize = false);
 
         ~VSCache() {
             clear();
@@ -879,6 +881,8 @@ private:
 
         inline void resetSizeTuning() {
             userSize = 0;
+            setMaxFrames(defaultCacheSize);
+            setMaxHistory(cacheHistoryLookahead);
         }
 
         size_t dropLRUFrames(size_t maxBytes);
