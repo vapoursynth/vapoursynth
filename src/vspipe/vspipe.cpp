@@ -104,6 +104,7 @@ struct VSPipeOptions {
     int64_t startPos = 0;
     int64_t endPos = -1;
     int outputIndex = 0;
+    bool outputIndexExplicit = false;
     int requests = 0;
     bool printProgress = false;
     bool frameRefDebug = false;
@@ -825,17 +826,24 @@ bool muxFrameDurationNs(const VSFrame *frame, const VSAPI *vsapi, int64_t &durat
 
 /* Collects every output the script set, describes each one to the muxer, and then writes frames in
    timestamp order until all of them run out. Returns true on failure to match outputNode(). */
-static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *se, const VSAPI *vsapi, const VSSCRIPTAPI *vssapi) {
+static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *se, const VSAPI *vsapi, const VSSCRIPTAPI *vssapi,
+    VSNode *singleNode, VSNode *singleAlphaNode) {
     std::string errorMessage;
 
-    int numOutputs = vssapi->getAvailableOutputNodes(se, 0, nullptr);
-    if (numOutputs < 1) {
-        fprintf(stderr, "Error: no outputs set for Matroska muxing\n");
-        return true;
+    /* Either one already prepared node, which the caller may have trimmed, or every output the
+       script set. */
+    std::vector<int> outputIndices;
+    if (singleNode) {
+        outputIndices.push_back(opts.outputIndex);
+    } else {
+        int numOutputs = vssapi->getAvailableOutputNodes(se, 0, nullptr);
+        if (numOutputs < 1) {
+            fprintf(stderr, "Error: no outputs set for Matroska muxing\n");
+            return true;
+        }
+        outputIndices.resize(numOutputs);
+        vssapi->getAvailableOutputNodes(se, numOutputs, outputIndices.data());
     }
-
-    std::vector<int> outputIndices(numOutputs);
-    vssapi->getAvailableOutputNodes(se, numOutputs, outputIndices.data());
 
     std::vector<MuxStream> streams;
     std::vector<MatroskaTrackInfo> trackInfos;
@@ -843,7 +851,7 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
     bool failed = false;
 
     for (int outputIndex : outputIndices) {
-        VSNode *node = vssapi->getOutputNode(se, outputIndex);
+        VSNode *node = singleNode ? singleNode : vssapi->getOutputNode(se, outputIndex);
         if (!node) {
             fprintf(stderr, "Error: failed to retrieve output node %d\n", outputIndex);
             failed = true;
@@ -859,7 +867,7 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
         /* An attached alpha clip is carried as a fourth plane of the same track, when the format
            has a fourcc that says so. Where it does not, the alpha is dropped rather than the whole
            output being refused, but never silently. */
-        stream.alphaNode = vssapi->getOutputAlphaNode(se, outputIndex);
+        stream.alphaNode = singleNode ? singleAlphaNode : vssapi->getOutputAlphaNode(se, outputIndex);
 
         MatroskaTrackInfo info;
         info.isVideo = stream.isVideo;
@@ -1344,6 +1352,7 @@ static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
                 return 1;
             }
 
+            opts.outputIndexExplicit = true;
             arg++;
         } else if (argString == "-r" || argString == "--requests") {
             if (argc <= arg + 1) {
@@ -1692,21 +1701,38 @@ int main(int argc, char **argv) {
         }
 #endif
 
-        /* Matroska carries every output rather than the selected one, so the node picked above is
-           not used and the whole single output path below is bypassed. */
-        if (opts.outputHeaders == VSPipeHeaders::MATROSKA) {
-            vsapi->freeNode(node);
-            vsapi->freeNode(alphaNode);
-            bool muxFailed = outputMatroska(opts, outFile, se, vsapi, vssapi);
-            if (outFile)
-                fflush(outFile);
-            if (outFile && outFile != stdout)
-                fclose(outFile);
-            vssapi->freeScript(se);
-            return muxFailed ? 1 : 0;
-        }
-
         int nodeType = vsapi->getNodeType(node);
+
+        /* Matroska normally carries every output, in which case a range makes no sense: the same
+           frame numbers mean different amounts of time to a video and an audio track. Asking for
+           one output is what makes a range meaningful again, so it is allowed exactly when a single
+           track is being written, whether because one was selected or because the script only set
+           one. That case runs through the ordinary trim below and reuses the node it produces. */
+        bool matroskaSingleTrack = false;
+        if (opts.outputHeaders == VSPipeHeaders::MATROSKA) {
+            int availableOutputs = vssapi->getAvailableOutputNodes(se, 0, nullptr);
+            matroskaSingleTrack = opts.outputIndexExplicit || availableOutputs == 1;
+
+            if ((opts.startPos != 0 || opts.endPos != -1) && !matroskaSingleTrack) {
+                fprintf(stderr, "Error: --start and --end can only be used with mkv output when a single track is written, select one with --outputindex\n");
+                vsapi->freeNode(node);
+                vsapi->freeNode(alphaNode);
+                vssapi->freeScript(se);
+                return 1;
+            }
+
+            if (!matroskaSingleTrack) {
+                vsapi->freeNode(node);
+                vsapi->freeNode(alphaNode);
+                bool muxFailed = outputMatroska(opts, outFile, se, vsapi, vssapi, nullptr, nullptr);
+                if (outFile)
+                    fflush(outFile);
+                if (outFile && outFile != stdout)
+                    fclose(outFile);
+                vssapi->freeScript(se);
+                return muxFailed ? 1 : 0;
+            }
+        }
 
         if (opts.startPos != 0 || opts.endPos != -1) {
             VSMap *args = vsapi->createMap();
@@ -1751,6 +1777,17 @@ int main(int argc, char **argv) {
                 vsapi->freeMap(result);
                 vsapi->freeMap(alphaResult);
             }
+        }
+
+        /* The single track case, now holding whatever the trim above produced. */
+        if (matroskaSingleTrack) {
+            bool muxFailed = outputMatroska(opts, outFile, se, vsapi, vssapi, node, alphaNode);
+            if (outFile)
+                fflush(outFile);
+            if (outFile && outFile != stdout)
+                fclose(outFile);
+            vssapi->freeScript(se);
+            return muxFailed ? 1 : 0;
         }
 
         std::unique_ptr<VSPipeOutputData> data(new VSPipeOutputData());

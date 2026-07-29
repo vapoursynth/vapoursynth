@@ -40,9 +40,10 @@ Options
     Add headers for the specified format to the output.
 
     Unlike the other types, which wrap the single selected output, ``mkv`` writes a Matroska
-    file containing *every* output the script sets, so a script with both video and audio
-    outputs produces one file carrying all of them. ``--outputindex`` is ignored in that case.
-    See `Matroska output`_ for the formats it accepts.
+    file containing *every* output the script sets by default, so a script with both video and
+    audio outputs produces one file carrying all of them. Naming an output with
+    ``--outputindex`` narrows it to just that one. See `Matroska output`_ for the formats it
+    accepts.
 
 ``-t, --timecodes FILE``
     Write timecodes v2 file
@@ -130,6 +131,17 @@ depth. The remaining subsamplings and Gray video have no layout that can carry a
 there the alpha is dropped and a warning says so; the video itself is unaffected. An alpha clip
 that needs to survive in those cases can be set as an output of its own, where it becomes an
 ordinary Gray track.
+
+Selecting outputs and ranges
+----------------------------
+
+Every output the script sets is written unless ``--outputindex`` names one, which narrows the
+file to that single track.
+
+``--start`` and ``--end`` only work when a single track is being written, either because one was
+selected or because the script only set one. They are refused otherwise, since a frame range
+means different amounts of time to a video and an audio track and applying the same numbers to
+both would silently misalign them. Trimming in the script itself has no such restriction.
 
 Seeking
 -------
