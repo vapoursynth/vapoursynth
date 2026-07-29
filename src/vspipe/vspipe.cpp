@@ -79,6 +79,72 @@ static FILE *OpenFile(const std::filesystem::path &Path) {
 }
 
 /////////////////////////////////////////////
+/* Ownership holders. main leaves through two dozen different returns and used to have to name
+   every resource it still held on each of them, which is how a file opened just before a failing
+   one leaked and how a map ended up released twice. Holding them like this makes releasing them
+   a property of leaving the scope rather than something each exit has to remember. */
+
+/* Frees through the API it was handed, which is the only way to reach the free function. */
+struct NodeDeleter {
+    const VSAPI *vsapi = nullptr;
+    void operator()(VSNode *node) const { if (vsapi) vsapi->freeNode(node); }
+};
+
+struct MapDeleter {
+    const VSAPI *vsapi = nullptr;
+    void operator()(VSMap *map) const { if (vsapi) vsapi->freeMap(map); }
+};
+
+struct ScriptDeleter {
+    const VSSCRIPTAPI *vssapi = nullptr;
+    void operator()(VSScript *script) const { if (vssapi) vssapi->freeScript(script); }
+};
+
+typedef std::unique_ptr<VSNode, NodeDeleter> NodeHandle;
+typedef std::unique_ptr<VSMap, MapDeleter> MapHandle;
+typedef std::unique_ptr<VSScript, ScriptDeleter> ScriptHandle;
+
+static NodeHandle wrapNode(VSNode *node, const VSAPI *vsapi) { return NodeHandle(node, NodeDeleter{ vsapi }); }
+static MapHandle wrapMap(VSMap *map, const VSAPI *vsapi) { return MapHandle(map, MapDeleter{ vsapi }); }
+static ScriptHandle wrapScript(VSScript *script, const VSSCRIPTAPI *vssapi) { return ScriptHandle(script, ScriptDeleter{ vssapi }); }
+
+/* Not every handle vspipe writes to is one it may close: stdout has to survive, and a named pipe
+   on Windows is closed through the handle it was created from. */
+class OutputFile {
+public:
+    OutputFile() = default;
+    OutputFile(FILE *file, bool owned) : file(file), owned(owned) {}
+    OutputFile(OutputFile &&other) noexcept : file(other.file), owned(other.owned) { other.file = nullptr; other.owned = false; }
+    OutputFile &operator=(OutputFile &&other) noexcept {
+        if (this != &other) {
+            close();
+            file = other.file;
+            owned = other.owned;
+            other.file = nullptr;
+            other.owned = false;
+        }
+        return *this;
+    }
+    OutputFile(const OutputFile &) = delete;
+    OutputFile &operator=(const OutputFile &) = delete;
+    ~OutputFile() { close(); }
+
+    FILE *get() const { return file; }
+    explicit operator bool() const { return file != nullptr; }
+
+    void close() {
+        if (file && owned)
+            fclose(file);
+        file = nullptr;
+        owned = false;
+    }
+
+private:
+    FILE *file = nullptr;
+    bool owned = false;
+};
+
+/////////////////////////////////////////////
 
 enum class VSPipeMode {
     Output,
@@ -1491,11 +1557,10 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    FILE *outFile = nullptr;
-    bool closeOutFile = false;
+    OutputFile outFileHolder;
 
     if (opts.outputFilename.empty() || opts.outputFilename == "-") {
-        outFile = stdout;
+        outFileHolder = OutputFile(stdout, false);
     } else if (opts.outputFilename == "." || opts.outputFilename == "--") {
         // do nothing
 #ifdef _WIN32
@@ -1519,43 +1584,52 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        outFile = _fdopen(_open_osfhandle(reinterpret_cast<intptr_t>(outFile2), 0), "wb");
+        /* Not owned: the pipe is closed through the handle it was created from. */
+        outFileHolder = OutputFile(_fdopen(_open_osfhandle(reinterpret_cast<intptr_t>(outFile2), 0), "wb"), false);
 #endif
     } else {
-        outFile = OpenFile(opts.outputFilename);
-        if (!outFile) {
+        FILE *opened = OpenFile(opts.outputFilename);
+        if (!opened) {
             fprintf(stderr, "Failed to open output for writing\n");
             return 1;
         }
-        closeOutFile = true;
+        outFileHolder = OutputFile(opened, true);
     }
 
-    FILE *timecodesFile = nullptr;
+    FILE *outFile = outFileHolder.get();
+
+    OutputFile timecodesHolder;
     if (opts.mode == VSPipeMode::Output && !opts.timecodesFilename.empty()) {
-        timecodesFile = OpenFile(opts.timecodesFilename);
-        if (!timecodesFile) {
+        FILE *opened = OpenFile(opts.timecodesFilename);
+        if (!opened) {
             fprintf(stderr, "Failed to open timecodes file for writing\n");
             return 1;
         }
+        timecodesHolder = OutputFile(opened, true);
     }
+    FILE *timecodesFile = timecodesHolder.get();
 
-    FILE *jsonFile = nullptr;
+    OutputFile jsonHolder;
     if (opts.mode == VSPipeMode::Output && !opts.jsonFilename.empty()) {
-        jsonFile = OpenFile(opts.jsonFilename);
-        if (!jsonFile) {
+        FILE *opened = OpenFile(opts.jsonFilename);
+        if (!opened) {
             fprintf(stderr, "Failed to open JSON file for writing\n");
             return 1;
         }
+        jsonHolder = OutputFile(opened, true);
     }
+    FILE *jsonFile = jsonHolder.get();
 
-    FILE *filterTimeGraphFile = nullptr;
+    OutputFile filterTimeGraphHolder;
     if (opts.mode == VSPipeMode::Output && !opts.filterTimeGraphFilename.empty()) {
-        filterTimeGraphFile = OpenFile(opts.filterTimeGraphFilename);
-        if (!filterTimeGraphFile) {
+        FILE *opened = OpenFile(opts.filterTimeGraphFilename);
+        if (!opened) {
             fprintf(stderr, "Failed to open filter time graph file for writing\n");
             return 1;
         }
+        filterTimeGraphHolder = OutputFile(opened, true);
     }
+    FILE *filterTimeGraphFile = filterTimeGraphHolder.get();
 
     vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
@@ -1573,7 +1647,8 @@ int main(int argc, char **argv) {
     VSCore *core = vsapi->createCore(creationFlags);
     vsapi->addLogHandler(logMessageHandler, nullptr, nullptr, core);
     vsapi->setCoreNodeTiming(core, opts.printFilterTime || filterTimeGraphFile);
-    VSScript *se = vssapi->createScript(core);
+    ScriptHandle scriptHolder = wrapScript(vssapi->createScript(core), vssapi);
+    VSScript *se = scriptHolder.get();
     vssapi->evalSetWorkingDir(se, 1);
     if (!opts.scriptArgs.empty()) {
         VSMap *foldedArgs = vsapi->createMap();
@@ -1588,7 +1663,6 @@ int main(int argc, char **argv) {
         int code = vssapi->getExitCode(se);
         if (code == 0) code = 1;
         fprintf(stderr, "Script evaluation failed:\n%s\n", vssapi->getError(se));
-        vssapi->freeScript(se);
         return code;
     }
 
@@ -1668,7 +1742,6 @@ int main(int argc, char **argv) {
 
             vsapi->freeNode(mainNode);
         }
-        vssapi->freeScript(se);
         return 0;
     }
 
@@ -1684,17 +1757,22 @@ int main(int argc, char **argv) {
             matroskaAllTracks = true;
     }
 
+    /* The holders own these for the rest of the function, the bare pointers alongside them are
+       what everything below reads. They are refreshed together wherever the node is replaced. */
+    NodeHandle nodeHolder;
+    NodeHandle alphaHolder;
     VSNode *node = nullptr;
     VSNode *alphaNode = nullptr;
     if (!matroskaAllTracks) {
-        node = vssapi->getOutputNode(se, opts.outputIndex);
+        nodeHolder = wrapNode(vssapi->getOutputNode(se, opts.outputIndex), vsapi);
+        node = nodeHolder.get();
         if (!node) {
             fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
-            vssapi->freeScript(se);
             return 1;
         }
 
-        alphaNode = vssapi->getOutputAlphaNode(se, opts.outputIndex);
+        alphaHolder = wrapNode(vssapi->getOutputAlphaNode(se, opts.outputIndex), vsapi);
+        alphaNode = alphaHolder.get();
 
         // disable cache since no frame is ever requested twice
         vsapi->setCacheMode(node, cmForceDisable);
@@ -1726,27 +1804,17 @@ int main(int argc, char **argv) {
            set one, and that case runs through the ordinary trim below and reuses its node. */
         bool matroskaSingleTrack = opts.outputHeaders == VSPipeHeaders::MATROSKA && !matroskaAllTracks;
 
-        /* Both Matroska exits end the same way, and keeping that in one place is what makes sure
-           every opened file is closed on each of them. */
+        /* Every file and handle the mux used is released by its holder on the way out, so the
+           only thing left to decide here is the status. */
         auto matroskaExit = [&](bool muxFailed) -> int {
             if (outFile)
                 fflush(outFile);
-            if (outFile && outFile != stdout)
-                fclose(outFile);
-            if (timecodesFile)
-                fclose(timecodesFile);
-            if (jsonFile)
-                fclose(jsonFile);
-            if (filterTimeGraphFile)
-                fclose(filterTimeGraphFile);
-            vssapi->freeScript(se);
             return muxFailed ? 1 : 0;
         };
 
         if (matroskaAllTracks) {
             if (opts.startPos != 0 || opts.endPos != -1) {
                 fprintf(stderr, "Error: --start and --end can only be used with mkv output when a single track is written, select one with --outputindex\n");
-                vssapi->freeScript(se);
                 return 1;
             }
 
@@ -1754,7 +1822,6 @@ int main(int argc, char **argv) {
                the same single track rule as the range options. */
             if (opts.printFilterTime || filterTimeGraphFile) {
                 fprintf(stderr, "Error: --filter-time and --filter-time-graph can only be used with mkv output when a single track is written, select one with --outputindex\n");
-                vssapi->freeScript(se);
                 return 1;
             }
 
@@ -1764,47 +1831,40 @@ int main(int argc, char **argv) {
         int nodeType = vsapi->getNodeType(node);
 
         if (opts.startPos != 0 || opts.endPos != -1) {
-            VSMap *args = vsapi->createMap();
-            vsapi->mapSetNode(args, "clip", node, maAppend);
+            MapHandle args = wrapMap(vsapi->createMap(), vsapi);
+            vsapi->mapSetNode(args.get(), "clip", node, maAppend);
             if (opts.startPos != 0)
-                vsapi->mapSetInt(args, "first", opts.startPos, maAppend);
+                vsapi->mapSetInt(args.get(), "first", opts.startPos, maAppend);
             if (opts.endPos > -1)
-                vsapi->mapSetInt(args, "last", opts.endPos, maAppend);
+                vsapi->mapSetInt(args.get(), "last", opts.endPos, maAppend);
 
             VSPlugin *stdPlugin = vsapi->getPluginByID(VSH_STD_PLUGIN_ID, vssapi->getCore(se));
-            VSMap *result = vsapi->invoke(stdPlugin, (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
+            MapHandle result = wrapMap(vsapi->invoke(stdPlugin, (nodeType == mtVideo) ? "Trim" : "AudioTrim", args.get()), vsapi);
 
-            VSMap *alphaResult = nullptr;
+            MapHandle alphaResult;
             if (alphaNode) {
-                vsapi->mapSetNode(args, "clip", alphaNode, maReplace);
-                alphaResult = vsapi->invoke(stdPlugin, "Trim", args);
+                vsapi->mapSetNode(args.get(), "clip", alphaNode, maReplace);
+                alphaResult = wrapMap(vsapi->invoke(stdPlugin, "Trim", args.get()), vsapi);
             }
 
-            vsapi->freeMap(args);
+            args.reset();
 
-            VSMap *mapError = nullptr;
-            if (vsapi->mapGetError(result)) {
-                mapError = result;
-            } else if (alphaResult && vsapi->mapGetError(alphaResult)) {
-                mapError = alphaResult;
-            }
+            /* Whichever map carries the error is one of the two already held, not a third, so it
+               is only read here and released with the rest when they go out of scope. */
+            const char *trimError = vsapi->mapGetError(result.get());
+            if (!trimError && alphaResult)
+                trimError = vsapi->mapGetError(alphaResult.get());
 
-            if (mapError) {
-                fprintf(stderr, "%s\n", vsapi->mapGetError(mapError));
-                vsapi->freeMap(mapError);
-                vsapi->freeMap(result);
-                vsapi->freeMap(alphaResult);
-                vsapi->freeNode(node);
-                vsapi->freeNode(alphaNode);
-                vssapi->freeScript(se);
+            if (trimError) {
+                fprintf(stderr, "%s\n", trimError);
                 return 1;
-            } else {
-                vsapi->freeNode(node);
-                node = vsapi->mapGetNode(result, "clip", 0, nullptr);
-                if (alphaResult)
-                    alphaNode = vsapi->mapGetNode(alphaResult, "clip", 0, nullptr);
-                vsapi->freeMap(result);
-                vsapi->freeMap(alphaResult);
+            }
+
+            nodeHolder = wrapNode(vsapi->mapGetNode(result.get(), "clip", 0, nullptr), vsapi);
+            node = nodeHolder.get();
+            if (alphaResult) {
+                alphaHolder = wrapNode(vsapi->mapGetNode(alphaResult.get(), "clip", 0, nullptr), vsapi);
+                alphaNode = alphaHolder.get();
             }
         }
 
@@ -1816,7 +1876,8 @@ int main(int argc, char **argv) {
             VSNode *timingNode = (opts.printFilterTime || filterTimeGraphFile) ? vsapi->addNodeRef(node) : nullptr;
 
             auto muxStartTime = std::chrono::steady_clock::now();
-            bool muxFailed = outputMatroska(opts, outFile, timecodesFile, jsonFile, se, vsapi, vssapi, node, alphaNode);
+            /* Released to the mux, which frees them itself once it is done with them. */
+            bool muxFailed = outputMatroska(opts, outFile, timecodesFile, jsonFile, se, vsapi, vssapi, nodeHolder.release(), alphaHolder.release());
             std::chrono::duration<double> muxElapsed = std::chrono::steady_clock::now() - muxStartTime;
 
             if (opts.printFilterTime)
@@ -1847,9 +1908,6 @@ int main(int argc, char **argv) {
 
             if (!isConstantVideoFormat(vi)) {
                 fprintf(stderr, "Cannot output clips with varying dimensions\n");
-                vsapi->freeNode(node);
-                vsapi->freeNode(alphaNode);
-                vssapi->freeScript(se);
                 return 1;
             }
 
@@ -1897,19 +1955,6 @@ int main(int argc, char **argv) {
             fprintf(filterTimeGraphFile, "%s", graph.c_str());
         }
     }
-
-    if (outFile && closeOutFile)
-        fclose(outFile);
-    if (timecodesFile)
-        fclose(timecodesFile);
-    if (jsonFile)
-        fclose(jsonFile);
-    if (filterTimeGraphFile)
-        fclose(filterTimeGraphFile);
-
-    vsapi->freeNode(node);
-    vsapi->freeNode(alphaNode);
-    vssapi->freeScript(se);
 
     return success ? 0 : 1;
 }
