@@ -1,6 +1,6 @@
 r79:
 implemented uncompressed mkv output support in vspipe, it's mainly intended to pass on audio, video and timestamps together into ffmpeg
-improved caching behavior for scripts using long cyclical request pattern such as Loop(200)
+improved caching behavior for scripts using long cyclical request pattern such as looping 20+ frame clips, the cache heuritics can now over time adapt to much larger cycles
 
 r78:
 a compiler supporting c++20 is now required to build the project, compatibility has been verified with recent msvc, clang(-cl) and gcc
