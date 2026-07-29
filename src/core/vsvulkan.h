@@ -325,6 +325,29 @@ struct VSVulkanDeviceImport {
     void *queueLockContext = nullptr;
 };
 
+/* A buffer and the memory backing it, freed with destroyBuffer. Ownership is deliberately
+   explicit rather than RAII: frame pooling and cache accounting will want to manage these
+   lifetimes themselves later, and a device pointer per buffer would only get in the way.
+   Host visible buffers stay persistently mapped from creation to destruction. */
+struct VSVulkanBuffer {
+    VkBuffer buffer = VK_NULL_HANDLE;
+    VkDeviceMemory memory = VK_NULL_HANDLE;
+    VkDeviceAddress address = 0;      /* nonzero when created with SHADER_DEVICE_ADDRESS usage */
+    void *mapped = nullptr;           /* nonnull when the memory ended up host visible */
+    VkDeviceSize size = 0;
+    VkMemoryPropertyFlags memoryFlags = 0; /* what the chosen memory type actually provides */
+};
+
+/* An optimally tiled device local image and its memory, freed with destroyImage. Layout
+   transitions are the caller's business since they belong to command recording. */
+struct VSVulkanImage {
+    VkImage image = VK_NULL_HANDLE;
+    VkDeviceMemory memory = VK_NULL_HANDLE;
+    VkFormat format = VK_FORMAT_UNDEFINED;
+    uint32_t width = 0;
+    uint32_t height = 0;
+};
+
 /* One queue plus whatever serializes access to it. vkQueueSubmit is externally synchronized and
    filters run fmParallel, submitting from many threads at once, so taking the lock around every
    submission is mandatory, not defensive. The interface is BasicLockable on purpose: submission
@@ -425,6 +448,20 @@ public:
        physical device, and actually enabling the feature there is part of the host's side of
        the bargain. */
     bool hostImageCopySupported() const { return hostImageCopyFlag; }
+
+    /* First pass wants required plus preferred, second pass settles for required. Returns
+       UINT32_MAX when nothing qualifies. */
+    uint32_t findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags required, VkMemoryPropertyFlags preferred) const;
+
+    /* Creation, backing allocation and binding in one step. Resources are shared concurrently
+       between the compute and transfer families when those differ, trading a sliver of
+       throughput for never having to record queue family ownership transfers. */
+    bool createBuffer(VSVulkanBuffer &buffer, VkDeviceSize size, VkBufferUsageFlags usage,
+        VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, std::string &errorMessage);
+    void destroyBuffer(VSVulkanBuffer &buffer);
+    bool createImage2D(VSVulkanImage &image, VkFormat format, uint32_t width, uint32_t height,
+        VkImageUsageFlags usage, std::string &errorMessage);
+    void destroyImage(VSVulkanImage &image);
 
 private:
     enum class State { Unused, Ready, Failed };

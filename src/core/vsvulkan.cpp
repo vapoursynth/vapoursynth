@@ -696,6 +696,206 @@ bool VSVulkanDevice::adopt(const VSVulkanDeviceImport &import, std::string &erro
     return true;
 }
 
+uint32_t VSVulkanDevice::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags required, VkMemoryPropertyFlags preferred) const {
+    VkMemoryPropertyFlags both = required | preferred;
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+        if ((typeBits & (1u << i)) && (memProps.memoryTypes[i].propertyFlags & both) == both)
+            return i;
+    }
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+        if ((typeBits & (1u << i)) && (memProps.memoryTypes[i].propertyFlags & required) == required)
+            return i;
+    }
+    return UINT32_MAX;
+}
+
+bool VSVulkanDevice::createBuffer(VSVulkanBuffer &buffer, VkDeviceSize size, VkBufferUsageFlags usage,
+    VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, std::string &errorMessage) {
+    buffer = {};
+
+    uint32_t families[2] = { computeQ.family, transferQ.family };
+    VkBufferCreateInfo bufferInfo = {};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
+    if (hasDedicatedTransferQueue()) {
+        bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+        bufferInfo.queueFamilyIndexCount = 2;
+        bufferInfo.pQueueFamilyIndices = families;
+    } else {
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    }
+
+    VkResult res = vk.vkCreateBuffer(deviceHandle, &bufferInfo, nullptr, &buffer.buffer);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkCreateBuffer failed (VkResult " + std::to_string(res) + ")";
+        return false;
+    }
+
+    VkBufferMemoryRequirementsInfo2 reqInfo = {};
+    reqInfo.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2;
+    reqInfo.buffer = buffer.buffer;
+    VkMemoryRequirements2 req = {};
+    req.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
+    vk.vkGetBufferMemoryRequirements2(deviceHandle, &reqInfo, &req);
+
+    uint32_t typeIndex = findMemoryType(req.memoryRequirements.memoryTypeBits, requiredFlags, preferredFlags);
+    if (typeIndex == UINT32_MAX) {
+        errorMessage = "No memory type provides the requested properties for this buffer";
+        destroyBuffer(buffer);
+        return false;
+    }
+
+    /* Device addresses need opting in on the allocation as well as the buffer. */
+    VkMemoryAllocateFlagsInfo allocFlags = {};
+    allocFlags.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
+    allocFlags.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+    VkMemoryAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
+        allocInfo.pNext = &allocFlags;
+    allocInfo.allocationSize = req.memoryRequirements.size;
+    allocInfo.memoryTypeIndex = typeIndex;
+
+    res = vk.vkAllocateMemory(deviceHandle, &allocInfo, nullptr, &buffer.memory);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkAllocateMemory failed for a buffer of " + std::to_string(size) + " bytes (VkResult " +
+            std::to_string(res) + ")";
+        destroyBuffer(buffer);
+        return false;
+    }
+
+    VkBindBufferMemoryInfo bindInfo = {};
+    bindInfo.sType = VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO;
+    bindInfo.buffer = buffer.buffer;
+    bindInfo.memory = buffer.memory;
+    res = vk.vkBindBufferMemory2(deviceHandle, 1, &bindInfo);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkBindBufferMemory2 failed (VkResult " + std::to_string(res) + ")";
+        destroyBuffer(buffer);
+        return false;
+    }
+
+    buffer.size = size;
+    buffer.memoryFlags = memProps.memoryTypes[typeIndex].propertyFlags;
+
+    if (buffer.memoryFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+        VkMemoryMapInfo mapInfo = {};
+        mapInfo.sType = VK_STRUCTURE_TYPE_MEMORY_MAP_INFO;
+        mapInfo.memory = buffer.memory;
+        mapInfo.size = VK_WHOLE_SIZE;
+        res = vk.vkMapMemory2(deviceHandle, &mapInfo, &buffer.mapped);
+        if (res != VK_SUCCESS) {
+            errorMessage = "vkMapMemory2 failed (VkResult " + std::to_string(res) + ")";
+            destroyBuffer(buffer);
+            return false;
+        }
+    }
+
+    if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+        VkBufferDeviceAddressInfo addressInfo = {};
+        addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        addressInfo.buffer = buffer.buffer;
+        buffer.address = vk.vkGetBufferDeviceAddress(deviceHandle, &addressInfo);
+    }
+
+    return true;
+}
+
+void VSVulkanDevice::destroyBuffer(VSVulkanBuffer &buffer) {
+    if (buffer.mapped) {
+        VkMemoryUnmapInfo unmapInfo = {};
+        unmapInfo.sType = VK_STRUCTURE_TYPE_MEMORY_UNMAP_INFO;
+        unmapInfo.memory = buffer.memory;
+        vk.vkUnmapMemory2(deviceHandle, &unmapInfo);
+    }
+    if (buffer.buffer)
+        vk.vkDestroyBuffer(deviceHandle, buffer.buffer, nullptr);
+    if (buffer.memory)
+        vk.vkFreeMemory(deviceHandle, buffer.memory, nullptr);
+    buffer = {};
+}
+
+bool VSVulkanDevice::createImage2D(VSVulkanImage &image, VkFormat format, uint32_t width, uint32_t height,
+    VkImageUsageFlags usage, std::string &errorMessage) {
+    image = {};
+
+    uint32_t families[2] = { computeQ.family, transferQ.family };
+    VkImageCreateInfo imageInfo = {};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.format = format;
+    imageInfo.extent = { width, height, 1 };
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.usage = usage;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    if (hasDedicatedTransferQueue()) {
+        imageInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+        imageInfo.queueFamilyIndexCount = 2;
+        imageInfo.pQueueFamilyIndices = families;
+    } else {
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    }
+
+    VkResult res = vk.vkCreateImage(deviceHandle, &imageInfo, nullptr, &image.image);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkCreateImage failed (VkResult " + std::to_string(res) + ")";
+        return false;
+    }
+
+    VkImageMemoryRequirementsInfo2 reqInfo = {};
+    reqInfo.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2;
+    reqInfo.image = image.image;
+    VkMemoryRequirements2 req = {};
+    req.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
+    vk.vkGetImageMemoryRequirements2(deviceHandle, &reqInfo, &req);
+
+    uint32_t typeIndex = findMemoryType(req.memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0);
+    if (typeIndex == UINT32_MAX) {
+        errorMessage = "No device local memory type accepts this image";
+        destroyImage(image);
+        return false;
+    }
+
+    VkMemoryAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = req.memoryRequirements.size;
+    allocInfo.memoryTypeIndex = typeIndex;
+    res = vk.vkAllocateMemory(deviceHandle, &allocInfo, nullptr, &image.memory);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkAllocateMemory failed for an image (VkResult " + std::to_string(res) + ")";
+        destroyImage(image);
+        return false;
+    }
+
+    VkBindImageMemoryInfo bindInfo = {};
+    bindInfo.sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
+    bindInfo.image = image.image;
+    bindInfo.memory = image.memory;
+    res = vk.vkBindImageMemory2(deviceHandle, 1, &bindInfo);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkBindImageMemory2 failed (VkResult " + std::to_string(res) + ")";
+        destroyImage(image);
+        return false;
+    }
+
+    image.format = format;
+    image.width = width;
+    image.height = height;
+    return true;
+}
+
+void VSVulkanDevice::destroyImage(VSVulkanImage &image) {
+    if (image.image)
+        vk.vkDestroyImage(deviceHandle, image.image, nullptr);
+    if (image.memory)
+        vk.vkFreeMemory(deviceHandle, image.memory, nullptr);
+    image = {};
+}
+
 bool VSVulkanDevice::enumerateDevices(std::vector<VSVulkanDeviceInfo> &devices, std::string &errorMessage) {
     devices.clear();
 
