@@ -461,20 +461,6 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrame *f, int n, VSN
     }
 }
 
-static std::string floatBitsToLetter(int bits) {
-    switch (bits) {
-    case 16:
-        return "h";
-    case 32:
-        return "s";
-    case 64:
-        return "d";
-    default:
-        assert(false);
-        return "u";
-    }
-}
-
 static bool initializeVideoOutput(VSPipeOutputData *data) {
     if (data->outputHeaders != VSPipeHeaders::None && data->outputHeaders != VSPipeHeaders::Y4M) {
         fprintf(stderr, "Error: can't apply selected header type to video\n");
@@ -485,6 +471,11 @@ static bool initializeVideoOutput(VSPipeOutputData *data) {
 
     if (data->outputHeaders == VSPipeHeaders::Y4M && ((vi->format.colorFamily != cfGray && vi->format.colorFamily != cfYUV) || data->alphaNode)) {
         fprintf(stderr, "Error: can only apply y4m headers to YUV and Gray format clips without alpha\n");
+        return false;
+    }
+
+    if (data->outputHeaders == VSPipeHeaders::Y4M && vi->format.sampleType == stFloat) {
+        fprintf(stderr, "Error: y4m has no way to describe float formats\n");
         return false;
     }
 
@@ -513,10 +504,8 @@ static bool initializeVideoOutput(VSPipeOutputData *data) {
                 return false;
             }
 
-            if (vi->format.bitsPerSample > 8 && vi->format.sampleType == stInteger)
+            if (vi->format.bitsPerSample > 8)
                 y4mFormat += "p" + std::to_string(vi->format.bitsPerSample);
-            else if (vi->format.sampleType == stFloat)
-                y4mFormat += "p" + floatBitsToLetter(vi->format.bitsPerSample);
         } else {
             fprintf(stderr, "Error: no y4m identifier exists for current format\n");
             return false;

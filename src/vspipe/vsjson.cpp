@@ -20,6 +20,7 @@
 
 #include "vsjson.h"
 #include <charconv>
+#include <cmath>
 
 static bool isAsciiPrintable(const std::string &s) {
     for (const auto c : s)
@@ -29,6 +30,10 @@ static bool isAsciiPrintable(const std::string &s) {
 }
 
 static std::string doubleToString(double v) {
+    /* JSON has no way to write these as numbers, and emitting them bare produces a file no
+       parser accepts, so they turn into null. */
+    if (!std::isfinite(v))
+        return "null";
     char buffer[100];
     auto res = std::to_chars(buffer, buffer + sizeof(buffer), v, std::chars_format::fixed);
     return std::string(buffer, res.ptr - buffer);
@@ -99,6 +104,10 @@ std::string convertVSMapToJSON(const VSMap *map, const VSAPI *vsapi) {
                     else
                         jsonStr += "\"[binary data size: " + std::to_string(vsapi->mapGetDataSize(map, key, j, nullptr)) + "]\"";
                 }
+                break;
+            default:
+                for (int j = 0; j < numElems; j++)
+                    jsonStr += (j ? ", " : "") + std::string("\"[unrepresentable type]\"");
                 break;
             }
 

@@ -20,6 +20,7 @@
 
 #include "printgraph.h"
 #include <set>
+#include <vector>
 #include <map>
 #include <list>
 #include <algorithm>
@@ -72,7 +73,7 @@ static std::string replaceAll(const std::string &s, const std::string &from, con
 }
 
 static std::string escapeDotString(const std::string &s) {
-    return replaceAll(replaceAll(replaceAll(replaceAll(s, "\\", "\\\\"), "\r\n", "\\n"), "\r", "\\n"), "\n", "\\n");
+    return replaceAll(replaceAll(replaceAll(replaceAll(replaceAll(s, "\\", "\\\\"), "\"", "\\\""), "\r\n", "\\n"), "\r", "\\n"), "\n", "\\n");
 }
 
 static std::string mangleNode(VSNode *node, const VSAPI *vsapi) {
@@ -153,32 +154,39 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
 }
 
 static void printNodeGraphHelper(NodePrintMode mode, std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, std::set<VSNode *> &visited, double processingTime, VSNode *node, const VSAPI *vsapi) {
-    if (!visited.insert(node).second)
-        return;
+    std::vector<VSNode *> stack = { node };
 
-    int maxLevel = getMaxLevel(node, vsapi);
-    // how to detect groups of dependencies now? go through the graph and lump them all in by the same vsapi->getNodeCreationFunctionArguments(node, 0) pointer?
+    while (!stack.empty()) {
+        VSNode *n = stack.back();
+        stack.pop_back();
 
-    std::string setArgsStr = printVSMap(vsapi->getNodeCreationFunctionArguments(node, 0), 5, vsapi);
+        if (!visited.insert(n).second)
+            continue;
 
-    std::string thisNode = mangleNode(node, vsapi);
-    std::string thisFrame = mangleFrame(node, 0, vsapi);
-    std::string baseFrame = mangleFrame(node, maxLevel, vsapi);
+        int maxLevel = getMaxLevel(n, vsapi);
+        // how to detect groups of dependencies now? go through the graph and lump them all in by the same vsapi->getNodeCreationFunctionArguments(node, 0) pointer?
 
-    bool simple = (mode == NodePrintMode::Simple);
+        std::string setArgsStr = printVSMap(vsapi->getNodeCreationFunctionArguments(n, 0), 5, vsapi);
 
-    nodes[simple ? baseFrame : thisFrame].insert("label=\"" + std::string(vsapi->getNodeCreationPluginNS(node, simple ? maxLevel : 0)) + "." + std::string(vsapi->getNodeCreationFunctionName(node, simple ? maxLevel : 0)) + setArgsStr + "\"");
-    if (mode == NodePrintMode::FullWithTimes)
-        nodes[simple ? baseFrame : thisFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\\nMode: " + filterModeToString(vsapi->getNodeFilterMode(node)) + "\\nTime (%): " + printWithTwoDecimals((vsapi->getNodeProcessingTime(node, 0)) / (processingTime * 10000000)) + "\\nTime (s): " + printWithTwoDecimals(vsapi->getNodeProcessingTime(node, 0) / 1000000000.) + "\", shape=oval]");
-    else
-        nodes[simple ? baseFrame : thisFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\", shape=oval]");
+        std::string thisNode = mangleNode(n, vsapi);
+        std::string thisFrame = mangleFrame(n, 0, vsapi);
+        std::string baseFrame = mangleFrame(n, maxLevel, vsapi);
 
-    int numDeps = vsapi->getNumNodeDependencies(node);
+        bool simple = (mode == NodePrintMode::Simple);
 
-    for (int i = 0; i < numDeps; i++) {
-        VSNode *source = vsapi->getNodeDependency(node, i)->source;
-        lines.insert(mangleNode(source, vsapi) + " -> " + thisNode);
-        printNodeGraphHelper(mode, lines, nodes, visited, processingTime, source, vsapi);
+        nodes[simple ? baseFrame : thisFrame].insert("label=\"" + std::string(vsapi->getNodeCreationPluginNS(n, simple ? maxLevel : 0)) + "." + std::string(vsapi->getNodeCreationFunctionName(n, simple ? maxLevel : 0)) + setArgsStr + "\"");
+        if (mode == NodePrintMode::FullWithTimes)
+            nodes[simple ? baseFrame : thisFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(n)) + "\\nMode: " + filterModeToString(vsapi->getNodeFilterMode(n)) + "\\nTime (%): " + printWithTwoDecimals((vsapi->getNodeProcessingTime(n, 0)) / (processingTime * 10000000)) + "\\nTime (s): " + printWithTwoDecimals(vsapi->getNodeProcessingTime(n, 0) / 1000000000.) + "\", shape=oval]");
+        else
+            nodes[simple ? baseFrame : thisFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(n)) + "\", shape=oval]");
+
+        int numDeps = vsapi->getNumNodeDependencies(n);
+
+        for (int i = 0; i < numDeps; i++) {
+            VSNode *source = vsapi->getNodeDependency(n, i)->source;
+            lines.insert(mangleNode(source, vsapi) + " -> " + thisNode);
+            stack.push_back(source);
+        }
     }
 }
 
@@ -217,15 +225,22 @@ struct NodeTimeRecord {
 };
 
 static void printNodeTimesHelper(std::list<NodeTimeRecord> &lines, std::set<VSNode *> &visited, VSNode *node, const VSAPI *vsapi) {
-    if (!visited.insert(node).second)
-        return;
+    std::vector<VSNode *> stack = { node };
 
-    lines.push_back(NodeTimeRecord{ vsapi->getNodeName(node), vsapi->getNodeFilterMode(node), vsapi->getNodeProcessingTime(node, 0) } );
+    while (!stack.empty()) {
+        VSNode *n = stack.back();
+        stack.pop_back();
 
-    int numDeps = vsapi->getNumNodeDependencies(node);
+        if (!visited.insert(n).second)
+            continue;
 
-    for (int i = 0; i < numDeps; i++)
-        printNodeTimesHelper(lines, visited, vsapi->getNodeDependency(node, i)->source, vsapi);
+        lines.push_back(NodeTimeRecord{ vsapi->getNodeName(n), vsapi->getNodeFilterMode(n), vsapi->getNodeProcessingTime(n, 0) });
+
+        int numDeps = vsapi->getNumNodeDependencies(n);
+
+        for (int i = 0; i < numDeps; i++)
+            stack.push_back(vsapi->getNodeDependency(n, i)->source);
+    }
 }
 
 std::string printNodeTimes(VSNode *node, double processingTime, int64_t freedTime, const VSAPI *vsapi) {

@@ -118,19 +118,21 @@ which must then be present on every frame.
 Supported formats
 -----------------
 
-Every integer format is supported: Gray, YUV and RGB at 8 to 16 bits, in all of VapourSynth's
-subsamplings. RGB is additionally supported at half and single precision float.
+Gray, YUV and RGB are supported at the standard depths of 8, 9, 10, 12, 14 and 16 bits, with YUV
+past 8 bits limited to 4:2:0, 4:2:2 and 4:4:4. RGB is additionally supported at half and single
+precision float. Custom formats outside these combinations have no identifier a reader would
+recognise, so they are refused rather than written into a file nothing can open.
 
 Not supported are float Gray and float YUV, which have no equivalent to decode into on the
 reading side, and compat formats. Audio is written as PCM and covers every audio format
 VapourSynth produces.
 
 An alpha clip attached with *set_output(index, clip, alpha)* is written as part of the same track,
-as a fourth plane alongside the video, for YUV at 4:2:0, 4:2:2 and 4:4:4 and for RGB at every
-depth. The remaining subsamplings and Gray video have no layout that can carry an alpha plane, so
-there the alpha is dropped and a warning says so; the video itself is unaffected. An alpha clip
-that needs to survive in those cases can be set as an output of its own, where it becomes an
-ordinary Gray track.
+as a fourth plane alongside the video, for YUV at 4:2:0, 4:2:2 and 4:4:4 and for RGB, at most of
+the standard depths. Combinations with no recognised identifier, along with Gray video and the
+remaining subsamplings, drop the alpha with a warning instead; the video itself is unaffected. An
+alpha clip that needs to survive in those cases can be set as an output of its own, where it
+becomes an ordinary Gray track.
 
 Selecting outputs and ranges
 ----------------------------

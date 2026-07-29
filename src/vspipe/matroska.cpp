@@ -125,6 +125,14 @@ constexpr uint32_t makeFourCC(char a, char b, char c, char d) {
         (static_cast<uint32_t>(static_cast<uint8_t>(d)) << 24);
 }
 
+/* The generic planar fourccs encode any depth and subsampling, but a reader only recognises the
+   exact combinations its own format list contains, and VapourSynth can construct formats well
+   outside that. Emitting an unrecognised combination gives a file that muxes cleanly and then
+   fails to open, so every branch checks against the precise set a reader resolves. */
+bool depthIn(int depth, std::initializer_list<int> allowed) {
+    return std::find(allowed.begin(), allowed.end(), depth) != allowed.end();
+}
+
 } // namespace
 
 bool MatroskaWriter::getVideoFourCC(const VSVideoFormat &format, bool hasAlpha, uint32_t &fourCC) {
@@ -139,17 +147,19 @@ bool MatroskaWriter::getVideoFourCC(const VSVideoFormat &format, bool hasAlpha, 
        are the three plane ones with the count raised, and unlike those they do cover eight bits.
        There is no such spelling for Gray video or for the rarer subsamplings. */
     if (hasAlpha) {
-        if (format.colorFamily == cfRGB && !format.subSamplingW && !format.subSamplingH) {
+        if (format.colorFamily == cfRGB && !format.subSamplingW && !format.subSamplingH &&
+            (format.sampleType == stFloat || depthIn(format.bitsPerSample, { 8, 10, 12, 14, 16 }))) {
             fourCC = makeFourCC('G', '4', 0, static_cast<char>(depthCode));
             return true;
         }
 
         if (format.colorFamily == cfYUV && format.sampleType == stInteger) {
-            bool supportedSubSampling =
-                (format.subSamplingW == 1 && format.subSamplingH == 1) ||
-                (format.subSamplingW == 1 && format.subSamplingH == 0) ||
-                (format.subSamplingW == 0 && format.subSamplingH == 0);
-            if (supportedSubSampling) {
+            /* 4:2:0 with alpha exists at fewer depths than the other two. */
+            bool supported =
+                (format.subSamplingW == 1 && format.subSamplingH == 1 && depthIn(format.bitsPerSample, { 8, 9, 10, 16 })) ||
+                (format.subSamplingW == 1 && format.subSamplingH == 0 && depthIn(format.bitsPerSample, { 8, 9, 10, 12, 16 })) ||
+                (format.subSamplingW == 0 && format.subSamplingH == 0 && depthIn(format.bitsPerSample, { 8, 9, 10, 12, 16 }));
+            if (supported) {
                 int subSamplingCode = format.subSamplingW * 10 + format.subSamplingH;
                 fourCC = makeFourCC('Y', '4', static_cast<char>(subSamplingCode), static_cast<char>(depthCode));
                 return true;
@@ -202,20 +212,25 @@ bool MatroskaWriter::getVideoFourCC(const VSVideoFormat &format, bool hasAlpha, 
        byte carries the depth and, for YUV, the third carries the subsampling. It covers every
        depth VapourSynth has, float included, so these all stay planar rather than being packed.
        Depths are the declared ones; the samples themselves sit in the usual containers. */
-    if (format.colorFamily == cfRGB && !format.subSamplingW && !format.subSamplingH) {
+    if (format.colorFamily == cfRGB && !format.subSamplingW && !format.subSamplingH &&
+        (format.sampleType == stFloat || depthIn(format.bitsPerSample, { 8, 9, 10, 12, 14, 16 }))) {
         /* Written G, B, R rather than VapourSynth's R, G, B, which is a reordering of the plane
            writes and costs nothing. */
         fourCC = makeFourCC('G', '3', 0, static_cast<char>(depthCode));
         return true;
     }
 
-    if (format.sampleType == stInteger && format.bitsPerSample > 8) {
+    if (format.sampleType == stInteger && depthIn(format.bitsPerSample, { 9, 10, 12, 14, 16 })) {
         if (format.colorFamily == cfGray && !format.subSamplingW && !format.subSamplingH) {
             fourCC = makeFourCC('Y', '1', 0, static_cast<char>(depthCode));
             return true;
         }
 
-        if (format.colorFamily == cfYUV) {
+        /* Only the three common subsamplings have identifiable fourccs past eight bits. */
+        if (format.colorFamily == cfYUV &&
+            ((format.subSamplingW == 1 && format.subSamplingH == 1) ||
+             (format.subSamplingW == 1 && format.subSamplingH == 0) ||
+             (format.subSamplingW == 0 && format.subSamplingH == 0))) {
             int subSamplingCode = format.subSamplingW * 10 + format.subSamplingH;
             fourCC = makeFourCC('Y', '3', static_cast<char>(subSamplingCode), static_cast<char>(depthCode));
             return true;
