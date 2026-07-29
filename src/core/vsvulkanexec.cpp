@@ -149,7 +149,8 @@ VSVulkanExecContext *VSVulkanExecPool::acquire(std::string &errorMessage) {
     return context;
 }
 
-bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMessage, uint64_t *signaledValue) {
+bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMessage, uint64_t *signaledValue,
+    VkSemaphore waitSemaphore, uint64_t waitValue) {
     VkResult res = dev->vk.vkEndCommandBuffer(context.cmd);
     if (res != VK_SUCCESS) {
         errorMessage = "vkEndCommandBuffer failed (VkResult " + std::to_string(res) + ")";
@@ -164,12 +165,21 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
     signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
     signalInfo.semaphore = timeline;
     signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    VkSemaphoreSubmitInfo waitInfo = {};
+    waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+    waitInfo.semaphore = waitSemaphore;
+    waitInfo.value = waitValue;
+    waitInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
     VkSubmitInfo2 submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
     submitInfo.commandBufferInfoCount = 1;
     submitInfo.pCommandBufferInfos = &cmdInfo;
     submitInfo.signalSemaphoreInfoCount = 1;
     submitInfo.pSignalSemaphoreInfos = &signalInfo;
+    if (waitSemaphore) {
+        submitInfo.waitSemaphoreInfoCount = 1;
+        submitInfo.pWaitSemaphoreInfos = &waitInfo;
+    }
 
     {
         /* Value allocation and submission stay together under the queue lock, since timeline

@@ -79,13 +79,18 @@ public:
 
     /* Ends recording and submits, signaling the next timeline value, then releases the claim.
        The signaled value is optionally returned so the caller can wait for this exact
-       submission later without holding the context. */
-    bool submit(VSVulkanExecContext &context, std::string &errorMessage, uint64_t *signaledValue = nullptr);
+       submission later without holding the context. A wait pair makes the submission wait on
+       another timeline before executing, which is how work consuming a frame waits for the
+       frame's producer without the host ever blocking. */
+    bool submit(VSVulkanExecContext &context, std::string &errorMessage, uint64_t *signaledValue = nullptr,
+        VkSemaphore waitSemaphore = VK_NULL_HANDLE, uint64_t waitValue = 0);
 
     /* Host waits, always outside every lock. */
     bool waitValue(uint64_t value, std::string &errorMessage);
     bool waitAll(std::string &errorMessage);
 
+    /* The pool's timeline, handed to frames as their producer sync. */
+    VkSemaphore semaphore() const { return timeline; }
     VSVulkanQueue *queue() const { return q; }
 
 private:
