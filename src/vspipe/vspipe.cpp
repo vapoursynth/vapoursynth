@@ -669,6 +669,12 @@ struct MuxStream {
     int inFlight = 0;
     std::map<int, const VSFrame *> arrived;
 
+    /* An alpha clip becomes a fourth plane of the same track. Its frames are requested alongside
+       the video ones and a frame is only usable once both halves have turned up. */
+    VSNode *alphaNode = nullptr;
+    std::map<int, const VSFrame *> arrivedAlpha;
+    const VSFrame *pendingAlphaFrame = nullptr;
+
     int frameCount() const {
         return isVideo ? vi->numFrames : ai->numFrames;
     }
@@ -680,7 +686,9 @@ struct MuxStream {
     /* Frames already delivered plus those still outstanding. Capping this is what stops a stream
        whose timestamps run ahead from buffering while the muxer waits on a slower one. */
     int held() const {
-        return static_cast<int>(arrived.size()) + inFlight + (pendingFrame ? 1 : 0);
+        /* Counted in video frames. An alpha request is issued with its video frame and the two
+           are consumed together, so the pair counts once. */
+        return static_cast<int>(arrived.size()) + (alphaNode ? inFlight / 2 : inFlight) + (pendingFrame ? 1 : 0);
     }
 };
 
@@ -692,7 +700,12 @@ void VS_CC muxFrameDoneCallback(void *userData, const VSFrame *f, int n, VSNode 
     stream->inFlight--;
 
     if (f) {
-        stream->arrived[n] = f;
+        /* Alpha is always a Gray clip while the video it belongs to never is, so the two nodes
+           can never be the same and telling them apart this way is unambiguous. */
+        if (rnode == stream->alphaNode)
+            stream->arrivedAlpha[n] = f;
+        else
+            stream->arrived[n] = f;
     } else {
         std::string message = "Error: failed to retrieve frame " + std::to_string(n) + " from output " + std::to_string(stream->outputIndex);
         if (errorMsg)
@@ -703,13 +716,16 @@ void VS_CC muxFrameDoneCallback(void *userData, const VSFrame *f, int n, VSNode 
     ctx->condition.notify_all();
 }
 
-size_t muxVideoFrameSize(const VSVideoInfo *vi) {
+size_t muxVideoFrameSize(const VSVideoInfo *vi, bool hasAlpha) {
     size_t size = 0;
     for (int p = 0; p < vi->format.numPlanes; p++) {
         int width = vi->width >> ((p == 1 || p == 2) ? vi->format.subSamplingW : 0);
         int height = vi->height >> ((p == 1 || p == 2) ? vi->format.subSamplingH : 0);
         size += static_cast<size_t>(width) * static_cast<size_t>(height) * vi->format.bytesPerSample;
     }
+    /* The alpha plane is full resolution at the same depth, so it matches plane zero. */
+    if (hasAlpha)
+        size += static_cast<size_t>(vi->width) * static_cast<size_t>(vi->height) * vi->format.bytesPerSample;
     return size;
 }
 
@@ -721,7 +737,7 @@ size_t muxAudioFrameSize(const VSFrame *frame, const VSAPI *vsapi) {
 
 /* Frames are written exactly as VapourSynth holds them, plane after plane, which is the whole
    reason the fourcc mapping only accepts layouts that already match. */
-bool muxWriteFrame(const VSFrame *frame, const VSAPI *vsapi, FILE *outFile, std::vector<uint8_t> &buffer, std::string &errorMessage) {
+bool muxWritePlanes(const VSFrame *frame, const VSAPI *vsapi, FILE *outFile, std::vector<uint8_t> &buffer, std::string &errorMessage) {
     if (!outFile)
         return true;
 
@@ -840,6 +856,11 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
         stream.trackIndex = static_cast<int>(streams.size());
         stream.isVideo = vsapi->getNodeType(node) == mtVideo;
 
+        /* An attached alpha clip is carried as a fourth plane of the same track, when the format
+           has a fourcc that says so. Where it does not, the alpha is dropped rather than the whole
+           output being refused, but never silently. */
+        stream.alphaNode = vssapi->getOutputAlphaNode(se, outputIndex);
+
         MatroskaTrackInfo info;
         info.isVideo = stream.isVideo;
 
@@ -851,9 +872,18 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
                 failed = true;
                 break;
             }
-            if (!MatroskaWriter::getVideoFourCC(stream.vi->format, info.fourCC)) {
+            /* Alpha only survives if the format has a layout that can carry a fourth plane. Where
+               it does not, the video is still written and only the alpha is dropped, with a word
+               about it rather than in silence. */
+            if (stream.alphaNode && !MatroskaWriter::getVideoFourCC(stream.vi->format, true, info.fourCC)) {
+                fprintf(stderr, "Warning: output %d has an alpha clip attached but its format has no layout that can carry one, the alpha will not be written\n", outputIndex);
+                vsapi->freeNode(stream.alphaNode);
+                stream.alphaNode = nullptr;
+            }
+            if (!MatroskaWriter::getVideoFourCC(stream.vi->format, stream.alphaNode != nullptr, info.fourCC)) {
                 fprintf(stderr, "Error: output %d uses a video format Matroska has no raw layout for\n", outputIndex);
                 vsapi->freeNode(node);
+                vsapi->freeNode(stream.alphaNode);
                 failed = true;
                 break;
             }
@@ -915,6 +945,7 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
        that case, but the division still has to be kept away from zero. */
     const int perStream = streams.empty() ? 1 : std::max(1, budget / static_cast<int>(streams.size()));
     std::vector<std::pair<MuxStream *, int>> toRequest;
+    std::vector<std::pair<MuxStream *, int>> toRequestAlpha;
 
     auto startTime = std::chrono::steady_clock::now();
     auto lastReportTime = startTime;
@@ -922,6 +953,7 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
     while (!failed) {
         int nextStream = -1;
         toRequest.clear();
+        toRequestAlpha.clear();
 
         {
             std::unique_lock<std::mutex> lock(ctx.mutex);
@@ -934,9 +966,14 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
                 for (auto &stream : streams) {
                     if (!stream.pendingFrame && !stream.exhausted()) {
                         auto it = stream.arrived.find(stream.frameIndex);
-                        if (it != stream.arrived.end()) {
+                        auto alphaIt = stream.alphaNode ? stream.arrivedAlpha.find(stream.frameIndex) : stream.arrivedAlpha.end();
+                        if (it != stream.arrived.end() && (!stream.alphaNode || alphaIt != stream.arrivedAlpha.end())) {
                             stream.pendingFrame = it->second;
                             stream.arrived.erase(it);
+                            if (stream.alphaNode) {
+                                stream.pendingAlphaFrame = alphaIt->second;
+                                stream.arrivedAlpha.erase(alphaIt);
+                            }
 
                             if (stream.isVideo && stream.vi->fpsNum > 0) {
                                 stream.pendingTimeNs = muxCfrTimeNs(stream.frameIndex, stream.vi->fpsNum, stream.vi->fpsDen);
@@ -968,8 +1005,13 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
                 for (auto &stream : streams) {
                     while (stream.held() < perStream && stream.requestCursor < stream.frameCount()) {
                         toRequest.emplace_back(&stream, stream.requestCursor);
-                        stream.requestCursor++;
                         stream.inFlight++;
+                        if (stream.alphaNode) {
+                            /* Queued as a pair so the two halves never drift apart. */
+                            toRequestAlpha.emplace_back(&stream, stream.requestCursor);
+                            stream.inFlight++;
+                        }
+                        stream.requestCursor++;
                     }
                 }
 
@@ -995,6 +1037,8 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
            requesting the frame has even returned. */
         for (const auto &request : toRequest)
             vsapi->getFrameAsync(request.second, request.first->node, muxFrameDoneCallback, request.first);
+        for (const auto &request : toRequestAlpha)
+            vsapi->getFrameAsync(request.second, request.first->alphaNode, muxFrameDoneCallback, request.first);
         if (!toRequest.empty())
             continue;
 
@@ -1002,10 +1046,11 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
             break;
 
         MuxStream &stream = streams[nextStream];
-        size_t frameSize = stream.isVideo ? muxVideoFrameSize(stream.vi) : muxAudioFrameSize(stream.pendingFrame, vsapi);
+        size_t frameSize = stream.isVideo ? muxVideoFrameSize(stream.vi, stream.alphaNode != nullptr) : muxAudioFrameSize(stream.pendingFrame, vsapi);
 
         if (!writer.writeFrameHeader(stream.trackIndex, stream.pendingTimeNs, frameSize, true, errorMessage) ||
-            !muxWriteFrame(stream.pendingFrame, vsapi, outFile, buffer, errorMessage)) {
+            !muxWritePlanes(stream.pendingFrame, vsapi, outFile, buffer, errorMessage) ||
+            (stream.pendingAlphaFrame && !muxWritePlanes(stream.pendingAlphaFrame, vsapi, outFile, buffer, errorMessage))) {
             fprintf(stderr, "%s\n", errorMessage.c_str());
             failed = true;
             break;
@@ -1019,6 +1064,10 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
 
         vsapi->freeFrame(stream.pendingFrame);
         stream.pendingFrame = nullptr;
+        if (stream.pendingAlphaFrame) {
+            vsapi->freeFrame(stream.pendingAlphaFrame);
+            stream.pendingAlphaFrame = nullptr;
+        }
         stream.frameIndex++;
 
         if (opts.printProgress) {
@@ -1068,6 +1117,12 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, VSScript *s
         for (const auto &iter : stream.arrived)
             vsapi->freeFrame(iter.second);
         stream.arrived.clear();
+        if (stream.pendingAlphaFrame)
+            vsapi->freeFrame(stream.pendingAlphaFrame);
+        for (const auto &iter : stream.arrivedAlpha)
+            vsapi->freeFrame(iter.second);
+        stream.arrivedAlpha.clear();
+        vsapi->freeNode(stream.alphaNode);
         videoFrames += stream.framesWritten;
         audioSamples += stream.samplesWritten;
         vsapi->freeNode(stream.node);

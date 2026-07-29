@@ -127,7 +127,38 @@ constexpr uint32_t makeFourCC(char a, char b, char c, char d) {
 
 } // namespace
 
-bool MatroskaWriter::getVideoFourCC(const VSVideoFormat &format, uint32_t &fourCC) {
+bool MatroskaWriter::getVideoFourCC(const VSVideoFormat &format, bool hasAlpha, uint32_t &fourCC) {
+    int depthCode = 0;
+    if (format.sampleType == stFloat)
+        depthCode = format.bitsPerSample == 16 ? 17 : 33;
+    else
+        depthCode = format.bitsPerSample;
+
+    /* An alpha clip is Gray at the same dimensions and depth as the video it belongs to, which is
+       exactly a fourth plane of the same geometry, so it is written as one. The fourccs for that
+       are the three plane ones with the count raised, and unlike those they do cover eight bits.
+       There is no such spelling for Gray video or for the rarer subsamplings. */
+    if (hasAlpha) {
+        if (format.colorFamily == cfRGB && !format.subSamplingW && !format.subSamplingH) {
+            fourCC = makeFourCC('G', '4', 0, static_cast<char>(depthCode));
+            return true;
+        }
+
+        if (format.colorFamily == cfYUV && format.sampleType == stInteger) {
+            bool supportedSubSampling =
+                (format.subSamplingW == 1 && format.subSamplingH == 1) ||
+                (format.subSamplingW == 1 && format.subSamplingH == 0) ||
+                (format.subSamplingW == 0 && format.subSamplingH == 0);
+            if (supportedSubSampling) {
+                int subSamplingCode = format.subSamplingW * 10 + format.subSamplingH;
+                fourCC = makeFourCC('Y', '4', static_cast<char>(subSamplingCode), static_cast<char>(depthCode));
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /* Layouts VapourSynth already holds exactly the way the fourcc describes are taken first,
        since those frames can go out plane by plane with no conversion at all. */
     if (format.sampleType == stInteger && format.bitsPerSample == 8) {
@@ -171,12 +202,6 @@ bool MatroskaWriter::getVideoFourCC(const VSVideoFormat &format, uint32_t &fourC
        byte carries the depth and, for YUV, the third carries the subsampling. It covers every
        depth VapourSynth has, float included, so these all stay planar rather than being packed.
        Depths are the declared ones; the samples themselves sit in the usual containers. */
-    int depthCode = 0;
-    if (format.sampleType == stFloat)
-        depthCode = format.bitsPerSample == 16 ? 17 : 33;
-    else
-        depthCode = format.bitsPerSample;
-
     if (format.colorFamily == cfRGB && !format.subSamplingW && !format.subSamplingH) {
         /* Written G, B, R rather than VapourSynth's R, G, B, which is a reordering of the plane
            writes and costs nothing. */

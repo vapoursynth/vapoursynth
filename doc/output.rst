@@ -124,6 +124,13 @@ Not supported are float Gray and float YUV, which have no equivalent to decode i
 reading side, and compat formats. Audio is written as PCM and covers every audio format
 VapourSynth produces.
 
+An alpha clip attached with *set_output(index, clip, alpha)* is written as part of the same track,
+as a fourth plane alongside the video, for YUV at 4:2:0, 4:2:2 and 4:4:4 and for RGB at every
+depth. The remaining subsamplings and Gray video have no layout that can carry an alpha plane, so
+there the alpha is dropped and a warning says so; the video itself is unaffected. An alpha clip
+that needs to survive in those cases can be set as an output of its own, where it becomes an
+ordinary Gray track.
+
 Seeking
 -------
 

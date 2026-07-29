@@ -67,7 +67,7 @@ public:
     /* Maps a VapourSynth format onto a fourcc describing how its planes are laid out. Every format
        that maps at all maps to a planar layout, so frames are always written through untouched.
        Returns false for formats with no fourcc a reader would recognise. */
-    static bool getVideoFourCC(const VSVideoFormat &format, uint32_t &fourCC);
+    static bool getVideoFourCC(const VSVideoFormat &format, bool hasAlpha, uint32_t &fourCC);
     static bool isAudioFormatSupported(const VSAudioFormat &format);
 
 private:
