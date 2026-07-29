@@ -100,6 +100,24 @@ constexpr int64_t maxClusterRelativeTicks = 30000;
    readers are not asked to treat an entire stream as one element. */
 constexpr int64_t maxClusterPayloadBytes = 4 * 1024 * 1024;
 
+/* Plain ftell and fseek take a long, which is 32 bits on Windows and would give up at two
+   gigabytes. Uncompressed video passes that in seconds, so the wide forms are used throughout. */
+int64_t filePosition(FILE *f) {
+#ifdef VS_TARGET_OS_WINDOWS
+    return _ftelli64(f);
+#else
+    return ftello(f);
+#endif
+}
+
+bool fileSeek(FILE *f, int64_t position) {
+#ifdef VS_TARGET_OS_WINDOWS
+    return _fseeki64(f, position, SEEK_SET) == 0;
+#else
+    return fseeko(f, static_cast<off_t>(position), SEEK_SET) == 0;
+#endif
+}
+
 constexpr uint32_t makeFourCC(char a, char b, char c, char d) {
     return static_cast<uint32_t>(static_cast<uint8_t>(a)) |
         (static_cast<uint32_t>(static_cast<uint8_t>(b)) << 8) |
@@ -245,7 +263,7 @@ bool MatroskaWriter::initialize(FILE *file, const std::vector<MatroskaTrackInfo>
     /* A file that can be seeked in gets an index, which needs somewhere near the front pointing at
        it. The space is claimed now and filled in once the index has been written and its position
        is known; until then it reads as padding. */
-    seekable = ftell(outFile) >= 0;
+    seekable = filePosition(outFile) >= 0;
     if (seekable) {
         seekHeadPosition = bytesWritten;
         EbmlBuffer placeholder;
@@ -437,8 +455,8 @@ bool MatroskaWriter::finalize(std::string &errorMessage) {
     ebmlPutSize(seekHead, voidPayload);
     seekHead.resize(seekHeadReservedBytes, 0);
 
-    const int64_t endPosition = ftell(outFile);
-    if (endPosition < 0 || fseek(outFile, static_cast<long>(seekHeadPosition), SEEK_SET) != 0) {
+    const int64_t endPosition = filePosition(outFile);
+    if (endPosition < 0 || !fileSeek(outFile, seekHeadPosition)) {
         errorMessage = "Error: failed to seek back to write the Matroska index pointer";
         return false;
     }
@@ -446,7 +464,7 @@ bool MatroskaWriter::finalize(std::string &errorMessage) {
         errorMessage = "Error: fwrite() call failed when writing the Matroska index pointer, errno: " + std::to_string(errno);
         return false;
     }
-    if (fseek(outFile, static_cast<long>(endPosition), SEEK_SET) != 0) {
+    if (!fileSeek(outFile, endPosition)) {
         errorMessage = "Error: failed to seek back to the end of the Matroska file";
         return false;
     }
