@@ -1223,12 +1223,12 @@ static const char *colorFamilyToString(int colorFamily) {
 
 static bool svToInt64(const std::string_view &s, int64_t &result) {
     auto res = std::from_chars(s.data(), s.data() + s.size(), result);
-    return (res.ptr == s.data() + s.size());
+    return res.ec == std::errc() && res.ptr == s.data() + s.size();
 }
 
 static bool svToInt(const std::string_view &s, int &result) {
     auto res = std::from_chars(s.data(), s.data() + s.size(), result);
-    return (res.ptr == s.data() + s.size());
+    return res.ec == std::errc() && res.ptr == s.data() + s.size();
 }
 
 static bool printVersion(const VSAPI *vsapi) {
@@ -1294,6 +1294,10 @@ static void printHelp() {
         );
 }
 
+static bool isOptionLike(const char *value) {
+    return value[0] == '-' && value[1] != '\0';
+}
+
 static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
     for (int arg = 1; arg < argc; arg++) {
         std::string_view argString = argv[arg];
@@ -1334,6 +1338,11 @@ static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
         } else if (argString == "--filter-time-graph") {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No filter time graph file specified\n");
+                return 1;
+            }
+
+            if (isOptionLike(argv[arg + 1])) {
+                fprintf(stderr, "Expected a filter time graph file name but got the option %s\n", argv[arg + 1]);
                 return 1;
             }
 
@@ -1434,6 +1443,11 @@ static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
                 return 1;
             }
 
+            if (opts.requests < 0) {
+                fprintf(stderr, "Negative number of requests specified\n");
+                return 1;
+            }
+
             arg++;
         } else if (argString == "-a" || argString == "--arg") {
             if (argc <= arg + 1) {
@@ -1448,6 +1462,11 @@ static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
                 return 1;
             }
 
+            if (equalsPos == 0) {
+                fprintf(stderr, "No name specified for argument: %s\n", argv[arg + 1]);
+                return 1;
+            }
+
             opts.scriptArgs[std::string(optString.substr(0, equalsPos))] = optString.substr(equalsPos + 1);
 
             arg++;
@@ -1457,12 +1476,22 @@ static int parseOptions(VSPipeOptions &opts, int argc, char **argv) {
                 return 1;
             }
 
+            if (isOptionLike(argv[arg + 1])) {
+                fprintf(stderr, "Expected a timecodes file name but got the option %s\n", argv[arg + 1]);
+                return 1;
+            }
+
             opts.timecodesFilename = std::filesystem::u8path(argv[arg + 1]);
 
             arg++;
         } else if (argString == "-j" || argString == "--json") {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No JSON file specified\n");
+                return 1;
+            }
+
+            if (isOptionLike(argv[arg + 1])) {
+                fprintf(stderr, "Expected a JSON file name but got the option %s\n", argv[arg + 1]);
                 return 1;
             }
 
