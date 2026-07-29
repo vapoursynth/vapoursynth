@@ -39,17 +39,9 @@ void ebmlPutId(EbmlBuffer &dst, uint32_t id);
    smallest form that fits. */
 void ebmlPutSize(EbmlBuffer &dst, uint64_t size);
 
-/* The reserved all ones size, meaning the element runs until something else ends it. Only legal on
-   a few master elements, and the reason Segment and Cluster can be emitted while streaming. */
-void ebmlPutUnknownSize(EbmlBuffer &dst);
-
-/* Number of bytes ebmlPutSize would append, for reserving space up front. */
-int ebmlSizeLength(uint64_t size);
-
 /* Complete elements. Integers are written in the shortest big endian form that keeps their value,
    which is what every other muxer emits and what keeps the header small. */
 void ebmlUInt(EbmlBuffer &dst, uint32_t id, uint64_t value);
-void ebmlSInt(EbmlBuffer &dst, uint32_t id, int64_t value);
 void ebmlFloat(EbmlBuffer &dst, uint32_t id, double value);
 void ebmlString(EbmlBuffer &dst, uint32_t id, const std::string &value);
 void ebmlBinary(EbmlBuffer &dst, uint32_t id, const uint8_t *data, size_t size);

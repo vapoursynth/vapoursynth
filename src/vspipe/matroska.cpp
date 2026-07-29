@@ -288,7 +288,7 @@ bool MatroskaWriter::initialize(FILE *file, const std::vector<MatroskaTrackInfo>
     /* A file that can be seeked in gets an index, which needs somewhere near the front pointing at
        it. The space is claimed now and filled in once the index has been written and its position
        is known; until then it reads as padding. */
-    seekable = filePosition(outFile) >= 0;
+    seekable = outFile && filePosition(outFile) >= 0;
     if (seekable) {
         seekHeadPosition = bytesWritten;
         EbmlBuffer placeholder;

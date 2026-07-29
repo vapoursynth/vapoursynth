@@ -38,7 +38,7 @@ void ebmlPutId(EbmlBuffer &dst, uint32_t id) {
         dst.push_back(static_cast<uint8_t>(id >> (i * 8)));
 }
 
-int ebmlSizeLength(uint64_t size) {
+static int ebmlSizeLength(uint64_t size) {
     /* Each added byte contributes seven usable bits, and the all ones value of every width is
        reserved to mean unknown, so a value that would fill the width completely needs one more. */
     for (int length = 1; length <= 8; length++) {
@@ -57,7 +57,7 @@ void ebmlPutSize(EbmlBuffer &dst, uint64_t size) {
         dst.push_back(static_cast<uint8_t>(size >> (i * 8)));
 }
 
-void ebmlPutUnknownSize(EbmlBuffer &dst) {
+static void ebmlPutUnknownSize(EbmlBuffer &dst) {
     /* One byte of all ones. Wider forms exist but readers handle the short one and it keeps the
        header compact. */
     dst.push_back(0xFF);
@@ -78,22 +78,6 @@ void ebmlUInt(EbmlBuffer &dst, uint32_t id, uint64_t value) {
         dst.push_back(static_cast<uint8_t>(value >> (i * 8)));
 }
 
-void ebmlSInt(EbmlBuffer &dst, uint32_t id, int64_t value) {
-    /* Signed values are two's complement, so the shortest form is the one that still keeps the
-       sign bit of the leading byte correct. */
-    int length = 1;
-    while (length < 8) {
-        int64_t limit = static_cast<int64_t>(1) << (length * 8 - 1);
-        if (value >= -limit && value < limit)
-            break;
-        length++;
-    }
-
-    ebmlPutId(dst, id);
-    ebmlPutSize(dst, static_cast<uint64_t>(length));
-    for (int i = length - 1; i >= 0; i--)
-        dst.push_back(static_cast<uint8_t>(static_cast<uint64_t>(value) >> (i * 8)));
-}
 
 void ebmlFloat(EbmlBuffer &dst, uint32_t id, double value) {
     /* Always written as a double. The four byte form is legal but there is no reason to lose
