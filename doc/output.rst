@@ -155,44 +155,20 @@ pipe at all, is unaffected either way.
 AVFS
 ####
 
-AV FileSystem is based on `AVFS <https://turtlewar.org/avfs/>`_ and shares most of its
-source code and functionality. This package has several uses. It can easily make
+The `AVFS <https://github.com/vapoursynth/avfs>`_ package has several uses. It can easily make
 a script file openable by any application, as it appears like a real,
 uncompressed avi file. It can also be used to bridge the 32/64 bit gap, since a
 plain file can always be read.
 
-To use it simply run ``avfs`` in the ``core32`` or ``core64`` directories with the script name as argument.
-This will create a virtual file in ``C:\\Volumes``.
-
-The *alt_output* argument of *set_output* is respected and can be used to get additional compatibility
-with professional applications.
-
-Avisynth Support
-****************
-
-Note that this AVFS version is also compatible with Avisynth 2.6 and Avisynth+. When using Avisynth+
-higher bitdepth output is also supported. The easiest way to obtain a recent version is to extract
-``avfs.exe`` from the portable VapourSynth archives.
+Only windows is supported.
 
 VFW
 ###
 
 On windows, you can output video to VFW based programs.
 
-If you install VapourSynth by installer, the VSVFW.dll is registered already
+If you install VapourSynth by installer, the VFW support is registered already if you selected that option.
 
-Else, you could register it manually, use register file below or use `theChaosCoder's batch <https://github.com/theChaosCoder/vapoursynth-portable-FATPACK/blob/master/VapourSynth64Portable/extras/enable_vfw_support.bat>`_.
+If you installed using pip or the portable version you can register that specific installation to handle vfw by running::
 
-::
-
-    Windows Registry Editor Version 5.00
-
-    [HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}]
-    @="VapourSynth"
-
-    [HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32]
-    @="<your VSVFW.dll directory>\\VSVFW.dll"
-    "ThreadingModel"="Apartment"
-
-    [HKEY_LOCAL_MACHINE\SOFTWARE\Classes\AVIFile\Extensions\VPY]
-    @="{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"
+    vapoursynth register-vfw
