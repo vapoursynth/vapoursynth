@@ -27,7 +27,9 @@
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan_core.h>
 
+#include <mutex>
 #include <string>
+#include <vector>
 
 /* Vulkan 1.4 is required rather than negotiated. It brings timeline semaphores, synchronization2,
    descriptor indexing, buffer device address, push descriptors, host image copy and maintenance5/6
@@ -112,7 +114,9 @@ enum VSVulkanRequirement {
     \
     /* ---- Host image copy, core in 1.4. Uploads and downloads without a staging buffer, a \
        command buffer or a queue submission, which is most of what a transfer path otherwise \
-       needs. Support is per format, so query before relying on it for a given layout. ---- */ \
+       needs. Core commands always resolve, so these stay required, but calling them is gated \
+       on the optional hostImageCopy feature (see VS_VK_FEATURE_LIST) plus per format support, \
+       so query both before relying on it. ---- */ \
     FN(VS_VK_DEVICE,   VS_VK_REQUIRED, CopyMemoryToImage) \
     FN(VS_VK_DEVICE,   VS_VK_REQUIRED, CopyImageToMemory) \
     FN(VS_VK_DEVICE,   VS_VK_REQUIRED, CopyImageToImage) \
@@ -256,6 +260,195 @@ private:
     VSVulkanFunctions vk;
     PFN_vkGetInstanceProcAddr getInstanceProcAddrFn = nullptr;
     void *library = nullptr;     /* null when the entry point came from outside */
+};
+
+/* Features switched on at device creation. One list expanded both into the availability check
+   and into the enable chain so the two cannot drift apart; the number picks which
+   VkPhysicalDeviceVulkanNNFeatures struct the member lives in. A required feature missing makes
+   the device unusable; an optional one is enabled when present and exposed as a capability.
+
+   hostImageCopy is optional the hard way: promotion to core does not make a feature mandatory,
+   and AMD's Windows driver reports it unsupported even at loader version 1.4.3xx, so the
+   transfer path has to treat staging buffers as the baseline and this as the fast path. */
+#define VS_VK_FEATURE_LIST(FT) \
+    FT(12, timelineSemaphore,  VS_VK_REQUIRED) \
+    FT(12, bufferDeviceAddress, VS_VK_REQUIRED) \
+    FT(12, scalarBlockLayout,  VS_VK_REQUIRED) \
+    FT(12, hostQueryReset,     VS_VK_REQUIRED) \
+    FT(13, synchronization2,   VS_VK_REQUIRED) \
+    FT(13, maintenance4,       VS_VK_REQUIRED) \
+    FT(14, maintenance5,       VS_VK_REQUIRED) \
+    FT(14, maintenance6,       VS_VK_REQUIRED) \
+    FT(14, hostImageCopy,      VS_VK_OPTIONAL) \
+    FT(14, pushDescriptor,     VS_VK_REQUIRED)
+
+enum VSVulkanLogSeverity {
+    VS_VK_LOG_INFO = 0,
+    VS_VK_LOG_WARNING = 1,
+    VS_VK_LOG_ERROR = 2
+};
+
+/* Deliberately a bare function pointer with a context so it can later be forwarded from the C API
+   without an adapter. */
+typedef void (*VSVulkanLogFn)(int severity, const char *message, void *userData);
+
+/* What enumerateDevices() reports per physical device, mainly so a frontend can present the
+   choice. The reason string is filled in when a device is unusable and says which requirement it
+   failed first. */
+struct VSVulkanDeviceInfo {
+    std::string name;
+    uint32_t apiVersion = 0;
+    VkPhysicalDeviceType type = VK_PHYSICAL_DEVICE_TYPE_OTHER;
+    VkDeviceSize deviceLocalMemory = 0; /* largest device local heap, which is the VRAM size */
+    bool usable = false;
+    std::string reason;
+};
+
+/* Everything a host application has to hand over for VapourSynth to run on a device the host
+   already created instead of opening a second one on the same GPU. The device must have been
+   created with at least the features in VS_VK_FEATURE_LIST enabled; availability is verified at
+   adoption but enablement cannot be queried after the fact, so that part is on the host.
+
+   When the host keeps using the queues it shares, it must supply lockQueue/unlockQueue and take
+   the same lock around its own submissions, since VkQueue is externally synchronized. */
+struct VSVulkanDeviceImport {
+    PFN_vkGetInstanceProcAddr getInstanceProcAddr = nullptr;
+    VkInstance instance = VK_NULL_HANDLE;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    VkDevice device = VK_NULL_HANDLE;
+    uint32_t computeQueueFamily = 0;
+    uint32_t computeQueueIndex = 0;
+    uint32_t transferQueueFamily = UINT32_MAX; /* UINT32_MAX shares the compute queue */
+    uint32_t transferQueueIndex = 0;
+    void (*lockQueue)(void *context, uint32_t family, uint32_t index) = nullptr;
+    void (*unlockQueue)(void *context, uint32_t family, uint32_t index) = nullptr;
+    void *queueLockContext = nullptr;
+};
+
+/* One queue plus whatever serializes access to it. vkQueueSubmit is externally synchronized and
+   filters run fmParallel, submitting from many threads at once, so taking the lock around every
+   submission is mandatory, not defensive. The interface is BasicLockable on purpose: submission
+   sites take a std::lock_guard on the queue itself, and whether that lands in the internal mutex
+   or in a host application's callback is invisible to them. */
+class VSVulkanQueue {
+    friend class VSVulkanDevice;
+public:
+    VkQueue handle() const { return queue; }
+    uint32_t familyIndex() const { return family; }
+    uint32_t queueIndex() const { return index; }
+
+    void lock() {
+        if (lockFn)
+            lockFn(lockContext, family, index);
+        else
+            mutex.lock();
+    }
+
+    void unlock() {
+        if (unlockFn)
+            unlockFn(lockContext, family, index);
+        else
+            mutex.unlock();
+    }
+
+private:
+    VkQueue queue = VK_NULL_HANDLE;
+    uint32_t family = 0;
+    uint32_t index = 0;
+    void (*lockFn)(void *context, uint32_t family, uint32_t index) = nullptr;
+    void (*unlockFn)(void *context, uint32_t family, uint32_t index) = nullptr;
+    void *lockContext = nullptr;
+    std::mutex mutex;
+};
+
+/* Owns (or borrows) one Vulkan device and everything needed to reach it: the entry points, the
+   instance, the chosen queues and the cached properties later allocation decisions read. The
+   eventual home is one of these per GPU on the core.
+
+   Like the loader it is single shot: a failed create() or adopt() leaves the object permanently
+   dead and the caller starts over with a fresh one. GPU support either comes up or it does not;
+   there is nothing sensible to retry with the same object. */
+class VSVulkanDevice {
+private:
+    /* Declared before the public reference below so vk can bind to it in the initializer list. */
+    VSVulkanLoader loader;
+
+public:
+    VSVulkanDevice() : vk(loader.functions()) {}
+    ~VSVulkanDevice();
+    VSVulkanDevice(const VSVulkanDevice &) = delete;
+    VSVulkanDevice &operator=(const VSVulkanDevice &) = delete;
+
+    /* Every Vulkan call goes through here, as dev->vk.vkCmdDispatch(...). */
+    const VSVulkanFunctions &vk;
+
+    /* Must be set before create() for validation and driver messages to go anywhere. */
+    void setLogCallback(VSVulkanLogFn callback, void *userData) {
+        logFn = callback;
+        logUserData = userData;
+    }
+
+    /* Opens the platform loader, creates an instance and picks a physical device: the given index
+       into the enumeration order, or with -1 the first suitable discrete GPU falling back to any
+       suitable device. enableValidation asks for the Khronos validation layer and a debug
+       messenger routed to the log callback, degrading with a warning when the layer is not
+       installed since it is a development tool that may legitimately be absent. */
+    bool create(int physicalDeviceIndex, bool enableValidation, std::string &errorMessage);
+
+    /* Runs on a host application's existing device instead. Nothing is owned afterwards: the
+       destructor will not touch any of the imported handles, and the host must keep them alive
+       for as long as this object exists. */
+    bool adopt(const VSVulkanDeviceImport &import, std::string &errorMessage);
+
+    /* Lists every physical device the loader can see, usable or not, for frontends that let the
+       user pick. Self-contained: uses its own temporary instance. */
+    static bool enumerateDevices(std::vector<VSVulkanDeviceInfo> &devices, std::string &errorMessage);
+
+    VkInstance instance() const { return instanceHandle; }
+    VkPhysicalDevice physicalDevice() const { return physicalDeviceHandle; }
+    VkDevice device() const { return deviceHandle; }
+    PFN_vkGetInstanceProcAddr getInstanceProcAddr() const { return loader.getInstanceProcAddr(); }
+    bool isOwned() const { return owned; }
+
+    /* Only meaningful once create() or adopt() has succeeded. */
+    const VkPhysicalDeviceProperties &properties() const { return props; }
+    const VkPhysicalDeviceMemoryProperties &memoryProperties() const { return memProps; }
+
+    VSVulkanQueue &computeQueue() { return computeQ; }
+    /* The same object as computeQueue() when the device has no dedicated transfer family, so
+       locking stays correct without the caller caring which case it is in. */
+    VSVulkanQueue &transferQueue() { return *transferPtr; }
+    bool hasDedicatedTransferQueue() const { return transferPtr != &computeQ; }
+
+    /* Whether uploads and downloads may go through vkCopyMemoryToImage and friends, still
+       subject to the per format queries. On an adopted device this reports availability on the
+       physical device, and actually enabling the feature there is part of the host's side of
+       the bargain. */
+    bool hostImageCopySupported() const { return hostImageCopyFlag; }
+
+private:
+    enum class State { Unused, Ready, Failed };
+
+    void teardown();
+    void emitLog(int severity, const std::string &message) const;
+    static VKAPI_ATTR VkBool32 VKAPI_CALL debugMessengerTrampoline(
+        VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT types,
+        const VkDebugUtilsMessengerCallbackDataEXT *callbackData, void *userData);
+
+    State state = State::Unused;
+    bool owned = false;
+    VkInstance instanceHandle = VK_NULL_HANDLE;
+    VkPhysicalDevice physicalDeviceHandle = VK_NULL_HANDLE;
+    VkDevice deviceHandle = VK_NULL_HANDLE;
+    VkDebugUtilsMessengerEXT messenger = VK_NULL_HANDLE;
+    VkPhysicalDeviceProperties props = {};
+    VkPhysicalDeviceMemoryProperties memProps = {};
+    VSVulkanQueue computeQ;
+    VSVulkanQueue transferQ;
+    VSVulkanQueue *transferPtr = &computeQ;
+    bool hostImageCopyFlag = false;
+    VSVulkanLogFn logFn = nullptr;
+    void *logUserData = nullptr;
 };
 
 #endif
