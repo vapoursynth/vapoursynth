@@ -124,8 +124,14 @@ Not supported are float Gray and float YUV, which have no equivalent to decode i
 reading side, and compat formats. Audio is written as PCM and covers every audio format
 VapourSynth produces.
 
-The output is written as a single stream with no seek index, which suits a pipe. Players may
-therefore have to scan the file to seek in a saved copy.
+Seeking
+-------
+
+When the output is a file, a seek index is written at the end and referenced from the start, so
+players can seek without scanning. When it is a pipe there is no way to go back and record where
+the index ended up, so it is left out; the file is still perfectly readable and players simply
+scan to seek. Piping into a program that writes its own container, which is the usual reason to
+pipe at all, is unaffected either way.
 
 AVFS
 ####

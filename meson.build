@@ -112,6 +112,10 @@ else
     warning('Unknown host OS')
 endif
 
+if not is_win
+    add_project_arguments('-D_FILE_OFFSET_BITS=64', language: ['c', 'cpp'])
+endif
+
 if enable_guard_pattern
     add_project_arguments('-DVS_FRAME_GUARD', language: ['c', 'cpp'])
 endif
