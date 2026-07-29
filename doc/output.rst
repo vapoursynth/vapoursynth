@@ -143,6 +143,13 @@ selected or because the script only set one. They are refused otherwise, since a
 means different amounts of time to a video and an audio track and applying the same numbers to
 both would silently misalign them. Trimming in the script itself has no such restriction.
 
+``--timecodes`` and ``--json`` describe a single video track, so they require exactly one video
+track among the muxed outputs; audio tracks alongside it are fine. The timecodes are taken from
+the same timestamps written into the container, so the file describes the mkv exactly.
+
+``--filter-time`` and ``--filter-time-graph`` report times by walking the graph from one node,
+so they follow the same single track rule as ``--start`` and ``--end``.
+
 Seeking
 -------
 

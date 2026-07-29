@@ -427,6 +427,10 @@ bool MatroskaWriter::writeFrameHeader(int trackIndex, int64_t timestampNs, size_
 
 void MatroskaWriter::notePayloadWritten(size_t bytes) {
     clusterPayloadBytes += static_cast<int64_t>(bytes);
+    /* Frame payloads reach the file without passing through writeBuffer, so they have to be
+       counted here or every position recorded after the first frame comes out short by all the
+       payload before it, which is exactly what the cues and the seek head store. */
+    bytesWritten += static_cast<int64_t>(bytes);
 }
 
 bool MatroskaWriter::finalize(std::string &errorMessage) {
