@@ -64,10 +64,17 @@ typedef struct VSVulkanCoreHandles {
 } VSVulkanCoreHandles;
 
 /* A host application handing VapourSynth its existing device instead of letting the core
- * create one. The device must have every feature VapourSynth requires enabled; availability is
- * verified at adoption but enablement cannot be, so that part is the host's responsibility.
- * When the host keeps submitting to the shared queues itself it must supply the lock callbacks
- * and take the same lock around its own submissions. */
+ * create one. The device must be Vulkan 1.4 with the following features enabled; availability
+ * is verified at adoption but enablement cannot be, so that part is the host's responsibility.
+ *
+ *   required: shaderInt16, storageBuffer16BitAccess, storageBuffer8BitAccess, shaderInt8,
+ *             timelineSemaphore, bufferDeviceAddress, scalarBlockLayout, hostQueryReset,
+ *             synchronization2, maintenance4, maintenance5, maintenance6, pushDescriptor
+ *   optional, used when enabled: hostImageCopy, shaderFloat16
+ *
+ * A core created device enables exactly this set and nothing else; adoption failures name the
+ * first missing feature. When the host keeps submitting to the shared queues itself it must
+ * supply the lock callbacks and take the same lock around its own submissions. */
 typedef struct VSVulkanHostImport {
     PFN_vkGetInstanceProcAddr getInstanceProcAddr;
     VkInstance instance;
