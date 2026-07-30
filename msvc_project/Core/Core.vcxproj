@@ -39,14 +39,18 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <!-- Headers only; the loader is dlopened at runtime so nothing links against the SDK. -->
+    <VULKAN_SDK Condition="'$(VULKAN_SDK)' == ''">C:\VulkanSDK\1.4.357.0</VULKAN_SDK>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../zimg/src/zimg/api;$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
     <TargetName>Lib$(ProjectName)</TargetName>
     <OutDir>..\..\..\vapoursynth-portable\Lib\site-packages\vapoursynth</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../zimg/src/zimg/api;$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
     <TargetName>Lib$(ProjectName)</TargetName>
     <OutDir>..\..\..\vapoursynth-portable\Lib\site-packages\vapoursynth</OutDir>
@@ -121,6 +125,11 @@
     <ClCompile Include="..\..\src\core\vslog.cpp" />
     <ClCompile Include="..\..\src\core\vsresize.cpp" />
     <ClCompile Include="..\..\src\core\vsthreadpool.cpp" />
+    <ClCompile Include="..\..\src\core\vsvulkan.cpp" />
+    <ClCompile Include="..\..\src\core\vsvulkanalloc.cpp" />
+    <ClCompile Include="..\..\src\core\vsvulkanexec.cpp" />
+    <ClCompile Include="..\..\src\core\vsvulkanframe.cpp" />
+    <ClCompile Include="..\..\src\core\vsvulkanshader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth4.h" />
@@ -135,6 +144,10 @@
     <ClInclude Include="..\..\src\core\version.h" />
     <ClInclude Include="..\..\src\core\vscore.h" />
     <ClInclude Include="..\..\src\core\vslog.h" />
+    <ClInclude Include="..\..\src\core\vsvulkan.h" />
+    <ClInclude Include="..\..\src\core\vsvulkanexec.h" />
+    <ClInclude Include="..\..\src\core\vsvulkanframe.h" />
+    <ClInclude Include="..\..\src\core\vsvulkanshader.h" />
     <ClInclude Include="..\..\src\core\x86utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

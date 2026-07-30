@@ -68,6 +68,7 @@ struct VSNode;
 class VSThreadPool;
 struct VSFrameContext;
 struct VSFunction;
+class VSVulkanDevice;
 class VSMapData;
 
 typedef vs_intrusive_ptr<VSFrame> PVSFrame;
@@ -1162,6 +1163,15 @@ private:
     std::set<VSNode *> caches;
     std::mutex cacheLock;
 
+    /* Guards creation only; the device itself is internally synchronized. Destroyed with the
+       core, after every filter instance is gone, so no GPU work can outlive it. */
+    std::mutex vulkanDeviceLock;
+    std::unique_ptr<VSVulkanDevice> vulkanDev;
+    std::string vulkanDeviceError;
+    bool vulkanDeviceTried = false;
+
+    bool createVulkanDeviceLocked(int deviceIndex);
+
     std::atomic<int> cpuLevel;
 
     static std::filesystem::path getLibraryPath();
@@ -1218,6 +1228,14 @@ public:
     void logMessage(VSMessageType type, const std::string &msg);
     [[noreturn]] void logFatal(const char *msg);
     [[noreturn]] void logFatal(const std::string &msg);
+
+    /* The core's single Vulkan device, brought up on the first call with the most powerful
+       suitable GPU and returned on every later one. Returns null with the error set when
+       bringup failed, and keeps failing the same way rather than retrying per frame. */
+    VSVulkanDevice *vulkanDevice(std::string &errorMessage);
+    /* Explicit selection instead of the default, only allowed while no device exists yet;
+       -1 picks automatically. */
+    bool setVulkanDevice(int deviceIndex, std::string &errorMessage);
 
     /////////////////////////////////////
     // V3 compat helper functions

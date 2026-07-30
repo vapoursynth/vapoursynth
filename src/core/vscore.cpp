@@ -22,7 +22,9 @@
 #include "VSHelper4.h"
 #include "version.h"
 #include "cpufeatures.h"
+#include "vsvulkan.h"
 #include <cstddef>
+#include <cstdlib>
 #include <cassert>
 #include <queue>
 #include <bitset>
@@ -1500,6 +1502,52 @@ void VSCore::logMessage(VSMessageType type, const std::string &msg) {
 [[noreturn]] void VSCore::logFatal(const std::string &msg) {
     logMessage(mtFatal, msg);
     std::terminate();
+}
+
+static void vulkanLogBridge(int severity, const char *message, void *userData) {
+    VSCore *core = static_cast<VSCore *>(userData);
+    VSMessageType type = mtInformation;
+    if (severity == VS_VK_LOG_ERROR)
+        type = mtCritical;
+    else if (severity == VS_VK_LOG_WARNING)
+        type = mtWarning;
+    core->logMessage(type, message);
+}
+
+bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
+    vulkanDeviceTried = true;
+    auto dev = std::make_unique<VSVulkanDevice>();
+    dev->setLogCallback(vulkanLogBridge, this);
+    /* Validation is a development switch, so an environment variable rather than API surface. */
+    if (!dev->create(deviceIndex, std::getenv("VS_VULKAN_VALIDATION") != nullptr, vulkanDeviceError))
+        return false;
+    vulkanDev = std::move(dev);
+    return true;
+}
+
+VSVulkanDevice *VSCore::vulkanDevice(std::string &errorMessage) {
+    std::lock_guard<std::mutex> lock(vulkanDeviceLock);
+    if (!vulkanDeviceTried && !createVulkanDeviceLocked(-1))
+        logMessage(mtWarning, "Vulkan device creation failed: " + vulkanDeviceError);
+    if (!vulkanDev) {
+        errorMessage = vulkanDeviceError;
+        return nullptr;
+    }
+    return vulkanDev.get();
+}
+
+bool VSCore::setVulkanDevice(int deviceIndex, std::string &errorMessage) {
+    std::lock_guard<std::mutex> lock(vulkanDeviceLock);
+    if (vulkanDeviceTried) {
+        errorMessage = vulkanDev ? "setVulkanDevice must be called before the Vulkan device is first used"
+            : "Vulkan device creation already failed: " + vulkanDeviceError;
+        return false;
+    }
+    if (!createVulkanDeviceLocked(deviceIndex)) {
+        errorMessage = vulkanDeviceError;
+        return false;
+    }
+    return true;
 }
 
 bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {

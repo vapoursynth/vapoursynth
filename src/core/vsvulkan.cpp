@@ -19,8 +19,12 @@
 */
 
 #ifdef VS_TARGET_OS_WINDOWS
-#    define WIN32_LEAN_AND_MEAN
-#    define NOMINMAX
+#    ifndef WIN32_LEAN_AND_MEAN
+#        define WIN32_LEAN_AND_MEAN
+#    endif
+#    ifndef NOMINMAX
+#        define NOMINMAX
+#    endif
 #    include <windows.h>
 #else
 #    include <dlfcn.h>
@@ -83,6 +87,18 @@ bool deviceSuitable(const VSVulkanFunctions &vkf, VkPhysicalDevice dev, uint32_t
 #undef VS_VK_CHECK_FEATURE
 
     return true;
+}
+
+VkDeviceSize largestDeviceLocalHeap(const VSVulkanFunctions &vkf, VkPhysicalDevice dev) {
+    VkPhysicalDeviceMemoryProperties2 memProps = {};
+    memProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+    vkf.vkGetPhysicalDeviceMemoryProperties2(dev, &memProps);
+    VkDeviceSize best = 0;
+    for (uint32_t i = 0; i < memProps.memoryProperties.memoryHeapCount; i++) {
+        if (memProps.memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+            best = std::max(best, memProps.memoryProperties.memoryHeaps[i].size);
+    }
+    return best;
 }
 
 bool instanceLayerAvailable(const VSVulkanFunctions &vkf, const char *layerName) {
@@ -478,10 +494,13 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         }
         physicalDeviceHandle = devices[physicalDeviceIndex];
     } else {
-        /* First suitable discrete GPU, then anything suitable; the reasons of every rejected
-           device end up in the error so a refusal is diagnosable from the message alone. */
+        /* Most powerful wins: discrete before integrated before anything else, and among
+           equals the one with the most VRAM, which is the best power proxy available without
+           benchmarking. The reasons of every rejected device end up in the error so a refusal
+           is diagnosable from the message alone. */
         int pick = -1;
-        int fallback = -1;
+        int bestRank = -1;
+        VkDeviceSize bestHeap = 0;
         std::string reasons;
         for (uint32_t i = 0; i < deviceCount; i++) {
             VkPhysicalDeviceProperties2 p2 = {};
@@ -493,15 +512,18 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
                 reasons += std::string(reasons.empty() ? "" : "; ") + p2.properties.deviceName + " " + reason;
                 continue;
             }
-            if (p2.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+            int rank = 0;
+            if (p2.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+                rank = 2;
+            else if (p2.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
+                rank = 1;
+            VkDeviceSize heap = largestDeviceLocalHeap(vk, devices[i]);
+            if (rank > bestRank || (rank == bestRank && heap > bestHeap)) {
                 pick = static_cast<int>(i);
-                break;
-            } else if (fallback < 0) {
-                fallback = static_cast<int>(i);
+                bestRank = rank;
+                bestHeap = heap;
             }
         }
-        if (pick < 0)
-            pick = fallback;
         if (pick < 0) {
             errorMessage = "No usable Vulkan device found" + (reasons.empty() ? std::string() : " (" + reasons + ")");
             teardown();
@@ -947,14 +969,7 @@ bool VSVulkanDevice::enumerateDevices(std::vector<VSVulkanDeviceInfo> &devices, 
         info.name = p2.properties.deviceName;
         info.type = p2.properties.deviceType;
 
-        VkPhysicalDeviceMemoryProperties2 m2 = {};
-        m2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
-        vkf.vkGetPhysicalDeviceMemoryProperties2(handles[i], &m2);
-        for (uint32_t h = 0; h < m2.memoryProperties.memoryHeapCount; h++) {
-            if (m2.memoryProperties.memoryHeaps[h].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
-                info.deviceLocalMemory = std::max(info.deviceLocalMemory, m2.memoryProperties.memoryHeaps[h].size);
-        }
-
+        info.deviceLocalMemory = largestDeviceLocalHeap(vkf, handles[i]);
         info.usable = deviceSuitable(vkf, handles[i], info.apiVersion, info.reason);
         devices.push_back(std::move(info));
     }
