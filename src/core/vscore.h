@@ -405,6 +405,11 @@ public:
        destruction waits out the plane's producer before the buffer goes back to the pool. */
     VSVulkanPlane *gpu = nullptr;
     VSVulkanDevice *gpuDevice = nullptr;
+    /* GPU planes remember the host plane they were uploaded from (a reference). The extra ref
+       makes the origin non unique, so any later writer copies on write elsewhere and the
+       snapshot can never be invalidated; a download whose plane still has its origin becomes
+       plane sharing instead of a copy. Travels with plane sharing since it lives here. */
+    VSPlaneData *cpuOrigin = nullptr;
     VSPlaneData(size_t dataSize, vs::MemoryUse &mem) noexcept;
     VSPlaneData(VSVulkanPlane *plane, VSVulkanDevice *device, size_t dataSize) noexcept;
     VSPlaneData(const VSPlaneData &d) noexcept;
@@ -482,6 +487,12 @@ public:
     const VSVulkanPlane *getGPUPlane(int plane) const {
         return (plane >= 0 && plane < numPlanes) ? data[plane]->gpu : nullptr;
     }
+
+    /* Upload side: remember where each GPU plane's bytes came from. */
+    void adoptCPUOrigins(const VSFrame *src);
+    /* Download side: replace this CPU frame's planes with the origins of the GPU source where
+       they survived, returning a bitmask of the planes that no longer need downloading. */
+    int adoptOriginPlanes(const VSFrame *gpuSrc);
 
     VSMap &getProperties() {
         return properties;

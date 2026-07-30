@@ -280,6 +280,7 @@ private:
     FT(11, storageBuffer16BitAccess, VS_VK_REQUIRED) \
     FT(12, storageBuffer8BitAccess,  VS_VK_REQUIRED) \
     FT(12, shaderInt8,         VS_VK_REQUIRED) \
+    FT(12, shaderFloat16,      VS_VK_OPTIONAL) \
     FT(12, timelineSemaphore,  VS_VK_REQUIRED) \
     FT(12, bufferDeviceAddress, VS_VK_REQUIRED) \
     FT(12, scalarBlockLayout,  VS_VK_REQUIRED) \
@@ -512,6 +513,9 @@ public:
        the bargain. */
     bool hostImageCopySupported() const { return hostImageCopyFlag; }
 
+    /* Whether kernels may declare float16_t, needed for half precision plane formats. */
+    bool shaderFloat16Supported() const { return shaderFloat16Flag; }
+
     /* First pass wants required plus preferred, second pass settles for required. Returns
        UINT32_MAX when nothing qualifies. */
     uint32_t findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags required, VkMemoryPropertyFlags preferred) const;
@@ -577,6 +581,7 @@ private:
     VSVulkanQueue *transferPtr = &computeQ;
     VSVulkanAllocator allocator;
     bool hostImageCopyFlag = false;
+    bool shaderFloat16Flag = false;
     bool memoryBudgetFlag = false;
     VSVulkanLogFn logFn = nullptr;
     void *logUserData = nullptr;

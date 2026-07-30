@@ -208,6 +208,23 @@ float32x4_t f(float32x4_t r, float16x8_t a, float16x8_t b) { return vfmlalq_low_
     endif
 endif
 
+# Headers only: the Vulkan loader is dlopened at runtime, so nothing links against it. The
+# system vulkan dependency provides headers on most platforms; on Windows the SDK's include
+# directory fills in when no pkg-config style dependency exists.
+vulkan_headers = dependency('vulkan', required: false)
+if vulkan_headers.found()
+    vulkan_headers = vulkan_headers.partial_dependency(compile_args: true, includes: true)
+else
+    vulkan_inc = []
+    if is_win
+        vulkan_sdk = run_command(py, '-c', 'import os; print(os.environ.get("VULKAN_SDK", ""))', check: true).stdout().strip()
+        if vulkan_sdk != ''
+            vulkan_inc = include_directories(vulkan_sdk / 'Include')
+        endif
+    endif
+    vulkan_headers = declare_dependency(include_directories: vulkan_inc)
+endif
+
 libvapoursynth = library('libvapoursynth',
     files(
         'src/core/cpufeatures.cpp',
@@ -220,10 +237,16 @@ libvapoursynth = library('libvapoursynth',
         'src/core/vslog.cpp',
         'src/core/vsresize.cpp',
         'src/core/vsthreadpool.cpp',
+        'src/core/vsvulkan.cpp',
+        'src/core/vsvulkanalloc.cpp',
+        'src/core/vsvulkanexec.cpp',
+        'src/core/vsvulkanfilters.cpp',
+        'src/core/vsvulkanframe.cpp',
+        'src/core/vsvulkanshader.cpp',
     ),
     c_args: '-DVS_CORE_EXPORTS',
     cpp_args: '-DVS_CORE_EXPORTS',
-    dependencies: deps,
+    dependencies: deps + [vulkan_headers],
     gnu_symbol_visibility: 'hidden',
     include_directories: incdir,
     install: true,

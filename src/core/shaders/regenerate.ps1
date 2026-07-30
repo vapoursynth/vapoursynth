@@ -1,10 +1,16 @@
 $GLSLC = "C:\VulkanSDK\1.4.357.0\Bin\glslc.exe"
 if (-not (Test-Path $GLSLC)) { $GLSLC = "glslc.exe" }
 
-& $GLSLC -fshader-stage=compute -O --target-env=vulkan1.4 -DSAMPLE_T=uint8_t boxblur.comp -o boxblur8.spv
-& $GLSLC -fshader-stage=compute -O --target-env=vulkan1.4 -DSAMPLE_T=uint16_t boxblur.comp -o boxblur16.spv
+$variants = @(
+    @("boxblur8",  "boxblur8Spv",  @("-DSAMPLE_T=uint8_t")),
+    @("boxblur16", "boxblur16Spv", @("-DSAMPLE_T=uint16_t")),
+    @("boxblurs",  "boxblursSpv",  @("-DSAMPLE_T=float", "-DFLOAT_SAMPLES")),
+    @("boxblurh",  "boxblurhSpv",  @("-DSAMPLE_T=float16_t", "-DFLOAT_SAMPLES"))
+)
 
-foreach ($v in @(@("boxblur8", "boxblur8Spv"), @("boxblur16", "boxblur16Spv"))) {
+foreach ($v in $variants) {
+    & $GLSLC -fshader-stage=compute -O --target-env=vulkan1.4 @($v[2]) boxblur.comp -o "$($v[0]).spv"
+    if ($LASTEXITCODE -ne 0) { throw "glslc failed for $($v[0])" }
     $bytes = [System.IO.File]::ReadAllBytes("$PWD\$($v[0]).spv")
     $words = New-Object System.Collections.Generic.List[string]
     for ($i = 0; $i -lt $bytes.Length; $i += 4) { $words.Add("0x{0:x8}" -f [BitConverter]::ToUInt32($bytes, $i)) }

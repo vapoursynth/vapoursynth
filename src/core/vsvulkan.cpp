@@ -623,6 +623,7 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     VS_VK_FEATURE_LIST(VS_VK_ENABLE_FEATURE)
 #undef VS_VK_ENABLE_FEATURE
     hostImageCopyFlag = queried.f14.hostImageCopy != 0;
+    shaderFloat16Flag = queried.f12.shaderFloat16 != 0;
 
     VkDeviceCreateInfo deviceCreate = {};
     deviceCreate.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -709,6 +710,7 @@ bool VSVulkanDevice::adopt(const VSVulkanDeviceImport &import, std::string &erro
     VSVulkanFeatureChain available;
     vk.vkGetPhysicalDeviceFeatures2(physicalDeviceHandle, &available.f2);
     hostImageCopyFlag = available.f14.hostImageCopy != 0;
+    shaderFloat16Flag = available.f12.shaderFloat16 != 0;
     memoryBudgetFlag = deviceExtensionAvailable(vk, physicalDeviceHandle, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
 
     VkDeviceQueueInfo2 queueInfo = {};

@@ -24,6 +24,8 @@
 #include "vsvulkanshader.h"
 #include "shaders/boxblur8_spv.h"
 #include "shaders/boxblur16_spv.h"
+#include "shaders/boxblurs_spv.h"
+#include "shaders/boxblurh_spv.h"
 
 #include <memory>
 #include <stdexcept>
@@ -83,6 +85,9 @@ const VSFrame *VS_CC gpuUploadGetFrame(int n, int activationReason, void *instan
             return nullptr;
         }
 
+        /* Downloads of planes that pass through the GPU untouched become plane sharing. */
+        dst->adoptCPUOrigins(src);
+
         vsapi->freeFrame(src);
         return dst;
     }
@@ -115,16 +120,24 @@ const VSFrame *VS_CC gpuDownloadGetFrame(int n, int activationReason, void *inst
         const VSVideoFormat *fmt = vsapi->getVideoFrameFormat(src);
         VSFrame *dst = new VSFrame(*fmt, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
+        /* Planes whose upload origin survived are shared instead of copied back, and only
+           whatever the GPU actually produced crosses the bus. */
+        int adopted = dst->adoptOriginPlanes(src);
+
         const VSVulkanPlane *planes[3] = {};
         uint8_t *dstPlanes[3] = {};
         ptrdiff_t dstStrides[3] = {};
+        int downloadCount = 0;
         for (int p = 0; p < fmt->numPlanes; p++) {
-            planes[p] = src->getGPUPlane(p);
-            dstPlanes[p] = dst->getWritePtr(p);
-            dstStrides[p] = dst->getStride(p);
+            if (adopted & (1 << p))
+                continue;
+            planes[downloadCount] = src->getGPUPlane(p);
+            dstPlanes[downloadCount] = dst->getWritePtr(p);
+            dstStrides[downloadCount] = dst->getStride(p);
+            downloadCount++;
         }
 
-        if (!transfer->downloadPlanes(planes, fmt->numPlanes, fmt->bytesPerSample, dstPlanes, dstStrides, err)) {
+        if (downloadCount && !transfer->downloadPlanes(planes, downloadCount, fmt->bytesPerSample, dstPlanes, dstStrides, err)) {
             vsapi->setFilterError(("GPUDownload: " + err).c_str(), frameCtx);
             vsapi->freeFrame(src);
             dst->release();
@@ -191,8 +204,9 @@ struct BlurPush {
     uint32_t srcStride; /* in elements */
     uint32_t dstStride;
     uint32_t radius;
-    uint32_t rounding;
+    uint32_t rounding; /* integer variants only */
     uint32_t vertical;
+    float invDiv;      /* float variants only */
 };
 
 /* Owner of a temporary pass buffer whose lifetime must reach the submission's completion, so
@@ -299,16 +313,19 @@ const VSFrame *VS_CC gpuBoxBlurGetFrame(int n, int activationReason, void *insta
 
             /* The pass schedule replicates the CPU filter exactly: horizontal passes first
                with rounding div-1, 0, div-1, ... then vertical ones restarting the pattern
-               with their own divisor. */
-            struct Pass { uint32_t radius, rounding, vertical; };
+               with their own divisor. Float formats have no rounding term, just the
+               reciprocal divisor. */
+            struct Pass { uint32_t radius, rounding, vertical; float invDiv; };
             std::vector<Pass> schedule;
             if (d->hradius > 0) {
                 for (int i = 0; i < d->hpasses; i++)
-                    schedule.push_back({ static_cast<uint32_t>(d->hradius), (i == 0 || !(i & 1)) ? 2u * d->hradius : 0u, 0 });
+                    schedule.push_back({ static_cast<uint32_t>(d->hradius), (i == 0 || !(i & 1)) ? 2u * d->hradius : 0u, 0,
+                        1.0f / (2 * d->hradius + 1) });
             }
             if (d->vradius > 0) {
                 for (int i = 0; i < d->vpasses; i++)
-                    schedule.push_back({ static_cast<uint32_t>(d->vradius), (i == 0 || !(i & 1)) ? 2u * d->vradius : 0u, 1 });
+                    schedule.push_back({ static_cast<uint32_t>(d->vradius), (i == 0 || !(i & 1)) ? 2u * d->vradius : 0u, 1,
+                        1.0f / (2 * d->vradius + 1) });
             }
 
             VkBuffer srcBuf = srcPlane->buffer.buffer;
@@ -328,6 +345,7 @@ const VSFrame *VS_CC gpuBoxBlurGetFrame(int n, int activationReason, void *insta
                 push.radius = schedule[i].radius;
                 push.rounding = schedule[i].rounding;
                 push.vertical = schedule[i].vertical;
+                push.invDiv = schedule[i].invDiv;
                 VkBuffer bufs[2] = { srcBuf, target };
                 d->pipeline.recordDispatch(*ctx, bufs, 2, &push, sizeof(push),
                     (srcPlane->width + 15) / 16, (srcPlane->height + 15) / 16, 1);
@@ -390,8 +408,8 @@ void VS_CC gpuBoxBlurCreate(const VSMap *in, VSMap *out, void *, VSCore *core, c
 
         if (vi->format.colorFamily == cfUndefined)
             throw std::runtime_error("clips with variable format are not supported");
-        if (vi->format.sampleType != stInteger || (vi->format.bytesPerSample != 1 && vi->format.bytesPerSample != 2))
-            throw std::runtime_error("only 8-16 bit integer formats are supported on the GPU for now");
+        if (vi->format.bytesPerSample != 1 && vi->format.bytesPerSample != 2 && vi->format.bytesPerSample != 4)
+            throw std::runtime_error("unsupported sample size");
 
         auto d = std::make_unique<GPUBoxBlurData>();
         d->node = nullptr;
@@ -449,8 +467,20 @@ void VS_CC gpuBoxBlurCreate(const VSMap *in, VSMap *out, void *, VSCore *core, c
         if (!d->dev)
             throw std::runtime_error(vulkanError);
 
-        const uint32_t *spirv = vi->format.bytesPerSample == 1 ? boxblur8Spv : boxblur16Spv;
-        size_t spirvBytes = vi->format.bytesPerSample == 1 ? sizeof(boxblur8Spv) : sizeof(boxblur16Spv);
+        const uint32_t *spirv;
+        size_t spirvBytes;
+        if (vi->format.sampleType == stInteger) {
+            spirv = vi->format.bytesPerSample == 1 ? boxblur8Spv : boxblur16Spv;
+            spirvBytes = vi->format.bytesPerSample == 1 ? sizeof(boxblur8Spv) : sizeof(boxblur16Spv);
+        } else if (vi->format.bytesPerSample == 4) {
+            spirv = boxblursSpv;
+            spirvBytes = sizeof(boxblursSpv);
+        } else {
+            if (!d->dev->shaderFloat16Supported())
+                throw std::runtime_error("half precision formats need the shaderFloat16 feature, which this device lacks");
+            spirv = boxblurhSpv;
+            spirvBytes = sizeof(boxblurhSpv);
+        }
         if (!d->pipeline.init(*d->dev, spirv, spirvBytes, 2, sizeof(BlurPush), vulkanError))
             throw std::runtime_error(vulkanError);
         if (!d->execPool.init(*d->dev, d->dev->computeQueue(), 4, vulkanError))
