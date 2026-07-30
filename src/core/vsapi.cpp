@@ -1460,6 +1460,17 @@ static void VS_CC vkSetGPUPlaneProducer(VSFrame *frame, int plane, VkSemaphore s
     gpuPlane->readyValue = value;
 }
 
+static const VSVulkanFunctions *VS_CC vkGetVulkanFunctions(VSCore *core, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(core);
+    std::string err;
+    VSVulkanDevice *dev = core->vulkanDevice(err);
+    if (!dev) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    return &dev->vk;
+}
+
 static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int maxEntries, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     std::vector<VSVulkanDeviceInfo> devices;
     std::string err;
@@ -1490,11 +1501,14 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkNewGPUVideoFrame,
     &vkGetGPUPlane,
     &vkSetGPUPlaneProducer,
-    &vkEnumerateVulkanDevices
+    &vkEnumerateVulkanDevices,
+    &vkGetVulkanFunctions
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {
-    return (version == VSVULKAN_API_VERSION) ? &vs_internal_vsvulkanapi : nullptr;
+    /* Every version is a prefix of the next by the append only rule, so anything current or
+       older is served from the same structs. */
+    return (version >= 1 && version <= VSVULKAN_API_VERSION) ? &vs_internal_vsvulkanapi : nullptr;
 }
 
 const vs3::VSAPI3 vs_internal_vsapi3 = {

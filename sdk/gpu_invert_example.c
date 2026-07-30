@@ -3,7 +3,9 @@
 * Vulkan device through the public API in VSVulkan4.h. This demonstrates every obligation an
 * out of tree GPU filter has:
 *
-*   - resolving Vulkan entry points through the handles' getInstanceProcAddr, linking nothing
+*   - calling Vulkan through the core's ready loaded dispatch table (getVulkanFunctions);
+*     nothing is linked and nothing is loaded by hand. The handles' getInstanceProcAddr
+*     remains available for entry points outside the curated table.
 *   - creating its own pipeline (push descriptors, SPIR-V chained via maintenance5)
 *   - reading source planes by waiting their (semaphore, value) producer pairs device side
 *   - submitting on the shared compute queue with the queue lock held, allocating its own
@@ -84,33 +86,7 @@ typedef struct {
     VSCore *core;
     const VSVULKANAPI *vkapi;
     VSVulkanCoreHandles h;
-
-    /* Every entry point resolved through the handles; a real plugin would keep this list in
-       one place, this example spells it out. */
-    PFN_vkGetDeviceProcAddr GetDeviceProcAddr;
-    PFN_vkCreateDescriptorSetLayout CreateDescriptorSetLayout;
-    PFN_vkDestroyDescriptorSetLayout DestroyDescriptorSetLayout;
-    PFN_vkCreatePipelineLayout CreatePipelineLayout;
-    PFN_vkDestroyPipelineLayout DestroyPipelineLayout;
-    PFN_vkCreateComputePipelines CreateComputePipelines;
-    PFN_vkDestroyPipeline DestroyPipeline;
-    PFN_vkCreateCommandPool CreateCommandPool;
-    PFN_vkDestroyCommandPool DestroyCommandPool;
-    PFN_vkAllocateCommandBuffers AllocateCommandBuffers;
-    PFN_vkResetCommandBuffer ResetCommandBuffer;
-    PFN_vkBeginCommandBuffer BeginCommandBuffer;
-    PFN_vkEndCommandBuffer EndCommandBuffer;
-    PFN_vkCmdBindPipeline CmdBindPipeline;
-    PFN_vkCmdPushDescriptorSet CmdPushDescriptorSet;
-    PFN_vkCmdPushConstants CmdPushConstants;
-    PFN_vkCmdDispatch CmdDispatch;
-    PFN_vkCreateSemaphore CreateSemaphore;
-    PFN_vkDestroySemaphore DestroySemaphore;
-    PFN_vkWaitSemaphores WaitSemaphores;
-    PFN_vkGetSemaphoreCounterValue GetSemaphoreCounterValue;
-    PFN_vkQueueSubmit2 QueueSubmit2;
-    PFN_vkGetDeviceQueue2 GetDeviceQueue2;
-    PFN_vkDeviceWaitIdle DeviceWaitIdle;
+    const VSVulkanFunctions *vk; /* the core's dispatch table, everything Vulkan goes through it */
 
     VkQueue computeQueue;
     VkDescriptorSetLayout setLayout;
@@ -138,7 +114,7 @@ typedef struct {
 static void sweepRetained(InvertData *d, const VSAPI *vsapi) {
     uint64_t completed = 0;
     int i, kept = 0;
-    if (d->GetSemaphoreCounterValue(d->h.device, d->timeline, &completed) != VK_SUCCESS)
+    if (d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timeline, &completed) != VK_SUCCESS)
         return;
     for (i = 0; i < d->retainedCount; i++) {
         if (d->retained[i].value <= completed)
@@ -176,7 +152,7 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
            would rather size the ring generously. */
         slot = d->nextSlot;
         d->nextSlot = (d->nextSlot + 1) % CMD_SLOTS;
-        d->GetSemaphoreCounterValue(d->h.device, d->timeline, &completed);
+        d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timeline, &completed);
         if (d->slotValue[slot] > completed) {
             VkSemaphoreWaitInfo waitInfo;
             memset(&waitInfo, 0, sizeof(waitInfo));
@@ -184,21 +160,22 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
             waitInfo.semaphoreCount = 1;
             waitInfo.pSemaphores = &d->timeline;
             waitInfo.pValues = &d->slotValue[slot];
-            d->WaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
+            d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
         }
         cmd = d->cmd[slot];
 
-        d->ResetCommandBuffer(cmd, 0);
+        d->vk->vkResetCommandBuffer(cmd, 0);
         memset(&begin, 0, sizeof(begin));
         begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        d->BeginCommandBuffer(cmd, &begin);
-        d->CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, d->pipeline);
+        d->vk->vkBeginCommandBuffer(cmd, &begin);
+        d->vk->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, d->pipeline);
 
         for (p = 0; p < fmt->numPlanes; p++) {
             VSVulkanPlaneInfo srcPlane, dstPlane;
             VkDescriptorBufferInfo bufferInfo[2];
             VkWriteDescriptorSet writes[2];
+            VkPushConstantsInfo pushInfo;
             uint32_t words;
             int b;
 
@@ -229,13 +206,21 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
                 writes[b].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 writes[b].pBufferInfo = &bufferInfo[b];
             }
-            d->CmdPushDescriptorSet(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, d->pipeLayout, 0, 2, writes);
+            d->vk->vkCmdPushDescriptorSet(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, d->pipeLayout, 0, 2, writes);
 
+            /* The table carries the Vulkan 1.4 spellings, so push constants go through the 2
+               variant with its info struct. */
             words = (uint32_t)(srcPlane.bufferSize / 4);
-            d->CmdPushConstants(cmd, d->pipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(words), &words);
-            d->CmdDispatch(cmd, (words + 255) / 256, 1, 1);
+            memset(&pushInfo, 0, sizeof(pushInfo));
+            pushInfo.sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO;
+            pushInfo.layout = d->pipeLayout;
+            pushInfo.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            pushInfo.size = sizeof(words);
+            pushInfo.pValues = &words;
+            d->vk->vkCmdPushConstants2(cmd, &pushInfo);
+            d->vk->vkCmdDispatch(cmd, (words + 255) / 256, 1, 1);
         }
-        d->EndCommandBuffer(cmd);
+        d->vk->vkEndCommandBuffer(cmd);
 
         memset(&cmdInfo, 0, sizeof(cmdInfo));
         cmdInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
@@ -259,7 +244,7 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
         d->vkapi->lockVulkanQueue(core, vqCompute);
         value = ++d->nextValue;
         signalInfo.value = value;
-        d->QueueSubmit2(d->computeQueue, 1, &submit, VK_NULL_HANDLE);
+        d->vk->vkQueueSubmit2(d->computeQueue, 1, &submit, VK_NULL_HANDLE);
         d->vkapi->unlockVulkanQueue(core, vqCompute);
 
         d->slotValue[slot] = value;
@@ -280,7 +265,7 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
             waitInfo.semaphoreCount = 1;
             waitInfo.pSemaphores = &d->timeline;
             waitInfo.pValues = &value;
-            d->WaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
+            d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
             vsapi->freeFrame(src);
         }
         LOCK_RELEASE(&d->lock);
@@ -300,26 +285,23 @@ static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsap
         waitInfo.semaphoreCount = 1;
         waitInfo.pSemaphores = &d->timeline;
         waitInfo.pValues = &d->nextValue;
-        d->WaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
+        d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
     }
     sweepRetained(d, vsapi);
     if (d->cmdPool)
-        d->DestroyCommandPool(d->h.device, d->cmdPool, NULL);
+        d->vk->vkDestroyCommandPool(d->h.device, d->cmdPool, NULL);
     if (d->pipeline)
-        d->DestroyPipeline(d->h.device, d->pipeline, NULL);
+        d->vk->vkDestroyPipeline(d->h.device, d->pipeline, NULL);
     if (d->pipeLayout)
-        d->DestroyPipelineLayout(d->h.device, d->pipeLayout, NULL);
+        d->vk->vkDestroyPipelineLayout(d->h.device, d->pipeLayout, NULL);
     if (d->setLayout)
-        d->DestroyDescriptorSetLayout(d->h.device, d->setLayout, NULL);
+        d->vk->vkDestroyDescriptorSetLayout(d->h.device, d->setLayout, NULL);
     if (d->timeline)
-        d->DestroySemaphore(d->h.device, d->timeline, NULL);
+        d->vk->vkDestroySemaphore(d->h.device, d->timeline, NULL);
     LOCK_FREE(&d->lock);
     vsapi->freeNode(d->node);
     free(d);
 }
-
-#define LOAD_INSTANCE_FN(name) d->name = (PFN_vk##name)d->h.getInstanceProcAddr(d->h.instance, "vk" #name)
-#define LOAD_DEVICE_FN(name) d->name = (PFN_vk##name)d->GetDeviceProcAddr(d->h.device, "vk" #name)
 
 static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *)calloc(1, sizeof(InvertData));
@@ -357,36 +339,18 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         goto fail;
     }
 
-    d->GetDeviceProcAddr = (PFN_vkGetDeviceProcAddr)d->h.getInstanceProcAddr(d->h.instance, "vkGetDeviceProcAddr");
-    LOAD_DEVICE_FN(CreateDescriptorSetLayout);
-    LOAD_DEVICE_FN(DestroyDescriptorSetLayout);
-    LOAD_DEVICE_FN(CreatePipelineLayout);
-    LOAD_DEVICE_FN(DestroyPipelineLayout);
-    LOAD_DEVICE_FN(CreateComputePipelines);
-    LOAD_DEVICE_FN(DestroyPipeline);
-    LOAD_DEVICE_FN(CreateCommandPool);
-    LOAD_DEVICE_FN(DestroyCommandPool);
-    LOAD_DEVICE_FN(AllocateCommandBuffers);
-    LOAD_DEVICE_FN(ResetCommandBuffer);
-    LOAD_DEVICE_FN(BeginCommandBuffer);
-    LOAD_DEVICE_FN(EndCommandBuffer);
-    LOAD_DEVICE_FN(CmdBindPipeline);
-    LOAD_DEVICE_FN(CmdPushDescriptorSet);
-    LOAD_DEVICE_FN(CmdPushConstants);
-    LOAD_DEVICE_FN(CmdDispatch);
-    LOAD_DEVICE_FN(CreateSemaphore);
-    LOAD_DEVICE_FN(DestroySemaphore);
-    LOAD_DEVICE_FN(WaitSemaphores);
-    LOAD_DEVICE_FN(GetSemaphoreCounterValue);
-    LOAD_DEVICE_FN(QueueSubmit2);
-    LOAD_DEVICE_FN(GetDeviceQueue2);
-    LOAD_DEVICE_FN(DeviceWaitIdle);
+    /* Everything Vulkan from here on goes through the core's dispatch table. */
+    d->vk = d->vkapi->getVulkanFunctions(core, err, sizeof(err));
+    if (!d->vk) {
+        vsapi->mapSetError(out, err);
+        goto fail;
+    }
 
     memset(&queueInfo, 0, sizeof(queueInfo));
     queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2;
     queueInfo.queueFamilyIndex = d->h.computeQueueFamily;
     queueInfo.queueIndex = d->h.computeQueueIndex;
-    d->GetDeviceQueue2(d->h.device, &queueInfo, &d->computeQueue);
+    d->vk->vkGetDeviceQueue2(d->h.device, &queueInfo, &d->computeQueue);
 
     memset(bindings, 0, sizeof(bindings));
     for (b = 0; b < 2; b++) {
@@ -400,7 +364,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     setInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT;
     setInfo.bindingCount = 2;
     setInfo.pBindings = bindings;
-    d->CreateDescriptorSetLayout(d->h.device, &setInfo, NULL, &d->setLayout);
+    d->vk->vkCreateDescriptorSetLayout(d->h.device, &setInfo, NULL, &d->setLayout);
 
     memset(&range, 0, sizeof(range));
     range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
@@ -411,7 +375,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     layoutInfo.pSetLayouts = &d->setLayout;
     layoutInfo.pushConstantRangeCount = 1;
     layoutInfo.pPushConstantRanges = &range;
-    d->CreatePipelineLayout(d->h.device, &layoutInfo, NULL, &d->pipeLayout);
+    d->vk->vkCreatePipelineLayout(d->h.device, &layoutInfo, NULL, &d->pipeLayout);
 
     /* maintenance5 is part of the required feature set, so the SPIR-V can ride along in the
        stage's pNext with no shader module object. */
@@ -426,7 +390,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     pipeInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
     pipeInfo.stage.pName = "main";
     pipeInfo.layout = d->pipeLayout;
-    if (d->CreateComputePipelines(d->h.device, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &d->pipeline) != VK_SUCCESS) {
+    if (d->vk->vkCreateComputePipelines(d->h.device, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &d->pipeline) != VK_SUCCESS) {
         vsapi->mapSetError(out, "InvertGPU: pipeline creation failed");
         goto fail;
     }
@@ -437,19 +401,19 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     memset(&semInfo, 0, sizeof(semInfo));
     semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     semInfo.pNext = &semType;
-    d->CreateSemaphore(d->h.device, &semInfo, NULL, &d->timeline);
+    d->vk->vkCreateSemaphore(d->h.device, &semInfo, NULL, &d->timeline);
 
     memset(&poolInfo, 0, sizeof(poolInfo));
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     poolInfo.queueFamilyIndex = d->h.computeQueueFamily;
-    d->CreateCommandPool(d->h.device, &poolInfo, NULL, &d->cmdPool);
+    d->vk->vkCreateCommandPool(d->h.device, &poolInfo, NULL, &d->cmdPool);
     memset(&allocInfo, 0, sizeof(allocInfo));
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool = d->cmdPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = CMD_SLOTS;
-    d->AllocateCommandBuffers(d->h.device, &allocInfo, d->cmd);
+    d->vk->vkAllocateCommandBuffers(d->h.device, &allocInfo, d->cmd);
 
     LOCK_INIT(&d->lock);
 
