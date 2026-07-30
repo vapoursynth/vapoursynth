@@ -175,6 +175,42 @@ persistently mapped. Long lived constant data (weight tables and the like)
 belongs in a DEVICE_LOCAL buffer filled once through a staging copy at
 filter creation.
 
+Borrowing frames from CUDA and other APIs
+-----------------------------------------
+
+A filter implemented with CUDA (or any API that can import opaque memory
+handles) does not copy frames across — it wraps them. Frames stay owned by
+the core's Vulkan allocator; exportGPUPlane hands out an opaque handle plus
+the plane's (offset, size) within its backing allocation, and the foreign API
+imports that allocation and reads or writes the very same VRAM. Since planes
+are linear pitched buffers with CPU strides, the wrapped pointer behaves like
+a CPU plane pointer; most existing CUDA kernels port with a pointer swap.
+
+The pattern, per frame:
+
+#. Export each plane you touch. Cache imports keyed by *memoryId* — one
+   ``cudaImportExternalMemory`` per 128 MB allocation, then per-plane
+   pointers are just base + offset. Close surplus handles per the ownership
+   rules on VSVulkanExportedMemory.
+#. Allocate the output with newGPUVideoFrame and wrap its planes the same
+   way — foreign kernels write directly into what downstream Vulkan filters
+   will read.
+#. Synchronize host side for now: call waitGPUFrame on each input frame
+   before launching (it waits the producer pairs *and* makes the writes
+   available outside the device, which a bare semaphore wait does not), and
+   finish your work (for example ``cudaStreamSynchronize``) before returning,
+   publishing no producer pair. This costs pipelining, not correctness;
+   device-side synchronization through exportable timeline semaphores is the
+   planned next stage.
+
+Match devices by UUID: ``VSVulkanCoreInfo::deviceUUID`` equals the UUID CUDA
+reports for the same GPU. Whether export is available at all is
+``VSVulkanCoreInfo::exportHandleType`` — it requires the platform's opaque
+handle extension and is absent on MoltenVK, so a CUDA-backed filter should
+fail creation with a clear message when it is 0. Cached imports may safely
+outlive the frames that led to them: the OS keeps an imported allocation
+alive until the importer releases it.
+
 Performance notes
 -----------------
 

@@ -27,6 +27,8 @@ Structs_
 
    VSVulkanBufferInfo_
 
+   VSVulkanExportedMemory_
+
    VSVulkanCoreInfo_
 
    VSVulkanDeviceListEntry_
@@ -57,6 +59,10 @@ Functions_
    createGPUBuffer_
 
    destroyGPUBuffer_
+
+   exportGPUPlane_
+
+   waitGPUFrame_
 
 
 Introduction
@@ -91,11 +97,12 @@ lazily the first time anything needs it, or selected explicitly up front with
 setVulkanDevice_. Selection defaults to the most powerful device: suitable
 discrete GPUs first, then integrated, largest device local heap deciding
 ties. A Vulkan 1.4 conformant driver is a hard requirement; devices are
-created with **zero extensions** and a fixed feature set (listed in the
-header, summarized in :doc:`../gpufilters`) that plugins may rely on
-unconditionally. The core always creates its device itself; sharing frames
-with another Vulkan device or API in the same process is the job of the
-planned external memory/semaphore export facility, not device sharing.
+created with a fixed feature set (listed in the header, summarized in
+:doc:`../gpufilters`) that plugins may rely on unconditionally, and no device
+extensions except the platform's opaque handle export extension when
+available — never load-bearing. The core always creates its device itself;
+sharing frames with another Vulkan device or API in the same process goes
+through exportGPUPlane_, not device sharing.
 
 **GPU frames.** A GPU resident frame keeps its planes in VRAM as linear
 pitched storage buffers with exactly the strides the equivalent CPU frame
@@ -263,6 +270,41 @@ the buffer.
    * VkMemoryPropertyFlags memoryFlags — what the chosen memory type actually
      provides
 
+.. _VSVulkanExportedMemory:
+
+struct VSVulkanExportedMemory
+-----------------------------
+
+A frame plane's backing memory exported as an opaque handle by
+exportGPUPlane_, so CUDA and other Vulkan devices in the same process can
+wrap the underlying allocation and read or write the plane zero copy. The
+plane lives at *offset* within an allocation of *memorySize* bytes;
+importers import the whole allocation once and address planes by offset.
+
+   * uint64_t memoryId — stable identity of the underlying allocation, never
+     reused by this device; cache imports keyed by it, never by handle value,
+     since every export call returns a new handle
+
+   * VkDeviceSize memorySize
+
+   * VkDeviceSize offset
+
+   * VkDeviceSize size — the plane's bytes, stride * height
+
+   * int handleType — the VkExternalMemoryHandleTypeFlagBits of the handle
+
+   * intptr_t handle — HANDLE on Windows, file descriptor elsewhere
+
+Handle ownership: the returned handle belongs to the caller. An NT handle is
+not consumed by Vulkan or CUDA import, so CloseHandle it once the import
+exists; a POSIX fd is consumed by a successful import and must only be closed
+when the import failed or never happened. The OS reference counts the
+underlying memory, so a live import keeps the allocation valid even after
+every VapourSynth side reference — frames, and like frames the core — is
+gone. Synchronization stays host side for now: call waitGPUFrame_ before
+reading a frame through an import, and finish foreign writes
+(cudaStreamSynchronize) before returning a frame containing them.
+
 .. _VSVulkanCoreInfo:
 
 struct VSVulkanCoreInfo
@@ -280,6 +322,16 @@ Filled in by getVulkanCoreInfo_.
    * int64_t allocated — current VapourSynth VRAM use
 
    * int64_t limit — the eviction limit, settable through setMaxVRAMUse_
+
+   * uint8_t deviceUUID[VK_UUID_SIZE] — matches the UUID CUDA reports for the
+     same GPU, for picking the right foreign device
+
+   * uint8_t deviceLUID[VK_LUID_SIZE], uint32_t deviceNodeMask,
+     int deviceLUIDValid — the DXGI adapter identity, meaningful only when
+     *deviceLUIDValid* is nonzero
+
+   * int exportHandleType — the VkExternalMemoryHandleTypeFlagBits
+     exportGPUPlane_ hands out, 0 when export is unavailable
 
 .. _VSVulkanDeviceListEntry:
 
@@ -301,6 +353,10 @@ the enumeration is exactly the index setVulkanDevice_ takes.
      feature gate
 
    * char unusableReason[256] — why it does not, for display
+
+   * uint8_t deviceUUID[VK_UUID_SIZE], uint8_t deviceLUID[VK_LUID_SIZE],
+     uint32_t deviceNodeMask, int deviceLUIDValid — as in VSVulkanCoreInfo_,
+     available before any device selection
 
 
 Functions
@@ -447,3 +503,31 @@ VSGPUBuffer_ \*createGPUBuffer(VSCore \*core, VkDeviceSize size, VkBufferUsageFl
 void destroyGPUBuffer(VSGPUBuffer_ \*buffer)
 
    Returns the buffer's memory to the pool. NULL is ignored.
+
+----------
+
+.. _exportGPUPlane:
+
+int exportGPUPlane(const VSFrame \*frame, int plane, VSVulkanExportedMemory_ \*out, char \*errorMessage, int errorMessageSize)
+
+   Exports the allocation backing a GPU frame plane as an opaque handle
+   another API in the process can import; see VSVulkanExportedMemory_ for the
+   identity, ownership and synchronization rules. Only available when
+   VSVulkanCoreInfo_::exportHandleType is nonzero; fails on CPU frames and
+   missing planes. This is how a CUDA filter reads and writes frames in
+   place: import once per *memoryId*, map, and run kernels on the same VRAM
+   the Vulkan buffers occupy.
+
+----------
+
+.. _waitGPUFrame:
+
+int waitGPUFrame(const VSFrame \*frame, char \*errorMessage, int errorMessageSize)
+
+   Host waits every plane's producer pair and makes the completed writes
+   available outside the device's own domain — the part a bare producer wait
+   does not give you, since the spec only defines cross device visibility
+   through external semaphores or an availability chain like this one. Call
+   once per frame before reading it through an exported handle; costs one
+   submission round trip. Frames consumed by Vulkan work on the same device
+   never need this, their producer pairs carry the dependency.

@@ -275,11 +275,12 @@ typedef struct VSVulkanCoreHandles {
 } VSVulkanCoreHandles;
 
 /* The device feature baseline. Every VapourSynth device is created by the core itself:
- * Vulkan 1.4, zero extensions, and exactly the features below enabled. The required set is
- * what plugin kernels may target unconditionally, and since every entry is mandatory for a
- * conformant Vulkan 1.4 implementation, the hardware gate is the version alone. Sharing
- * frames with other Vulkan devices or APIs in the same process is a planned external
- * memory/semaphore export facility, not device sharing.
+ * Vulkan 1.4 with exactly the features below enabled, and no device extensions except the
+ * platform's opaque handle export extension (VK_KHR_external_memory_win32 or _fd) when
+ * available, which is never load-bearing. The required set is what plugin kernels may target
+ * unconditionally, and since every entry is mandatory for a conformant Vulkan 1.4
+ * implementation, the hardware gate is the version alone. Sharing frames with other Vulkan
+ * devices or APIs in the same process goes through exportGPUPlane, not device sharing.
  *
  *   required (VkPhysicalDeviceFeatures): shaderInt16, shaderImageGatherExtended,
  *     shaderStorageImageExtendedFormats, shaderUniformBufferArrayDynamicIndexing,
@@ -321,12 +322,49 @@ typedef struct VSVulkanBufferInfo {
     VkMemoryPropertyFlags memoryFlags; /* what the chosen memory type actually provides */
 } VSVulkanBufferInfo;
 
+/* A frame plane's backing memory exported as an opaque handle, so CUDA and other Vulkan
+ * devices in the same process can wrap the underlying allocation and read or write the plane
+ * zero copy (cudaImportExternalMemory + cudaExternalMemoryGetMappedBuffer, or a second
+ * device's buffer bound to imported memory). The plane lives at offset within an allocation
+ * of memorySize bytes; importers import the whole allocation once and address planes by
+ * offset.
+ *
+ * memoryId identifies the underlying allocation: it is stable for its whole lifetime and
+ * never reused by this core's device, while every export call returns a NEW handle even for
+ * the same allocation — so cache imports keyed by memoryId, never by handle value, and close
+ * surplus handles. Handle ownership: the returned handle belongs to the caller. On Windows it
+ * is an NT handle; neither Vulkan nor CUDA import takes ownership, so CloseHandle it once the
+ * import exists. A POSIX fd is consumed by a successful import (both Vulkan and CUDA), and
+ * must only be closed by the caller when the import failed or never happened.
+ *
+ * The OS reference-counts the underlying memory: an imported allocation stays valid even
+ * after every VapourSynth side reference is gone, so a cached import can outlive the frames
+ * (and, like frames, the core) that led to it. Synchronization is host side for now: call
+ * waitGPUFrame before reading a frame through an import (a bare producer pair wait is NOT
+ * enough — see there), and finish foreign writes (for example cudaStreamSynchronize) before
+ * returning a frame containing them. */
+typedef struct VSVulkanExportedMemory {
+    uint64_t memoryId;
+    VkDeviceSize memorySize;
+    VkDeviceSize offset;
+    VkDeviceSize size;   /* the plane's bytes, stride * height */
+    int handleType;      /* the VkExternalMemoryHandleTypeFlagBits of the handle */
+    intptr_t handle;     /* HANDLE on Windows, file descriptor elsewhere */
+} VSVulkanExportedMemory;
+
 typedef struct VSVulkanCoreInfo {
     char deviceName[256];
     int64_t deviceMemory; /* largest device local heap */
     int64_t budget;       /* what the driver says this process may reasonably use right now */
     int64_t allocated;    /* current VapourSynth VRAM use */
     int64_t limit;        /* the eviction limit, settable through setMaxVRAMUse */
+    /* Identity for matching against other APIs' device enumerations (CUDA exposes the same
+       UUID; the LUID pairs with DXGI adapters and is only meaningful when luidValid). */
+    uint8_t deviceUUID[VK_UUID_SIZE];
+    uint8_t deviceLUID[VK_LUID_SIZE];
+    uint32_t deviceNodeMask;
+    int deviceLUIDValid;
+    int exportHandleType; /* VkExternalMemoryHandleTypeFlagBits exportGPUPlane hands out, 0 when export is unavailable */
 } VSVulkanCoreInfo;
 
 /* One entry per physical device; the position in the enumeration is exactly the index
@@ -339,6 +377,10 @@ typedef struct VSVulkanDeviceListEntry {
     int64_t deviceMemory; /* largest device local heap */
     int usable;           /* passes the Vulkan 1.4 and required feature gate */
     char unusableReason[256];
+    uint8_t deviceUUID[VK_UUID_SIZE];
+    uint8_t deviceLUID[VK_LUID_SIZE];
+    uint32_t deviceNodeMask;
+    int deviceLUIDValid;
 } VSVulkanDeviceListEntry;
 
 struct VSVULKANAPI {
@@ -382,6 +424,22 @@ struct VSVULKANAPI {
         VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags,
         VSVulkanBufferInfo *info, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
     void (VS_CC *destroyGPUBuffer)(VSGPUBuffer *buffer) VS_NOEXCEPT;
+
+    /* Exports the allocation backing a GPU frame plane as an opaque handle; see
+       VSVulkanExportedMemory for the identity, ownership and synchronization rules. Only
+       available when VSVulkanCoreInfo::exportHandleType is nonzero. Fails on CPU frames,
+       missing planes and devices without export support. */
+    int (VS_CC *exportGPUPlane)(const VSFrame *frame, int plane, VSVulkanExportedMemory *out,
+        char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+
+    /* Host waits every plane's producer pair AND makes the completed writes available
+       outside the device's own domain, which is the part a bare producer wait does not give
+       you: the spec only defines cross device visibility through external semaphores or an
+       availability chain like this one, so skipping it means relying on driver behavior.
+       Call once per frame before reading it through an exported handle; the cost is one
+       submission round trip. Frames only read through Vulkan on the same device never need
+       this — the producer pairs carry the dependency there. */
+    int (VS_CC *waitGPUFrame)(const VSFrame *frame, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 };
 
 #endif

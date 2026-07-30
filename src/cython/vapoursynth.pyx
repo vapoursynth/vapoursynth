@@ -3066,9 +3066,11 @@ cdef extern from *:
     }
 
     static int vspy_get_vulkan_core_info(const VSAPI *api, VSCore *core, char *name, int nameSize,
-            int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit, char *err, int errSize) {
+            int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit,
+            char *uuidHex, int uuidHexSize, int *exportHandleType, char *err, int errSize) {
         const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
         VSVulkanCoreInfo info;
+        int i;
         if (!vk) { snprintf(err, errSize, "Vulkan API not available"); return 1; }
         if (vk->getVulkanCoreInfo(core, &info, err, errSize)) return 1;
         snprintf(name, nameSize, "%s", info.deviceName);
@@ -3076,6 +3078,9 @@ cdef extern from *:
         *budget = info.budget;
         *allocated = info.allocated;
         *limit = info.limit;
+        for (i = 0; i < 16 && i * 2 + 2 < uuidHexSize; i++)
+            snprintf(uuidHex + i * 2, 3, "%02x", info.deviceUUID[i]);
+        *exportHandleType = info.exportHandleType;
         return 0;
     }
 
@@ -3086,7 +3091,7 @@ cdef extern from *:
     }
 
     static int vspy_enumerate_vulkan_devices(const VSAPI *api, int maxCount, char *names, int *apiVersions,
-            int *types, int64_t *mems, int *usables, char *reasons, char *err, int errSize) {
+            int *types, int64_t *mems, int *usables, char *reasons, char *uuids, char *err, int errSize) {
         const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
         VSVulkanDeviceListEntry entries[16];
         int count, n, i;
@@ -3096,20 +3101,23 @@ cdef extern from *:
         n = count < maxCount ? count : maxCount;
         if (n > 16) n = 16;
         for (i = 0; i < n; i++) {
+            int b;
             snprintf(names + i * 256, 256, "%s", entries[i].deviceName);
             apiVersions[i] = (int)entries[i].apiVersion;
             types[i] = entries[i].deviceType;
             mems[i] = entries[i].deviceMemory;
             usables[i] = entries[i].usable;
             snprintf(reasons + i * 256, 256, "%s", entries[i].unusableReason);
+            for (b = 0; b < 16; b++)
+                snprintf(uuids + i * 64 + b * 2, 3, "%02x", entries[i].deviceUUID[b]);
         }
         return count;
     }
     """
     int vspy_set_vulkan_device(const VSAPI *api, VSCore *core, int index, char *err, int errSize) nogil
-    int vspy_get_vulkan_core_info(const VSAPI *api, VSCore *core, char *name, int nameSize, int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit, char *err, int errSize) nogil
+    int vspy_get_vulkan_core_info(const VSAPI *api, VSCore *core, char *name, int nameSize, int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit, char *uuidHex, int uuidHexSize, int *exportHandleType, char *err, int errSize) nogil
     int64_t vspy_set_max_vram_use(const VSAPI *api, VSCore *core, int64_t bytes) nogil
-    int vspy_enumerate_vulkan_devices(const VSAPI *api, int maxCount, char *names, int *apiVersions, int *types, int64_t *mems, int *usables, char *reasons, char *err, int errSize) nogil
+    int vspy_enumerate_vulkan_devices(const VSAPI *api, int maxCount, char *names, int *apiVersions, int *types, int64_t *mems, int *usables, char *reasons, char *uuids, char *err, int errSize) nogil
 
 cdef class Core(object):
     cdef int creationFlags
@@ -3191,12 +3199,13 @@ cdef class Core(object):
         self.ensure_valid()
         cdef char names[4096]
         cdef char reasons[4096]
+        cdef char uuids[1024]
         cdef int apiVersions[16]
         cdef int types[16]
         cdef int64_t mems[16]
         cdef int usables[16]
         cdef char err[512]
-        cdef int count = vspy_enumerate_vulkan_devices(self.funcs, 16, names, apiVersions, types, mems, usables, reasons, err, 512)
+        cdef int count = vspy_enumerate_vulkan_devices(self.funcs, 16, names, apiVersions, types, mems, usables, reasons, uuids, err, 512)
         if count < 0:
             raise Error(err.decode('utf-8'))
         type_names = {0: 'other', 1: 'integrated', 2: 'discrete', 3: 'virtual', 4: 'cpu'}
@@ -3210,6 +3219,7 @@ cdef class Core(object):
                 'device_memory': mems[i],
                 'usable': bool(usables[i]),
                 'reason': (<bytes>(&reasons[i * 256])).decode('utf-8'),
+                'uuid': (<bytes>(&uuids[i * 64])).decode('utf-8'),
             })
         return result
 
@@ -3219,10 +3229,13 @@ cdef class Core(object):
         self.ensure_valid()
         cdef char name[256]
         cdef char err[512]
+        cdef char uuidHex[64]
+        cdef int exportHandleType = 0
         cdef int64_t deviceMemory = 0, budget = 0, allocated = 0, limit = 0
-        if vspy_get_vulkan_core_info(self.funcs, self.core, name, 256, &deviceMemory, &budget, &allocated, &limit, err, 512):
+        if vspy_get_vulkan_core_info(self.funcs, self.core, name, 256, &deviceMemory, &budget, &allocated, &limit, uuidHex, 64, &exportHandleType, err, 512):
             raise Error(err.decode('utf-8'))
-        return { 'name': name.decode('utf-8'), 'device_memory': deviceMemory, 'budget': budget, 'allocated': allocated, 'limit': limit }
+        return { 'name': name.decode('utf-8'), 'device_memory': deviceMemory, 'budget': budget, 'allocated': allocated, 'limit': limit,
+                 'uuid': uuidHex.decode('utf-8'), 'export_handle_type': exportHandleType }
 
     @property
     def flags(self):

@@ -488,6 +488,11 @@ public:
         return (plane >= 0 && plane < numPlanes) ? data[plane]->gpu : nullptr;
     }
 
+    /* The device the planes live on, for the export path; null on CPU frames. */
+    VSVulkanDevice *getGPUDevice() const {
+        return numPlanes ? data[0]->gpuDevice : nullptr;
+    }
+
     /* Upload side: remember where each GPU plane's bytes came from. */
     void adoptCPUOrigins(const VSFrame *src);
     /* Download side: replace this CPU frame's planes with the origins of the GPU source where

@@ -32,6 +32,11 @@
 
 #include "vsvulkan.h"
 
+/* The opaque handle export path; the win32 structs live outside vulkan_core.h. */
+#ifdef VS_TARGET_OS_WINDOWS
+#    include <vulkan/vulkan_win32.h>
+#endif
+
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
@@ -380,6 +385,12 @@ VSVulkanDevice::~VSVulkanDevice() {
 void VSVulkanDevice::teardown() {
     /* Null checks on the entry points as well as the handles: a failure partway through loading
        leaves the table filled only up to the missing function. */
+    if (flushTimeline && vk.vkDestroySemaphore)
+        vk.vkDestroySemaphore(deviceHandle, flushTimeline, nullptr);
+    if (flushPool && vk.vkDestroyCommandPool)
+        vk.vkDestroyCommandPool(deviceHandle, flushPool, nullptr);
+    flushTimeline = VK_NULL_HANDLE;
+    flushPool = VK_NULL_HANDLE;
     if (deviceHandle && vk.vkDeviceWaitIdle && vk.vkDestroyDevice) {
         vk.vkDeviceWaitIdle(deviceHandle);
         vk.vkDestroyDevice(deviceHandle, nullptr);
@@ -552,6 +563,39 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
        so the live budget query is usable the moment the extension shows up in the list. */
     memoryBudgetFlag = deviceExtensionAvailable(vk, physicalDeviceHandle, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
 
+    /* Memory export, the one exception to the no-extensions rule: pooled allocations become
+       exportable as opaque handles so CUDA and other Vulkan devices can wrap frame planes
+       zero copy. Gated on the platform extension being present and on the driver reporting
+       our buffer shape exportable without demanding dedicated allocations, which would be
+       incompatible with the block sub-allocator. */
+#ifdef VS_TARGET_OS_WINDOWS
+    const VkExternalMemoryHandleTypeFlagBits wantedExportType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+    const char *exportExtensionName = "VK_KHR_external_memory_win32";
+#else
+    const VkExternalMemoryHandleTypeFlagBits wantedExportType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+    const char *exportExtensionName = "VK_KHR_external_memory_fd";
+#endif
+    if (deviceExtensionAvailable(vk, physicalDeviceHandle, exportExtensionName)) {
+        /* Core 1.1, but outside the frozen function table; resolved privately since plugins
+           never call it. */
+        auto externalBufferProps = reinterpret_cast<PFN_vkGetPhysicalDeviceExternalBufferProperties>(
+            loader.getInstanceProcAddr()(instanceHandle, "vkGetPhysicalDeviceExternalBufferProperties"));
+        if (externalBufferProps) {
+            VkPhysicalDeviceExternalBufferInfo externalInfo = {};
+            externalInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_BUFFER_INFO;
+            externalInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+            externalInfo.handleType = wantedExportType;
+            VkExternalBufferProperties externalProps = {};
+            externalProps.sType = VK_STRUCTURE_TYPE_EXTERNAL_BUFFER_PROPERTIES;
+            externalBufferProps(physicalDeviceHandle, &externalInfo, &externalProps);
+            const VkExternalMemoryFeatureFlags feats = externalProps.externalMemoryProperties.externalMemoryFeatures;
+            if ((feats & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT) &&
+                !(feats & VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT))
+                exportType = wantedExportType;
+        }
+    }
+
     /* A compute family without graphics maps to the async compute engines on both major vendors
        and keeps filter work out of the way of whatever rendering the process may also be doing;
        a family that is neither compute nor graphics but can transfer is the DMA engine, which
@@ -610,8 +654,9 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     /* Only what VS_VK_FEATURE_LIST names is enabled rather than echoing back everything the
        device offers; drivers specialize on disabled features and there is no reason to pay for
        paths nothing uses. Optional features are enabled when the device has them, which is what
-       the earlier suitability check deliberately did not insist on. Note that no device
-       extensions are enabled at all. */
+       the earlier suitability check deliberately did not insist on. Device extensions follow
+       the same philosophy: none are ever load-bearing, and the only one enabled at all is the
+       platform's opaque handle export extension when memory export is possible. */
     VSVulkanFeatureChain queried;
     vk.vkGetPhysicalDeviceFeatures2(physicalDeviceHandle, &queried.f2);
     VSVulkanFeatureChain enabled;
@@ -627,6 +672,10 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     deviceCreate.pNext = &enabled.f2;
     deviceCreate.queueCreateInfoCount = queueCreateCount;
     deviceCreate.pQueueCreateInfos = queueCreate;
+    if (exportType) {
+        deviceCreate.enabledExtensionCount = 1;
+        deviceCreate.ppEnabledExtensionNames = &exportExtensionName;
+    }
 
     res = vk.vkCreateDevice(physicalDeviceHandle, &deviceCreate, nullptr, &deviceHandle);
     if (res != VK_SUCCESS) {
@@ -656,16 +705,161 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         transferPtr = &transferQ;
     }
 
+    VkPhysicalDeviceIDProperties idProps = {};
+    idProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
     VkPhysicalDeviceProperties2 props2 = {};
     props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    props2.pNext = &idProps;
     vk.vkGetPhysicalDeviceProperties2(physicalDeviceHandle, &props2);
     props = props2.properties;
+    memcpy(uuid, idProps.deviceUUID, VK_UUID_SIZE);
+    memcpy(luid, idProps.deviceLUID, VK_LUID_SIZE);
+    nodeMask = idProps.deviceNodeMask;
+    luidValid = idProps.deviceLUIDValid != 0;
     VkPhysicalDeviceMemoryProperties2 memProps2 = {};
     memProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
     vk.vkGetPhysicalDeviceMemoryProperties2(physicalDeviceHandle, &memProps2);
     memProps = memProps2.memoryProperties;
 
+    if (exportType) {
+#ifdef VS_TARGET_OS_WINDOWS
+        exportMemoryFn = vk.vkGetDeviceProcAddr(deviceHandle, "vkGetMemoryWin32HandleKHR");
+#else
+        exportMemoryFn = vk.vkGetDeviceProcAddr(deviceHandle, "vkGetMemoryFdKHR");
+#endif
+        if (!exportMemoryFn)
+            exportType = static_cast<VkExternalMemoryHandleTypeFlagBits>(0);
+    }
+
     state = State::Ready;
+    return true;
+}
+
+bool VSVulkanDevice::flushDeviceWrites(const VkSemaphore *waitSemaphores, const uint64_t *waitValues, uint32_t waitCount,
+    std::string &errorMessage) {
+    std::lock_guard<std::mutex> lock(flushMutex);
+
+    if (!flushPool) {
+        VkCommandPoolCreateInfo poolInfo = {};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        poolInfo.queueFamilyIndex = computeQ.family;
+        if (vk.vkCreateCommandPool(deviceHandle, &poolInfo, nullptr, &flushPool) != VK_SUCCESS) {
+            errorMessage = "vkCreateCommandPool failed for the flush context";
+            return false;
+        }
+        VkCommandBufferAllocateInfo allocInfo = {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = flushPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = 1;
+        vk.vkAllocateCommandBuffers(deviceHandle, &allocInfo, &flushCmd);
+        VkSemaphoreTypeCreateInfo typeInfo = {};
+        typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+        typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+        VkSemaphoreCreateInfo semInfo = {};
+        semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        semInfo.pNext = &typeInfo;
+        if (vk.vkCreateSemaphore(deviceHandle, &semInfo, nullptr, &flushTimeline) != VK_SUCCESS) {
+            errorMessage = "vkCreateSemaphore failed for the flush context";
+            return false;
+        }
+    }
+
+    vk.vkResetCommandBuffer(flushCmd, 0);
+    VkCommandBufferBeginInfo begin = {};
+    begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vk.vkBeginCommandBuffer(flushCmd, &begin);
+    VkMemoryBarrier2 barrier = {};
+    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+    barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT;
+    barrier.dstAccessMask = VK_ACCESS_2_HOST_READ_BIT;
+    VkDependencyInfo dep = {};
+    dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dep.memoryBarrierCount = 1;
+    dep.pMemoryBarriers = &barrier;
+    vk.vkCmdPipelineBarrier2(flushCmd, &dep);
+    vk.vkEndCommandBuffer(flushCmd);
+
+    VkCommandBufferSubmitInfo cmdInfo = {};
+    cmdInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+    cmdInfo.commandBuffer = flushCmd;
+    VkSemaphoreSubmitInfo waits[8] = {};
+    const uint32_t usedWaits = waitCount > 8 ? 8 : waitCount;
+    for (uint32_t i = 0; i < usedWaits; i++) {
+        waits[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        waits[i].semaphore = waitSemaphores[i];
+        waits[i].value = waitValues[i];
+        waits[i].stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    }
+    VkSemaphoreSubmitInfo signal = {};
+    signal.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+    signal.semaphore = flushTimeline;
+    signal.value = ++flushValue;
+    signal.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    VkSubmitInfo2 submit = {};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submit.waitSemaphoreInfoCount = usedWaits;
+    submit.pWaitSemaphoreInfos = usedWaits ? waits : nullptr;
+    submit.commandBufferInfoCount = 1;
+    submit.pCommandBufferInfos = &cmdInfo;
+    submit.signalSemaphoreInfoCount = 1;
+    submit.pSignalSemaphoreInfos = &signal;
+    VkResult res;
+    {
+        std::lock_guard<VSVulkanQueue> queueLock(computeQ);
+        res = vk.vkQueueSubmit2(computeQ.queue, 1, &submit, VK_NULL_HANDLE);
+    }
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkQueueSubmit2 failed for the flush (VkResult " + std::to_string(res) + ")";
+        return false;
+    }
+
+    VkSemaphoreWaitInfo waitInfo = {};
+    waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+    waitInfo.semaphoreCount = 1;
+    waitInfo.pSemaphores = &flushTimeline;
+    waitInfo.pValues = &flushValue;
+    if (vk.vkWaitSemaphores(deviceHandle, &waitInfo, UINT64_MAX) != VK_SUCCESS) {
+        errorMessage = "Waiting for the flush submission failed";
+        return false;
+    }
+    return true;
+}
+
+bool VSVulkanDevice::exportMemory(VkDeviceMemory memory, intptr_t &handle, std::string &errorMessage) {
+    if (!exportType || !exportMemoryFn) {
+        errorMessage = "Memory export is not available on this device";
+        return false;
+    }
+#ifdef VS_TARGET_OS_WINDOWS
+    VkMemoryGetWin32HandleInfoKHR getInfo = {};
+    getInfo.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
+    getInfo.memory = memory;
+    getInfo.handleType = exportType;
+    HANDLE h = nullptr;
+    VkResult res = reinterpret_cast<PFN_vkGetMemoryWin32HandleKHR>(exportMemoryFn)(deviceHandle, &getInfo, &h);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkGetMemoryWin32HandleKHR failed (VkResult " + std::to_string(res) + ")";
+        return false;
+    }
+    handle = reinterpret_cast<intptr_t>(h);
+#else
+    VkMemoryGetFdInfoKHR getInfo = {};
+    getInfo.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
+    getInfo.memory = memory;
+    getInfo.handleType = exportType;
+    int fd = -1;
+    VkResult res = reinterpret_cast<PFN_vkGetMemoryFdKHR>(exportMemoryFn)(deviceHandle, &getInfo, &fd);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkGetMemoryFdKHR failed (VkResult " + std::to_string(res) + ")";
+        return false;
+    }
+    handle = static_cast<intptr_t>(fd);
+#endif
     return true;
 }
 
@@ -933,11 +1127,18 @@ bool VSVulkanDevice::enumerateDevices(std::vector<VSVulkanDeviceInfo> &devices, 
     for (uint32_t i = 0; i < deviceCount; i++) {
         VSVulkanDeviceInfo info;
 
+        VkPhysicalDeviceIDProperties idProps = {};
+        idProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
         VkPhysicalDeviceProperties2 p2 = {};
         p2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+        p2.pNext = &idProps;
         vkf.vkGetPhysicalDeviceProperties2(handles[i], &p2);
         info.name = p2.properties.deviceName;
         info.type = p2.properties.deviceType;
+        memcpy(info.uuid, idProps.deviceUUID, VK_UUID_SIZE);
+        memcpy(info.luid, idProps.deviceLUID, VK_LUID_SIZE);
+        info.nodeMask = idProps.deviceNodeMask;
+        info.luidValid = idProps.deviceLUIDValid != 0;
 
         info.deviceLocalMemory = largestDeviceLocalHeap(vkf, handles[i]);
         info.usable = deviceSuitable(vkf, handles[i], info.apiVersion, info.reason);

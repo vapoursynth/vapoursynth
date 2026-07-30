@@ -168,6 +168,10 @@ struct VSVulkanDeviceInfo {
     VkDeviceSize deviceLocalMemory = 0; /* largest device local heap, which is the VRAM size */
     bool usable = false;
     std::string reason;
+    uint8_t uuid[VK_UUID_SIZE] = {};
+    uint8_t luid[VK_LUID_SIZE] = {};
+    uint32_t nodeMask = 0;
+    bool luidValid = false;
 };
 
 class VSVulkanDevice;
@@ -197,10 +201,18 @@ public:
         void *mapped = nullptr; /* whole block, when the type is host visible */
         uint32_t typeIndex = 0;
         uint32_t liveRegions = 0;
+        /* Monotonic per device and never reused, so importers on the other side of an
+           exported handle can cache one import per allocation and trust the identity across
+           block free/allocate cycles. Assigned whether or not the block is exportable. */
+        uint64_t exportId = 0;
+        bool exportable = false;
     };
 
+    /* Exportable blocks and plain blocks never mix, matching the bind rule that couples
+       VkExternalMemoryBufferCreateInfo on the buffer with VkExportMemoryAllocateInfo on the
+       memory in both directions; the free lists segregate on the same flag. */
     bool allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDeviceSize size, VkDeviceSize alignment,
-        Block *&block, VkDeviceSize &offset, VkDeviceSize &roundedSize, std::string &errorMessage);
+        bool exportable, Block *&block, VkDeviceSize &offset, VkDeviceSize &roundedSize, std::string &errorMessage);
     void free(VSVulkanDevice &dev, Block *block, VkDeviceSize offset, VkDeviceSize roundedSize);
     /* Hands every block with no live regions back to the driver, called under memory pressure
        after cache eviction so the reclaimed VRAM is real for the rest of the system rather
@@ -212,10 +224,11 @@ public:
 
 private:
     std::vector<std::unique_ptr<Block>> blocks;
-    /* (memory type, rounded size) -> reusable regions */
-    std::map<std::pair<uint32_t, VkDeviceSize>, std::vector<std::pair<Block *, VkDeviceSize>>> freeLists;
+    /* (memory type + exportable bit, rounded size) -> reusable regions */
+    std::map<std::pair<uint64_t, VkDeviceSize>, std::vector<std::pair<Block *, VkDeviceSize>>> freeLists;
     uint64_t usedBytes = 0;
     uint64_t freeRegions = 0;
+    uint64_t nextExportId = 1;
     mutable std::mutex mutex;
 };
 
@@ -368,6 +381,38 @@ public:
     /* Whether kernels may declare float16_t, needed for half precision plane formats. */
     bool shaderFloat16Supported() const { return shaderFloat16Flag; }
 
+    /* The opaque handle type pooled memory can be exported as (OPAQUE_WIN32 or OPAQUE_FD),
+       or 0 when the platform extension is absent or export of our buffer shape is not
+       possible. When nonzero, pooled buffers that REQUIRE device local memory (every frame
+       plane) are created exportable and land in exportable blocks; host visible pools stay
+       plain, because external memory info restricts a buffer's compatible memory types and
+       drivers may not offer exportable host visible ones at all. */
+    VkExternalMemoryHandleTypeFlagBits exportHandleType() const { return exportType; }
+
+    /* Wins a new handle to the memory's underlying allocation. Every call returns a fresh
+       handle to the same memory; callers dedup by Block::exportId, never by handle value.
+       Ownership rules differ per platform and are documented at the public API. */
+    bool exportMemory(VkDeviceMemory memory, intptr_t &handle, std::string &errorMessage);
+
+    /* Makes writes available outside the device's own domain: one tiny submission that
+       device-waits the given timeline pairs, then executes an ALL_COMMANDS/MEMORY_WRITE to
+       HOST/HOST_READ barrier, host waited. Cross device availability without external
+       semaphores is not something the spec grants implicitly, so this is what keeps foreign
+       reads of exported memory defined rather than driver-behavior; the semaphore waits must
+       be part of THIS submission, since an availability operation only covers writes inside
+       its first synchronization scope and producer work on other queues has to be chained in
+       by the waits. (In testing on AMD, plain producer completion already sufficed — this
+       exists for the drivers where it will not.) Serialized internally; costs a submission
+       round trip, the accepted price of the host synchronized interop stage. */
+    bool flushDeviceWrites(const VkSemaphore *waitSemaphores, const uint64_t *waitValues, uint32_t waitCount,
+        std::string &errorMessage);
+
+    /* Identity for CUDA and friends, from VkPhysicalDeviceIDProperties. */
+    const uint8_t *deviceUUID() const { return uuid; }
+    const uint8_t *deviceLUID() const { return luid; }
+    uint32_t deviceNodeMask() const { return nodeMask; }
+    bool deviceLUIDValid() const { return luidValid; }
+
     /* First pass wants required plus preferred, second pass settles for required. Returns
        UINT32_MAX when nothing qualifies. */
     uint32_t findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags required, VkMemoryPropertyFlags preferred) const;
@@ -436,6 +481,19 @@ private:
     bool hostImageCopyFlag = false;
     bool shaderFloat16Flag = false;
     bool memoryBudgetFlag = false;
+    VkExternalMemoryHandleTypeFlagBits exportType = static_cast<VkExternalMemoryHandleTypeFlagBits>(0);
+    /* PFN_vkGetMemoryWin32HandleKHR or PFN_vkGetMemoryFdKHR; typed at the single use site so
+       this header stays free of the platform Vulkan headers. */
+    PFN_vkVoidFunction exportMemoryFn = nullptr;
+    std::mutex flushMutex;
+    VkCommandPool flushPool = VK_NULL_HANDLE;
+    VkCommandBuffer flushCmd = VK_NULL_HANDLE;
+    VkSemaphore flushTimeline = VK_NULL_HANDLE;
+    uint64_t flushValue = 0;
+    uint8_t uuid[VK_UUID_SIZE] = {};
+    uint8_t luid[VK_LUID_SIZE] = {};
+    uint32_t nodeMask = 0;
+    bool luidValid = false;
     VSVulkanLogFn logFn = nullptr;
     void *logUserData = nullptr;
     VSVulkanAccountFn accountFn = nullptr;

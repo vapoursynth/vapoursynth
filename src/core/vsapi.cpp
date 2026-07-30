@@ -1380,6 +1380,11 @@ static int VS_CC vkGetVulkanCoreInfo(VSCore *core, VSVulkanCoreInfo *info, char 
     info->budget = static_cast<int64_t>(dev->memoryBudget());
     info->allocated = static_cast<int64_t>(core->memory->gpu_allocated_bytes());
     info->limit = static_cast<int64_t>(core->memory->gpu_limit());
+    memcpy(info->deviceUUID, dev->deviceUUID(), VK_UUID_SIZE);
+    memcpy(info->deviceLUID, dev->deviceLUID(), VK_LUID_SIZE);
+    info->deviceNodeMask = dev->deviceNodeMask();
+    info->deviceLUIDValid = dev->deviceLUIDValid() ? 1 : 0;
+    info->exportHandleType = static_cast<int>(dev->exportHandleType());
     return 0;
 }
 
@@ -1484,6 +1489,79 @@ static void VS_CC vkDestroyGPUBuffer(VSGPUBuffer *buffer) VS_NOEXCEPT {
     delete buffer;
 }
 
+static int VS_CC vkExportGPUPlane(const VSFrame *frame, int plane, VSVulkanExportedMemory *out,
+    char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(frame && out);
+    const VSVulkanPlane *gpuPlane = frame->getGPUPlane(plane);
+    VSVulkanDevice *dev = frame->getGPUDevice();
+    if (!gpuPlane || !dev) {
+        copyVulkanError("The frame is not GPU resident or the plane does not exist", errorMessage, errorMessageSize);
+        return 1;
+    }
+    if (!dev->exportHandleType()) {
+        copyVulkanError("Memory export is not available on this device", errorMessage, errorMessageSize);
+        return 1;
+    }
+    const VSVulkanAllocator::Block *block = gpuPlane->buffer.poolBlock;
+    if (!block || !block->exportable) {
+        copyVulkanError("The plane is not backed by exportable pooled memory", errorMessage, errorMessageSize);
+        return 1;
+    }
+    std::string err;
+    intptr_t handle = 0;
+    if (!dev->exportMemory(gpuPlane->buffer.memory, handle, err)) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return 1;
+    }
+    out->memoryId = block->exportId;
+    out->memorySize = block->size;
+    out->offset = gpuPlane->buffer.poolOffset;
+    out->size = gpuPlane->buffer.size;
+    out->handleType = static_cast<int>(dev->exportHandleType());
+    out->handle = handle;
+    return 0;
+}
+
+static int VS_CC vkWaitGPUFrame(const VSFrame *frame, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(frame);
+    VSVulkanDevice *dev = frame->getGPUDevice();
+    if (!dev) {
+        copyVulkanError("The frame is not GPU resident", errorMessage, errorMessageSize);
+        return 1;
+    }
+    /* The producer pairs ride the flush submission as device side waits, which is what pulls
+       the producers' writes into the availability operation's scope; deduplicated to the
+       highest value per timeline. */
+    const VSVideoFormat *fmt = frame->getVideoFormat();
+    VkSemaphore sems[3] = {};
+    uint64_t values[3] = {};
+    uint32_t waitCount = 0;
+    for (int p = 0; p < fmt->numPlanes; p++) {
+        const VSVulkanPlane *gpuPlane = frame->getGPUPlane(p);
+        if (!gpuPlane || !gpuPlane->readySemaphore)
+            continue;
+        uint32_t w = 0;
+        for (; w < waitCount; w++) {
+            if (sems[w] == gpuPlane->readySemaphore) {
+                if (gpuPlane->readyValue > values[w])
+                    values[w] = gpuPlane->readyValue;
+                break;
+            }
+        }
+        if (w == waitCount) {
+            sems[waitCount] = gpuPlane->readySemaphore;
+            values[waitCount] = gpuPlane->readyValue;
+            waitCount++;
+        }
+    }
+    std::string err;
+    if (!dev->flushDeviceWrites(sems, values, waitCount, err)) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return 1;
+    }
+    return 0;
+}
+
 static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int maxEntries, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     std::vector<VSVulkanDeviceInfo> devices;
     std::string err;
@@ -1499,6 +1577,10 @@ static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int 
         entry.deviceMemory = static_cast<int64_t>(devices[i].deviceLocalMemory);
         entry.usable = devices[i].usable ? 1 : 0;
         snprintf(entry.unusableReason, sizeof(entry.unusableReason), "%s", devices[i].reason.c_str());
+        memcpy(entry.deviceUUID, devices[i].uuid, VK_UUID_SIZE);
+        memcpy(entry.deviceLUID, devices[i].luid, VK_LUID_SIZE);
+        entry.deviceNodeMask = devices[i].nodeMask;
+        entry.deviceLUIDValid = devices[i].luidValid ? 1 : 0;
     }
     return static_cast<int>(devices.size());
 }
@@ -1516,7 +1598,9 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkEnumerateVulkanDevices,
     &vkGetVulkanFunctions,
     &vkCreateGPUBuffer,
-    &vkDestroyGPUBuffer
+    &vkDestroyGPUBuffer,
+    &vkExportGPUPlane,
+    &vkWaitGPUFrame
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {
