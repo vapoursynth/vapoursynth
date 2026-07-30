@@ -1215,11 +1215,13 @@ private:
     std::set<VSNode *> caches;
     std::mutex cacheLock;
 
-    /* Guards creation only; the device itself is internally synchronized. Declared before the
-       transfer so the transfer is destroyed first, and both go with the core, after every
-       filter instance is gone, so no GPU work can outlive them. */
+    /* Guards creation only; the device itself is internally synchronized. The device is
+       refcounted like MemoryUse: this is the core's reference, dropped in the destructor after
+       the transfer machinery is torn down, and GPU resident planes hold their own so frames
+       may outlive the core the same way CPU frames do. No GPU *work* survives the core — only
+       memory waiting to be returned. */
     std::mutex vulkanDeviceLock;
-    std::unique_ptr<VSVulkanDevice> vulkanDev;
+    VSVulkanDevice *vulkanDev = nullptr;
     std::unique_ptr<VSVulkanTransfer> vulkanTrans;
     std::string vulkanDeviceError;
     bool vulkanDeviceTried = false;

@@ -25,6 +25,7 @@
    in the public header; everything below is the machinery that fills and owns them. */
 #include "VSVulkan4.h"
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -304,6 +305,33 @@ public:
     PFN_vkGetInstanceProcAddr getInstanceProcAddr() const { return loader.getInstanceProcAddr(); }
     bool isOwned() const { return owned; }
 
+    /* GPU frames may legally outlive the core, the same contract CPU frames have through
+       MemoryUse: the core holds one reference and every GPU resident plane holds another, so
+       the device and its allocator stay up until the last surviving plane returns its buffer.
+       The counting is opt-in — direct ownership (stack objects in the test harnesses, the
+       unique_ptr during core setup) keeps working because nothing calls release() on those. */
+    void addRef() {
+        refs.fetch_add(1, std::memory_order_relaxed);
+    }
+    void release() {
+        if (refs.fetch_sub(1, std::memory_order_acq_rel) == 1)
+            delete this;
+    }
+    /* Called from the core destructor only, after every pool and the transfer machinery are
+       gone, which is what makes the flag a promise: all submissions have completed, and the
+       timeline semaphores surviving planes would wait on died with their pools, so plane
+       destruction must skip the producer wait instead of touching dead handles. Log routing
+       points into the core and is dropped here; teardown messages after this go nowhere. */
+    void onCoreFreed() {
+        coreFreedFlag.store(true, std::memory_order_release);
+        logFn = nullptr;
+        logUserData = nullptr;
+        release();
+    }
+    bool coreFreed() const {
+        return coreFreedFlag.load(std::memory_order_acquire);
+    }
+
     /* Only meaningful once create() or adopt() has succeeded. */
     const VkPhysicalDeviceProperties &properties() const { return props; }
     const VkPhysicalDeviceMemoryProperties &memoryProperties() const { return memProps; }
@@ -377,6 +405,8 @@ private:
 
     State state = State::Unused;
     bool owned = false;
+    std::atomic<long> refs{1};
+    std::atomic<bool> coreFreedFlag{false};
     VkInstance instanceHandle = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDeviceHandle = VK_NULL_HANDLE;
     VkDevice deviceHandle = VK_NULL_HANDLE;

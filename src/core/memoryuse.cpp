@@ -289,8 +289,9 @@ void MemoryUse::deallocate(uint8_t *buf)
     }
 
     // self delete when the last buffer is returned after the core is gone, plain reads are
-    // enough since references that outlive freeCore may only be released one at a time
-    if (m_core_freed && !m_allocated)
+    // enough since references that outlive freeCore may only be released one at a time; the
+    // GPU pool gates too since surviving GPU planes report their frees through account_gpu
+    if (m_core_freed && !m_allocated && !m_gpu_allocated)
         delete this;
 }
 
@@ -307,7 +308,7 @@ void MemoryUse::on_core_freed()
 
     // Only the core can create new allocations and references that outlive the core may
     // only be released one at a time, so plain reads are enough here as well.
-    if (!m_allocated)
+    if (!m_allocated && !m_gpu_allocated)
         delete this;
 }
 

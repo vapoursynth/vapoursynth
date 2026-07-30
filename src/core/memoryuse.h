@@ -119,6 +119,11 @@ public:
         s_gpu_call_delta += delta;
         if (s_gpu_call_delta > s_gpu_call_peak)
             s_gpu_call_peak = s_gpu_call_delta;
+        /* GPU frames outliving the core return their regions through here, so this mirrors the
+           self delete in do_deallocate; the plain reads are enough for the same reason — only
+           the core creates allocations, and surviving references die one at a time. */
+        if (delta < 0 && m_core_freed && !m_allocated && !m_gpu_allocated)
+            delete this;
     }
 
     size_t set_gpu_limit(size_t bytes) {

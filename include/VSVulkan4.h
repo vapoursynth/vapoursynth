@@ -285,7 +285,12 @@ typedef struct VSVulkanCoreHandles {
  *
  * A core created device enables exactly this set and nothing else; adoption failures name the
  * first missing feature. When the host keeps submitting to the shared queues itself it must
- * supply the lock callbacks and take the same lock around its own submissions. */
+ * supply the lock callbacks and take the same lock around its own submissions.
+ *
+ * The imported handles must stay valid for the core's lifetime, extended by any GPU resident
+ * frames still referenced after the core is freed: like CPU frames, GPU frames may outlive
+ * the core, and releasing one returns VRAM through the imported device. Freeing every GPU
+ * frame before destroying the host device is the safe order. */
 typedef struct VSVulkanHostImport {
     PFN_vkGetInstanceProcAddr getInstanceProcAddr;
     VkInstance instance;

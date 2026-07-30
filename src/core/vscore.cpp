@@ -128,10 +128,12 @@ VSPlaneData::VSPlaneData(size_t dataSize, vs::MemoryUse &mem) noexcept : refcoun
 #endif
 }
 
-/* Takes ownership of the plane. VRAM is deliberately not accounted in MemoryUse yet; that
-   arrives with cache pressure handling for GPU frames. */
+/* Takes ownership of the plane. VRAM is accounted at the allocator's region level, not here.
+   The device reference is what lets this plane outlive the core: the buffer always has a live
+   allocator to return to, however late the release comes. */
 VSPlaneData::VSPlaneData(VSVulkanPlane *plane, VSVulkanDevice *device, size_t dataSize) noexcept
     : refcount(1), mem(nullptr), data(nullptr), size(dataSize), gpu(plane), gpuDevice(device) {
+    gpuDevice->addRef();
 }
 
 VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem), size(d.size) {
@@ -148,10 +150,17 @@ VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem
 VSPlaneData::~VSPlaneData() {
     if (gpu) {
         /* The producer may still be writing this plane; the wait is instant once it signaled.
-           Reader safety is the exec pools' retained references. */
-        waitPlaneHost(*gpuDevice, *gpu);
+           Reader safety is the exec pools' retained references. After the core is gone the
+           wait must be skipped, not just spared: every submission completed when the pools
+           were torn down, and the timeline handles in the producer pair died with them. */
+        if (!gpuDevice->coreFreed())
+            waitPlaneHost(*gpuDevice, *gpu);
         gpuDevice->destroyBuffer(gpu->buffer);
         delete gpu;
+        /* Buffer before device, origin last: returning the region keeps MemoryUse alive until
+           this point, and a surviving origin plane in turn keeps it alive past it, so the
+           accounting always lands in live memory whichever of them goes last. */
+        gpuDevice->release();
         if (cpuOrigin)
             cpuOrigin->release();
     } else {
@@ -1754,8 +1763,9 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
 
     /* VRAM flows into the same MemoryUse as host memory, wired before the first pooled
        allocation can happen. The default limit leaves a fifth of the live budget for whatever
-       else the system is doing, the same spirit as the host default of half the RAM; MemoryUse
-       outlives the device so the callback context cannot dangle. */
+       else the system is doing, the same spirit as the host default of half the RAM. The
+       callback context cannot dangle: MemoryUse gates its post core self delete on the GPU
+       pool too, so it lives at least until the last region is returned through here. */
     dev->setAllocationCallback([](int64_t delta, void *userData) {
         static_cast<vs::MemoryUse *>(userData)->account_gpu(delta);
     }, memory);
@@ -1770,7 +1780,7 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
     auto trans = std::make_unique<VSVulkanTransfer>();
     if (!trans->init(*dev, 4, vulkanDeviceError))
         return false;
-    vulkanDev = std::move(dev);
+    vulkanDev = dev.release(); /* the core's reference; the device was born with it counted */
     vulkanTrans = std::move(trans);
     logMessage(mtInformation, "Vulkan device: " + std::string(vulkanDev->properties().deviceName) +
         ", VRAM limit " + std::to_string(memory->gpu_limit() >> 20) + " MB of " + std::to_string(budget >> 20) + " MB budget");
@@ -1808,7 +1818,7 @@ VSVulkanDevice *VSCore::vulkanDevice(std::string &errorMessage) {
         errorMessage = vulkanDeviceError;
         return nullptr;
     }
-    return vulkanDev.get();
+    return vulkanDev;
 }
 
 bool VSCore::setVulkanDevice(int deviceIndex, std::string &errorMessage) {
@@ -1855,7 +1865,7 @@ bool VSCore::setVulkanDeviceFromHost(const VSVulkanDeviceImport &import, std::st
         errorMessage = vulkanDeviceError;
         return false;
     }
-    vulkanDev = std::move(dev);
+    vulkanDev = dev.release();
     vulkanTrans = std::move(trans);
     logMessage(mtInformation, "Vulkan device adopted from host: " + std::string(vulkanDev->properties().deviceName) +
         ", VRAM limit " + std::to_string(memory->gpu_limit() >> 20) + " MB");
@@ -2457,6 +2467,8 @@ void VSCore::freeCore() {
         logMessage(mtWarning, "Core freed but " + safe_to_string(numFilterInstances.load() - 1) + " filter instance(s) still exist");
     if (memory->allocated_bytes())
         logMessage(mtWarning, "Core freed but " + safe_to_string(memory->allocated_bytes()) + " bytes still allocated in framebuffers");
+    if (memory->gpu_allocated_bytes())
+        logMessage(mtWarning, "Core freed but " + safe_to_string(memory->gpu_allocated_bytes()) + " bytes still allocated in GPU framebuffers");
     // Remove all message handlers on free to prevent a zombie core from crashing the whole application by calling a no longer usable
     // message handler
     while (!messageHandlers.empty())
@@ -2470,6 +2482,15 @@ VSCore::~VSCore() {
     for(const auto &iter : plugins)
         delete iter.second;
     plugins.clear();
+    /* Transfer machinery first, while the device is certain to be alive: its pool waits out
+       every submission still in flight. Then the core's device reference goes; GPU frames the
+       application still holds keep the device (and through the GPU pool gate, MemoryUse)
+       alive until they are released, mirroring how CPU frames may outlive the core. */
+    vulkanTrans.reset();
+    if (vulkanDev) {
+        vulkanDev->onCoreFreed();
+        vulkanDev = nullptr;
+    }
     memory->on_core_freed();
 }
 
