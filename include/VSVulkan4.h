@@ -314,6 +314,19 @@ typedef struct VSVulkanPlaneInfo {
     uint64_t readyValue;
 } VSVulkanPlaneInfo;
 
+/* A scratch buffer from the core's pooled VRAM allocator, for filters needing memory that is
+ * not a frame plane: reduction partials, lookup tables, intermediate rows. Owned through the
+ * opaque handle; the info struct is everything a kernel or the host needs to use it. */
+typedef struct VSGPUBuffer VSGPUBuffer;
+
+typedef struct VSVulkanBufferInfo {
+    VkBuffer buffer;
+    VkDeviceAddress address;         /* nonzero when usage included SHADER_DEVICE_ADDRESS */
+    void *mapped;                    /* nonnull when the memory ended up host visible; persistently mapped */
+    VkDeviceSize size;               /* the requested size, unrounded */
+    VkMemoryPropertyFlags memoryFlags; /* what the chosen memory type actually provides */
+} VSVulkanBufferInfo;
+
 typedef struct VSVulkanCoreInfo {
     char deviceName[256];
     int64_t deviceMemory; /* largest device local heap */
@@ -363,6 +376,19 @@ struct VSVULKANAPI {
        handles' getInstanceProcAddr stays available for anything outside the curated set.
        Brings the device up on first call and stays valid for the core's lifetime. */
     const VSVulkanFunctions *(VS_CC *getVulkanFunctions)(VSCore *core, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+
+    /* Scratch memory through the same sub allocator frame planes use, so it is counted
+       against the VRAM limit, predicted by the thread pool's admission control and recycled
+       through the size buckets — allocate/destroy per frame is cheap by design. Host visible
+       requests come back persistently mapped. Returns NULL with the error set on failure.
+
+       Lifetime is the caller's, with one rule: unlike frames, buffers have no producer pair
+       anyone waits on, so destroy only after the submissions using the buffer have completed
+       on the device, and at the latest in the filter's free callback. */
+    VSGPUBuffer *(VS_CC *createGPUBuffer)(VSCore *core, VkDeviceSize size, VkBufferUsageFlags usage,
+        VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags,
+        VSVulkanBufferInfo *info, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+    void (VS_CC *destroyGPUBuffer)(VSGPUBuffer *buffer) VS_NOEXCEPT;
 };
 
 #endif

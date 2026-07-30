@@ -1471,6 +1471,45 @@ static const VSVulkanFunctions *VS_CC vkGetVulkanFunctions(VSCore *core, char *e
     return &dev->vk;
 }
 
+static VSGPUBuffer *VS_CC vkCreateGPUBuffer(VSCore *core, VkDeviceSize size, VkBufferUsageFlags usage,
+    VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags,
+    VSVulkanBufferInfo *info, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(core && info);
+    if (size == 0) {
+        copyVulkanError("A GPU buffer needs a nonzero size", errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    std::string err;
+    VSVulkanDevice *dev = core->vulkanDevice(err);
+    if (!dev) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    auto handle = std::make_unique<VSGPUBuffer>();
+    if (!dev->createBufferPooled(handle->buffer, size, usage, requiredFlags, preferredFlags, err)) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    /* The reference makes a late destroy free memory instead of crashing, same as frames;
+       being late on purpose is still wrong, per the destruction rule in the header. */
+    handle->device = dev;
+    dev->addRef();
+    info->buffer = handle->buffer.buffer;
+    info->address = handle->buffer.address;
+    info->mapped = handle->buffer.mapped;
+    info->size = handle->buffer.size;
+    info->memoryFlags = handle->buffer.memoryFlags;
+    return handle.release();
+}
+
+static void VS_CC vkDestroyGPUBuffer(VSGPUBuffer *buffer) VS_NOEXCEPT {
+    if (!buffer)
+        return;
+    buffer->device->destroyBuffer(buffer->buffer);
+    buffer->device->release();
+    delete buffer;
+}
+
 static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int maxEntries, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     std::vector<VSVulkanDeviceInfo> devices;
     std::string err;
@@ -1502,7 +1541,9 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkGetGPUPlane,
     &vkSetGPUPlaneProducer,
     &vkEnumerateVulkanDevices,
-    &vkGetVulkanFunctions
+    &vkGetVulkanFunctions,
+    &vkCreateGPUBuffer,
+    &vkDestroyGPUBuffer
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {

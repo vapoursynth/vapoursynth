@@ -210,6 +210,15 @@ struct VSVulkanBuffer {
     VkDeviceSize poolSize = 0;
 };
 
+/* The public scratch buffer handle from VSVULKANAPI::createGPUBuffer: a pooled buffer plus
+   the device reference that keeps the allocator reachable for however late the destroy
+   comes. Defined here so the buffer machinery stays in one place; only vsapi.cpp creates
+   these. */
+struct VSGPUBuffer {
+    VSVulkanBuffer buffer;
+    VSVulkanDevice *device = nullptr;
+};
+
 /* An optimally tiled device local image and its memory, freed with destroyImage. Layout
    transitions are the caller's business since they belong to command recording. */
 struct VSVulkanImage {
