@@ -360,11 +360,16 @@ public:
         VkDeviceSize used = 0;
         void *mapped = nullptr; /* whole block, when the type is host visible */
         uint32_t typeIndex = 0;
+        uint32_t liveRegions = 0;
     };
 
     bool allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDeviceSize size, VkDeviceSize alignment,
         Block *&block, VkDeviceSize &offset, VkDeviceSize &roundedSize, std::string &errorMessage);
     void free(VSVulkanDevice &dev, Block *block, VkDeviceSize offset, VkDeviceSize roundedSize);
+    /* Hands every block with no live regions back to the driver, called under memory pressure
+       after cache eviction so the reclaimed VRAM is real for the rest of the system rather
+       than banked in the free lists forever. Returns the bytes given back. */
+    VkDeviceSize trim(VSVulkanDevice &dev);
     /* Frees every block; all buffers carved from them must already be gone. */
     void destroy(VSVulkanDevice &dev);
     VSVulkanAllocatorStats stats() const;
@@ -528,6 +533,8 @@ public:
     void destroyImage(VSVulkanImage &image);
 
     VSVulkanAllocatorStats allocatorStats() const { return allocator.stats(); }
+
+    VkDeviceSize trimAllocator() { return allocator.trim(*this); }
 
     /* Region grants and returns are reported here with signed byte deltas, which is how the
        core's MemoryUse sees VRAM without this layer depending on it. Set before any pooled

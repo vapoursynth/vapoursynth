@@ -1205,7 +1205,8 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     const VSFrame *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi3);
     core->currentProcessingNode = nullptr;
 
-    updateTransientAllocEstimate(vs::MemoryUse::end_call_tracking(savedTracking));
+    vs::MemoryUse::CallPeaks callPeaks = vs::MemoryUse::end_call_tracking(savedTracking);
+    updateTransientAllocEstimate(callPeaks.host, callPeaks.gpu);
 
     if (enableFilterTiming) {
         std::chrono::nanoseconds duration = std::chrono::high_resolution_clock::now() - startTime;
@@ -1317,13 +1318,36 @@ size_t VSNode::evictCacheBytes(size_t maxBytes) {
     return cache.dropLRUFrames(maxBytes);
 }
 
-void VSNode::updateTransientAllocEstimate(int64_t sample) {
+void VSNode::updateTransientAllocEstimate(int64_t hostSample, int64_t gpuSample) {
     // biased towards remembering peaks since rare big allocations are exactly what admission
     // control in the thread pool needs to predict, decays slowly when calls allocate less
     int64_t est = transientAllocEstimate.load(std::memory_order_relaxed);
     if (est >= 0)
-        sample = std::max(sample, est - (est >> 7));
-    transientAllocEstimate.store(sample, std::memory_order_relaxed);
+        hostSample = std::max(hostSample, est - (est >> 7));
+    transientAllocEstimate.store(hostSample, std::memory_order_relaxed);
+
+    est = gpuTransientAllocEstimate.load(std::memory_order_relaxed);
+    if (est >= 0)
+        gpuSample = std::max(gpuSample, est - (est >> 7));
+    gpuTransientAllocEstimate.store(gpuSample, std::memory_order_relaxed);
+}
+
+int64_t VSNode::expectedGPUTransientAllocation() const {
+    int64_t est = gpuTransientAllocEstimate.load(std::memory_order_relaxed);
+    if (est >= 0)
+        return est;
+    if (!gpuOutput)
+        return 0;
+    /* Same first call guess as the host side: the output frame plus as much again in scratch. */
+    int64_t frameBytes = 0;
+    if (nodeType == mtVideo && vi.width > 0 && vi.height > 0) {
+        for (int p = 0; p < vi.format.numPlanes; p++) {
+            int64_t w = vi.width >> (p ? vi.format.subSamplingW : 0);
+            int64_t h = vi.height >> (p ? vi.format.subSamplingH : 0);
+            frameBytes += w * h * vi.format.bytesPerSample;
+        }
+    }
+    return 2 * frameBytes;
 }
 
 int64_t VSNode::expectedTransientAllocation() const {
@@ -1347,23 +1371,28 @@ int64_t VSNode::expectedTransientAllocation() const {
     return 2 * frameBytes;
 }
 
-void VSCore::notifyCaches(bool needMemory) {
+void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
     uint64_t completedExtFrames = threadPool->getCompletedExternalFrames();
     std::lock_guard<std::mutex> lock(cacheLock);
 
-    if (needMemory) {
+    if (hostNeedsMemory || gpuNeedsMemory) {
         // free the excess in a single pass by taking frames from the caches where each held byte
-        // has demonstrably provided the least value instead of uniformly decaying every cache
-        size_t allocated = memory->allocated_bytes();
-        size_t memLimit = memory->limit();
-        size_t targetUsage = memLimit - memLimit / 10;
-        if (allocated <= targetUsage)
-            return;
-        size_t excess = allocated - targetUsage;
+        // has demonstrably provided the least value instead of uniformly decaying every cache;
+        // host and GPU memory are separate pools with separate excesses, and a cache only holds
+        // frames of its node's residency, so eviction targets the pool that is actually over
+        auto poolExcess = [](bool over, size_t allocated, size_t limit) -> size_t {
+            if (!over)
+                return 0;
+            size_t targetUsage = limit - limit / 10;
+            return (allocated > targetUsage) ? allocated - targetUsage : 0;
+        };
+        size_t hostExcess = poolExcess(hostNeedsMemory, memory->allocated_bytes(), memory->limit());
+        size_t gpuExcess = poolExcess(gpuNeedsMemory, memory->gpu_allocated_bytes(), memory->gpu_limit());
 
         struct CacheEntry {
             VSNode *node;
             int value;
+            bool gpu;
         };
 
         std::vector<CacheEntry> entries;
@@ -1371,7 +1400,7 @@ void VSCore::notifyCaches(bool needMemory) {
         for (auto &node : caches) {
             VSNode::CachePressureInfo info = node->getCachePressureInfo();
             if (!info.fixedSize && info.bytes > 0)
-                entries.push_back({ node, info.value });
+                entries.push_back({ node, info.value, node->isGPUOutput() });
         }
 
         // take frames from the caches that provided the least value recently, caches without a
@@ -1381,16 +1410,27 @@ void VSCore::notifyCaches(bool needMemory) {
         });
 
         for (const CacheEntry &entry : entries) {
-            excess -= std::min(entry.node->evictCacheBytes(excess), excess);
+            size_t &excess = entry.gpu ? gpuExcess : hostExcess;
             if (excess == 0)
+                continue;
+            excess -= std::min(entry.node->evictCacheBytes(excess), excess);
+            if (hostExcess == 0 && gpuExcess == 0)
                 break;
         }
+
+        // evicted GPU frames only return regions to the buckets; trimming hands fully idle
+        // blocks back to the driver so the freed VRAM is real for the rest of the system
+        if (gpuNeedsMemory && vulkanDev)
+            vulkanDev->trimAllocator();
     } else {
-        // caches only get to grow while memory usage stays comfortably under the limit
+        // caches only get to grow while memory usage stays comfortably under the limit of the
+        // pool their frames actually live in
         size_t memLimit = memory->limit();
         bool memoryComfortable = memory->allocated_bytes() < memLimit - memLimit * 3 / 20;
+        size_t gpuLimit = memory->gpu_limit();
+        bool gpuComfortable = gpuLimit == 0 || memory->gpu_allocated_bytes() < gpuLimit - gpuLimit * 3 / 20;
         for (auto &cache : caches)
-            cache->notifyCache(memoryComfortable, completedExtFrames);
+            cache->notifyCache(cache->isGPUOutput() ? gpuComfortable : memoryComfortable, completedExtFrames);
     }
 }
 
@@ -1670,7 +1710,12 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         static_cast<vs::MemoryUse *>(userData)->account_gpu(delta);
     }, memory);
     size_t budget = static_cast<size_t>(dev->memoryBudget());
-    memory->set_gpu_limit(budget - budget / 5);
+    /* The override exists for testing the pressure paths without a 12 GB workload; the real
+       user facing setter arrives with the rest of the API surface. */
+    if (const char *envLimit = std::getenv("VS_VULKAN_MAX_VRAM_MB"))
+        memory->set_gpu_limit(static_cast<size_t>(std::strtoull(envLimit, nullptr, 10)) << 20);
+    else
+        memory->set_gpu_limit(budget - budget / 5);
 
     auto trans = std::make_unique<VSVulkanTransfer>();
     if (!trans->init(*dev, 4, vulkanDeviceError))

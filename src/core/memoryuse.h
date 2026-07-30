@@ -60,6 +60,8 @@ class MemoryUse {
 
     static thread_local int64_t s_call_delta;
     static thread_local int64_t s_call_peak;
+    static thread_local int64_t s_gpu_call_delta;
+    static thread_local int64_t s_gpu_call_peak;
 
     static void track_allocated(size_t size) {
         s_call_delta += static_cast<int64_t>(size);
@@ -111,6 +113,12 @@ public:
 
     void account_gpu(int64_t delta) {
         m_gpu_allocated.fetch_add(static_cast<size_t>(delta), std::memory_order_relaxed);
+        /* The same per call tracking the host side does, so the thread pool can predict GPU
+           allocations of filter calls too. Frees landing on other threads dent their deltas
+           harmlessly, exactly as host side frees already do. */
+        s_gpu_call_delta += delta;
+        if (s_gpu_call_delta > s_gpu_call_peak)
+            s_gpu_call_peak = s_gpu_call_delta;
     }
 
     size_t set_gpu_limit(size_t bytes) {
@@ -127,23 +135,35 @@ public:
     struct CallTracking {
         int64_t delta;
         int64_t peak;
+        int64_t gpu_delta;
+        int64_t gpu_peak;
+    };
+
+    struct CallPeaks {
+        int64_t host;
+        int64_t gpu;
     };
 
     // Measures the peak net increase of allocated bytes caused by the calling thread between the
     // begin and end calls, used to predict how much memory a filter call will need. The state
     // returned by begin must be passed to the matching end call so nested measurements compose.
     static CallTracking begin_call_tracking() {
-        CallTracking prev = { s_call_delta, s_call_peak };
+        CallTracking prev = { s_call_delta, s_call_peak, s_gpu_call_delta, s_gpu_call_peak };
         s_call_delta = 0;
         s_call_peak = 0;
+        s_gpu_call_delta = 0;
+        s_gpu_call_peak = 0;
         return prev;
     }
 
-    static int64_t end_call_tracking(const CallTracking &prev) {
+    static CallPeaks end_call_tracking(const CallTracking &prev) {
         int64_t peak = s_call_peak;
         s_call_peak = (prev.delta + peak > prev.peak) ? (prev.delta + peak) : prev.peak;
         s_call_delta += prev.delta;
-        return peak;
+        int64_t gpu_peak = s_gpu_call_peak;
+        s_gpu_call_peak = (prev.gpu_delta + gpu_peak > prev.gpu_peak) ? (prev.gpu_delta + gpu_peak) : prev.gpu_peak;
+        s_gpu_call_delta += prev.gpu_delta;
+        return { peak, gpu_peak };
     }
 
     // Called only from VSCore destructor.

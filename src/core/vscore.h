@@ -944,6 +944,7 @@ private:
     // peak net bytes allocated during a single filter call, biased towards remembering peaks,
     // -1 means no call has been measured yet
     std::atomic<int64_t> transientAllocEstimate = -1;
+    std::atomic<int64_t> gpuTransientAllocEstimate = -1;
 
     std::mutex cacheMutex;
     bool cacheLinear = false;
@@ -958,7 +959,7 @@ private:
     void registerCache(bool add);
     PVSFrame getCachedFrameInternal(int n);
     PVSFrame getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
-    void updateTransientAllocEstimate(int64_t sample);
+    void updateTransientAllocEstimate(int64_t hostSample, int64_t gpuSample);
 public:
     VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
     VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core);
@@ -1058,6 +1059,7 @@ public:
 
     // used by the thread pool to predict whether starting another filter call fits in memory
     int64_t expectedTransientAllocation() const;
+    int64_t expectedGPUTransientAllocation() const;
 };
 
 class VSThreadPool {
@@ -1081,6 +1083,7 @@ private:
     std::atomic<int64_t> lastCacheSweep;
     std::atomic<uint64_t> completedExternalFrames;
     std::atomic<int64_t> inflightAllocation;
+    std::atomic<int64_t> gpuInflightAllocation{ 0 };
     std::atomic<size_t> processingThreads;
     std::atomic<bool> cacheSweepActive;
     bool stopThreads;
@@ -1245,7 +1248,7 @@ public:
     std::string getFrameRefInfo();
     //
 
-    void notifyCaches(bool needMemory);
+    void notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory);
     const vs3::VSVideoFormat *getV3VideoFormat(int id);
     const vs3::VSVideoFormat *getVideoFormat3(int id);
     static bool queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept;

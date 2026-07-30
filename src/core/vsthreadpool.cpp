@@ -187,6 +187,15 @@ void VSThreadPool::runTasks(bool &stop) {
                     continue;
             }
 
+            /* The same admission control against the VRAM budget; only nodes producing GPU
+               frames ever predict a nonzero value here. */
+            int64_t expectedGPUAlloc = node->expectedGPUTransientAllocation();
+            if (expectedGPUAlloc > 0 && processingThreads.load(std::memory_order_relaxed) > 0) {
+                int64_t gpuLimit = static_cast<int64_t>(core->memory->gpu_limit());
+                if (static_cast<int64_t>(core->memory->gpu_allocated_bytes()) + gpuInflightAllocation.load(std::memory_order_relaxed) + expectedGPUAlloc > gpuLimit + gpuLimit / 4)
+                    continue;
+            }
+
             // Does the filter need the per instance mutex? fmFrameState, fmUnordered and fmParallelRequests (when in the arAllFramesReady state) use this
             bool useSerialLock = (filterMode == fmFrameState || filterMode == fmUnordered || (filterMode == fmParallelRequests && !frameContext->first));
 
@@ -228,12 +237,14 @@ void VSThreadPool::runTasks(bool &stop) {
 
             processingThreads.fetch_add(1, std::memory_order_relaxed);
             inflightAllocation.fetch_add(expectedAlloc, std::memory_order_relaxed);
+            gpuInflightAllocation.fetch_add(expectedGPUAlloc, std::memory_order_relaxed);
 
             lock.unlock();
 
             PVSFrame f = node->getFrameInternal(frameContext->key.second, ar, frameContext);
             ranTask = true;
 
+            gpuInflightAllocation.fetch_sub(expectedGPUAlloc, std::memory_order_relaxed);
             inflightAllocation.fetch_sub(expectedAlloc, std::memory_order_relaxed);
             processingThreads.fetch_sub(1, std::memory_order_relaxed);
 
@@ -264,18 +275,19 @@ void VSThreadPool::runTasks(bool &stop) {
             // stretches of pure frame production completely unmanaged exactly when usage climbs
             // the fastest, the wall clock pacing keeps the cost of this at a single clock read
             bool overLimit = core->memory->is_over_limit();
+            bool overGPULimit = core->memory->is_gpu_over_limit();
             int64_t timeNow = steadyClockNow();
-            if (timeNow - lastCacheSweep.load(std::memory_order_relaxed) >= (overLimit ? pressureCacheSweepInterval : normalCacheSweepInterval)) {
+            if (timeNow - lastCacheSweep.load(std::memory_order_relaxed) >= ((overLimit || overGPULimit) ? pressureCacheSweepInterval : normalCacheSweepInterval)) {
                 if (!cacheSweepActive.exchange(true)) {
                     lastCacheSweep = timeNow;
-                    core->notifyCaches(overLimit);
+                    core->notifyCaches(overLimit, overGPULimit);
                     cacheSweepActive = false;
                 }
             }
 
             lock.lock();
 
-            if (expectedAlloc > 0 && idleThreads > 0)
+            if ((expectedAlloc > 0 || expectedGPUAlloc > 0) && idleThreads > 0)
                 newWork.notify_one(); // tasks skipped by admission control may fit now
 
             if (requestedFrames) {
@@ -288,7 +300,7 @@ void VSThreadPool::runTasks(bool &stop) {
                 frameContext->reqList.clear();
             }
 
-            if (overLimit) {
+            if (overLimit || overGPULimit) {
                 if (!overLimitSince) {
                     overLimitSince = timeNow;
                 } else if (!flushCaches && timeNow - overLimitSince >= flushAfterOverInterval) {
@@ -344,7 +356,7 @@ void VSThreadPool::runTasks(bool &stop) {
             break;
         }
 
-        if (!ranTask || (activeThreads > maxThreads) || (core->memory->is_over_limit() && activeThreads > 1)) {
+        if (!ranTask || (activeThreads > maxThreads) || ((core->memory->is_over_limit() || core->memory->is_gpu_over_limit()) && activeThreads > 1)) {
             --activeThreads;
             if (stop) {
                 lock.unlock();

@@ -49,6 +49,7 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
         bucket->second.pop_back();
         freeRegions--;
         usedBytes += roundedSize;
+        block->liveRegions++;
         dev.accountAllocation(static_cast<int64_t>(roundedSize));
         return true;
     }
@@ -62,6 +63,7 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
             block = candidate.get();
             offset = aligned;
             usedBytes += roundedSize;
+            candidate->liveRegions++;
             dev.accountAllocation(static_cast<int64_t>(roundedSize));
             return true;
         }
@@ -105,6 +107,7 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
     }
 
     fresh->used = roundedSize;
+    fresh->liveRegions = 1;
     block = fresh.get();
     offset = 0;
     usedBytes += roundedSize;
@@ -118,7 +121,35 @@ void VSVulkanAllocator::free(VSVulkanDevice &dev, Block *block, VkDeviceSize off
     freeLists[{ block->typeIndex, roundedSize }].push_back({ block, offset });
     freeRegions++;
     usedBytes -= roundedSize;
+    block->liveRegions--;
     dev.accountAllocation(-static_cast<int64_t>(roundedSize));
+}
+
+VkDeviceSize VSVulkanAllocator::trim(VSVulkanDevice &dev) {
+    std::lock_guard<std::mutex> lock(mutex);
+    VkDeviceSize freed = 0;
+    for (auto it = blocks.begin(); it != blocks.end();) {
+        if ((*it)->liveRegions != 0) {
+            ++it;
+            continue;
+        }
+        Block *victim = it->get();
+        /* Its banked regions become unreachable with the block, so they leave the buckets. */
+        for (auto bucket = freeLists.begin(); bucket != freeLists.end();) {
+            auto &regions = bucket->second;
+            for (size_t i = regions.size(); i > 0; i--) {
+                if (regions[i - 1].first == victim) {
+                    regions.erase(regions.begin() + (i - 1));
+                    freeRegions--;
+                }
+            }
+            bucket = regions.empty() ? freeLists.erase(bucket) : std::next(bucket);
+        }
+        dev.vk.vkFreeMemory(dev.device(), victim->memory, nullptr); /* implicitly unmaps */
+        freed += victim->size;
+        it = blocks.erase(it);
+    }
+    return freed;
 }
 
 void VSVulkanAllocator::destroy(VSVulkanDevice &dev) {

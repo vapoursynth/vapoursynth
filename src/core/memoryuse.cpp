@@ -80,6 +80,8 @@ struct MemoryUse::DebugStats {
 
 thread_local int64_t MemoryUse::s_call_delta = 0;
 thread_local int64_t MemoryUse::s_call_peak = 0;
+thread_local int64_t MemoryUse::s_gpu_call_delta = 0;
+thread_local int64_t MemoryUse::s_gpu_call_peak = 0;
 
 MemoryUse::MemoryUse()
 {
