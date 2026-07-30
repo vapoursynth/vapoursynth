@@ -273,6 +273,13 @@ private:
    and AMD's Windows driver reports it unsupported even at loader version 1.4.3xx, so the
    transfer path has to treat staging buffers as the baseline and this as the fast path. */
 #define VS_VK_FEATURE_LIST(FT) \
+    /* 10 is the plain VkPhysicalDeviceFeatures block. The 8 and 16 bit storage and arithmetic
+       features let kernels address planes as their real sample type instead of unpacking
+       words, and every 1.4 class driver has them. */ \
+    FT(10, shaderInt16,        VS_VK_REQUIRED) \
+    FT(11, storageBuffer16BitAccess, VS_VK_REQUIRED) \
+    FT(12, storageBuffer8BitAccess,  VS_VK_REQUIRED) \
+    FT(12, shaderInt8,         VS_VK_REQUIRED) \
     FT(12, timelineSemaphore,  VS_VK_REQUIRED) \
     FT(12, bufferDeviceAddress, VS_VK_REQUIRED) \
     FT(12, scalarBlockLayout,  VS_VK_REQUIRED) \

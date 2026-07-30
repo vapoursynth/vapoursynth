@@ -45,19 +45,24 @@ std::string versionToString(uint32_t version) {
 }
 
 /* The queried and the enabled features travel through the same chain layout; only which side
-   fills in the booleans differs. */
+   fills in the booleans differs. f10 aliases the plain feature block inside f2 so the X macro
+   can reach every Vulkan version the same way. */
 struct VSVulkanFeatureChain {
     VkPhysicalDeviceFeatures2 f2 = {};
+    VkPhysicalDeviceVulkan11Features f11 = {};
     VkPhysicalDeviceVulkan12Features f12 = {};
     VkPhysicalDeviceVulkan13Features f13 = {};
     VkPhysicalDeviceVulkan14Features f14 = {};
+    VkPhysicalDeviceFeatures &f10 = f2.features;
 
     VSVulkanFeatureChain() {
         f2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        f11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
         f12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
         f13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
         f14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
-        f2.pNext = &f12;
+        f2.pNext = &f11;
+        f11.pNext = &f12;
         f12.pNext = &f13;
         f13.pNext = &f14;
     }

@@ -26,11 +26,25 @@ VSVulkanExecPool::~VSVulkanExecPool() {
     std::string ignored;
     waitAll(ignored);
     for (auto &context : contexts) {
+        for (const auto &r : context->retained)
+            r.release(r.object);
+        context->retained.clear();
         if (context->commandPool)
             dev->vk.vkDestroyCommandPool(dev->device(), context->commandPool, nullptr);
     }
     if (timeline)
         dev->vk.vkDestroySemaphore(dev->device(), timeline, nullptr);
+}
+
+void VSVulkanExecPool::retain(VSVulkanExecContext &context, void (*release)(void *object), void *object) {
+    context.retained.push_back({ release, object });
+}
+
+void VSVulkanExecPool::abandon(VSVulkanExecContext &context) {
+    for (const auto &r : context.retained)
+        r.release(r.object);
+    context.retained.clear();
+    releaseClaim(context);
 }
 
 bool VSVulkanExecPool::init(VSVulkanDevice &device, VSVulkanQueue &queue, uint32_t contextCount, std::string &errorMessage) {
@@ -128,6 +142,11 @@ VSVulkanExecContext *VSVulkanExecPool::acquire(std::string &errorMessage) {
             return nullptr;
         }
     }
+
+    /* The previous submission is done, so everything it kept alive can go now. */
+    for (const auto &r : context->retained)
+        r.release(r.object);
+    context->retained.clear();
 
     VkResult res = dev->vk.vkResetCommandPool(dev->device(), context->commandPool, 0);
     if (res != VK_SUCCESS) {

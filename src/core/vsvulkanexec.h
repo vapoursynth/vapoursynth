@@ -83,10 +83,16 @@ public:
     VkCommandBuffer commandBuffer() const { return cmd; }
 
 private:
+    struct Retained {
+        void (*release)(void *object);
+        void *object;
+    };
+
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkCommandBuffer cmd = VK_NULL_HANDLE;
     uint64_t pendingValue = 0;
     std::atomic<bool> claimed{false};
+    std::vector<Retained> retained;
 };
 
 /* A fixed set of exec contexts shared by however many threads a filter instance is called on.
@@ -122,6 +128,19 @@ public:
        producers, per plane, without the host ever blocking. */
     bool submit(VSVulkanExecContext &context, std::string &errorMessage, uint64_t *signaledValue = nullptr,
         const VSVulkanWait *waits = nullptr, uint32_t waitCount = 0);
+
+    /* Attaches an object to the context's current recording, called between acquire and
+       submit: the release callback runs once the submission this recording becomes is known
+       complete, at the context's next acquire or at pool destruction. This is how work that
+       reads frames keeps them alive without the host ever waiting: the filter retains its
+       sources, submits, returns, and the references drop later. Bounded lag by design, one
+       ring cycle at most. */
+    void retain(VSVulkanExecContext &context, void (*release)(void *object), void *object);
+
+    /* Gives up on a recording instead of submitting it. Everything retained is released at
+       once since nothing will ever execute; the half recorded command buffer is reset by the
+       next acquire. */
+    void abandon(VSVulkanExecContext &context);
 
     /* Host waits, always outside every lock. */
     bool waitValue(uint64_t value, std::string &errorMessage);
