@@ -3052,6 +3052,65 @@ cdef CoreTimings createCoreTimings(Core core):
     return instance
 
 
+# Small C shims around the separately versioned Vulkan API so its struct never has to be
+# mirrored in cython declarations.
+cdef extern from *:
+    """
+    #include "include/VSVulkan4.h"
+    #include <stdio.h>
+
+    static int vspy_set_vulkan_device(const VSAPI *api, VSCore *core, int index, char *err, int errSize) {
+        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
+        if (!vk) { snprintf(err, errSize, "Vulkan API not available"); return 1; }
+        return vk->setVulkanDevice(core, index, err, errSize);
+    }
+
+    static int vspy_get_vulkan_core_info(const VSAPI *api, VSCore *core, char *name, int nameSize,
+            int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit, char *err, int errSize) {
+        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
+        VSVulkanCoreInfo info;
+        if (!vk) { snprintf(err, errSize, "Vulkan API not available"); return 1; }
+        if (vk->getVulkanCoreInfo(core, &info, err, errSize)) return 1;
+        snprintf(name, nameSize, "%s", info.deviceName);
+        *deviceMemory = info.deviceMemory;
+        *budget = info.budget;
+        *allocated = info.allocated;
+        *limit = info.limit;
+        return 0;
+    }
+
+    static int64_t vspy_set_max_vram_use(const VSAPI *api, VSCore *core, int64_t bytes) {
+        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
+        if (!vk) return -1;
+        return vk->setMaxVRAMUse(bytes, core);
+    }
+
+    static int vspy_enumerate_vulkan_devices(const VSAPI *api, int maxCount, char *names, int *apiVersions,
+            int *types, int64_t *mems, int *usables, char *reasons, char *err, int errSize) {
+        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
+        VSVulkanDeviceListEntry entries[16];
+        int count, n, i;
+        if (!vk) { snprintf(err, errSize, "Vulkan API not available"); return -1; }
+        count = vk->enumerateVulkanDevices(entries, maxCount < 16 ? maxCount : 16, err, errSize);
+        if (count < 0) return -1;
+        n = count < maxCount ? count : maxCount;
+        if (n > 16) n = 16;
+        for (i = 0; i < n; i++) {
+            snprintf(names + i * 256, 256, "%s", entries[i].deviceName);
+            apiVersions[i] = (int)entries[i].apiVersion;
+            types[i] = entries[i].deviceType;
+            mems[i] = entries[i].deviceMemory;
+            usables[i] = entries[i].usable;
+            snprintf(reasons + i * 256, 256, "%s", entries[i].unusableReason);
+        }
+        return count;
+    }
+    """
+    int vspy_set_vulkan_device(const VSAPI *api, VSCore *core, int index, char *err, int errSize) nogil
+    int vspy_get_vulkan_core_info(const VSAPI *api, VSCore *core, char *name, int nameSize, int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit, char *err, int errSize) nogil
+    int64_t vspy_set_max_vram_use(const VSAPI *api, VSCore *core, int64_t bytes) nogil
+    int vspy_enumerate_vulkan_devices(const VSAPI *api, int maxCount, char *names, int *apiVersions, int *types, int64_t *mems, int *usables, char *reasons, char *err, int errSize) nogil
+
 cdef class Core(object):
     cdef int creationFlags
     cdef VSCore *core
@@ -3109,6 +3168,61 @@ cdef class Core(object):
         cdef VSCoreInfo2 v
         self.funcs.getCoreInfo2(self.core, &v)
         return v.usedFramebufferSize
+
+    def set_vulkan_device(self, int index = -1):
+        """Selects the Vulkan device, only before the first GPU filter; -1 picks the most powerful one."""
+        self.ensure_valid()
+        cdef char err[512]
+        if vspy_set_vulkan_device(self.funcs, self.core, index, err, 512):
+            raise Error(err.decode('utf-8'))
+
+    def set_max_vram_use(self, int64_t bytes_):
+        """Sets the VRAM eviction limit in bytes, returning the new limit."""
+        self.ensure_valid()
+        cdef int64_t result = vspy_set_max_vram_use(self.funcs, self.core, bytes_)
+        if result < 0:
+            raise Error('Vulkan API not available')
+        return result
+
+    @property
+    def vulkan_devices(self):
+        """Every Vulkan physical device; the list index is exactly what set_vulkan_device takes.
+        Unusable devices are listed with the reason and may still be selected, which fails with it."""
+        self.ensure_valid()
+        cdef char names[4096]
+        cdef char reasons[4096]
+        cdef int apiVersions[16]
+        cdef int types[16]
+        cdef int64_t mems[16]
+        cdef int usables[16]
+        cdef char err[512]
+        cdef int count = vspy_enumerate_vulkan_devices(self.funcs, 16, names, apiVersions, types, mems, usables, reasons, err, 512)
+        if count < 0:
+            raise Error(err.decode('utf-8'))
+        type_names = {0: 'other', 1: 'integrated', 2: 'discrete', 3: 'virtual', 4: 'cpu'}
+        result = []
+        for i in range(min(count, 16)):
+            result.append({
+                'index': i,
+                'name': (<bytes>(&names[i * 256])).decode('utf-8'),
+                'api_version': (apiVersions[i] >> 22, (apiVersions[i] >> 12) & 0x3ff, apiVersions[i] & 0xfff),
+                'type': type_names.get(types[i], 'other'),
+                'device_memory': mems[i],
+                'usable': bool(usables[i]),
+                'reason': (<bytes>(&reasons[i * 256])).decode('utf-8'),
+            })
+        return result
+
+    @property
+    def vulkan_device_info(self):
+        """Name and memory state of the Vulkan device; initializes the device on first access."""
+        self.ensure_valid()
+        cdef char name[256]
+        cdef char err[512]
+        cdef int64_t deviceMemory = 0, budget = 0, allocated = 0, limit = 0
+        if vspy_get_vulkan_core_info(self.funcs, self.core, name, 256, &deviceMemory, &budget, &allocated, &limit, err, 512):
+            raise Error(err.decode('utf-8'))
+        return { 'name': name.decode('utf-8'), 'device_memory': deviceMemory, 'budget': budget, 'allocated': allocated, 'limit': limit }
 
     @property
     def flags(self):

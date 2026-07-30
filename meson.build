@@ -208,9 +208,10 @@ float32x4_t f(float32x4_t r, float16x8_t a, float16x8_t b) { return vfmlalq_low_
     endif
 endif
 
-# Headers only: the Vulkan loader is dlopened at runtime, so nothing links against it. The
-# system vulkan dependency provides headers on most platforms; on Windows the SDK's include
-# directory fills in when no pkg-config style dependency exists.
+# The Vulkan headers are a hard build requirement on every platform; the runtime stays fully
+# optional since the loader is dlopened on demand and nothing links against it. The system
+# vulkan dependency provides headers on most platforms; on Windows the SDK's include directory
+# fills in when no pkg-config style dependency exists.
 vulkan_headers = dependency('vulkan', required: false)
 if vulkan_headers.found()
     vulkan_headers = vulkan_headers.partial_dependency(compile_args: true, includes: true)
@@ -223,6 +224,9 @@ else
         endif
     endif
     vulkan_headers = declare_dependency(include_directories: vulkan_inc)
+endif
+if not cxx.has_header('vulkan/vulkan_core.h', dependencies: vulkan_headers)
+    error('Vulkan headers not found. They are required to build (install the vulkan-headers package, or set VULKAN_SDK on Windows); no Vulkan runtime or driver is needed at build or load time.')
 endif
 
 libvapoursynth = library('libvapoursynth',
@@ -262,7 +266,7 @@ vapoursynth_dep = declare_dependency(
 
 py.extension_module('vapoursynth',
     files('src/common/wave.cpp', 'src/cython/vapoursynth.pyx'),
-    dependencies: [py_dep, vapoursynth_dep],
+    dependencies: [py_dep, vapoursynth_dep, vulkan_headers],
     install: true,
     install_rpath: '$ORIGIN',
     limited_api: '3.12',

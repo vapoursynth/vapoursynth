@@ -168,19 +168,13 @@ void VS_CC gpuTransferCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     VSFilterDependency deps[] = {{ d->node, rpStrictSpatial }};
-    vsapi->createVideoFilter(out, name, &d->vi, toGPU ? gpuUploadGetFrame : gpuDownloadGetFrame,
-        gpuTransferFree, fmParallel, deps, 1, d.get(), core);
+    vsapi->createVideoFilterEx(out, name, &d->vi, toGPU ? gpuUploadGetFrame : gpuDownloadGetFrame,
+        gpuTransferFree, fmParallel, toGPU ? ffGPUOutput : 0, deps, 1, d.get(), core);
     if (vsapi->mapGetError(out)) {
         vsapi->freeNode(d->node);
         return;
     }
     d.release();
-
-    if (toGPU) {
-        VSNode *self = vsapi->mapGetNode(out, "clip", 0, nullptr);
-        self->setGPUOutput();
-        vsapi->freeNode(self);
-    }
 }
 
 //////////////////////////////////////////
@@ -489,16 +483,12 @@ void VS_CC gpuBoxBlurCreate(const VSMap *in, VSMap *out, void *, VSCore *core, c
         d->node = node;
         node = nullptr;
         VSFilterDependency deps[] = {{ d->node, rpStrictSpatial }};
-        vsapi->createVideoFilter(out, "GPUBoxBlur", &d->vi, gpuBoxBlurGetFrame, gpuBoxBlurFree, fmParallel, deps, 1, d.get(), core);
+        vsapi->createVideoFilterEx(out, "GPUBoxBlur", &d->vi, gpuBoxBlurGetFrame, gpuBoxBlurFree, fmParallel, ffGPUOutput, deps, 1, d.get(), core);
         if (vsapi->mapGetError(out)) {
             vsapi->freeNode(d->node);
             return;
         }
         d.release();
-
-        VSNode *self = vsapi->mapGetNode(out, "clip", 0, nullptr);
-        self->setGPUOutput();
-        vsapi->freeNode(self);
     } catch (const std::exception &e) {
         vsapi->freeNode(node);
         vsapi->mapSetError(out, (std::string("GPUBoxBlur: ") + e.what()).c_str());

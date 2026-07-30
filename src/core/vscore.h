@@ -71,6 +71,7 @@ struct VSFunction;
 class VSVulkanDevice;
 class VSVulkanTransfer;
 struct VSVulkanPlane;
+struct VSVulkanDeviceImport;
 class VSMapData;
 
 typedef vs_intrusive_ptr<VSFrame> PVSFrame;
@@ -1289,6 +1290,8 @@ public:
     /* Explicit selection instead of the default, only allowed while no device exists yet;
        -1 picks automatically. */
     bool setVulkanDevice(int deviceIndex, std::string &errorMessage);
+    /* Adopts a host application's existing device under the same only-before-first-use rule. */
+    bool setVulkanDeviceFromHost(const VSVulkanDeviceImport &import, std::string &errorMessage);
     /* The transfer machinery shared by every upload and download in this core, created
        alongside the device on first use. */
     VSVulkanTransfer *vulkanTransfer(std::string &errorMessage);

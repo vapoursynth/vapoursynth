@@ -22,7 +22,10 @@
 #include "cpufeatures.h"
 #include "vslog.h"
 #include "VSHelper4.h"
+#include "vsvulkanframe.h"
+#include "VSVulkan4.h"
 #include <cassert>
+#include <cstdio>
 #include <cstring>
 #include <string>
 
@@ -983,9 +986,38 @@ static VSNode *VS_CC createAudioFilter2(const char *name, const VSAudioInfo *ai,
     return core->createAudioFilter(name, ai, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
+static void VS_CC createVideoFilterEx(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT {
+    assert(out && name && vi && getFrame && core);
+    if (flags & ~static_cast<int>(ffGPUOutput)) {
+        vs_internal_vsapi.mapSetError(out, (std::string(name) + ": unknown filter flags passed to createVideoFilterEx").c_str());
+        return;
+    }
+    core->createVideoFilter(out, name, vi, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, VAPOURSYNTH_API_MAJOR);
+    if ((flags & ffGPUOutput) && !vs_internal_vsapi.mapGetError(out)) {
+        int numElems = vs_internal_vsapi.mapNumElements(out, "clip");
+        VSNode *node = vs_internal_vsapi.mapGetNode(out, "clip", numElems - 1, nullptr);
+        node->setGPUOutput();
+        vs_internal_vsapi.freeNode(node);
+    }
+}
+
+static VSNode *VS_CC createVideoFilterEx2(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT {
+    assert(name && vi && getFrame && core);
+    if (flags & ~static_cast<int>(ffGPUOutput)) {
+        core->logMessage(mtCritical, std::string(name) + ": unknown filter flags passed to createVideoFilterEx2");
+        return nullptr;
+    }
+    VSNode *node = core->createVideoFilter(name, vi, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, VAPOURSYNTH_API_MAJOR);
+    if (node && (flags & ffGPUOutput))
+        node->setGPUOutput();
+    return node;
+}
+
 static int VS_CC setLinearFilter(VSNode *node) VS_NOEXCEPT {
     return node->setLinear();
 }
+
+static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT;
 
 static VSFrame *VS_CC newAudioFrame(const VSAudioFormat *format, int numSamples, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core && numSamples > 0);
@@ -1282,11 +1314,188 @@ const VSAPI vs_internal_vsapi = {
 
     &getCoreInfo2,
 
+    &createVideoFilterEx,
+    &createVideoFilterEx2,
+    &getVulkanAPIImpl,
+
     &getNodeCreationFunctionName,
     &getNodeCreationPluginID,
     &getNodeCreationPluginNS,
     &getNodeCreationFunctionArguments
 };
+
+//////////////////////////////////////////
+// The Vulkan API surface, raw handles plus per plane buffer access; see VSVulkan4.h
+
+static void copyVulkanError(const std::string &message, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    if (errorMessage && errorMessageSize > 0)
+        snprintf(errorMessage, static_cast<size_t>(errorMessageSize), "%s", message.c_str());
+}
+
+static int VS_CC vkSetVulkanDevice(VSCore *core, int deviceIndex, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(core);
+    std::string err;
+    if (!core->setVulkanDevice(deviceIndex, err)) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return 1;
+    }
+    return 0;
+}
+
+static int VS_CC vkSetVulkanDeviceFromHost(VSCore *core, const VSVulkanHostImport *import, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(core);
+    if (!import) {
+        copyVulkanError("No import information given", errorMessage, errorMessageSize);
+        return 1;
+    }
+    VSVulkanDeviceImport internalImport;
+    internalImport.getInstanceProcAddr = import->getInstanceProcAddr;
+    internalImport.instance = import->instance;
+    internalImport.physicalDevice = import->physicalDevice;
+    internalImport.device = import->device;
+    internalImport.computeQueueFamily = import->computeQueueFamily;
+    internalImport.computeQueueIndex = import->computeQueueIndex;
+    internalImport.transferQueueFamily = import->transferQueueFamily;
+    internalImport.transferQueueIndex = import->transferQueueIndex;
+    internalImport.lockQueue = import->lockQueue;
+    internalImport.unlockQueue = import->unlockQueue;
+    internalImport.queueLockContext = import->queueLockContext;
+    std::string err;
+    if (!core->setVulkanDeviceFromHost(internalImport, err)) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return 1;
+    }
+    return 0;
+}
+
+static int VS_CC vkGetVulkanHandles(VSCore *core, VSVulkanCoreHandles *handles, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(core && handles);
+    std::string err;
+    VSVulkanDevice *dev = core->vulkanDevice(err);
+    if (!dev) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return 1;
+    }
+    handles->instance = dev->instance();
+    handles->physicalDevice = dev->physicalDevice();
+    handles->device = dev->device();
+    handles->getInstanceProcAddr = dev->getInstanceProcAddr();
+    handles->computeQueueFamily = dev->computeQueue().familyIndex();
+    handles->computeQueueIndex = dev->computeQueue().queueIndex();
+    handles->transferQueueFamily = dev->transferQueue().familyIndex();
+    handles->transferQueueIndex = dev->transferQueue().queueIndex();
+    return 0;
+}
+
+static int VS_CC vkGetVulkanCoreInfo(VSCore *core, VSVulkanCoreInfo *info, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(core && info);
+    std::string err;
+    VSVulkanDevice *dev = core->vulkanDevice(err);
+    if (!dev) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return 1;
+    }
+    snprintf(info->deviceName, sizeof(info->deviceName), "%s", dev->properties().deviceName);
+    const VkPhysicalDeviceMemoryProperties &memProps = dev->memoryProperties();
+    VkDeviceSize largest = 0;
+    for (uint32_t i = 0; i < memProps.memoryHeapCount; i++) {
+        if ((memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) && memProps.memoryHeaps[i].size > largest)
+            largest = memProps.memoryHeaps[i].size;
+    }
+    info->deviceMemory = static_cast<int64_t>(largest);
+    info->budget = static_cast<int64_t>(dev->memoryBudget());
+    info->allocated = static_cast<int64_t>(core->memory->gpu_allocated_bytes());
+    info->limit = static_cast<int64_t>(core->memory->gpu_limit());
+    return 0;
+}
+
+static int64_t VS_CC vkSetMaxVRAMUse(int64_t bytes, VSCore *core) VS_NOEXCEPT {
+    assert(core);
+    if (bytes <= 0)
+        return static_cast<int64_t>(core->memory->gpu_limit());
+    return static_cast<int64_t>(core->memory->set_gpu_limit(static_cast<size_t>(bytes)));
+}
+
+static void VS_CC vkLockVulkanQueue(VSCore *core, int queue) VS_NOEXCEPT {
+    assert(core);
+    std::string err;
+    VSVulkanDevice *dev = core->vulkanDevice(err);
+    if (!dev)
+        return;
+    (queue == vqTransfer ? dev->transferQueue() : dev->computeQueue()).lock();
+}
+
+static void VS_CC vkUnlockVulkanQueue(VSCore *core, int queue) VS_NOEXCEPT {
+    assert(core);
+    std::string err;
+    VSVulkanDevice *dev = core->vulkanDevice(err);
+    if (!dev)
+        return;
+    (queue == vqTransfer ? dev->transferQueue() : dev->computeQueue()).unlock();
+}
+
+static VSFrame *VS_CC vkNewGPUVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
+    assert(format && core);
+    return new VSFrame(*format, width, height, propSrc, core, true);
+}
+
+static int VS_CC vkGetGPUPlane(const VSFrame *frame, int plane, VSVulkanPlaneInfo *info) VS_NOEXCEPT {
+    assert(frame && info);
+    const VSVulkanPlane *gpuPlane = frame->getGPUPlane(plane);
+    if (!gpuPlane)
+        return 1;
+    info->buffer = gpuPlane->buffer.buffer;
+    info->bufferSize = gpuPlane->buffer.size;
+    info->readySemaphore = gpuPlane->readySemaphore;
+    info->readyValue = gpuPlane->readyValue;
+    return 0;
+}
+
+static void VS_CC vkSetGPUPlaneProducer(VSFrame *frame, int plane, VkSemaphore semaphore, uint64_t value) VS_NOEXCEPT {
+    assert(frame);
+    VSVulkanPlane *gpuPlane = frame->getGPUPlane(plane);
+    if (!gpuPlane)
+        return;
+    gpuPlane->readySemaphore = semaphore;
+    gpuPlane->readyValue = value;
+}
+
+static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int maxEntries, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    std::vector<VSVulkanDeviceInfo> devices;
+    std::string err;
+    if (!VSVulkanDevice::enumerateDevices(devices, err)) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return -1;
+    }
+    for (int i = 0; i < maxEntries && i < static_cast<int>(devices.size()); i++) {
+        VSVulkanDeviceListEntry &entry = entries[i];
+        snprintf(entry.deviceName, sizeof(entry.deviceName), "%s", devices[i].name.c_str());
+        entry.apiVersion = devices[i].apiVersion;
+        entry.deviceType = static_cast<int>(devices[i].type);
+        entry.deviceMemory = static_cast<int64_t>(devices[i].deviceLocalMemory);
+        entry.usable = devices[i].usable ? 1 : 0;
+        snprintf(entry.unusableReason, sizeof(entry.unusableReason), "%s", devices[i].reason.c_str());
+    }
+    return static_cast<int>(devices.size());
+}
+
+const VSVULKANAPI vs_internal_vsvulkanapi = {
+    &vkSetVulkanDevice,
+    &vkSetVulkanDeviceFromHost,
+    &vkGetVulkanHandles,
+    &vkGetVulkanCoreInfo,
+    &vkSetMaxVRAMUse,
+    &vkLockVulkanQueue,
+    &vkUnlockVulkanQueue,
+    &vkNewGPUVideoFrame,
+    &vkGetGPUPlane,
+    &vkSetGPUPlaneProducer,
+    &vkEnumerateVulkanDevices
+};
+
+static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {
+    return (version == VSVULKAN_API_VERSION) ? &vs_internal_vsvulkanapi : nullptr;
+}
 
 const vs3::VSAPI3 vs_internal_vsapi3 = {
     &createCore3,

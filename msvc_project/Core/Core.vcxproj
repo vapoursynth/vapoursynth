@@ -133,6 +133,7 @@
     <ClCompile Include="..\..\src\core\vsvulkanshader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\VSVulkan4.h" />
     <ClInclude Include="..\..\include\VapourSynth4.h" />
     <ClInclude Include="..\..\include\VSHelper.h" />
     <ClInclude Include="..\..\include\VSHelper4.h" />

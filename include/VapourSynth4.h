@@ -26,7 +26,9 @@
 
 #define VS_MAKE_VERSION(major, minor) (((major) << 16) | (minor))
 #define VAPOURSYNTH_API_MAJOR 4
-#if defined(VS_USE_LATEST_API) || defined(VS_USE_API_42)
+#if defined(VS_USE_LATEST_API) || defined(VS_USE_API_43)
+#define VAPOURSYNTH_API_MINOR 3
+#elif defined(VS_USE_API_42)
 #define VAPOURSYNTH_API_MINOR 2
 #elif defined(VS_USE_API_41)
 #define VAPOURSYNTH_API_MINOR 1
@@ -82,6 +84,7 @@ typedef struct VSLogHandle VSLogHandle;
 typedef struct VSFrameContext VSFrameContext;
 typedef struct VSPLUGINAPI VSPLUGINAPI;
 typedef struct VSAPI VSAPI;
+typedef struct VSVULKANAPI VSVULKANAPI; /* defined in VSVulkan4.h, which is the only header pulling in Vulkan types */
 
 typedef enum VSColorFamily {
     cfUndefined = 0,
@@ -177,6 +180,12 @@ typedef enum VSFilterMode {
     fmUnordered = 2, /* for filters that modify their internal state every request like source filters that read a file */
     fmFrameState = 3 /* DO NOT USE UNLESS ABSOLUTELY NECESSARY, for compatibility with external code that can only keep the processing state of a single frame at a time */
 } VSFilterMode;
+
+/* Properties of a created filter node, passed to createVideoFilterEx. Unknown flags are an
+   error rather than ignored so new flags can be introduced safely. */
+typedef enum VSFilterFlags {
+    ffGPUOutput = 1 /* the node returns GPU resident frames; must match the vknode declarations of the registered function returning it */
+} VSFilterFlags;
 
 typedef enum VSMediaType {
     mtVideo = 1,
@@ -518,10 +527,24 @@ struct VSAPI {
     int64_t (VS_CC *getNodeProcessingTime)(VSNode *node, int reset) VS_NOEXCEPT; /* time spent processing frames in nanoseconds, reset sets the counter to 0 again */
     int64_t (VS_CC *getFreedNodeProcessingTime)(VSCore *core, int reset) VS_NOEXCEPT; /* time spent processing frames in nanoseconds in all destroyed nodes, reset sets the counter to 0 again */
 
+#endif
+
     /* Added in API 4.2 */
 #if VAPOURSYNTH_API_MINOR >= 2
     void (VS_CC *getCoreInfo2)(VSCore *core, VSCoreInfo2 *info) VS_NOEXCEPT;
+#endif
 
+    /* Added in API 4.3 */
+#if VAPOURSYNTH_API_MINOR >= 3
+    void (VS_CC *createVideoFilterEx)(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createVideoFilter plus VSFilterFlags; unknown flags are an error */
+    VSNode *(VS_CC *createVideoFilterEx2)(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createVideoFilter2 plus VSFilterFlags; unknown flags return NULL */
+    const VSVULKANAPI *(VS_CC *getVulkanAPI)(int version) VS_NOEXCEPT; /* see VSVulkan4.h; returns NULL if the requested version is unsupported */
+#endif
+
+    /* The graph inspection block stays at the very end of the struct: it is conditionally
+       compiled, so anything placed after it would change offsets between clients built with
+       and without VS_GRAPH_API. */
+#if VAPOURSYNTH_API_MINOR >= 2
 #if defined(VS_GRAPH_API)
     /* !!! Experimental/expensive graph information, these function require both the major and minor version to match exactly when using them !!!
      * 
@@ -535,7 +558,6 @@ struct VSAPI {
     const char *(VS_CC *getNodeCreationPluginID)(VSNode *node, int level) VS_NOEXCEPT; /* level=0 returns the name of the function that created the filter, specifying a higher level will retrieve the function above that invoked it or NULL if a non-existent level is requested */
     const char *(VS_CC *getNodeCreationPluginNS)(VSNode *node, int level) VS_NOEXCEPT; /* level=0 returns the name of the function that created the filter, specifying a higher level will retrieve the function above that invoked it or NULL if a non-existent level is requested */
     const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNode *node, int level) VS_NOEXCEPT; /* level=0 returns a copy of the arguments passed to the function that created the filter, returns NULL if a non-existent level is requested */
-#endif
 #endif
 #endif
 };

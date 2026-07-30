@@ -734,6 +734,25 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
         if (plugin->apiMajor == VAPOURSYNTH3_API_MAJOR && !v->isV3Compatible())
             plugin->core->logFatal(name + ": filter node returned not yet supported type");
 
+        /* Residency is declared at node creation through ffGPUOutput and in the interface
+           through vknode; the two must agree, verified here for every returned node so a
+           mismatch dies at the function that lied rather than corrupting downstream graphs. */
+        if (!v->hasError()) {
+            for (const auto &ra : retArgs) {
+                if (ra.type != ptVideoNode)
+                    continue;
+                int numElems = vs_internal_vsapi.mapNumElements(v, ra.name.c_str());
+                for (int i = 0; i < numElems; i++) {
+                    VSNode *node = vs_internal_vsapi.mapGetNode(v, ra.name.c_str(), i, nullptr);
+                    if (node->isGPUOutput() != ra.gpuNode)
+                        plugin->core->logFatal(name + ": node returned under '" + ra.name + (ra.gpuNode ?
+                            "' is declared vknode but was not created with ffGPUOutput" :
+                            "' was created with ffGPUOutput but is declared vnode"));
+                    vs_internal_vsapi.freeNode(node);
+                }
+            }
+        }
+
         // the declared return type can't be enforced retroactively without breaking existing plugins so only warn for now
         if (returnType != "any" && !v->hasError()) {
             std::string mismatch = checkValues(retArgs, *v, "return value");
@@ -1228,6 +1247,10 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
                 core->logFatal("Filter " + name + " returned a frame that's not of the declared format");
             else if ((vi.width || vi.height) && (r->getWidth(0) != vi.width || r->getHeight(0) != vi.height))
                 core->logFatal("Filter " + name + " declared the size " + std::to_string(vi.width) + "x" + std::to_string(vi.height) + ", but it returned a frame with the size " + std::to_string(r->getWidth(0)) + "x" + std::to_string(r->getHeight(0)));
+            else if (r->isGPUResident() != gpuOutput)
+                core->logFatal("Filter " + name + (gpuOutput ?
+                    " is declared to return GPU resident frames but returned a CPU frame" :
+                    " returned a GPU resident frame without declaring a vknode return"));
         } else {
             const VSAudioFormat *fi = r->getAudioFormat();
 
@@ -1799,6 +1822,43 @@ bool VSCore::setVulkanDevice(int deviceIndex, std::string &errorMessage) {
         errorMessage = vulkanDeviceError;
         return false;
     }
+    return true;
+}
+
+bool VSCore::setVulkanDeviceFromHost(const VSVulkanDeviceImport &import, std::string &errorMessage) {
+    std::lock_guard<std::mutex> lock(vulkanDeviceLock);
+    if (vulkanDeviceTried) {
+        errorMessage = vulkanDev ? "setVulkanDeviceFromHost must be called before the Vulkan device is first used"
+            : "Vulkan device creation already failed: " + vulkanDeviceError;
+        return false;
+    }
+    vulkanDeviceTried = true;
+
+    auto dev = std::make_unique<VSVulkanDevice>();
+    dev->setLogCallback(vulkanLogBridge, this);
+    if (!dev->adopt(import, vulkanDeviceError)) {
+        errorMessage = vulkanDeviceError;
+        return false;
+    }
+
+    dev->setAllocationCallback([](int64_t delta, void *userData) {
+        static_cast<vs::MemoryUse *>(userData)->account_gpu(delta);
+    }, memory);
+    size_t budget = static_cast<size_t>(dev->memoryBudget());
+    if (const char *envLimit = std::getenv("VS_VULKAN_MAX_VRAM_MB"))
+        memory->set_gpu_limit(static_cast<size_t>(std::strtoull(envLimit, nullptr, 10)) << 20);
+    else
+        memory->set_gpu_limit(budget - budget / 5);
+
+    auto trans = std::make_unique<VSVulkanTransfer>();
+    if (!trans->init(*dev, 4, vulkanDeviceError)) {
+        errorMessage = vulkanDeviceError;
+        return false;
+    }
+    vulkanDev = std::move(dev);
+    vulkanTrans = std::move(trans);
+    logMessage(mtInformation, "Vulkan device adopted from host: " + std::string(vulkanDev->properties().deviceName) +
+        ", VRAM limit " + std::to_string(memory->gpu_limit() >> 20) + " MB");
     return true;
 }
 
