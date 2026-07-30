@@ -190,10 +190,14 @@ VSVulkanTransfer::Slot *VSVulkanTransfer::acquireSlot(SlotRing &ring, VkDeviceSi
     if (slot->buffer.size < minSize) {
         dev->destroyBuffer(slot->buffer);
         VkDeviceSize rounded = (minSize + slotGranularity - 1) & ~(slotGranularity - 1);
-        VkMemoryPropertyFlags preferred = hostCached ? VK_MEMORY_PROPERTY_HOST_CACHED_BIT : 0;
+        /* Cached host memory measured slightly faster than write combined even for upload
+           staging (memcpy in AND the GPU's reads), and for readback the difference is 40x,
+           so both rings prefer it. */
+        (void)hostCached;
         if (!dev->createBuffer(slot->buffer, rounded,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, preferred, errorMessage)) {
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                VK_MEMORY_PROPERTY_HOST_CACHED_BIT, errorMessage)) {
             releaseSlot(ring, *slot);
             return nullptr;
         }
