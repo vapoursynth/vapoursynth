@@ -69,6 +69,8 @@ class VSThreadPool;
 struct VSFrameContext;
 struct VSFunction;
 class VSVulkanDevice;
+class VSVulkanTransfer;
+struct VSVulkanPlane;
 class VSMapData;
 
 typedef vs_intrusive_ptr<VSFrame> PVSFrame;
@@ -386,19 +388,25 @@ public:
     bool arr;
     bool empty;
     bool opt;
-    FilterArgument(const std::string &name, VSPropertyType type, bool arr, bool empty, bool opt)
-        : name(name), type(type), arr(arr), empty(empty), opt(opt) {}
+    bool gpuNode; /* declared vknode: a video node whose frames live on the GPU */
+    FilterArgument(const std::string &name, VSPropertyType type, bool arr, bool empty, bool opt, bool gpuNode = false)
+        : name(name), type(type), arr(arr), empty(empty), opt(opt), gpuNode(gpuNode) {}
 };
 
 class VSPlaneData {
 private:
     std::atomic<long> refcount;
-    vs::MemoryUse &mem;
+    vs::MemoryUse *mem; /* null for GPU planes */
     ~VSPlaneData();
 public:
-    uint8_t *data;
+    uint8_t *data; /* null for GPU planes, which makes accidental host access crash loudly */
     const size_t size;
+    /* The GPU payload, owned. Held as a pointer so this header stays free of Vulkan types;
+       destruction waits out the plane's producer before the buffer goes back to the pool. */
+    VSVulkanPlane *gpu = nullptr;
+    VSVulkanDevice *gpuDevice = nullptr;
     VSPlaneData(size_t dataSize, vs::MemoryUse &mem) noexcept;
+    VSPlaneData(VSVulkanPlane *plane, VSVulkanDevice *device, size_t dataSize) noexcept;
     VSPlaneData(const VSPlaneData &d) noexcept;
     bool unique() noexcept;
     void add_ref() noexcept;
@@ -423,6 +431,7 @@ private:
     VSMap properties;
     VSCore *core;
     bool frameRefDebug = false;
+    bool gpuResident = false;
 
     std::string debugAllocationInfo;
     static std::atomic<uint64_t> allocationSeq;
@@ -438,6 +447,9 @@ public:
 #endif
 
     VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept;
+    /* The GPU resident variant: identical layout and strides, planes in VRAM. Internal only
+       until the plugin API grows a story for it. */
+    VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core, bool gpuFrame) noexcept;
     VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) noexcept;
     VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc, VSCore *core) noexcept;
     VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *channelSrc, const int *channel, const VSFrame *propSrc, VSCore *core) noexcept;
@@ -456,6 +468,19 @@ public:
 
     VSMediaType getFrameType() const {
         return contentType;
+    }
+
+    bool isGPUResident() const {
+        return gpuResident;
+    }
+
+    /* Internal access for GPU filters; null on CPU frames or bad plane numbers. */
+    VSVulkanPlane *getGPUPlane(int plane) {
+        return (plane >= 0 && plane < numPlanes) ? data[plane]->gpu : nullptr;
+    }
+
+    const VSVulkanPlane *getGPUPlane(int plane) const {
+        return (plane >= 0 && plane < numPlanes) ? data[plane]->gpu : nullptr;
     }
 
     VSMap &getProperties() {
@@ -897,6 +922,7 @@ private:
     VSFilterGetFrame filterGetFrame;
     VSFilterFree freeFunc = nullptr;
     VSFilterMode filterMode;
+    bool gpuOutput = false;
 
     int apiMajor;
     VSCore *core;
@@ -963,6 +989,17 @@ public:
 
     VSFilterMode getFilterMode() const {
         return filterMode;
+    }
+
+    /* Whether this node's output frames live on the GPU. Set by internal GPU filters right
+       after creation; drives residency checking and automatic boundary insertion at invoke. */
+    bool isGPUOutput() const {
+        return gpuOutput;
+    }
+
+    void setGPUOutput() {
+        assert(nodeType == mtVideo);
+        gpuOutput = true;
     }
 
     int64_t getProcessingTime(bool reset) {
@@ -1163,10 +1200,12 @@ private:
     std::set<VSNode *> caches;
     std::mutex cacheLock;
 
-    /* Guards creation only; the device itself is internally synchronized. Destroyed with the
-       core, after every filter instance is gone, so no GPU work can outlive it. */
+    /* Guards creation only; the device itself is internally synchronized. Declared before the
+       transfer so the transfer is destroyed first, and both go with the core, after every
+       filter instance is gone, so no GPU work can outlive them. */
     std::mutex vulkanDeviceLock;
     std::unique_ptr<VSVulkanDevice> vulkanDev;
+    std::unique_ptr<VSVulkanTransfer> vulkanTrans;
     std::string vulkanDeviceError;
     bool vulkanDeviceTried = false;
 
@@ -1236,6 +1275,12 @@ public:
     /* Explicit selection instead of the default, only allowed while no device exists yet;
        -1 picks automatically. */
     bool setVulkanDevice(int deviceIndex, std::string &errorMessage);
+    /* The transfer machinery shared by every upload and download in this core, created
+       alongside the device on first use. */
+    VSVulkanTransfer *vulkanTransfer(std::string &errorMessage);
+    /* Wraps a node in GPUUpload (toGPU) or GPUDownload, used by invoke() to fix residency
+       mismatches; returns a new reference or null with the error set. */
+    VSNode *wrapGPUBoundary(VSNode *node, bool toGPU, std::string &errorMessage);
 
     /////////////////////////////////////
     // V3 compat helper functions

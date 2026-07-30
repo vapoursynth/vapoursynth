@@ -773,6 +773,8 @@ def _construct_type(signature):
     # Handle types
     if type == "vnode":
         type = vapoursynth.VideoNode
+    elif type == "vknode":
+        type = vapoursynth.VideoNode
     elif type == "anode":
         type = vapoursynth.AudioNode
     elif type == "vframe":
@@ -1196,7 +1198,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                 val = [val]
 
         for v in val:
-            if (atypes[key][:5] == 'vnode' and isinstance(v, VideoNode)) or (atypes[key][:5] == 'anode' and isinstance(v, AudioNode)):
+            if ((atypes[key][:5] == 'vnode' or atypes[key][:6] == 'vknode') and isinstance(v, VideoNode)) or (atypes[key][:5] == 'anode' and isinstance(v, AudioNode)):
                 if funcs.mapSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif ((atypes[key][:6] == 'vframe') and isinstance(v, VideoFrame)) or (atypes[key][:6] == 'aframe' and isinstance(v, AudioFrame)):
@@ -1228,7 +1230,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                 raise Error('argument ' + key + ' was passed an unsupported type (expected ' + atypes[key] + ' compatible type but got ' + type(v).__name__ + ')')
         if len(val) == 0:
         # set an empty key if it's an empty array
-            if atypes[key][:5] == 'vnode':
+            if atypes[key][:5] == 'vnode' or atypes[key][:6] == 'vknode':
                 funcs.mapSetEmpty(inm, ckey, ptVideoNode)
             elif atypes[key][:5] == 'anode':
                 funcs.mapSetEmpty(inm, ckey, ptAudioNode)
@@ -3463,7 +3465,7 @@ cdef class Function(object):
 
     cdef is_video_injectable(self):
         first_arg_i = self.signature.find(':')
-        return first_arg_i > 0 and self.signature.find(':vnode') == first_arg_i
+        return first_arg_i > 0 and (self.signature.find(':vnode') == first_arg_i or self.signature.find(':vknode') == first_arg_i)
 
     cdef is_audio_injectable(self):
         first_arg_i = self.signature.find(':')

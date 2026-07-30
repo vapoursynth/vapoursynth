@@ -22,7 +22,7 @@
 #include "VSHelper4.h"
 #include "version.h"
 #include "cpufeatures.h"
-#include "vsvulkan.h"
+#include "vsvulkanframe.h"
 #include <cstddef>
 #include <cstdlib>
 #include <cassert>
@@ -114,7 +114,7 @@ void VSFunction::call(const VSMap *in, VSMap *out) {
 
 ///////////////
 
-VSPlaneData::VSPlaneData(size_t dataSize, vs::MemoryUse &mem) noexcept : refcount(1), mem(mem), size(dataSize + 2 * VSFrame::guardSpace) {
+VSPlaneData::VSPlaneData(size_t dataSize, vs::MemoryUse &mem) noexcept : refcount(1), mem(&mem), size(dataSize + 2 * VSFrame::guardSpace) {
     data = mem.allocate(size);
     assert(data);
     if (!data)
@@ -128,8 +128,16 @@ VSPlaneData::VSPlaneData(size_t dataSize, vs::MemoryUse &mem) noexcept : refcoun
 #endif
 }
 
+/* Takes ownership of the plane. VRAM is deliberately not accounted in MemoryUse yet; that
+   arrives with cache pressure handling for GPU frames. */
+VSPlaneData::VSPlaneData(VSVulkanPlane *plane, VSVulkanDevice *device, size_t dataSize) noexcept
+    : refcount(1), mem(nullptr), data(nullptr), size(dataSize), gpu(plane), gpuDevice(device) {
+}
+
 VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem), size(d.size) {
-    data = mem.allocate(size);
+    if (d.gpu)
+        VS_FATAL_ERROR("Copy on write of GPU resident planes is not implemented");
+    data = mem->allocate(size);
     assert(data);
     if (!data)
         VS_FATAL_ERROR("Failed to allocate memory for plane in copy constructor. Out of memory.");
@@ -138,7 +146,16 @@ VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem
 }
 
 VSPlaneData::~VSPlaneData() {
-    mem.deallocate(data);
+    if (gpu) {
+        /* The producer may still be writing this plane; the wait is instant once it signaled.
+           Reader safety is currently the transfer layer's host waits, and moves to exec
+           contexts holding frame references when GPU to GPU filters arrive. */
+        waitPlaneHost(*gpuDevice, *gpu);
+        gpuDevice->destroyBuffer(gpu->buffer);
+        delete gpu;
+    } else {
+        mem->deallocate(data);
+    }
 }
 
 bool VSPlaneData::unique() noexcept {
@@ -209,6 +226,54 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
         setAllocationInfo();
 }
 
+VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core, bool gpuFrame) noexcept
+    : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+    assert(gpuFrame);
+    (void)gpuFrame;
+    gpuResident = true;
+    frameRefDebug = core->enableFrameRefDebug;
+    if (frameRefDebug) {
+        std::lock_guard<std::mutex> lock(core->frameRefMutex);
+        core->frameRefs.insert(this);
+    }
+
+    if (width <= 0 || height <= 0)
+        core->logFatal("Error in frame creation: dimensions are negative " + std::to_string(width) + "x" + std::to_string(height));
+
+    format.vf = f;
+    numPlanes = format.vf.numPlanes;
+
+    /* Identical stride math to the CPU constructor, which is what keeps uploads flat copies. */
+    stride[0] = (static_cast<ptrdiff_t>(width) * format.vf.bytesPerSample + (alignment - 1)) & ~(alignment - 1);
+    if (numPlanes == 3) {
+        ptrdiff_t plane23 = (static_cast<ptrdiff_t>(width >> format.vf.subSamplingW) * format.vf.bytesPerSample + (alignment - 1)) & ~(alignment - 1);
+        stride[1] = plane23;
+        stride[2] = plane23;
+    } else {
+        stride[1] = 0;
+        stride[2] = 0;
+    }
+
+    std::string vulkanError;
+    VSVulkanDevice *dev = core->vulkanDevice(vulkanError);
+    if (!dev)
+        core->logFatal("GPU frame requested but no Vulkan device: " + vulkanError);
+
+    for (int i = 0; i < numPlanes; i++) {
+        uint32_t pw = static_cast<uint32_t>(i ? width >> format.vf.subSamplingW : width);
+        uint32_t ph = static_cast<uint32_t>(i ? height >> format.vf.subSamplingH : height);
+        auto *plane = new VSVulkanPlane();
+        if (!createGPUPlane(*dev, pw, ph, format.vf.bytesPerSample, stride[i], *plane, vulkanError)) {
+            delete plane;
+            core->logFatal("Failed to allocate a GPU plane: " + vulkanError);
+        }
+        data[i] = new VSPlaneData(plane, dev, static_cast<size_t>(stride[i]) * ph);
+    }
+
+    if (frameRefDebug)
+        setAllocationInfo();
+}
+
 VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     frameRefDebug = core->enableFrameRefDebug;
     if (frameRefDebug) {
@@ -233,14 +298,40 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
         stride[2] = 0;
     }
 
+    /* Residency propagates from shared planes and must be uniform: one frame cannot straddle
+       the bus. Fresh planes follow whatever the shared ones are. */
+    for (int i = 0; i < numPlanes; i++) {
+        if (planeSrc[i]) {
+            if (i == 0 || !planeSrc[0])
+                gpuResident = planeSrc[i]->gpuResident;
+            else if (planeSrc[i]->gpuResident != gpuResident)
+                core->logFatal("Error in frame creation: mixing GPU and CPU resident source planes in one frame");
+        }
+    }
+
     for (int i = 0; i < numPlanes; i++) {
         if (planeSrc[i]) {
             if (plane[i] < 0 || plane[i] >= planeSrc[i]->format.vf.numPlanes)
                 core->logFatal("Error in frame creation: plane " + std::to_string(plane[i]) + " does not exist in the source frame");
             if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
                 core->logFatal("Error in frame creation: dimensions of plane " + std::to_string(plane[i]) + " do not match. Source: " + std::to_string(planeSrc[i]->getWidth(plane[i])) + "x" + std::to_string(planeSrc[i]->getHeight(plane[i])) + "; destination: " + std::to_string(getWidth(i)) + "x" + std::to_string(getHeight(i)));
+            if (planeSrc[i]->gpuResident != gpuResident)
+                core->logFatal("Error in frame creation: mixing GPU and CPU resident source planes in one frame");
             data[i] = planeSrc[i]->data[plane[i]];
             data[i]->add_ref();
+        } else if (gpuResident) {
+            uint32_t pw = static_cast<uint32_t>(i ? width >> format.vf.subSamplingW : width);
+            uint32_t ph = static_cast<uint32_t>(i ? height >> format.vf.subSamplingH : height);
+            std::string vulkanError;
+            VSVulkanDevice *dev = core->vulkanDevice(vulkanError);
+            if (!dev)
+                core->logFatal("GPU frame requested but no Vulkan device: " + vulkanError);
+            auto *gpuPlane = new VSVulkanPlane();
+            if (!createGPUPlane(*dev, pw, ph, format.vf.bytesPerSample, stride[i], *gpuPlane, vulkanError)) {
+                delete gpuPlane;
+                core->logFatal("Failed to allocate a GPU plane: " + vulkanError);
+            }
+            data[i] = new VSPlaneData(gpuPlane, dev, static_cast<size_t>(stride[i]) * ph);
         } else {
             if (i == 0) {
                 data[i] = new VSPlaneData(stride[i] * height, *core->memory);
@@ -372,6 +463,9 @@ const uint8_t *VSFrame::getReadPtr(int plane) const {
     if (plane < 0 || plane >= numPlanes)
         return nullptr;
 
+    if (gpuResident)
+        core->logFatal("getReadPtr called on a GPU resident frame, insert a GPUDownload to bring it to the CPU");
+
     if (contentType == mtVideo)
         return data[plane]->data + guardSpace;
     else
@@ -381,6 +475,9 @@ const uint8_t *VSFrame::getReadPtr(int plane) const {
 uint8_t *VSFrame::getWritePtr(int plane) {
     if (plane < 0 || plane >= numPlanes)
         return nullptr;
+
+    if (gpuResident)
+        core->logFatal("getWritePtr called on a GPU resident frame, GPU frames can only be written by GPU filters");
 
     // copy the plane data if this isn't the only reference
     if (contentType == mtVideo) {
@@ -462,6 +559,7 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
         bool arr = false;
         bool opt = false;
         bool empty = false;
+        bool gpuNode = false;
 
         VSPropertyType type = ptUnset;
         const std::string &argName = argParts[0];
@@ -480,6 +578,11 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
             type = ptData;
         } else if ((typeName == "vnode" && apiMajor > VAPOURSYNTH3_API_MAJOR) || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "clip")) {
             type = ptVideoNode;
+        } else if (typeName == "vknode" && apiMajor > VAPOURSYNTH3_API_MAJOR) {
+            /* A video node whose frames are GPU resident; the same map level type with a
+               residency requirement enforced, and fixed up, at invoke time. */
+            type = ptVideoNode;
+            gpuNode = true;
         } else if (typeName == "anode" && apiMajor > VAPOURSYNTH3_API_MAJOR) {
             type = ptAudioNode;
         } else if ((typeName == "vframe" && apiMajor > VAPOURSYNTH3_API_MAJOR) || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "frame")) {
@@ -512,7 +615,7 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
         if (empty && !arr)
             throw std::runtime_error("Argument '" + argName + "' is not an array. Only array arguments can have the empty flag set.");
 
-        argsOut.emplace_back(argName, type, arr, empty, opt);
+        argsOut.emplace_back(argName, type, arr, empty, opt, gpuNode);
     }
 }
 
@@ -580,11 +683,48 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
         if (!mismatch.empty())
             throw VSException(name + ": " + mismatch);
 
+        /* Residency: vknode arguments must be fed GPU nodes and vnode arguments CPU ones. A
+           mismatch gets the matching transfer filter inserted automatically, with a message so
+           nobody wonders where the extra work came from. The copy is only made when something
+           actually needs fixing. */
+        const VSMap *callArgs = &args;
+        std::unique_ptr<VSMap> fixedArgs;
+        for (const auto &fa : inArgs) {
+            if (fa.type != ptVideoNode)
+                continue;
+            int numElems = vs_internal_vsapi.mapNumElements(callArgs, fa.name.c_str());
+            for (int i = 0; i < numElems; i++) {
+                VSNode *node = vs_internal_vsapi.mapGetNode(callArgs, fa.name.c_str(), i, nullptr);
+                bool mismatched = node->isGPUOutput() != fa.gpuNode;
+                if (mismatched) {
+                    std::string boundaryError;
+                    VSNode *wrapped = plugin->core->wrapGPUBoundary(node, fa.gpuNode, boundaryError);
+                    if (!wrapped) {
+                        vs_internal_vsapi.freeNode(node);
+                        throw VSException(name + ": " + boundaryError);
+                    }
+                    if (!fixedArgs) {
+                        fixedArgs = std::make_unique<VSMap>(&args);
+                        callArgs = fixedArgs.get();
+                    }
+                    /* Rebuild the whole key since elements cannot be replaced in place. */
+                    std::vector<VSNode *> nodes;
+                    for (int j = 0; j < numElems; j++)
+                        nodes.push_back(j == i ? wrapped : vs_internal_vsapi.mapGetNode(fixedArgs.get(), fa.name.c_str(), j, nullptr));
+                    for (int j = 0; j < numElems; j++)
+                        vs_internal_vsapi.mapConsumeNode(fixedArgs.get(), fa.name.c_str(), nodes[j], j == 0 ? maReplace : maAppend);
+                    plugin->core->logMessage(mtInformation, name + ": automatically inserted " +
+                        (fa.gpuNode ? "GPUUpload" : "GPUDownload") + " for argument '" + fa.name + "'");
+                }
+                vs_internal_vsapi.freeNode(node);
+            }
+        }
+
         bool enableGraphInspection = plugin->core->enableGraphInspection;
         if (enableGraphInspection) {
             plugin->core->functionFrame = std::make_shared<VSFunctionFrame>(name, plugin->getID(), plugin->getNamespace(), new VSMap(&args), plugin->core->functionFrame);
         }
-        func(&args, v, functionData, plugin->core, getVSAPIInternal(plugin->apiMajor));
+        func(callArgs, v, functionData, plugin->core, getVSAPIInternal(plugin->apiMajor));
         if (enableGraphInspection) {
             assert(plugin->core->functionFrame);
             plugin->core->functionFrame = plugin->core->functionFrame->next;
@@ -609,10 +749,10 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
 
 bool VSPluginFunction::isV3Compatible() const {
     for (const auto &iter : inArgs)
-        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset)
+        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset || iter.gpuNode)
             return false;
     for (const auto &iter : retArgs)
-        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset)
+        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset || iter.gpuNode)
             return false;
     return true;
 }
@@ -632,7 +772,7 @@ std::string VSPluginFunction::getV4ArgString() const {
             case ptData:
                 tmp += "data"; break;
             case ptVideoNode:
-                tmp += "vnode"; break;
+                tmp += iter.gpuNode ? "vknode" : "vnode"; break;
             case ptVideoFrame:
                 tmp += "vframe"; break;
             case ptFunction:
@@ -1521,8 +1661,35 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
     /* Validation is a development switch, so an environment variable rather than API surface. */
     if (!dev->create(deviceIndex, std::getenv("VS_VULKAN_VALIDATION") != nullptr, vulkanDeviceError))
         return false;
+    auto trans = std::make_unique<VSVulkanTransfer>();
+    if (!trans->init(*dev, 4, vulkanDeviceError))
+        return false;
     vulkanDev = std::move(dev);
+    vulkanTrans = std::move(trans);
     return true;
+}
+
+VSVulkanTransfer *VSCore::vulkanTransfer(std::string &errorMessage) {
+    vulkanDevice(errorMessage);
+    return vulkanTrans.get();
+}
+
+VSNode *VSCore::wrapGPUBoundary(VSNode *node, bool toGPU, std::string &errorMessage) {
+    VSPlugin *stdPlugin = getPluginByID(VSH_STD_PLUGIN_ID);
+    assert(stdPlugin);
+
+    VSMap in;
+    vs_internal_vsapi.mapSetNode(&in, "clip", node, maAppend);
+    VSMap *out = stdPlugin->invoke(toGPU ? "GPUUpload" : "GPUDownload", in);
+    const char *invokeError = vs_internal_vsapi.mapGetError(out);
+    if (invokeError) {
+        errorMessage = invokeError;
+        vs_internal_vsapi.freeMap(out);
+        return nullptr;
+    }
+    VSNode *wrapped = vs_internal_vsapi.mapGetNode(out, "clip", 0, nullptr);
+    vs_internal_vsapi.freeMap(out);
+    return wrapped;
 }
 
 VSVulkanDevice *VSCore::vulkanDevice(std::string &errorMessage) {

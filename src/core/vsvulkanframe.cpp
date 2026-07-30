@@ -75,6 +75,26 @@ bool VSVulkanTransfer::init(VSVulkanDevice &device, uint32_t slots, std::string 
     return true;
 }
 
+/* Device local required, host visible preferred: on resizable BAR systems every plane lands
+   writable straight from the CPU and uploads never touch staging. Pooled, since planes are
+   exactly what the block allocator exists for. */
+bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int bytesPerSample,
+    ptrdiff_t stride, VSVulkanPlane &plane, std::string &errorMessage) {
+    plane = {};
+    plane.width = width;
+    plane.height = height;
+    plane.stride = stride;
+    if (!device.createBufferPooled(plane.buffer, static_cast<VkDeviceSize>(stride) * height,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, errorMessage)) {
+        plane = {};
+        return false;
+    }
+    return true;
+}
+
 bool VSVulkanTransfer::createFrame(VSVulkanFrame &frame, const VSVideoFormat &format, int width, int height, std::string &errorMessage) {
     frame = {};
 
@@ -92,20 +112,11 @@ bool VSVulkanTransfer::createFrame(VSVulkanFrame &frame, const VSVideoFormat &fo
     frame.numPlanes = format.numPlanes;
 
     for (int p = 0; p < format.numPlanes; p++) {
-        VSVulkanPlane &plane = frame.planes[p];
-        plane.width = static_cast<uint32_t>(p ? width >> format.subSamplingW : width);
-        plane.height = static_cast<uint32_t>(p ? height >> format.subSamplingH : height);
+        uint32_t pw = static_cast<uint32_t>(p ? width >> format.subSamplingW : width);
+        uint32_t ph = static_cast<uint32_t>(p ? height >> format.subSamplingH : height);
         /* The same 64 byte row alignment CPU planes get, so strides usually match end to end. */
-        plane.stride = (static_cast<ptrdiff_t>(plane.width) * format.bytesPerSample + 63) & ~static_cast<ptrdiff_t>(63);
-
-        /* Device local required, host visible preferred: on resizable BAR systems every plane
-           lands writable straight from the CPU and uploads never touch staging. Pooled, since
-           planes are exactly what the block allocator exists for. */
-        if (!dev->createBufferPooled(plane.buffer, static_cast<VkDeviceSize>(plane.stride) * plane.height,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, errorMessage)) {
+        ptrdiff_t stride = (static_cast<ptrdiff_t>(pw) * format.bytesPerSample + 63) & ~static_cast<ptrdiff_t>(63);
+        if (!createGPUPlane(*dev, pw, ph, format.bytesPerSample, stride, frame.planes[p], errorMessage)) {
             destroyFrame(frame);
             return false;
         }
@@ -119,9 +130,10 @@ void VSVulkanTransfer::destroyFrame(VSVulkanFrame &frame) {
     frame = {};
 }
 
-bool VSVulkanTransfer::waitFrameHost(const VSVulkanFrame &frame, std::string &errorMessage) {
+bool VSVulkanTransfer::waitPlanesHost(VSVulkanPlane *const planes[], int numPlanes, std::string &errorMessage) {
     VSVulkanWaitList list;
-    addFrameWaits(list, frame);
+    for (int p = 0; p < numPlanes; p++)
+        list.add(planes[p]->readySemaphore, planes[p]->readyValue);
     if (!list.size())
         return true;
 
@@ -195,29 +207,30 @@ void VSVulkanTransfer::releaseSlot(SlotRing &ring, Slot &slot) {
     ring.claimCv.notify_one();
 }
 
-bool VSVulkanTransfer::upload(VSVulkanFrame &frame, const uint8_t *const srcPlanes[3], const ptrdiff_t srcStrides[3], std::string &errorMessage) {
+bool VSVulkanTransfer::uploadPlanes(VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
+    const uint8_t *const srcPlanes[], const ptrdiff_t srcStrides[], std::string &errorMessage) {
     bool rebar = !forceStaging;
-    for (int p = 0; p < frame.numPlanes; p++)
-        rebar = rebar && frame.planes[p].buffer.mapped;
+    for (int p = 0; p < numPlanes; p++)
+        rebar = rebar && planes[p]->buffer.mapped;
 
     if (rebar) {
         /* Straight into VRAM, no staging, no submission. The only wait is for whatever last
-           wrote the frame on the GPU, and host writes are implicitly visible to any submission
+           wrote the planes on the GPU, and host writes are implicitly visible to any submission
            that comes after them. */
-        if (!waitFrameHost(frame, errorMessage))
+        if (!waitPlanesHost(planes, numPlanes, errorMessage))
             return false;
-        for (int p = 0; p < frame.numPlanes; p++) {
-            const VSVulkanPlane &plane = frame.planes[p];
-            copyPlane(static_cast<uint8_t *>(plane.buffer.mapped), plane.stride, srcPlanes[p], srcStrides[p],
-                static_cast<size_t>(plane.width) * frame.format.bytesPerSample, plane.height);
+        for (int p = 0; p < numPlanes; p++) {
+            copyPlane(static_cast<uint8_t *>(planes[p]->buffer.mapped), planes[p]->stride, srcPlanes[p], srcStrides[p],
+                static_cast<size_t>(planes[p]->width) * bytesPerSample, planes[p]->height);
+            planes[p]->readySemaphore = VK_NULL_HANDLE;
+            planes[p]->readyValue = 0;
         }
-        setFrameProduced(frame, VK_NULL_HANDLE, 0);
         return true;
     }
 
     VkDeviceSize total = 0;
-    for (int p = 0; p < frame.numPlanes; p++)
-        total += static_cast<VkDeviceSize>(frame.planes[p].stride) * frame.planes[p].height;
+    for (int p = 0; p < numPlanes; p++)
+        total += static_cast<VkDeviceSize>(planes[p]->stride) * planes[p]->height;
 
     /* Slot before context, always, so the two rings cannot deadlock against each other. */
     Slot *slot = acquireSlot(staging, total, false, errorMessage);
@@ -225,11 +238,10 @@ bool VSVulkanTransfer::upload(VSVulkanFrame &frame, const uint8_t *const srcPlan
         return false;
 
     VkDeviceSize offset = 0;
-    for (int p = 0; p < frame.numPlanes; p++) {
-        const VSVulkanPlane &plane = frame.planes[p];
-        copyPlane(static_cast<uint8_t *>(slot->buffer.mapped) + offset, plane.stride, srcPlanes[p], srcStrides[p],
-            static_cast<size_t>(plane.width) * frame.format.bytesPerSample, plane.height);
-        offset += static_cast<VkDeviceSize>(plane.stride) * plane.height;
+    for (int p = 0; p < numPlanes; p++) {
+        copyPlane(static_cast<uint8_t *>(slot->buffer.mapped) + offset, planes[p]->stride, srcPlanes[p], srcStrides[p],
+            static_cast<size_t>(planes[p]->width) * bytesPerSample, planes[p]->height);
+        offset += static_cast<VkDeviceSize>(planes[p]->stride) * planes[p]->height;
     }
 
     VSVulkanExecContext *ctx = execPool.acquire(errorMessage);
@@ -241,14 +253,13 @@ bool VSVulkanTransfer::upload(VSVulkanFrame &frame, const uint8_t *const srcPlan
     VkBufferCopy2 regions[3] = {};
     VkCopyBufferInfo2 copies[3] = {};
     offset = 0;
-    for (int p = 0; p < frame.numPlanes; p++) {
-        const VSVulkanPlane &plane = frame.planes[p];
+    for (int p = 0; p < numPlanes; p++) {
         regions[p].sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
         regions[p].srcOffset = offset;
-        regions[p].size = static_cast<VkDeviceSize>(plane.stride) * plane.height;
+        regions[p].size = static_cast<VkDeviceSize>(planes[p]->stride) * planes[p]->height;
         copies[p].sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
         copies[p].srcBuffer = slot->buffer.buffer;
-        copies[p].dstBuffer = plane.buffer.buffer;
+        copies[p].dstBuffer = planes[p]->buffer.buffer;
         copies[p].regionCount = 1;
         copies[p].pRegions = &regions[p];
         dev->vk.vkCmdCopyBuffer2(ctx->commandBuffer(), &copies[p]);
@@ -256,23 +267,33 @@ bool VSVulkanTransfer::upload(VSVulkanFrame &frame, const uint8_t *const srcPlan
     }
 
     /* The device side wait on the previous producers covers overwrite safety without blocking
-       the host; a fresh frame has no producers and waits on nothing. */
+       the host; fresh planes have no producers and wait on nothing. */
     VSVulkanWaitList waits;
-    addFrameWaits(waits, frame);
+    for (int p = 0; p < numPlanes; p++)
+        waits.add(planes[p]->readySemaphore, planes[p]->readyValue);
     uint64_t value = 0;
     bool ok = execPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size());
     if (ok) {
         slot->value = value;
-        setFrameProduced(frame, execPool.semaphore(), value);
+        for (int p = 0; p < numPlanes; p++) {
+            planes[p]->readySemaphore = execPool.semaphore();
+            planes[p]->readyValue = value;
+        }
     }
     releaseSlot(staging, *slot);
     return ok;
 }
 
-bool VSVulkanTransfer::download(const VSVulkanFrame &frame, uint8_t *const dstPlanes[3], const ptrdiff_t dstStrides[3], std::string &errorMessage) {
+bool VSVulkanTransfer::upload(VSVulkanFrame &frame, const uint8_t *const srcPlanes[3], const ptrdiff_t srcStrides[3], std::string &errorMessage) {
+    VSVulkanPlane *planes[3] = { &frame.planes[0], &frame.planes[1], &frame.planes[2] };
+    return uploadPlanes(planes, frame.numPlanes, frame.format.bytesPerSample, srcPlanes, srcStrides, errorMessage);
+}
+
+bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
+    uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[], std::string &errorMessage) {
     VkDeviceSize total = 0;
-    for (int p = 0; p < frame.numPlanes; p++)
-        total += static_cast<VkDeviceSize>(frame.planes[p].stride) * frame.planes[p].height;
+    for (int p = 0; p < numPlanes; p++)
+        total += static_cast<VkDeviceSize>(planes[p]->stride) * planes[p]->height;
 
     Slot *slot = acquireSlot(readback, total, true, errorMessage);
     if (!slot)
@@ -287,13 +308,12 @@ bool VSVulkanTransfer::download(const VSVulkanFrame &frame, uint8_t *const dstPl
     VkBufferCopy2 regions[3] = {};
     VkCopyBufferInfo2 copies[3] = {};
     VkDeviceSize offset = 0;
-    for (int p = 0; p < frame.numPlanes; p++) {
-        const VSVulkanPlane &plane = frame.planes[p];
+    for (int p = 0; p < numPlanes; p++) {
         regions[p].sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
         regions[p].dstOffset = offset;
-        regions[p].size = static_cast<VkDeviceSize>(plane.stride) * plane.height;
+        regions[p].size = static_cast<VkDeviceSize>(planes[p]->stride) * planes[p]->height;
         copies[p].sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
-        copies[p].srcBuffer = plane.buffer.buffer;
+        copies[p].srcBuffer = planes[p]->buffer.buffer;
         copies[p].dstBuffer = slot->buffer.buffer;
         copies[p].regionCount = 1;
         copies[p].pRegions = &regions[p];
@@ -302,7 +322,8 @@ bool VSVulkanTransfer::download(const VSVulkanFrame &frame, uint8_t *const dstPl
     }
 
     VSVulkanWaitList waits;
-    addFrameWaits(waits, frame);
+    for (int p = 0; p < numPlanes; p++)
+        waits.add(planes[p]->readySemaphore, planes[p]->readyValue);
     uint64_t value = 0;
     if (!execPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size())) {
         releaseSlot(readback, *slot);
@@ -316,13 +337,17 @@ bool VSVulkanTransfer::download(const VSVulkanFrame &frame, uint8_t *const dstPl
     }
 
     offset = 0;
-    for (int p = 0; p < frame.numPlanes; p++) {
-        const VSVulkanPlane &plane = frame.planes[p];
-        copyPlane(dstPlanes[p], dstStrides[p], static_cast<const uint8_t *>(slot->buffer.mapped) + offset, plane.stride,
-            static_cast<size_t>(plane.width) * frame.format.bytesPerSample, plane.height);
-        offset += static_cast<VkDeviceSize>(plane.stride) * plane.height;
+    for (int p = 0; p < numPlanes; p++) {
+        copyPlane(dstPlanes[p], dstStrides[p], static_cast<const uint8_t *>(slot->buffer.mapped) + offset,
+            planes[p]->stride, static_cast<size_t>(planes[p]->width) * bytesPerSample, planes[p]->height);
+        offset += static_cast<VkDeviceSize>(planes[p]->stride) * planes[p]->height;
     }
 
     releaseSlot(readback, *slot);
     return true;
+}
+
+bool VSVulkanTransfer::download(const VSVulkanFrame &frame, uint8_t *const dstPlanes[3], const ptrdiff_t dstStrides[3], std::string &errorMessage) {
+    const VSVulkanPlane *planes[3] = { &frame.planes[0], &frame.planes[1], &frame.planes[2] };
+    return downloadPlanes(planes, frame.numPlanes, frame.format.bytesPerSample, dstPlanes, dstStrides, errorMessage);
 }

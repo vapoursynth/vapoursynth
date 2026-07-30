@@ -59,6 +59,23 @@ inline void addFrameWaits(VSVulkanWaitList &list, const VSVulkanFrame &frame) {
         list.add(frame.planes[p].readySemaphore, frame.planes[p].readyValue);
 }
 
+/* One linear pitched device local plane with the stride the caller decided on, which is how
+   VSFrame keeps its GPU strides identical to its CPU ones. */
+bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int bytesPerSample,
+    ptrdiff_t stride, VSVulkanPlane &plane, std::string &errorMessage);
+
+/* Host wait for one plane's producer; the common case is already signaled and returns at once. */
+inline bool waitPlaneHost(VSVulkanDevice &device, const VSVulkanPlane &plane) {
+    if (!plane.readySemaphore)
+        return true;
+    VkSemaphoreWaitInfo waitInfo = {};
+    waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+    waitInfo.semaphoreCount = 1;
+    waitInfo.pSemaphores = &plane.readySemaphore;
+    waitInfo.pValues = &plane.readyValue;
+    return device.vk.vkWaitSemaphores(device.device(), &waitInfo, UINT64_MAX) == VK_SUCCESS;
+}
+
 /* The common case after one submission wrote every plane. Partially produced frames set their
    plane pairs individually instead. */
 inline void setFrameProduced(VSVulkanFrame &frame, VkSemaphore semaphore, uint64_t value) {
@@ -93,6 +110,13 @@ public:
     /* The frame must not be in flight; wait on its producer or waitIdle() first. */
     void destroyFrame(VSVulkanFrame &frame);
 
+    /* The pointer forms work directly on planes owned elsewhere, which is what lets VSPlaneData
+       hold the planes while the transfer machinery stays out of the core headers; the frame
+       forms are thin wrappers over them. */
+    bool uploadPlanes(VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
+        const uint8_t *const srcPlanes[], const ptrdiff_t srcStrides[], std::string &errorMessage);
+    bool downloadPlanes(const VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
+        uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[], std::string &errorMessage);
     bool upload(VSVulkanFrame &frame, const uint8_t *const srcPlanes[3], const ptrdiff_t srcStrides[3], std::string &errorMessage);
     bool download(const VSVulkanFrame &frame, uint8_t *const dstPlanes[3], const ptrdiff_t dstStrides[3], std::string &errorMessage);
 
@@ -118,7 +142,7 @@ private:
 
     Slot *acquireSlot(SlotRing &ring, VkDeviceSize minSize, bool hostCached, std::string &errorMessage);
     void releaseSlot(SlotRing &ring, Slot &slot);
-    bool waitFrameHost(const VSVulkanFrame &frame, std::string &errorMessage);
+    bool waitPlanesHost(VSVulkanPlane *const planes[], int numPlanes, std::string &errorMessage);
 
     VSVulkanDevice *dev = nullptr;
     VSVulkanExecPool execPool;

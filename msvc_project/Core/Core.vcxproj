@@ -127,6 +127,7 @@
     <ClCompile Include="..\..\src\core\vsthreadpool.cpp" />
     <ClCompile Include="..\..\src\core\vsvulkan.cpp" />
     <ClCompile Include="..\..\src\core\vsvulkanalloc.cpp" />
+    <ClCompile Include="..\..\src\core\vsvulkanfilters.cpp" />
     <ClCompile Include="..\..\src\core\vsvulkanexec.cpp" />
     <ClCompile Include="..\..\src\core\vsvulkanframe.cpp" />
     <ClCompile Include="..\..\src\core\vsvulkanshader.cpp" />

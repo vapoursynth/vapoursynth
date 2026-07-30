@@ -34,6 +34,7 @@ void genericInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void lutInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void boxBlurInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void averageFramesInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
+void gpuTransferInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 
 
 #endif // INTERNALFILTERS_H
