@@ -312,8 +312,10 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     VkPipelineLayoutCreateInfo layoutInfo;
     VkShaderModuleCreateInfo moduleInfo;
     VkComputePipelineCreateInfo pipeInfo;
+    VkExportSemaphoreCreateInfo semExport;
     VkSemaphoreTypeCreateInfo semType;
     VkSemaphoreCreateInfo semInfo;
+    VSVulkanCoreInfo coreInfo;
     VkCommandPoolCreateInfo poolInfo;
     VkCommandBufferAllocateInfo allocInfo;
     VkDeviceQueueInfo2 queueInfo;
@@ -395,8 +397,17 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         goto fail;
     }
 
+    /* Created exportable when the device can, so CUDA and other Vulkan devices consuming
+       this filter's frames may import the producer pair and wait it device side instead of
+       falling back to waitGPUFrame. Costs nothing when nobody imports it. */
+    memset(&coreInfo, 0, sizeof(coreInfo));
+    d->vkapi->getVulkanCoreInfo(core, &coreInfo, err, sizeof(err));
+    memset(&semExport, 0, sizeof(semExport));
+    semExport.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
+    semExport.handleTypes = (VkExternalSemaphoreHandleTypeFlags)coreInfo.semaphoreExportHandleType;
     memset(&semType, 0, sizeof(semType));
     semType.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    semType.pNext = coreInfo.semaphoreExportHandleType ? &semExport : NULL;
     semType.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
     memset(&semInfo, 0, sizeof(semInfo));
     semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;

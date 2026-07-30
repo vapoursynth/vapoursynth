@@ -352,6 +352,22 @@ typedef struct VSVulkanExportedMemory {
     intptr_t handle;     /* HANDLE on Windows, file descriptor elsewhere */
 } VSVulkanExportedMemory;
 
+/* A timeline semaphore exported as an opaque handle, from exportGPUSemaphore. Importing a
+ * producer pair's semaphore lets a CUDA stream or another Vulkan device wait the pair on the
+ * device, replacing waitGPUFrame's host wait and restoring full pipelining across the API
+ * boundary; an external semaphore wait also carries the cross device memory dependency, so
+ * no separate availability flush is needed on that path.
+ *
+ * Every call returns a NEW handle for the same semaphore. Cache imports keyed by the
+ * VkSemaphore value from VSVulkanPlaneInfo, scoped to your filter instance: the producer
+ * pair contract guarantees those semaphores outlive every consumer, so the key cannot go
+ * stale within your lifetime. Handle ownership follows the same platform rules as memory
+ * export (close NT handles after importing; fds are consumed by a successful import). */
+typedef struct VSVulkanExportedSemaphore {
+    int handleType;      /* the VkExternalSemaphoreHandleTypeFlagBits of the handle */
+    intptr_t handle;     /* HANDLE on Windows, file descriptor elsewhere */
+} VSVulkanExportedSemaphore;
+
 typedef struct VSVulkanCoreInfo {
     char deviceName[256];
     int64_t deviceMemory; /* largest device local heap */
@@ -365,6 +381,7 @@ typedef struct VSVulkanCoreInfo {
     uint32_t deviceNodeMask;
     int deviceLUIDValid;
     int exportHandleType; /* VkExternalMemoryHandleTypeFlagBits exportGPUPlane hands out, 0 when export is unavailable */
+    int semaphoreExportHandleType; /* VkExternalSemaphoreHandleTypeFlagBits exportGPUSemaphore hands out, 0 when unavailable */
 } VSVulkanCoreInfo;
 
 /* One entry per physical device; the position in the enumeration is exactly the index
@@ -440,6 +457,16 @@ struct VSVULKANAPI {
        submission round trip. Frames only read through Vulkan on the same device never need
        this — the producer pairs carry the dependency there. */
     int (VS_CC *waitGPUFrame)(const VSFrame *frame, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+
+    /* Exports a timeline semaphore as an opaque handle; see VSVulkanExportedSemaphore. Use
+       it on the readySemaphore of a plane you consume (created exportable by every core
+       exec pool when the capability exists), or on your own timeline created with
+       VkExportSemaphoreCreateInfo, to signal your producer pairs from the foreign API. When
+       the export of a third party producer's semaphore fails because it was not created
+       exportable, fall back to waitGPUFrame for that frame. Only available when
+       VSVulkanCoreInfo::semaphoreExportHandleType is nonzero. */
+    int (VS_CC *exportGPUSemaphore)(VSCore *core, VkSemaphore semaphore, VSVulkanExportedSemaphore *out,
+        char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 };
 
 #endif

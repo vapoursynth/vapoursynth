@@ -1385,6 +1385,7 @@ static int VS_CC vkGetVulkanCoreInfo(VSCore *core, VSVulkanCoreInfo *info, char 
     info->deviceNodeMask = dev->deviceNodeMask();
     info->deviceLUIDValid = dev->deviceLUIDValid() ? 1 : 0;
     info->exportHandleType = static_cast<int>(dev->exportHandleType());
+    info->semaphoreExportHandleType = static_cast<int>(dev->semaphoreExportHandleType());
     return 0;
 }
 
@@ -1562,6 +1563,29 @@ static int VS_CC vkWaitGPUFrame(const VSFrame *frame, char *errorMessage, int er
     return 0;
 }
 
+static int VS_CC vkExportGPUSemaphore(VSCore *core, VkSemaphore semaphore, VSVulkanExportedSemaphore *out,
+    char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(core && out);
+    if (!semaphore) {
+        copyVulkanError("Cannot export a null semaphore", errorMessage, errorMessageSize);
+        return 1;
+    }
+    std::string err;
+    VSVulkanDevice *dev = core->vulkanDevice(err);
+    if (!dev) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return 1;
+    }
+    intptr_t handle = 0;
+    if (!dev->exportSemaphore(semaphore, handle, err)) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return 1;
+    }
+    out->handleType = static_cast<int>(dev->semaphoreExportHandleType());
+    out->handle = handle;
+    return 0;
+}
+
 static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int maxEntries, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     std::vector<VSVulkanDeviceInfo> devices;
     std::string err;
@@ -1600,7 +1624,8 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkCreateGPUBuffer,
     &vkDestroyGPUBuffer,
     &vkExportGPUPlane,
-    &vkWaitGPUFrame
+    &vkWaitGPUFrame,
+    &vkExportGPUSemaphore
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {

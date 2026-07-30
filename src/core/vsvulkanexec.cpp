@@ -60,8 +60,15 @@ bool VSVulkanExecPool::init(VSVulkanDevice &device, VSVulkanQueue &queue, uint32
     dev = &device;
     q = &queue;
 
+    /* Exportable when the device can: this timeline becomes the producer pair of every frame
+       this pool writes, and an exportable pair is what lets CUDA and other Vulkan devices
+       wait it device side instead of stalling a worker thread. */
+    VkExportSemaphoreCreateInfo exportInfo = {};
+    exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
+    exportInfo.handleTypes = dev->semaphoreExportHandleType();
     VkSemaphoreTypeCreateInfo typeInfo = {};
     typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    typeInfo.pNext = dev->semaphoreExportHandleType() ? &exportInfo : nullptr;
     typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
     typeInfo.initialValue = 0;
     VkSemaphoreCreateInfo semaphoreInfo = {};

@@ -394,6 +394,17 @@ public:
        Ownership rules differ per platform and are documented at the public API. */
     bool exportMemory(VkDeviceMemory memory, intptr_t &handle, std::string &errorMessage);
 
+    /* The opaque handle type timeline semaphores can be exported as, or 0. When nonzero
+       every exec pool timeline is created exportable, so the producer pairs of core produced
+       frames can be imported by CUDA and other Vulkan devices for device side waits; plugin
+       timelines opt in themselves at creation. Kept separate from memory export since driver
+       support for the two differs. */
+    VkExternalSemaphoreHandleTypeFlagBits semaphoreExportHandleType() const { return semaphoreExportType; }
+
+    /* Same fresh-handle-per-call semantics as exportMemory. The semaphore must have been
+       created exportable or the driver rejects the call. */
+    bool exportSemaphore(VkSemaphore semaphore, intptr_t &handle, std::string &errorMessage);
+
     /* Makes writes available outside the device's own domain: one tiny submission that
        device-waits the given timeline pairs, then executes an ALL_COMMANDS/MEMORY_WRITE to
        HOST/HOST_READ barrier, host waited. Cross device availability without external
@@ -482,9 +493,12 @@ private:
     bool shaderFloat16Flag = false;
     bool memoryBudgetFlag = false;
     VkExternalMemoryHandleTypeFlagBits exportType = static_cast<VkExternalMemoryHandleTypeFlagBits>(0);
-    /* PFN_vkGetMemoryWin32HandleKHR or PFN_vkGetMemoryFdKHR; typed at the single use site so
-       this header stays free of the platform Vulkan headers. */
+    VkExternalSemaphoreHandleTypeFlagBits semaphoreExportType = static_cast<VkExternalSemaphoreHandleTypeFlagBits>(0);
+    /* PFN_vkGetMemoryWin32HandleKHR/PFN_vkGetMemoryFdKHR and the semaphore equivalents;
+       typed at the single use site so this header stays free of the platform Vulkan
+       headers. */
     PFN_vkVoidFunction exportMemoryFn = nullptr;
+    PFN_vkVoidFunction exportSemaphoreFn = nullptr;
     std::mutex flushMutex;
     VkCommandPool flushPool = VK_NULL_HANDLE;
     VkCommandBuffer flushCmd = VK_NULL_HANDLE;

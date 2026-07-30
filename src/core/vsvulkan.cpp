@@ -563,17 +563,23 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
        so the live budget query is usable the moment the extension shows up in the list. */
     memoryBudgetFlag = deviceExtensionAvailable(vk, physicalDeviceHandle, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
 
-    /* Memory export, the one exception to the no-extensions rule: pooled allocations become
-       exportable as opaque handles so CUDA and other Vulkan devices can wrap frame planes
-       zero copy. Gated on the platform extension being present and on the driver reporting
-       our buffer shape exportable without demanding dedicated allocations, which would be
-       incompatible with the block sub-allocator. */
+    /* Memory and semaphore export, the exceptions to the no-extensions rule: pooled
+       allocations become exportable as opaque handles so CUDA and other Vulkan devices can
+       wrap frame planes zero copy, and timeline semaphores likewise so producer pairs can be
+       waited device side across the boundary. Each is gated on its platform extension being
+       present and on the driver reporting the capability; memory additionally must not
+       demand dedicated allocations, which would be incompatible with the block
+       sub-allocator. */
 #ifdef VS_TARGET_OS_WINDOWS
     const VkExternalMemoryHandleTypeFlagBits wantedExportType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
     const char *exportExtensionName = "VK_KHR_external_memory_win32";
+    const VkExternalSemaphoreHandleTypeFlagBits wantedSemExportType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+    const char *semExportExtensionName = "VK_KHR_external_semaphore_win32";
 #else
     const VkExternalMemoryHandleTypeFlagBits wantedExportType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
     const char *exportExtensionName = "VK_KHR_external_memory_fd";
+    const VkExternalSemaphoreHandleTypeFlagBits wantedSemExportType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+    const char *semExportExtensionName = "VK_KHR_external_semaphore_fd";
 #endif
     if (deviceExtensionAvailable(vk, physicalDeviceHandle, exportExtensionName)) {
         /* Core 1.1, but outside the frozen function table; resolved privately since plugins
@@ -593,6 +599,26 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
             if ((feats & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT) &&
                 !(feats & VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT))
                 exportType = wantedExportType;
+        }
+    }
+    if (deviceExtensionAvailable(vk, physicalDeviceHandle, semExportExtensionName)) {
+        auto externalSemProps = reinterpret_cast<PFN_vkGetPhysicalDeviceExternalSemaphoreProperties>(
+            loader.getInstanceProcAddr()(instanceHandle, "vkGetPhysicalDeviceExternalSemaphoreProperties"));
+        if (externalSemProps) {
+            /* The type chain matters: timeline exportability is queried separately from
+               binary and differs on real drivers. */
+            VkSemaphoreTypeCreateInfo typeInfo = {};
+            typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+            typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+            VkPhysicalDeviceExternalSemaphoreInfo semInfo = {};
+            semInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_SEMAPHORE_INFO;
+            semInfo.pNext = &typeInfo;
+            semInfo.handleType = wantedSemExportType;
+            VkExternalSemaphoreProperties semProps = {};
+            semProps.sType = VK_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_PROPERTIES;
+            externalSemProps(physicalDeviceHandle, &semInfo, &semProps);
+            if (semProps.externalSemaphoreFeatures & VK_EXTERNAL_SEMAPHORE_FEATURE_EXPORTABLE_BIT)
+                semaphoreExportType = wantedSemExportType;
         }
     }
 
@@ -667,15 +693,20 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     hostImageCopyFlag = queried.f14.hostImageCopy != 0;
     shaderFloat16Flag = queried.f12.shaderFloat16 != 0;
 
+    const char *enabledExtensions[2];
+    uint32_t enabledExtensionCount = 0;
+    if (exportType)
+        enabledExtensions[enabledExtensionCount++] = exportExtensionName;
+    if (semaphoreExportType)
+        enabledExtensions[enabledExtensionCount++] = semExportExtensionName;
+
     VkDeviceCreateInfo deviceCreate = {};
     deviceCreate.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     deviceCreate.pNext = &enabled.f2;
     deviceCreate.queueCreateInfoCount = queueCreateCount;
     deviceCreate.pQueueCreateInfos = queueCreate;
-    if (exportType) {
-        deviceCreate.enabledExtensionCount = 1;
-        deviceCreate.ppEnabledExtensionNames = &exportExtensionName;
-    }
+    deviceCreate.enabledExtensionCount = enabledExtensionCount;
+    deviceCreate.ppEnabledExtensionNames = enabledExtensionCount ? enabledExtensions : nullptr;
 
     res = vk.vkCreateDevice(physicalDeviceHandle, &deviceCreate, nullptr, &deviceHandle);
     if (res != VK_SUCCESS) {
@@ -730,8 +761,52 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         if (!exportMemoryFn)
             exportType = static_cast<VkExternalMemoryHandleTypeFlagBits>(0);
     }
+    if (semaphoreExportType) {
+#ifdef VS_TARGET_OS_WINDOWS
+        exportSemaphoreFn = vk.vkGetDeviceProcAddr(deviceHandle, "vkGetSemaphoreWin32HandleKHR");
+#else
+        exportSemaphoreFn = vk.vkGetDeviceProcAddr(deviceHandle, "vkGetSemaphoreFdKHR");
+#endif
+        if (!exportSemaphoreFn)
+            semaphoreExportType = static_cast<VkExternalSemaphoreHandleTypeFlagBits>(0);
+    }
 
     state = State::Ready;
+    return true;
+}
+
+bool VSVulkanDevice::exportSemaphore(VkSemaphore semaphore, intptr_t &handle, std::string &errorMessage) {
+    if (!semaphoreExportType || !exportSemaphoreFn) {
+        errorMessage = "Semaphore export is not available on this device";
+        return false;
+    }
+#ifdef VS_TARGET_OS_WINDOWS
+    VkSemaphoreGetWin32HandleInfoKHR getInfo = {};
+    getInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_WIN32_HANDLE_INFO_KHR;
+    getInfo.semaphore = semaphore;
+    getInfo.handleType = semaphoreExportType;
+    HANDLE h = nullptr;
+    VkResult res = reinterpret_cast<PFN_vkGetSemaphoreWin32HandleKHR>(exportSemaphoreFn)(deviceHandle, &getInfo, &h);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkGetSemaphoreWin32HandleKHR failed (VkResult " + std::to_string(res) +
+            "); the semaphore was probably not created exportable";
+        return false;
+    }
+    handle = reinterpret_cast<intptr_t>(h);
+#else
+    VkSemaphoreGetFdInfoKHR getInfo = {};
+    getInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
+    getInfo.semaphore = semaphore;
+    getInfo.handleType = semaphoreExportType;
+    int fd = -1;
+    VkResult res = reinterpret_cast<PFN_vkGetSemaphoreFdKHR>(exportSemaphoreFn)(deviceHandle, &getInfo, &fd);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkGetSemaphoreFdKHR failed (VkResult " + std::to_string(res) +
+            "); the semaphore was probably not created exportable";
+        return false;
+    }
+    handle = static_cast<intptr_t>(fd);
+#endif
     return true;
 }
 

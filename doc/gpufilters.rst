@@ -195,21 +195,42 @@ The pattern, per frame:
 #. Allocate the output with newGPUVideoFrame and wrap its planes the same
    way — foreign kernels write directly into what downstream Vulkan filters
    will read.
-#. Synchronize host side for now: call waitGPUFrame on each input frame
-   before launching (it waits the producer pairs *and* makes the writes
-   available outside the device, which a bare semaphore wait does not), and
-   finish your work (for example ``cudaStreamSynchronize``) before returning,
-   publishing no producer pair. This costs pipelining, not correctness;
-   device-side synchronization through exportable timeline semaphores is the
-   planned next stage.
+#. Synchronize. Two options, and the second is strongly preferred:
+
+   * **Host side**: call waitGPUFrame on each input frame before launching
+     (it waits the producer pairs *and* makes the writes available outside
+     the device, which a bare semaphore wait does not), and finish your work
+     (``cudaStreamSynchronize``) before returning, publishing no producer
+     pair. Simple, correct, and it parks a worker thread for the whole GPU
+     round trip.
+
+   * **Device side**: import each input plane's *readySemaphore* through
+     exportGPUSemaphore and enqueue a wait on your stream
+     (``cudaWaitExternalSemaphoresAsync`` with the pair's value), signal your
+     own exportable timeline at the end
+     (``cudaSignalExternalSemaphoresAsync``), publish that (semaphore, value)
+     with setGPUPlaneProducer, and return immediately. Nothing blocks; the
+     graph pipelines across the API boundary exactly as it does between
+     Vulkan filters. Create your timeline with VkExportSemaphoreCreateInfo
+     using the handle type from
+     ``VSVulkanCoreInfo::semaphoreExportHandleType``, and take on the
+     asynchronous obligations that come with it: retain source frames until
+     your signalled value completes, and let the timeline live as long as the
+     filter instance.
+
+   Not every producer's timeline is exportable — third party filters may not
+   opt in — so when exportGPUSemaphore fails on an input, fall back to
+   waitGPUFrame for that frame.
 
 Match devices by UUID: ``VSVulkanCoreInfo::deviceUUID`` equals the UUID CUDA
 reports for the same GPU. Whether export is available at all is
-``VSVulkanCoreInfo::exportHandleType`` — it requires the platform's opaque
-handle extension and is absent on MoltenVK, so a CUDA-backed filter should
-fail creation with a clear message when it is 0. Cached imports may safely
-outlive the frames that led to them: the OS keeps an imported allocation
-alive until the importer releases it.
+``VSVulkanCoreInfo::exportHandleType`` (memory) and
+``semaphoreExportHandleType`` (semaphores) — both require the platform's
+opaque handle extensions and are absent on MoltenVK, so a CUDA-backed filter
+should fail creation with a clear message when memory export is 0, and fall
+back to host synchronization when only the semaphore half is missing. Cached
+imports may safely outlive the frames that led to them: the OS keeps an
+imported allocation alive until the importer releases it.
 
 Performance notes
 -----------------
