@@ -277,10 +277,26 @@ typedef struct VSVulkanCoreHandles {
 /* A host application handing VapourSynth its existing device instead of letting the core
  * create one. The device must be Vulkan 1.4 with the following features enabled; availability
  * is verified at adoption but enablement cannot be, so that part is the host's responsibility.
+ * Every required feature is mandatory for a conformant Vulkan 1.4 implementation, so all of
+ * them are guaranteed available on any device that passes the version gate; they form the
+ * baseline GPU plugins are allowed to target, which is why the list is not shorter.
  *
- *   required: shaderInt16, storageBuffer16BitAccess, storageBuffer8BitAccess, shaderInt8,
- *             timelineSemaphore, bufferDeviceAddress, scalarBlockLayout, hostQueryReset,
- *             synchronization2, maintenance4, maintenance5, maintenance6, pushDescriptor
+ *   required (VkPhysicalDeviceFeatures): shaderInt16, shaderImageGatherExtended,
+ *     shaderStorageImageExtendedFormats, shaderUniformBufferArrayDynamicIndexing,
+ *     shaderSampledImageArrayDynamicIndexing, shaderStorageBufferArrayDynamicIndexing,
+ *     shaderStorageImageArrayDynamicIndexing
+ *   required (Vulkan11Features): storageBuffer16BitAccess, variablePointersStorageBuffer,
+ *     variablePointers, samplerYcbcrConversion
+ *   required (Vulkan12Features): timelineSemaphore, hostQueryReset,
+ *     uniformBufferStandardLayout, shaderSubgroupExtendedTypes, subgroupBroadcastDynamicId,
+ *     bufferDeviceAddress, vulkanMemoryModel, vulkanMemoryModelDeviceScope,
+ *     storageBuffer8BitAccess, shaderInt8, scalarBlockLayout
+ *   required (Vulkan13Features): synchronization2, maintenance4, subgroupSizeControl,
+ *     computeFullSubgroups, shaderIntegerDotProduct, shaderZeroInitializeWorkgroupMemory,
+ *     inlineUniformBlock, pipelineCreationCacheControl, privateData
+ *   required (Vulkan14Features): maintenance5, maintenance6, pushDescriptor,
+ *     shaderSubgroupRotate, shaderSubgroupRotateClustered, shaderFloatControls2,
+ *     shaderExpectAssume, pipelineRobustness
  *   optional, used when enabled: hostImageCopy, shaderFloat16
  *
  * A core created device enables exactly this set and nothing else; adoption failures name the

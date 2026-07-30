@@ -252,6 +252,34 @@ Classes and Functions
 
       Frees all memory used by internal caches. Useful when suspending or switching between multiple core instances.
 
+   .. py:method:: set_vulkan_device(index)
+
+      Selects the Vulkan device used for GPU filters, by an index from
+      *vulkan_devices*. Must be called before the device is first used, i.e.
+      before any GPU filter is created; the automatic choice is the most
+      powerful usable device. See :doc:`gpufilters`.
+
+   .. py:attribute:: vulkan_devices
+
+      A list with one dict per Vulkan device on the system, usable or not:
+      *index*, *name*, *api_version*, *type*, *device_memory*, *usable* and
+      *reason* (why an unusable device is unusable). Works without initializing
+      GPU support on the core.
+
+   .. py:attribute:: vulkan_device_info
+
+      A dict describing the core's active Vulkan device: *name*,
+      *device_memory*, *budget* (what the driver says the process may use
+      right now), *allocated* (current VapourSynth VRAM use) and *limit* (the
+      eviction limit). Accessing it initializes the device like the first GPU
+      filter would.
+
+   .. py:method:: set_max_vram_use(bytes)
+
+      Sets the VRAM limit GPU frame caching works against, the equivalent of
+      *max_cache_size* for video memory. The default is 80% of the driver
+      reported budget. Returns the limit in effect.
+
    .. py:attribute:: core_version
 
       Returns the core version as VapourSynthVersion tuple.

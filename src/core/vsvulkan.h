@@ -77,28 +77,77 @@ private:
    VkPhysicalDeviceVulkanNNFeatures struct the member lives in. A required feature missing makes
    the device unusable; an optional one is enabled when present and exposed as a capability.
 
-   hostImageCopy is optional the hard way: promotion to core does not make a feature mandatory,
-   and AMD's Windows driver reports it unsupported even at loader version 1.4.3xx, so the
-   transfer path has to treat staging buffers as the baseline and this as the fast path. */
+   Policy (settled 2026-07-30): every REQUIRED entry below is MANDATORY for a conformant
+   implementation of the Vulkan version noted next to it, verified against the 1.3/1.4
+   proposal documents and the spec's feature requirements. Requiring them therefore costs
+   zero hardware beyond the Vulkan 1.4 gate itself, and the list is deliberately maximal
+   within that rule: it is the baseline plugin kernels may target, and it doubles as the
+   adoption contract hosts must have enabled on imported devices, which makes entries near
+   impossible to add after release. Included are the mandatory features a compute plugin can
+   consume, either as SPIR-V capabilities or through the exposed API surface; internal-only
+   conveniences the core could enable later without touching that contract, and mandatory
+   graphics-pipeline state, are left out on purpose.
+
+   The two OPTIONAL entries are the only genuinely capability-diverse ones: shaderFloat16 is
+   optional in every core version, and hostImageCopy is optional the hard way: promotion to
+   core does not make a feature mandatory (1.4 demands it only where no dedicated transfer
+   queue exists), and AMD gates it by hardware generation, so the transfer path treats
+   staging buffers as the baseline and this as the fast path. */
 #define VS_VK_FEATURE_LIST(FT) \
-    /* 10 is the plain VkPhysicalDeviceFeatures block. The 8 and 16 bit storage and arithmetic
-       features let kernels address planes as their real sample type instead of unpacking
-       words, and every 1.4 class driver has them. */ \
+    /* 10 is the plain VkPhysicalDeviceFeatures block; everything here became mandatory in
+       1.4. The 8 and 16 bit storage and arithmetic features let kernels address planes as
+       their real sample type; the dynamic indexing quartet and the image features are SPIR-V
+       capabilities kernels may declare. */ \
     FT(10, shaderInt16,        VS_VK_REQUIRED) \
+    FT(10, shaderUniformBufferArrayDynamicIndexing, VS_VK_REQUIRED) \
+    FT(10, shaderSampledImageArrayDynamicIndexing,  VS_VK_REQUIRED) \
+    FT(10, shaderStorageBufferArrayDynamicIndexing, VS_VK_REQUIRED) \
+    FT(10, shaderStorageImageArrayDynamicIndexing,  VS_VK_REQUIRED) \
+    FT(10, shaderImageGatherExtended, VS_VK_REQUIRED) \
+    FT(10, shaderStorageImageExtendedFormats, VS_VK_REQUIRED) \
+    /* Mandatory in 1.4. Variable pointers because DXC-generated SPIR-V leans on them, the
+       ycbcr conversion because the function table already carries the object pair. */ \
     FT(11, storageBuffer16BitAccess, VS_VK_REQUIRED) \
+    FT(11, variablePointersStorageBuffer, VS_VK_REQUIRED) \
+    FT(11, variablePointers,   VS_VK_REQUIRED) \
+    FT(11, samplerYcbcrConversion, VS_VK_REQUIRED) \
+    /* Mandatory in 1.2... */ \
+    FT(12, timelineSemaphore,  VS_VK_REQUIRED) \
+    FT(12, hostQueryReset,     VS_VK_REQUIRED) \
+    FT(12, uniformBufferStandardLayout, VS_VK_REQUIRED) \
+    FT(12, shaderSubgroupExtendedTypes, VS_VK_REQUIRED) \
+    FT(12, subgroupBroadcastDynamicId, VS_VK_REQUIRED) \
+    /* ...in 1.3... */ \
+    FT(12, bufferDeviceAddress, VS_VK_REQUIRED) \
+    FT(12, vulkanMemoryModel,  VS_VK_REQUIRED) \
+    FT(12, vulkanMemoryModelDeviceScope, VS_VK_REQUIRED) \
+    /* ...and in 1.4. */ \
     FT(12, storageBuffer8BitAccess,  VS_VK_REQUIRED) \
     FT(12, shaderInt8,         VS_VK_REQUIRED) \
-    FT(12, shaderFloat16,      VS_VK_OPTIONAL) \
-    FT(12, timelineSemaphore,  VS_VK_REQUIRED) \
-    FT(12, bufferDeviceAddress, VS_VK_REQUIRED) \
     FT(12, scalarBlockLayout,  VS_VK_REQUIRED) \
-    FT(12, hostQueryReset,     VS_VK_REQUIRED) \
+    FT(12, shaderFloat16,      VS_VK_OPTIONAL) \
+    /* Mandatory in 1.3. subgroupSizeControl/computeFullSubgroups because kernels built
+       around a fixed subgroup size (one subgroup per work item is a common GPU filter
+       shape) must pin it at pipeline creation or wave size variance silently breaks them. */ \
     FT(13, synchronization2,   VS_VK_REQUIRED) \
     FT(13, maintenance4,       VS_VK_REQUIRED) \
+    FT(13, subgroupSizeControl, VS_VK_REQUIRED) \
+    FT(13, computeFullSubgroups, VS_VK_REQUIRED) \
+    FT(13, shaderIntegerDotProduct, VS_VK_REQUIRED) \
+    FT(13, shaderZeroInitializeWorkgroupMemory, VS_VK_REQUIRED) \
+    FT(13, inlineUniformBlock, VS_VK_REQUIRED) \
+    FT(13, pipelineCreationCacheControl, VS_VK_REQUIRED) \
+    FT(13, privateData,        VS_VK_REQUIRED) \
+    /* Mandatory in 1.4. */ \
     FT(14, maintenance5,       VS_VK_REQUIRED) \
     FT(14, maintenance6,       VS_VK_REQUIRED) \
-    FT(14, hostImageCopy,      VS_VK_OPTIONAL) \
-    FT(14, pushDescriptor,     VS_VK_REQUIRED)
+    FT(14, pushDescriptor,     VS_VK_REQUIRED) \
+    FT(14, shaderSubgroupRotate, VS_VK_REQUIRED) \
+    FT(14, shaderSubgroupRotateClustered, VS_VK_REQUIRED) \
+    FT(14, shaderFloatControls2, VS_VK_REQUIRED) \
+    FT(14, shaderExpectAssume, VS_VK_REQUIRED) \
+    FT(14, pipelineRobustness, VS_VK_REQUIRED) \
+    FT(14, hostImageCopy,      VS_VK_OPTIONAL)
 
 enum VSVulkanLogSeverity {
     VS_VK_LOG_INFO = 0,

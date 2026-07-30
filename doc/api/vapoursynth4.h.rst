@@ -32,6 +32,8 @@ Enums_
 
    VSFilterMode_
 
+   VSFilterFlags_
+
    VSMediaType_
    
    VSAudioChannels_
@@ -109,7 +111,9 @@ Structs_
           * getCoreInfo2_
           
           * getAPIVersion_
-          
+
+          * getVulkanAPI_
+
       * Functions that deal with logging
           
           * addLogHandler_
@@ -161,7 +165,11 @@ Structs_
           * createVideoFilter_
 
           * createVideoFilter2_
-          
+
+          * createVideoFilterEx_
+
+          * createVideoFilterEx2_
+
           * createAudioFilter_
 
           * createAudioFilter2_
@@ -489,7 +497,24 @@ enum VSFilterMode
 
      For compatibility with other filtering architectures. DO NOT USE IN NEW FILTERS.
      The filter's "getframe" function only ever gets called from one thread at a
-     time. Unlike fmUnordered, only one frame is processed at a time. 
+     time. Unlike fmUnordered, only one frame is processed at a time.
+
+
+.. _VSFilterFlags:
+
+enum VSFilterFlags
+------------------
+
+   Flags passed to createVideoFilterEx_. Unknown flags are rejected, so a
+   filter never runs on a core that does not understand its declaration.
+   Added in API 4.3.
+
+   * ffGPUOutput
+
+     The filter's output frames are GPU resident. Must agree with a
+     ``vknode`` return type in the registered signature; the core verifies
+     both, and that delivered frames match, treating any mismatch as a fatal
+     error. See :doc:`../gpufilters`.
 
 
 .. _VSMediaType:
@@ -1201,6 +1226,18 @@ struct VSAPI
 
 ----------
 
+   .. _getVulkanAPI:
+
+   const VSVULKANAPI \*getVulkanAPI(int version)
+
+      Returns the GPU filtering API, a separate struct so that only plugins
+      using it need the Vulkan headers. Pass VSVULKAN_API_VERSION from
+      VSVulkan4.h; every version up to the current one is served, since the
+      struct only ever grows. Returns NULL if *version* is unsupported. See
+      :doc:`vsvulkan4.h`. Added in API 4.3.
+
+----------
+
    .. _logMessage:
 
    void logMessage(int msgType, const char \*msg, VSCore \*core)
@@ -1588,6 +1625,28 @@ struct VSAPI
 
       Identical to createVideoFilter_ except that the new node is returned
       instead of appended to the *out* map. Returns NULL on error.
+
+----------
+
+   .. _createVideoFilterEx:
+
+   void createVideoFilterEx(VSMap_ \*out, const char \*name, const VSVideoInfo_ \*vi, VSFilterGetFrame_ getFrame, VSFilterFree_ free, int filterMode, int flags, const VSFilterDependency_ \*dependencies, int numDeps, void \*instanceData, VSCore_ \*core)
+
+      Identical to createVideoFilter_ with an additional *flags* argument
+      taking a bitmask of VSFilterFlags_. Passing unknown flags is an error,
+      so filters relying on a flag's behavior fail loudly on cores that do
+      not implement it. Filters producing GPU resident frames must be created
+      through this function with *ffGPUOutput* set. Added in API 4.3.
+
+----------
+
+   .. _createVideoFilterEx2:
+
+   VSNode_ \*createVideoFilterEx2(const char \*name, const VSVideoInfo_ \*vi, VSFilterGetFrame_ getFrame, VSFilterFree_ free, int filterMode, int flags, const VSFilterDependency_ \*dependencies, int numDeps, void \*instanceData, VSCore_ \*core)
+
+      Identical to createVideoFilterEx_ except that the new node is returned
+      instead of appended to the *out* map. Returns NULL on error. Added in
+      API 4.3.
 
 ----------
 
@@ -2781,6 +2840,8 @@ struct VSAPI
                "anode": const VSNode_\ * (audio type)
 
                "vnode": const VSNode_\ * (video type)
+
+               "vknode": const VSNode_\ * (GPU resident video type, see :doc:`vsvulkan4.h`)
 
                "aframe": const VSFrame_\ * (audio type)
                

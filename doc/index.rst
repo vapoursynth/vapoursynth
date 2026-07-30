@@ -11,6 +11,7 @@ Contents:
    gettingstarted
    pythonreference
    functions
+   gpufilters
    output
    applications
    packaging
