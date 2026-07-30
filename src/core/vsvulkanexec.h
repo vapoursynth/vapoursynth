@@ -29,6 +29,44 @@
 
 class VSVulkanExecPool;
 
+/* One device side dependency: a timeline and the value that must be reached. */
+struct VSVulkanWait {
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    uint64_t value = 0;
+};
+
+/* Collects the dependencies of one submission, deduplicating on the fly since the common case
+   is several planes produced by the same timeline, which collapse into one wait at the highest
+   value. Null semaphores mean host produced content that needs no wait and are simply dropped,
+   so callers can append every plane of every frame without caring which are resident where. */
+class VSVulkanWaitList {
+public:
+    static constexpr uint32_t capacity = 16;
+
+    void add(VkSemaphore semaphore, uint64_t value) {
+        if (!semaphore)
+            return;
+        for (uint32_t i = 0; i < count; i++) {
+            if (waits[i].semaphore == semaphore) {
+                if (value > waits[i].value)
+                    waits[i].value = value;
+                return;
+            }
+        }
+        /* A submission depends on at most a handful of distinct timelines, one per pool it
+           consumes from; running out of room means the design changed and this should too. */
+        if (count < capacity)
+            waits[count++] = { semaphore, value };
+    }
+
+    const VSVulkanWait *data() const { return waits; }
+    uint32_t size() const { return count; }
+
+private:
+    VSVulkanWait waits[capacity] = {};
+    uint32_t count = 0;
+};
+
 /* One recording and submission slot: a command pool holding a single primary command buffer,
    plus the timeline value its last submission signals. A context belongs to exactly one thread
    from acquire() until submit(); after that the claim is gone but the GPU may still be working,
@@ -79,11 +117,11 @@ public:
 
     /* Ends recording and submits, signaling the next timeline value, then releases the claim.
        The signaled value is optionally returned so the caller can wait for this exact
-       submission later without holding the context. A wait pair makes the submission wait on
-       another timeline before executing, which is how work consuming a frame waits for the
-       frame's producer without the host ever blocking. */
+       submission later without holding the context. The wait list makes the submission wait on
+       other timelines before executing, which is how work consuming frames waits for their
+       producers, per plane, without the host ever blocking. */
     bool submit(VSVulkanExecContext &context, std::string &errorMessage, uint64_t *signaledValue = nullptr,
-        VkSemaphore waitSemaphore = VK_NULL_HANDLE, uint64_t waitValue = 0);
+        const VSVulkanWait *waits = nullptr, uint32_t waitCount = 0);
 
     /* Host waits, always outside every lock. */
     bool waitValue(uint64_t value, std::string &errorMessage);

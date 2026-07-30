@@ -99,8 +99,9 @@ bool VSVulkanTransfer::createFrame(VSVulkanFrame &frame, const VSVideoFormat &fo
         plane.stride = (static_cast<ptrdiff_t>(plane.width) * format.bytesPerSample + 63) & ~static_cast<ptrdiff_t>(63);
 
         /* Device local required, host visible preferred: on resizable BAR systems every plane
-           lands writable straight from the CPU and uploads never touch staging. */
-        if (!dev->createBuffer(plane.buffer, static_cast<VkDeviceSize>(plane.stride) * plane.height,
+           lands writable straight from the CPU and uploads never touch staging. Pooled, since
+           planes are exactly what the block allocator exists for. */
+        if (!dev->createBufferPooled(plane.buffer, static_cast<VkDeviceSize>(plane.stride) * plane.height,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -119,13 +120,22 @@ void VSVulkanTransfer::destroyFrame(VSVulkanFrame &frame) {
 }
 
 bool VSVulkanTransfer::waitFrameHost(const VSVulkanFrame &frame, std::string &errorMessage) {
-    if (!frame.readySemaphore)
+    VSVulkanWaitList list;
+    addFrameWaits(list, frame);
+    if (!list.size())
         return true;
+
+    VkSemaphore semaphores[VSVulkanWaitList::capacity];
+    uint64_t values[VSVulkanWaitList::capacity];
+    for (uint32_t i = 0; i < list.size(); i++) {
+        semaphores[i] = list.data()[i].semaphore;
+        values[i] = list.data()[i].value;
+    }
     VkSemaphoreWaitInfo waitInfo = {};
     waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-    waitInfo.semaphoreCount = 1;
-    waitInfo.pSemaphores = &frame.readySemaphore;
-    waitInfo.pValues = &frame.readyValue;
+    waitInfo.semaphoreCount = list.size();
+    waitInfo.pSemaphores = semaphores;
+    waitInfo.pValues = values;
     VkResult res = dev->vk.vkWaitSemaphores(dev->device(), &waitInfo, UINT64_MAX);
     if (res != VK_SUCCESS) {
         errorMessage = "vkWaitSemaphores failed (VkResult " + std::to_string(res) + ")";
@@ -201,8 +211,7 @@ bool VSVulkanTransfer::upload(VSVulkanFrame &frame, const uint8_t *const srcPlan
             copyPlane(static_cast<uint8_t *>(plane.buffer.mapped), plane.stride, srcPlanes[p], srcStrides[p],
                 static_cast<size_t>(plane.width) * frame.format.bytesPerSample, plane.height);
         }
-        frame.readySemaphore = VK_NULL_HANDLE;
-        frame.readyValue = 0;
+        setFrameProduced(frame, VK_NULL_HANDLE, 0);
         return true;
     }
 
@@ -246,14 +255,15 @@ bool VSVulkanTransfer::upload(VSVulkanFrame &frame, const uint8_t *const srcPlan
         offset += regions[p].size;
     }
 
-    /* The device side wait on the previous producer covers overwrite safety without blocking
-       the host; a fresh frame has no producer and waits on nothing. */
+    /* The device side wait on the previous producers covers overwrite safety without blocking
+       the host; a fresh frame has no producers and waits on nothing. */
+    VSVulkanWaitList waits;
+    addFrameWaits(waits, frame);
     uint64_t value = 0;
-    bool ok = execPool.submit(*ctx, errorMessage, &value, frame.readySemaphore, frame.readyValue);
+    bool ok = execPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size());
     if (ok) {
         slot->value = value;
-        frame.readySemaphore = execPool.semaphore();
-        frame.readyValue = value;
+        setFrameProduced(frame, execPool.semaphore(), value);
     }
     releaseSlot(staging, *slot);
     return ok;
@@ -291,8 +301,10 @@ bool VSVulkanTransfer::download(const VSVulkanFrame &frame, uint8_t *const dstPl
         offset += regions[p].size;
     }
 
+    VSVulkanWaitList waits;
+    addFrameWaits(waits, frame);
     uint64_t value = 0;
-    if (!execPool.submit(*ctx, errorMessage, &value, frame.readySemaphore, frame.readyValue)) {
+    if (!execPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size())) {
         releaseSlot(readback, *slot);
         return false;
     }

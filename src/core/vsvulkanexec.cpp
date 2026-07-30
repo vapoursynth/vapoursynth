@@ -150,10 +150,45 @@ VSVulkanExecContext *VSVulkanExecPool::acquire(std::string &errorMessage) {
 }
 
 bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMessage, uint64_t *signaledValue,
-    VkSemaphore waitSemaphore, uint64_t waitValue) {
+    const VSVulkanWait *waits, uint32_t waitCount) {
     VkResult res = dev->vk.vkEndCommandBuffer(context.cmd);
     if (res != VK_SUCCESS) {
         errorMessage = "vkEndCommandBuffer failed (VkResult " + std::to_string(res) + ")";
+        releaseClaim(context);
+        return false;
+    }
+
+    /* Deduplicated here as well so raw arrays behave the same as a VSVulkanWaitList. */
+    VkSemaphoreSubmitInfo waitInfos[VSVulkanWaitList::capacity];
+    uint32_t waitInfoCount = 0;
+    bool overflow = false;
+    for (uint32_t i = 0; i < waitCount; i++) {
+        if (!waits[i].semaphore)
+            continue;
+        uint32_t j = 0;
+        for (; j < waitInfoCount; j++) {
+            if (waitInfos[j].semaphore == waits[i].semaphore) {
+                if (waits[i].value > waitInfos[j].value)
+                    waitInfos[j].value = waits[i].value;
+                break;
+            }
+        }
+        if (j < waitInfoCount)
+            continue;
+        if (waitInfoCount == VSVulkanWaitList::capacity) {
+            overflow = true;
+            break;
+        }
+        waitInfos[waitInfoCount] = {};
+        waitInfos[waitInfoCount].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        waitInfos[waitInfoCount].semaphore = waits[i].semaphore;
+        waitInfos[waitInfoCount].value = waits[i].value;
+        waitInfos[waitInfoCount].stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+        waitInfoCount++;
+    }
+    if (overflow) {
+        errorMessage = "A submission cannot depend on more than " + std::to_string(VSVulkanWaitList::capacity) +
+            " distinct timelines";
         releaseClaim(context);
         return false;
     }
@@ -165,21 +200,14 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
     signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
     signalInfo.semaphore = timeline;
     signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-    VkSemaphoreSubmitInfo waitInfo = {};
-    waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-    waitInfo.semaphore = waitSemaphore;
-    waitInfo.value = waitValue;
-    waitInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
     VkSubmitInfo2 submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
     submitInfo.commandBufferInfoCount = 1;
     submitInfo.pCommandBufferInfos = &cmdInfo;
     submitInfo.signalSemaphoreInfoCount = 1;
     submitInfo.pSignalSemaphoreInfos = &signalInfo;
-    if (waitSemaphore) {
-        submitInfo.waitSemaphoreInfoCount = 1;
-        submitInfo.pWaitSemaphoreInfos = &waitInfo;
-    }
+    submitInfo.waitSemaphoreInfoCount = waitInfoCount;
+    submitInfo.pWaitSemaphoreInfos = waitInfoCount ? waitInfos : nullptr;
 
     {
         /* Value allocation and submission stay together under the queue lock, since timeline

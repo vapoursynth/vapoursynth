@@ -336,6 +336,11 @@ bool VSVulkanLoader::checkInstanceVersion(uint32_t required, uint32_t &found, st
 }
 
 VSVulkanDevice::~VSVulkanDevice() {
+    /* Allocator blocks were carved on this device whether it is owned or adopted, and either
+       way they must be gone before the device is; on an adopted device the host guarantees the
+       handles are still alive here. */
+    if (deviceHandle && vk.vkFreeMemory)
+        allocator.destroy(*this);
     if (owned)
         teardown();
 }
@@ -803,6 +808,14 @@ bool VSVulkanDevice::createBuffer(VSVulkanBuffer &buffer, VkDeviceSize size, VkB
 }
 
 void VSVulkanDevice::destroyBuffer(VSVulkanBuffer &buffer) {
+    if (buffer.poolBlock) {
+        /* The block owns the memory and its mapping; only the buffer object and the region go. */
+        if (buffer.buffer)
+            vk.vkDestroyBuffer(deviceHandle, buffer.buffer, nullptr);
+        allocator.free(buffer.poolBlock, buffer.poolOffset, buffer.poolSize);
+        buffer = {};
+        return;
+    }
     if (buffer.mapped) {
         VkMemoryUnmapInfo unmapInfo = {};
         unmapInfo.sType = VK_STRUCTURE_TYPE_MEMORY_UNMAP_INFO;

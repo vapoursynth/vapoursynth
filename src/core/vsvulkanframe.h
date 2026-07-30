@@ -27,27 +27,46 @@
 /* One GPU resident plane: a linear pitched device local buffer, laid out exactly like the CPU
    plane it mirrors so a matching stride uploads as a single flat copy. Shaped to slot in as an
    alternative VSPlaneData payload later, which is why the frame below is little more than an
-   array of these. */
+   array of these.
+
+   The producer pair lives here, per plane and not per frame, because plane sharing between
+   frames means one frame's planes can have different producers. Whoever writes the plane on
+   the GPU stores the timeline and value its submission signals; consumers wait on it device
+   side before reading. A null semaphore means host produced content, ready as soon as it is
+   handed over. */
 struct VSVulkanPlane {
     VSVulkanBuffer buffer;
     ptrdiff_t stride = 0; /* bytes per row, aligned like a CPU plane would be */
     uint32_t width = 0;   /* in samples */
     uint32_t height = 0;
+    VkSemaphore readySemaphore = VK_NULL_HANDLE;
+    uint64_t readyValue = 0;
 };
 
-/* A GPU resident video frame. Producer synchronization is a timeline pair: whoever writes the
-   frame's contents on the GPU stores the semaphore and value its submission signals, and every
-   consumer waits on it device side before reading. A null semaphore means the contents came
-   from the host and are ready the moment the frame is handed over. Reader tracking is left for
-   the filter runtime; until then a frame must not be rewritten while consumers may still be
-   reading it. */
+/* A GPU resident video frame. Reader tracking is left for the filter runtime, where exec
+   contexts will hold frame references until their submissions complete; until then a frame
+   must not be rewritten while consumers may still be reading it. */
 struct VSVulkanFrame {
     VSVideoFormat format = {};
     int numPlanes = 0;
     VSVulkanPlane planes[3];
-    VkSemaphore readySemaphore = VK_NULL_HANDLE;
-    uint64_t readyValue = 0;
 };
+
+/* Appends every plane's producer pair; host ready planes contribute nothing and same timeline
+   pairs collapse, so the common all-planes-one-producer frame adds a single wait. */
+inline void addFrameWaits(VSVulkanWaitList &list, const VSVulkanFrame &frame) {
+    for (int p = 0; p < frame.numPlanes; p++)
+        list.add(frame.planes[p].readySemaphore, frame.planes[p].readyValue);
+}
+
+/* The common case after one submission wrote every plane. Partially produced frames set their
+   plane pairs individually instead. */
+inline void setFrameProduced(VSVulkanFrame &frame, VkSemaphore semaphore, uint64_t value) {
+    for (int p = 0; p < frame.numPlanes; p++) {
+        frame.planes[p].readySemaphore = semaphore;
+        frame.planes[p].readyValue = value;
+    }
+}
 
 /* Owns the machinery moving frames across the PCIe bus with the policies the transfer benchmark
    picked: uploads memcpy straight into the plane buffer when it landed in host visible device

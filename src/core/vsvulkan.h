@@ -27,6 +27,8 @@
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan_core.h>
 
+#include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -325,6 +327,50 @@ struct VSVulkanDeviceImport {
     void *queueLockContext = nullptr;
 };
 
+class VSVulkanDevice;
+
+struct VSVulkanAllocatorStats {
+    uint64_t blockCount = 0;
+    uint64_t blockBytes = 0;      /* VRAM reserved from the driver */
+    uint64_t usedBytes = 0;       /* handed out to live buffers, rounding included */
+    uint64_t freeRegionCount = 0; /* recycled regions waiting in the buckets */
+};
+
+/* Sub allocates plane memory out of big blocks, because one vkAllocateMemory per plane runs
+   into maxMemoryAllocationCount, which is only 4096, after a few hundred cached frames. Blocks
+   are carved with a bump pointer and freed regions go into free lists bucketed by exact rounded
+   size: video workloads allocate the same handful of plane sizes over and over, so exact reuse
+   hits nearly always and no coalescing is needed. Blocks are only returned in destroy(), and
+   feeding usedBytes into MemoryUse is the planned cache integration.
+
+   Only buffers live here, which is what makes ignoring bufferImageGranularity legal; images
+   keep their dedicated allocations. */
+class VSVulkanAllocator {
+public:
+    struct Block {
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        VkDeviceSize size = 0;
+        VkDeviceSize used = 0;
+        void *mapped = nullptr; /* whole block, when the type is host visible */
+        uint32_t typeIndex = 0;
+    };
+
+    bool allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDeviceSize size, VkDeviceSize alignment,
+        Block *&block, VkDeviceSize &offset, VkDeviceSize &roundedSize, std::string &errorMessage);
+    void free(Block *block, VkDeviceSize offset, VkDeviceSize roundedSize);
+    /* Frees every block; all buffers carved from them must already be gone. */
+    void destroy(VSVulkanDevice &dev);
+    VSVulkanAllocatorStats stats() const;
+
+private:
+    std::vector<std::unique_ptr<Block>> blocks;
+    /* (memory type, rounded size) -> reusable regions */
+    std::map<std::pair<uint32_t, VkDeviceSize>, std::vector<std::pair<Block *, VkDeviceSize>>> freeLists;
+    uint64_t usedBytes = 0;
+    uint64_t freeRegions = 0;
+    mutable std::mutex mutex;
+};
+
 /* A buffer and the memory backing it, freed with destroyBuffer. Ownership is deliberately
    explicit rather than RAII: frame pooling and cache accounting will want to manage these
    lifetimes themselves later, and a device pointer per buffer would only get in the way.
@@ -336,6 +382,11 @@ struct VSVulkanBuffer {
     void *mapped = nullptr;           /* nonnull when the memory ended up host visible */
     VkDeviceSize size = 0;
     VkMemoryPropertyFlags memoryFlags = 0; /* what the chosen memory type actually provides */
+    /* Set when the memory came from the device's block allocator instead of its own
+       vkAllocateMemory; destroyBuffer routes on it. */
+    VSVulkanAllocator::Block *poolBlock = nullptr;
+    VkDeviceSize poolOffset = 0;
+    VkDeviceSize poolSize = 0;
 };
 
 /* An optimally tiled device local image and its memory, freed with destroyImage. Layout
@@ -455,13 +506,21 @@ public:
 
     /* Creation, backing allocation and binding in one step. Resources are shared concurrently
        between the compute and transfer families when those differ, trading a sliver of
-       throughput for never having to record queue family ownership transfers. */
+       throughput for never having to record queue family ownership transfers.
+
+       The plain form gives the buffer its own vkAllocateMemory, right for the few big long
+       lived staging buffers; the pooled form sub allocates from the block allocator and is
+       what every frame plane uses. destroyBuffer handles both. */
     bool createBuffer(VSVulkanBuffer &buffer, VkDeviceSize size, VkBufferUsageFlags usage,
+        VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, std::string &errorMessage);
+    bool createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize size, VkBufferUsageFlags usage,
         VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, std::string &errorMessage);
     void destroyBuffer(VSVulkanBuffer &buffer);
     bool createImage2D(VSVulkanImage &image, VkFormat format, uint32_t width, uint32_t height,
         VkImageUsageFlags usage, std::string &errorMessage);
     void destroyImage(VSVulkanImage &image);
+
+    VSVulkanAllocatorStats allocatorStats() const { return allocator.stats(); }
 
 private:
     enum class State { Unused, Ready, Failed };
@@ -483,6 +542,7 @@ private:
     VSVulkanQueue computeQ;
     VSVulkanQueue transferQ;
     VSVulkanQueue *transferPtr = &computeQ;
+    VSVulkanAllocator allocator;
     bool hostImageCopyFlag = false;
     VSVulkanLogFn logFn = nullptr;
     void *logUserData = nullptr;

@@ -1,0 +1,218 @@
+/*
+* Copyright (c) 2026 Fredrik Mellbin
+*
+* This file is part of VapourSynth.
+*
+* VapourSynth is free software; you can redistribute it and/or
+* modify it under the terms of the GNU Lesser General Public
+* License as published by the Free Software Foundation; either
+* version 2.1 of the License, or (at your option) any later version.
+*
+* VapourSynth is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+* Lesser General Public License for more details.
+*
+* You should have received a copy of the GNU Lesser General Public
+* License along with VapourSynth; if not, write to the Free Software
+* Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+*/
+
+#include "vsvulkan.h"
+
+namespace {
+
+/* Big enough that a 16 GB card tops out around 128 blocks, far from the 4096 allocation limit,
+   small enough that a lightly loaded script does not reserve much it never touches. */
+constexpr VkDeviceSize blockSize = 128ull << 20;
+/* Region sizes round up to this, which is what makes the buckets coarse enough to actually get
+   hits; the waste is under a quarter percent at plane sizes. */
+constexpr VkDeviceSize regionGranularity = 4096;
+/* At least this alignment for every region so any buffer requirement up to it is satisfied
+   without tracking per usage alignments. */
+constexpr VkDeviceSize regionAlignment = 256;
+
+} // namespace
+
+bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDeviceSize size, VkDeviceSize alignment,
+    Block *&block, VkDeviceSize &offset, VkDeviceSize &roundedSize, std::string &errorMessage) {
+    roundedSize = (size + regionGranularity - 1) & ~(regionGranularity - 1);
+    if (alignment < regionAlignment)
+        alignment = regionAlignment;
+
+    std::lock_guard<std::mutex> lock(mutex);
+
+    auto bucket = freeLists.find({ typeIndex, roundedSize });
+    if (bucket != freeLists.end() && !bucket->second.empty()) {
+        block = bucket->second.back().first;
+        offset = bucket->second.back().second;
+        bucket->second.pop_back();
+        freeRegions--;
+        usedBytes += roundedSize;
+        return true;
+    }
+
+    for (auto &candidate : blocks) {
+        if (candidate->typeIndex != typeIndex)
+            continue;
+        VkDeviceSize aligned = (candidate->used + alignment - 1) & ~(alignment - 1);
+        if (aligned + roundedSize <= candidate->size) {
+            candidate->used = aligned + roundedSize;
+            block = candidate.get();
+            offset = aligned;
+            usedBytes += roundedSize;
+            return true;
+        }
+    }
+
+    /* A region bigger than a block gets a block of its own. */
+    VkDeviceSize newBlockSize = roundedSize > blockSize ? roundedSize : blockSize;
+
+    /* Every block opts into device addresses since any buffer bound to it may want one, and
+       whole blocks are mapped once when the type allows it so regions never map at all. */
+    VkMemoryAllocateFlagsInfo allocFlags = {};
+    allocFlags.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
+    allocFlags.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+    VkMemoryAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.pNext = &allocFlags;
+    allocInfo.allocationSize = newBlockSize;
+    allocInfo.memoryTypeIndex = typeIndex;
+
+    auto fresh = std::make_unique<Block>();
+    fresh->size = newBlockSize;
+    fresh->typeIndex = typeIndex;
+    VkResult res = dev.vk.vkAllocateMemory(dev.device(), &allocInfo, nullptr, &fresh->memory);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkAllocateMemory failed for a " + std::to_string(newBlockSize >> 20) +
+            " MB allocator block (VkResult " + std::to_string(res) + ")";
+        return false;
+    }
+
+    if (dev.memoryProperties().memoryTypes[typeIndex].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+        VkMemoryMapInfo mapInfo = {};
+        mapInfo.sType = VK_STRUCTURE_TYPE_MEMORY_MAP_INFO;
+        mapInfo.memory = fresh->memory;
+        mapInfo.size = VK_WHOLE_SIZE;
+        res = dev.vk.vkMapMemory2(dev.device(), &mapInfo, &fresh->mapped);
+        if (res != VK_SUCCESS) {
+            dev.vk.vkFreeMemory(dev.device(), fresh->memory, nullptr);
+            errorMessage = "vkMapMemory2 failed for an allocator block (VkResult " + std::to_string(res) + ")";
+            return false;
+        }
+    }
+
+    fresh->used = roundedSize;
+    block = fresh.get();
+    offset = 0;
+    usedBytes += roundedSize;
+    blocks.push_back(std::move(fresh));
+    return true;
+}
+
+void VSVulkanAllocator::free(Block *block, VkDeviceSize offset, VkDeviceSize roundedSize) {
+    std::lock_guard<std::mutex> lock(mutex);
+    freeLists[{ block->typeIndex, roundedSize }].push_back({ block, offset });
+    freeRegions++;
+    usedBytes -= roundedSize;
+}
+
+void VSVulkanAllocator::destroy(VSVulkanDevice &dev) {
+    std::lock_guard<std::mutex> lock(mutex);
+    for (auto &block : blocks) {
+        if (block->memory)
+            dev.vk.vkFreeMemory(dev.device(), block->memory, nullptr); /* implicitly unmaps */
+    }
+    blocks.clear();
+    freeLists.clear();
+    usedBytes = 0;
+    freeRegions = 0;
+}
+
+VSVulkanAllocatorStats VSVulkanAllocator::stats() const {
+    std::lock_guard<std::mutex> lock(mutex);
+    VSVulkanAllocatorStats out;
+    out.blockCount = blocks.size();
+    for (const auto &block : blocks)
+        out.blockBytes += block->size;
+    out.usedBytes = usedBytes;
+    out.freeRegionCount = freeRegions;
+    return out;
+}
+
+bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize size, VkBufferUsageFlags usage,
+    VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, std::string &errorMessage) {
+    buffer = {};
+
+    uint32_t families[2] = { computeQ.family, transferQ.family };
+    VkBufferCreateInfo bufferInfo = {};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
+    if (hasDedicatedTransferQueue()) {
+        bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+        bufferInfo.queueFamilyIndexCount = 2;
+        bufferInfo.pQueueFamilyIndices = families;
+    } else {
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    }
+
+    VkResult res = vk.vkCreateBuffer(deviceHandle, &bufferInfo, nullptr, &buffer.buffer);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkCreateBuffer failed (VkResult " + std::to_string(res) + ")";
+        return false;
+    }
+
+    VkBufferMemoryRequirementsInfo2 reqInfo = {};
+    reqInfo.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2;
+    reqInfo.buffer = buffer.buffer;
+    VkMemoryRequirements2 req = {};
+    req.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
+    vk.vkGetBufferMemoryRequirements2(deviceHandle, &reqInfo, &req);
+
+    uint32_t typeIndex = findMemoryType(req.memoryRequirements.memoryTypeBits, requiredFlags, preferredFlags);
+    if (typeIndex == UINT32_MAX) {
+        errorMessage = "No memory type provides the requested properties for this buffer";
+        destroyBuffer(buffer);
+        return false;
+    }
+
+    VSVulkanAllocator::Block *block = nullptr;
+    VkDeviceSize offset = 0, roundedSize = 0;
+    if (!allocator.allocate(*this, typeIndex, req.memoryRequirements.size, req.memoryRequirements.alignment,
+            block, offset, roundedSize, errorMessage)) {
+        destroyBuffer(buffer);
+        return false;
+    }
+
+    VkBindBufferMemoryInfo bindInfo = {};
+    bindInfo.sType = VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO;
+    bindInfo.buffer = buffer.buffer;
+    bindInfo.memory = block->memory;
+    bindInfo.memoryOffset = offset;
+    res = vk.vkBindBufferMemory2(deviceHandle, 1, &bindInfo);
+    if (res != VK_SUCCESS) {
+        allocator.free(block, offset, roundedSize);
+        errorMessage = "vkBindBufferMemory2 failed (VkResult " + std::to_string(res) + ")";
+        destroyBuffer(buffer);
+        return false;
+    }
+
+    buffer.memory = block->memory;
+    buffer.size = size;
+    buffer.memoryFlags = memProps.memoryTypes[typeIndex].propertyFlags;
+    buffer.poolBlock = block;
+    buffer.poolOffset = offset;
+    buffer.poolSize = roundedSize;
+    if (block->mapped)
+        buffer.mapped = static_cast<uint8_t *>(block->mapped) + offset;
+
+    if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+        VkBufferDeviceAddressInfo addressInfo = {};
+        addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        addressInfo.buffer = buffer.buffer;
+        buffer.address = vk.vkGetBufferDeviceAddress(deviceHandle, &addressInfo);
+    }
+
+    return true;
+}
