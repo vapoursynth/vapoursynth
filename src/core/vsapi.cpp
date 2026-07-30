@@ -1342,32 +1342,6 @@ static int VS_CC vkSetVulkanDevice(VSCore *core, int deviceIndex, char *errorMes
     return 0;
 }
 
-static int VS_CC vkSetVulkanDeviceFromHost(VSCore *core, const VSVulkanHostImport *import, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
-    assert(core);
-    if (!import) {
-        copyVulkanError("No import information given", errorMessage, errorMessageSize);
-        return 1;
-    }
-    VSVulkanDeviceImport internalImport;
-    internalImport.getInstanceProcAddr = import->getInstanceProcAddr;
-    internalImport.instance = import->instance;
-    internalImport.physicalDevice = import->physicalDevice;
-    internalImport.device = import->device;
-    internalImport.computeQueueFamily = import->computeQueueFamily;
-    internalImport.computeQueueIndex = import->computeQueueIndex;
-    internalImport.transferQueueFamily = import->transferQueueFamily;
-    internalImport.transferQueueIndex = import->transferQueueIndex;
-    internalImport.lockQueue = import->lockQueue;
-    internalImport.unlockQueue = import->unlockQueue;
-    internalImport.queueLockContext = import->queueLockContext;
-    std::string err;
-    if (!core->setVulkanDeviceFromHost(internalImport, err)) {
-        copyVulkanError(err, errorMessage, errorMessageSize);
-        return 1;
-    }
-    return 0;
-}
-
 static int VS_CC vkGetVulkanHandles(VSCore *core, VSVulkanCoreHandles *handles, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     assert(core && handles);
     std::string err;
@@ -1531,7 +1505,6 @@ static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int 
 
 const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkSetVulkanDevice,
-    &vkSetVulkanDeviceFromHost,
     &vkGetVulkanHandles,
     &vkGetVulkanCoreInfo,
     &vkSetMaxVRAMUse,

@@ -274,12 +274,12 @@ typedef struct VSVulkanCoreHandles {
     uint32_t transferQueueIndex;
 } VSVulkanCoreHandles;
 
-/* A host application handing VapourSynth its existing device instead of letting the core
- * create one. The device must be Vulkan 1.4 with the following features enabled; availability
- * is verified at adoption but enablement cannot be, so that part is the host's responsibility.
- * Every required feature is mandatory for a conformant Vulkan 1.4 implementation, so all of
- * them are guaranteed available on any device that passes the version gate; they form the
- * baseline GPU plugins are allowed to target, which is why the list is not shorter.
+/* The device feature baseline. Every VapourSynth device is created by the core itself:
+ * Vulkan 1.4, zero extensions, and exactly the features below enabled. The required set is
+ * what plugin kernels may target unconditionally, and since every entry is mandatory for a
+ * conformant Vulkan 1.4 implementation, the hardware gate is the version alone. Sharing
+ * frames with other Vulkan devices or APIs in the same process is a planned external
+ * memory/semaphore export facility, not device sharing.
  *
  *   required (VkPhysicalDeviceFeatures): shaderInt16, shaderImageGatherExtended,
  *     shaderStorageImageExtendedFormats, shaderUniformBufferArrayDynamicIndexing,
@@ -297,29 +297,7 @@ typedef struct VSVulkanCoreHandles {
  *   required (Vulkan14Features): maintenance5, maintenance6, pushDescriptor,
  *     shaderSubgroupRotate, shaderSubgroupRotateClustered, shaderFloatControls2,
  *     shaderExpectAssume, pipelineRobustness
- *   optional, used when enabled: hostImageCopy, shaderFloat16
- *
- * A core created device enables exactly this set and nothing else; adoption failures name the
- * first missing feature. When the host keeps submitting to the shared queues itself it must
- * supply the lock callbacks and take the same lock around its own submissions.
- *
- * The imported handles must stay valid for the core's lifetime, extended by any GPU resident
- * frames still referenced after the core is freed: like CPU frames, GPU frames may outlive
- * the core, and releasing one returns VRAM through the imported device. Freeing every GPU
- * frame before destroying the host device is the safe order. */
-typedef struct VSVulkanHostImport {
-    PFN_vkGetInstanceProcAddr getInstanceProcAddr;
-    VkInstance instance;
-    VkPhysicalDevice physicalDevice;
-    VkDevice device;
-    uint32_t computeQueueFamily;
-    uint32_t computeQueueIndex;
-    uint32_t transferQueueFamily; /* UINT32_MAX shares the compute queue */
-    uint32_t transferQueueIndex;
-    void (*lockQueue)(void *context, uint32_t family, uint32_t index);   /* both may be NULL when VapourSynth is the only submitter */
-    void (*unlockQueue)(void *context, uint32_t family, uint32_t index);
-    void *queueLockContext;
-} VSVulkanHostImport;
+ *   optional, used when enabled: hostImageCopy, shaderFloat16 */
 
 /* One GPU resident plane: a linear pitched storage buffer laid out exactly like the equivalent
  * CPU plane, so getStride and the frame dimension functions apply unchanged. */
@@ -367,7 +345,6 @@ struct VSVULKANAPI {
     /* Device selection, only before the device is first used; -1 picks the most powerful one.
        All int returning functions here return 0 on success and fill errorMessage otherwise. */
     int (VS_CC *setVulkanDevice)(VSCore *core, int deviceIndex, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
-    int (VS_CC *setVulkanDeviceFromHost)(VSCore *core, const VSVulkanHostImport *import, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 
     /* Brings the device up on first call, like the first GPU filter would. */
     int (VS_CC *getVulkanHandles)(VSCore *core, VSVulkanCoreHandles *handles, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;

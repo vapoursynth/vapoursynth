@@ -45,9 +45,9 @@ public:
     /* Opens the platform loader and resolves the global entry points. */
     bool initialize(std::string &errorMessage);
 
-    /* The same, but reusing an entry point supplied from outside. This is the hook that lets
-       VapourSynth share a device with a host application that already owns a Vulkan instance,
-       rather than creating a second one on the same GPU. */
+    /* The same, but reusing an entry point supplied from outside instead of opening the
+       platform loader, which is what lets the test harness drive the whole loader against
+       fake function pointers. */
     bool initialize(PFN_vkGetInstanceProcAddr getInstanceProcAddr, std::string &errorMessage);
 
     /* Called once the instance exists, then once the device does. Splitting them is not optional:
@@ -81,12 +81,11 @@ private:
    implementation of the Vulkan version noted next to it, verified against the 1.3/1.4
    proposal documents and the spec's feature requirements. Requiring them therefore costs
    zero hardware beyond the Vulkan 1.4 gate itself, and the list is deliberately maximal
-   within that rule: it is the baseline plugin kernels may target, and it doubles as the
-   adoption contract hosts must have enabled on imported devices, which makes entries near
-   impossible to add after release. Included are the mandatory features a compute plugin can
-   consume, either as SPIR-V capabilities or through the exposed API surface; internal-only
-   conveniences the core could enable later without touching that contract, and mandatory
-   graphics-pipeline state, are left out on purpose.
+   within that rule: it is the baseline plugin kernels may target, published in VSVulkan4.h,
+   so additions after release must come with an API version bump plugins can gate on.
+   Included are the mandatory features a compute plugin can consume, either as SPIR-V
+   capabilities or through the exposed API surface; internal-only conveniences and mandatory
+   graphics-pipeline state are left out on purpose.
 
    The two OPTIONAL entries are the only genuinely capability-diverse ones: shaderFloat16 is
    optional in every core version, and hostImageCopy is optional the hard way: promotion to
@@ -169,27 +168,6 @@ struct VSVulkanDeviceInfo {
     VkDeviceSize deviceLocalMemory = 0; /* largest device local heap, which is the VRAM size */
     bool usable = false;
     std::string reason;
-};
-
-/* Everything a host application has to hand over for VapourSynth to run on a device the host
-   already created instead of opening a second one on the same GPU. The device must have been
-   created with at least the features in VS_VK_FEATURE_LIST enabled; availability is verified at
-   adoption but enablement cannot be queried after the fact, so that part is on the host.
-
-   When the host keeps using the queues it shares, it must supply lockQueue/unlockQueue and take
-   the same lock around its own submissions, since VkQueue is externally synchronized. */
-struct VSVulkanDeviceImport {
-    PFN_vkGetInstanceProcAddr getInstanceProcAddr = nullptr;
-    VkInstance instance = VK_NULL_HANDLE;
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    VkDevice device = VK_NULL_HANDLE;
-    uint32_t computeQueueFamily = 0;
-    uint32_t computeQueueIndex = 0;
-    uint32_t transferQueueFamily = UINT32_MAX; /* UINT32_MAX shares the compute queue */
-    uint32_t transferQueueIndex = 0;
-    void (*lockQueue)(void *context, uint32_t family, uint32_t index) = nullptr;
-    void (*unlockQueue)(void *context, uint32_t family, uint32_t index) = nullptr;
-    void *queueLockContext = nullptr;
 };
 
 class VSVulkanDevice;
@@ -278,11 +256,10 @@ struct VSVulkanImage {
     uint32_t height = 0;
 };
 
-/* One queue plus whatever serializes access to it. vkQueueSubmit is externally synchronized and
-   filters run fmParallel, submitting from many threads at once, so taking the lock around every
-   submission is mandatory, not defensive. The interface is BasicLockable on purpose: submission
-   sites take a std::lock_guard on the queue itself, and whether that lands in the internal mutex
-   or in a host application's callback is invisible to them. */
+/* One queue plus the mutex that serializes access to it. vkQueueSubmit is externally
+   synchronized and filters run fmParallel, submitting from many threads at once, so taking
+   the lock around every submission is mandatory, not defensive. The interface is
+   BasicLockable on purpose: submission sites take a std::lock_guard on the queue itself. */
 class VSVulkanQueue {
     friend class VSVulkanDevice;
 public:
@@ -291,35 +268,25 @@ public:
     uint32_t queueIndex() const { return index; }
 
     void lock() {
-        if (lockFn)
-            lockFn(lockContext, family, index);
-        else
-            mutex.lock();
+        mutex.lock();
     }
 
     void unlock() {
-        if (unlockFn)
-            unlockFn(lockContext, family, index);
-        else
-            mutex.unlock();
+        mutex.unlock();
     }
 
 private:
     VkQueue queue = VK_NULL_HANDLE;
     uint32_t family = 0;
     uint32_t index = 0;
-    void (*lockFn)(void *context, uint32_t family, uint32_t index) = nullptr;
-    void (*unlockFn)(void *context, uint32_t family, uint32_t index) = nullptr;
-    void *lockContext = nullptr;
     std::mutex mutex;
 };
 
-/* Owns (or borrows) one Vulkan device and everything needed to reach it: the entry points, the
-   instance, the chosen queues and the cached properties later allocation decisions read. The
-   eventual home is one of these per GPU on the core.
+/* Owns one Vulkan device and everything needed to reach it: the entry points, the instance,
+   the chosen queues and the cached properties later allocation decisions read.
 
-   Like the loader it is single shot: a failed create() or adopt() leaves the object permanently
-   dead and the caller starts over with a fresh one. GPU support either comes up or it does not;
+   Like the loader it is single shot: a failed create() leaves the object permanently dead
+   and the caller starts over with a fresh one. GPU support either comes up or it does not;
    there is nothing sensible to retry with the same object. */
 class VSVulkanDevice {
 private:
@@ -348,11 +315,6 @@ public:
        installed since it is a development tool that may legitimately be absent. */
     bool create(int physicalDeviceIndex, bool enableValidation, std::string &errorMessage);
 
-    /* Runs on a host application's existing device instead. Nothing is owned afterwards: the
-       destructor will not touch any of the imported handles, and the host must keep them alive
-       for as long as this object exists. */
-    bool adopt(const VSVulkanDeviceImport &import, std::string &errorMessage);
-
     /* Lists every physical device the loader can see, usable or not, for frontends that let the
        user pick. Self-contained: uses its own temporary instance. */
     static bool enumerateDevices(std::vector<VSVulkanDeviceInfo> &devices, std::string &errorMessage);
@@ -361,7 +323,6 @@ public:
     VkPhysicalDevice physicalDevice() const { return physicalDeviceHandle; }
     VkDevice device() const { return deviceHandle; }
     PFN_vkGetInstanceProcAddr getInstanceProcAddr() const { return loader.getInstanceProcAddr(); }
-    bool isOwned() const { return owned; }
 
     /* GPU frames may legally outlive the core, the same contract CPU frames have through
        MemoryUse: the core holds one reference and every GPU resident plane holds another, so
@@ -390,7 +351,7 @@ public:
         return coreFreedFlag.load(std::memory_order_acquire);
     }
 
-    /* Only meaningful once create() or adopt() has succeeded. */
+    /* Only meaningful once create() has succeeded. */
     const VkPhysicalDeviceProperties &properties() const { return props; }
     const VkPhysicalDeviceMemoryProperties &memoryProperties() const { return memProps; }
 
@@ -401,9 +362,7 @@ public:
     bool hasDedicatedTransferQueue() const { return transferPtr != &computeQ; }
 
     /* Whether uploads and downloads may go through vkCopyMemoryToImage and friends, still
-       subject to the per format queries. On an adopted device this reports availability on the
-       physical device, and actually enabling the feature there is part of the host's side of
-       the bargain. */
+       subject to the per format queries. */
     bool hostImageCopySupported() const { return hostImageCopyFlag; }
 
     /* Whether kernels may declare float16_t, needed for half precision plane formats. */
@@ -462,7 +421,6 @@ private:
         const VkDebugUtilsMessengerCallbackDataEXT *callbackData, void *userData);
 
     State state = State::Unused;
-    bool owned = false;
     std::atomic<long> refs{1};
     std::atomic<bool> coreFreedFlag{false};
     VkInstance instanceHandle = VK_NULL_HANDLE;

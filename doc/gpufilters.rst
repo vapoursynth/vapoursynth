@@ -211,7 +211,7 @@ storage and arithmetic, scalar block layout, subgroup basic/vote/arithmetic/
 ballot/shuffle/rotate including extended types, integer dot product, variable
 pointers, the dynamic indexing set, push descriptors, maintenance5 module-less
 pipeline creation, timeline semaphores and synchronization2. The precise list
-lives with VSVulkanHostImport in :doc:`api/vsvulkan4.h`. Two capabilities are
+lives in the VSVulkan4.h header. Two capabilities are
 optional and must be queried: ``shaderFloat16`` (half precision arithmetic)
 and ``hostImageCopy``. Everything else that is optional in Vulkan is simply
 absent: core devices enable no extensions, and vendor specific paths cannot

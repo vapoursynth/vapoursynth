@@ -68,7 +68,7 @@ struct VSVulkanFeatureChain {
     }
 };
 
-/* The version and feature gate shared by device selection, adoption and enumeration. The reason
+/* The version and feature gate shared by device selection and enumeration. The reason
    is phrased to continue a sentence beginning with the device name. */
 bool deviceSuitable(const VSVulkanFunctions &vkf, VkPhysicalDevice dev, uint32_t &apiVersion, std::string &reason) {
     VkPhysicalDeviceProperties2 props = {};
@@ -371,13 +371,10 @@ bool VSVulkanLoader::checkInstanceVersion(uint32_t required, uint32_t &found, st
 }
 
 VSVulkanDevice::~VSVulkanDevice() {
-    /* Allocator blocks were carved on this device whether it is owned or adopted, and either
-       way they must be gone before the device is; on an adopted device the host guarantees the
-       handles are still alive here. */
+    /* Allocator blocks must be gone before the device is. */
     if (deviceHandle && vk.vkFreeMemory)
         allocator.destroy(*this);
-    if (owned)
-        teardown();
+    teardown();
 }
 
 void VSVulkanDevice::teardown() {
@@ -418,7 +415,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VSVulkanDevice::debugMessengerTrampoline(
 
 bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std::string &errorMessage) {
     if (state != State::Unused) {
-        errorMessage = "VSVulkanDevice cannot be reused after a previous create or adopt";
+        errorMessage = "VSVulkanDevice cannot be reused after a previous create";
         return false;
     }
     /* Flipped to Ready only at the very end so every failure return leaves the object dead. */
@@ -668,83 +665,6 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     vk.vkGetPhysicalDeviceMemoryProperties2(physicalDeviceHandle, &memProps2);
     memProps = memProps2.memoryProperties;
 
-    owned = true;
-    state = State::Ready;
-    return true;
-}
-
-bool VSVulkanDevice::adopt(const VSVulkanDeviceImport &import, std::string &errorMessage) {
-    if (state != State::Unused) {
-        errorMessage = "VSVulkanDevice cannot be reused after a previous create or adopt";
-        return false;
-    }
-
-    /* Argument validation happens before the loader is touched, so a rejection here leaves the
-       object still usable with corrected input. */
-    if (!import.getInstanceProcAddr || !import.instance || !import.physicalDevice || !import.device) {
-        errorMessage = "Adopting a device requires getInstanceProcAddr, instance, physicalDevice and device";
-        return false;
-    }
-
-    state = State::Failed;
-
-    if (!loader.initialize(import.getInstanceProcAddr, errorMessage))
-        return false;
-    if (!loader.loadInstance(import.instance, errorMessage))
-        return false;
-    if (!loader.loadDevice(import.device, errorMessage))
-        return false;
-
-    instanceHandle = import.instance;
-    physicalDeviceHandle = import.physicalDevice;
-    deviceHandle = import.device;
-
-    uint32_t apiVersion = 0;
-    std::string reason;
-    if (!deviceSuitable(vk, physicalDeviceHandle, apiVersion, reason)) {
-        errorMessage = "The adopted Vulkan device " + reason;
-        return false;
-    }
-
-    /* Availability stands in for enablement here since the latter cannot be queried. */
-    VSVulkanFeatureChain available;
-    vk.vkGetPhysicalDeviceFeatures2(physicalDeviceHandle, &available.f2);
-    hostImageCopyFlag = available.f14.hostImageCopy != 0;
-    shaderFloat16Flag = available.f12.shaderFloat16 != 0;
-    memoryBudgetFlag = deviceExtensionAvailable(vk, physicalDeviceHandle, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
-
-    VkDeviceQueueInfo2 queueInfo = {};
-    queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2;
-    queueInfo.queueFamilyIndex = import.computeQueueFamily;
-    queueInfo.queueIndex = import.computeQueueIndex;
-    vk.vkGetDeviceQueue2(deviceHandle, &queueInfo, &computeQ.queue);
-    computeQ.family = import.computeQueueFamily;
-    computeQ.index = import.computeQueueIndex;
-    computeQ.lockFn = import.lockQueue;
-    computeQ.unlockFn = import.unlockQueue;
-    computeQ.lockContext = import.queueLockContext;
-    if (import.transferQueueFamily != UINT32_MAX) {
-        queueInfo.queueFamilyIndex = import.transferQueueFamily;
-        queueInfo.queueIndex = import.transferQueueIndex;
-        vk.vkGetDeviceQueue2(deviceHandle, &queueInfo, &transferQ.queue);
-        transferQ.family = import.transferQueueFamily;
-        transferQ.index = import.transferQueueIndex;
-        transferQ.lockFn = import.lockQueue;
-        transferQ.unlockFn = import.unlockQueue;
-        transferQ.lockContext = import.queueLockContext;
-        transferPtr = &transferQ;
-    }
-
-    VkPhysicalDeviceProperties2 props2 = {};
-    props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    vk.vkGetPhysicalDeviceProperties2(physicalDeviceHandle, &props2);
-    props = props2.properties;
-    VkPhysicalDeviceMemoryProperties2 memProps2 = {};
-    memProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
-    vk.vkGetPhysicalDeviceMemoryProperties2(physicalDeviceHandle, &memProps2);
-    memProps = memProps2.memoryProperties;
-
-    owned = false;
     state = State::Ready;
     return true;
 }

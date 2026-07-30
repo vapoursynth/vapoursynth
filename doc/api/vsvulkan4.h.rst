@@ -21,8 +21,6 @@ Structs_
 
    VSVulkanCoreHandles_
 
-   VSVulkanHostImport_
-
    VSVulkanPlaneInfo_
 
    VSGPUBuffer_
@@ -35,8 +33,6 @@ Structs_
 
 Functions_
    setVulkanDevice_
-
-   setVulkanDeviceFromHost_
 
    getVulkanHandles_
 
@@ -91,12 +87,15 @@ The GPU model
 #############
 
 **One device per core.** The core owns at most one Vulkan device, created
-lazily the first time anything needs it, or explicitly up front with
-setVulkanDevice_ or setVulkanDeviceFromHost_. Selection defaults to the most
-powerful device: suitable discrete GPUs first, then integrated, largest
-device local heap deciding ties. A Vulkan 1.4 conformant driver is a hard
-requirement; devices are created with **zero extensions** and a fixed feature
-set (listed at VSVulkanHostImport_) that plugins may rely on unconditionally.
+lazily the first time anything needs it, or selected explicitly up front with
+setVulkanDevice_. Selection defaults to the most powerful device: suitable
+discrete GPUs first, then integrated, largest device local heap deciding
+ties. A Vulkan 1.4 conformant driver is a hard requirement; devices are
+created with **zero extensions** and a fixed feature set (listed in the
+header, summarized in :doc:`../gpufilters`) that plugins may rely on
+unconditionally. The core always creates its device itself; sharing frames
+with another Vulkan device or API in the same process is the job of the
+planned external memory/semaphore export facility, not device sharing.
 
 **GPU frames.** A GPU resident frame keeps its planes in VRAM as linear
 pitched storage buffers with exactly the strides the equivalent CPU frame
@@ -219,30 +218,6 @@ transfer queue family/index pairs. The transfer values equal the compute
 values when there is no dedicated transfer queue. Valid for the core's
 lifetime.
 
-.. _VSVulkanHostImport:
-
-struct VSVulkanHostImport
--------------------------
-
-A host application handing VapourSynth its existing device instead of
-letting the core create one, through setVulkanDeviceFromHost_. The device
-must be Vulkan 1.4 with the required feature set enabled; availability is
-verified at adoption, but Vulkan offers no way to query enablement after
-device creation, so enabling them is the host's responsibility. The full
-required list, grouped by feature struct, is documented in the header at
-this struct; every entry is mandatory for a conformant Vulkan 1.4
-implementation, so any device passing the version gate can comply.
-
-When the host keeps submitting to the shared queues itself it must supply
-the *lockQueue*/*unlockQueue* callbacks and take the same lock around its
-own submissions. Setting *transferQueueFamily* to UINT32_MAX shares the
-compute queue.
-
-The imported handles must stay valid for the core's lifetime, extended by
-any GPU resident frames still referenced after the core is freed: releasing
-such a frame returns VRAM through the imported device. Freeing every GPU
-frame before destroying the host device is the safe order.
-
 .. _VSVulkanPlaneInfo:
 
 struct VSVulkanPlaneInfo
@@ -346,16 +321,6 @@ int setVulkanDevice(VSCore \*core, int deviceIndex, char \*errorMessage, int err
 
 ----------
 
-.. _setVulkanDeviceFromHost:
-
-int setVulkanDeviceFromHost(VSCore \*core, const VSVulkanHostImport_ \*import, char \*errorMessage, int errorMessageSize)
-
-   Runs VapourSynth on a device the host application already created instead
-   of opening a second one on the same GPU. Same call-before-first-use rule
-   as setVulkanDevice_. See VSVulkanHostImport_ for the contract.
-
-----------
-
 .. _getVulkanHandles:
 
 int getVulkanHandles(VSCore \*core, VSVulkanCoreHandles_ \*handles, char \*errorMessage, int errorMessageSize)
@@ -390,9 +355,9 @@ void lockVulkanQueue(VSCore \*core, int queue)
 
    Locks one of the shared queues (VSVulkanQueueType_). Mandatory around
    every vkQueueSubmit a plugin performs, since VkQueue is externally
-   synchronized and the core, other plugins and possibly a host application
-   submit to the same queues. Allocate your timeline values inside the lock
-   so their signal order matches their numeric order.
+   synchronized and the core and other plugins submit to the same queues.
+   Allocate your timeline values inside the lock so their signal order
+   matches their numeric order.
 
 ----------
 

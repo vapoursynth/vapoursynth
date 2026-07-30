@@ -1835,43 +1835,6 @@ bool VSCore::setVulkanDevice(int deviceIndex, std::string &errorMessage) {
     return true;
 }
 
-bool VSCore::setVulkanDeviceFromHost(const VSVulkanDeviceImport &import, std::string &errorMessage) {
-    std::lock_guard<std::mutex> lock(vulkanDeviceLock);
-    if (vulkanDeviceTried) {
-        errorMessage = vulkanDev ? "setVulkanDeviceFromHost must be called before the Vulkan device is first used"
-            : "Vulkan device creation already failed: " + vulkanDeviceError;
-        return false;
-    }
-    vulkanDeviceTried = true;
-
-    auto dev = std::make_unique<VSVulkanDevice>();
-    dev->setLogCallback(vulkanLogBridge, this);
-    if (!dev->adopt(import, vulkanDeviceError)) {
-        errorMessage = vulkanDeviceError;
-        return false;
-    }
-
-    dev->setAllocationCallback([](int64_t delta, void *userData) {
-        static_cast<vs::MemoryUse *>(userData)->account_gpu(delta);
-    }, memory);
-    size_t budget = static_cast<size_t>(dev->memoryBudget());
-    if (const char *envLimit = std::getenv("VS_VULKAN_MAX_VRAM_MB"))
-        memory->set_gpu_limit(static_cast<size_t>(std::strtoull(envLimit, nullptr, 10)) << 20);
-    else
-        memory->set_gpu_limit(budget - budget / 5);
-
-    auto trans = std::make_unique<VSVulkanTransfer>();
-    if (!trans->init(*dev, 4, vulkanDeviceError)) {
-        errorMessage = vulkanDeviceError;
-        return false;
-    }
-    vulkanDev = dev.release();
-    vulkanTrans = std::move(trans);
-    logMessage(mtInformation, "Vulkan device adopted from host: " + std::string(vulkanDev->properties().deviceName) +
-        ", VRAM limit " + std::to_string(memory->gpu_limit() >> 20) + " MB");
-    return true;
-}
-
 bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {
     if (colorFamily != cfUndefined && colorFamily != cfGray && colorFamily != cfYUV && colorFamily != cfRGB)
         return false;
