@@ -106,6 +106,20 @@ VkDeviceSize largestDeviceLocalHeap(const VSVulkanFunctions &vkf, VkPhysicalDevi
     return best;
 }
 
+bool deviceExtensionAvailable(const VSVulkanFunctions &vkf, VkPhysicalDevice dev, const char *extensionName) {
+    uint32_t count = 0;
+    if (vkf.vkEnumerateDeviceExtensionProperties(dev, nullptr, &count, nullptr) != VK_SUCCESS)
+        return false;
+    std::vector<VkExtensionProperties> extensions(count);
+    if (vkf.vkEnumerateDeviceExtensionProperties(dev, nullptr, &count, extensions.data()) != VK_SUCCESS)
+        return false;
+    for (const auto &ext : extensions) {
+        if (!strcmp(ext.extensionName, extensionName))
+            return true;
+    }
+    return false;
+}
+
 bool instanceLayerAvailable(const VSVulkanFunctions &vkf, const char *layerName) {
     uint32_t count = 0;
     if (vkf.vkEnumerateInstanceLayerProperties(&count, nullptr) != VK_SUCCESS)
@@ -537,6 +551,10 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         physicalDeviceHandle = devices[pick];
     }
 
+    /* Physical device level functionality of a supported device extension needs no enabling,
+       so the live budget query is usable the moment the extension shows up in the list. */
+    memoryBudgetFlag = deviceExtensionAvailable(vk, physicalDeviceHandle, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+
     /* A compute family without graphics maps to the async compute engines on both major vendors
        and keeps filter work out of the way of whatever rendering the process may also be doing;
        a family that is neither compute nor graphics but can transfer is the DMA engine, which
@@ -691,6 +709,7 @@ bool VSVulkanDevice::adopt(const VSVulkanDeviceImport &import, std::string &erro
     VSVulkanFeatureChain available;
     vk.vkGetPhysicalDeviceFeatures2(physicalDeviceHandle, &available.f2);
     hostImageCopyFlag = available.f14.hostImageCopy != 0;
+    memoryBudgetFlag = deviceExtensionAvailable(vk, physicalDeviceHandle, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
 
     VkDeviceQueueInfo2 queueInfo = {};
     queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2;
@@ -726,6 +745,30 @@ bool VSVulkanDevice::adopt(const VSVulkanDeviceImport &import, std::string &erro
     owned = false;
     state = State::Ready;
     return true;
+}
+
+VkDeviceSize VSVulkanDevice::memoryBudget() const {
+    uint32_t bestHeap = UINT32_MAX;
+    VkDeviceSize bestSize = 0;
+    for (uint32_t i = 0; i < memProps.memoryHeapCount; i++) {
+        if ((memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) && memProps.memoryHeaps[i].size > bestSize) {
+            bestHeap = i;
+            bestSize = memProps.memoryHeaps[i].size;
+        }
+    }
+
+    if (memoryBudgetFlag && bestHeap != UINT32_MAX) {
+        VkPhysicalDeviceMemoryBudgetPropertiesEXT budget = {};
+        budget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+        VkPhysicalDeviceMemoryProperties2 props = {};
+        props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+        props.pNext = &budget;
+        vk.vkGetPhysicalDeviceMemoryProperties2(physicalDeviceHandle, &props);
+        if (budget.heapBudget[bestHeap])
+            return budget.heapBudget[bestHeap];
+    }
+
+    return bestSize;
 }
 
 uint32_t VSVulkanDevice::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags required, VkMemoryPropertyFlags preferred) const {
@@ -839,7 +882,7 @@ void VSVulkanDevice::destroyBuffer(VSVulkanBuffer &buffer) {
         /* The block owns the memory and its mapping; only the buffer object and the region go. */
         if (buffer.buffer)
             vk.vkDestroyBuffer(deviceHandle, buffer.buffer, nullptr);
-        allocator.free(buffer.poolBlock, buffer.poolOffset, buffer.poolSize);
+        allocator.free(*this, buffer.poolBlock, buffer.poolOffset, buffer.poolSize);
         buffer = {};
         return;
     }

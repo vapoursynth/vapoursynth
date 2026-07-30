@@ -364,7 +364,7 @@ public:
 
     bool allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDeviceSize size, VkDeviceSize alignment,
         Block *&block, VkDeviceSize &offset, VkDeviceSize &roundedSize, std::string &errorMessage);
-    void free(Block *block, VkDeviceSize offset, VkDeviceSize roundedSize);
+    void free(VSVulkanDevice &dev, Block *block, VkDeviceSize offset, VkDeviceSize roundedSize);
     /* Frees every block; all buffers carved from them must already be gone. */
     void destroy(VSVulkanDevice &dev);
     VSVulkanAllocatorStats stats() const;
@@ -529,6 +529,25 @@ public:
 
     VSVulkanAllocatorStats allocatorStats() const { return allocator.stats(); }
 
+    /* Region grants and returns are reported here with signed byte deltas, which is how the
+       core's MemoryUse sees VRAM without this layer depending on it. Set before any pooled
+       allocation happens. */
+    typedef void (*VSVulkanAccountFn)(int64_t delta, void *userData);
+    void setAllocationCallback(VSVulkanAccountFn callback, void *userData) {
+        accountFn = callback;
+        accountUserData = userData;
+    }
+
+    void accountAllocation(int64_t delta) const {
+        if (accountFn)
+            accountFn(delta, accountUserData);
+    }
+
+    /* How much device local memory this process can reasonably use right now. Uses the
+       driver's live budget when VK_EXT_memory_budget is present, which subtracts what other
+       processes already hold, and falls back to the raw heap size otherwise. */
+    VkDeviceSize memoryBudget() const;
+
 private:
     enum class State { Unused, Ready, Failed };
 
@@ -551,8 +570,11 @@ private:
     VSVulkanQueue *transferPtr = &computeQ;
     VSVulkanAllocator allocator;
     bool hostImageCopyFlag = false;
+    bool memoryBudgetFlag = false;
     VSVulkanLogFn logFn = nullptr;
     void *logUserData = nullptr;
+    VSVulkanAccountFn accountFn = nullptr;
+    void *accountUserData = nullptr;
 };
 
 #endif

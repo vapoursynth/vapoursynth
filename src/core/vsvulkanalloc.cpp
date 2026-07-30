@@ -49,6 +49,7 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
         bucket->second.pop_back();
         freeRegions--;
         usedBytes += roundedSize;
+        dev.accountAllocation(static_cast<int64_t>(roundedSize));
         return true;
     }
 
@@ -61,6 +62,7 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
             block = candidate.get();
             offset = aligned;
             usedBytes += roundedSize;
+            dev.accountAllocation(static_cast<int64_t>(roundedSize));
             return true;
         }
     }
@@ -106,15 +108,17 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
     block = fresh.get();
     offset = 0;
     usedBytes += roundedSize;
+    dev.accountAllocation(static_cast<int64_t>(roundedSize));
     blocks.push_back(std::move(fresh));
     return true;
 }
 
-void VSVulkanAllocator::free(Block *block, VkDeviceSize offset, VkDeviceSize roundedSize) {
+void VSVulkanAllocator::free(VSVulkanDevice &dev, Block *block, VkDeviceSize offset, VkDeviceSize roundedSize) {
     std::lock_guard<std::mutex> lock(mutex);
     freeLists[{ block->typeIndex, roundedSize }].push_back({ block, offset });
     freeRegions++;
     usedBytes -= roundedSize;
+    dev.accountAllocation(-static_cast<int64_t>(roundedSize));
 }
 
 void VSVulkanAllocator::destroy(VSVulkanDevice &dev) {
@@ -192,7 +196,7 @@ bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize siz
     bindInfo.memoryOffset = offset;
     res = vk.vkBindBufferMemory2(deviceHandle, 1, &bindInfo);
     if (res != VK_SUCCESS) {
-        allocator.free(block, offset, roundedSize);
+        allocator.free(*this, block, offset, roundedSize);
         errorMessage = "vkBindBufferMemory2 failed (VkResult " + std::to_string(res) + ")";
         destroyBuffer(buffer);
         return false;

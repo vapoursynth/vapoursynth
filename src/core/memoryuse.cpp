@@ -98,6 +98,7 @@ MemoryUse::MemoryUse()
 MemoryUse::~MemoryUse()
 {
     assert(!m_allocated);
+    assert(!m_gpu_allocated);
 
 #ifdef DEBUG_STATS
     size_t num_keys = 0;

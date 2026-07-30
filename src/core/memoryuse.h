@@ -50,6 +50,12 @@ class MemoryUse {
     std::atomic_size_t m_freelist_size{ 0 };
     std::atomic_size_t m_limit{ 0 };
 
+    /* GPU memory is only accounted here, never allocated: the Vulkan block allocator reports
+       region grants and returns through account_gpu so cache pressure can see both pools in
+       one place, which is the whole reason this lives in MemoryUse instead of its own class. */
+    std::atomic_size_t m_gpu_allocated{ 0 };
+    std::atomic_size_t m_gpu_limit{ 0 };
+
     std::atomic_bool m_core_freed{ false };
 
     static thread_local int64_t s_call_delta;
@@ -102,6 +108,21 @@ public:
     bool is_over_limit() const { return m_allocated > m_limit; }
 
     bool is_under_limit() const { return m_allocated < (m_limit >> 1); }
+
+    void account_gpu(int64_t delta) {
+        m_gpu_allocated.fetch_add(static_cast<size_t>(delta), std::memory_order_relaxed);
+    }
+
+    size_t set_gpu_limit(size_t bytes) {
+        m_gpu_limit = bytes;
+        return m_gpu_limit;
+    }
+
+    size_t gpu_allocated_bytes() const { return m_gpu_allocated; }
+
+    size_t gpu_limit() const { return m_gpu_limit; }
+
+    bool is_gpu_over_limit() const { return m_gpu_allocated > m_gpu_limit; }
 
     struct CallTracking {
         int64_t delta;

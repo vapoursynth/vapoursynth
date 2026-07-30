@@ -1661,11 +1661,24 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
     /* Validation is a development switch, so an environment variable rather than API surface. */
     if (!dev->create(deviceIndex, std::getenv("VS_VULKAN_VALIDATION") != nullptr, vulkanDeviceError))
         return false;
+
+    /* VRAM flows into the same MemoryUse as host memory, wired before the first pooled
+       allocation can happen. The default limit leaves a fifth of the live budget for whatever
+       else the system is doing, the same spirit as the host default of half the RAM; MemoryUse
+       outlives the device so the callback context cannot dangle. */
+    dev->setAllocationCallback([](int64_t delta, void *userData) {
+        static_cast<vs::MemoryUse *>(userData)->account_gpu(delta);
+    }, memory);
+    size_t budget = static_cast<size_t>(dev->memoryBudget());
+    memory->set_gpu_limit(budget - budget / 5);
+
     auto trans = std::make_unique<VSVulkanTransfer>();
     if (!trans->init(*dev, 4, vulkanDeviceError))
         return false;
     vulkanDev = std::move(dev);
     vulkanTrans = std::move(trans);
+    logMessage(mtInformation, "Vulkan device: " + std::string(vulkanDev->properties().deviceName) +
+        ", VRAM limit " + std::to_string(memory->gpu_limit() >> 20) + " MB of " + std::to_string(budget >> 20) + " MB budget");
     return true;
 }
 
