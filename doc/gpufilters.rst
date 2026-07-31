@@ -125,7 +125,10 @@ fundamental kernel shapes:
 |                           |           | SPIR-V at filter creation.                                    |
 +---------------------------+-----------+---------------------------------------------------------------+
 | GPUBoxBlur (in-tree)      | stencil   | Multi-pass kernels with barriers, scratch reuse, plane        |
-|                           |           | sharing for unprocessed planes.                               |
+|                           |           | sharing for unprocessed planes. Compiled into the core but    |
+|                           |           | written against nothing but these public headers, in its own  |
+|                           |           | translation unit so that stays true, which makes              |
+|                           |           | src/core/gpuboxblurfilter.cpp readable as a plugin would be.  |
 +---------------------------+-----------+---------------------------------------------------------------+
 | gpu_planestats_example.c  | reduce    | Scratch buffers that are not frame shaped, a compute→compute  |
 |                           |           | barrier between dependent dispatches, and the one legitimate  |
@@ -141,13 +144,22 @@ fundamental kernel shapes:
 +---------------------------+-----------+---------------------------------------------------------------+
 
 Shaders reach the pipeline two ways, and the examples show one each: the
-invert filter ships readable GLSL and compiles it at creation through
-compileGPUShader (cached per core, so many instances parse once; specialize
-by prepending a ``#define`` preamble to the source), while PlaneStatsGPU
-commits ``glslc -O`` output as a header and needs no compiler at all. Both
-hand the same words to the same maintenance5 pipeline creation — pick by
-taste, or by whether you want an optimizer pass, which the runtime path
-deliberately omits since drivers optimize anyway.
+invert filter and the in-tree GPUBoxBlur ship readable GLSL and compile it at
+creation through compileGPUShader (cached per core, so many instances parse
+once), while PlaneStatsGPU commits ``glslc -O`` output as a header and needs
+no compiler at all. Both hand the same words to the same maintenance5
+pipeline creation — pick by taste, or by whether you want an optimizer pass,
+which the runtime path deliberately omits since drivers optimize anyway.
+
+Specialize by putting a preamble in front of the kernel body, which is what
+GPUBoxBlur does to get its four sample types out of one source::
+
+   std::string preamble = "#version 460\n#define SAMPLE_T uint16_t\n";
+   auto spirv = compile(preamble + kernelBody);
+
+Note that ``#version`` has to be the very first token of a shader, so it
+belongs in the preamble and the reusable body starts at the extension list.
+Each distinct preamble is simply a different cache key.
 
 A filter's obligations
 ----------------------
