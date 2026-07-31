@@ -14,6 +14,8 @@ Macros_
 Enums_
    VSVulkanQueueType_
 
+   VSGPUShaderLanguage_
+
 Structs_
    VSVULKANAPI_
 
@@ -67,6 +69,12 @@ Functions_
    waitGPUFrame_
 
    exportGPUSemaphore_
+
+   compileGPUShader_
+
+   getGPUShaderCode_
+
+   freeGPUShader_
 
 
 Introduction
@@ -190,6 +198,31 @@ enum VSVulkanQueueType
      The same underlying queue as vqCompute when the device has no dedicated
      transfer queue family, so locking through this constant stays correct
      either way.
+
+.. _VSGPUShaderLanguage:
+
+enum VSGPUShaderLanguage
+------------------------
+
+   The source language for compileGPUShader_. Only slGLSL exists today;
+   unknown values fail cleanly, so adding a language later is an additive
+   enum value rather than an ABI event.
+
+   * slGLSL
+
+     Compute stage GLSL. The core pins the accepted dialect as a platform
+     property: write ``#version 460``, compiled for the Vulkan 1.4 client
+     targeting SPIR-V 1.6.
+
+.. _VSGPUShader:
+
+struct VSGPUShader
+------------------
+
+   Opaque handle to a runtime compiled shader holding the SPIR-V words,
+   returned by compileGPUShader_ and read through getGPUShaderCode_. It is
+   independent of everything else once returned — it stays valid after the
+   core that compiled it is freed — and is released with freeGPUShader_.
 
 
 Structs
@@ -585,3 +618,52 @@ int exportGPUSemaphore(VSCore \*core, VkSemaphore semaphore, VSVulkanExportedSem
    Third party filters are not obliged to create exportable timelines: when
    the export of some other plugin's producer semaphore fails, fall back to
    waitGPUFrame_ for that frame.
+
+----------
+
+.. _compileGPUShader:
+
+VSGPUShader \*compileGPUShader(VSCore \*core, int language, const char \*source, char \*errorLog, int errorLogSize)
+
+   Compiles compute shader source to SPIR-V at runtime through the statically
+   embedded glslang, so plugins can ship readable kernels instead of blobs
+   and need no shader toolchain at build time. Pure CPU work: no device is
+   touched, and no optimizer runs — drivers optimize anyway, and whoever
+   wants pre optimized modules keeps shipping ``glslc -O`` output, since both
+   feed the identical pipeline creation path.
+
+   *language* is a VSGPUShaderLanguage; only GLSL exists today and unknown
+   values fail so a future language becomes an additive value rather than an
+   ABI event. The accepted dialect is pinned by the core as a platform
+   property: write ``#version 460``, compiled for the Vulkan 1.4 client
+   targeting SPIR-V 1.6, compute stage only. Specialize by concatenating a
+   ``#define`` preamble in front of the kernel body — there is no include
+   handler, which also replaces most uses of specialization constants and
+   static shader variant multiplication.
+
+   Results are cached per core by source text, so every filter instance
+   compiling the same kernel shares one parse and one copy of the words;
+   repeated compilation is therefore cheap enough to do per instance. Returns
+   NULL with *errorLog* filled (including the compiler's messages) on
+   failure.
+
+----------
+
+.. _getGPUShaderCode:
+
+const uint32_t \*getGPUShaderCode(const VSGPUShader \*shader, size_t \*sizeInBytes)
+
+   The compiled SPIR-V words, ready for VkShaderModuleCreateInfo (with
+   maintenance5, chained straight into pipeline creation). Valid until
+   freeGPUShader_; the handle is independent of everything else, including
+   the core that compiled it.
+
+----------
+
+.. _freeGPUShader:
+
+void freeGPUShader(VSGPUShader \*shader)
+
+   Releases the shader handle. The typical lifetime is short: compile, create
+   the pipeline, free — the per core cache keeps the words for the next
+   instance.

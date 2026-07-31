@@ -1239,6 +1239,12 @@ private:
 
     bool createVulkanDeviceLocked(int deviceIndex);
 
+    /* Runtime compiled shader blobs keyed by language byte + source text, so every filter
+       instance compiling the same kernel shares one parse and one copy of the words. Pure
+       CPU state, deliberately independent of the Vulkan device. */
+    std::mutex shaderCacheLock;
+    std::map<std::string, std::shared_ptr<const std::vector<uint32_t>>> shaderCache;
+
     std::atomic<int> cpuLevel;
 
     static std::filesystem::path getLibraryPath();
@@ -1309,6 +1315,10 @@ public:
     /* Wraps a node in GPUUpload (toGPU) or GPUDownload, used by invoke() to fix residency
        mismatches; returns a new reference or null with the error set. */
     VSNode *wrapGPUBoundary(VSNode *node, bool toGPU, std::string &errorMessage);
+    /* Runtime shader compilation with the per core cache; returns the shared immutable
+       words or null with the error set. Implemented in vsvulkanshader.cpp so glslang stays
+       out of every other translation unit. */
+    std::shared_ptr<const std::vector<uint32_t>> compileShaderCached(int language, const char *source, std::string &errorMessage);
 
     /////////////////////////////////////
     // V3 compat helper functions

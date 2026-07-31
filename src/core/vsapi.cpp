@@ -23,6 +23,7 @@
 #include "vslog.h"
 #include "VSHelper4.h"
 #include "vsvulkanframe.h"
+#include "vsvulkanshader.h"
 #include "VSVulkan4.h"
 #include <cassert>
 #include <cstdio>
@@ -1598,6 +1599,28 @@ static int VS_CC vkExportGPUSemaphore(VSCore *core, VkSemaphore semaphore, VSVul
     return 0;
 }
 
+static VSGPUShader *VS_CC vkCompileGPUShader(VSCore *core, int language, const char *source, char *errorLog, int errorLogSize) VS_NOEXCEPT {
+    assert(core && source);
+    std::string err;
+    auto code = core->compileShaderCached(language, source, err);
+    if (!code) {
+        copyVulkanError(err, errorLog, errorLogSize);
+        return nullptr;
+    }
+    return new VSGPUShader{ std::move(code) };
+}
+
+static const uint32_t *VS_CC vkGetGPUShaderCode(const VSGPUShader *shader, size_t *sizeInBytes) VS_NOEXCEPT {
+    assert(shader);
+    if (sizeInBytes)
+        *sizeInBytes = shader->code->size() * sizeof(uint32_t);
+    return shader->code->data();
+}
+
+static void VS_CC vkFreeGPUShader(VSGPUShader *shader) VS_NOEXCEPT {
+    delete shader;
+}
+
 static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int maxEntries, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     std::vector<VSVulkanDeviceInfo> devices;
     std::string err;
@@ -1637,7 +1660,10 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkDestroyGPUBuffer,
     &vkExportGPUPlane,
     &vkWaitGPUFrame,
-    &vkExportGPUSemaphore
+    &vkExportGPUSemaphore,
+    &vkCompileGPUShader,
+    &vkGetGPUShaderCode,
+    &vkFreeGPUShader
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {

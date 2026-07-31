@@ -107,5 +107,7 @@ bld/
 libp2p/
 vsrepo/
 zimg/
+glslang-16.4.0/
+packagecache/
 !subprojects/packagefiles/*
 .wraplock

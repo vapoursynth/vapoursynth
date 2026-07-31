@@ -56,4 +56,16 @@ private:
     uint32_t declaredPushBytes = 0;
 };
 
+/* The public opaque runtime compiled shader handle: an immutable shared SPIR-V blob, so
+   handles stay valid independently of the compiling core (whose cache holds another
+   reference) and of each other. */
+struct VSGPUShader {
+    std::shared_ptr<const std::vector<uint32_t>> code;
+};
+
+/* Compiles compute stage GLSL for the pinned dialect (#version 460, Vulkan 1.4 client,
+   SPIR-V 1.6) through the statically embedded glslang. Pure CPU work; thread safe for
+   concurrent calls. Returns null with errorMessage filled on failure. */
+std::shared_ptr<const std::vector<uint32_t>> vsCompileGLSLCompute(const char *source, std::string &errorMessage);
+
 #endif

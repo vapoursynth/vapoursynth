@@ -352,6 +352,15 @@ typedef struct VSVulkanExportedMemory {
     intptr_t handle;     /* HANDLE on Windows, file descriptor elsewhere */
 } VSVulkanExportedMemory;
 
+/* A runtime compiled shader as an opaque handle holding the SPIR-V words. Independent of
+   everything else once returned: it stays valid after the core that compiled it is freed
+   and is released with freeGPUShader. */
+typedef struct VSGPUShader VSGPUShader;
+
+typedef enum VSGPUShaderLanguage {
+    slGLSL = 0 /* compute stage GLSL; the core pins the accepted dialect as a platform property: write #version 460, compiled for the Vulkan 1.4 client targeting SPIR-V 1.6 */
+} VSGPUShaderLanguage;
+
 /* A timeline semaphore exported as an opaque handle, from exportGPUSemaphore. Importing a
  * producer pair's semaphore lets a CUDA stream or another Vulkan device wait the pair on the
  * device, replacing waitGPUFrame's host wait and restoring full pipelining across the API
@@ -468,6 +477,20 @@ struct VSVULKANAPI {
     int (VS_CC *exportGPUSemaphore)(VSCore *core, VkSemaphore semaphore, VSVulkanExportedSemaphore *out,
         char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 
+    /* Runtime shader compilation, so plugins can ship readable kernel source instead of
+       SPIR-V blobs. Pure CPU work through the statically embedded glslang: no device is
+       touched and no optimizer runs, so precompiled -O blobs remain the alternative for
+       whoever wants them and both feed the same pipeline creation path. Results are cached
+       per core by source text — compiling the same kernel from many filter instances
+       parses once and every handle shares the cached words, which also makes repeated
+       compilation cheap enough to do per instance. Specialize by concatenating a #define
+       preamble in front of the kernel body; there is no include handler. Compute stage
+       only. Returns NULL with the log filled on failure, including for languages this core
+       does not know. */
+    VSGPUShader *(VS_CC *compileGPUShader)(VSCore *core, int language, const char *source,
+        char *errorLog, int errorLogSize) VS_NOEXCEPT; /* VSGPUShaderLanguage */
+    const uint32_t *(VS_CC *getGPUShaderCode)(const VSGPUShader *shader, size_t *sizeInBytes) VS_NOEXCEPT;
+    void (VS_CC *freeGPUShader)(VSGPUShader *shader) VS_NOEXCEPT;
 };
 
 #endif

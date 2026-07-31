@@ -42,40 +42,23 @@ typedef pthread_mutex_t InstanceLock;
 #define LOCK_FREE(l) pthread_mutex_destroy(l)
 #endif
 
-static const uint32_t invertSpv[] = {
-    0x07230203, 0x00010600, 0x000d000b, 0x0000002c, 0x00000000, 0x00020011, 0x00000001, 0x0006000b,
-    0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e, 0x00000000, 0x0003000e, 0x00000000, 0x00000001,
-    0x0009000f, 0x00000005, 0x00000004, 0x6e69616d, 0x00000000, 0x0000000b, 0x00000013, 0x00000020,
-    0x00000025, 0x00060010, 0x00000004, 0x00000011, 0x00000100, 0x00000001, 0x00000001, 0x00040047,
-    0x0000000b, 0x0000000b, 0x0000001c, 0x00030047, 0x00000011, 0x00000002, 0x00050048, 0x00000011,
-    0x00000000, 0x00000023, 0x00000000, 0x00040047, 0x0000001d, 0x00000006, 0x00000004, 0x00030047,
-    0x0000001e, 0x00000002, 0x00040048, 0x0000001e, 0x00000000, 0x00000019, 0x00050048, 0x0000001e,
-    0x00000000, 0x00000023, 0x00000000, 0x00030047, 0x00000020, 0x00000019, 0x00040047, 0x00000020,
-    0x00000021, 0x00000001, 0x00040047, 0x00000020, 0x00000022, 0x00000000, 0x00040047, 0x00000022,
-    0x00000006, 0x00000004, 0x00030047, 0x00000023, 0x00000002, 0x00040048, 0x00000023, 0x00000000,
-    0x00000018, 0x00050048, 0x00000023, 0x00000000, 0x00000023, 0x00000000, 0x00030047, 0x00000025,
-    0x00000018, 0x00040047, 0x00000025, 0x00000021, 0x00000000, 0x00040047, 0x00000025, 0x00000022,
-    0x00000000, 0x00020013, 0x00000002, 0x00030021, 0x00000003, 0x00000002, 0x00040015, 0x00000006,
-    0x00000020, 0x00000000, 0x00040017, 0x00000009, 0x00000006, 0x00000003, 0x00040020, 0x0000000a,
-    0x00000001, 0x00000009, 0x0004003b, 0x0000000a, 0x0000000b, 0x00000001, 0x0004002b, 0x00000006,
-    0x0000000c, 0x00000000, 0x00040020, 0x0000000d, 0x00000001, 0x00000006, 0x0003001e, 0x00000011,
-    0x00000006, 0x00040020, 0x00000012, 0x00000009, 0x00000011, 0x0004003b, 0x00000012, 0x00000013,
-    0x00000009, 0x00040015, 0x00000014, 0x00000020, 0x00000001, 0x0004002b, 0x00000014, 0x00000015,
-    0x00000000, 0x00040020, 0x00000016, 0x00000009, 0x00000006, 0x00020014, 0x00000019, 0x0003001d,
-    0x0000001d, 0x00000006, 0x0003001e, 0x0000001e, 0x0000001d, 0x00040020, 0x0000001f, 0x0000000c,
-    0x0000001e, 0x0004003b, 0x0000001f, 0x00000020, 0x0000000c, 0x0003001d, 0x00000022, 0x00000006,
-    0x0003001e, 0x00000023, 0x00000022, 0x00040020, 0x00000024, 0x0000000c, 0x00000023, 0x0004003b,
-    0x00000024, 0x00000025, 0x0000000c, 0x00040020, 0x00000027, 0x0000000c, 0x00000006, 0x00050036,
-    0x00000002, 0x00000004, 0x00000000, 0x00000003, 0x000200f8, 0x00000005, 0x00050041, 0x0000000d,
-    0x0000000e, 0x0000000b, 0x0000000c, 0x0004003d, 0x00000006, 0x0000000f, 0x0000000e, 0x00050041,
-    0x00000016, 0x00000017, 0x00000013, 0x00000015, 0x0004003d, 0x00000006, 0x00000018, 0x00000017,
-    0x000500b0, 0x00000019, 0x0000001a, 0x0000000f, 0x00000018, 0x000300f7, 0x0000001c, 0x00000000,
-    0x000400fa, 0x0000001a, 0x0000001b, 0x0000001c, 0x000200f8, 0x0000001b, 0x00060041, 0x00000027,
-    0x00000028, 0x00000025, 0x00000015, 0x0000000f, 0x0004003d, 0x00000006, 0x00000029, 0x00000028,
-    0x000400c8, 0x00000006, 0x0000002a, 0x00000029, 0x00060041, 0x00000027, 0x0000002b, 0x00000020,
-    0x00000015, 0x0000000f, 0x0003003e, 0x0000002b, 0x0000002a, 0x000200f9, 0x0000001c, 0x000200f8,
-    0x0000001c, 0x000100fd, 0x00010038,
-};
+/* The kernel ships as readable source and the core compiles it at filter creation through
+   compileGPUShader — the runtime compilation path, no SPIR-V blob and no build time shader
+   toolchain. The accepted dialect is pinned by the core: #version 460 compute, Vulkan 1.4
+   client, SPIR-V 1.6 target. gpu_planestats_example keeps the committed blob pattern; both
+   feed the identical pipeline creation. Bindings match the push descriptor writes below:
+   binding 0 is the source, binding 1 the destination. */
+static const char invertGlsl[] =
+    "#version 460\n"
+    "layout(local_size_x = 256) in;\n"
+    "layout(push_constant) uniform PC { uint count; } pc;\n"
+    "layout(set = 0, binding = 0, std430) readonly buffer Src { uint srcWords[]; };\n"
+    "layout(set = 0, binding = 1, std430) writeonly buffer Dst { uint dstWords[]; };\n"
+    "void main() {\n"
+    "    uint i = gl_GlobalInvocationID.x;\n"
+    "    if (i < pc.count)\n"
+    "        dstWords[i] = ~srcWords[i];\n"
+    "}\n";
 
 #define CMD_SLOTS 4
 #define MAX_RETAINED 64
@@ -306,6 +289,9 @@ static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsap
 static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *)calloc(1, sizeof(InvertData));
     char err[512] = { 0 };
+    VSGPUShader *shader = NULL;
+    const uint32_t *shaderCode;
+    size_t shaderCodeSize;
     VkDescriptorSetLayoutBinding bindings[2];
     VkDescriptorSetLayoutCreateInfo setInfo;
     VkPushConstantRange range;
@@ -379,12 +365,22 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     layoutInfo.pPushConstantRanges = &range;
     d->vk->vkCreatePipelineLayout(d->h.device, &layoutInfo, NULL, &d->pipeLayout);
 
+    /* Compile the kernel source through the core; the words come back cached, so a second
+       instance of this filter reuses the parse. The handle only needs to live until the
+       pipeline holds the code. */
+    shader = d->vkapi->compileGPUShader(core, slGLSL, invertGlsl, err, sizeof(err));
+    if (!shader) {
+        vsapi->mapSetError(out, err);
+        goto fail;
+    }
+    shaderCode = d->vkapi->getGPUShaderCode(shader, &shaderCodeSize);
+
     /* maintenance5 is part of the required feature set, so the SPIR-V can ride along in the
        stage's pNext with no shader module object. */
     memset(&moduleInfo, 0, sizeof(moduleInfo));
     moduleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    moduleInfo.codeSize = sizeof(invertSpv);
-    moduleInfo.pCode = invertSpv;
+    moduleInfo.codeSize = shaderCodeSize;
+    moduleInfo.pCode = shaderCode;
     memset(&pipeInfo, 0, sizeof(pipeInfo));
     pipeInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
     pipeInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -396,6 +392,8 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         vsapi->mapSetError(out, "InvertGPU: pipeline creation failed");
         goto fail;
     }
+    d->vkapi->freeGPUShader(shader);
+    shader = NULL;
 
     /* Created exportable when the device can, so CUDA and other Vulkan devices consuming
        this filter's frames may import the producer pair and wait it device side instead of
@@ -437,6 +435,8 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     return;
 
 fail:
+    if (shader)
+        d->vkapi->freeGPUShader(shader);
     if (d->node)
         vsapi->freeNode(d->node);
     free(d);

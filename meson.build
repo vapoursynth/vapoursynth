@@ -159,6 +159,11 @@ deps = [
     dependency('zimg', version: '>=3.0.5'),
 ]
 
+# Runtime GLSL to SPIR-V compilation: glslang is embedded statically and always present,
+# taken from the wrap rather than the system so the accepted dialect stays a pinned
+# platform property instead of following whatever glslang the machine happens to have.
+glslang_dep = subproject('glslang').get_variable('glslang_dep')
+
 soversion = is_win ? '' : run_command(
     'grep',
     '-m',
@@ -250,7 +255,7 @@ libvapoursynth = library('libvapoursynth',
     ),
     c_args: '-DVS_CORE_EXPORTS',
     cpp_args: '-DVS_CORE_EXPORTS',
-    dependencies: deps + [vulkan_headers],
+    dependencies: deps + [vulkan_headers, glslang_dep],
     gnu_symbol_visibility: 'hidden',
     include_directories: incdir,
     install: true,

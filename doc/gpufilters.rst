@@ -120,7 +120,9 @@ fundamental kernel shapes:
 | gpu_invert_example.c      | map       | The full asynchronous pattern: producer pair waits, own       |
 |                           |           | timeline, publishing producers, keeping sources alive with a  |
 |                           |           | retained ring, a command buffer slot ring for frames in       |
-|                           |           | flight.                                                       |
+|                           |           | flight. Also the runtime compilation pattern: its kernel      |
+|                           |           | ships as GLSL source and compileGPUShader turns it into       |
+|                           |           | SPIR-V at filter creation.                                    |
 +---------------------------+-----------+---------------------------------------------------------------+
 | GPUBoxBlur (in-tree)      | stencil   | Multi-pass kernels with barriers, scratch reuse, plane        |
 |                           |           | sharing for unprocessed planes.                               |
@@ -137,6 +139,15 @@ fundamental kernel shapes:
 |                           |           | exportable timeline from the stream. Reference code — it has  |
 |                           |           | not run on NVIDIA hardware yet.                               |
 +---------------------------+-----------+---------------------------------------------------------------+
+
+Shaders reach the pipeline two ways, and the examples show one each: the
+invert filter ships readable GLSL and compiles it at creation through
+compileGPUShader (cached per core, so many instances parse once; specialize
+by prepending a ``#define`` preamble to the source), while PlaneStatsGPU
+commits ``glslc -O`` output as a header and needs no compiler at all. Both
+hand the same words to the same maintenance5 pipeline creation — pick by
+taste, or by whether you want an optimizer pass, which the runtime path
+deliberately omits since drivers optimize anyway.
 
 A filter's obligations
 ----------------------
