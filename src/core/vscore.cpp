@@ -512,6 +512,10 @@ uint8_t *VSFrame::getWritePtr(int plane) {
 
 #ifdef VS_FRAME_GUARD
 bool VSFrame::verifyGuardPattern() const {
+    /* GPU planes carry no guard bands and no host pointer to inspect; out of bounds kernel
+       writes are the driver's and the validation layer's jurisdiction. */
+    if (gpuResident)
+        return true;
     for (int p = 0; p < ((contentType == mtVideo) ? numPlanes : 1); p++) {
         for (size_t i = 0; i < guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
             if (reinterpret_cast<uint32_t *>(data[p]->data)[i] != VS_FRAME_GUARD_PATTERN ||

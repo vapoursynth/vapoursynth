@@ -67,6 +67,9 @@ glslang_sources = files(
     'SPIRV/doc.cpp',
 )
 
+# Which ossource.cpp is compiled is the whole platform selection; upstream's CMake also
+# defines GLSLANG_OSINCLUDE_WIN32/_UNIX, but nothing in 16.x references them, so they are
+# deliberately omitted. Recheck that on a version bump.
 if host_machine.system() == 'windows'
     glslang_sources += files('glslang/OSDependent/Windows/ossource.cpp')
     os_deps = []

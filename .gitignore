@@ -108,6 +108,7 @@ libp2p/
 vsrepo/
 zimg/
 glslang-16.4.0/
+Vulkan-Headers-1.4.357/
 packagecache/
 !subprojects/packagefiles/*
 .wraplock

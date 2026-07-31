@@ -214,9 +214,10 @@ float32x4_t f(float32x4_t r, float16x8_t a, float16x8_t b) { return vfmlalq_low_
 endif
 
 # The Vulkan headers are a hard build requirement on every platform; the runtime stays fully
-# optional since the loader is dlopened on demand and nothing links against it. The system
-# vulkan dependency provides headers on most platforms; on Windows the SDK's include directory
-# fills in when no pkg-config style dependency exists.
+# optional since the loader is dlopened on demand and nothing links against it. Whatever the
+# machine already has wins — the system vulkan dependency on most platforms, the SDK's include
+# directory on Windows — and the pinned header only subproject fills in otherwise, so no build
+# host has to install anything for a declaration-only dependency.
 vulkan_headers = dependency('vulkan', required: false)
 if vulkan_headers.found()
     vulkan_headers = vulkan_headers.partial_dependency(compile_args: true, includes: true)
@@ -231,7 +232,10 @@ else
     vulkan_headers = declare_dependency(include_directories: vulkan_inc)
 endif
 if not cxx.has_header('vulkan/vulkan_core.h', dependencies: vulkan_headers)
-    error('Vulkan headers not found. They are required to build (install the vulkan-headers package, or set VULKAN_SDK on Windows); no Vulkan runtime or driver is needed at build or load time.')
+    vulkan_headers = subproject('vulkan-headers').get_variable('vulkan_headers_dep')
+    if not cxx.has_header('vulkan/vulkan_core.h', dependencies: vulkan_headers)
+        error('Vulkan headers not found and the bundled fallback did not provide them. Install the vulkan-headers package or set VULKAN_SDK on Windows; no Vulkan runtime or driver is needed at build or load time.')
+    endif
 endif
 
 libvapoursynth = library('libvapoursynth',
