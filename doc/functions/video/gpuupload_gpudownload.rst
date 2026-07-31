@@ -13,9 +13,8 @@ GPUUpload/GPUDownload
 .. function:: GPUDownload(vnode:gpu clip)
    :module: std
 
-   Returns a CPU resident version (*vnode*) of *clip*. Planes that passed
-   through the GPU untouched since their upload are returned as the original
-   host memory without a transfer.
+   Returns a CPU resident version (*vnode*) of *clip*, transferring every
+   plane back from the device.
 
    Frame properties are unaffected by either direction. Requires a Vulkan 1.4
    capable device; see :doc:`../../gpufilters`.

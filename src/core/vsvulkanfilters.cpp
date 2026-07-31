@@ -85,9 +85,6 @@ const VSFrame *VS_CC gpuUploadGetFrame(int n, int activationReason, void *instan
             return nullptr;
         }
 
-        /* Downloads of planes that pass through the GPU untouched become plane sharing. */
-        dst->adoptCPUOrigins(src);
-
         vsapi->freeFrame(src);
         return dst;
     }
@@ -120,24 +117,16 @@ const VSFrame *VS_CC gpuDownloadGetFrame(int n, int activationReason, void *inst
         const VSVideoFormat *fmt = vsapi->getVideoFrameFormat(src);
         VSFrame *dst = new VSFrame(*fmt, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
-        /* Planes whose upload origin survived are shared instead of copied back, and only
-           whatever the GPU actually produced crosses the bus. */
-        int adopted = dst->adoptOriginPlanes(src);
-
         const VSVulkanPlane *planes[3] = {};
         uint8_t *dstPlanes[3] = {};
         ptrdiff_t dstStrides[3] = {};
-        int downloadCount = 0;
         for (int p = 0; p < fmt->numPlanes; p++) {
-            if (adopted & (1 << p))
-                continue;
-            planes[downloadCount] = src->getGPUPlane(p);
-            dstPlanes[downloadCount] = dst->getWritePtr(p);
-            dstStrides[downloadCount] = dst->getStride(p);
-            downloadCount++;
+            planes[p] = src->getGPUPlane(p);
+            dstPlanes[p] = dst->getWritePtr(p);
+            dstStrides[p] = dst->getStride(p);
         }
 
-        if (downloadCount && !transfer->downloadPlanes(planes, downloadCount, fmt->bytesPerSample, dstPlanes, dstStrides, err)) {
+        if (!transfer->downloadPlanes(planes, fmt->numPlanes, fmt->bytesPerSample, dstPlanes, dstStrides, err)) {
             vsapi->setFilterError(("GPUDownload: " + err).c_str(), frameCtx);
             vsapi->freeFrame(src);
             dst->release();

@@ -157,12 +157,9 @@ VSPlaneData::~VSPlaneData() {
             waitPlaneHost(*gpuDevice, *gpu);
         gpuDevice->destroyBuffer(gpu->buffer);
         delete gpu;
-        /* Buffer before device, origin last: returning the region keeps MemoryUse alive until
-           this point, and a surviving origin plane in turn keeps it alive past it, so the
-           accounting always lands in live memory whichever of them goes last. */
+        /* Buffer before device: returning the region keeps MemoryUse alive until this point,
+           so the accounting always lands in live memory. */
         gpuDevice->release();
-        if (cpuOrigin)
-            cpuOrigin->release();
     } else {
         mem->deallocate(data);
     }
@@ -1381,32 +1378,6 @@ VSNode::CachePressureInfo VSNode::getCachePressureInfo() {
 size_t VSNode::evictCacheBytes(size_t maxBytes) {
     std::lock_guard<std::mutex> lock(cacheMutex);
     return cache.dropLRUFrames(maxBytes);
-}
-
-void VSFrame::adoptCPUOrigins(const VSFrame *src) {
-    if (src->gpuResident)
-        return;
-    for (int i = 0; i < numPlanes; i++) {
-        /* The stride check is defensive; every frame gets its stride from the same formula. */
-        if (data[i]->gpu && !data[i]->cpuOrigin && stride[i] == src->stride[i]) {
-            data[i]->cpuOrigin = src->data[i];
-            src->data[i]->add_ref();
-        }
-    }
-}
-
-int VSFrame::adoptOriginPlanes(const VSFrame *gpuSrc) {
-    int adopted = 0;
-    for (int i = 0; i < numPlanes; i++) {
-        VSPlaneData *srcData = gpuSrc->data[i];
-        if (srcData->gpu && srcData->cpuOrigin && stride[i] == gpuSrc->stride[i]) {
-            data[i]->release();
-            data[i] = srcData->cpuOrigin;
-            data[i]->add_ref();
-            adopted |= 1 << i;
-        }
-    }
-    return adopted;
 }
 
 void VSNode::updateTransientAllocEstimate(int64_t hostSample, int64_t gpuSample) {
