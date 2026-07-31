@@ -498,7 +498,7 @@ void VS_CC gpuBoxBlurCreate(const VSMap *in, VSMap *out, void *, VSCore *core, c
 } // namespace
 
 void gpuTransferInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->registerFunction("GPUUpload", "clip:vnode;", "clip:vknode;", gpuTransferCreate, reinterpret_cast<void *>(1), plugin);
-    vspapi->registerFunction("GPUDownload", "clip:vknode;", "clip:vnode;", gpuTransferCreate, nullptr, plugin);
-    vspapi->registerFunction("GPUBoxBlur", "clip:vknode;planes:int[]:opt;hradius:int:opt;hpasses:int:opt;vradius:int:opt;vpasses:int:opt;", "clip:vknode;", gpuBoxBlurCreate, nullptr, plugin);
+    vspapi->registerFunction("GPUUpload", "clip:vnode;", "clip:vnode:gpu;", gpuTransferCreate, reinterpret_cast<void *>(1), plugin);
+    vspapi->registerFunction("GPUDownload", "clip:vnode:gpu;", "clip:vnode;", gpuTransferCreate, nullptr, plugin);
+    vspapi->registerFunction("GPUBoxBlur", "clip:vnode:gpu;planes:int[]:opt;hradius:int:opt;hpasses:int:opt;vradius:int:opt;vpasses:int:opt;", "clip:vnode:gpu;", gpuBoxBlurCreate, nullptr, plugin);
 }

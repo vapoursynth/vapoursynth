@@ -1019,6 +1019,16 @@ static int VS_CC setLinearFilter(VSNode *node) VS_NOEXCEPT {
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT;
 
+static int VS_CC getNodeResidency(VSNode *node) VS_NOEXCEPT {
+    assert(node);
+    return node->isGPUOutput() ? nrGPU : nrCPU;
+}
+
+static int VS_CC getFrameResidency(const VSFrame *frame) VS_NOEXCEPT {
+    assert(frame);
+    return frame->isGPUResident() ? nrGPU : nrCPU;
+}
+
 static VSFrame *VS_CC newAudioFrame(const VSAudioFormat *format, int numSamples, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core && numSamples > 0);
     return new VSFrame(*format, numSamples, propSrc, core);
@@ -1317,6 +1327,8 @@ const VSAPI vs_internal_vsapi = {
     &createVideoFilterEx,
     &createVideoFilterEx2,
     &getVulkanAPIImpl,
+    &getNodeResidency,
+    &getFrameResidency,
 
     &getNodeCreationFunctionName,
     &getNodeCreationPluginID,
@@ -1586,11 +1598,6 @@ static int VS_CC vkExportGPUSemaphore(VSCore *core, VkSemaphore semaphore, VSVul
     return 0;
 }
 
-static int VS_CC vkIsGPUNode(VSNode *node) VS_NOEXCEPT {
-    assert(node);
-    return node->isGPUOutput() ? 1 : 0;
-}
-
 static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int maxEntries, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     std::vector<VSVulkanDeviceInfo> devices;
     std::string err;
@@ -1630,8 +1637,7 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkDestroyGPUBuffer,
     &vkExportGPUPlane,
     &vkWaitGPUFrame,
-    &vkExportGPUSemaphore,
-    &vkIsGPUNode
+    &vkExportGPUSemaphore
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {

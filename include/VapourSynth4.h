@@ -184,8 +184,16 @@ typedef enum VSFilterMode {
 /* Properties of a created filter node, passed to createVideoFilterEx. Unknown flags are an
    error rather than ignored so new flags can be introduced safely. */
 typedef enum VSFilterFlags {
-    ffGPUOutput = 1 /* the node returns GPU resident frames; must match the vknode declarations of the registered function returning it */
+    ffGPUOutput = 1 /* the node returns GPU resident frames; must match the vnode residency modifier of the registered function returning it (":gpu" requires it, plain vnode forbids it, ":all" allows either) */
 } VSFilterFlags;
+
+/* Where a node's or frame's pixel data lives, returned by getNodeResidency/getFrameResidency.
+   Deliberately not part of VSMediaType: a GPU clip is still video in every way VSMediaType
+   cares about, residency is an orthogonal storage property. */
+typedef enum VSNodeResidency {
+    nrCPU = 0,
+    nrGPU = 1
+} VSNodeResidency;
 
 typedef enum VSMediaType {
     mtVideo = 1,
@@ -539,6 +547,8 @@ struct VSAPI {
     void (VS_CC *createVideoFilterEx)(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createVideoFilter plus VSFilterFlags; unknown flags are an error */
     VSNode *(VS_CC *createVideoFilterEx2)(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createVideoFilter2 plus VSFilterFlags; unknown flags return NULL */
     const VSVULKANAPI *(VS_CC *getVulkanAPI)(int version) VS_NOEXCEPT; /* see VSVulkan4.h; returns NULL if the requested version is unsupported */
+    int (VS_CC *getNodeResidency)(VSNode *node) VS_NOEXCEPT; /* VSNodeResidency; nrGPU when the node was created with ffGPUOutput, i.e. its frames are GPU resident; needed by residency polymorphic (vnode:all) filters and bindings, no Vulkan headers required */
+    int (VS_CC *getFrameResidency)(const VSFrame *frame) VS_NOEXCEPT; /* VSNodeResidency; nrGPU when the frame's planes live on the GPU, where the CPU data accessors are fatal */
 #endif
 
     /* The graph inspection block stays at the very end of the struct: it is conditionally

@@ -455,5 +455,5 @@ fail:
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("com.example.gpucudainvert", "cudaexample", "Out of tree CUDA interop example", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("InvertCUDA", "clip:vknode;", "clip:vknode;", cudaInvertCreate, NULL, plugin);
+    vspapi->registerFunction("InvertCUDA", "clip:vnode:gpu;", "clip:vnode:gpu;", cudaInvertCreate, NULL, plugin);
 }

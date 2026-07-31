@@ -284,7 +284,10 @@ Classes and Functions
       VideoNode and on frames. Pixel data of a GPU resident frame cannot be
       accessed from Python — plane access raises an error until the clip has
       passed through *std.GPUDownload* — while *set_output()* and *output()*
-      insert the download automatically. See :doc:`gpufilters`.
+      insert the download automatically. Frame *copy()* works on GPU frames
+      (the copy shares the planes and only the properties are independently
+      writable, which is what property editing in *std.ModifyFrame* needs);
+      pixel access on the copy stays guarded. See :doc:`gpufilters`.
 
    .. py:attribute:: core_version
 

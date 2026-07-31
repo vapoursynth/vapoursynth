@@ -19,7 +19,7 @@
 *
 * The output frame shares every input plane (newVideoFrame2), producer pairs riding along
 * unchanged, so downstream GPU filters chain on without this filter ever touching pixel data.
-* The core guarantees the input is GPU resident: the signature says vknode.
+* The core guarantees the input is GPU resident: the signature says vnode:gpu.
 *
 * SPIR-V sources: gpu_planestats_pass1.comp / gpu_planestats_pass2.comp, regenerated into
 * gpu_planestats_spv.h by regenerate_example_shaders.ps1.
@@ -421,5 +421,5 @@ fail:
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("com.example.gpuplanestats", "vkstats", "Out of tree GPU reduction example", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("PlaneStatsGPU", "clip:vknode;plane:int:opt;", "clip:vknode;", statsCreate, NULL, plugin);
+    vspapi->registerFunction("PlaneStatsGPU", "clip:vnode:gpu;plane:int:opt;", "clip:vnode:gpu;", statsCreate, NULL, plugin);
 }

@@ -73,7 +73,7 @@ static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore 
 void internalFiltersInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Cache", "clip:vnode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:vnode;", createCacheFilter, nullptr, plugin);
     vspapi->registerFunction("SetAudioCache", "clip:anode;mode:int:opt;fixedsize:int:opt;maxsize:int:opt;maxhistory:int:opt;", "", setCache, 0, plugin);
-    vspapi->registerFunction("SetVideoCache", "clip:vnode;mode:int:opt;fixedsize:int:opt;maxsize:int:opt;maxhistory:int:opt;", "", setCache, 0, plugin);
+    vspapi->registerFunction("SetVideoCache", "clip:vnode:all;mode:int:opt;fixedsize:int:opt;maxsize:int:opt;maxhistory:int:opt;", "", setCache, 0, plugin);
     vspapi->registerFunction("SetMaxCPU", "cpu:data;", "cpu:data;", setMaxCpu, 0, plugin);
     gpuTransferInitialize(plugin, vspapi);
 }

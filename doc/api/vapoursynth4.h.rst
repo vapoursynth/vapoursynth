@@ -34,6 +34,8 @@ Enums_
 
    VSFilterFlags_
 
+   VSNodeResidency_
+
    VSMediaType_
    
    VSAudioChannels_
@@ -113,6 +115,10 @@ Structs_
           * getAPIVersion_
 
           * getVulkanAPI_
+
+          * getNodeResidency_
+
+          * getFrameResidency_
 
       * Functions that deal with logging
           
@@ -511,10 +517,30 @@ enum VSFilterFlags
 
    * ffGPUOutput
 
-     The filter's output frames are GPU resident. Must agree with a
-     ``vknode`` return type in the registered signature; the core verifies
-     both, and that delivered frames match, treating any mismatch as a fatal
-     error. See :doc:`../gpufilters`.
+     The filter's output frames are GPU resident. Must agree with the
+     residency modifier of the return type in the registered signature: a
+     ``vnode:gpu`` return requires the flag, a plain ``vnode`` return forbids
+     it, and a ``vnode:all`` return allows either, letting the same function
+     declare its residency per instance. The core verifies both, and that
+     delivered frames match, treating any mismatch as a fatal error. See
+     :doc:`../gpufilters`.
+
+
+.. _VSNodeResidency:
+
+enum VSNodeResidency
+--------------------
+
+   Where a node's or frame's pixel data lives, returned by getNodeResidency_
+   and getFrameResidency_. Deliberately not folded into VSMediaType_: a GPU
+   clip is still video in every way the media type cares about — residency is
+   an orthogonal storage property, mirroring how the signature grammar treats
+   it as a modifier on ``vnode`` rather than a separate type. Added in API
+   4.3.
+
+   * nrCPU
+
+   * nrGPU
 
 
 .. _VSMediaType:
@@ -1235,6 +1261,31 @@ struct VSAPI
       VSVulkan4.h; every version up to the current one is served, since the
       struct only ever grows. Returns NULL if *version* is unsupported. See
       :doc:`vsvulkan4.h`. Added in API 4.3.
+
+----------
+
+   .. _getNodeResidency:
+
+   int getNodeResidency(VSNode \*node)
+
+      Returns where the node's frames live as a VSNodeResidency_: nrGPU when
+      its filter was created with the ffGPUOutput flag (see VSFilterFlags_),
+      nrCPU otherwise. Residency polymorphic filters — those declaring
+      ``vnode:all`` arguments — use this to adapt to their input and pick
+      their own output residency; language bindings use it to guard pixel
+      access. Deliberately part of the core API rather than the Vulkan one so
+      that filters which never touch Vulkan need no Vulkan headers. Added in
+      API 4.3.
+
+----------
+
+   .. _getFrameResidency:
+
+   int getFrameResidency(const VSFrame \*frame)
+
+      Returns where the frame's planes live as a VSNodeResidency_. The CPU
+      data accessors (getReadPtr_, getWritePtr_) are fatal errors on nrGPU
+      frames; properties always work. Added in API 4.3.
 
 ----------
 
@@ -2841,15 +2892,22 @@ struct VSAPI
 
                "vnode": const VSNode_\ * (video type)
 
-               "vknode": const VSNode_\ * (GPU resident video type, see :doc:`vsvulkan4.h`)
-
                "aframe": const VSFrame_\ * (audio type)
-               
+
                "vframe": const VSFrame_\ * (video type)
 
                "func": const VSFunction\ *
 
                It is possible to declare an array by appending "[]" to the type.
+
+            "gpu"/"all"
+               Residency modifiers, valid on "vnode" and "vframe" only. The
+               unmarked form means CPU frames, "gpu" requires GPU resident
+               ones and "all" accepts either. Node arguments with a strict
+               residency get the matching transfer filter inserted
+               automatically at invoke; "all" arguments are passed through
+               untouched and the filter adapts. See :doc:`vsvulkan4.h` and
+               :doc:`../gpufilters`.
 
             "opt"
                If the parameter is optional.

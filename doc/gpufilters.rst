@@ -24,11 +24,11 @@ not usable, the first requirement it failed.
 Using GPU filters
 #################
 
-GPU filters take and return a distinct node type, ``vknode``, whose frames are
-GPU resident. The boundaries are explicit filters:
+GPU filters take and return video nodes declared ``vnode:gpu``, whose frames
+are GPU resident. The boundaries are explicit filters:
 
-* std.GPUUpload_ turns a ``vnode`` into a ``vknode``
-* std.GPUDownload_ turns a ``vknode`` back into a ``vnode``
+* std.GPUUpload_ turns a plain ``vnode`` into a ``vnode:gpu``
+* std.GPUDownload_ turns a ``vnode:gpu`` back into a plain ``vnode``
 
 .. _std.GPUUpload: functions/video/gpuupload_gpudownload.html
 .. _std.GPUDownload: functions/video/gpuupload_gpudownload.html
@@ -40,8 +40,22 @@ inserts the upload and logs that it did. Chains therefore compose naturally::
    result  = blurred.std.GPUDownload()                         # back to CPU frames
 
 Every consecutive run of GPU filters should stay on the GPU; a round trip per
-filter costs more than most filters do. ``set_output`` and ``output`` on a
-``vknode`` insert the download automatically, with a log message, so scripts
+filter costs more than most filters do. Filters that never touch pixel data
+declare ``vnode:all``: they accept CPU and GPU clips alike without any
+transfer and their output residency follows their input, so none of them
+interrupts a resident chain. That covers the reorder filters — Trim, Splice,
+Reverse, Loop, Interleave, SelectEvery, DuplicateFrames, DeleteFrames,
+FreezeFrames — the property and metadata filters — AssumeFPS, CopyFrameProps,
+RemoveFrameProps, ClipToProp, PropToClip, SetVideoCache — plane reference
+shuffling — ShufflePlanes, SplitPlanes — and the deferred producers FrameEval
+and ModifyFrame, whose template clip fixes the residency the returned clips
+or frames must match, while their ``prop_src``/``clips`` frames may be either
+residency (properties are always CPU side). Where several clips contribute
+actual planes to one output (Splice, Interleave, ShufflePlanes) they must
+share one residency; mixing is an error rather than a hidden transfer.
+Property-only inputs like ``prop_src`` and ClipToProp's ``mclip`` are exempt.
+``set_output`` and ``output`` on a GPU
+node insert the download automatically, with a log message, so scripts
 and vspipe just work. Reading pixel data of a GPU resident *frame* from
 Python raises an error — pass the clip through GPUDownload first; whether a
 node or frame is GPU resident is exposed as the ``gpu_resident`` property.
@@ -126,10 +140,12 @@ fundamental kernel shapes:
 A filter's obligations
 ----------------------
 
-#. **Declare residency.** Register with ``vknode`` argument and return types,
-   and create the filter with createVideoFilterEx passing ``ffGPUOutput``.
-   The core verifies all three layers agree and auto-inserts transfers for
-   CPU inputs.
+#. **Declare residency.** Register with ``vnode:gpu`` argument and return
+   types, and create the filter with createVideoFilterEx passing
+   ``ffGPUOutput``. The core verifies all three layers agree and auto-inserts
+   transfers for CPU inputs. A filter whose code genuinely works on both
+   residencies (it never touches pixel data) declares ``vnode:all`` instead
+   and passes ``ffGPUOutput`` exactly when its input is GPU resident.
 
 #. **Call Vulkan through the core.** getVulkanFunctions returns the loaded
    dispatch table; getVulkanHandles supplies the raw handles and
@@ -290,8 +306,8 @@ Porting an existing Vulkan filter
 ---------------------------------
 
 Filters that already run their own Vulkan device port mechanically: delete
-instance/device management and per-frame transfers, take frames as
-``vknode``, move any CPU side data reshaping into small kernels, and let
+instance/device management and per-frame transfers, take clips as
+``vnode:gpu``, move any CPU side data reshaping into small kernels, and let
 scratch come from createGPUBuffer. The shading code itself usually moves
 unchanged — kernels neither know nor care who created the device. Ported
 filters gain resident chaining with every other GPU filter and centralized

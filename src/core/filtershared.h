@@ -40,6 +40,11 @@ static inline int planeHeight(const VSVideoInfo *vi, int plane) {
     return vi->height >> (plane ? vi->format.subSamplingH : 0);
 }
 
+// creation flags for a vnode:all filter whose output residency follows the given input
+static inline int residencyFlags(VSNode *node, const VSAPI *vsapi) {
+    return (vsapi->getNodeResidency(node) == nrGPU) ? ffGPUOutput : 0;
+}
+
 // get the triplet representing black for any colorspace (works for union with float too since it's always 0)
 static inline void setBlack(uint32_t color[3], const VSVideoFormat *format) {
     for (int i = 0; i < 3; i++)

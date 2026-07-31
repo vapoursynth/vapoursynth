@@ -31,6 +31,22 @@ using namespace vsh;
 //////////////////////////////////////////
 // Shared
 
+/* Every filter in this file only rearranges which frame comes out when, so the same code
+   serves CPU and GPU clips alike: the signatures declare vnode:all and each instance
+   declares its concrete output residency, taken from its input, through ffGPUOutput
+   (residencyFlags in filtershared.h). */
+
+/* One node cannot alternate between CPU and GPU frames, so multiple input filters require
+   uniform residency instead of guessing which clips to coerce. Returns the offending clip
+   index or 0 when uniform. */
+static int findMixedResidency(VSNode **nodes, int num, const VSAPI *vsapi) {
+    int residency = vsapi->getNodeResidency(nodes[0]);
+    for (int i = 1; i < num; i++)
+        if (vsapi->getNodeResidency(nodes[i]) != residency)
+            return i;
+    return 0;
+}
+
 struct MismatchInfo {
     bool match;
     bool differentDimensions;
@@ -170,7 +186,8 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     vi.numFrames = trimlen;
 
     VSFilterDependency deps[] = {{d->node, (d->first == 0) ? rpStrictSpatial : rpNoFrameReuse}};
-    vsapi->createVideoFilter(out, "Trim", &vi, trimGetframe, filterFree<TrimData>, fmParallel, deps, 1, d.release(), core);
+    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
+    vsapi->createVideoFilterEx(out, "Trim", &vi, trimGetframe, filterFree<TrimData>, fmParallel, flags, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -233,6 +250,9 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         for (int i = 0; i < d->numclips; i++)
             d->nodes[i] = vsapi->mapGetNode(in, "clips", i, 0);
 
+        if (int badClip = findMixedResidency(d->nodes.data(), d->numclips, vsapi))
+            RETERROR(("Interleave: clips are mismatched in residency starting at clip #" + std::to_string(badClip) + "; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match").c_str());
+
         MismatchInfo mminfo = findCommonVi(d->nodes.data(), d->numclips, &d->vi, vsapi);
         if (!mminfo.match && !mismatch)
             RETERROR(("Interleave: clips are mismatched in " + mismatchToText(mminfo) + " starting at clip #" + std::to_string(mminfo.clipnum) + ", passed " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum - 1]), vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum]), vsapi)).c_str());
@@ -267,7 +287,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < d->numclips; i++)
             deps.push_back({d->nodes[i], (maxNumFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames) ? rpNoFrameReuse : rpFrameReuseLastOnly});
-        vsapi->createVideoFilter(out, "Interleave", &d->vi, interleaveGetframe, filterFree<InterleaveData>, fmParallel, deps.data(), d->numclips, d.get(), core);
+        vsapi->createVideoFilterEx(out, "Interleave", &d->vi, interleaveGetframe, filterFree<InterleaveData>, fmParallel, residencyFlags(d->nodes[0], vsapi), deps.data(), d->numclips, d.get(), core);
         d.release();
     }
 }
@@ -296,7 +316,7 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d->vi = vsapi->getVideoInfo(d->node);
 
     VSFilterDependency deps[] = {{ d->node, rpNoFrameReuse }};
-    vsapi->createVideoFilter(out, "Reverse", d->vi, reverseGetframe, filterFree<ReverseData>, fmParallel, deps, 1, d.get(), core);
+    vsapi->createVideoFilterEx(out, "Reverse", d->vi, reverseGetframe, filterFree<ReverseData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
     d.release();
 }
 
@@ -344,7 +364,8 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
-    vsapi->createVideoFilter(out, "Loop", &vi, loopGetframe, filterFree<LoopData>, fmParallel, deps, 1, d.release(), core);
+    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
+    vsapi->createVideoFilterEx(out, "Loop", &vi, loopGetframe, filterFree<LoopData>, fmParallel, flags, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -452,7 +473,8 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
         muldivRational(&vi.fpsNum, &vi.fpsDen, d->num, d->cycle);
 
     VSFilterDependency deps[] = {{d->node, duplicateOffset ? rpGeneral : rpNoFrameReuse}};
-    vsapi->createVideoFilter(out, "SelectEvery", &vi, selectEveryGetframe, filterFree<SelectEveryData>, fmParallel, deps, 1, d.release(), core);
+    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
+    vsapi->createVideoFilterEx(out, "SelectEvery", &vi, selectEveryGetframe, filterFree<SelectEveryData>, fmParallel, flags, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -510,6 +532,9 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         for (int i = 0; i < d->numclips; i++)
             d->nodes[i] = vsapi->mapGetNode(in, "clips", i, 0);
 
+        if (int badClip = findMixedResidency(d->nodes.data(), d->numclips, vsapi))
+            RETERROR(("Splice: clips are mismatched in residency starting at clip #" + std::to_string(badClip) + "; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match").c_str());
+
         MismatchInfo mminfo = findCommonVi(d->nodes.data(), d->numclips, &vi, vsapi);
         if (!mminfo.match && !mismatch && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d->nodes[0])))
             RETERROR(("Splice: clips are mismatched in " + mismatchToText(mminfo) + " starting at clip #" + std::to_string(mminfo.clipnum) + ", passed " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum - 1]), vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum]), vsapi)).c_str());
@@ -528,7 +553,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < d->numclips; i++)
             deps.push_back({ d->nodes[i], rpNoFrameReuse });
-        vsapi->createVideoFilter(out, "Splice", &vi, spliceGetframe, filterFree<SpliceData>, fmParallel, deps.data(), d->numclips, d.get(), core);
+        vsapi->createVideoFilterEx(out, "Splice", &vi, spliceGetframe, filterFree<SpliceData>, fmParallel, residencyFlags(d->nodes[0], vsapi), deps.data(), d->numclips, d.get(), core);
         d.release();
     }
 }
@@ -588,7 +613,8 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
     vi.numFrames += d->num_dups;
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
-    vsapi->createVideoFilter(out, "DuplicateFrames", &vi, duplicateFramesGetFrame, filterFree<DuplicateFramesData>, fmParallel, deps, 1, d.release(), core);
+    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
+    vsapi->createVideoFilterEx(out, "DuplicateFrames", &vi, duplicateFramesGetFrame, filterFree<DuplicateFramesData>, fmParallel, flags, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -650,7 +676,8 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
     }
 
     VSFilterDependency deps[] = {{d->node, rpNoFrameReuse}};
-    vsapi->createVideoFilter(out, "DeleteFrames", &vi, deleteFramesGetFrame, filterFree<DeleteFramesData>, fmParallel, deps, 1, d.release(), core);
+    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
+    vsapi->createVideoFilterEx(out, "DeleteFrames", &vi, deleteFramesGetFrame, filterFree<DeleteFramesData>, fmParallel, flags, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -732,20 +759,21 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
             RETERROR("FreezeFrames: the frame ranges must not overlap");
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
-    vsapi->createVideoFilter(out, "FreezeFrames", vi, freezeFramesGetFrame, filterFree<FreezeFramesData>, fmParallel, deps, 1, d.release(), core);
+    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
+    vsapi->createVideoFilterEx(out, "FreezeFrames", vi, freezeFramesGetFrame, filterFree<FreezeFramesData>, fmParallel, flags, deps, 1, d.release(), core);
 }
 
 //////////////////////////////////////////
 // Init
 
 void reorderInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->registerFunction("Trim", "clip:vnode;first:int:opt;last:int:opt;length:int:opt;", "clip:vnode;", trimCreate, 0, plugin);
-    vspapi->registerFunction("Reverse", "clip:vnode;", "clip:vnode;", reverseCreate, 0, plugin);
-    vspapi->registerFunction("Loop", "clip:vnode;times:int:opt;", "clip:vnode;", loopCreate, 0, plugin);
-    vspapi->registerFunction("Interleave", "clips:vnode[];extend:int:opt;mismatch:int:opt;modify_duration:int:opt;", "clip:vnode;", interleaveCreate, 0, plugin);
-    vspapi->registerFunction("SelectEvery", "clip:vnode;cycle:int;offsets:int[];modify_duration:int:opt;", "clip:vnode;", selectEveryCreate, 0, plugin);
-    vspapi->registerFunction("Splice", "clips:vnode[];mismatch:int:opt;", "clip:vnode;", spliceCreate, 0, plugin);
-    vspapi->registerFunction("DuplicateFrames", "clip:vnode;frames:int[];", "clip:vnode;", duplicateFramesCreate, 0, plugin);
-    vspapi->registerFunction("DeleteFrames", "clip:vnode;frames:int[];", "clip:vnode;", deleteFramesCreate, 0, plugin);
-    vspapi->registerFunction("FreezeFrames", "clip:vnode;first:int[]:empty;last:int[]:empty;replacement:int[]:empty;", "clip:vnode;", freezeFramesCreate, 0, plugin);
+    vspapi->registerFunction("Trim", "clip:vnode:all;first:int:opt;last:int:opt;length:int:opt;", "clip:vnode:all;", trimCreate, 0, plugin);
+    vspapi->registerFunction("Reverse", "clip:vnode:all;", "clip:vnode:all;", reverseCreate, 0, plugin);
+    vspapi->registerFunction("Loop", "clip:vnode:all;times:int:opt;", "clip:vnode:all;", loopCreate, 0, plugin);
+    vspapi->registerFunction("Interleave", "clips:vnode[]:all;extend:int:opt;mismatch:int:opt;modify_duration:int:opt;", "clip:vnode:all;", interleaveCreate, 0, plugin);
+    vspapi->registerFunction("SelectEvery", "clip:vnode:all;cycle:int;offsets:int[];modify_duration:int:opt;", "clip:vnode:all;", selectEveryCreate, 0, plugin);
+    vspapi->registerFunction("Splice", "clips:vnode[]:all;mismatch:int:opt;", "clip:vnode:all;", spliceCreate, 0, plugin);
+    vspapi->registerFunction("DuplicateFrames", "clip:vnode:all;frames:int[];", "clip:vnode:all;", duplicateFramesCreate, 0, plugin);
+    vspapi->registerFunction("DeleteFrames", "clip:vnode:all;frames:int[];", "clip:vnode:all;", deleteFramesCreate, 0, plugin);
+    vspapi->registerFunction("FreezeFrames", "clip:vnode:all;first:int[]:empty;last:int[]:empty;replacement:int[]:empty;", "clip:vnode:all;", freezeFramesCreate, 0, plugin);
 }

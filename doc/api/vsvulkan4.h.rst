@@ -113,10 +113,12 @@ pitched storage buffers with exactly the strides the equivalent CPU frame
 would have, so ``getStride`` and the dimension functions apply unchanged and
 uploads are flat copies. Calling ``getReadPtr``/``getWritePtr`` on a GPU
 frame is a fatal error, never a silent download. Residency is part of the
-type system: filters declare GPU inputs and outputs with the ``vknode``
-signature type together with the ``ffGPUOutput`` filter flag, and the core
+type system: filters declare GPU inputs and outputs with the ``vnode:gpu``
+signature form together with the ``ffGPUOutput`` filter flag, and the core
 verifies at every step — creation, invoke return, and frame delivery — that
-declaration and reality agree.
+declaration and reality agree. Filters that merely rearrange frames declare
+``vnode:all`` instead: they accept either residency, adapt per instance, and
+their output residency follows their input.
 
 **Synchronization is per plane and device side.** Every GPU plane carries a
 producer pair: a timeline semaphore and the value whose completion means the

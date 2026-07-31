@@ -444,5 +444,5 @@ fail:
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("com.example.gpuinvert", "vkexample", "Out of tree GPU filter example", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("InvertGPU", "clip:vknode;", "clip:vknode;", invertCreate, NULL, plugin);
+    vspapi->registerFunction("InvertGPU", "clip:vnode:gpu;", "clip:vnode:gpu;", invertCreate, NULL, plugin);
 }

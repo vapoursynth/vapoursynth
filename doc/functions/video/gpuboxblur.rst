@@ -1,7 +1,7 @@
 GPUBoxBlur
 ==========
 
-.. function:: GPUBoxBlur(vknode clip[, int[] planes, int hradius = 1, int hpasses = 1, int vradius = 1, int vpasses = 1])
+.. function:: GPUBoxBlur(vnode:gpu clip[, int[] planes, int hradius = 1, int hpasses = 1, int vradius = 1, int vpasses = 1])
    :module: std
 
    The GPU resident equivalent of BoxBlur, taking the same arguments and

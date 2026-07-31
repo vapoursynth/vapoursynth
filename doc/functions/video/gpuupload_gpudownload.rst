@@ -4,13 +4,13 @@ GPUUpload/GPUDownload
 .. function:: GPUUpload(vnode clip)
    :module: std
 
-   Returns a GPU resident version (*vknode*) of *clip*, transferring each
+   Returns a GPU resident version (*vnode:gpu*) of *clip*, transferring each
    requested frame to the core's Vulkan device. The upload is also inserted
    automatically, with a log message, whenever a CPU clip is passed to a
-   filter expecting a *vknode*, so calling it explicitly is only needed to
+   filter expecting a *vnode:gpu* clip, so calling it explicitly is only needed to
    control where in the graph the transfer happens.
 
-.. function:: GPUDownload(vknode clip)
+.. function:: GPUDownload(vnode:gpu clip)
    :module: std
 
    Returns a CPU resident version (*vnode*) of *clip*. Planes that passed

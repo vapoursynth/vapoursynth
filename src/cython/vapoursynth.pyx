@@ -762,6 +762,9 @@ class VideoOutputTuple(typing.NamedTuple):
 
 def _construct_type(signature):
     type,*opt = signature.split(":")
+    # Residency modifiers refine the type ("vnode:gpu", "vnode:all"); they do not mark
+    # the argument optional the way trailing "opt" does.
+    opt = [m for m in opt if m not in ("gpu", "all")]
 
     # Handle Arrays.
     if type.endswith("[]"):
@@ -772,8 +775,6 @@ def _construct_type(signature):
 
     # Handle types
     if type == "vnode":
-        type = vapoursynth.VideoNode
-    elif type == "vknode":
         type = vapoursynth.VideoNode
     elif type == "anode":
         type = vapoursynth.AudioNode
@@ -817,6 +818,7 @@ def _construct_parameter(signature):
     type = _construct_type(signature)
 
     __,*opt = signature.split(":")
+    opt = [m for m in opt if m not in ("gpu", "all")]
     if opt:
         default_value = None
     else:
@@ -1198,7 +1200,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                 val = [val]
 
         for v in val:
-            if ((atypes[key][:5] == 'vnode' or atypes[key][:6] == 'vknode') and isinstance(v, VideoNode)) or (atypes[key][:5] == 'anode' and isinstance(v, AudioNode)):
+            if (atypes[key][:5] == 'vnode' and isinstance(v, VideoNode)) or (atypes[key][:5] == 'anode' and isinstance(v, AudioNode)):
                 if funcs.mapSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif ((atypes[key][:6] == 'vframe') and isinstance(v, VideoFrame)) or (atypes[key][:6] == 'aframe' and isinstance(v, AudioFrame)):
@@ -1230,7 +1232,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                 raise Error('argument ' + key + ' was passed an unsupported type (expected ' + atypes[key] + ' compatible type but got ' + type(v).__name__ + ')')
         if len(val) == 0:
         # set an empty key if it's an empty array
-            if atypes[key][:5] == 'vnode' or atypes[key][:6] == 'vknode':
+            if atypes[key][:5] == 'vnode':
                 funcs.mapSetEmpty(inm, ckey, ptVideoNode)
             elif atypes[key][:5] == 'anode':
                 funcs.mapSetEmpty(inm, ckey, ptAudioNode)
@@ -1714,8 +1716,10 @@ cdef class VideoFrame(RawFrame):
         raise Error('Class cannot be instantiated directly')
 
     def copy(self):
+        # Legal for GPU frames too: the copy shares the planes and only the properties are
+        # independently writable, which is exactly what prop editing in ModifyFrame needs.
+        # Pixel access on the copy stays guarded like on any GPU frame.
         self._ensure_open()
-        self._ensure_cpu()
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
     def readchunks(self):
@@ -2440,7 +2444,7 @@ cdef class VideoNode(RawNode):
 
     @property
     def gpu_resident(self):
-        """Whether this node's frames live on the GPU, i.e. whether it is a vknode."""
+        """Whether this node's frames live on the GPU, i.e. whether its filter was created with ffGPUOutput."""
         self.ensure_valid()
         return bool(vspy_is_gpu_node(self.funcs, self.node))
 
@@ -3127,16 +3131,11 @@ cdef extern from *:
     }
 
     static int vspy_is_gpu_frame(const VSAPI *api, const VSFrame *f) {
-        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
-        VSVulkanPlaneInfo info;
-        if (!vk) return 0;
-        return vk->getGPUPlane(f, 0, &info) == 0;
+        return api->getFrameResidency(f) == nrGPU;
     }
 
     static int vspy_is_gpu_node(const VSAPI *api, VSNode *node) {
-        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
-        if (!vk) return 0;
-        return vk->isGPUNode(node);
+        return api->getNodeResidency(node) == nrGPU;
     }
 
     static int vspy_enumerate_vulkan_devices(const VSAPI *api, int maxCount, char *names, int *apiVersions,
@@ -3645,7 +3644,7 @@ cdef class Function(object):
 
     cdef is_video_injectable(self):
         first_arg_i = self.signature.find(':')
-        return first_arg_i > 0 and (self.signature.find(':vnode') == first_arg_i or self.signature.find(':vknode') == first_arg_i)
+        return first_arg_i > 0 and self.signature.find(':vnode') == first_arg_i
 
     cdef is_audio_injectable(self):
         first_arg_i = self.signature.find(':')

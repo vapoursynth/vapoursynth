@@ -380,6 +380,13 @@ public:
     bool isV3Compatible() const noexcept;
 };
 
+/* Residency a signature declares for a video node or frame argument: the unmarked form
+   is CPU, the ":gpu" modifier requires GPU residency and ":all" accepts either. For node
+   arguments only the strict forms participate in automatic boundary insertion; ":all"
+   shifts residency handling to the filter, which adapts and declares its concrete output
+   residency per instance through ffGPUOutput. */
+enum class VSArgResidency { CPU, GPU, All };
+
 class FilterArgument {
 public:
     std::string name;
@@ -388,9 +395,9 @@ public:
     bool arr;
     bool empty;
     bool opt;
-    bool gpuNode; /* declared vknode: a video node whose frames live on the GPU */
-    FilterArgument(const std::string &name, VSPropertyType type, bool arr, bool empty, bool opt, bool gpuNode = false)
-        : name(name), type(type), arr(arr), empty(empty), opt(opt), gpuNode(gpuNode) {}
+    VSArgResidency residency; /* only meaningful for video node and frame arguments */
+    FilterArgument(const std::string &name, VSPropertyType type, bool arr, bool empty, bool opt, VSArgResidency residency = VSArgResidency::CPU)
+        : name(name), type(type), arr(arr), empty(empty), opt(opt), residency(residency) {}
 };
 
 class VSPlaneData {

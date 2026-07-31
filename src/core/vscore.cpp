@@ -420,6 +420,7 @@ VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), v3format(nullptr), co
         core->frameRefs.insert(this);
     }
     contentType = f.contentType;
+    gpuResident = f.gpuResident;
     data[0] = f.data[0];
     data[1] = f.data[1];
     data[2] = f.data[2];
@@ -569,7 +570,7 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
         bool arr = false;
         bool opt = false;
         bool empty = false;
-        bool gpuNode = false;
+        VSArgResidency residency = VSArgResidency::CPU;
 
         VSPropertyType type = ptUnset;
         const std::string &argName = argParts[0];
@@ -588,11 +589,6 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
             type = ptData;
         } else if ((typeName == "vnode" && apiMajor > VAPOURSYNTH3_API_MAJOR) || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "clip")) {
             type = ptVideoNode;
-        } else if (typeName == "vknode" && apiMajor > VAPOURSYNTH3_API_MAJOR) {
-            /* A video node whose frames are GPU resident; the same map level type with a
-               residency requirement enforced, and fixed up, at invoke time. */
-            type = ptVideoNode;
-            gpuNode = true;
         } else if (typeName == "anode" && apiMajor > VAPOURSYNTH3_API_MAJOR) {
             type = ptAudioNode;
         } else if ((typeName == "vframe" && apiMajor > VAPOURSYNTH3_API_MAJOR) || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "frame")) {
@@ -614,6 +610,15 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
                 if (empty)
                     throw std::runtime_error("Argument '" + argName + "' has duplicate argument specifier '" + argParts[i] + "'");
                 empty = true;
+            } else if ((argParts[i] == "gpu" || argParts[i] == "all") && apiMajor > VAPOURSYNTH3_API_MAJOR) {
+                /* Residency: the unmarked form means CPU frames, ":gpu" GPU resident ones
+                   and ":all" accepts either, with the requirement enforced, and for node
+                   arguments fixed up, at invoke time. */
+                if (type != ptVideoNode && type != ptVideoFrame)
+                    throw std::runtime_error("Argument '" + argName + "': residency modifier '" + argParts[i] + "' is only valid on vnode and vframe arguments");
+                if (residency != VSArgResidency::CPU)
+                    throw std::runtime_error("Argument '" + argName + "' has more than one residency modifier");
+                residency = (argParts[i] == "gpu") ? VSArgResidency::GPU : VSArgResidency::All;
             } else {
                 throw std::runtime_error("Argument '" + argName + "' has unknown argument modifier '" + argParts[i] + "'");
             }
@@ -625,7 +630,7 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
         if (empty && !arr)
             throw std::runtime_error("Argument '" + argName + "' is not an array. Only array arguments can have the empty flag set.");
 
-        argsOut.emplace_back(argName, type, arr, empty, opt, gpuNode);
+        argsOut.emplace_back(argName, type, arr, empty, opt, residency);
     }
 }
 
@@ -693,40 +698,55 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
         if (!mismatch.empty())
             throw VSException(name + ": " + mismatch);
 
-        /* Residency: vknode arguments must be fed GPU nodes and vnode arguments CPU ones. A
+        /* Residency: vnode:gpu arguments must be fed GPU nodes and plain vnode CPU ones. A
            mismatch gets the matching transfer filter inserted automatically, with a message so
-           nobody wonders where the extra work came from. The copy is only made when something
-           actually needs fixing. */
+           nobody wonders where the extra work came from; vnode:all arguments accept either and
+           leave residency to the filter. The copy is only made when something actually needs
+           fixing. */
         const VSMap *callArgs = &args;
         std::unique_ptr<VSMap> fixedArgs;
         for (const auto &fa : inArgs) {
-            if (fa.type != ptVideoNode)
-                continue;
-            int numElems = vs_internal_vsapi.mapNumElements(callArgs, fa.name.c_str());
-            for (int i = 0; i < numElems; i++) {
-                VSNode *node = vs_internal_vsapi.mapGetNode(callArgs, fa.name.c_str(), i, nullptr);
-                bool mismatched = node->isGPUOutput() != fa.gpuNode;
-                if (mismatched) {
-                    std::string boundaryError;
-                    VSNode *wrapped = plugin->core->wrapGPUBoundary(node, fa.gpuNode, boundaryError);
-                    if (!wrapped) {
-                        vs_internal_vsapi.freeNode(node);
-                        throw VSException(name + ": " + boundaryError);
+            if (fa.type == ptVideoNode && fa.residency != VSArgResidency::All) {
+                bool wantGPU = (fa.residency == VSArgResidency::GPU);
+                int numElems = vs_internal_vsapi.mapNumElements(callArgs, fa.name.c_str());
+                for (int i = 0; i < numElems; i++) {
+                    VSNode *node = vs_internal_vsapi.mapGetNode(callArgs, fa.name.c_str(), i, nullptr);
+                    bool mismatched = node->isGPUOutput() != wantGPU;
+                    if (mismatched) {
+                        std::string boundaryError;
+                        VSNode *wrapped = plugin->core->wrapGPUBoundary(node, wantGPU, boundaryError);
+                        if (!wrapped) {
+                            vs_internal_vsapi.freeNode(node);
+                            throw VSException(name + ": " + boundaryError);
+                        }
+                        if (!fixedArgs) {
+                            fixedArgs = std::make_unique<VSMap>(&args);
+                            callArgs = fixedArgs.get();
+                        }
+                        /* Rebuild the whole key since elements cannot be replaced in place. */
+                        std::vector<VSNode *> nodes;
+                        for (int j = 0; j < numElems; j++)
+                            nodes.push_back(j == i ? wrapped : vs_internal_vsapi.mapGetNode(fixedArgs.get(), fa.name.c_str(), j, nullptr));
+                        for (int j = 0; j < numElems; j++)
+                            vs_internal_vsapi.mapConsumeNode(fixedArgs.get(), fa.name.c_str(), nodes[j], j == 0 ? maReplace : maAppend);
+                        plugin->core->logMessage(mtInformation, name + ": automatically inserted " +
+                            (wantGPU ? "GPUUpload" : "GPUDownload") + " for argument '" + fa.name + "'");
                     }
-                    if (!fixedArgs) {
-                        fixedArgs = std::make_unique<VSMap>(&args);
-                        callArgs = fixedArgs.get();
-                    }
-                    /* Rebuild the whole key since elements cannot be replaced in place. */
-                    std::vector<VSNode *> nodes;
-                    for (int j = 0; j < numElems; j++)
-                        nodes.push_back(j == i ? wrapped : vs_internal_vsapi.mapGetNode(fixedArgs.get(), fa.name.c_str(), j, nullptr));
-                    for (int j = 0; j < numElems; j++)
-                        vs_internal_vsapi.mapConsumeNode(fixedArgs.get(), fa.name.c_str(), nodes[j], j == 0 ? maReplace : maAppend);
-                    plugin->core->logMessage(mtInformation, name + ": automatically inserted " +
-                        (fa.gpuNode ? "GPUUpload" : "GPUDownload") + " for argument '" + fa.name + "'");
+                    vs_internal_vsapi.freeNode(node);
                 }
-                vs_internal_vsapi.freeNode(node);
+            } else if (fa.type == ptVideoFrame && fa.residency != VSArgResidency::All) {
+                /* Frames cannot be coerced by inserting a transfer node, so a residency
+                   mismatch fails at invoke instead of at first pixel access. */
+                bool wantGPU = (fa.residency == VSArgResidency::GPU);
+                int numElems = vs_internal_vsapi.mapNumElements(callArgs, fa.name.c_str());
+                for (int i = 0; i < numElems; i++) {
+                    const VSFrame *frame = vs_internal_vsapi.mapGetFrame(callArgs, fa.name.c_str(), i, nullptr);
+                    bool mismatched = frame->isGPUResident() != wantGPU;
+                    vs_internal_vsapi.freeFrame(frame);
+                    if (mismatched)
+                        throw VSException(name + ": argument '" + fa.name + "' expects a " +
+                            (wantGPU ? "GPU resident frame but a CPU frame was passed" : "CPU frame but a GPU resident frame was passed"));
+                }
             }
         }
 
@@ -744,19 +764,20 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
             plugin->core->logFatal(name + ": filter node returned not yet supported type");
 
         /* Residency is declared at node creation through ffGPUOutput and in the interface
-           through vknode; the two must agree, verified here for every returned node so a
-           mismatch dies at the function that lied rather than corrupting downstream graphs. */
+           through the vnode residency modifier; the two must agree, verified here for every
+           returned node so a mismatch dies at the function that lied rather than corrupting
+           downstream graphs. A vnode:all return is legitimately either, per instance. */
         if (!v->hasError()) {
             for (const auto &ra : retArgs) {
-                if (ra.type != ptVideoNode)
+                if (ra.type != ptVideoNode || ra.residency == VSArgResidency::All)
                     continue;
                 int numElems = vs_internal_vsapi.mapNumElements(v, ra.name.c_str());
                 for (int i = 0; i < numElems; i++) {
                     VSNode *node = vs_internal_vsapi.mapGetNode(v, ra.name.c_str(), i, nullptr);
-                    if (node->isGPUOutput() != ra.gpuNode)
-                        plugin->core->logFatal(name + ": node returned under '" + ra.name + (ra.gpuNode ?
-                            "' is declared vknode but was not created with ffGPUOutput" :
-                            "' was created with ffGPUOutput but is declared vnode"));
+                    if (node->isGPUOutput() != (ra.residency == VSArgResidency::GPU))
+                        plugin->core->logFatal(name + ": node returned under '" + ra.name + (ra.residency == VSArgResidency::GPU ?
+                            "' is declared vnode:gpu but was not created with ffGPUOutput" :
+                            "' was created with ffGPUOutput but is declared plain vnode"));
                     vs_internal_vsapi.freeNode(node);
                 }
             }
@@ -777,11 +798,14 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
 }
 
 bool VSPluginFunction::isV3Compatible() const {
+    /* A required-GPU argument or return makes a function invisible to V3 clients; ":all"
+       ones stay visible since a V3 client can only ever supply and receive CPU nodes,
+       which such a function accepts and then produces. */
     for (const auto &iter : inArgs)
-        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset || iter.gpuNode)
+        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset || iter.residency == VSArgResidency::GPU)
             return false;
     for (const auto &iter : retArgs)
-        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset || iter.gpuNode)
+        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset || iter.residency == VSArgResidency::GPU)
             return false;
     return true;
 }
@@ -801,7 +825,7 @@ std::string VSPluginFunction::getV4ArgString() const {
             case ptData:
                 tmp += "data"; break;
             case ptVideoNode:
-                tmp += iter.gpuNode ? "vknode" : "vnode"; break;
+                tmp += "vnode"; break;
             case ptVideoFrame:
                 tmp += "vframe"; break;
             case ptFunction:
@@ -811,6 +835,10 @@ std::string VSPluginFunction::getV4ArgString() const {
         }
         if (iter.arr)
             tmp += "[]";
+        if (iter.residency == VSArgResidency::GPU)
+            tmp += ":gpu";
+        else if (iter.residency == VSArgResidency::All)
+            tmp += ":all";
         if (iter.opt)
             tmp += ":opt";
         if (iter.empty)
@@ -1259,7 +1287,7 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
             else if (r->isGPUResident() != gpuOutput)
                 core->logFatal("Filter " + name + (gpuOutput ?
                     " is declared to return GPU resident frames but returned a CPU frame" :
-                    " returned a GPU resident frame without declaring a vknode return"));
+                    " returned a GPU resident frame without being created with ffGPUOutput"));
         } else {
             const VSAudioFormat *fi = r->getAudioFormat();
 
