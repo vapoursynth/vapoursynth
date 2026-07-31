@@ -467,6 +467,11 @@ struct VSVULKANAPI {
        VSVulkanCoreInfo::semaphoreExportHandleType is nonzero. */
     int (VS_CC *exportGPUSemaphore)(VSCore *core, VkSemaphore semaphore, VSVulkanExportedSemaphore *out,
         char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+
+    /* Whether a video node's frames are GPU resident, i.e. whether it is a vknode. For hosts
+       and language bindings that must branch before touching pixel data — reading a GPU
+       frame's planes through the CPU accessors is a fatal error, never a silent download. */
+    int (VS_CC *isGPUNode)(VSNode *node) VS_NOEXCEPT;
 };
 
 #endif

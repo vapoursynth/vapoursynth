@@ -986,6 +986,9 @@ class RawFrame:
     @property
     def readonly(self) -> bool: ...
 
+    @property
+    def gpu_resident(self) -> bool: ...
+
     def __enter__(self: 'SelfFrame') -> 'SelfFrame': ...
 
     def __exit__(
@@ -1102,6 +1105,9 @@ class VideoNode(RawNode):
 
     num_frames: int
 
+    @property
+    def gpu_resident(self) -> bool: ...
+
     def set_output(
         self, index: int = 0, alpha: Union['VideoNode', None] = None, alt_output: Literal[0, 1, 2] = 0
     ) -> None: ...
@@ -1193,6 +1199,28 @@ class Plugin:
     def plugin_path(self) -> str: ...
 
 
+class VulkanDeviceEntry(TypedDict):
+    index: int
+    name: str
+    api_version: Tuple[int, int, int]
+    type: str
+    device_memory: int
+    usable: bool
+    reason: str
+    uuid: str
+
+
+class VulkanDeviceInfo(TypedDict):
+    name: str
+    device_memory: int
+    budget: int
+    allocated: int
+    limit: int
+    uuid: str
+    export_handle_type: int
+    semaphore_export_handle_type: int
+
+
 class Core:
     def __init__(self) -> NoReturn: ...
 
@@ -1226,6 +1254,16 @@ class Core:
     def create_video_frame(self, format: VideoFormat, width: int, height: int) -> VideoFrame: ...
 
     def log_message(self, message_type: MessageType, message: str) -> None: ...
+
+    def set_vulkan_device(self, index: int) -> None: ...
+
+    @property
+    def vulkan_devices(self) -> list[VulkanDeviceEntry]: ...
+
+    @property
+    def vulkan_device_info(self) -> VulkanDeviceInfo: ...
+
+    def set_max_vram_use(self, bytes: int) -> int: ...
 
     def add_log_handler(self, handler_func: Callable[[MessageType, str], None]) -> LogHandle: ...
 

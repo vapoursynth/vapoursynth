@@ -1664,8 +1664,20 @@ cdef class RawFrame(object):
         p.clear()
         p.update(**new_props)
 
+    @property
+    def gpu_resident(self):
+        self._ensure_open()
+        return bool(vspy_is_gpu_frame(self.funcs, self.constf))
+
+    cdef _ensure_cpu(self):
+        # Reading a GPU frame through the CPU accessors is a fatal error in the core by
+        # design; from python it must be an exception instead.
+        if vspy_is_gpu_frame(self.funcs, self.constf):
+            raise Error('The frame is GPU resident and its pixel data cannot be accessed directly, pass the clip through std.GPUDownload first')
+
     def get_write_ptr(self, int plane):
         self._ensure_open()
+        self._ensure_cpu()
         if self.f == NULL:
             raise Error('Can only obtain write pointer for writable frames')
         cdef const uint8_t *d = self.funcs.getWritePtr(self.f, plane)
@@ -1675,6 +1687,7 @@ cdef class RawFrame(object):
 
     def get_read_ptr(self, int plane):
         self._ensure_open()
+        self._ensure_cpu()
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
         if d == NULL:
             raise IndexError('Specified plane index out of range')
@@ -1702,10 +1715,12 @@ cdef class VideoFrame(RawFrame):
 
     def copy(self):
         self._ensure_open()
+        self._ensure_cpu()
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
     def readchunks(self):
         self._ensure_open()
+        self._ensure_cpu()
 
         lib = self.funcs
         frame = <VSFrame*> self.constf
@@ -1728,6 +1743,7 @@ cdef class VideoFrame(RawFrame):
 
     def __getitem__(self, index):
         self._ensure_open()
+        self._ensure_cpu()
         if PyIndex_Check(index):
             index = PyNumber_Index(index)
         else:
@@ -2422,8 +2438,23 @@ cdef class VideoNode(RawNode):
         else:
             return createConstVideoFrame(f, self.funcs, self.core.core)
 
+    @property
+    def gpu_resident(self):
+        """Whether this node's frames live on the GPU, i.e. whether it is a vknode."""
+        self.ensure_valid()
+        return bool(vspy_is_gpu_node(self.funcs, self.node))
+
     def set_output(self, int index = 0, VideoNode alpha = None, int alt_output = 0):
         self.ensure_valid()
+        # Outputs are consumed on the CPU, so the download boundary is inserted here
+        # automatically, mirroring the automatic upload on the way into GPU filters.
+        if self.gpu_resident or (alpha is not None and alpha.gpu_resident):
+            self.funcs.logMessage(mtInformation, "GPUDownload automatically inserted for output", self.core.core)
+            main = self.core.std.GPUDownload(clip=self) if self.gpu_resident else self
+            if alpha is not None and alpha.gpu_resident:
+                alpha = self.core.std.GPUDownload(clip=alpha)
+            main.set_output(index, alpha, alt_output)
+            return
         if alpha is not None:
             if (self.vi.width != alpha.vi.width) or (self.vi.height != alpha.vi.height):
                 raise Error('Alpha clip dimensions must match the main video')
@@ -2439,6 +2470,10 @@ cdef class VideoNode(RawNode):
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0, int backlog = -1):
         self.ensure_valid()
+        if self.gpu_resident:
+            self.funcs.logMessage(mtInformation, "GPUDownload automatically inserted for output", self.core.core)
+            self.core.std.GPUDownload(clip=self).output(fileobj, y4m, progress_update, prefetch, backlog)
+            return
         if (fileobj is sys.stdout or fileobj is sys.stderr):
             # If you are embedded in a vsscript-application, don't allow outputting to stdout/stderr.
             # This is the responsibility of the application, which does know better where to output it.
@@ -3091,6 +3126,19 @@ cdef extern from *:
         return vk->setMaxVRAMUse(bytes, core);
     }
 
+    static int vspy_is_gpu_frame(const VSAPI *api, const VSFrame *f) {
+        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
+        VSVulkanPlaneInfo info;
+        if (!vk) return 0;
+        return vk->getGPUPlane(f, 0, &info) == 0;
+    }
+
+    static int vspy_is_gpu_node(const VSAPI *api, VSNode *node) {
+        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
+        if (!vk) return 0;
+        return vk->isGPUNode(node);
+    }
+
     static int vspy_enumerate_vulkan_devices(const VSAPI *api, int maxCount, char *names, int *apiVersions,
             int *types, int64_t *mems, int *usables, char *reasons, char *uuids, char *err, int errSize) {
         const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
@@ -3117,6 +3165,8 @@ cdef extern from *:
     """
     int vspy_set_vulkan_device(const VSAPI *api, VSCore *core, int index, char *err, int errSize) nogil
     int vspy_get_vulkan_core_info(const VSAPI *api, VSCore *core, char *name, int nameSize, int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit, char *uuidHex, int uuidHexSize, int *exportHandleType, int *semExportHandleType, char *err, int errSize) nogil
+    int vspy_is_gpu_frame(const VSAPI *api, const VSFrame *f) nogil
+    int vspy_is_gpu_node(const VSAPI *api, VSNode *node) nogil
     int64_t vspy_set_max_vram_use(const VSAPI *api, VSCore *core, int64_t bytes) nogil
     int vspy_enumerate_vulkan_devices(const VSAPI *api, int maxCount, char *names, int *apiVersions, int *types, int64_t *mems, int *usables, char *reasons, char *uuids, char *err, int errSize) nogil
 

@@ -40,9 +40,15 @@ inserts the upload and logs that it did. Chains therefore compose naturally::
    result  = blurred.std.GPUDownload()                         # back to CPU frames
 
 Every consecutive run of GPU filters should stay on the GPU; a round trip per
-filter costs more than most filters do. Reading pixel data of a GPU frame from
-Python (or any API user) is a fatal error — download first. Frame properties
-are always CPU side and work normally on GPU frames.
+filter costs more than most filters do. ``set_output`` and ``output`` on a
+``vknode`` insert the download automatically, with a log message, so scripts
+and vspipe just work. Reading pixel data of a GPU resident *frame* from
+Python raises an error — pass the clip through GPUDownload first; whether a
+node or frame is GPU resident is exposed as the ``gpu_resident`` property.
+Frame properties are always CPU side and work normally on GPU frames. (In the
+C API, reading a GPU frame's planes is a fatal error instead: for compiled
+plugins it is a programming error and must fail loudly, never silently
+download.)
 
 Device selection
 ################
@@ -109,6 +115,12 @@ fundamental kernel shapes:
 |                           |           | host wait — results delivered as frame properties must exist  |
 |                           |           | before returning. The wait removes every piece of async       |
 |                           |           | machinery the invert example needs, which is the lesson.      |
++---------------------------+-----------+---------------------------------------------------------------+
+| gpu_cuda_invert_example.cu| foreign   | The complete CUDA interop pattern: UUID device matching,      |
+|                           | API       | cached memory imports, device side producer pair waits with   |
+|                           |           | graceful host sync fallback, and signalling its own           |
+|                           |           | exportable timeline from the stream. Reference code — it has  |
+|                           |           | not run on NVIDIA hardware yet.                               |
 +---------------------------+-----------+---------------------------------------------------------------+
 
 A filter's obligations

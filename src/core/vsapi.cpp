@@ -1586,6 +1586,11 @@ static int VS_CC vkExportGPUSemaphore(VSCore *core, VkSemaphore semaphore, VSVul
     return 0;
 }
 
+static int VS_CC vkIsGPUNode(VSNode *node) VS_NOEXCEPT {
+    assert(node);
+    return node->isGPUOutput() ? 1 : 0;
+}
+
 static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int maxEntries, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     std::vector<VSVulkanDeviceInfo> devices;
     std::string err;
@@ -1625,7 +1630,8 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkDestroyGPUBuffer,
     &vkExportGPUPlane,
     &vkWaitGPUFrame,
-    &vkExportGPUSemaphore
+    &vkExportGPUSemaphore,
+    &vkIsGPUNode
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {
