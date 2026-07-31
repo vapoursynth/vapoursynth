@@ -140,7 +140,7 @@ private:
         std::condition_variable claimCv;
     };
 
-    Slot *acquireSlot(SlotRing &ring, VkDeviceSize minSize, bool hostCached, std::string &errorMessage);
+    Slot *acquireSlot(SlotRing &ring, VkDeviceSize minSize, std::string &errorMessage);
     void releaseSlot(SlotRing &ring, Slot &slot);
     bool waitPlanesHost(VSVulkanPlane *const planes[], int numPlanes, std::string &errorMessage);
 

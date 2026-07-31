@@ -20,6 +20,8 @@
 
 #include "vsvulkan.h"
 
+#include <cassert>
+
 namespace {
 
 /* Big enough that a 16 GB card tops out around 128 blocks, far from the 4096 allocation limit,
@@ -39,6 +41,11 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
     roundedSize = (size + regionGranularity - 1) & ~(regionGranularity - 1);
     if (alignment < regionAlignment)
         alignment = regionAlignment;
+    /* Recycled regions are handed out without realigning, which is safe because every offset
+       ever carved is a multiple of regionGranularity: used starts at 0 and only grows by
+       rounded sizes after an alignment step that never moves it. A future buffer usage with a
+       stricter requirement would silently misbind recycled regions, hence the tripwire. */
+    assert(alignment <= regionGranularity);
     const uint64_t bucketType = typeIndex | (exportable ? (1ull << 32) : 0);
 
     std::lock_guard<std::mutex> lock(mutex);
@@ -97,9 +104,16 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
     fresh->exportable = exportable;
     VkResult res = dev.vk.vkAllocateMemory(dev.device(), &allocInfo, nullptr, &fresh->memory);
     if (res != VK_SUCCESS) {
-        errorMessage = "vkAllocateMemory failed for a " + std::to_string(newBlockSize >> 20) +
-            " MB allocator block (VkResult " + std::to_string(res) + ")";
-        return false;
+        /* The freelists may bank fully idle blocks of other types and sizes holding exactly
+           the memory this block needs; hand those back and retry once so an allocation racing
+           ahead of the next cache sweep does not fail while VRAM sits reclaimable. */
+        if (trimLocked(dev) > 0)
+            res = dev.vk.vkAllocateMemory(dev.device(), &allocInfo, nullptr, &fresh->memory);
+        if (res != VK_SUCCESS) {
+            errorMessage = "vkAllocateMemory failed for a " + std::to_string(newBlockSize >> 20) +
+                " MB allocator block (VkResult " + std::to_string(res) + ")";
+            return false;
+        }
     }
 
     if (dev.memoryProperties().memoryTypes[typeIndex].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
@@ -136,6 +150,10 @@ void VSVulkanAllocator::free(VSVulkanDevice &dev, Block *block, VkDeviceSize off
 
 VkDeviceSize VSVulkanAllocator::trim(VSVulkanDevice &dev) {
     std::lock_guard<std::mutex> lock(mutex);
+    return trimLocked(dev);
+}
+
+VkDeviceSize VSVulkanAllocator::trimLocked(VSVulkanDevice &dev) {
     VkDeviceSize freed = 0;
     for (auto it = blocks.begin(); it != blocks.end();) {
         if ((*it)->liveRegions != 0) {

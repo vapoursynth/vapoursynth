@@ -406,8 +406,12 @@ void VSVulkanDevice::teardown() {
 }
 
 void VSVulkanDevice::emitLog(int severity, const std::string &message) const {
-    if (logFn)
-        logFn(severity, message.c_str(), logUserData);
+    /* userData before the function, mirroring the writers' opposite order, so seeing a
+       function guarantees the userData loaded with it is the matching one. */
+    void *userData = logUserData.load();
+    VSVulkanLogFn fn = logFn.load();
+    if (fn)
+        fn(severity, message.c_str(), userData);
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VSVulkanDevice::debugMessengerTrampoline(
@@ -814,6 +818,16 @@ bool VSVulkanDevice::flushDeviceWrites(const VkSemaphore *waitSemaphores, const 
     std::string &errorMessage) {
     std::lock_guard<std::mutex> lock(flushMutex);
 
+    /* Waits become device side dependencies of the availability submission; dropping one
+       would let the barrier run before a producer finished, so too many is a hard error
+       exactly like the exec pool's submit. */
+    constexpr uint32_t maxFlushWaits = 8;
+    if (waitCount > maxFlushWaits) {
+        errorMessage = "flushDeviceWrites cannot wait on more than " + std::to_string(maxFlushWaits) +
+            " distinct timelines";
+        return false;
+    }
+
     if (!flushPool) {
         VkCommandPoolCreateInfo poolInfo = {};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -828,7 +842,13 @@ bool VSVulkanDevice::flushDeviceWrites(const VkSemaphore *waitSemaphores, const 
         allocInfo.commandPool = flushPool;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandBufferCount = 1;
-        vk.vkAllocateCommandBuffers(deviceHandle, &allocInfo, &flushCmd);
+        if (vk.vkAllocateCommandBuffers(deviceHandle, &allocInfo, &flushCmd) != VK_SUCCESS) {
+            vk.vkDestroyCommandPool(deviceHandle, flushPool, nullptr);
+            flushPool = VK_NULL_HANDLE;
+            flushCmd = VK_NULL_HANDLE;
+            errorMessage = "vkAllocateCommandBuffers failed for the flush context";
+            return false;
+        }
         VkSemaphoreTypeCreateInfo typeInfo = {};
         typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
         typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
@@ -845,7 +865,10 @@ bool VSVulkanDevice::flushDeviceWrites(const VkSemaphore *waitSemaphores, const 
     VkCommandBufferBeginInfo begin = {};
     begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vk.vkBeginCommandBuffer(flushCmd, &begin);
+    if (vk.vkBeginCommandBuffer(flushCmd, &begin) != VK_SUCCESS) {
+        errorMessage = "vkBeginCommandBuffer failed for the flush";
+        return false;
+    }
     VkMemoryBarrier2 barrier = {};
     barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
     barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
@@ -857,13 +880,16 @@ bool VSVulkanDevice::flushDeviceWrites(const VkSemaphore *waitSemaphores, const 
     dep.memoryBarrierCount = 1;
     dep.pMemoryBarriers = &barrier;
     vk.vkCmdPipelineBarrier2(flushCmd, &dep);
-    vk.vkEndCommandBuffer(flushCmd);
+    if (vk.vkEndCommandBuffer(flushCmd) != VK_SUCCESS) {
+        errorMessage = "vkEndCommandBuffer failed for the flush";
+        return false;
+    }
 
     VkCommandBufferSubmitInfo cmdInfo = {};
     cmdInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
     cmdInfo.commandBuffer = flushCmd;
-    VkSemaphoreSubmitInfo waits[8] = {};
-    const uint32_t usedWaits = waitCount > 8 ? 8 : waitCount;
+    VkSemaphoreSubmitInfo waits[maxFlushWaits] = {};
+    const uint32_t usedWaits = waitCount;
     for (uint32_t i = 0; i < usedWaits; i++) {
         waits[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
         waits[i].semaphore = waitSemaphores[i];

@@ -313,12 +313,12 @@ const VSFrame *VS_CC gpuBoxBlurGetFrame(int n, int activationReason, void *insta
             std::vector<Pass> schedule;
             if (d->hradius > 0) {
                 for (int i = 0; i < d->hpasses; i++)
-                    schedule.push_back({ static_cast<uint32_t>(d->hradius), (i == 0 || !(i & 1)) ? 2u * d->hradius : 0u, 0,
+                    schedule.push_back({ static_cast<uint32_t>(d->hradius), !(i & 1) ? 2u * d->hradius : 0u, 0,
                         1.0f / (2 * d->hradius + 1) });
             }
             if (d->vradius > 0) {
                 for (int i = 0; i < d->vpasses; i++)
-                    schedule.push_back({ static_cast<uint32_t>(d->vradius), (i == 0 || !(i & 1)) ? 2u * d->vradius : 0u, 1,
+                    schedule.push_back({ static_cast<uint32_t>(d->vradius), !(i & 1) ? 2u * d->vradius : 0u, 1,
                         1.0f / (2 * d->vradius + 1) });
             }
 

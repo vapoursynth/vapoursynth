@@ -223,6 +223,8 @@ public:
     VSVulkanAllocatorStats stats() const;
 
 private:
+    VkDeviceSize trimLocked(VSVulkanDevice &dev);
+
     std::vector<std::unique_ptr<Block>> blocks;
     /* (memory type + exportable bit, rounded size) -> reusable regions */
     std::map<std::pair<uint64_t, VkDeviceSize>, std::vector<std::pair<Block *, VkDeviceSize>>> freeLists;
@@ -315,10 +317,13 @@ public:
     /* Every Vulkan call goes through here, as dev->vk.vkCmdDispatch(...). */
     const VSVulkanFunctions &vk;
 
-    /* Must be set before create() for validation and driver messages to go anywhere. */
+    /* Must be set before create() for validation and driver messages to go anywhere. The
+       pair is atomics so onCoreFreed can retract it while driver threads may still emit:
+       userData is written first and read last, so any reader that observes a function also
+       observes the userData that belongs to it. */
     void setLogCallback(VSVulkanLogFn callback, void *userData) {
-        logFn = callback;
-        logUserData = userData;
+        logUserData.store(userData);
+        logFn.store(callback);
     }
 
     /* Opens the platform loader, creates an instance and picks a physical device: the given index
@@ -356,8 +361,10 @@ public:
        points into the core and is dropped here; teardown messages after this go nowhere. */
     void onCoreFreed() {
         coreFreedFlag.store(true, std::memory_order_release);
-        logFn = nullptr;
-        logUserData = nullptr;
+        /* Function first, then its context: a reader that still saw the function cannot have
+           seen the context nulled yet, so the pair it calls with is always consistent. */
+        logFn.store(nullptr);
+        logUserData.store(nullptr);
         release();
     }
     bool coreFreed() const {
@@ -508,8 +515,8 @@ private:
     uint8_t luid[VK_LUID_SIZE] = {};
     uint32_t nodeMask = 0;
     bool luidValid = false;
-    VSVulkanLogFn logFn = nullptr;
-    void *logUserData = nullptr;
+    std::atomic<VSVulkanLogFn> logFn{nullptr};
+    std::atomic<void *> logUserData{nullptr};
     VSVulkanAccountFn accountFn = nullptr;
     void *accountUserData = nullptr;
 };

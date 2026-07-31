@@ -24,6 +24,7 @@
 #include "vsvulkan.h"
 
 #include <atomic>
+#include <cassert>
 #include <condition_variable>
 #include <memory>
 
@@ -54,7 +55,9 @@ public:
             }
         }
         /* A submission depends on at most a handful of distinct timelines, one per pool it
-           consumes from; running out of room means the design changed and this should too. */
+           consumes from; running out of room means the design changed and this should too —
+           a wait must never be dropped quietly, so the tripwire is loud. */
+        assert(count < capacity);
         if (count < capacity)
             waits[count++] = { semaphore, value };
     }

@@ -156,7 +156,7 @@ bool VSVulkanTransfer::waitPlanesHost(VSVulkanPlane *const planes[], int numPlan
     return true;
 }
 
-VSVulkanTransfer::Slot *VSVulkanTransfer::acquireSlot(SlotRing &ring, VkDeviceSize minSize, bool hostCached, std::string &errorMessage) {
+VSVulkanTransfer::Slot *VSVulkanTransfer::acquireSlot(SlotRing &ring, VkDeviceSize minSize, std::string &errorMessage) {
     Slot *slot = nullptr;
     const size_t count = ring.slots.size();
 
@@ -193,7 +193,6 @@ VSVulkanTransfer::Slot *VSVulkanTransfer::acquireSlot(SlotRing &ring, VkDeviceSi
         /* Cached host memory measured slightly faster than write combined even for upload
            staging (memcpy in AND the GPU's reads), and for readback the difference is 40x,
            so both rings prefer it. */
-        (void)hostCached;
         if (!dev->createBuffer(slot->buffer, rounded,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -237,7 +236,7 @@ bool VSVulkanTransfer::uploadPlanes(VSVulkanPlane *const planes[], int numPlanes
         total += static_cast<VkDeviceSize>(planes[p]->stride) * planes[p]->height;
 
     /* Slot before context, always, so the two rings cannot deadlock against each other. */
-    Slot *slot = acquireSlot(staging, total, false, errorMessage);
+    Slot *slot = acquireSlot(staging, total, errorMessage);
     if (!slot)
         return false;
 
@@ -299,7 +298,7 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
     for (int p = 0; p < numPlanes; p++)
         total += static_cast<VkDeviceSize>(planes[p]->stride) * planes[p]->height;
 
-    Slot *slot = acquireSlot(readback, total, true, errorMessage);
+    Slot *slot = acquireSlot(readback, total, errorMessage);
     if (!slot)
         return false;
 
