@@ -45,8 +45,9 @@ declare ``vnode:all``: they accept CPU and GPU clips alike without any
 transfer and their output residency follows their input, so none of them
 interrupts a resident chain. That covers the reorder filters — Trim, Splice,
 Reverse, Loop, Interleave, SelectEvery, DuplicateFrames, DeleteFrames,
-FreezeFrames — the property and metadata filters — AssumeFPS, CopyFrameProps,
-RemoveFrameProps, ClipToProp, PropToClip, SetVideoCache — plane reference
+FreezeFrames — the property and metadata filters — AssumeFPS, SetFrameProp,
+SetFrameProps, SetFieldBased, CopyFrameProps, RemoveFrameProps, ClipToProp,
+PropToClip, SetVideoCache — plane reference
 shuffling — ShufflePlanes, SplitPlanes — and the deferred producers FrameEval
 and ModifyFrame, whose template clip fixes the residency the returned clips
 or frames must match, while their ``prop_src``/``clips`` frames may be either

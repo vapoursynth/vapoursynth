@@ -1390,6 +1390,7 @@ typedef struct {
     std::vector<VSNode *> propsrc;
     VSMap *in;
     VSMap *out;
+    bool gpuOutput;
 } FrameEvalData;
 
 static const VSFrame *VS_CC frameEvalGetFrameWithProps(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -1419,6 +1420,12 @@ static const VSFrame *VS_CC frameEvalGetFrameWithProps(int n, int activationReas
 
         if (err) {
             vsapi->setFilterError("FrameEval: Function didn't return a clip", frameCtx);
+            return nullptr;
+        }
+
+        if ((vsapi->getNodeResidency(node) == nrGPU) != d->gpuOutput) {
+            vsapi->freeNode(node);
+            vsapi->setFilterError("FrameEval: Returned clip has the wrong residency", frameCtx);
             return nullptr;
         }
 
@@ -1477,6 +1484,12 @@ static const VSFrame *VS_CC frameEvalGetFrameNoProps(int n, int activationReason
             return nullptr;
         }
 
+        if ((vsapi->getNodeResidency(node) == nrGPU) != d->gpuOutput) {
+            vsapi->freeNode(node);
+            vsapi->setFilterError("FrameEval: Returned clip has the wrong residency", frameCtx);
+            return nullptr;
+        }
+
         frameData[0] = node;
 
         vsapi->requestFrameFilter(n, node, frameCtx);
@@ -1523,10 +1536,11 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
     VSNode *node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(node);
     /* The template clip fixes output residency the same way it fixes the format contract:
-       the clips the eval function returns must match. prop_src and clip_src clips may have
-       any residency — their frames are only handed to the function or used for request
-       pattern hints, never plane accessed. */
-    int flags = residencyFlags(node, vsapi);
+       the clips the eval function returns must match, checked per call since the function
+       is user code. prop_src and clip_src clips may have any residency — their frames are
+       only handed to the function or used for request pattern hints, never plane accessed. */
+    d->gpuOutput = (vsapi->getNodeResidency(node) == nrGPU);
+    int flags = d->gpuOutput ? ffGPUOutput : 0;
     vsapi->freeNode(node);
     d->func = vsapi->mapGetFunction(in, "eval", 0, 0);
 
@@ -1569,6 +1583,7 @@ typedef struct {
     VSFunction *func;
     VSMap *in;
     VSMap *out;
+    bool gpuOutput;
 } ModifyFrameData;
 
 static const VSFrame *VS_CC modifyFrameGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -1617,6 +1632,12 @@ static const VSFrame *VS_CC modifyFrameGetFrame(int n, int activationReason, voi
             return nullptr;
         }
 
+        if ((vsapi->getFrameResidency(f) == nrGPU) != d->gpuOutput) {
+            vsapi->freeFrame(f);
+            vsapi->setFilterError("ModifyFrame: Returned frame has the wrong residency", frameCtx);
+            return nullptr;
+        }
+
         return f;
     }
 
@@ -1638,10 +1659,11 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
     VSNode *formatnode = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(formatnode);
     /* Like the format, output residency follows the template clip: the frames the selector
-       returns must match it. The clips whose frames are handed to the selector may have any
-       residency each — a GPU frame is still fine for prop reading and shallow prop editing
-       copies. */
-    int flags = residencyFlags(formatnode, vsapi);
+       returns must match it, checked per frame since the selector is user code. The clips
+       whose frames are handed to the selector may have any residency each — a GPU frame is
+       still fine for prop reading and shallow prop editing copies. */
+    d->gpuOutput = (vsapi->getNodeResidency(formatnode) == nrGPU);
+    int flags = d->gpuOutput ? ffGPUOutput : 0;
     vsapi->freeNode(formatnode);
 
     int numnode = vsapi->mapNumElements(in, "clips");
@@ -2127,6 +2149,7 @@ typedef struct {
     VSVideoInfo vi;
     std::string prop;
     int index;
+    bool gpuOutput;
 } PropToClipDataExtra;
 
 typedef SingleNodeData<PropToClipDataExtra> PropToClipData;
@@ -2146,6 +2169,12 @@ static const VSFrame *VS_CC propToClipGetFrame(int n, int activationReason, void
             if (!isSameVideoFormat(&d->vi.format, vsapi->getVideoFrameFormat(dst)) || d->vi.height != vsapi->getFrameHeight(dst, 0) || d->vi.width != vsapi->getFrameWidth(dst, 0)) {
                 vsapi->freeFrame(dst);
                 vsapi->setFilterError("PropToClip: retrieved frame doesn't match output format or dimensions", frameCtx);
+                return nullptr;
+            }
+
+            if ((vsapi->getFrameResidency(dst) == nrGPU) != d->gpuOutput) {
+                vsapi->freeFrame(dst);
+                vsapi->setFilterError("PropToClip: retrieved frame doesn't match the residency determined from frame 0", frameCtx);
                 return nullptr;
             }
 
@@ -2195,8 +2224,10 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     d->vi.height = vsapi->getFrameHeight(msrc, 0);
     /* The sampled embedded frame determines output residency the same way it determines
        the format; the carrier clip's own residency is irrelevant since only its props are
-       read. Later frames must stay consistent, verified at delivery like the format. */
-    int flags = (vsapi->getFrameResidency(msrc) == nrGPU) ? ffGPUOutput : 0;
+       read. Later frames are user data and may disagree, so the frame getter checks them
+       like it checks the format instead of letting the core's delivery check abort. */
+    d->gpuOutput = (vsapi->getFrameResidency(msrc) == nrGPU);
+    int flags = d->gpuOutput ? ffGPUOutput : 0;
     vsapi->freeFrame(msrc);
     vsapi->freeFrame(src);
 
@@ -2287,7 +2318,7 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
     }
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "SetFrameProp", vsapi->getVideoInfo(d->node), setFramePropGetFrame, filterFree<SetFramePropData>, fmParallel, deps, 1, d.get(), core);
+    vsapi->createVideoFilterEx(out, "SetFrameProp", vsapi->getVideoInfo(d->node), setFramePropGetFrame, filterFree<SetFramePropData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
     d.release();
 }
 
@@ -2336,7 +2367,7 @@ static void VS_CC setFramePropsCreate(const VSMap *in, VSMap *out, void *userDat
     vsapi->mapDeleteKey(d->props, "clip");
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "SetFrameProps", vsapi->getVideoInfo(d->node), setFramePropsGetFrame, setFramePropsFree, fmParallel, deps, 1, d.get(), core);
+    vsapi->createVideoFilterEx(out, "SetFrameProps", vsapi->getVideoInfo(d->node), setFramePropsGetFrame, setFramePropsFree, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
     d.release();
 }
 
@@ -2468,7 +2499,7 @@ static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userDat
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "SetFieldBased", vsapi->getVideoInfo(d->node), setFieldBasedGetFrame, filterFree<SetFieldBasedData>, fmParallel, deps, 1, d.get(), core);
+    vsapi->createVideoFilterEx(out, "SetFieldBased", vsapi->getVideoInfo(d->node), setFieldBasedGetFrame, filterFree<SetFieldBasedData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
     d.release();
 }
 
@@ -2598,9 +2629,9 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("PlaneStats", "clipa:vnode;clipb:vnode:opt;plane:int:opt;prop:data:opt;", "clip:vnode;", planeStatsCreate, 0, plugin);
     vspapi->registerFunction("ClipToProp", "clip:vnode:all;mclip:vnode:all;prop:data:opt;", "clip:vnode:all;", clipToPropCreate, 0, plugin);
     vspapi->registerFunction("PropToClip", "clip:vnode:all;prop:data:opt;index:int:opt;", "clip:vnode:all;", propToClipCreate, 0, plugin);
-    vspapi->registerFunction("SetFrameProp", "clip:vnode;prop:data;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode;", setFramePropCreate, 0, plugin);
-    vspapi->registerFunction("SetFrameProps", "clip:vnode;any", "clip:vnode;", setFramePropsCreate, 0, plugin);
+    vspapi->registerFunction("SetFrameProp", "clip:vnode:all;prop:data;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode:all;", setFramePropCreate, 0, plugin);
+    vspapi->registerFunction("SetFrameProps", "clip:vnode:all;any", "clip:vnode:all;", setFramePropsCreate, 0, plugin);
     vspapi->registerFunction("RemoveFrameProps", "clip:vnode:all;props:data[]:opt;", "clip:vnode:all;", removeFramePropsCreate, 0, plugin);
-    vspapi->registerFunction("SetFieldBased", "clip:vnode;value:int;", "clip:vnode;", setFieldBasedCreate, 0, plugin);
+    vspapi->registerFunction("SetFieldBased", "clip:vnode:all;value:int;", "clip:vnode:all;", setFieldBasedCreate, 0, plugin);
     vspapi->registerFunction("CopyFrameProps", "clip:vnode:all;prop_src:vnode:all;props:data[]:opt;", "clip:vnode:all;", copyFramePropsCreate, 0, plugin);
 }
