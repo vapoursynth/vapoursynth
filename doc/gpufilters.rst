@@ -33,11 +33,20 @@ are GPU resident. The boundaries are explicit filters:
 .. _std.GPUUpload: functions/video/gpuupload_gpudownload.html
 .. _std.GPUDownload: functions/video/gpuupload_gpudownload.html
 
-Passing a CPU clip to a GPU filter works anyway: the core automatically
-inserts the upload and logs that it did. Chains therefore compose naturally::
+Passing a CPU clip to a filter that requires GPU frames works anyway: the core
+automatically inserts the upload and logs that it did. Chains therefore compose
+naturally::
 
-   blurred = core.std.GPUBoxBlur(clip, hradius=8, hpasses=2)  # upload auto-inserted
-   result  = blurred.std.GPUDownload()                         # back to CPU frames
+   gpu     = clip.std.GPUUpload()                          # explicit, once
+   blurred = core.std.BoxBlur(gpu, hradius=8, hpasses=2)   # runs on the device
+   result  = blurred.std.GPUDownload()                     # back to CPU frames
+
+std.BoxBlur_ shows the shape most internal filters will take as they gain GPU
+support: one filter, one name, choosing its implementation from the residency
+of its input. Uploading once at the head of a chain is then the only thing a
+script does differently.
+
+.. _std.BoxBlur: functions/video/boxblur.html
 
 Every consecutive run of GPU filters should stay on the GPU; a round trip per
 filter costs more than most filters do. Filters that never touch pixel data
@@ -111,7 +120,7 @@ Start from the examples
 -----------------------
 
 The sdk dir contains two deliberately small filters that, together with the
-in-tree GPUBoxBlur (src/core/vsvulkanfilters.cpp), cover the three
+in-tree GPU path of std.BoxBlur (src/core/boxblurfilter.cpp), cover the three
 fundamental kernel shapes:
 
 +---------------------------+-----------+---------------------------------------------------------------+
@@ -124,11 +133,11 @@ fundamental kernel shapes:
 |                           |           | ships as GLSL source and compileGPUShader turns it into       |
 |                           |           | SPIR-V at filter creation.                                    |
 +---------------------------+-----------+---------------------------------------------------------------+
-| GPUBoxBlur (in-tree)      | stencil   | Multi-pass kernels with barriers, scratch reuse, plane        |
+| BoxBlur GPU path         | stencil   | Multi-pass kernels with barriers, scratch reuse, plane         |
 |                           |           | sharing for unprocessed planes. Compiled into the core but    |
 |                           |           | written against nothing but these public headers, in its own  |
 |                           |           | translation unit so that stays true, which makes              |
-|                           |           | src/core/gpuboxblurfilter.cpp readable as a plugin would be.  |
+|                           |           | src/core/boxblurfilter.cpp readable as a plugin would be.     |
 +---------------------------+-----------+---------------------------------------------------------------+
 | gpu_planestats_example.c  | reduce    | Scratch buffers that are not frame shaped, a compute→compute  |
 |                           |           | barrier between dependent dispatches, and the one legitimate  |
@@ -144,7 +153,7 @@ fundamental kernel shapes:
 +---------------------------+-----------+---------------------------------------------------------------+
 
 Shaders reach the pipeline two ways, and the examples show one each: the
-invert filter and the in-tree GPUBoxBlur ship readable GLSL and compile it at
+invert filter and BoxBlur's GPU path ship readable GLSL and compile it at
 creation through compileGPUShader (cached per core, so many instances parse
 once), while PlaneStatsGPU commits ``glslc -O`` output as a header and needs
 no compiler at all. Both hand the same words to the same maintenance5
@@ -152,7 +161,7 @@ pipeline creation — pick by taste, or by whether you want an optimizer pass,
 which the runtime path deliberately omits since drivers optimize anyway.
 
 Specialize by putting a preamble in front of the kernel body, which is what
-GPUBoxBlur does to get its four sample types out of one source::
+BoxBlur does to get its four sample types out of one source::
 
    std::string preamble = "#version 460\n#define SAMPLE_T uint16_t\n";
    auto spirv = compile(preamble + kernelBody);

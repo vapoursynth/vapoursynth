@@ -253,7 +253,6 @@ libvapoursynth = library('libvapoursynth',
         'src/core/vsvulkan.cpp',
         'src/core/vsvulkanalloc.cpp',
         'src/core/vsvulkanexec.cpp',
-        'src/core/gpuboxblurfilter.cpp',
         'src/core/vsvulkanfilters.cpp',
         'src/core/vsvulkanframe.cpp',
         'src/core/vsvulkanshader.cpp',
@@ -524,6 +523,7 @@ else
 
     shared_module('libvapoursynthfilters',
         filters_sources + arm_filter_sources,
+        dependencies: vulkan_headers, # BoxBlur's GPU path includes VSVulkan4.h
         gnu_symbol_visibility: 'hidden',
         include_directories: incdir,
         link_with: arm_vlibs,

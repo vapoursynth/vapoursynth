@@ -43,13 +43,17 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <!-- Headers only; the loader is dlopened by the core so nothing links against the SDK. -->
+    <VULKAN_SDK Condition="'$(VULKAN_SDK)' == ''">C:\VulkanSDK\1.4.357.0</VULKAN_SDK>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>../../include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
     <TargetName>libvapoursynthfilters</TargetName>
     <OutDir>..\..\..\vapoursynth-portable\Lib\site-packages\vapoursynth</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
     <TargetName>libvapoursynthfilters</TargetName>
     <OutDir>..\..\..\vapoursynth-portable\Lib\site-packages\vapoursynth</OutDir>
   </PropertyGroup>
