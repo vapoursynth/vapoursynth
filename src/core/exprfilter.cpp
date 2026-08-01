@@ -35,6 +35,8 @@
 #include "float16_helper.h"
 #include "expr/expr.h"
 #include "expr/jitcompiler.h"
+#include "gpufilter.h"
+#include "VSVulkan4.h"
 #include "kernel/cpulevel.h"
 
 #ifdef VS_TARGET_OS_WINDOWS
@@ -166,6 +168,134 @@ public:
         }
     }
 };
+
+namespace {
+
+/* A third backend for the same bytecode the interpreter and the x86 JIT already consume.
+   expr::compile has resolved the stack by this point -- DUP, SWAP and MUX never reach an
+   executable list -- so every instruction carries explicit register indices and the
+   translation is one GLSL statement per instruction, in order.
+
+   Booleans are the interpreter's convention throughout: 1.0 or 0.0 out, anything above zero
+   is true going in, so the logical operators stay arithmetic rather than becoming bit
+   masks. */
+struct ExprGlsl {
+    std::string body;
+    int maxReg = 0;
+
+    static std::string reg(int i) { return "r" + std::to_string(i); }
+
+    void emit(const std::string &dst, const std::string &expression) {
+        body += "        " + dst + " = " + expression + ";\n";
+    }
+};
+
+/* Two builtins need help before they match the scalar reference, and both are semantic
+   rather than a question of the last bit:
+
+   pow, because the reference is std::pow, which is defined for a negative base raised to an
+   integral exponent, while the GLSL builtin is undefined for any negative base and returns
+   a NaN in practice. The sign is carried around the call instead.
+
+   sin and cos, because Vulkan only specifies their precision inside [-pi, pi]. Video
+   expressions routinely feed them raw sample values, which is far outside; reducing the
+   argument first keeps the builtin in the range where its guarantee applies. */
+const char exprHelpers[] =
+    "float vsExprPow(float base, float e) {\n"
+    "    if (base >= 0.0) return pow(base, e);\n"
+    "    if (e != trunc(e)) return 0.0 / 0.0;\n"
+    "    float m = pow(-base, e);\n"
+    "    return mod(abs(e), 2.0) == 1.0 ? -m : m;\n"
+    "}\n"
+    "float vsExprReduce(float x) { return x - 6.28318530717958648 * round(x * 0.15915494309189535); }\n"
+    "float vsExprSin(float x) { return sin(vsExprReduce(x)); }\n"
+    "float vsExprCos(float x) { return cos(vsExprReduce(x)); }\n";
+
+std::string exprPlaneBody(const std::vector<ExprInstruction> &code, int &maxReg) {
+    ExprGlsl g;
+    for (const ExprInstruction &insn : code) {
+        maxReg = std::max(maxReg, insn.dst + 1);
+        const std::string d = ExprGlsl::reg(insn.dst);
+        const std::string a = ExprGlsl::reg(insn.src1);
+        const std::string b = ExprGlsl::reg(insn.src2);
+        const std::string c = ExprGlsl::reg(insn.src3);
+        const std::string in = std::to_string(insn.op.imm.u);
+
+        switch (insn.op.type) {
+        case ExprOpType::MEM_LOAD_U8:
+        case ExprOpType::MEM_LOAD_U16:
+        case ExprOpType::MEM_LOAD_F32:
+            g.emit(d, "float(s" + in + "[idx" + in + "])");
+            break;
+        case ExprOpType::MEM_LOAD_F16:
+            g.emit(d, "float(s" + in + "[idx" + in + "])");
+            break;
+        case ExprOpType::CONSTANT: {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%.9g", insn.op.imm.f);
+            std::string lit = buf;
+            if (lit.find_first_of(".eE") == std::string::npos && lit.find("inf") == std::string::npos
+                && lit.find("nan") == std::string::npos)
+                lit += ".0";
+            g.emit(d, lit);
+            break;
+        }
+        case ExprOpType::ADD:  g.emit(d, a + " + " + b); break;
+        case ExprOpType::SUB:  g.emit(d, a + " - " + b); break;
+        case ExprOpType::MUL:  g.emit(d, a + " * " + b); break;
+        case ExprOpType::DIV:  g.emit(d, a + " / " + b); break;
+        case ExprOpType::FMA:
+            switch (static_cast<FMAType>(insn.op.imm.u)) {
+            case FMAType::FMADD:  g.emit(d, b + " * " + c + " + " + a); break;
+            case FMAType::FMSUB:  g.emit(d, b + " * " + c + " - " + a); break;
+            case FMAType::FNMADD: g.emit(d, "-(" + b + " * " + c + ") + " + a); break;
+            case FMAType::FNMSUB: g.emit(d, "-(" + b + " * " + c + ") - " + a); break;
+            }
+            break;
+        case ExprOpType::MAX:  g.emit(d, "max(" + a + ", " + b + ")"); break;
+        case ExprOpType::MIN:  g.emit(d, "min(" + a + ", " + b + ")"); break;
+        case ExprOpType::SQRT: g.emit(d, "vsSqrt(" + a + ")"); break;
+        case ExprOpType::ABS:  g.emit(d, "abs(" + a + ")"); break;
+        case ExprOpType::NEG:  g.emit(d, "-" + a); break;
+        case ExprOpType::EXP:  g.emit(d, "exp(" + a + ")"); break;
+        case ExprOpType::LOG:  g.emit(d, "log(" + a + ")"); break;
+        case ExprOpType::POW:  g.emit(d, "vsExprPow(" + a + ", " + b + ")"); break;
+        case ExprOpType::SIN:  g.emit(d, "vsExprSin(" + a + ")"); break;
+        case ExprOpType::COS:  g.emit(d, "vsExprCos(" + a + ")"); break;
+        case ExprOpType::CMP: {
+            static const char *cmp[] = { "==", "<", "<=", "", "!=", ">=", ">" };
+            g.emit(d, "float(" + a + " " + cmp[insn.op.imm.u] + " " + b + ")");
+            break;
+        }
+        case ExprOpType::AND: g.emit(d, "float((" + a + " > 0.0) && (" + b + " > 0.0))"); break;
+        case ExprOpType::OR:  g.emit(d, "float((" + a + " > 0.0) || (" + b + " > 0.0))"); break;
+        case ExprOpType::XOR: g.emit(d, "float((" + a + " > 0.0) != (" + b + " > 0.0))"); break;
+        case ExprOpType::NOT: g.emit(d, "float(!(" + a + " > 0.0))"); break;
+        case ExprOpType::TERNARY:
+            g.emit(d, "(" + a + " > 0.0) ? " + b + " : " + c);
+            break;
+        /* The store ends the plane; clamp_int rounds to nearest even into the storage type
+           then caps at the format's maximum, which is the same two step the stencil filters
+           already agree with. */
+        case ExprOpType::MEM_STORE_U8:
+            g.body += "        dstData[dstIdx] = SAMPLE_T(min(uint(clamp(roundEven(" + a + "), 0.0, 255.0)), 255u));\n";
+            break;
+        case ExprOpType::MEM_STORE_U16:
+            g.body += "        dstData[dstIdx] = SAMPLE_T(min(uint(clamp(roundEven(" + a +
+                      "), 0.0, 65535.0)), " + std::to_string((1u << insn.op.imm.u) - 1) + "u));\n";
+            break;
+        case ExprOpType::MEM_STORE_F16:
+        case ExprOpType::MEM_STORE_F32:
+            g.body += "        dstData[dstIdx] = SAMPLE_T(" + a + ");\n";
+            break;
+        default:
+            return std::string(); /* an opcode this backend does not know: fall back */
+        }
+    }
+    return g.body;
+}
+
+} // namespace
 
 static const VSFrame *VS_CC exprGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ExprData *d = static_cast<ExprData *>(instanceData);
@@ -371,6 +501,143 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     std::vector<VSFilterDependency> deps;
     for (int i = 0; i < d->numInputs; i++)
         deps.push_back({d->node[i], (d->vi.numFrames <= vsapi->getVideoInfo(d->node[i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
+
+    bool allGPU = true, anyGPU = false;
+    for (int i = 0; i < d->numInputs; i++) {
+        const bool gpu = vsapi->getNodeResidency(d->node[i]) == nrGPU;
+        allGPU = allGPU && gpu;
+        anyGPU = anyGPU || gpu;
+    }
+    if (anyGPU && !allGPU) {
+        vsapi->mapSetError(out, "Expr: clips are mismatched in residency; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match");
+        return;
+    }
+
+    if (allGPU) {
+        /* One kernel for the whole filter, with the planes as branches on a push constant:
+           each plane has its own bytecode, and the driver runs a pass per plane, so the
+           alternative would be a program per plane and a way to select between them. */
+        std::string planes[3];
+        int maxReg = 1;
+        bool ok = true;
+        for (int i = 0; i < d->vi.format.numPlanes; i++) {
+            if (d->plane[i] == poProcess) {
+                planes[i] = exprPlaneBody(d->bytecode[i], maxReg);
+                ok = ok && !planes[i].empty();
+            } else if (d->plane[i] == poUndefined) {
+                /* The scalar path leaves these planes as the allocator found them. Writing
+                   zeroes costs one trivial dispatch and makes the output reproducible,
+                   which is worth more than matching uninitialised memory. */
+                planes[i] = "        dstData[dstIdx] = SAMPLE_T(0);\n";
+            }
+        }
+        if (!ok) {
+            vsapi->mapSetError(out, "Expr: the expression uses an operation with no GPU kernel");
+            return;
+        }
+
+        std::string src = "#version 460\n";
+        const VSVideoFormat &of = d->vi.format;
+        if (of.sampleType == stInteger)
+            src += of.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
+        else
+            src += of.bytesPerSample == 4 ? "#define SAMPLE_T float\n" : "#define SAMPLE_T float16_t\n";
+        src += "#extension GL_EXT_shader_8bit_storage : require\n"
+               "#extension GL_EXT_shader_16bit_storage : require\n"
+               "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
+               "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
+               "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
+               "\nlayout(local_size_x = 16, local_size_y = 16) in;\n";
+
+        /* Each input keeps its own sample type: Expr accepts clips of differing formats and
+           the load opcode already records which width it wants. */
+        for (int i = 0; i < d->numInputs; i++) {
+            const VSVideoFormat &f = vsapi->getVideoInfo(d->node[i])->format;
+            const char *t = f.sampleType == stInteger
+                ? (f.bytesPerSample == 1 ? "uint8_t" : "uint16_t")
+                : (f.bytesPerSample == 4 ? "float" : "float16_t");
+            src += "layout(std430, set = 0, binding = " + std::to_string(i) + ") readonly buffer Src" +
+                   std::to_string(i) + " { " + t + " s" + std::to_string(i) + "[]; };\n";
+        }
+        src += "layout(std430, set = 0, binding = " + std::to_string(d->numInputs) +
+               ") writeonly buffer Dst { SAMPLE_T dstData[]; };\n"
+               "layout(push_constant) uniform PC {\n"
+               "    uint width, height, plane, dstStride;\n"
+               "    uint srcStride[" + std::to_string(MAX_EXPR_INPUTS) + "];\n"
+               "} pc;\n\n";
+        src += "float vsSqrt(float s) {\n"
+               "    float y = sqrt(s);\n"
+               "    if (!(y > 0.0) || isinf(y)) return y;\n"
+               "    precise float r = fma(-y, y, s);\n"
+               "    return y + r / (y + y);\n"
+               "}\n";
+        src += exprHelpers;
+        src += "\nvoid main() {\n"
+               "    uint x = gl_GlobalInvocationID.x;\n"
+               "    uint y = gl_GlobalInvocationID.y;\n"
+               "    if (x >= pc.width || y >= pc.height) return;\n"
+               "    uint dstIdx = y * pc.dstStride + x;\n";
+        for (int i = 0; i < d->numInputs; i++)
+            src += "    uint idx" + std::to_string(i) + " = y * pc.srcStride[" + std::to_string(i) + "] + x;\n";
+        for (int i = 1; i < maxReg; i++)
+            src += "    float r" + std::to_string(i) + " = 0.0;\n";
+        src += "    float r0 = 0.0;\n";
+        for (int i = 0; i < d->vi.format.numPlanes; i++) {
+            if (planes[i].empty())
+                continue;
+            src += "    if (pc.plane == " + std::to_string(i) + "u) {\n" + planes[i] + "    }\n";
+        }
+        src += "}\n";
+
+        struct ExprPush {
+            uint32_t width, height, plane, dstStride;
+            uint32_t srcStride[MAX_EXPR_INPUTS];
+        };
+
+        vsgpu::FilterDesc desc;
+        desc.vi = d->vi;
+        for (int i = 0; i < d->numInputs; i++)
+            desc.nodes.push_back(d->node[i]);
+        /* Only poCopy is shared from the input; poUndefined is written by the zeroing body
+           above, so it counts as processed like any other plane. */
+        for (int i = 0; i < 3; i++)
+            desc.process[i] = d->plane[i] != poCopy;
+
+        vsgpu::Program program;
+        program.glsl = std::move(src);
+        program.storageBufferCount = d->numInputs + 1;
+        program.pushConstantBytes = sizeof(ExprPush);
+        desc.programs.push_back(std::move(program));
+
+        vsgpu::Pass pass;
+        for (int i = 0; i < d->numInputs; i++)
+            pass.bindings.push_back(vsgpu::Operand::source(i));
+        pass.bindings.push_back(vsgpu::Operand::output());
+        desc.passes.push_back(std::move(pass));
+
+        const int numInputs = d->numInputs;
+        desc.fillPush = [numInputs](const vsgpu::PassInfo &info, void *pushData) {
+            ExprPush push = {};
+            push.width = info.width;
+            push.height = info.height;
+            push.plane = static_cast<uint32_t>(info.plane);
+            push.dstStride = info.dstStrideElements();
+            for (int i = 0; i < numInputs && i < MAX_EXPR_INPUTS; i++)
+                push.srcStride[i] = info.strideElements[i];
+            std::memcpy(pushData, &push, sizeof(push));
+        };
+
+        std::string error;
+        VSNode *result = vsgpu::createFilter("Expr", desc, deps.data(), d->numInputs, core, vsapi, error);
+        for (int i = 0; i < d->numInputs; i++)
+            d->node[i] = nullptr; /* consumed either way */
+        if (result)
+            vsapi->mapConsumeNode(out, "clip", result, maAppend);
+        else
+            vsapi->mapSetError(out, ("Expr: " + error).c_str());
+        return;
+    }
+
     vsapi->createVideoFilter(out, "Expr", &d->vi, exprGetFrame, exprFree, fmParallel, deps.data(), d->numInputs, d.get(), core);
     d.release();
 }
@@ -382,5 +649,5 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 // Init
 
 void exprInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->registerFunction("Expr", "clips:vnode[];expr:data[];format:int:opt;", "clip:vnode;", exprCreate, nullptr, plugin);
+    vspapi->registerFunction("Expr", "clips:vnode[]:all;expr:data[];format:int:opt;", "clip:vnode:all;", exprCreate, nullptr, plugin);
 }

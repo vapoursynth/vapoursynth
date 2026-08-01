@@ -399,7 +399,11 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                     VSVulkanPlaneInfo planeInfo;
                     if (!inst->vkapi->getGPUPlane(srcFrame, p, &planeInfo))
                         buffer = planeInfo.buffer;
-                    strideElems = static_cast<uint32_t>(vsapi->getStride(srcFrame, p) / fmt->bytesPerSample);
+                    /* Each source is measured in its own sample size, not the output's:
+                       Expr accepts clips whose format differs from what it writes, and
+                       dividing an 8 bit source's stride by a 16 bit output would halve it. */
+                    const VSVideoFormat *srcFmt = vsapi->getVideoFrameFormat(srcFrame);
+                    strideElems = static_cast<uint32_t>(vsapi->getStride(srcFrame, p) / srcFmt->bytesPerSample);
                 } else if (op.kind == Operand::OutputPlane) {
                     buffer = dstPlane.buffer;
                 } else {
