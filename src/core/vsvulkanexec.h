@@ -28,6 +28,8 @@
 #include <condition_variable>
 #include <memory>
 
+struct VSFrame;
+
 class VSVulkanExecPool;
 
 /* One device side dependency: a timeline and the value that must be reached. */
@@ -153,6 +155,10 @@ public:
     VkSemaphore semaphore() const { return timeline; }
     VSVulkanQueue *queue() const { return q; }
 
+    /* The public exec pool handle wraps one of these plus the device reference that keeps
+       the allocator reachable for a late free, mirroring VSGPUBuffer. */
+    friend struct VSGPUExecPool;
+
 private:
     void releaseClaim(VSVulkanExecContext &context);
 
@@ -164,6 +170,28 @@ private:
     std::atomic<uint32_t> cursor{0};
     std::mutex claimMutex;
     std::condition_variable claimCv;
+};
+
+/* The public VSGPUExecPool from VSVULKANAPI: an exec pool plus the device reference, so a
+   pool freed late still has a live device to destroy its objects through. */
+struct VSGPUExecPool {
+    VSVulkanExecPool pool;
+    VSVulkanDevice *device = nullptr;
+};
+
+/* The public VSGPUExecContext: a claimed recording plus what the filter declared about it.
+   Waits and publications are collected during recording and applied at submit, which is
+   what lets a filter state its dependencies in any order while the pool still gets one
+   deduplicated wait list and one producer value. */
+struct VSGPUExecContext {
+    VSGPUExecPool *owner = nullptr;
+    VSVulkanExecContext *context = nullptr;
+    VSVulkanWaitList waits;
+    struct PublishTarget {
+        VSFrame *frame;
+        int plane;
+    };
+    std::vector<PublishTarget> publish;
 };
 
 #endif

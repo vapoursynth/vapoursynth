@@ -21,7 +21,6 @@
 #include "internalfilters.h"
 #include "vscore.h"
 #include "vsvulkanframe.h"
-#include "vsvulkanshader.h"
 
 #include <memory>
 #include <stdexcept>

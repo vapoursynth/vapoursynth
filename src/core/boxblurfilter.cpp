@@ -28,7 +28,8 @@
 #include "VSVulkan4.h"
 #include "filtershared.h"
 #include "float16_helper.h"
-#include <mutex>
+#include "gpufilter.h"
+#include <cstring>
 
 using namespace std::string_literals;
 
@@ -560,8 +561,6 @@ static void VS_CC boxBlurFree(void *instanceData, VSCore *core, const VSAPI *vsa
 
 namespace {
 
-constexpr int cmdSlots = 4;
-
 struct BlurPush {
     uint32_t width;
     uint32_t height;
@@ -639,528 +638,93 @@ const char boxBlurGlsl[] =
     "#endif\n"
     "}\n";
 
-struct GPUBoxBlurData {
-    VSNode *node = nullptr;
-    VSVideoInfo vi = {};
-    bool process[3] = {};
-    int hradius = 0, hpasses = 0, vradius = 0, vpasses = 0;
-
-    VSCore *core = nullptr;
-    const VSVULKANAPI *vkapi = nullptr;
-    const VSVulkanFunctions *vk = nullptr; /* the core's dispatch table; everything goes through it */
-    VSVulkanCoreHandles h = {};
-    VkQueue computeQueue = VK_NULL_HANDLE; /* the handles carry family and index; the queue is fetched */
-
-    VkDescriptorSetLayout setLayout = VK_NULL_HANDLE;
-    VkPipelineLayout pipeLayout = VK_NULL_HANDLE;
-    VkPipeline pipeline = VK_NULL_HANDLE;
-    VkCommandPool cmdPool = VK_NULL_HANDLE;
-    VkCommandBuffer cmd[cmdSlots] = {};
-    uint64_t slotValue[cmdSlots] = {};
-    int nextSlot = 0;
-
-    /* This filter's own timeline: it signals rising values and publishes them as the
-       producer pairs of the planes it writes, so consumers wait on the device instead of
-       the host. It must outlive every consumer, so it lives and dies with the instance. */
-    VkSemaphore timeline = VK_NULL_HANDLE;
-    uint64_t nextValue = 0;
-
-    /* Source frames and scratch buffers whose lifetime has to reach past the call: the GPU
-       is still reading them when getFrame returns. Released once the timeline says the
-       submission that used them completed. */
-    struct Retained {
-        const VSFrame *frame;
-        VSGPUBuffer *buffer;
-        uint64_t value;
-    };
-    std::vector<Retained> retained;
-
-    std::mutex lock; /* the instance runs fmParallel; this covers the rings and the values */
+/* The pass schedule replicates the CPU filter exactly: horizontal passes first with
+   rounding div-1, 0, div-1, ... then vertical ones restarting the pattern with their own
+   divisor. Float formats have no rounding term, just the reciprocal divisor. */
+struct BlurPass {
+    uint32_t radius, rounding, vertical;
+    float invDiv;
 };
 
-/* Frees everything the GPU has demonstrably finished with. Non blocking: the counter query
-   is a plain read, and whatever is still pending simply stays for the next call. */
-void sweepRetained(GPUBoxBlurData *d, const VSAPI *vsapi) {
-    uint64_t completed = 0;
-    if (d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timeline, &completed) != VK_SUCCESS)
-        return;
-    size_t kept = 0;
-    for (size_t i = 0; i < d->retained.size(); i++) {
-        if (d->retained[i].value <= completed) {
-            if (d->retained[i].frame)
-                vsapi->freeFrame(d->retained[i].frame);
-            if (d->retained[i].buffer)
-                d->vkapi->destroyGPUBuffer(d->retained[i].buffer);
-        } else {
-            d->retained[kept++] = d->retained[i];
-        }
-    }
-    d->retained.resize(kept);
+std::vector<BlurPass> buildSchedule(int hradius, int hpasses, int vradius, int vpasses) {
+    std::vector<BlurPass> schedule;
+    if (hradius > 0)
+        for (int i = 0; i < hpasses; i++)
+            schedule.push_back({ static_cast<uint32_t>(hradius), !(i & 1) ? 2u * hradius : 0u, 0,
+                1.0f / (2 * hradius + 1) });
+    if (vradius > 0)
+        for (int i = 0; i < vpasses; i++)
+            schedule.push_back({ static_cast<uint32_t>(vradius), !(i & 1) ? 2u * vradius : 0u, 1,
+                1.0f / (2 * vradius + 1) });
+    return schedule;
 }
 
-void computeToComputeBarrier(const VSVulkanFunctions *vk, VkCommandBuffer cmd) {
-    VkMemoryBarrier2 barrier = {};
-    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
-    barrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-    barrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
-    barrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-    barrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
-    VkDependencyInfo dependency = {};
-    dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    dependency.memoryBarrierCount = 1;
-    dependency.pMemoryBarriers = &barrier;
-    vk->vkCmdPipelineBarrier2(cmd, &dependency);
-}
-
-const VSFrame *VS_CC gpuBoxBlurGetFrame(int n, int activationReason, void *instanceData, void **, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    GPUBoxBlurData *d = static_cast<GPUBoxBlurData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-        return nullptr;
-    } else if (activationReason != arAllFramesReady) {
-        return nullptr;
-    }
-
-    const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-    const VSVideoFormat *fmt = vsapi->getVideoFrameFormat(src);
-    int w = vsapi->getFrameWidth(src, 0);
-    int h = vsapi->getFrameHeight(src, 0);
-
-    /* Unprocessed planes are shared straight from the source, which keeps them on the
-       device with their own producer pairs intact; when every plane is processed there is
-       nothing to share and a plain GPU frame is what is wanted. */
-    bool shareAny = false;
-    for (int p = 0; p < fmt->numPlanes; p++)
-        shareAny = shareAny || !d->process[p];
-
-    VSFrame *dst;
-    if (shareAny) {
-        const VSFrame *planeSrc[3] = {};
-        int planes[3] = { 0, 1, 2 };
-        for (int p = 0; p < fmt->numPlanes; p++)
-            planeSrc[p] = d->process[p] ? nullptr : src;
-        dst = vsapi->newVideoFrame2(fmt, w, h, planeSrc, planes, src, core);
-    } else {
-        dst = d->vkapi->newGPUVideoFrame(fmt, w, h, src, core);
-    }
-    if (!dst) {
-        vsapi->setFilterError("GPUBoxBlur: failed to allocate the output frame", frameCtx);
-        vsapi->freeFrame(src);
-        return nullptr;
-    }
-
-    char err[512] = { 0 };
-    std::lock_guard<std::mutex> instanceLock(d->lock);
-    sweepRetained(d, vsapi);
-
-    /* The ping pong scratch buffer, sized for the largest processed plane, needed as soon
-       as any plane runs more than one pass. */
-    int totalPasses = (d->hradius > 0 ? d->hpasses : 0) + (d->vradius > 0 ? d->vpasses : 0);
-    VSGPUBuffer *tmp = nullptr;
-    VkBuffer tmpBuffer = VK_NULL_HANDLE;
-    if (totalPasses > 1) {
-        VkDeviceSize maxBytes = 0;
-        for (int p = 0; p < fmt->numPlanes; p++) {
-            if (!d->process[p])
-                continue;
-            VSVulkanPlaneInfo info;
-            if (d->vkapi->getGPUPlane(src, p, &info)) {
-                vsapi->setFilterError("GPUBoxBlur: source frame is not GPU resident", frameCtx);
-                vsapi->freeFrame(src);
-                vsapi->freeFrame(dst);
-                return nullptr;
-            }
-            maxBytes = std::max(maxBytes, info.bufferSize);
-        }
-        VSVulkanBufferInfo tmpInfo = {};
-        tmp = d->vkapi->createGPUBuffer(core, maxBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, &tmpInfo, err, sizeof(err));
-        if (!tmp) {
-            vsapi->setFilterError((std::string("GPUBoxBlur: ") + err).c_str(), frameCtx);
-            vsapi->freeFrame(src);
-            vsapi->freeFrame(dst);
-            return nullptr;
-        }
-        tmpBuffer = tmpInfo.buffer;
-    }
-
-    /* Claim a command buffer slot and wait out whatever the GPU still owes it. The wait is
-       instant except when this instance is already cmdSlots frames deep, which is the
-       intended backpressure. */
-    int slot = d->nextSlot;
-    d->nextSlot = (d->nextSlot + 1) % cmdSlots;
-    if (d->slotValue[slot]) {
-        VkSemaphoreWaitInfo waitInfo = {};
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &d->timeline;
-        waitInfo.pValues = &d->slotValue[slot];
-        if (d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX) != VK_SUCCESS) {
-            vsapi->setFilterError("GPUBoxBlur: waiting for a command buffer slot failed", frameCtx);
-            if (tmp)
-                d->vkapi->destroyGPUBuffer(tmp);
-            vsapi->freeFrame(src);
-            vsapi->freeFrame(dst);
-            return nullptr;
-        }
-    }
-
-    VkCommandBuffer cmd = d->cmd[slot];
-    d->vk->vkResetCommandBuffer(cmd, 0);
-    VkCommandBufferBeginInfo begin = {};
-    begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    d->vk->vkBeginCommandBuffer(cmd, &begin);
-    d->vk->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, d->pipeline);
-
-    /* Every plane this submission reads contributes its producer pair as a device side
-       wait, deduplicated to the highest value per timeline the way the contract asks. */
-    VkSemaphoreSubmitInfo waits[3] = {};
-    uint32_t waitCount = 0;
-    auto addWait = [&](VkSemaphore semaphore, uint64_t value) {
-        if (!semaphore)
-            return;
-        for (uint32_t i = 0; i < waitCount; i++) {
-            if (waits[i].semaphore == semaphore) {
-                waits[i].value = std::max(waits[i].value, value);
-                return;
-            }
-        }
-        waits[waitCount].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        waits[waitCount].semaphore = semaphore;
-        waits[waitCount].value = value;
-        waits[waitCount].stageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-        waitCount++;
-    };
-
-    bool firstDispatch = true;
-    for (int p = 0; p < fmt->numPlanes; p++) {
-        if (!d->process[p])
-            continue;
-
-        VSVulkanPlaneInfo srcPlane, dstPlane;
-        if (d->vkapi->getGPUPlane(src, p, &srcPlane) || d->vkapi->getGPUPlane(dst, p, &dstPlane)) {
-            vsapi->setFilterError("GPUBoxBlur: frames are not GPU resident", frameCtx);
-            d->vk->vkEndCommandBuffer(cmd);
-            if (tmp)
-                d->vkapi->destroyGPUBuffer(tmp);
-            vsapi->freeFrame(src);
-            vsapi->freeFrame(dst);
-            return nullptr;
-        }
-        addWait(srcPlane.readySemaphore, srcPlane.readyValue);
-
-        uint32_t planeWidth = static_cast<uint32_t>(vsapi->getFrameWidth(src, p));
-        uint32_t planeHeight = static_cast<uint32_t>(vsapi->getFrameHeight(src, p));
-        uint32_t strideElems = static_cast<uint32_t>(vsapi->getStride(src, p) / fmt->bytesPerSample);
-
-        /* The pass schedule replicates the CPU filter exactly: horizontal passes first with
-           rounding div-1, 0, div-1, ... then vertical ones restarting the pattern with their
-           own divisor. Float formats have no rounding term, just the reciprocal divisor. */
-        struct Pass { uint32_t radius, rounding, vertical; float invDiv; };
-        std::vector<Pass> schedule;
-        if (d->hradius > 0) {
-            for (int i = 0; i < d->hpasses; i++)
-                schedule.push_back({ static_cast<uint32_t>(d->hradius), !(i & 1) ? 2u * d->hradius : 0u, 0,
-                    1.0f / (2 * d->hradius + 1) });
-        }
-        if (d->vradius > 0) {
-            for (int i = 0; i < d->vpasses; i++)
-                schedule.push_back({ static_cast<uint32_t>(d->vradius), !(i & 1) ? 2u * d->vradius : 0u, 1,
-                    1.0f / (2 * d->vradius + 1) });
-        }
-
-        VkBuffer srcBuf = srcPlane.buffer;
-        const int passes = static_cast<int>(schedule.size());
-        for (int i = 0; i < passes; i++) {
-            /* Alternate so the final pass always lands in the destination plane. */
-            VkBuffer target = ((passes - 1 - i) % 2 == 0) ? dstPlane.buffer : tmpBuffer;
-            if (!firstDispatch)
-                computeToComputeBarrier(d->vk, cmd);
-            firstDispatch = false;
-
-            VkDescriptorBufferInfo bufferInfo[2] = {};
-            VkWriteDescriptorSet writes[2] = {};
-            bufferInfo[0].buffer = srcBuf;
-            bufferInfo[0].range = VK_WHOLE_SIZE;
-            bufferInfo[1].buffer = target;
-            bufferInfo[1].range = VK_WHOLE_SIZE;
-            for (int b = 0; b < 2; b++) {
-                writes[b].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                writes[b].dstBinding = static_cast<uint32_t>(b);
-                writes[b].descriptorCount = 1;
-                writes[b].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-                writes[b].pBufferInfo = &bufferInfo[b];
-            }
-            d->vk->vkCmdPushDescriptorSet(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, d->pipeLayout, 0, 2, writes);
-
-            BlurPush push = {};
-            push.width = planeWidth;
-            push.height = planeHeight;
-            push.srcStride = strideElems;
-            push.dstStride = strideElems;
-            push.radius = schedule[i].radius;
-            push.rounding = schedule[i].rounding;
-            push.vertical = schedule[i].vertical;
-            push.invDiv = schedule[i].invDiv;
-            VkPushConstantsInfo pushInfo = {};
-            pushInfo.sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO;
-            pushInfo.layout = d->pipeLayout;
-            pushInfo.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-            pushInfo.size = sizeof(push);
-            pushInfo.pValues = &push;
-            d->vk->vkCmdPushConstants2(cmd, &pushInfo);
-
-            d->vk->vkCmdDispatch(cmd, (planeWidth + 15) / 16, (planeHeight + 15) / 16, 1);
-            srcBuf = target;
-        }
-    }
-
-    d->vk->vkEndCommandBuffer(cmd);
-
-    /* Value allocation and submission stay together under the queue lock, since timeline
-       signal values must reach the queue in increasing order. */
-    VkCommandBufferSubmitInfo cmdInfo = {};
-    cmdInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-    cmdInfo.commandBuffer = cmd;
-    VkSemaphoreSubmitInfo signal = {};
-    signal.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-    signal.semaphore = d->timeline;
-    signal.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-    VkSubmitInfo2 submit = {};
-    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-    submit.waitSemaphoreInfoCount = waitCount;
-    submit.pWaitSemaphoreInfos = waitCount ? waits : nullptr;
-    submit.commandBufferInfoCount = 1;
-    submit.pCommandBufferInfos = &cmdInfo;
-    submit.signalSemaphoreInfoCount = 1;
-    submit.pSignalSemaphoreInfos = &signal;
-
-    uint64_t value;
-    VkResult res;
-    d->vkapi->lockVulkanQueue(core, vqCompute);
-    value = d->nextValue + 1;
-    signal.value = value;
-    res = d->vk->vkQueueSubmit2(d->computeQueue, 1, &submit, VK_NULL_HANDLE);
-    if (res == VK_SUCCESS)
-        d->nextValue = value;
-    d->vkapi->unlockVulkanQueue(core, vqCompute);
-
-    if (res != VK_SUCCESS) {
-        vsapi->setFilterError("GPUBoxBlur: vkQueueSubmit2 failed", frameCtx);
-        if (tmp)
-            d->vkapi->destroyGPUBuffer(tmp);
-        vsapi->freeFrame(src);
-        vsapi->freeFrame(dst);
-        return nullptr;
-    }
-
-    d->slotValue[slot] = value;
-    /* The source frame and the scratch buffer must outlive the submission reading them. */
-    d->retained.push_back({ src, nullptr, value });
-    if (tmp)
-        d->retained.push_back({ nullptr, tmp, value });
-
-    /* Only the planes this submission wrote get the new producer pair; shared planes keep
-       the one they arrived with, which consumers wait on independently. */
-    for (int p = 0; p < fmt->numPlanes; p++) {
-        if (d->process[p])
-            d->vkapi->setGPUPlaneProducer(dst, p, d->timeline, value);
-    }
-
-    return dst;
-}
-
-void VS_CC gpuBoxBlurFree(void *instanceData, VSCore *, const VSAPI *vsapi) {
-    GPUBoxBlurData *d = static_cast<GPUBoxBlurData *>(instanceData);
-
-    /* Everything below is destroyed while submissions may still reference it, so drain
-       first; the timeline reaching the last value issued means the GPU is done. */
-    if (d->timeline && d->nextValue) {
-        VkSemaphoreWaitInfo waitInfo = {};
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &d->timeline;
-        waitInfo.pValues = &d->nextValue;
-        d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
-    }
-    for (const auto &r : d->retained) {
-        if (r.frame)
-            vsapi->freeFrame(r.frame);
-        if (r.buffer)
-            d->vkapi->destroyGPUBuffer(r.buffer);
-    }
-
-    if (d->cmdPool)
-        d->vk->vkDestroyCommandPool(d->h.device, d->cmdPool, nullptr);
-    if (d->pipeline)
-        d->vk->vkDestroyPipeline(d->h.device, d->pipeline, nullptr);
-    if (d->pipeLayout)
-        d->vk->vkDestroyPipelineLayout(d->h.device, d->pipeLayout, nullptr);
-    if (d->setLayout)
-        d->vk->vkDestroyDescriptorSetLayout(d->h.device, d->setLayout, nullptr);
-    if (d->timeline)
-        d->vk->vkDestroySemaphore(d->h.device, d->timeline, nullptr);
-
-    if (d->node)
-        vsapi->freeNode(d->node);
-    delete d;
-}
-
-/* Builds the single GPU node. Arguments arrive already parsed and validated by the shared
-   create below, so this only does the Vulkan half. Consumes the node reference on success
-   and leaves it to the caller on failure, which is why the failure path clears d->node
-   before the free callback runs: the Vulkan objects built so far must go, the caller's
-   reference must not. */
+/* Builds the GPU node by describing it rather than recording it: the driver in gpufilter.h
+   owns the frame loop, so all that is left here is choosing the kernel variant, laying out
+   the ping pong so the last pass lands in the output plane, and filling push constants.
+   Consumes the node reference on success and leaves it to the caller on failure. */
 VSNode *createGPUBoxBlur(VSNode *node, const bool process[3], int hradius, int hpasses, int vradius, int vpasses,
     VSCore *core, const VSAPI *vsapi) {
-    auto d = std::make_unique<GPUBoxBlurData>();
-    char err[512] = { 0 };
-
-    try {
-    d->node = node;
-    d->vi = *vsapi->getVideoInfo(node);
-    d->core = core;
-    for (int p = 0; p < 3; p++)
-        d->process[p] = process[p];
-    d->hradius = hradius;
-    d->hpasses = hpasses;
-    d->vradius = vradius;
-    d->vpasses = vpasses;
-    if (!((d->hradius > 0) && (d->hpasses > 0)))
-        d->hradius = 0;
-    if (!((d->vradius > 0) && (d->vpasses > 0)))
-        d->vradius = 0;
-
-    d->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
-    if (!d->vkapi)
-        throw std::runtime_error("the GPU API is not available");
-    if (d->vkapi->getVulkanHandles(core, &d->h, err, sizeof(err)))
-        throw std::runtime_error(err);
-    d->vk = d->vkapi->getVulkanFunctions(core, err, sizeof(err));
-    if (!d->vk)
-        throw std::runtime_error(err);
-
-    VkDeviceQueueInfo2 queueInfo = {};
-    queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2;
-    queueInfo.queueFamilyIndex = d->h.computeQueueFamily;
-    queueInfo.queueIndex = d->h.computeQueueIndex;
-    d->vk->vkGetDeviceQueue2(d->h.device, &queueInfo, &d->computeQueue);
-
-    VSVulkanCoreInfo coreInfo = {};
-    if (d->vkapi->getVulkanCoreInfo(core, &coreInfo, err, sizeof(err)))
-        throw std::runtime_error(err);
+    const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
     std::string preamble = "#version 460\n";
-    if (d->vi.format.sampleType == stInteger) {
-        preamble += d->vi.format.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
-    } else if (d->vi.format.bytesPerSample == 4) {
+    if (vi->format.sampleType == stInteger) {
+        preamble += vi->format.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
+    } else if (vi->format.bytesPerSample == 4) {
         preamble += "#define SAMPLE_T float\n#define FLOAT_SAMPLES\n";
     } else {
         preamble += "#define SAMPLE_T float16_t\n#define FLOAT_SAMPLES\n";
     }
 
-    VSGPUShader *shader = d->vkapi->compileGPUShader(core, slGLSL, (preamble + boxBlurGlsl).c_str(), err, sizeof(err));
-    if (!shader) {
+    vsgpu::FilterDesc desc;
+    desc.vi = *vi;
+    desc.nodes.push_back(node);
+    for (int p = 0; p < 3; p++)
+        desc.process[p] = process[p];
+
+    vsgpu::Program program;
+    program.glsl = preamble + boxBlurGlsl;
+    program.storageBufferCount = 2;
+    program.pushConstantBytes = sizeof(BlurPush);
+    desc.programs.push_back(program);
+
+    const std::vector<BlurPass> schedule = buildSchedule(hradius, hpasses, vradius, vpasses);
+    const int passes = static_cast<int>(schedule.size());
+    desc.scratchCount = passes > 1 ? 1 : 0;
+
+    /* Alternate so the final pass always lands in the destination plane. */
+    for (int i = 0; i < passes; i++) {
+        vsgpu::Pass pass;
+        pass.bindings.push_back(i == 0 ? vsgpu::Operand::source()
+                                       : (((passes - i) % 2 == 0) ? vsgpu::Operand::output() : vsgpu::Operand::scratch(0)));
+        pass.bindings.push_back(((passes - 1 - i) % 2 == 0) ? vsgpu::Operand::output() : vsgpu::Operand::scratch(0));
+        desc.passes.push_back(std::move(pass));
+    }
+
+    desc.fillPush = [schedule](const vsgpu::PassInfo &info, void *pushData) {
+        const BlurPass &p = schedule[info.pass];
+        BlurPush push = {};
+        push.width = info.width;
+        push.height = info.height;
+        push.srcStride = info.srcStrideElements();
+        push.dstStride = info.dstStrideElements();
+        push.radius = p.radius;
+        push.rounding = p.rounding;
+        push.vertical = p.vertical;
+        push.invDiv = p.invDiv;
+        std::memcpy(pushData, &push, sizeof(push));
+    };
+
+    VSFilterDependency deps[] = {{ node, rpStrictSpatial }};
+    std::string createError;
+    VSNode *result = vsgpu::createFilter("BoxBlur", desc, deps, 1, core, vsapi, createError);
+    if (!result) {
         /* A half precision kernel is the one variant a conformant device may refuse. */
-        if (d->vi.format.sampleType == stFloat && d->vi.format.bytesPerSample == 2)
-            throw std::runtime_error("half precision formats need the shaderFloat16 feature, which this device lacks");
-        throw std::runtime_error(std::string("kernel failed to compile: ") + err);
+        if (vi->format.sampleType == stFloat && vi->format.bytesPerSample == 2)
+            createError += " (half precision formats need the shaderFloat16 feature, which this device may lack)";
+        throw std::runtime_error(createError);
     }
-    size_t shaderBytes = 0;
-    const uint32_t *shaderCode = d->vkapi->getGPUShaderCode(shader, &shaderBytes);
-
-    VkDescriptorSetLayoutBinding bindings[2] = {};
-    for (int b = 0; b < 2; b++) {
-        bindings[b].binding = static_cast<uint32_t>(b);
-        bindings[b].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        bindings[b].descriptorCount = 1;
-        bindings[b].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-    }
-    VkDescriptorSetLayoutCreateInfo setInfo = {};
-    setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    setInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT;
-    setInfo.bindingCount = 2;
-    setInfo.pBindings = bindings;
-    if (d->vk->vkCreateDescriptorSetLayout(d->h.device, &setInfo, nullptr, &d->setLayout) != VK_SUCCESS) {
-        d->vkapi->freeGPUShader(shader);
-        throw std::runtime_error("descriptor set layout creation failed");
-    }
-
-    VkPushConstantRange range = {};
-    range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-    range.size = sizeof(BlurPush);
-    VkPipelineLayoutCreateInfo layoutInfo = {};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layoutInfo.setLayoutCount = 1;
-    layoutInfo.pSetLayouts = &d->setLayout;
-    layoutInfo.pushConstantRangeCount = 1;
-    layoutInfo.pPushConstantRanges = &range;
-    if (d->vk->vkCreatePipelineLayout(d->h.device, &layoutInfo, nullptr, &d->pipeLayout) != VK_SUCCESS) {
-        d->vkapi->freeGPUShader(shader);
-        throw std::runtime_error("pipeline layout creation failed");
-    }
-
-    /* maintenance5 is in the required feature set, so the SPIR-V rides along in the stage's
-       pNext and no shader module object is needed. */
-    VkShaderModuleCreateInfo moduleInfo = {};
-    moduleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    moduleInfo.codeSize = shaderBytes;
-    moduleInfo.pCode = shaderCode;
-    VkComputePipelineCreateInfo pipeInfo = {};
-    pipeInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-    pipeInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    pipeInfo.stage.pNext = &moduleInfo;
-    pipeInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    pipeInfo.stage.pName = "main";
-    pipeInfo.layout = d->pipeLayout;
-    VkResult pipeRes = d->vk->vkCreateComputePipelines(d->h.device, VK_NULL_HANDLE, 1, &pipeInfo, nullptr, &d->pipeline);
-    d->vkapi->freeGPUShader(shader); /* the pipeline owns the code now */
-    if (pipeRes != VK_SUCCESS)
-        throw std::runtime_error("compute pipeline creation failed");
-
-    /* Created exportable when the device can, so foreign APIs consuming this filter's frames
-       can import the producer pair instead of host waiting. */
-    VkExportSemaphoreCreateInfo semExport = {};
-    semExport.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
-    semExport.handleTypes = static_cast<VkExternalSemaphoreHandleTypeFlags>(coreInfo.semaphoreExportHandleType);
-    VkSemaphoreTypeCreateInfo semType = {};
-    semType.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-    semType.pNext = coreInfo.semaphoreExportHandleType ? &semExport : nullptr;
-    semType.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-    VkSemaphoreCreateInfo semInfo = {};
-    semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semInfo.pNext = &semType;
-    if (d->vk->vkCreateSemaphore(d->h.device, &semInfo, nullptr, &d->timeline) != VK_SUCCESS)
-        throw std::runtime_error("timeline semaphore creation failed");
-
-    VkCommandPoolCreateInfo poolInfo = {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    poolInfo.queueFamilyIndex = d->h.computeQueueFamily;
-    if (d->vk->vkCreateCommandPool(d->h.device, &poolInfo, nullptr, &d->cmdPool) != VK_SUCCESS)
-        throw std::runtime_error("command pool creation failed");
-    VkCommandBufferAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = d->cmdPool;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = cmdSlots;
-    if (d->vk->vkAllocateCommandBuffers(d->h.device, &allocInfo, d->cmd) != VK_SUCCESS)
-        throw std::runtime_error("command buffer allocation failed");
-
-    VSFilterDependency deps[] = {{ d->node, rpStrictSpatial }};
-    VSNode *result = vsapi->createVideoFilterEx2("BoxBlur", &d->vi, gpuBoxBlurGetFrame, gpuBoxBlurFree,
-        fmParallel, ffGPUOutput, deps, 1, d.get(), core);
-    if (!result)
-        throw std::runtime_error("filter creation failed");
-    d.release();
     return result;
-    } catch (...) {
-        d->node = nullptr; /* still the caller's; everything else here is ours to unwind */
-        gpuBoxBlurFree(d.release(), core, vsapi);
-        throw;
-    }
 }
 
 } // namespace

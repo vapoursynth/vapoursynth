@@ -21,40 +21,10 @@
 #ifndef VSVULKANSHADER_H
 #define VSVULKANSHADER_H
 
-#include "vsvulkanexec.h"
+#include <memory>
+#include <string>
+#include <vector>
 
-/* One compute pipeline around one build time compiled SPIR-V blob, with the fixed shape every
-   plane filter shares: N storage buffers at bindings 0..N-1 of set 0 and a push constant block.
-   Push descriptors mean there are no pools and no sets to allocate or recycle, and maintenance5
-   chains the SPIR-V straight into pipeline creation so not even a shader module object exists.
-   What remains is exactly three handles, created once per filter instance and used from any
-   thread, since recording into distinct command buffers needs no synchronization. */
-class VSVulkanComputePipeline {
-public:
-    static constexpr uint32_t maxBindings = 8;
-
-    VSVulkanComputePipeline() = default;
-    ~VSVulkanComputePipeline();
-    VSVulkanComputePipeline(const VSVulkanComputePipeline &) = delete;
-    VSVulkanComputePipeline &operator=(const VSVulkanComputePipeline &) = delete;
-
-    /* The device must outlive this object. Single shot like the rest of the layer. */
-    bool init(VSVulkanDevice &device, const uint32_t *spirv, size_t spirvBytes,
-        uint32_t storageBufferCount, uint32_t pushConstantBytes, std::string &errorMessage);
-
-    /* Records bind + push descriptors + push constants + dispatch into an acquired context.
-       Buffer count and push size must match what init() declared. */
-    void recordDispatch(VSVulkanExecContext &context, const VkBuffer *buffers, uint32_t bufferCount,
-        const void *pushData, uint32_t pushBytes, uint32_t groupsX, uint32_t groupsY, uint32_t groupsZ);
-
-private:
-    VSVulkanDevice *dev = nullptr;
-    VkDescriptorSetLayout setLayout = VK_NULL_HANDLE;
-    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-    VkPipeline pipeline = VK_NULL_HANDLE;
-    uint32_t declaredBuffers = 0;
-    uint32_t declaredPushBytes = 0;
-};
 
 /* The public opaque runtime compiled shader handle: an immutable shared SPIR-V blob, so
    handles stay valid independently of the compiling core (whose cache holds another

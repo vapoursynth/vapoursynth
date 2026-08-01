@@ -352,6 +352,19 @@ typedef struct VSVulkanExportedMemory {
     intptr_t handle;     /* HANDLE on Windows, file descriptor elsewhere */
 } VSVulkanExportedMemory;
 
+/* An exec pool and one of its recording slots. The pool owns a timeline semaphore, a
+   command pool and contextCount command buffers; a context is one recording, claimed by
+   one thread from gpuExecAcquire until gpuExecSubmit or gpuExecAbandon.
+
+   This is the plumbing every GPU filter needs regardless of what it records: waiting on the
+   producers of the frames it reads, keeping those frames alive until the GPU is done,
+   allocating timeline values in queue order, and publishing producer pairs on the planes it
+   writes. Filters that record ordinary dispatches and filters that record indirect
+   dispatches, custom barriers or their own query pools need it equally, so the context
+   hands out its command buffer and imposes nothing on what goes into it. */
+typedef struct VSGPUExecPool VSGPUExecPool;
+typedef struct VSGPUExecContext VSGPUExecContext;
+
 /* A runtime compiled shader as an opaque handle holding the SPIR-V words. Independent of
    everything else once returned: it stays valid after the core that compiled it is freed
    and is released with freeGPUShader. */
@@ -491,6 +504,51 @@ struct VSVULKANAPI {
         char *errorLog, int errorLogSize) VS_NOEXCEPT; /* VSGPUShaderLanguage */
     const uint32_t *(VS_CC *getGPUShaderCode)(const VSGPUShader *shader, size_t *sizeInBytes) VS_NOEXCEPT;
     void (VS_CC *freeGPUShader)(VSGPUShader *shader) VS_NOEXCEPT;
+
+    /* Creates an exec pool on one of the core's queues. contextCount is how many frames the
+       filter keeps in flight: acquiring waits out the oldest submission, which is the
+       intended backpressure. The pool's timeline is created exportable when the device can,
+       so consumers in other APIs can wait the producer pairs it publishes. Destroy it in
+       the filter's free callback; freeGPUExecPool drains the GPU first, so everything it
+       still holds is released safely. */
+    VSGPUExecPool *(VS_CC *createGPUExecPool)(VSCore *core, int queue /* VSVulkanQueueType */,
+        int contextCount, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+    void (VS_CC *freeGPUExecPool)(VSGPUExecPool *pool) VS_NOEXCEPT;
+
+    /* Claims a context and begins recording; returns NULL with the error set on device
+       loss. Every acquire must end in exactly one submit or abandon. */
+    VSGPUExecContext *(VS_CC *gpuExecAcquire)(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+    /* The command buffer being recorded: put anything Vulkan allows into it. */
+    VkCommandBuffer (VS_CC *gpuExecCommandBuffer)(VSGPUExecContext *context) VS_NOEXCEPT;
+
+    /* Declares that this submission reads the frame: its planes' producer pairs become
+       device side waits, and the frame is kept alive until the submission completes. Takes
+       its own reference, so the caller still releases its own reference normally. */
+    void (VS_CC *gpuExecReadsFrame)(VSGPUExecContext *context, const VSFrame *frame) VS_NOEXCEPT;
+    /* Declares that this submission writes the plane: gpuExecSubmit publishes the pool's
+       (timeline, value) on it as the producer pair. */
+    void (VS_CC *gpuExecWritesPlane)(VSGPUExecContext *context, VSFrame *frame, int plane) VS_NOEXCEPT;
+    /* Hands a scratch buffer to the context, which destroys it once the submission
+       completes. Ownership transfers; do not destroy it yourself. */
+    void (VS_CC *gpuExecUsesBuffer)(VSGPUExecContext *context, VSGPUBuffer *buffer) VS_NOEXCEPT;
+
+    /* Ends recording and submits, allocating the timeline value inside the queue lock so
+       signals reach the queue in increasing order, then publishes the producer pairs. The
+       context is consumed either way. Returns nonzero with the error set on failure. */
+    int (VS_CC *gpuExecSubmit)(VSGPUExecContext *context, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+    /* Gives up a recording without submitting: everything retained is released at once. */
+    void (VS_CC *gpuExecAbandon)(VSGPUExecContext *context) VS_NOEXCEPT;
+
+    /* The pool's timeline, for exportGPUSemaphore or for publishing producer pairs by
+       hand on frames the pool does not know about. */
+    VkSemaphore (VS_CC *gpuExecPoolSemaphore)(VSGPUExecPool *pool) VS_NOEXCEPT;
+
+    /* Blocks until every submission made through this pool has completed. Filters do not
+       need this per frame — producer pairs make consumers wait on the device instead — but
+       one shot setup work, such as uploading weights or tables a filter will read for the
+       rest of its life, has to know the copy landed before recording anything that reads
+       it. Also releases everything those submissions were keeping alive. */
+    int (VS_CC *gpuExecPoolWaitIdle)(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 };
 
 #endif

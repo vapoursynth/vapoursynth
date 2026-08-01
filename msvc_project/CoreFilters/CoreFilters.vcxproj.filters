@@ -173,6 +173,9 @@
     <ClInclude Include="..\..\src\core\float16_helper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\core\gpufilter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\core\kernel\x86\square_impl.h">
       <Filter>Header Files\kernel</Filter>
     </ClInclude>

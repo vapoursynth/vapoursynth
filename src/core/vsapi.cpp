@@ -1621,6 +1621,137 @@ static void VS_CC vkFreeGPUShader(VSGPUShader *shader) VS_NOEXCEPT {
     delete shader;
 }
 
+/* Release callbacks for whatever a context was told to keep alive; both run once the
+   submission that used them has completed. */
+static void releaseRetainedFrame(void *object) {
+    static_cast<VSFrame *>(object)->release();
+}
+
+static void releaseRetainedBuffer(void *object) {
+    VSGPUBuffer *buffer = static_cast<VSGPUBuffer *>(object);
+    buffer->device->destroyBuffer(buffer->buffer);
+    buffer->device->release();
+    delete buffer;
+}
+
+static VSGPUExecPool *VS_CC vkCreateGPUExecPool(VSCore *core, int queue, int contextCount,
+    char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(core);
+    if (contextCount < 1) {
+        copyVulkanError("An exec pool needs at least one context", errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    std::string err;
+    VSVulkanDevice *dev = core->vulkanDevice(err);
+    if (!dev) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    auto pool = std::make_unique<VSGPUExecPool>();
+    VSVulkanQueue &q = (queue == vqTransfer) ? dev->transferQueue() : dev->computeQueue();
+    if (!pool->pool.init(*dev, q, static_cast<uint32_t>(contextCount), err)) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    /* Same late destroy safety net frames and buffers have. */
+    pool->device = dev;
+    dev->addRef();
+    return pool.release();
+}
+
+static void VS_CC vkFreeGPUExecPool(VSGPUExecPool *pool) VS_NOEXCEPT {
+    if (!pool)
+        return;
+    VSVulkanDevice *dev = pool->device;
+    delete pool; /* the exec pool destructor drains the GPU and releases what it holds */
+    dev->release();
+}
+
+static VSGPUExecContext *VS_CC vkGPUExecAcquire(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(pool);
+    std::string err;
+    VSVulkanExecContext *inner = pool->pool.acquire(err);
+    if (!inner) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    auto ctx = std::make_unique<VSGPUExecContext>();
+    ctx->owner = pool;
+    ctx->context = inner;
+    return ctx.release();
+}
+
+static VkCommandBuffer VS_CC vkGPUExecCommandBuffer(VSGPUExecContext *context) VS_NOEXCEPT {
+    assert(context);
+    return context->context->commandBuffer();
+}
+
+static void VS_CC vkGPUExecReadsFrame(VSGPUExecContext *context, const VSFrame *frame) VS_NOEXCEPT {
+    assert(context && frame);
+    const VSVideoFormat *fmt = frame->getVideoFormat();
+    for (int p = 0; fmt && p < fmt->numPlanes; p++) {
+        const VSVulkanPlane *plane = frame->getGPUPlane(p);
+        if (plane)
+            context->waits.add(plane->readySemaphore, plane->readyValue);
+    }
+    /* The context's own reference, so the caller's lifetime stays its own business. */
+    VSFrame *owned = const_cast<VSFrame *>(frame);
+    owned->add_ref();
+    context->owner->pool.retain(*context->context, releaseRetainedFrame, owned);
+}
+
+static void VS_CC vkGPUExecWritesPlane(VSGPUExecContext *context, VSFrame *frame, int plane) VS_NOEXCEPT {
+    assert(context && frame);
+    context->publish.push_back({ frame, plane });
+}
+
+static void VS_CC vkGPUExecUsesBuffer(VSGPUExecContext *context, VSGPUBuffer *buffer) VS_NOEXCEPT {
+    assert(context);
+    if (buffer)
+        context->owner->pool.retain(*context->context, releaseRetainedBuffer, buffer);
+}
+
+static int VS_CC vkGPUExecSubmit(VSGPUExecContext *context, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(context);
+    std::unique_ptr<VSGPUExecContext> owned(context); /* consumed either way */
+    std::string err;
+    uint64_t value = 0;
+    if (!context->owner->pool.submit(*context->context, err, &value, context->waits.data(), context->waits.size())) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return 1;
+    }
+    for (const auto &target : context->publish) {
+        VSVulkanPlane *plane = target.frame->getGPUPlane(target.plane);
+        if (plane) {
+            plane->readySemaphore = context->owner->pool.semaphore();
+            plane->readyValue = value;
+        }
+    }
+    return 0;
+}
+
+static void VS_CC vkGPUExecAbandon(VSGPUExecContext *context) VS_NOEXCEPT {
+    if (!context)
+        return;
+    std::unique_ptr<VSGPUExecContext> owned(context);
+    context->owner->pool.abandon(*context->context);
+}
+
+static VkSemaphore VS_CC vkGPUExecPoolSemaphore(VSGPUExecPool *pool) VS_NOEXCEPT {
+    assert(pool);
+    return pool->pool.semaphore();
+}
+
+static int VS_CC vkGPUExecPoolWaitIdle(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(pool);
+    std::string err;
+    if (!pool->pool.waitAll(err)) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return 1;
+    }
+    return 0;
+}
+
 static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int maxEntries, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     std::vector<VSVulkanDeviceInfo> devices;
     std::string err;
@@ -1663,7 +1794,18 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkExportGPUSemaphore,
     &vkCompileGPUShader,
     &vkGetGPUShaderCode,
-    &vkFreeGPUShader
+    &vkFreeGPUShader,
+    &vkCreateGPUExecPool,
+    &vkFreeGPUExecPool,
+    &vkGPUExecAcquire,
+    &vkGPUExecCommandBuffer,
+    &vkGPUExecReadsFrame,
+    &vkGPUExecWritesPlane,
+    &vkGPUExecUsesBuffer,
+    &vkGPUExecSubmit,
+    &vkGPUExecAbandon,
+    &vkGPUExecPoolSemaphore,
+    &vkGPUExecPoolWaitIdle
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {
