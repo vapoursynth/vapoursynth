@@ -692,9 +692,11 @@ struct SimpleFilter {
     /* Anything the body needs beyond the macros: helper functions, extra defines. */
     std::string prelude;
     /* Set when the sources are not in the output's format -- Lut writing a different depth,
-       MakeFullDiff widening by a bit. Sources are declared with this type and SRCn yields
-       it; the destination keeps the output format either way. */
+       MakeFullDiff widening by a bit. srcFormat covers every input; srcFormats overrides it
+       per input, which MergeFullDiff needs since it takes a narrow clip and a wide diff.
+       The destination keeps the output format either way. */
     const VSVideoFormat *srcFormat = nullptr;
+    const VSVideoFormat *srcFormats[simpleMaxInputs] = { nullptr, nullptr, nullptr };
     /* Uploaded once at create and bound after the output, readable as lut0, lut1, ... */
     std::vector<std::vector<uint8_t>> constants;
     /* The element type the constants are read as; defaults to the output's. */
@@ -721,6 +723,10 @@ namespace detail {
 inline const char *sampleTypeName(const VSVideoFormat &f) {
     if (f.sampleType == stFloat)
         return f.bytesPerSample == 2 ? "float16_t" : "float";
+    /* Four byte integers are not a sample format anyone stores video in, but MakeFullDiff
+       produces one: 16 bit input widens to 17, which no longer fits two bytes. */
+    if (f.bytesPerSample == 4)
+        return "uint";
     return f.bytesPerSample == 1 ? "uint8_t" : "uint16_t";
 }
 
@@ -739,7 +745,10 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
         s += "#define SAMPLE_T float\n";
     else
         s += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
-    s += std::string("#define SRC_T ") + sampleTypeName(srcFmt) + "\n";
+    for (int i = 0; i < sf.inputs; i++) {
+        const VSVideoFormat &f = sf.srcFormats[i] ? *sf.srcFormats[i] : srcFmt;
+        s += "#define SRC" + std::to_string(i) + "_T " + sampleTypeName(f) + "\n";
+    }
     s += std::string("#define LUT_T ") + (sf.constantType ? sf.constantType : sampleTypeName(fmt)) + "\n";
 
     s += "#extension GL_EXT_shader_8bit_storage : require\n"
@@ -762,7 +771,7 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
     for (int i = 0; i < sf.inputs; i++) {
         const std::string n = std::to_string(i);
         s += "layout(std430, set = 0, binding = " + n + ") readonly buffer Src" + n +
-             " { SRC_T s" + n + "[]; };\n";
+             " { SRC" + n + "_T s" + n + "[]; };\n";
     }
     /* Half output rounds however the device rounds, and that is deliberate.
 

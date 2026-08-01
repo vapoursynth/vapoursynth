@@ -41,10 +41,13 @@ namespace {
 /* Shared tail for the two input GPU branches here: build the node, hand it back or report
    the error, and take both input nodes with it either way. */
 template<typename T>
-void createGPUFromDecl2(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *out, VSCore *core, const VSAPI *vsapi) {
+void createGPUFromDecl2(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *out, VSCore *core,
+    const VSAPI *vsapi, const VSVideoInfo *outVi = nullptr) {
     VSNode *nodes[2] = { d->node1, d->node2 };
     std::string error;
-    VSNode *node = vsgpu::createSimpleFilter(sf, nodes, 2, d->vi, core, vsapi, error);
+    /* Most of these produce their input's format; the full diffs do not, so the output is
+       nameable rather than assumed. */
+    VSNode *node = vsgpu::createSimpleFilter(sf, nodes, 2, outVi ? outVi : d->vi, core, vsapi, error);
     d->node1 = nullptr; /* consumed on success and failure alike */
     d->node2 = nullptr;
     if (node)
@@ -964,6 +967,23 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
 
     d->cpulevel = vs_get_cpulevel(core);
 
+    /* A 16 bit input widens to 17, which lands in a four byte integer plane -- a shape the
+       GPU path gets wrong and which is not worth chasing for a filter this rare, so it
+       stays on the scalar path. Everything narrower is verified. */
+    if (bothOnGPU(d->node1, d->node2, vsapi) && d->outvi.format.bytesPerSample <= 2) {
+        vsgpu::SimpleFilter sf;
+        sf.name = "MakeFullDiff";
+        sf.inputs = 2;
+        /* Both inputs are the narrow format; the output is one bit wider, so the source and
+           destination types differ and each is declared separately. */
+        sf.srcFormat = &d->vi->format;
+        sf.bodyInt = "    STORE(uint(int(SRC0(x, y)) - int(SRC1(x, y)) + int(pc.u[0])));";
+        const uint32_t half = 1u << d->vi->format.bitsPerSample;
+        sf.fill = [half](int, float *, uint32_t *u) { u[0] = half; };
+        createGPUFromDecl2(d, sf, out, core, vsapi, &d->outvi);
+        return;
+    }
+
     VSFilterDependency deps[] = { {d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
     vsapi->createVideoFilter(out, "MakeFullDiff", &d->outvi, makeFullDiffGetFrame, filterFree<MakeFullDiffData>, fmParallel, deps, 2, d.get(), core);
     d.release();
@@ -1193,6 +1213,24 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
 
     d->cpulevel = vs_get_cpulevel(core);
 
+    if (bothOnGPU(d->node1, d->node2, vsapi) &&
+            vsapi->getVideoInfo(d->node2)->format.bytesPerSample <= 2) {
+        vsgpu::SimpleFilter sf;
+        sf.name = "MergeFullDiff";
+        sf.inputs = 2;
+        /* clipa is the narrow original and clipb the wider diff, so the two inputs carry
+           different sample types -- the case srcFormats exists for. */
+        sf.srcFormats[0] = &d->vi->format;
+        sf.srcFormats[1] = &vsapi->getVideoInfo(d->node2)->format;
+        sf.bodyInt = "    int tmp = int(SRC0(x, y)) + int(SRC1(x, y)) - int(pc.u[0]);\n"
+                     "    STORE(uint(clamp(tmp, 0, int(pc.u[1]))));";
+        const uint32_t half = 1u << d->vi->format.bitsPerSample;
+        const uint32_t maxval = (1u << d->vi->format.bitsPerSample) - 1;
+        sf.fill = [half, maxval](int, float *, uint32_t *u) { u[0] = half; u[1] = maxval; };
+        createGPUFromDecl2(d, sf, out, core, vsapi);
+        return;
+    }
+
     VSFilterDependency deps[] = { {d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly} };
     vsapi->createVideoFilter(out, "MergeFullDiff", d->vi, mergeFullDiffGetFrame, filterFree<MergeFullDiffData>, fmParallel, deps, 2, d.get(), core);
     d.release();
@@ -1206,7 +1244,7 @@ void mergeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Merge", "clipa:vnode:all;clipb:vnode:all;weight:float[]:opt;", "clip:vnode:all;", mergeCreate, 0, plugin);
     vspapi->registerFunction("MaskedMerge", "clipa:vnode;clipb:vnode;mask:vnode;planes:int[]:opt;first_plane:int:opt;premultiplied:int:opt;", "clip:vnode;", maskedMergeCreate, 0, plugin);
     vspapi->registerFunction("MakeDiff", "clipa:vnode:all;clipb:vnode:all;planes:int[]:opt;", "clip:vnode:all;", makeDiffCreate, 0, plugin);
-    vspapi->registerFunction("MakeFullDiff", "clipa:vnode;clipb:vnode;", "clip:vnode;", makeFullDiffCreate, 0, plugin);
+    vspapi->registerFunction("MakeFullDiff", "clipa:vnode:all;clipb:vnode:all;", "clip:vnode:all;", makeFullDiffCreate, 0, plugin);
     vspapi->registerFunction("MergeDiff", "clipa:vnode:all;clipb:vnode:all;planes:int[]:opt;", "clip:vnode:all;", mergeDiffCreate, 0, plugin);
-    vspapi->registerFunction("MergeFullDiff", "clipa:vnode;clipb:vnode;", "clip:vnode;", mergeFullDiffCreate, 0, plugin);
+    vspapi->registerFunction("MergeFullDiff", "clipa:vnode:all;clipb:vnode:all;", "clip:vnode:all;", mergeFullDiffCreate, 0, plugin);
 }
