@@ -2290,6 +2290,250 @@ typedef struct {
 
 typedef SingleNodeData<PEMVerifierDataExtra> PEMVerifierData;
 
+/* ---------------------------------------------------------------------------------------
+   The one filter that has to read a result back.
+
+   Everything else here hands the GPU a frame and walks away; PlaneStats puts its answer in
+   frame properties, so it has to wait for the device. One workgroup reduces a tile of the
+   plane through shared memory and writes one record into a host visible buffer, and the
+   host finishes the reduction across those records once the submission has completed.
+   PEMVerifier could use the same machinery but stays on the CPU deliberately: it is a
+   debugging filter, and a GPU clip reaching it simply gets a download inserted.
+
+   Splitting it that way is what keeps PlaneStats bit exact. A 256 thread workgroup sums at
+   most 256 * 65535 = 16.7M, which fits a uint32 with room to spare, and the host adds the
+   partials into the same uint64 the scalar path uses -- so the total is identical, not
+   merely close. Only the float accumulator is order dependent, and only in its last bits. */
+
+constexpr int reduceGroup = 16; /* 16x16 = 256 threads per workgroup */
+
+struct ReducePush {
+    uint32_t width, height, srcStride, src2Stride;
+    uint32_t groupsX, hasSecond, isFloat, maxval;
+    float lower, upper;
+};
+
+/* Four uints per workgroup. PlaneStats packs (min, max, sum, diffsum); PEMVerifier packs
+   (bad, value, coord, unused) and merges by taking the lowest coordinate, so the reported
+   sample is the same one the scalar path would have stopped at. */
+struct ReduceRecord {
+    uint32_t a, b, c, d;
+};
+
+std::string reduceKernel(const VSVideoFormat &fmt) {
+    const bool isFloat = fmt.sampleType == stFloat;
+    std::string s = "#version 460\n";
+    if (!isFloat)
+        s += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
+    else
+        s += fmt.bytesPerSample == 4 ? "#define SAMPLE_T float\n" : "#define SAMPLE_T float16_t\n";
+    s += "#extension GL_EXT_shader_8bit_storage : require\n"
+         "#extension GL_EXT_shader_16bit_storage : require\n"
+         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
+         "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
+         "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
+         "\nlayout(local_size_x = 16, local_size_y = 16) in;\n"
+         "layout(std430, set = 0, binding = 0) readonly buffer Src { SAMPLE_T s0[]; };\n"
+         "layout(std430, set = 0, binding = 1) readonly buffer Src2 { SAMPLE_T s1[]; };\n"
+         "layout(std430, set = 0, binding = 2) writeonly buffer Out { uvec4 outRec[]; };\n"
+         "layout(push_constant) uniform PC {\n"
+         "    uint width, height, srcStride, src2Stride;\n"
+         "    uint groupsX, hasSecond, isFloat, maxval;\n"
+         "    float lower, upper;\n"
+         "} pc;\n\n";
+
+    /* Everything reduces as a tree, min and max included: shared atomics have no float form
+       and the ordering they impose is not reproducible anyway. Integer samples are exact in
+       float32 up to 65535, so one code path covers both sample types and the host converts
+       the extremes back. Lanes outside the plane contribute the identity. */
+    s += "shared float mn[256]; shared float mx[256];\n"
+         "shared float part[256]; shared float dpart[256];\n"
+         "void main() {\n"
+         "    uint li = gl_LocalInvocationIndex;\n"
+         "    uint x = gl_GlobalInvocationID.x, y = gl_GlobalInvocationID.y;\n"
+         "    float v = 0.0, dv = 0.0, lo = 1.0 / 0.0, hi = -1.0 / 0.0;\n"
+         "    if (x < pc.width && y < pc.height) {\n"
+         "        v = float(s0[y * pc.srcStride + x]);\n"
+         "        lo = v; hi = v;\n"
+         "        if (pc.hasSecond != 0u) dv = abs(v - float(s1[y * pc.src2Stride + x]));\n"
+         "    }\n"
+         "    mn[li] = lo; mx[li] = hi; part[li] = v; dpart[li] = dv;\n"
+         "    barrier();\n"
+         "    for (uint stride = 128u; stride > 0u; stride >>= 1) {\n"
+         "        if (li < stride) {\n"
+         "            mn[li] = min(mn[li], mn[li + stride]);\n"
+         "            mx[li] = max(mx[li], mx[li + stride]);\n"
+         "            part[li] += part[li + stride];\n"
+         "            dpart[li] += dpart[li + stride];\n"
+         "        }\n"
+         "        barrier();\n"
+         "    }\n"
+         "    if (li == 0u) {\n"
+         "        uint g = gl_WorkGroupID.y * pc.groupsX + gl_WorkGroupID.x;\n"
+         "        if (pc.isFloat != 0u)\n"
+         "            outRec[g] = uvec4(floatBitsToUint(mn[0]), floatBitsToUint(mx[0]),\n"
+         "                              floatBitsToUint(part[0]), floatBitsToUint(dpart[0]));\n"
+         "        else\n"
+         "            outRec[g] = uvec4(uint(mn[0]), uint(mx[0]), uint(part[0]), uint(dpart[0]));\n"
+         "    }\n"
+         "}\n";
+    return s;
+}
+
+/* Everything a reducing filter needs, built once and kept for the instance's life. */
+struct GPUReducer {
+    const VSVULKANAPI *vkapi = nullptr;
+    const VSVulkanFunctions *vk = nullptr;
+    VSVulkanCoreHandles handles = {};
+    VSGPUExecPool *pool = nullptr;
+    VkDescriptorSetLayout setLayout = VK_NULL_HANDLE;
+    VkPipelineLayout pipeLayout = VK_NULL_HANDLE;
+    VkPipeline pipeline = VK_NULL_HANDLE;
+
+    ~GPUReducer() {
+        if (!vk)
+            return;
+        if (pool)
+            vkapi->freeGPUExecPool(pool);
+        if (pipeline)
+            vk->vkDestroyPipeline(handles.device, pipeline, nullptr);
+        if (pipeLayout)
+            vk->vkDestroyPipelineLayout(handles.device, pipeLayout, nullptr);
+        if (setLayout)
+            vk->vkDestroyDescriptorSetLayout(handles.device, setLayout, nullptr);
+    }
+
+    bool init(const std::string &source, VSCore *core, const VSAPI *vsapi, std::string &error) {
+        char err[512] = { 0 };
+        vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
+        if (!vkapi) { error = "the GPU API is not available"; return false; }
+        if (vkapi->getVulkanHandles(core, &handles, err, sizeof(err))) { error = err; return false; }
+        vk = vkapi->getVulkanFunctions(core, err, sizeof(err));
+        if (!vk) { error = err; return false; }
+
+        VSGPUShader *shader = vkapi->compileGPUShader(core, slGLSL, source.c_str(), err, sizeof(err));
+        if (!shader) { error = std::string("reduction kernel failed to compile: ") + err; return false; }
+        size_t spirvBytes = 0;
+        const uint32_t *spirv = vkapi->getGPUShaderCode(shader, &spirvBytes);
+
+        VkDescriptorSetLayoutBinding bindings[3] = {};
+        for (int i = 0; i < 3; i++) {
+            bindings[i].binding = i;
+            bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            bindings[i].descriptorCount = 1;
+            bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        }
+        VkDescriptorSetLayoutCreateInfo setInfo = {};
+        setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        setInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT;
+        setInfo.bindingCount = 3;
+        setInfo.pBindings = bindings;
+        VkResult vr = vk->vkCreateDescriptorSetLayout(handles.device, &setInfo, nullptr, &setLayout);
+
+        VkPushConstantRange range = {};
+        range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        range.size = sizeof(ReducePush);
+        VkPipelineLayoutCreateInfo layoutInfo = {};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layoutInfo.setLayoutCount = 1;
+        layoutInfo.pSetLayouts = &setLayout;
+        layoutInfo.pushConstantRangeCount = 1;
+        layoutInfo.pPushConstantRanges = &range;
+        if (vr == VK_SUCCESS)
+            vr = vk->vkCreatePipelineLayout(handles.device, &layoutInfo, nullptr, &pipeLayout);
+
+        VkShaderModuleCreateInfo moduleInfo = {};
+        moduleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        moduleInfo.codeSize = spirvBytes;
+        moduleInfo.pCode = spirv;
+        VkComputePipelineCreateInfo pipeInfo = {};
+        pipeInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipeInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        pipeInfo.stage.pNext = &moduleInfo;
+        pipeInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        pipeInfo.stage.pName = "main";
+        pipeInfo.layout = pipeLayout;
+        if (vr == VK_SUCCESS)
+            vr = vk->vkCreateComputePipelines(handles.device, VK_NULL_HANDLE, 1, &pipeInfo, nullptr, &pipeline);
+        vkapi->freeGPUShader(shader);
+        if (vr != VK_SUCCESS) { error = "failed to build the reduction pipeline"; return false; }
+
+        pool = vkapi->createGPUExecPool(core, vqCompute, 2, err, sizeof(err));
+        if (!pool) { error = err; return false; }
+        return true;
+    }
+
+    /* Runs one plane and blocks until the records are readable. The partial buffer is host
+       visible, so the kernel writes where the host will read and there is no staging copy;
+       the wait is what makes this filter different from every other one here. */
+    bool run(const VSFrame *src, const VSFrame *src2, int plane, const ReducePush &basePush,
+             std::vector<ReduceRecord> &out, VSCore *core, const VSAPI *vsapi, std::string &error) {
+        VSVulkanPlaneInfo p1, p2;
+        if (vkapi->getGPUPlane(src, plane, &p1)) { error = "source is not GPU resident"; return false; }
+        if (src2 && vkapi->getGPUPlane(src2, plane, &p2)) { error = "second clip is not GPU resident"; return false; }
+
+        ReducePush push = basePush;
+        const uint32_t groupsX = (push.width + reduceGroup - 1) / reduceGroup;
+        const uint32_t groupsY = (push.height + reduceGroup - 1) / reduceGroup;
+        push.groupsX = groupsX;
+        const size_t records = static_cast<size_t>(groupsX) * groupsY;
+
+        char err[512] = { 0 };
+        VSVulkanBufferInfo info = {};
+        VSGPUBuffer *partials = vkapi->createGPUBuffer(core, records * sizeof(ReduceRecord),
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 0,
+            &info, err, sizeof(err));
+        if (!partials) { error = err; return false; }
+
+        VSGPUExecContext *ctx = vkapi->gpuExecAcquire(pool, err, sizeof(err));
+        if (!ctx) { error = err; vkapi->destroyGPUBuffer(partials); return false; }
+        vkapi->gpuExecReadsFrame(ctx, src);
+        if (src2)
+            vkapi->gpuExecReadsFrame(ctx, src2);
+
+        VkCommandBuffer cmd = vkapi->gpuExecCommandBuffer(ctx);
+        VkDescriptorBufferInfo bi[3] = {};
+        bi[0].buffer = p1.buffer;                     bi[0].range = VK_WHOLE_SIZE;
+        bi[1].buffer = src2 ? p2.buffer : p1.buffer;  bi[1].range = VK_WHOLE_SIZE;
+        bi[2].buffer = info.buffer;                   bi[2].range = VK_WHOLE_SIZE;
+        VkWriteDescriptorSet writes[3] = {};
+        for (int i = 0; i < 3; i++) {
+            writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[i].dstBinding = i;
+            writes[i].descriptorCount = 1;
+            writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            writes[i].pBufferInfo = &bi[i];
+        }
+        vk->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+        vk->vkCmdPushDescriptorSet(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeLayout, 0, 3, writes);
+        VkPushConstantsInfo pushInfo = {};
+        pushInfo.sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO;
+        pushInfo.layout = pipeLayout;
+        pushInfo.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        pushInfo.size = sizeof(push);
+        pushInfo.pValues = &push;
+        vk->vkCmdPushConstants2(cmd, &pushInfo);
+        vk->vkCmdDispatch(cmd, groupsX, groupsY, 1);
+
+        if (vkapi->gpuExecSubmit(ctx, err, sizeof(err))) {
+            error = err;
+            vkapi->destroyGPUBuffer(partials);
+            return false;
+        }
+        if (vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err))) {
+            error = err;
+            vkapi->destroyGPUBuffer(partials);
+            return false;
+        }
+
+        out.resize(records);
+        std::memcpy(out.data(), info.mapped, records * sizeof(ReduceRecord));
+        vkapi->destroyGPUBuffer(partials);
+        return true;
+    }
+};
+
 static const VSFrame *VS_CC pemVerifierGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     PEMVerifierData *d = reinterpret_cast<PEMVerifierData *>(instanceData);
 
@@ -2432,6 +2676,8 @@ typedef struct {
     std::string propDiff;
     int plane;
     int cpulevel;
+    bool gpu;
+    std::shared_ptr<GPUReducer> reducer;
 } PlaneStatsDataExtra;
 
 typedef DualNodeData<PlaneStatsDataExtra> PlaneStatsData;
@@ -2450,9 +2696,65 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(dst);
         int width = vsapi->getFrameWidth(src1, d->plane);
         int height = vsapi->getFrameHeight(src1, d->plane);
-        const uint8_t *srcp = vsapi->getReadPtr(src1, d->plane);
-        ptrdiff_t src_stride = vsapi->getStride(src1, d->plane);
         union vs_plane_stats stats = {};
+
+        if (d->gpu) {
+            /* copyFrame shares the GPU planes rather than copying them, which is exactly
+               right here: this filter only adds properties, it never writes samples. */
+            const bool isFloat = fi->sampleType == stFloat;
+            ReducePush push = {};
+            push.width = width;
+            push.height = height;
+            push.srcStride = static_cast<uint32_t>(vsapi->getStride(src1, d->plane) / fi->bytesPerSample);
+            push.src2Stride = src2 ? static_cast<uint32_t>(vsapi->getStride(src2, d->plane) / fi->bytesPerSample) : 0;
+            push.hasSecond = src2 ? 1u : 0u;
+            push.isFloat = isFloat ? 1u : 0u;
+            push.maxval = (1u << fi->bitsPerSample) - 1;
+
+            std::vector<ReduceRecord> recs;
+            std::string error;
+            if (!d->reducer->run(src1, src2, d->plane, push, recs, core, vsapi, error)) {
+                vsapi->setFilterError(("PlaneStats: " + error).c_str(), frameCtx);
+                vsapi->freeFrame(src1);
+                vsapi->freeFrame(src2);
+                vsapi->freeFrame(dst);
+                return nullptr;
+            }
+
+            /* The host finishes what the workgroups started, in the same accumulator width
+               the scalar path uses -- which is what makes the integer total identical
+               rather than merely close. */
+            if (isFloat) {
+                stats.f.min = INFINITY;
+                stats.f.max = -INFINITY;
+                for (const ReduceRecord &r : recs) {
+                    float mn, mx, ac, dc;
+                    std::memcpy(&mn, &r.a, 4); std::memcpy(&mx, &r.b, 4);
+                    std::memcpy(&ac, &r.c, 4); std::memcpy(&dc, &r.d, 4);
+                    stats.f.min = std::min(stats.f.min, mn);
+                    stats.f.max = std::max(stats.f.max, mx);
+                    stats.f.acc += ac;
+                    stats.f.diffacc += dc;
+                }
+            } else {
+                stats.i.min = UINT_MAX;
+                stats.i.max = 0;
+                for (const ReduceRecord &r : recs) {
+                    stats.i.min = std::min<unsigned>(stats.i.min, r.a);
+                    stats.i.max = std::max<unsigned>(stats.i.max, r.b);
+                    stats.i.acc += r.c;
+                    stats.i.diffacc += r.d;
+                }
+            }
+
+            vsapi->freeFrame(src1);
+            vsapi->freeFrame(src2);
+            src1 = src2 = nullptr;
+        }
+
+        const uint8_t *srcp = d->gpu ? nullptr : vsapi->getReadPtr(src1, d->plane);
+        ptrdiff_t src_stride = d->gpu ? 0 : vsapi->getStride(src1, d->plane);
+        if (!d->gpu)
 
         if (src2) {
             const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
@@ -2578,8 +2880,18 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     d->propDiff = tempprop + "Diff";
     d->cpulevel = vs_get_cpulevel(core);
 
+    d->gpu = vsapi->getNodeResidency(d->node1) == nrGPU;
+    if (d->node2 && (vsapi->getNodeResidency(d->node2) == nrGPU) != d->gpu)
+        RETERROR("PlaneStats: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+    if (d->gpu) {
+        d->reducer = std::make_shared<GPUReducer>();
+        std::string error;
+        if (!d->reducer->init(reduceKernel(vi->format), core, vsapi, error))
+            RETERROR(("PlaneStats: " + error).c_str());
+    }
+
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, !d->node2 ? 0 : (vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
-    vsapi->createVideoFilter(out, "PlaneStats", vi, planeStatsGetFrame, filterFree<PlaneStatsData>, fmParallel, deps, d->node2 ? 2 : 1, d.get(), core);
+    vsapi->createVideoFilterEx(out, "PlaneStats", vi, planeStatsGetFrame, filterFree<PlaneStatsData>, fmParallel, d->gpu ? ffGPUOutput : 0, deps, d->node2 ? 2 : 1, d.get(), core);
     d.release();
 }
 
@@ -3119,7 +3431,7 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("ModifyFrame", "clip:vnode:all;clips:vnode[]:all;selector:func;", "clip:vnode:all;", modifyFrameCreate, 0, plugin);
     vspapi->registerFunction("Transpose", "clip:vnode:all;", "clip:vnode:all;", transposeCreate, 0, plugin);
     vspapi->registerFunction("PEMVerifier", "clip:vnode;upper:float[]:opt;lower:float[]:opt;", "clip:vnode;", pemVerifierCreate, 0, plugin);
-    vspapi->registerFunction("PlaneStats", "clipa:vnode;clipb:vnode:opt;plane:int:opt;prop:data:opt;", "clip:vnode;", planeStatsCreate, 0, plugin);
+    vspapi->registerFunction("PlaneStats", "clipa:vnode:all;clipb:vnode:all:opt;plane:int:opt;prop:data:opt;", "clip:vnode:all;", planeStatsCreate, 0, plugin);
     vspapi->registerFunction("ClipToProp", "clip:vnode:all;mclip:vnode:all;prop:data:opt;", "clip:vnode:all;", clipToPropCreate, 0, plugin);
     vspapi->registerFunction("PropToClip", "clip:vnode:all;prop:data:opt;index:int:opt;", "clip:vnode:all;", propToClipCreate, 0, plugin);
     vspapi->registerFunction("SetFrameProp", "clip:vnode:all;prop:data;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode:all;", setFramePropCreate, 0, plugin);
