@@ -86,6 +86,14 @@ struct Pass {
     /* Dispatch geometry comes from the output plane by default, which is what geometry
        changing filters need; passes writing scratch shaped like the source say so. */
     bool geometryFromSource = false;
+    /* Dispatch over this binding's plane instead. Needed when the passes of one filter have
+       different shapes -- a stack runs one pass per input, each sized to that input -- which
+       geometryFromSource cannot express, since it always means clip 0. -1 leaves it off. */
+    int geometryFromBinding = -1;
+    /* Drop the barrier before this pass. Only for a pass that cannot observe what an earlier
+       one in the same submission wrote: disjoint output regions, typically. The default is
+       the safe one, so this is opt in per pass. */
+    bool independent = false;
 };
 
 /* Everything the push constant callback could want about the dispatch it is filling. The
@@ -395,7 +403,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                 writes[b].pBufferInfo = &bufferInfo[b];
             }
 
-            if (!firstDispatch)
+            if (!firstDispatch && !pass.independent)
                 barrier(inst->vk, cmd);
             firstDispatch = false;
 
@@ -404,6 +412,11 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                 0, static_cast<uint32_t>(pass.bindings.size()), writes);
 
             const VSFrame *geometry = pass.geometryFromSource && first ? first : dst;
+            if (pass.geometryFromBinding >= 0 && pass.geometryFromBinding < static_cast<int>(pass.bindings.size())) {
+                const Operand &g = pass.bindings[pass.geometryFromBinding];
+                if (g.kind == Operand::SourcePlane)
+                    geometry = fetch(g.clip, g.frameOffset);
+            }
             info.width = static_cast<uint32_t>(vsapi->getFrameWidth(geometry, p));
             info.height = static_cast<uint32_t>(vsapi->getFrameHeight(geometry, p));
             info.srcWidth = static_cast<uint32_t>(vsapi->getFrameWidth(first ? first : dst, p));

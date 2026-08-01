@@ -1311,6 +1311,96 @@ typedef struct {
 
 typedef VariableNodeData<StackDataExtra> StackData;
 
+/* A plain strided copy from one input into an offset rectangle of the output. This is one of
+   the few filters that does not fit SimpleFilter -- the input count is unbounded where that
+   layer stops at three, and each pass is shaped by its own input rather than by the output --
+   so it declares a FilterDesc directly, which is exactly the escape hatch that exists for it. */
+static const char stackGlsl[] =
+    "#extension GL_EXT_shader_8bit_storage : require\n"
+    "#extension GL_EXT_shader_16bit_storage : require\n"
+    "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
+    "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
+    "\n"
+    "layout(local_size_x = 16, local_size_y = 16) in;\n"
+    "layout(std430, set = 0, binding = 0) readonly buffer Src { SAMPLE_T srcData[]; };\n"
+    "layout(std430, set = 0, binding = 1) writeonly buffer Dst { SAMPLE_T dstData[]; };\n"
+    "layout(push_constant) uniform PC {\n"
+    "    uint width, height, srcStride, dstStride, dstX, dstY;\n"
+    "} pc;\n"
+    "\n"
+    "void main() {\n"
+    "    uint x = gl_GlobalInvocationID.x;\n"
+    "    uint y = gl_GlobalInvocationID.y;\n"
+    "    if (x >= pc.width || y >= pc.height) return;\n"
+    "    dstData[(y + pc.dstY) * pc.dstStride + (x + pc.dstX)] = srcData[y * pc.srcStride + x];\n"
+    "}\n";
+
+struct StackPush {
+    uint32_t width, height, srcStride, dstStride, dstX, dstY;
+};
+
+/* Consumes the nodes either way, like the rest of the GPU creates here. */
+static VSNode *createGPUStack(std::vector<VSNode *> &nodes, bool vertical, const VSVideoInfo *vi,
+    const VSFilterDependency *deps, int numDeps, VSCore *core, const VSAPI *vsapi, std::string &error) {
+    const int numclips = static_cast<int>(nodes.size());
+
+    /* Stacking moves samples without looking at them, so the kernel only needs a type of the
+       right width -- uint for 32 bit rather than a float that would need another extension. */
+    std::string preamble = "#version 460\n";
+    if (vi->format.bytesPerSample == 1)
+        preamble += "#define SAMPLE_T uint8_t\n";
+    else if (vi->format.bytesPerSample == 2)
+        preamble += "#define SAMPLE_T uint16_t\n";
+    else
+        preamble += "#define SAMPLE_T uint\n";
+
+    vsgpu::FilterDesc desc;
+    desc.vi = *vi;
+    desc.nodes = nodes;
+
+    vsgpu::Program program;
+    program.glsl = preamble + stackGlsl;
+    program.storageBufferCount = 2;
+    program.pushConstantBytes = sizeof(StackPush);
+    desc.programs.push_back(std::move(program));
+
+    /* Where each input lands, per plane, accumulated in plane coordinates so subsampling
+       falls out of the per plane sizes rather than needing a shift here. */
+    std::vector<std::array<uint32_t, 3>> offset(numclips);
+    std::array<uint32_t, 3> running = { 0, 0, 0 };
+    for (int i = 0; i < numclips; i++) {
+        const VSVideoInfo *cvi = vsapi->getVideoInfo(nodes[i]);
+        for (int p = 0; p < 3; p++) {
+            offset[i][p] = running[p];
+            running[p] += vertical ? static_cast<uint32_t>(planeHeight(cvi, p))
+                                   : static_cast<uint32_t>(planeWidth(cvi, p));
+        }
+
+        vsgpu::Pass pass;
+        pass.bindings.push_back(vsgpu::Operand::source(i));
+        pass.bindings.push_back(vsgpu::Operand::output());
+        pass.geometryFromBinding = 0; /* this input's plane, not the stacked output */
+        pass.independent = true;      /* disjoint destination rectangles */
+        desc.passes.push_back(std::move(pass));
+    }
+
+    desc.fillPush = [offset, vertical](const vsgpu::PassInfo &info, void *pushData) {
+        StackPush push = {};
+        push.width = info.width;
+        push.height = info.height;
+        push.srcStride = info.srcStrideElements();
+        push.dstStride = info.dstStrideElements();
+        push.dstX = vertical ? 0 : offset[info.pass][info.plane];
+        push.dstY = vertical ? offset[info.pass][info.plane] : 0;
+        std::memcpy(pushData, &push, sizeof(push));
+    };
+
+    VSNode *node = vsgpu::createFilter(vertical ? "StackVertical" : "StackHorizontal", desc,
+        deps, numDeps, core, vsapi, error);
+    nodes.clear(); /* createFilter took them */
+    return node;
+}
+
 static const VSFrame *VS_CC stackGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     StackData *d = reinterpret_cast<StackData *>(instanceData);
 
@@ -1394,7 +1484,33 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < numclips; i++)
             deps.push_back({d->nodes[i], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly});
-        vsapi->createVideoFilter(out, d->vertical ? "StackVertical" : "StackHorizontal", &d->vi, stackGetframe, filterFree<StackData>, fmParallel, deps.data(), numclips, d.get(), core);
+
+        const char *stackName = d->vertical ? "StackVertical" : "StackHorizontal";
+        bool allGPU = true, anyGPU = false;
+        for (int i = 0; i < numclips; i++) {
+            const bool gpu = vsapi->getNodeResidency(d->nodes[i]) == nrGPU;
+            allGPU = allGPU && gpu;
+            anyGPU = anyGPU || gpu;
+        }
+        if (anyGPU && !allGPU)
+            RETERROR((std::string(stackName) + ": clips are mismatched in residency; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match").c_str());
+
+        if (allGPU) {
+            /* One pass per input, each dispatched over its own plane and writing into its
+               own slice of the output. The passes never read what another wrote, so they
+               are declared independent and the driver leaves out the barriers between
+               them, letting the whole stack run as one wide submission. */
+            std::string error;
+            VSNode *result = createGPUStack(d->nodes, d->vertical, &d->vi, deps.data(), numclips, core, vsapi, error);
+            d->nodes.clear(); /* consumed on success and failure alike */
+            if (result)
+                vsapi->mapConsumeNode(out, "clip", result, maAppend);
+            else
+                vsapi->mapSetError(out, (std::string(stackName) + ": " + error).c_str());
+            return;
+        }
+
+        vsapi->createVideoFilter(out, stackName, &d->vi, stackGetframe, filterFree<StackData>, fmParallel, deps.data(), numclips, d.get(), core);
         d.release();
     }
 }
@@ -2910,8 +3026,8 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Turn180", "clip:vnode:all;", "clip:vnode:all;", flipHorizontalCreate, (void *)1, plugin);
     vspapi->registerFunction("Turn90", "clip:vnode:all;", "clip:vnode:all;", transposeCreate, (void *)tmTurn90, plugin);
     vspapi->registerFunction("Turn270", "clip:vnode:all;", "clip:vnode:all;", transposeCreate, (void *)tmTurn270, plugin);
-    vspapi->registerFunction("StackVertical", "clips:vnode[];", "clip:vnode;", stackCreate, (void *)1, plugin);
-    vspapi->registerFunction("StackHorizontal", "clips:vnode[];", "clip:vnode;", stackCreate, 0, plugin);
+    vspapi->registerFunction("StackVertical", "clips:vnode[]:all;", "clip:vnode:all;", stackCreate, (void *)1, plugin);
+    vspapi->registerFunction("StackHorizontal", "clips:vnode[]:all;", "clip:vnode:all;", stackCreate, 0, plugin);
     vspapi->registerFunction("BlankClip", "clip:vnode:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;varsize:int:opt;varformat:int:opt;", "clip:vnode;", blankClipCreate, 0, plugin);
     vspapi->registerFunction("AssumeFPS", "clip:vnode:all;src:vnode:all:opt;fpsnum:int:opt;fpsden:int:opt;", "clip:vnode:all;", assumeFPSCreate, 0, plugin);
     vspapi->registerFunction("FrameEval", "clip:vnode:all;eval:func;prop_src:vnode[]:all:opt;clip_src:vnode[]:all:opt;", "clip:vnode:all;", frameEvalCreate, 0, plugin);
