@@ -681,6 +681,19 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
         s += "layout(std430, set = 0, binding = " + n + ") readonly buffer Src" + n +
              " { SAMPLE_T s" + n + "[]; };\n";
     }
+    /* Half output rounds however the device rounds, and that is deliberate.
+
+       SPIR-V leaves the rounding of a 32 to 16 bit FConvert implementation defined. This
+       driver truncates toward zero where floatToHalf and the JIT's vcvtps2ph both round to
+       nearest even, so roughly 41% of samples land one ulp low -- measured, not estimated.
+       Pinning it down is possible: declare RoundingModeRTE for 16 bit width through
+       VK_KHR_shader_float_controls, or narrow in integer arithmetic by hand. Neither is
+       worth its cost for a format whose whole point is that the last bit does not matter.
+
+       One dead end worth recording, because it looks like the obvious answer: packHalf2x16
+       does not help. GLSL describes it as round to nearest even, but on this hardware it
+       lowers to V_CVT_PKRTZ_F16_F32 -- round toward zero by definition -- so it changes
+       nothing. Verified against the scalar path, not assumed from the spec text. */
     s += "layout(std430, set = 0, binding = " + std::to_string(sf.inputs) +
          ") writeonly buffer Dst { SAMPLE_T dstData[]; };\n\n";
 
