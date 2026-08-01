@@ -28,7 +28,9 @@
 #include <string>
 #include <algorithm>
 #include <type_traits>
+#include "gpufilter.h"
 #include "internalfilters.h"
+#include "VSVulkan4.h"
 #include "VSHelper4.h"
 #include "filtershared.h"
 #include "cpufeatures.h"
@@ -246,6 +248,31 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std::
         U *lut = reinterpret_cast<U *>(d->lut);
         for (size_t i = inrange; i < container; i++)
             lut[i] = lut[inrange - 1];
+    }
+
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        /* The table is already padded out to the container width above, so an out of range
+           sample indexes a defined entry and the kernel needs no clamp of its own. */
+        vsgpu::SimpleFilter sf;
+        sf.name = "Lut";
+        sf.srcFormat = &d->vi->format;
+        const std::string body = "    STORE(lut0[uint(SRC0(x, y))]);";
+        sf.bodyInt = body;
+        sf.bodyFloat = body;
+        for (int i = 0; i < 3; i++)
+            sf.process[i] = d->process[i];
+        const uint8_t *table = reinterpret_cast<const uint8_t *>(d->lut);
+        sf.constants.emplace_back(table, table + container * sizeof(U));
+
+        VSNode *node = d->node;
+        std::string error;
+        VSNode *result = vsgpu::createSimpleFilter(sf, &node, 1, &d->vi_out, core, vsapi, error);
+        d->node = nullptr;
+        if (result)
+            vsapi->mapConsumeNode(out, "clip", result, maAppend);
+        else
+            vsapi->mapSetError(out, ("Lut: " + error).c_str());
+        return;
     }
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
@@ -554,6 +581,40 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std:
     }
 #endif
 
+    const bool gpu1 = vsapi->getNodeResidency(d->node1) == nrGPU;
+    if (gpu1 != (vsapi->getNodeResidency(d->node2) == nrGPU))
+        RETERROR("Lut2: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+
+    if (gpu1) {
+        /* Indexed by both samples at once, y in the high bits, exactly how the table was
+           laid out on the host. */
+        vsgpu::SimpleFilter sf;
+        sf.name = "Lut2";
+        sf.inputs = 2;
+        sf.srcFormat = &d->vi[0]->format;
+        const std::string body =
+            "    uint idx = (uint(SRC1(x, y)) << pc.u[0]) | uint(SRC0(x, y));\n"
+            "    STORE(lut0[idx]);";
+        sf.bodyInt = body;
+        sf.bodyFloat = body;
+        for (int i = 0; i < 3; i++)
+            sf.process[i] = d->process[i];
+        const uint32_t shiftBits = d->vi[0]->format.bitsPerSample;
+        sf.fill = [shiftBits](int, float *, uint32_t *u) { u[0] = shiftBits; };
+        const uint8_t *table = reinterpret_cast<const uint8_t *>(d->lut);
+        sf.constants.emplace_back(table, table + static_cast<size_t>(inrange) * sizeof(V));
+
+        VSNode *nodes[2] = { d->node1, d->node2 };
+        std::string error;
+        VSNode *result = vsgpu::createSimpleFilter(sf, nodes, 2, &d->vi_out, core, vsapi, error);
+        d->node1 = d->node2 = nullptr;
+        if (result)
+            vsapi->mapConsumeNode(out, "clip", result, maAppend);
+        else
+            vsapi->mapSetError(out, ("Lut2: " + error).c_str());
+        return;
+    }
+
     VSFilterDependency deps[] = {{ d->node1, rpStrictSpatial }, { d->node2, (d->vi[0]->numFrames <= d->vi[1]->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }};
     vsapi->createVideoFilter(out, "Lut2", &d->vi_out, lut2Getframe<T, U, V>, filterFree<Lut2Data>, fmParallel, deps, 2, d.get(), core);
     d.release();
@@ -670,6 +731,6 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 // Init
 
 void lutInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->registerFunction("Lut", "clip:vnode;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", "clip:vnode;", lutCreate, 0, plugin);
-    vspapi->registerFunction("Lut2", "clipa:vnode;clipb:vnode;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", "clip:vnode;", lut2Create, 0, plugin);
+    vspapi->registerFunction("Lut", "clip:vnode:all;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", "clip:vnode:all;", lutCreate, 0, plugin);
+    vspapi->registerFunction("Lut2", "clipa:vnode:all;clipb:vnode:all;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", "clip:vnode:all;", lut2Create, 0, plugin);
 }

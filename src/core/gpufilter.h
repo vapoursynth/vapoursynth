@@ -57,7 +57,7 @@ constexpr int maxBindings = 32;
 /* What a pass binds at one descriptor slot. Never a VkBuffer: the driver resolves these to
    buffers per plane, which is what keeps a declaring filter free of Vulkan types. */
 struct Operand {
-    enum Kind { SourcePlane, OutputPlane, Scratch };
+    enum Kind { SourcePlane, OutputPlane, Scratch, Constant };
     Kind kind = SourcePlane;
     int clip = 0;         /* which source clip, for multi input filters */
     int frameOffset = 0;  /* temporal: 0 is the frame being produced */
@@ -68,6 +68,8 @@ struct Operand {
     }
     static Operand output() { Operand o; o.kind = OutputPlane; return o; }
     static Operand scratch(int slot) { Operand o; o.kind = Scratch; o.slot = slot; return o; }
+    /* Data uploaded once at create and read by every frame: a lookup table, typically. */
+    static Operand constant(int slot) { Operand o; o.kind = Constant; o.slot = slot; return o; }
 };
 
 /* A kernel, given either as source for the driver to compile or as SPIR-V a filter built
@@ -134,6 +136,10 @@ struct FilterDesc {
        not the oldest frame in the window, which is what the fetch order would otherwise give. */
     int refClip = 0;
     int refOffset = 0;
+    /* Blobs uploaded to device local memory at create, addressed by Operand::constant.
+       Device local rather than host visible because the reads are random per pixel, which
+       over PCIe would cost more than the filter saves. */
+    std::vector<std::vector<uint8_t>> constants;
     VSVideoInfo vi = {};
     /* Fills pushConstantBytes worth of push constants for one dispatch. */
     std::function<void(const PassInfo &, void *push)> fillPush;
@@ -170,12 +176,18 @@ struct Instance {
     VkPipelineLayout pipeLayouts[8] = {};
     VkPipeline pipelines[8] = {};
     int pipelineCount = 0;
+    std::vector<VSGPUBuffer *> constantBuffers;
+    std::vector<VSVulkanBufferInfo> constantInfo;
 
     ~Instance() {
         if (!vk)
             return;
+        /* The pool drains the device before it returns, so anything a submission was
+           still reading is safe to destroy only after this point. */
         if (pool)
             vkapi->freeGPUExecPool(pool);
+        for (VSGPUBuffer *b : constantBuffers)
+            vkapi->destroyGPUBuffer(b);
         for (int i = 0; i < pipelineCount; i++) {
             if (pipelines[i])
                 vk->vkDestroyPipeline(handles.device, pipelines[i], nullptr);
@@ -406,6 +418,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                     strideElems = static_cast<uint32_t>(vsapi->getStride(srcFrame, p) / srcFmt->bytesPerSample);
                 } else if (op.kind == Operand::OutputPlane) {
                     buffer = dstPlane.buffer;
+                } else if (op.kind == Operand::Constant) {
+                    buffer = inst->constantInfo[op.slot].buffer;
                 } else {
                     buffer = scratch[op.slot].buffer;
                 }
@@ -580,6 +594,55 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
     if (!inst->pool)
         return fail(err);
 
+    /* Constants are staged and copied once, here, so every frame afterwards reads device
+       local memory. The staging buffer is handed to the context, which destroys it when the
+       copy retires; the device local one belongs to the instance and outlives every
+       submission, which the pool guarantees by draining before it is freed. */
+    for (const std::vector<uint8_t> &blob : desc.constants) {
+        if (blob.empty())
+            return fail("a constant buffer cannot be empty");
+
+        VSVulkanBufferInfo deviceInfo = {}, stagingInfo = {};
+        VSGPUBuffer *device = inst->vkapi->createGPUBuffer(core, blob.size(),
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, &deviceInfo, err, sizeof(err));
+        if (!device)
+            return fail(err);
+        inst->constantBuffers.push_back(device);
+        inst->constantInfo.push_back(deviceInfo);
+
+        VSGPUBuffer *staging = inst->vkapi->createGPUBuffer(core, blob.size(),
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 0,
+            &stagingInfo, err, sizeof(err));
+        if (!staging)
+            return fail(err);
+        std::memcpy(stagingInfo.mapped, blob.data(), blob.size());
+
+        VSGPUExecContext *ctx = inst->vkapi->gpuExecAcquire(inst->pool, err, sizeof(err));
+        if (!ctx) {
+            inst->vkapi->destroyGPUBuffer(staging);
+            return fail(err);
+        }
+        inst->vkapi->gpuExecUsesBuffer(ctx, staging);
+        VkBufferCopy2 region = {};
+        region.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
+        region.size = blob.size();
+        VkCopyBufferInfo2 copyInfo = {};
+        copyInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
+        copyInfo.srcBuffer = stagingInfo.buffer;
+        copyInfo.dstBuffer = deviceInfo.buffer;
+        copyInfo.regionCount = 1;
+        copyInfo.pRegions = &region;
+        inst->vk->vkCmdCopyBuffer2(inst->vkapi->gpuExecCommandBuffer(ctx), &copyInfo);
+        if (inst->vkapi->gpuExecSubmit(ctx, err, sizeof(err)))
+            return fail(err);
+    }
+    /* The first frame must not race the upload, and there is no producer pair on a buffer
+       to wait on, so this is the one place the driver blocks. */
+    if (!desc.constants.empty() && inst->vkapi->gpuExecPoolWaitIdle(inst->pool, err, sizeof(err)))
+        return fail(err);
+
     VSNode *node = vsapi->createVideoFilterEx2(name, &inst->desc.vi, detail::driverGetFrame, detail::driverFree,
         fmParallel, ffGPUOutput, deps, numDeps, inst.get(), core);
     if (!node)
@@ -628,6 +691,14 @@ struct SimpleFilter {
     std::string bodyFloat;
     /* Anything the body needs beyond the macros: helper functions, extra defines. */
     std::string prelude;
+    /* Set when the sources are not in the output's format -- Lut writing a different depth,
+       MakeFullDiff widening by a bit. Sources are declared with this type and SRCn yields
+       it; the destination keeps the output format either way. */
+    const VSVideoFormat *srcFormat = nullptr;
+    /* Uploaded once at create and bound after the output, readable as lut0, lut1, ... */
+    std::vector<std::vector<uint8_t>> constants;
+    /* The element type the constants are read as; defaults to the output's. */
+    const char *constantType = nullptr;
     bool process[3] = { true, true, true };
     int shareClip[3] = { 0, 0, 0 }; /* source for planes this filter does not compute */
     /* Fills the per plane parameter block. Called once per plane per frame. */
@@ -647,9 +718,19 @@ struct SimpleFilter {
 
 namespace detail {
 
+inline const char *sampleTypeName(const VSVideoFormat &f) {
+    if (f.sampleType == stFloat)
+        return f.bytesPerSample == 2 ? "float16_t" : "float";
+    return f.bytesPerSample == 1 ? "uint8_t" : "uint16_t";
+}
+
 inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt) {
     const bool isFloat = fmt.sampleType == stFloat;
-    const bool isHalf = isFloat && fmt.bytesPerSample == 2;
+    /* The sources may be in a different format than the output; SRC_T covers them and
+       SAMPLE_T the destination, which are the same type unless a filter says otherwise. */
+    const VSVideoFormat &srcFmt = sf.srcFormat ? *sf.srcFormat : fmt;
+    const bool isHalf = (isFloat && fmt.bytesPerSample == 2) ||
+                        (srcFmt.sampleType == stFloat && srcFmt.bytesPerSample == 2);
 
     std::string s = "#version 460\n";
     if (isHalf)
@@ -658,6 +739,8 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
         s += "#define SAMPLE_T float\n";
     else
         s += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
+    s += std::string("#define SRC_T ") + sampleTypeName(srcFmt) + "\n";
+    s += std::string("#define LUT_T ") + (sf.constantType ? sf.constantType : sampleTypeName(fmt)) + "\n";
 
     s += "#extension GL_EXT_shader_8bit_storage : require\n"
          "#extension GL_EXT_shader_16bit_storage : require\n"
@@ -679,7 +762,7 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
     for (int i = 0; i < sf.inputs; i++) {
         const std::string n = std::to_string(i);
         s += "layout(std430, set = 0, binding = " + n + ") readonly buffer Src" + n +
-             " { SAMPLE_T s" + n + "[]; };\n";
+             " { SRC_T s" + n + "[]; };\n";
     }
     /* Half output rounds however the device rounds, and that is deliberate.
 
@@ -695,7 +778,13 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
        lowers to V_CVT_PKRTZ_F16_F32 -- round toward zero by definition -- so it changes
        nothing. Verified against the scalar path, not assumed from the spec text. */
     s += "layout(std430, set = 0, binding = " + std::to_string(sf.inputs) +
-         ") writeonly buffer Dst { SAMPLE_T dstData[]; };\n\n";
+         ") writeonly buffer Dst { SAMPLE_T dstData[]; };\n";
+    for (size_t i = 0; i < sf.constants.size(); i++) {
+        const std::string ci = std::to_string(i);
+        s += "layout(std430, set = 0, binding = " + std::to_string(sf.inputs + 1 + static_cast<int>(i)) +
+             ") readonly buffer Lut" + ci + " { LUT_T lut" + ci + "[]; };\n";
+    }
+    s += "\n";
 
     /* Two edge rules, because the CPU tree uses both: SRCn replicates the edge sample,
        MSRCn reflects around it half-sample symmetrically. Which one a filter wants is a
@@ -777,14 +866,19 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
 
     Program program;
     program.glsl = detail::simpleSource(sf, vi->format);
-    program.storageBufferCount = sf.inputs + 1;
+    program.storageBufferCount = sf.inputs + 1 + static_cast<int>(sf.constants.size());
     program.pushConstantBytes = sizeof(SimplePush);
     desc.programs.push_back(std::move(program));
 
+    /* Constants bind after the output, matching the order simpleSource declares them in.
+       They are last so srcStrideElements and dstStrideElements keep meaning what they did. */
+    desc.constants = sf.constants;
     Pass pass;
     for (int i = 0; i < sf.inputs; i++)
         pass.bindings.push_back(Operand::source(i));
     pass.bindings.push_back(Operand::output());
+    for (size_t i = 0; i < sf.constants.size(); i++)
+        pass.bindings.push_back(Operand::constant(static_cast<int>(i)));
     desc.passes.push_back(std::move(pass));
 
     desc.finishFrame = sf.finishFrame;
@@ -794,15 +888,17 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
 
     const auto fill = sf.fill;
     const auto fillFrame = sf.fillFrame;
-    desc.fillPush = [fill, fillFrame](const PassInfo &info, void *pushData) {
+    /* The output is at this binding, not at the end: constants follow it. */
+    const int dstBinding = sf.inputs;
+    desc.fillPush = [fill, fillFrame, dstBinding](const PassInfo &info, void *pushData) {
         SimplePush push = {};
         push.width = info.width;
         push.height = info.height;
         push.srcWidth = info.srcWidth;
         push.srcHeight = info.srcHeight;
-        for (int i = 0; i < simpleMaxInputs && i < info.bindingCount - 1; i++)
+        for (int i = 0; i < simpleMaxInputs && i < dstBinding; i++)
             push.srcStride[i] = info.strideElements[i];
-        push.dstStride = info.dstStrideElements();
+        push.dstStride = info.strideElements[dstBinding];
         if (fillFrame)
             fillFrame(info.plane, info.frameParams, push.f, push.u);
         else if (fill)
