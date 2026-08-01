@@ -32,6 +32,7 @@
 #include "VSConstants4.h"
 #include "cpufeatures.h"
 #include "internalfilters.h"
+#include <array>
 #include "filtershared.h"
 #include "gpufilter.h"
 #include "VSVulkan4.h"
@@ -217,6 +218,42 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     vi.height = d->height;
     vi.width = d->width;
 
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        vsgpu::SimpleFilter sf;
+        sf.name = "Crop";
+        /* The corner is a luma coordinate, so each plane shifts it by its own subsampling.
+           fill already runs per plane, which is all this needs. */
+        const std::string body = "    STORE(GSRC0(x + int(pc.u[0]), y + int(pc.u[1])));";
+        sf.bodyInt = body;
+        sf.bodyFloat = body;
+        const int cx = d->x, cy = d->y;
+        const int subW = d->vi->format.subSamplingW, subH = d->vi->format.subSamplingH;
+        sf.fill = [cx, cy, subW, subH](int plane, float *, uint32_t *u) {
+            u[0] = cx >> (plane ? subW : 0);
+            u[1] = cy >> (plane ? subH : 0);
+        };
+        /* Cropping an odd number of lines swaps which field the first line belongs to. */
+        if (cy & 1) {
+            sf.finishFrame = [](int, VSFrame *dst, const VSFrame *const *, int, const uint32_t *,
+                    VSCore *, const VSAPI *vsapi) {
+                VSMap *props = vsapi->getFramePropertiesRW(dst);
+                int error;
+                int64_t fb = vsapi->mapGetInt(props, "_FieldBased", 0, &error);
+                if (fb == VSC_FIELD_BOTTOM || fb == VSC_FIELD_TOP)
+                    vsapi->mapSetInt(props, "_FieldBased", (fb == VSC_FIELD_BOTTOM) ? VSC_FIELD_TOP : VSC_FIELD_BOTTOM, maReplace);
+            };
+        }
+        VSNode *node = d->node;
+        std::string error;
+        VSNode *result = vsgpu::createSimpleFilter(sf, &node, 1, &vi, core, vsapi, error);
+        d->node = nullptr;
+        if (result)
+            vsapi->mapConsumeNode(out, "clip", result, maAppend);
+        else
+            vsapi->mapSetError(out, ("Crop: " + error).c_str());
+        return;
+    }
+
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     vsapi->createVideoFilter(out, "Crop", &vi, cropGetframe, filterFree<CropData>, fmParallel, deps, 1, d.release(), core);
 }
@@ -250,6 +287,42 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
     VSVideoInfo vi = *d->vi;
     vi.height = d->height;
     vi.width = d->width;
+
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        vsgpu::SimpleFilter sf;
+        sf.name = "Crop";
+        /* The corner is a luma coordinate, so each plane shifts it by its own subsampling.
+           fill already runs per plane, which is all this needs. */
+        const std::string body = "    STORE(GSRC0(x + int(pc.u[0]), y + int(pc.u[1])));";
+        sf.bodyInt = body;
+        sf.bodyFloat = body;
+        const int cx = d->x, cy = d->y;
+        const int subW = d->vi->format.subSamplingW, subH = d->vi->format.subSamplingH;
+        sf.fill = [cx, cy, subW, subH](int plane, float *, uint32_t *u) {
+            u[0] = cx >> (plane ? subW : 0);
+            u[1] = cy >> (plane ? subH : 0);
+        };
+        /* Cropping an odd number of lines swaps which field the first line belongs to. */
+        if (cy & 1) {
+            sf.finishFrame = [](int, VSFrame *dst, const VSFrame *const *, int, const uint32_t *,
+                    VSCore *, const VSAPI *vsapi) {
+                VSMap *props = vsapi->getFramePropertiesRW(dst);
+                int error;
+                int64_t fb = vsapi->mapGetInt(props, "_FieldBased", 0, &error);
+                if (fb == VSC_FIELD_BOTTOM || fb == VSC_FIELD_TOP)
+                    vsapi->mapSetInt(props, "_FieldBased", (fb == VSC_FIELD_BOTTOM) ? VSC_FIELD_TOP : VSC_FIELD_BOTTOM, maReplace);
+            };
+        }
+        VSNode *node = d->node;
+        std::string error;
+        VSNode *result = vsgpu::createSimpleFilter(sf, &node, 1, &vi, core, vsapi, error);
+        d->node = nullptr;
+        if (result)
+            vsapi->mapConsumeNode(out, "clip", result, maAppend);
+        else
+            vsapi->mapSetError(out, ("Crop: " + error).c_str());
+        return;
+    }
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     vsapi->createVideoFilter(out, "Crop", &vi, cropGetframe, filterFree<CropData>, fmParallel, deps, 1, d.release(), core);
@@ -441,6 +514,52 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
 
     vi.height += vi.height ? (d->top + d->bottom) : 0;
     vi.width += vi.width ? (d->left + d->right) : 0;
+
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        vsgpu::SimpleFilter sf;
+        sf.name = "AddBorders";
+        /* Inside the pad the source is fetched shifted; outside it the border colour is
+           written. GSRC0 clamps, but the branch means it is never asked out of range. */
+        const std::string body =
+            "    int sx = x - int(pc.u[0]);\n"
+            "    int sy = y - int(pc.u[1]);\n"
+            "    bool inside = sx >= 0 && sy >= 0 && sx < int(pc.srcWidth) && sy < int(pc.srcHeight);\n";
+        sf.bodyInt = body + "    STORE(inside ? uint(GSRC0(sx, sy)) : pc.u[2]);";
+        sf.bodyFloat = body + "    STORE(inside ? float(GSRC0(sx, sy)) : pc.f[0]);";
+        const int left = d->left, top = d->top;
+        const int subW = vi.format.subSamplingW, subH = vi.format.subSamplingH;
+        /* color holds raw sample bits, and which bits depends on the format: an integer
+           value, a float32 pattern, or a half pattern. Decode once here so the kernel only
+           ever sees a value. */
+        const bool isHalf = vi.format.sampleType == stFloat && vi.format.bytesPerSample == 2;
+        std::array<uint32_t, 3> colour;
+        std::array<float, 3> colourf;
+        for (int p = 0; p < 3; p++) {
+            colour[p] = d->color[p];
+            if (isHalf) {
+                colourf[p] = halfToFloat(static_cast<uint16_t>(d->color[p]));
+            } else {
+                float asFloat;
+                std::memcpy(&asFloat, &d->color[p], sizeof(asFloat));
+                colourf[p] = asFloat;
+            }
+        }
+        sf.fill = [left, top, subW, subH, colour, colourf](int plane, float *f, uint32_t *u) {
+            u[0] = left >> (plane ? subW : 0);
+            u[1] = top >> (plane ? subH : 0);
+            u[2] = colour[plane];
+            f[0] = colourf[plane];
+        };
+        VSNode *node = d->node;
+        std::string error;
+        VSNode *result = vsgpu::createSimpleFilter(sf, &node, 1, &vi, core, vsapi, error);
+        d->node = nullptr;
+        if (result)
+            vsapi->mapConsumeNode(out, "clip", result, maAppend);
+        else
+            vsapi->mapSetError(out, ("AddBorders: " + error).c_str());
+        return;
+    }
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     vsapi->createVideoFilter(out, "AddBorders", &vi, addBordersGetframe, filterFree<AddBordersData>, fmParallel, deps, 1, d.release(), core);
@@ -773,6 +892,68 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     if (d->modifyDuration)
         muldivRational(&d->vi.fpsNum, &d->vi.fpsDen, 2, 1);
 
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        vsgpu::SimpleFilter sf;
+        sf.name = "SeparateFields";
+        /* Two output frames per source frame, each taking every other line. */
+        sf.mapFrame = [](int n, int, int) { return n / 2; };
+        /* Which line the field starts on is decided by _FieldBased on the frame, so it can
+           only be known once the frame is here; params[0] carries it to the kernel. */
+        const int tff = d->tff;
+        sf.prepareParams = 1;
+        sf.prepare = [tff](int n, const VSFrame *const *sources, int, const VSAPI *vsapi,
+                uint32_t *params, std::string &error) {
+            int err = 0;
+            const int fieldBased = vsapi->mapGetIntSaturated(vsapi->getFramePropertiesRO(sources[0]), "_FieldBased", 0, &err);
+            int effectiveTFF = tff;
+            if (fieldBased == VSC_FIELD_BOTTOM)
+                effectiveTFF = 0;
+            else if (fieldBased == VSC_FIELD_TOP)
+                effectiveTFF = 1;
+            if (effectiveTFF == -1) {
+                error = "SeparateFields: no field order provided";
+                return false;
+            }
+            params[0] = static_cast<uint32_t>((n & 1) ^ effectiveTFF);
+            return true;
+        };
+        const std::string body = "    STORE(GSRC0(x, 2 * y + int(pc.u[0])));";
+        sf.bodyInt = body;
+        sf.bodyFloat = body;
+        /* The scalar path steps down a line when the parity is zero, so the parity is the
+           complement of the starting line. */
+        sf.fillFrame = [](int, const uint32_t *params, float *, uint32_t *u) {
+            u[0] = params[0] ? 0u : 1u;
+        };
+        const bool modifyDuration = d->modifyDuration;
+        sf.finishFrame = [modifyDuration](int, VSFrame *dst, const VSFrame *const *, int,
+                const uint32_t *params, VSCore *, const VSAPI *vsapi) {
+            VSMap *props = vsapi->getFramePropertiesRW(dst);
+            /* The same parity the kernel used to pick its starting line. */
+            vsapi->mapSetInt(props, "_Field", params[0], maReplace);
+            vsapi->mapDeleteKey(props, "_FieldBased");
+            if (modifyDuration) {
+                int errNum, errDen;
+                int64_t durationNum = vsapi->mapGetInt(props, "_DurationNum", 0, &errNum);
+                int64_t durationDen = vsapi->mapGetInt(props, "_DurationDen", 0, &errDen);
+                if (!errNum && !errDen) {
+                    muldivRational(&durationNum, &durationDen, 1, 2);
+                    vsapi->mapSetInt(props, "_DurationNum", durationNum, maReplace);
+                    vsapi->mapSetInt(props, "_DurationDen", durationDen, maReplace);
+                }
+            }
+        };
+        VSNode *node = d->node;
+        std::string error;
+        VSNode *result = vsgpu::createSimpleFilter(sf, &node, 1, &d->vi, core, vsapi, error);
+        d->node = nullptr;
+        if (result)
+            vsapi->mapConsumeNode(out, "clip", result, maAppend);
+        else
+            vsapi->mapSetError(out, ("SeparateFields: " + error).c_str());
+        return;
+    }
+
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
     vsapi->createVideoFilter(out, "SeparateFields", &d->vi, separateFieldsGetframe, filterFree<SeparateFieldsData>, fmParallel, deps, 1, d.get(), core);
     d.release();
@@ -877,6 +1058,67 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
 
     if (!isConstantVideoFormat(&d->vi))
         RETERROR("DoubleWeave: clip must have constant format and dimensions");
+
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        vsgpu::SimpleFilter sf;
+        sf.name = "DoubleWeave";
+        sf.inputs = 2;
+        /* Both inputs are the same clip, read one frame apart. */
+        sf.mapFrame = [](int n, int clip, int) { return n + clip; };
+        /* Which of the pair is the top field comes from _Field on the frames, falling back
+           to tff and the output parity exactly as the scalar path does. */
+        const int tff = d->tff;
+        sf.prepareParams = 1;
+        sf.prepare = [tff](int n, const VSFrame *const *sources, int, const VSAPI *vsapi,
+                uint32_t *params, std::string &error) {
+            int err;
+            int64_t field1 = vsapi->mapGetInt(vsapi->getFramePropertiesRO(sources[0]), "_Field", 0, &err);
+            if (err)
+                field1 = -1;
+            int64_t field2 = vsapi->mapGetInt(vsapi->getFramePropertiesRO(sources[1]), "_Field", 0, &err);
+            if (err)
+                field2 = -1;
+            /* Picked as frame pointers, not as field values, because that is what the
+               scalar path compares when it writes _FieldBased. At the last frame both
+               requests resolve to the same frame, and the identity that falls out of that
+               is the answer it gives -- inferring from the values instead would disagree. */
+            const VSFrame *srctop;
+            if (field1 == 0 && field2 == 1)
+                srctop = sources[1];
+            else if (field1 == 1 && field2 == 0)
+                srctop = sources[0];
+            else if (tff != -1)
+                srctop = ((n & 1) ^ tff) ? sources[0] : sources[1];
+            else {
+                error = "DoubleWeave: field order could not be determined from frame properties";
+                return false;
+            }
+            params[0] = (srctop == sources[0]) ? 1u : 0u;
+            return true;
+        };
+        const std::string body =
+            "    int row = y >> 1;\n"
+            "    bool wantTop = (y & 1) == 0;\n"
+            "    bool useFirst = wantTop == (pc.u[0] != 0u);\n";
+        sf.bodyInt = body + "    STORE(useFirst ? uint(GSRC0(x, row)) : uint(GSRC1(x, row)));";
+        sf.bodyFloat = body + "    STORE(useFirst ? float(GSRC0(x, row)) : float(GSRC1(x, row)));";
+        sf.fillFrame = [](int, const uint32_t *params, float *, uint32_t *u) { u[0] = params[0]; };
+        sf.finishFrame = [](int, VSFrame *dst, const VSFrame *const *, int, const uint32_t *params,
+                VSCore *, const VSAPI *vsapi) {
+            VSMap *props = vsapi->getFramePropertiesRW(dst);
+            vsapi->mapDeleteKey(props, "_Field");
+            vsapi->mapSetInt(props, "_FieldBased", 1 + params[0], maReplace);
+        };
+        VSNode *nodes[2] = { d->node, vsapi->addNodeRef(d->node) };
+        std::string error;
+        VSNode *result = vsgpu::createSimpleFilter(sf, nodes, 2, &d->vi, core, vsapi, error);
+        d->node = nullptr;
+        if (result)
+            vsapi->mapConsumeNode(out, "clip", result, maAppend);
+        else
+            vsapi->mapSetError(out, ("DoubleWeave: " + error).c_str());
+        return;
+    }
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
     vsapi->createVideoFilter(out, "DoubleWeave", &d->vi, doubleWeaveGetframe, filterFree<DoubleWeaveData>, fmParallel, deps, 1, d.get(), core);
@@ -2655,14 +2897,14 @@ static void VS_CC copyFramePropsCreate(const VSMap *in, VSMap *out, void *userDa
 // Init
 
 void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->registerFunction("CropAbs", "clip:vnode;width:int;height:int;left:int:opt;top:int:opt;x:int:opt;y:int:opt;", "clip:vnode;", cropAbsCreate, 0, plugin);
-    vspapi->registerFunction("CropRel", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode;", cropRelCreate, 0, plugin);
-    vspapi->registerFunction("Crop", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode;", cropRelCreate, 0, plugin);
-    vspapi->registerFunction("AddBorders", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", "clip:vnode;", addBordersCreate, 0, plugin);
+    vspapi->registerFunction("CropAbs", "clip:vnode:all;width:int;height:int;left:int:opt;top:int:opt;x:int:opt;y:int:opt;", "clip:vnode:all;", cropAbsCreate, 0, plugin);
+    vspapi->registerFunction("CropRel", "clip:vnode:all;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode:all;", cropRelCreate, 0, plugin);
+    vspapi->registerFunction("Crop", "clip:vnode:all;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode:all;", cropRelCreate, 0, plugin);
+    vspapi->registerFunction("AddBorders", "clip:vnode:all;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", "clip:vnode:all;", addBordersCreate, 0, plugin);
     vspapi->registerFunction("ShufflePlanes", "clips:vnode[]:all;planes:int[];colorfamily:int;prop_src:vnode:all:opt;", "clip:vnode:all;", shufflePlanesCreate, 0, plugin);
     vspapi->registerFunction("SplitPlanes", "clip:vnode:all;", "clip:vnode[]:all;", splitPlanesCreate, 0, plugin);
-    vspapi->registerFunction("SeparateFields", "clip:vnode;tff:int:opt;modify_duration:int:opt;", "clip:vnode;", separateFieldsCreate, 0, plugin);
-    vspapi->registerFunction("DoubleWeave", "clip:vnode;tff:int:opt;", "clip:vnode;", doubleWeaveCreate, 0, plugin);
+    vspapi->registerFunction("SeparateFields", "clip:vnode:all;tff:int:opt;modify_duration:int:opt;", "clip:vnode:all;", separateFieldsCreate, 0, plugin);
+    vspapi->registerFunction("DoubleWeave", "clip:vnode:all;tff:int:opt;", "clip:vnode:all;", doubleWeaveCreate, 0, plugin);
     vspapi->registerFunction("FlipVertical", "clip:vnode:all;", "clip:vnode:all;", flipVerticalCreate, 0, plugin);
     vspapi->registerFunction("FlipHorizontal", "clip:vnode:all;", "clip:vnode:all;", flipHorizontalCreate, 0, plugin);
     vspapi->registerFunction("Turn180", "clip:vnode:all;", "clip:vnode:all;", flipHorizontalCreate, (void *)1, plugin);

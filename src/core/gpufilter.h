@@ -99,6 +99,7 @@ struct PassInfo {
     uint32_t srcWidth = 0;  /* of clip 0's plane, which a geometry changing filter needs */
     uint32_t srcHeight = 0;
     uint32_t strideElements[8] = {}; /* per binding, in samples */
+    const uint32_t *frameParams = nullptr; /* whatever prepareFrame produced, if anything */
 
     uint32_t srcStrideElements() const { return strideElements[0]; }
     uint32_t dstStrideElements() const { return strideElements[bindingCount - 1]; }
@@ -118,6 +119,25 @@ struct FilterDesc {
     VSVideoInfo vi = {};
     /* Fills pushConstantBytes worth of push constants for one dispatch. */
     std::function<void(const PassInfo &, void *push)> fillPush;
+    /* Optional, run after the work is recorded: frame properties are host side metadata
+       that no kernel touches, so a filter rewriting them -- Crop flipping _FieldBased on an
+       odd offset, say -- does it here rather than needing a getFrame of its own. */
+    std::function<void(int n, VSFrame *dst, const VSFrame *const *sources, int numSources,
+        const uint32_t *params, VSCore *core, const VSAPI *vsapi)> finishFrame;
+
+    /* Which source frame an output frame reads, per clip and declared offset. The default
+       below is n + offset; a filter whose output runs at a different rate than its input --
+       SeparateFields emitting two frames per source frame -- replaces it. */
+    std::function<int(int n, int clip, int frameOffset)> mapFrame;
+
+    /* Optional, run before any push constants are filled: fills frameParamCount uint32s
+       from the source frames themselves. Needed whenever a kernel parameter is a property
+       of the frame rather than of the filter -- field order read from _Field, say, which is
+       not known until the frame arrives. Returning false fails the frame with the message.
+       The parameters live on the stack of the call, so this stays reentrant. */
+    int frameParamCount = 0;
+    std::function<bool(int n, const VSFrame *const *sources, int numSources,
+        const VSAPI *vsapi, uint32_t *params, std::string &error)> prepareFrame;
 };
 
 namespace detail {
@@ -132,7 +152,6 @@ struct Instance {
     VkPipelineLayout pipeLayouts[8] = {};
     VkPipeline pipelines[8] = {};
     int pipelineCount = 0;
-    std::vector<uint8_t> pushScratch;
 
     ~Instance() {
         if (!vk)
@@ -176,20 +195,23 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
     Instance *inst = static_cast<Instance *>(instanceData);
     const FilterDesc &desc = inst->desc;
 
+    auto sourceIndex = [&](int clip, int offset) {
+        const int want = desc.mapFrame ? desc.mapFrame(n, clip, offset) : n + offset;
+        return std::clamp(want, 0, vsapi->getVideoInfo(desc.nodes[clip])->numFrames - 1);
+    };
+
     if (activationReason == arInitial) {
         for (const Pass &pass : desc.passes) {
             for (const Operand &op : pass.bindings) {
                 if (op.kind != Operand::SourcePlane)
                     continue;
-                VSNode *node = desc.nodes[op.clip];
-                int want = std::clamp(n + op.frameOffset, 0, vsapi->getVideoInfo(node)->numFrames - 1);
-                vsapi->requestFrameFilter(want, node, frameCtx);
+                vsapi->requestFrameFilter(sourceIndex(op.clip, op.frameOffset), desc.nodes[op.clip], frameCtx);
             }
         }
         /* A clip only named as a share source has no binding to be picked up above. */
         for (int p = 0; p < 3 && p < desc.vi.format.numPlanes; p++) {
             if (!desc.process[p])
-                vsapi->requestFrameFilter(n, desc.nodes[desc.shareClip[p]], frameCtx);
+                vsapi->requestFrameFilter(sourceIndex(desc.shareClip[p], 0), desc.nodes[desc.shareClip[p]], frameCtx);
         }
         return nullptr;
     }
@@ -203,9 +225,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         for (const SourceFrame &s : sources)
             if (s.clip == clip && s.offset == offset)
                 return s.frame;
-        VSNode *node = desc.nodes[clip];
-        int want = std::clamp(n + offset, 0, vsapi->getVideoInfo(node)->numFrames - 1);
-        const VSFrame *f = vsapi->getFrameFilter(want, node, frameCtx);
+        const VSFrame *f = vsapi->getFrameFilter(sourceIndex(clip, offset), desc.nodes[clip], frameCtx);
         sources.push_back({ clip, offset, f });
         return f;
     };
@@ -248,9 +268,33 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         return nullptr;
     }
 
+    std::vector<const VSFrame *> sourceFrames;
+    for (const SourceFrame &s : sources)
+        sourceFrames.push_back(s.frame);
+
+    /* Local, so concurrent frames on this node never see each other's parameters. */
+    std::vector<uint32_t> frameParams(static_cast<size_t>(desc.frameParamCount));
+    if (desc.prepareFrame) {
+        std::string prepareError;
+        if (!desc.prepareFrame(n, sourceFrames.data(), static_cast<int>(sourceFrames.size()),
+                vsapi, frameParams.data(), prepareError)) {
+            vsapi->setFilterError(prepareError.c_str(), frameCtx);
+            releaseSources();
+            vsapi->freeFrame(dst);
+            return nullptr;
+        }
+    }
+    const uint32_t *frameParamData = frameParams.empty() ? nullptr : frameParams.data();
+    auto finish = [&]() {
+        if (desc.finishFrame)
+            desc.finishFrame(n, dst, sourceFrames.data(), static_cast<int>(sourceFrames.size()),
+                frameParamData, core, vsapi);
+    };
+
     /* Nothing to run: every plane shares from the source, so the frame is already complete
        and submitting an empty command buffer would only cost a round trip. */
     if (!processAny) {
+        finish();
         releaseSources();
         return dst;
     }
@@ -292,6 +336,10 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
 
     VkCommandBuffer cmd = inst->vkapi->gpuExecCommandBuffer(ctx);
     bool firstDispatch = true;
+    /* Local, not a member: this node runs fmParallel, so concurrent frames would otherwise
+       fill the same buffer and race. Harmless for a filter whose push constants are the
+       same every frame, which is why it took one whose parameters vary per frame to show. */
+    std::vector<uint8_t> pushScratch;
 
     for (int p = 0; p < fmt->numPlanes; p++) {
         if (!desc.process[p])
@@ -360,16 +408,17 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             info.height = static_cast<uint32_t>(vsapi->getFrameHeight(geometry, p));
             info.srcWidth = static_cast<uint32_t>(vsapi->getFrameWidth(first ? first : dst, p));
             info.srcHeight = static_cast<uint32_t>(vsapi->getFrameHeight(first ? first : dst, p));
+            info.frameParams = frameParamData;
 
             if (prog.pushConstantBytes > 0 && desc.fillPush) {
-                inst->pushScratch.assign(static_cast<size_t>(prog.pushConstantBytes), 0);
-                desc.fillPush(info, inst->pushScratch.data());
+                pushScratch.assign(static_cast<size_t>(prog.pushConstantBytes), 0);
+                desc.fillPush(info, pushScratch.data());
                 VkPushConstantsInfo pushInfo = {};
                 pushInfo.sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO;
                 pushInfo.layout = inst->pipeLayouts[pass.program];
                 pushInfo.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
                 pushInfo.size = static_cast<uint32_t>(prog.pushConstantBytes);
-                pushInfo.pValues = inst->pushScratch.data();
+                pushInfo.pValues = pushScratch.data();
                 inst->vk->vkCmdPushConstants2(cmd, &pushInfo);
             }
 
@@ -386,6 +435,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         return nullptr;
     }
 
+    finish();
     releaseSources();
     return dst;
 }
@@ -553,6 +603,17 @@ struct SimpleFilter {
     int shareClip[3] = { 0, 0, 0 }; /* source for planes this filter does not compute */
     /* Fills the per plane parameter block. Called once per plane per frame. */
     std::function<void(int plane, float *f, uint32_t *u)> fill;
+    /* Optional host side frame property fixup; see FilterDesc::finishFrame. */
+    std::function<void(int n, VSFrame *dst, const VSFrame *const *sources, int numSources,
+        const uint32_t *params, VSCore *core, const VSAPI *vsapi)> finishFrame;
+
+    /* Optional source frame index mapping and per frame parameters; see FilterDesc. When
+       prepare is set, fillFrame runs instead of fill so the body can reach what it produced. */
+    std::function<int(int n, int clip, int frameOffset)> mapFrame;
+    int prepareParams = 0;
+    std::function<bool(int n, const VSFrame *const *sources, int numSources,
+        const VSAPI *vsapi, uint32_t *params, std::string &error)> prepare;
+    std::function<void(int plane, const uint32_t *params, float *f, uint32_t *u)> fillFrame;
 };
 
 namespace detail {
@@ -684,8 +745,14 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
     pass.bindings.push_back(Operand::output());
     desc.passes.push_back(std::move(pass));
 
+    desc.finishFrame = sf.finishFrame;
+    desc.mapFrame = sf.mapFrame;
+    desc.prepareFrame = sf.prepare;
+    desc.frameParamCount = sf.prepareParams;
+
     const auto fill = sf.fill;
-    desc.fillPush = [fill](const PassInfo &info, void *pushData) {
+    const auto fillFrame = sf.fillFrame;
+    desc.fillPush = [fill, fillFrame](const PassInfo &info, void *pushData) {
         SimplePush push = {};
         push.width = info.width;
         push.height = info.height;
@@ -694,7 +761,9 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
         for (int i = 0; i < simpleMaxInputs && i < info.bindingCount - 1; i++)
             push.srcStride[i] = info.strideElements[i];
         push.dstStride = info.dstStrideElements();
-        if (fill)
+        if (fillFrame)
+            fillFrame(info.plane, info.frameParams, push.f, push.u);
+        else if (fill)
             fill(info.plane, push.f, push.u);
         std::memcpy(pushData, &push, sizeof(push));
     };
