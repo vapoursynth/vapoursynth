@@ -33,6 +33,8 @@
 #include "cpufeatures.h"
 #include "internalfilters.h"
 #include "filtershared.h"
+#include "gpufilter.h"
+#include "VSVulkan4.h"
 #include "float16_helper.h"
 #include "kernel/cpulevel.h"
 #include "kernel/planestats.h"
@@ -913,9 +915,38 @@ static const VSFrame *VS_CC flipVerticalGetframe(int n, int activationReason, vo
     return nullptr;
 }
 
+/* The geometry only filters are a single fetch through a remapped coordinate, so one helper
+   covers all of them: the caller supplies the expression mapping the output coordinate back
+   into the source, and the rest -- both sample type bodies, the node, the error -- is the
+   same every time. GSRC0 is the accessor that bounds against the source rather than the
+   output, which is what makes a dimension changing map like a transpose legal. */
+static void createGeometryGPU(const char *name, const std::string &mapExpr, VSNode *&node,
+    const VSVideoInfo *vi, VSMap *out, VSCore *core, const VSAPI *vsapi) {
+    vsgpu::SimpleFilter sf;
+    sf.name = name;
+    const std::string body = "    STORE(GSRC0(" + mapExpr + "));";
+    sf.bodyInt = body;
+    sf.bodyFloat = body;
+
+    std::string error;
+    VSNode *result = vsgpu::createSimpleFilter(sf, &node, 1, vi, core, vsapi, error);
+    node = nullptr; /* consumed on success and failure alike */
+    if (result)
+        vsapi->mapConsumeNode(out, "clip", result, maAppend);
+    else
+        vsapi->mapSetError(out, (std::string(name) + ": " + error).c_str());
+}
+
 static void VS_CC flipVerticalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<FlipVeritcalData> d(new FlipVeritcalData(vsapi));
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
+
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        createGeometryGPU("FlipVertical", "x, int(pc.srcHeight) - 1 - y",
+            d->node, vsapi->getVideoInfo(d->node), out, core, vsapi);
+        return;
+    }
+
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     vsapi->createVideoFilter(out, "FlipVertical", vsapi->getVideoInfo(d->node), flipVerticalGetframe, filterFree<FlipVeritcalData>, fmParallel, deps, 1, d.get(), core);
     d.release();
@@ -1014,6 +1045,15 @@ static void VS_CC flipHorizontalCreate(const VSMap *in, VSMap *out, void *userDa
     std::unique_ptr<FlipHorizontalData> d(new FlipHorizontalData(vsapi));
     d->flip = !!userData;
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
+
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        createGeometryGPU(d->flip ? "Turn180" : "FlipHorizontal",
+            d->flip ? "int(pc.srcWidth) - 1 - x, int(pc.srcHeight) - 1 - y"
+                    : "int(pc.srcWidth) - 1 - x, y",
+            d->node, vsapi->getVideoInfo(d->node), out, core, vsapi);
+        return;
+    }
+
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     vsapi->createVideoFilter(out, d->flip ? "Turn180" : "FlipHorizontal", vsapi->getVideoInfo(d->node), flipHorizontalGetframe, filterFree<FlipHorizontalData>, fmParallel, deps, 1, d.get(), core);
     d.release();
@@ -1779,6 +1819,16 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
 
     vsapi->queryVideoFormat(&d->vi.format, d->vi.format.colorFamily, d->vi.format.sampleType, d->vi.format.bitsPerSample, d->vi.format.subSamplingH, d->vi.format.subSamplingW, core);
     d->cpulevel = vs_get_cpulevel(core);
+
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        /* All three read the source transposed; the turns additionally reverse one axis,
+           which is exactly what the scalar path expresses by walking one side backwards. */
+        const char *map = d->mode == tmTurn90  ? "y, int(pc.srcHeight) - 1 - x"
+                        : d->mode == tmTurn270 ? "int(pc.srcWidth) - 1 - y, x"
+                                               : "y, x";
+        createGeometryGPU(name, map, d->node, &d->vi, out, core, vsapi);
+        return;
+    }
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     vsapi->createVideoFilter(out, name, &d->vi, transposeGetFrame, filterFree<TransposeData>, fmParallel, deps, 1, d.get(), core);
@@ -2613,18 +2663,18 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("SplitPlanes", "clip:vnode:all;", "clip:vnode[]:all;", splitPlanesCreate, 0, plugin);
     vspapi->registerFunction("SeparateFields", "clip:vnode;tff:int:opt;modify_duration:int:opt;", "clip:vnode;", separateFieldsCreate, 0, plugin);
     vspapi->registerFunction("DoubleWeave", "clip:vnode;tff:int:opt;", "clip:vnode;", doubleWeaveCreate, 0, plugin);
-    vspapi->registerFunction("FlipVertical", "clip:vnode;", "clip:vnode;", flipVerticalCreate, 0, plugin);
-    vspapi->registerFunction("FlipHorizontal", "clip:vnode;", "clip:vnode;", flipHorizontalCreate, 0, plugin);
-    vspapi->registerFunction("Turn180", "clip:vnode;", "clip:vnode;", flipHorizontalCreate, (void *)1, plugin);
-    vspapi->registerFunction("Turn90", "clip:vnode;", "clip:vnode;", transposeCreate, (void *)tmTurn90, plugin);
-    vspapi->registerFunction("Turn270", "clip:vnode;", "clip:vnode;", transposeCreate, (void *)tmTurn270, plugin);
+    vspapi->registerFunction("FlipVertical", "clip:vnode:all;", "clip:vnode:all;", flipVerticalCreate, 0, plugin);
+    vspapi->registerFunction("FlipHorizontal", "clip:vnode:all;", "clip:vnode:all;", flipHorizontalCreate, 0, plugin);
+    vspapi->registerFunction("Turn180", "clip:vnode:all;", "clip:vnode:all;", flipHorizontalCreate, (void *)1, plugin);
+    vspapi->registerFunction("Turn90", "clip:vnode:all;", "clip:vnode:all;", transposeCreate, (void *)tmTurn90, plugin);
+    vspapi->registerFunction("Turn270", "clip:vnode:all;", "clip:vnode:all;", transposeCreate, (void *)tmTurn270, plugin);
     vspapi->registerFunction("StackVertical", "clips:vnode[];", "clip:vnode;", stackCreate, (void *)1, plugin);
     vspapi->registerFunction("StackHorizontal", "clips:vnode[];", "clip:vnode;", stackCreate, 0, plugin);
     vspapi->registerFunction("BlankClip", "clip:vnode:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;varsize:int:opt;varformat:int:opt;", "clip:vnode;", blankClipCreate, 0, plugin);
     vspapi->registerFunction("AssumeFPS", "clip:vnode:all;src:vnode:all:opt;fpsnum:int:opt;fpsden:int:opt;", "clip:vnode:all;", assumeFPSCreate, 0, plugin);
     vspapi->registerFunction("FrameEval", "clip:vnode:all;eval:func;prop_src:vnode[]:all:opt;clip_src:vnode[]:all:opt;", "clip:vnode:all;", frameEvalCreate, 0, plugin);
     vspapi->registerFunction("ModifyFrame", "clip:vnode:all;clips:vnode[]:all;selector:func;", "clip:vnode:all;", modifyFrameCreate, 0, plugin);
-    vspapi->registerFunction("Transpose", "clip:vnode;", "clip:vnode;", transposeCreate, 0, plugin);
+    vspapi->registerFunction("Transpose", "clip:vnode:all;", "clip:vnode:all;", transposeCreate, 0, plugin);
     vspapi->registerFunction("PEMVerifier", "clip:vnode;upper:float[]:opt;lower:float[]:opt;", "clip:vnode;", pemVerifierCreate, 0, plugin);
     vspapi->registerFunction("PlaneStats", "clipa:vnode;clipb:vnode:opt;plane:int:opt;prop:data:opt;", "clip:vnode;", planeStatsCreate, 0, plugin);
     vspapi->registerFunction("ClipToProp", "clip:vnode:all;mclip:vnode:all;prop:data:opt;", "clip:vnode:all;", clipToPropCreate, 0, plugin);

@@ -18,6 +18,7 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include <array>
 #include <cstdlib>
 #include <cmath>
 #include <memory>
@@ -25,13 +26,41 @@
 #include <algorithm>
 #include "cpufeatures.h"
 #include "filtershared.h"
+#include "gpufilter.h"
 #include "internalfilters.h"
 #include "kernel/cpulevel.h"
 #include "kernel/merge.h"
 #include "VSHelper4.h"
 #include "VSConstants4.h"
+#include "VSVulkan4.h"
 
 using namespace vsh;
+
+namespace {
+
+/* Shared tail for the two input GPU branches here: build the node, hand it back or report
+   the error, and take both input nodes with it either way. */
+template<typename T>
+void createGPUFromDecl2(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *out, VSCore *core, const VSAPI *vsapi) {
+    VSNode *nodes[2] = { d->node1, d->node2 };
+    std::string error;
+    VSNode *node = vsgpu::createSimpleFilter(sf, nodes, 2, d->vi, core, vsapi, error);
+    d->node1 = nullptr; /* consumed on success and failure alike */
+    d->node2 = nullptr;
+    if (node)
+        vsapi->mapConsumeNode(out, "clip", node, maAppend);
+    else
+        vsapi->mapSetError(out, (std::string(sf.name) + ": " + error).c_str());
+}
+
+/* True when both inputs are GPU resident. A vnode:all argument only auto transfers when
+   every residency in the signature agrees, so a mixed pair has already been rejected by
+   the time a create runs; this is just the branch predicate. */
+bool bothOnGPU(VSNode *a, VSNode *b, const VSAPI *vsapi) {
+    return vsapi->getNodeResidency(a) == nrGPU && vsapi->getNodeResidency(b) == nrGPU;
+}
+
+} // namespace
 
 //////////////////////////////////////////
 // Chroma-location-aware mask resampling helpers shared by MaskedMerge and PreMultiply.
@@ -437,6 +466,38 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     if (nweight > d->vi->format.numPlanes)
         RETERROR("Merge: more weights given than the number of planes to merge");
 
+    if (bothOnGPU(d->node1, d->node2, vsapi)) {
+        vsgpu::SimpleFilter sf;
+        sf.name = "Merge";
+        sf.inputs = 2;
+        /* The integer form is deliberately modular: the scalar kernel subtracts in
+           unsigned, so v2 < v1 wraps and the shift brings it back. uint does the same. */
+        sf.bodyInt =
+            "    uint v1 = uint(SRC0(x, y));\n"
+            "    uint v2 = uint(SRC1(x, y));\n"
+            "    STORE(v1 + (((v2 - v1) * pc.u[0] + " + std::to_string(1u << (MergeShift - 1)) +
+            "u) >> " + std::to_string(MergeShift) + "));";
+        sf.bodyFloat =
+            "    float v1 = float(SRC0(x, y));\n"
+            "    float v2 = float(SRC1(x, y));\n"
+            "    STORE(v1 + (v2 - v1) * pc.f[0]);";
+        std::array<unsigned, 3> w;
+        std::array<float, 3> wf;
+        for (int p = 0; p < 3; p++) { w[p] = d->weight[p]; wf[p] = d->fweight[p]; }
+        /* process is tri state here: 0 merges, 1 passes clipa through, 2 passes clipb. The
+           degenerate weights are exact copies rather than a merge that would round. */
+        for (int p = 0; p < 3; p++) {
+            sf.process[p] = d->process[p] == 0;
+            sf.shareClip[p] = d->process[p] == 2 ? 1 : 0;
+        }
+        sf.fill = [w, wf](int plane, float *f, uint32_t *u) {
+            u[0] = w[plane];
+            f[0] = wf[plane];
+        };
+        createGPUFromDecl2(d, sf, out, core, vsapi);
+        return;
+    }
+
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
     vsapi->createVideoFilter(out, "Merge", d->vi, mergeGetFrame, filterFree<MergeData>, fmParallel, deps, 2, d.get(), core);
     d.release();
@@ -780,6 +841,23 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     d->cpulevel = vs_get_cpulevel(core);
 
+    if (bothOnGPU(d->node1, d->node2, vsapi)) {
+        vsgpu::SimpleFilter sf;
+        sf.name = "MakeDiff";
+        sf.inputs = 2;
+        sf.bodyInt =
+            "    int tmp = int(SRC0(x, y)) - int(SRC1(x, y)) + int(pc.u[1]);\n"
+            "    STORE(uint(clamp(tmp, 0, int(pc.u[0]))));";
+        sf.bodyFloat = "    STORE(float(SRC0(x, y)) - float(SRC1(x, y)));";
+        const uint32_t maxval = (1u << d->vi->format.bitsPerSample) - 1;
+        const uint32_t half = 1u << (d->vi->format.bitsPerSample - 1);
+        for (int p = 0; p < 3; p++)
+            sf.process[p] = d->process[p];
+        sf.fill = [maxval, half](int, float *, uint32_t *u) { u[0] = maxval; u[1] = half; };
+        createGPUFromDecl2(d, sf, out, core, vsapi);
+        return;
+    }
+
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
     vsapi->createVideoFilter(out, "MakeDiff", d->vi, makeDiffGetFrame, filterFree<MakeDiffData>, fmParallel, deps, 2, d.get(), core);
     d.release();
@@ -996,6 +1074,23 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->cpulevel = vs_get_cpulevel(core);
 
+    if (bothOnGPU(d->node1, d->node2, vsapi)) {
+        vsgpu::SimpleFilter sf;
+        sf.name = "MergeDiff";
+        sf.inputs = 2;
+        sf.bodyInt =
+            "    int tmp = int(SRC0(x, y)) + int(SRC1(x, y)) - int(pc.u[1]);\n"
+            "    STORE(uint(clamp(tmp, 0, int(pc.u[0]))));";
+        sf.bodyFloat = "    STORE(float(SRC0(x, y)) + float(SRC1(x, y)));";
+        const uint32_t maxval = (1u << d->vi->format.bitsPerSample) - 1;
+        const uint32_t half = 1u << (d->vi->format.bitsPerSample - 1);
+        for (int p = 0; p < 3; p++)
+            sf.process[p] = d->process[p];
+        sf.fill = [maxval, half](int, float *, uint32_t *u) { u[0] = maxval; u[1] = half; };
+        createGPUFromDecl2(d, sf, out, core, vsapi);
+        return;
+    }
+
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
     vsapi->createVideoFilter(out, "MergeDiff", d->vi, mergeDiffGetFrame, filterFree<MergeDiffData>, fmParallel, deps, 2, d.get(), core);
     d.release();
@@ -1108,10 +1203,10 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
 
 void mergeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("PreMultiply", "clip:vnode;alpha:vnode;", "clip:vnode;", preMultiplyCreate, 0, plugin);
-    vspapi->registerFunction("Merge", "clipa:vnode;clipb:vnode;weight:float[]:opt;", "clip:vnode;", mergeCreate, 0, plugin);
+    vspapi->registerFunction("Merge", "clipa:vnode:all;clipb:vnode:all;weight:float[]:opt;", "clip:vnode:all;", mergeCreate, 0, plugin);
     vspapi->registerFunction("MaskedMerge", "clipa:vnode;clipb:vnode;mask:vnode;planes:int[]:opt;first_plane:int:opt;premultiplied:int:opt;", "clip:vnode;", maskedMergeCreate, 0, plugin);
-    vspapi->registerFunction("MakeDiff", "clipa:vnode;clipb:vnode;planes:int[]:opt;", "clip:vnode;", makeDiffCreate, 0, plugin);
+    vspapi->registerFunction("MakeDiff", "clipa:vnode:all;clipb:vnode:all;planes:int[]:opt;", "clip:vnode:all;", makeDiffCreate, 0, plugin);
     vspapi->registerFunction("MakeFullDiff", "clipa:vnode;clipb:vnode;", "clip:vnode;", makeFullDiffCreate, 0, plugin);
-    vspapi->registerFunction("MergeDiff", "clipa:vnode;clipb:vnode;planes:int[]:opt;", "clip:vnode;", mergeDiffCreate, 0, plugin);
+    vspapi->registerFunction("MergeDiff", "clipa:vnode:all;clipb:vnode:all;planes:int[]:opt;", "clip:vnode:all;", mergeDiffCreate, 0, plugin);
     vspapi->registerFunction("MergeFullDiff", "clipa:vnode;clipb:vnode;", "clip:vnode;", mergeFullDiffCreate, 0, plugin);
 }

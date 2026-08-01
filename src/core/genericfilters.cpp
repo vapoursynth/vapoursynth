@@ -31,9 +31,11 @@
 #include <vector>
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
+#include "VSVulkan4.h"
 #include "cpufeatures.h"
 #include "filtershared.h"
 #include "float16_helper.h"
+#include "gpufilter.h"
 #include "internalfilters.h"
 #include "kernel/cpulevel.h"
 #include "kernel/generic.h"
@@ -1120,6 +1122,17 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        vsgpu::SimpleFilter sf;
+        sf.name = d->filter_name;
+        if (buildGenericGPU(op, d.get(), sf)) {
+            createGPUFromDecl(d, sf, out, core, vsapi);
+            return;
+        }
+        vsapi->mapSetError(out, (d->filter_name + ": "s + "this mode has no GPU kernel").c_str());
+        return;
+    }
+
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     vsapi->createVideoFilter(out, d->filter_name, d->vi, genericGetframe<op>, filterFree<GenericData>, fmParallel, deps, 1, d.get(), core);
     d.release();
@@ -1127,6 +1140,216 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
 ///////////////////////////////
 
+
+/* Shared tail for every GPU branch below: build the node from the declaration, hand it back
+   or report the error, and take the input node with it either way. The filters here are all
+   residency polymorphic, so this runs instead of the CPU createVideoFilter, never beside
+   it, and the arguments and their validation are already done by the time it is reached. */
+template<typename T>
+static void createGPUFromDecl(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *out, VSCore *core, const VSAPI *vsapi) {
+    for (int p = 0; p < 3; p++)
+        sf.process[p] = d->process[p];
+
+    std::string error;
+    VSNode *node = vsgpu::createSimpleFilter(sf, &d->node, 1, d->vi, core, vsapi, error);
+    d->node = nullptr; /* consumed on success and failure alike */
+    if (node)
+        vsapi->mapConsumeNode(out, "clip", node, maAppend);
+    else
+        vsapi->mapSetError(out, (sf.name + ": "s + error).c_str());
+}
+
+/* The 3x3 neighbourhood, named the way the scalar ops in kernel/generic.cpp name it, so a
+   body below reads against that reference line for line. Reads clamp at the plane edge,
+   which is the same replication filter_plane_3x3 does with its above/below index picks. */
+static std::string neighbourhood3x3(const char *type) {
+    std::string t = type, s;
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            s += "    " + t + " a" + char('1' + dy) + char('1' + dx) + " = " + t +
+                 "(SRC0(x + " + std::to_string(dx) + ", y + " + std::to_string(dy) + "));\n";
+        }
+    }
+    return s;
+}
+
+/* Integer results take the same two step narrowing the scalar path does: xrint clamps into
+   the storage type and rounds half to even, then limit() caps at maxval. Float keeps the
+   value as is, since both are identities there. */
+static const char roundStoreInt[] =
+    "    STORE(min(uint(clamp(roundEven(tmp), 0.0, 65535.0)), pc.u[0]));";
+
+static std::string minMaxBody(bool isMax, bool isFloat) {
+    const std::string t = isFloat ? "float" : "int";
+    const char *reduce = isMax ? "max" : "min";
+    std::string s = neighbourhood3x3(t.c_str());
+    s += "    " + t + " val = a11;\n";
+    static const char *slot[8] = { "a00", "a01", "a02", "a10", "a12", "a20", "a21", "a22" };
+    for (int i = 0; i < 8; i++)
+        s += "    if ((pc.u[1] & " + std::to_string(1u << i) + "u) != 0u) val = " + reduce +
+             "(val, " + slot[i] + ");\n";
+    if (isMax) {
+        s += "    " + t + " lim = a11 + " + (isFloat ? "pc.f[0]" : "int(pc.u[2])") + ";\n"
+             "    " + t + " r = min(val, lim);\n";
+    } else {
+        /* The floor only exists for integers; the float op bounds against -infinity. */
+        s += "    " + t + " lim = " + (isFloat ? "a11 - pc.f[0]" : "max(a11 - int(pc.u[2]), 0)") + ";\n"
+             "    " + t + " r = max(val, lim);\n";
+    }
+    s += isFloat ? "    STORE(r);" : "    STORE(min(uint(r), pc.u[0]));";
+    return s;
+}
+
+static std::string deflateInflateBody(bool isInflate, bool isFloat) {
+    const std::string t = isFloat ? "float" : "int";
+    std::string s = neighbourhood3x3(t.c_str());
+    s += "    " + t + " accum = a00 + a01 + a02 + a10 + a12 + a20 + a21 + a22;\n";
+    /* The integer path rounds the eighth by adding four before an exact shift. */
+    s += isFloat ? "    float val = accum / 8.0;\n"
+                 : "    int val = (accum + 4) / 8;\n";
+    s += std::string("    val = ") + (isInflate ? "max" : "min") + "(val, a11);\n";
+    if (isInflate)
+        s += "    " + t + " lim = a11 + " + (isFloat ? "pc.f[0]" : "int(pc.u[2])") + ";\n"
+             "    " + t + " r = min(val, lim);\n";
+    else
+        s += "    " + t + " lim = " + (isFloat ? "a11 - pc.f[0]" : "max(a11 - int(pc.u[2]), 0)") + ";\n"
+             "    " + t + " r = max(val, lim);\n";
+    s += isFloat ? "    STORE(r);" : "    STORE(min(uint(r), pc.u[0]));";
+    return s;
+}
+
+/* The same 19 compare exchanges as MedianOp, in the same order. A sorting network is
+   already branch free, so it transfers to a lane with nothing to reorganize. */
+static std::string medianBody(bool isFloat) {
+    static const char *pairs[] = {
+        "a00,a01", "a02,a10", "a12,a20", "a21,a22",
+        "a00,a02", "a01,a10", "a12,a21", "a20,a22",
+        "a01,a02", "a20,a21",
+        "a00,a12", "a01,a20", "a02,a21", "a10,a22",
+        "a02,a12", "a10,a20",
+        "a10,a12",
+        "a10,a11", "a11,a12",
+    };
+    const std::string t = isFloat ? "float" : "int";
+    std::string s = neighbourhood3x3(t.c_str());
+    s += "    " + t + " lo, hi;\n";
+    for (const char *p : pairs) {
+        std::string pair = p;
+        const std::string l = pair.substr(0, pair.find(','));
+        const std::string r = pair.substr(pair.find(',') + 1);
+        s += "    lo = min(" + l + ", " + r + "); hi = max(" + l + ", " + r + "); " +
+             l + " = lo; " + r + " = hi;\n";
+    }
+    s += isFloat ? "    STORE(a11);" : "    STORE(min(uint(a11), pc.u[0]));";
+    return s;
+}
+
+static std::string prewittSobelBody(bool isSobel, bool isFloat) {
+    const std::string t = isFloat ? "float" : "int";
+    const std::string two = isFloat ? "2.0 * " : "2 * ";
+    std::string s = neighbourhood3x3(t.c_str());
+    if (isSobel) {
+        s += "    " + t + " gx = a20 + " + two + "a21 + a22 - a00 - " + two + "a01 - a02;\n"
+             "    " + t + " gy = a02 + " + two + "a12 + a22 - a00 - " + two + "a10 - a20;\n";
+    } else {
+        s += "    " + t + " gx = a20 + a21 + a22 - a00 - a01 - a02;\n"
+             "    " + t + " gy = a02 + a12 + a22 - a00 - a10 - a20;\n";
+    }
+    /* precise, or the compiler contracts the two squares into an fma and the sum lands a
+       fraction off what the scalar path computed -- which survives the rounding below as an
+       off by one on any sample sitting near a .5 boundary.
+
+       vsSqrt for the root itself, since the raw builtin is only good to 3 ulp and a 16 bit
+       gradient is large enough for that to carry a result across a rounding boundary. */
+    s += "    precise float sq = float(gx) * float(gx) + float(gy) * float(gy);\n"
+         "    float tmp = vsSqrt(sq) * pc.f[1];\n";
+    s += isFloat ? "    STORE(tmp);" : roundStoreInt;
+    return s;
+}
+
+/* The coefficients are baked into the source as literals rather than uploaded, which costs
+   one shader compile per distinct matrix -- the core caches by source text, so instances
+   sharing a matrix share the kernel -- and keeps an 11x11 square out of a push constant
+   block that could never have held it. */
+static std::string convolutionBody(const GenericData *d, bool isFloat) {
+    const int n = d->matrix_elements;
+    const int radius = (n - 1) / 2;
+    const bool square = d->convolution_type == ConvolutionSquare;
+    const int side = square ? static_cast<int>(std::lround(std::sqrt(static_cast<double>(n)))) : 0;
+    const int sradius = square ? (side - 1) / 2 : 0;
+
+    /* 3x3 square goes through filter_plane_3x3, which replicates the edge sample; every
+       wider square and both 1D modes mirror instead. Matching that split is the difference
+       between agreeing with the CPU and disagreeing along every border. */
+    const char *fetch = (square && n == 9) ? "SRC0" : "MSRC0";
+
+    std::string s = "    float accum = 0.0;\n";
+    for (int i = 0; i < n; i++) {
+        /* Integer coefficients are the rounded values the scalar path stores as int16. */
+        const float c = isFloat ? d->matrixf[i] : static_cast<float>(d->matrix[i]);
+        if (c == 0.0f)
+            continue;
+        int dx, dy;
+        if (square) {
+            dx = (i % side) - sradius;
+            dy = (i / side) - sradius;
+        } else if (d->convolution_type == ConvolutionHorizontal) {
+            dx = i - radius; dy = 0;
+        } else {
+            dx = 0; dy = i - radius;
+        }
+        char buf[160];
+        snprintf(buf, sizeof(buf), "    accum += (%.9g) * float(%s(x + %d, y + %d));\n", c, fetch, dx, dy);
+        s += buf;
+    }
+    s += "    float tmp = accum * pc.f[2] + pc.f[3];\n"
+         "    if (pc.u[3] == 0u) tmp = abs(tmp);\n";
+    s += isFloat ? "    STORE(tmp);" : roundStoreInt;
+    return s;
+}
+
+/* Builds the declaration for one of the eight neighbourhood filters. */
+static bool buildGenericGPU(int op, const GenericData *d, vsgpu::SimpleFilter &sf) {
+    const bool isFloat = d->vi->format.sampleType == stFloat;
+
+    switch (op) {
+    case GenericPrewitt:     sf.bodyInt = prewittSobelBody(false, false); sf.bodyFloat = prewittSobelBody(false, true); break;
+    case GenericSobel:       sf.bodyInt = prewittSobelBody(true, false);  sf.bodyFloat = prewittSobelBody(true, true);  break;
+    case GenericMinimum:     sf.bodyInt = minMaxBody(false, false);       sf.bodyFloat = minMaxBody(false, true);       break;
+    case GenericMaximum:     sf.bodyInt = minMaxBody(true, false);        sf.bodyFloat = minMaxBody(true, true);        break;
+    case GenericMedian:      sf.bodyInt = medianBody(false);              sf.bodyFloat = medianBody(true);              break;
+    case GenericDeflate:     sf.bodyInt = deflateInflateBody(false, false); sf.bodyFloat = deflateInflateBody(false, true); break;
+    case GenericInflate:     sf.bodyInt = deflateInflateBody(true, false);  sf.bodyFloat = deflateInflateBody(true, true);  break;
+    case GenericConvolution:
+        /* Separable runs as two nodes on the CPU side and never reaches a leaf create. */
+        if (d->convolution_type == ConvolutionSeparable)
+            return false;
+        sf.bodyInt = convolutionBody(d, false);
+        sf.bodyFloat = convolutionBody(d, true);
+        break;
+    default:
+        return false;
+    }
+
+    const uint32_t maxval = (1u << d->vi->format.bitsPerSample) - 1;
+    const uint16_t th = d->th;
+    const float thf = d->thf, scale = d->scale, rdiv = d->rdiv, bias = d->bias;
+    const uint32_t enable = d->enable, saturate = d->saturate ? 1u : 0u;
+    sf.fill = [maxval, th, thf, scale, rdiv, bias, enable, saturate](int, float *f, uint32_t *u) {
+        u[0] = maxval;
+        u[1] = enable;
+        u[2] = th;
+        u[3] = saturate;
+        f[0] = thf;
+        f[1] = scale;
+        f[2] = rdiv;
+        f[3] = bias;
+    };
+    (void)isFloat;
+    return true;
+}
+
+/////////////////
 
 struct InvertDataExtra {
     const VSVideoInfo *vi;
@@ -1182,6 +1405,24 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         d->mask = !!userData;
     } catch (const std::runtime_error &error) {
         vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
+        return;
+    }
+
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        vsgpu::SimpleFilter sf;
+        sf.name = d->name;
+        sf.bodyInt = "    STORE(pc.u[0] - min(uint(SRC0(x, y)), pc.u[0]));";
+        /* Chroma inverts by negation, which on half is the same sign flip the CPU path
+           spells as an xor with 0x8000, zeros and NaNs included. */
+        sf.bodyFloat = "    float s = float(SRC0(x, y));\n"
+                       "    STORE(pc.u[1] != 0u ? -s : 1.0 - s);";
+        const bool mask = d->mask;
+        const VSVideoFormat fmt = d->vi->format;
+        sf.fill = [mask, fmt](int plane, float *, uint32_t *u) {
+            u[0] = (1u << fmt.bitsPerSample) - 1;
+            u[1] = (!mask && fmt.colorFamily == cfYUV && plane > 0) ? 1u : 0u;
+        };
+        createGPUFromDecl(d, sf, out, core, vsapi);
         return;
     }
 
@@ -1243,6 +1484,28 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
                 throw std::runtime_error("min bigger than max");
     } catch (const std::runtime_error &error) {
         vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
+        return;
+    }
+
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        vsgpu::SimpleFilter sf;
+        sf.name = d->name;
+        sf.bodyInt = "    STORE(min(pc.u[1], max(pc.u[0], uint(SRC0(x, y)))));";
+        sf.bodyFloat = "    STORE(min(pc.f[1], max(pc.f[0], float(SRC0(x, y)))));";
+        /* By value: the declaration outlives this create call, d does not. */
+        std::array<uint16_t, 3> mn, mx;
+        std::array<float, 3> mnf, mxf;
+        for (int p = 0; p < 3; p++) {
+            mn[p] = d->min[p]; mx[p] = d->max[p];
+            mnf[p] = d->minf[p]; mxf[p] = d->maxf[p];
+        }
+        sf.fill = [mn, mx, mnf, mxf](int plane, float *f, uint32_t *u) {
+            u[0] = mn[plane];
+            u[1] = mx[plane];
+            f[0] = mnf[plane];
+            f[1] = mxf[plane];
+        };
+        createGPUFromDecl(d, sf, out, core, vsapi);
         return;
     }
 
@@ -1312,6 +1575,25 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, RangeMiddle, !!userData, vsapi);
     } catch (const std::runtime_error &error) {
         vsapi->mapSetError(out, (d->name + ": "s + error.what()).c_str());
+        return;
+    }
+
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        vsgpu::SimpleFilter sf;
+        sf.name = d->name;
+        sf.bodyInt = "    STORE(uint(SRC0(x, y)) < pc.u[0] ? pc.u[1] : pc.u[2]);";
+        sf.bodyFloat = "    STORE(float(SRC0(x, y)) < pc.f[0] ? pc.f[1] : pc.f[2]);";
+        std::array<uint16_t, 3> thr, v0, v1;
+        std::array<float, 3> thrf, v0f, v1f;
+        for (int p = 0; p < 3; p++) {
+            thr[p] = d->thr[p]; v0[p] = d->v0[p]; v1[p] = d->v1[p];
+            thrf[p] = d->thrf[p]; v0f[p] = d->v0f[p]; v1f[p] = d->v1f[p];
+        }
+        sf.fill = [thr, v0, v1, thrf, v0f, v1f](int plane, float *f, uint32_t *u) {
+            u[0] = thr[plane]; u[1] = v0[plane]; u[2] = v1[plane];
+            f[0] = thrf[plane]; f[1] = v0f[plane]; f[2] = v1f[plane];
+        };
+        createGPUFromDecl(d, sf, out, core, vsapi);
         return;
     }
 
@@ -1550,6 +1832,52 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         return;
     }
 
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        vsgpu::SimpleFilter sf;
+        sf.name = d->name;
+        /* The CPU integer path bakes this same expression into a lookup table at create
+           time; evaluating it per pixel here trades a table upload for a pow, which the
+           device has in hardware. The rounded endpoints are what the table was built from,
+           so the only divergence left is pow's last ulp. */
+        sf.bodyInt =
+            "    float v = float(min(uint(SRC0(x, y)), pc.u[0]));\n"
+            "    float t = max(min(v, pc.f[1]) - pc.f[0], 0.0) / (pc.f[1] - pc.f[0]);\n"
+            "    float r = pow(t, pc.f[4]) * (pc.f[3] - pc.f[2]) + pc.f[2];\n"
+            "    STORE(uint(clamp(r, 0.0, float(pc.u[0])) + 0.5));";
+        /* Float keeps the CPU's two shapes: gamma of one skips pow and scales directly,
+           and the reciprocal multiply is deliberate, matching how range_in is applied. */
+        sf.bodyFloat =
+            "    float t = max(min(float(SRC0(x, y)), pc.f[1]) - pc.f[0], 0.0);\n"
+            "    float r = pc.u[1] != 0u ? t * pc.f[5] + pc.f[2]\n"
+            "                            : pow(t * pc.f[6], pc.f[4]) * pc.f[7] + pc.f[2];\n"
+            "    STORE(r);";
+        const bool isInt = d->vi->format.sampleType == stInteger;
+        const uint32_t maxval = (1u << d->vi->format.bitsPerSample) - 1;
+        std::array<float, 3> minIn, maxIn, minOut, maxOut, gamma;
+        for (int p = 0; p < 3; p++) {
+            /* Integer endpoints are rounded before use, exactly as the table build does. */
+            minIn[p] = isInt ? std::round(d->min_in[p]) : d->min_in[p];
+            maxIn[p] = isInt ? std::round(d->max_in[p]) : d->max_in[p];
+            minOut[p] = isInt ? std::round(d->min_out[p]) : d->min_out[p];
+            maxOut[p] = isInt ? std::round(d->max_out[p]) : d->max_out[p];
+            gamma[p] = d->gamma[p];
+        }
+        sf.fill = [minIn, maxIn, minOut, maxOut, gamma, maxval](int plane, float *f, uint32_t *u) {
+            f[0] = minIn[plane];
+            f[1] = maxIn[plane];
+            f[2] = minOut[plane];
+            f[3] = maxOut[plane];
+            f[4] = gamma[plane];
+            f[5] = (maxOut[plane] - minOut[plane]) / (maxIn[plane] - minIn[plane]);
+            f[6] = 1.0f / (maxIn[plane] - minIn[plane]);
+            f[7] = maxOut[plane] - minOut[plane];
+            u[0] = maxval;
+            u[1] = std::abs(gamma[plane] - 1.0f) < std::numeric_limits<float>::epsilon();
+        };
+        createGPUFromDecl(d, sf, out, core, vsapi);
+        return;
+    }
+
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
     if (d->vi->format.bytesPerSample == 1)
         vsapi->createVideoFilter(out, d->name, d->vi, levelsGetframe<uint8_t>, filterFree<LevelsData>, fmParallel, deps, 1, d.get(), core);
@@ -1566,112 +1894,112 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
 void genericInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Minimum",
-            "clip:vnode;"
+            "clip:vnode:all;"
             "planes:int[]:opt;"
             "threshold:float:opt;"
             "coordinates:int[]:opt;",
-            "clip:vnode;",
+            "clip:vnode:all;",
             genericCreate<GenericMinimum>, const_cast<char *>("Minimum"), plugin);
 
     vspapi->registerFunction("Maximum",
-            "clip:vnode;"
+            "clip:vnode:all;"
             "planes:int[]:opt;"
             "threshold:float:opt;"
             "coordinates:int[]:opt;",
-            "clip:vnode;",
+            "clip:vnode:all;",
             genericCreate<GenericMaximum>, const_cast<char *>("Maximum"), plugin);
 
     vspapi->registerFunction("Median",
-            "clip:vnode;"
+            "clip:vnode:all;"
             "planes:int[]:opt;",
-            "clip:vnode;",
+            "clip:vnode:all;",
             genericCreate<GenericMedian>, const_cast<char *>("Median"), plugin);
 
     vspapi->registerFunction("Deflate",
-            "clip:vnode;"
+            "clip:vnode:all;"
             "planes:int[]:opt;"
             "threshold:float:opt;",
-            "clip:vnode;",
+            "clip:vnode:all;",
             genericCreate<GenericDeflate>, const_cast<char *>("Deflate"), plugin);
 
     vspapi->registerFunction("Inflate",
-            "clip:vnode;"
+            "clip:vnode:all;"
             "planes:int[]:opt;"
             "threshold:float:opt;",
-            "clip:vnode;",
+            "clip:vnode:all;",
             genericCreate<GenericInflate>, const_cast<char *>("Inflate"), plugin);
 
     vspapi->registerFunction("Convolution",
-            "clip:vnode;"
+            "clip:vnode:all;"
             "matrix:float[];"
             "bias:float:opt;"
             "divisor:float:opt;"
             "planes:int[]:opt;"
             "saturate:int:opt;"
             "mode:data:opt;",
-            "clip:vnode;",
+            "clip:vnode:all;",
             genericCreate<GenericConvolution>, const_cast<char *>("Convolution"), plugin);
 
     vspapi->registerFunction("Prewitt",
-            "clip:vnode;"
+            "clip:vnode:all;"
             "planes:int[]:opt;"
             "scale:float:opt;",
-            "clip:vnode;",
+            "clip:vnode:all;",
             genericCreate<GenericPrewitt>, const_cast<char *>("Prewitt"), plugin);
 
     vspapi->registerFunction("Sobel",
-            "clip:vnode;"
+            "clip:vnode:all;"
             "planes:int[]:opt;"
             "scale:float:opt;",
-            "clip:vnode;",
+            "clip:vnode:all;",
             genericCreate<GenericSobel>, const_cast<char *>("Sobel"), plugin);
 
     vspapi->registerFunction("Invert",
-        "clip:vnode;"
+        "clip:vnode:all;"
         "planes:int[]:opt;",
-        "clip:vnode;",
+        "clip:vnode:all;",
         invertCreate, nullptr, plugin);
 
     vspapi->registerFunction("InvertMask",
-        "clip:vnode;"
+        "clip:vnode:all;"
         "planes:int[]:opt;",
-        "clip:vnode;",
+        "clip:vnode:all;",
         invertCreate, (void *)1, plugin);
 
     vspapi->registerFunction("Limiter",
-        "clip:vnode;"
+        "clip:vnode:all;"
         "min:float[]:opt;"
         "max:float[]:opt;"
         "planes:int[]:opt;",
-        "clip:vnode;",
+        "clip:vnode:all;",
         limitCreate, nullptr, plugin);
 
     vspapi->registerFunction("Binarize",
-        "clip:vnode;"
+        "clip:vnode:all;"
         "threshold:float[]:opt;"
         "v0:float[]:opt;"
         "v1:float[]:opt;"
         "planes:int[]:opt;",
-        "clip:vnode;",
+        "clip:vnode:all;",
         binarizeCreate, nullptr, plugin);
 
     vspapi->registerFunction("BinarizeMask",
-        "clip:vnode;"
+        "clip:vnode:all;"
         "threshold:float[]:opt;"
         "v0:float[]:opt;"
         "v1:float[]:opt;"
         "planes:int[]:opt;",
-        "clip:vnode;",
+        "clip:vnode:all;",
         binarizeCreate, (void *)1, plugin);
 
     vspapi->registerFunction("Levels",
-        "clip:vnode;"
+        "clip:vnode:all;"
         "min_in:float[]:opt;"
         "max_in:float[]:opt;"
         "gamma:float[]:opt;"
         "min_out:float[]:opt;"
         "max_out:float[]:opt;"
         "planes:int[]:opt;",
-        "clip:vnode;",
+        "clip:vnode:all;",
         levelsCreate, nullptr, plugin);
 }

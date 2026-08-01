@@ -718,12 +718,8 @@ VSNode *createGPUBoxBlur(VSNode *node, const bool process[3], int hradius, int h
     VSFilterDependency deps[] = {{ node, rpStrictSpatial }};
     std::string createError;
     VSNode *result = vsgpu::createFilter("BoxBlur", desc, deps, 1, core, vsapi, createError);
-    if (!result) {
-        /* A half precision kernel is the one variant a conformant device may refuse. */
-        if (vi->format.sampleType == stFloat && vi->format.bytesPerSample == 2)
-            createError += " (half precision formats need the shaderFloat16 feature, which this device may lack)";
+    if (!result)
         throw std::runtime_error(createError);
-    }
     return result;
 }
 

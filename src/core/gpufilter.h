@@ -42,6 +42,7 @@
 #include "VSVulkan4.h"
 
 #include <algorithm>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <string>
@@ -95,6 +96,8 @@ struct PassInfo {
     int pass = 0;
     uint32_t width = 0;   /* of the plane this pass dispatches over */
     uint32_t height = 0;
+    uint32_t srcWidth = 0;  /* of clip 0's plane, which a geometry changing filter needs */
+    uint32_t srcHeight = 0;
     uint32_t strideElements[8] = {}; /* per binding, in samples */
 
     uint32_t srcStrideElements() const { return strideElements[0]; }
@@ -108,6 +111,10 @@ struct FilterDesc {
     std::vector<Pass> passes;
     int scratchCount = 0;          /* plane sized scratch buffers, per frame */
     bool process[3] = { true, true, true };
+    /* Which source an unprocessed plane is shared from. Almost always clip 0, but a filter
+       that degenerates to one of its inputs per plane -- Merge at weight 1, say -- needs to
+       name the other one instead of computing an identity. */
+    int shareClip[3] = { 0, 0, 0 };
     VSVideoInfo vi = {};
     /* Fills pushConstantBytes worth of push constants for one dispatch. */
     std::function<void(const PassInfo &, void *push)> fillPush;
@@ -179,6 +186,11 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                 vsapi->requestFrameFilter(want, node, frameCtx);
             }
         }
+        /* A clip only named as a share source has no binding to be picked up above. */
+        for (int p = 0; p < 3 && p < desc.vi.format.numPlanes; p++) {
+            if (!desc.process[p])
+                vsapi->requestFrameFilter(n, desc.nodes[desc.shareClip[p]], frameCtx);
+        }
         return nullptr;
     }
     if (activationReason != arAllFramesReady)
@@ -225,7 +237,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         const VSFrame *planeSrc[3] = {};
         int planeIdx[3] = { 0, 1, 2 };
         for (int p = 0; p < fmt->numPlanes; p++)
-            planeSrc[p] = desc.process[p] ? nullptr : first;
+            planeSrc[p] = desc.process[p] ? nullptr : fetch(desc.shareClip[p], 0);
         dst = vsapi->newVideoFrame2(fmt, w, h, planeSrc, planeIdx, first, core);
     } else {
         dst = inst->vkapi->newGPUVideoFrame(fmt, w, h, first, core);
@@ -346,6 +358,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             const VSFrame *geometry = pass.geometryFromSource && first ? first : dst;
             info.width = static_cast<uint32_t>(vsapi->getFrameWidth(geometry, p));
             info.height = static_cast<uint32_t>(vsapi->getFrameHeight(geometry, p));
+            info.srcWidth = static_cast<uint32_t>(vsapi->getFrameWidth(first ? first : dst, p));
+            info.srcHeight = static_cast<uint32_t>(vsapi->getFrameHeight(first ? first : dst, p));
 
             if (prog.pushConstantBytes > 0 && desc.fillPush) {
                 inst->pushScratch.assign(static_cast<size_t>(prog.pushConstantBytes), 0);
@@ -387,6 +401,10 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
 
     auto fail = [&](const std::string &message) -> VSNode * {
         errorMessage = message;
+        /* Half precision is the one variant a conformant device may legitimately refuse,
+           and the raw compiler log does not say so; every consumer wants this hint. */
+        if (desc.vi.format.sampleType == stFloat && desc.vi.format.bytesPerSample == 2)
+            errorMessage += " (half precision formats need the shaderFloat16 feature, which this device may lack)";
         for (VSNode *node : inst->desc.nodes)
             vsapi->freeNode(node);
         inst->desc.nodes.clear();
@@ -489,6 +507,202 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
         return fail("filter creation failed");
     inst.release();
     return node;
+}
+
+/* ---------------------------------------------------------------------------------------
+   The common case, one step up from FilterDesc.
+
+   Nearly every pixel filter is: one dispatch per processed plane, one output, one to three
+   sources read at the same coordinate or in a small neighbourhood around it, and a handful
+   of scalar parameters that vary per plane. Declaring that through FilterDesc means
+   repeating a prologue, a bounds check and a push constant struct in every filter, so this
+   layer supplies all three and leaves the filter with its per pixel expression.
+
+   A filter gives one GLSL statement block for integer formats and one for float, mirroring
+   how the CPU side already splits processPlane from processPlaneF, plus a callback filling
+   the parameter block for a plane. Everything past that -- format specialization, bindings,
+   geometry, edge clamping helpers -- comes from here.
+
+   Filters that do not fit (multiple passes, scratch, geometry changes, their own descriptor
+   layout) drop to FilterDesc directly; the two compose, since this only builds one. */
+
+constexpr int simpleMaxInputs = 3;
+constexpr int simpleFloatParams = 32; /* enough for a 5x5 convolution matrix */
+constexpr int simpleUintParams = 8;
+
+struct SimplePush {
+    uint32_t width, height;         /* of the output plane, which is what is dispatched over */
+    uint32_t srcWidth, srcHeight;   /* of clip 0's plane; differs once geometry changes */
+    uint32_t srcStride[simpleMaxInputs];
+    uint32_t dstStride;
+    float f[simpleFloatParams];
+    uint32_t u[simpleUintParams];
+};
+
+struct SimpleFilter {
+    const char *name = nullptr;
+    int inputs = 1;
+    /* GLSL statements with int x, int y in scope and the SRCn/STORE macros available.
+       bodyInt serves stInteger, bodyFloat serves both float widths; give only the one that
+       applies when a filter rejects the other sample type. */
+    std::string bodyInt;
+    std::string bodyFloat;
+    /* Anything the body needs beyond the macros: helper functions, extra defines. */
+    std::string prelude;
+    bool process[3] = { true, true, true };
+    int shareClip[3] = { 0, 0, 0 }; /* source for planes this filter does not compute */
+    /* Fills the per plane parameter block. Called once per plane per frame. */
+    std::function<void(int plane, float *f, uint32_t *u)> fill;
+};
+
+namespace detail {
+
+inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt) {
+    const bool isFloat = fmt.sampleType == stFloat;
+    const bool isHalf = isFloat && fmt.bytesPerSample == 2;
+
+    std::string s = "#version 460\n";
+    if (isHalf)
+        s += "#define SAMPLE_T float16_t\n";
+    else if (isFloat)
+        s += "#define SAMPLE_T float\n";
+    else
+        s += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
+
+    s += "#extension GL_EXT_shader_8bit_storage : require\n"
+         "#extension GL_EXT_shader_16bit_storage : require\n"
+         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
+         "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n";
+    if (isHalf)
+        s += "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n";
+
+    s += "\nlayout(local_size_x = 16, local_size_y = 16) in;\n\n"
+         "layout(push_constant) uniform PC {\n"
+         "    uint width, height;\n"
+         "    uint srcWidth, srcHeight;\n"
+         "    uint srcStride[" + std::to_string(simpleMaxInputs) + "];\n"
+         "    uint dstStride;\n"
+         "    float f[" + std::to_string(simpleFloatParams) + "];\n"
+         "    uint u[" + std::to_string(simpleUintParams) + "];\n"
+         "} pc;\n\n";
+
+    for (int i = 0; i < sf.inputs; i++) {
+        const std::string n = std::to_string(i);
+        s += "layout(std430, set = 0, binding = " + n + ") readonly buffer Src" + n +
+             " { SAMPLE_T s" + n + "[]; };\n";
+    }
+    s += "layout(std430, set = 0, binding = " + std::to_string(sf.inputs) +
+         ") writeonly buffer Dst { SAMPLE_T dstData[]; };\n\n";
+
+    /* Two edge rules, because the CPU tree uses both: SRCn replicates the edge sample,
+       MSRCn reflects around it half-sample symmetrically. Which one a filter wants is a
+       property of the filter, not of this layer -- 3x3 convolution replicates while every
+       wider one mirrors -- so both are always available and neither is a default a
+       pointwise body would ever notice, since it only asks for (x, y). */
+    s += "#define CX(xx) uint(clamp((xx), 0, int(pc.width) - 1))\n"
+         "#define CY(yy) uint(clamp((yy), 0, int(pc.height) - 1))\n"
+         "int vsMirror(int pos, int len) {\n"
+         "    if (pos < 0) pos = -pos - 1;\n"
+         "    else if (pos >= len) pos = 2 * len - 1 - pos;\n"
+         "    return clamp(pos, 0, len - 1);\n"
+         "}\n"
+         /* Vulkan specifies sqrt to 3 ulp, where the scalar paths this tree is checked
+            against get a correctly rounded SQRTSS. One Newton step recovers the difference:
+            fma computes the residual s - y*y exactly, so the correction is exact to well
+            under an ulp of y and the final add rounds to the right result. Cheap enough to
+            be the default -- two flops on top of a square root -- and unlike doing the root
+            in fp64 it asks nothing of the device. */
+         "float vsSqrt(float s) {\n"
+         "    float y = sqrt(s);\n"
+         "    if (!(y > 0.0) || isinf(y)) return y;\n"
+         "    precise float r = fma(-y, y, s);\n"
+         "    return y + r / (y + y);\n"
+         "}\n"
+         "#define MX(xx) uint(vsMirror((xx), int(pc.width)))\n"
+         "#define MY(yy) uint(vsMirror((yy), int(pc.height)))\n";
+    /* SRCn and MSRCn bound against the plane being written, which is the same plane a
+       filter that does not move pixels is reading. GSRCn bounds against the source instead,
+       for the filters where the two differ -- a transpose dispatches over an output whose
+       width is the source's height. */
+    s += "#define SCX(xx) uint(clamp((xx), 0, int(pc.srcWidth) - 1))\n"
+         "#define SCY(yy) uint(clamp((yy), 0, int(pc.srcHeight) - 1))\n";
+    for (int i = 0; i < sf.inputs; i++) {
+        const std::string n = std::to_string(i);
+        s += "#define SRC" + n + "(xx, yy) s" + n + "[CY(yy) * pc.srcStride[" + n + "] + CX(xx)]\n";
+        s += "#define MSRC" + n + "(xx, yy) s" + n + "[MY(yy) * pc.srcStride[" + n + "] + MX(xx)]\n";
+        s += "#define GSRC" + n + "(xx, yy) s" + n + "[SCY(yy) * pc.srcStride[" + n + "] + SCX(xx)]\n";
+    }
+    s += "#define STORE(v) dstData[uint(y) * pc.dstStride + uint(x)] = SAMPLE_T(v)\n\n";
+
+    if (!sf.prelude.empty())
+        s += sf.prelude + "\n";
+
+    s += "void main() {\n"
+         "    int x = int(gl_GlobalInvocationID.x);\n"
+         "    int y = int(gl_GlobalInvocationID.y);\n"
+         "    if (uint(x) >= pc.width || uint(y) >= pc.height) return;\n";
+    s += isFloat ? sf.bodyFloat : sf.bodyInt;
+    s += "\n}\n";
+    return s;
+}
+
+} // namespace detail
+
+/* Consumes the nodes either way, like createFilter. */
+inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes, int numNodes,
+    const VSVideoInfo *vi, VSCore *core, const VSAPI *vsapi, std::string &errorMessage) {
+    FilterDesc desc;
+    desc.vi = *vi;
+    for (int i = 0; i < numNodes; i++)
+        desc.nodes.push_back(nodes[i]);
+    for (int p = 0; p < 3; p++) {
+        desc.process[p] = sf.process[p];
+        desc.shareClip[p] = sf.shareClip[p];
+    }
+
+    auto fail = [&](const std::string &message) -> VSNode * {
+        errorMessage = message;
+        for (VSNode *node : desc.nodes)
+            vsapi->freeNode(node);
+        return nullptr;
+    };
+
+    if (numNodes != sf.inputs || sf.inputs < 1 || sf.inputs > simpleMaxInputs)
+        return fail("wrong number of source clips for the declared kernel");
+    if ((vi->format.sampleType == stFloat ? sf.bodyFloat : sf.bodyInt).empty())
+        return fail("the format is not supported on the GPU path");
+
+    Program program;
+    program.glsl = detail::simpleSource(sf, vi->format);
+    program.storageBufferCount = sf.inputs + 1;
+    program.pushConstantBytes = sizeof(SimplePush);
+    desc.programs.push_back(std::move(program));
+
+    Pass pass;
+    for (int i = 0; i < sf.inputs; i++)
+        pass.bindings.push_back(Operand::source(i));
+    pass.bindings.push_back(Operand::output());
+    desc.passes.push_back(std::move(pass));
+
+    const auto fill = sf.fill;
+    desc.fillPush = [fill](const PassInfo &info, void *pushData) {
+        SimplePush push = {};
+        push.width = info.width;
+        push.height = info.height;
+        push.srcWidth = info.srcWidth;
+        push.srcHeight = info.srcHeight;
+        for (int i = 0; i < simpleMaxInputs && i < info.bindingCount - 1; i++)
+            push.srcStride[i] = info.strideElements[i];
+        push.dstStride = info.dstStrideElements();
+        if (fill)
+            fill(info.plane, push.f, push.u);
+        std::memcpy(pushData, &push, sizeof(push));
+    };
+
+    std::vector<VSFilterDependency> deps;
+    for (int i = 0; i < numNodes; i++)
+        deps.push_back({ nodes[i], rpStrictSpatial });
+    return createFilter(sf.name, desc, deps.data(), numNodes, core, vsapi, errorMessage);
 }
 
 } // namespace vsgpu
