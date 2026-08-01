@@ -738,13 +738,11 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
     const bool isHalf = (isFloat && fmt.bytesPerSample == 2) ||
                         (srcFmt.sampleType == stFloat && srcFmt.bytesPerSample == 2);
 
+    /* One place decides how a format is spelled, for the destination as much as for the
+       sources: a second copy of this chain is how a four byte integer output silently came
+       out declared as uint16_t. */
     std::string s = "#version 460\n";
-    if (isHalf)
-        s += "#define SAMPLE_T float16_t\n";
-    else if (isFloat)
-        s += "#define SAMPLE_T float\n";
-    else
-        s += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
+    s += std::string("#define SAMPLE_T ") + sampleTypeName(fmt) + "\n";
     for (int i = 0; i < sf.inputs; i++) {
         const VSVideoFormat &f = sf.srcFormats[i] ? *sf.srcFormats[i] : srcFmt;
         s += "#define SRC" + std::to_string(i) + "_T " + sampleTypeName(f) + "\n";

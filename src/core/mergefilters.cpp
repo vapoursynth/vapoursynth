@@ -967,10 +967,7 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    /* A 16 bit input widens to 17, which lands in a four byte integer plane -- a shape the
-       GPU path gets wrong and which is not worth chasing for a filter this rare, so it
-       stays on the scalar path. Everything narrower is verified. */
-    if (bothOnGPU(d->node1, d->node2, vsapi) && d->outvi.format.bytesPerSample <= 2) {
+    if (bothOnGPU(d->node1, d->node2, vsapi)) {
         vsgpu::SimpleFilter sf;
         sf.name = "MakeFullDiff";
         sf.inputs = 2;
@@ -1213,8 +1210,7 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    if (bothOnGPU(d->node1, d->node2, vsapi) &&
-            vsapi->getVideoInfo(d->node2)->format.bytesPerSample <= 2) {
+    if (bothOnGPU(d->node1, d->node2, vsapi)) {
         vsgpu::SimpleFilter sf;
         sf.name = "MergeFullDiff";
         sf.inputs = 2;
