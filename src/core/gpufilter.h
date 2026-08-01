@@ -50,6 +50,10 @@
 
 namespace vsgpu {
 
+/* Bindings per pass. Sized for the widest thing in the tree: AverageFrames takes up to 31
+   input clips plus the output. Programs per filter stay at 8, which no filter approaches. */
+constexpr int maxBindings = 32;
+
 /* What a pass binds at one descriptor slot. Never a VkBuffer: the driver resolves these to
    buffers per plane, which is what keeps a declaring filter free of Vulkan types. */
 struct Operand {
@@ -106,7 +110,7 @@ struct PassInfo {
     uint32_t height = 0;
     uint32_t srcWidth = 0;  /* of clip 0's plane, which a geometry changing filter needs */
     uint32_t srcHeight = 0;
-    uint32_t strideElements[8] = {}; /* per binding, in samples */
+    uint32_t strideElements[maxBindings] = {}; /* per binding, in samples */
     const uint32_t *frameParams = nullptr; /* whatever prepareFrame produced, if anything */
 
     uint32_t srcStrideElements() const { return strideElements[0]; }
@@ -124,6 +128,12 @@ struct FilterDesc {
        that degenerates to one of its inputs per plane -- Merge at weight 1, say -- needs to
        name the other one instead of computing an identity. */
     int shareClip[3] = { 0, 0, 0 };
+    /* The source the output is really derived from: it supplies frame properties, and the
+       temporal offset any shared plane is taken at. Clip 0 at offset 0 for almost everything,
+       but a filter reading a window around the frame -- AverageFrames -- means its centre,
+       not the oldest frame in the window, which is what the fetch order would otherwise give. */
+    int refClip = 0;
+    int refOffset = 0;
     VSVideoInfo vi = {};
     /* Fills pushConstantBytes worth of push constants for one dispatch. */
     std::function<void(const PassInfo &, void *push)> fillPush;
@@ -216,10 +226,12 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                 vsapi->requestFrameFilter(sourceIndex(op.clip, op.frameOffset), desc.nodes[op.clip], frameCtx);
             }
         }
+        if (!desc.nodes.empty())
+            vsapi->requestFrameFilter(sourceIndex(desc.refClip, desc.refOffset), desc.nodes[desc.refClip], frameCtx);
         /* A clip only named as a share source has no binding to be picked up above. */
         for (int p = 0; p < 3 && p < desc.vi.format.numPlanes; p++) {
             if (!desc.process[p])
-                vsapi->requestFrameFilter(sourceIndex(desc.shareClip[p], 0), desc.nodes[desc.shareClip[p]], frameCtx);
+                vsapi->requestFrameFilter(sourceIndex(desc.shareClip[p], desc.refOffset), desc.nodes[desc.shareClip[p]], frameCtx);
         }
         return nullptr;
     }
@@ -247,7 +259,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             vsapi->freeFrame(s.frame);
     };
 
-    const VSFrame *first = sources.empty() ? nullptr : sources[0].frame;
+    const VSFrame *first = desc.nodes.empty() ? nullptr : fetch(desc.refClip, desc.refOffset);
     const VSVideoFormat *fmt = &desc.vi.format;
     const int w = desc.vi.width, h = desc.vi.height;
     char err[512] = { 0 };
@@ -265,7 +277,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         const VSFrame *planeSrc[3] = {};
         int planeIdx[3] = { 0, 1, 2 };
         for (int p = 0; p < fmt->numPlanes; p++)
-            planeSrc[p] = desc.process[p] ? nullptr : fetch(desc.shareClip[p], 0);
+            planeSrc[p] = desc.process[p] ? nullptr : fetch(desc.shareClip[p], desc.refOffset);
         dst = vsapi->newVideoFrame2(fmt, w, h, planeSrc, planeIdx, first, core);
     } else {
         dst = inst->vkapi->newGPUVideoFrame(fmt, w, h, first, core);
@@ -376,8 +388,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             info.pass = static_cast<int>(i);
             info.bindingCount = static_cast<int>(pass.bindings.size());
 
-            VkDescriptorBufferInfo bufferInfo[8] = {};
-            VkWriteDescriptorSet writes[8] = {};
+            VkDescriptorBufferInfo bufferInfo[maxBindings] = {};
+            VkWriteDescriptorSet writes[maxBindings] = {};
             for (size_t b = 0; b < pass.bindings.size(); b++) {
                 const Operand &op = pass.bindings[b];
                 VkBuffer buffer = VK_NULL_HANDLE;
@@ -514,7 +526,7 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
             ~ShaderGuard() { if (shader) vkapi->freeGPUShader(shader); }
         } shaderGuard{ inst->vkapi, shader };
 
-        VkDescriptorSetLayoutBinding bindings[8] = {};
+        VkDescriptorSetLayoutBinding bindings[maxBindings] = {};
         for (int b = 0; b < prog.storageBufferCount; b++) {
             bindings[b].binding = static_cast<uint32_t>(b);
             bindings[b].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;

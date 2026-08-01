@@ -1523,14 +1523,71 @@ typedef struct {
     VSVideoInfo vi;
     uint32_t color[3];
     bool keep;
+    /* Only set on the GPU path; the pool lives and dies with the instance. */
+    bool gpu;
+    const VSVULKANAPI *vkapi;
+    const VSVulkanFunctions *vk;
+    VSGPUExecPool *pool;
 } BlankClipData;
+
+/* A constant plane is a buffer fill, not a dispatch: every sample is the same and the colour
+   is already stored as raw sample bits, so replicating those bits to 32 wide feeds
+   vkCmdFillBuffer directly and no kernel is needed. Filling the stride padding along with
+   the picture is harmless -- nothing reads it -- and lets each plane be a single command. */
+static bool blankClipFillGPU(VSFrame *frame, const VSVideoInfo &vi, const uint32_t color[3],
+    VSGPUExecPool *pool, const VSVULKANAPI *vkapi, const VSVulkanFunctions *vk,
+    char *err, int errSize) {
+    VSGPUExecContext *ctx = vkapi->gpuExecAcquire(pool, err, errSize);
+    if (!ctx)
+        return false;
+
+    VkCommandBuffer cmd = vkapi->gpuExecCommandBuffer(ctx);
+    for (int plane = 0; plane < vi.format.numPlanes; plane++) {
+        VSVulkanPlaneInfo info;
+        if (vkapi->getGPUPlane(frame, plane, &info)) {
+            vkapi->gpuExecAbandon(ctx);
+            snprintf(err, errSize, "BlankClip: output frame is not GPU resident");
+            return false;
+        }
+        uint32_t pattern = color[plane];
+        if (vi.format.bytesPerSample == 1)
+            pattern *= 0x01010101u;
+        else if (vi.format.bytesPerSample == 2)
+            pattern *= 0x00010001u;
+        /* vkCmdFillBuffer works in whole dwords, so a plane whose size is not a multiple of
+           four keeps its tail; one extra sample write covers it. */
+        const VkDeviceSize whole = info.bufferSize & ~VkDeviceSize{ 3 };
+        if (whole)
+            vk->vkCmdFillBuffer(cmd, info.buffer, 0, whole, pattern);
+        vkapi->gpuExecWritesPlane(ctx, frame, plane);
+    }
+
+    return vkapi->gpuExecSubmit(ctx, err, errSize) == 0;
+}
 
 static const VSFrame *VS_CC blankClipGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = reinterpret_cast<BlankClipData *>(instanceData);
 
     if (activationReason == arInitial) {
         VSFrame *frame = nullptr;
-        if (!d->f) {
+        if (!d->f && d->gpu) {
+            frame = d->vkapi->newGPUVideoFrame(&d->vi.format, d->vi.width, d->vi.height, nullptr, core);
+            if (!frame) {
+                vsapi->setFilterError("BlankClip: failed to allocate the output frame", frameCtx);
+                return nullptr;
+            }
+            char err[512] = { 0 };
+            if (!blankClipFillGPU(frame, d->vi, d->color, d->pool, d->vkapi, d->vk, err, sizeof(err))) {
+                vsapi->setFilterError(err, frameCtx);
+                vsapi->freeFrame(frame);
+                return nullptr;
+            }
+            if (d->vi.fpsNum > 0) {
+                VSMap *frameProps = vsapi->getFramePropertiesRW(frame);
+                vsapi->mapSetInt(frameProps, "_DurationNum", d->vi.fpsDen, maReplace);
+                vsapi->mapSetInt(frameProps, "_DurationDen", d->vi.fpsNum, maReplace);
+            }
+        } else if (!d->f) {
             frame = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, 0, core);
             int bytesPerSample = d->vi.format.bytesPerSample;
 
@@ -1570,6 +1627,8 @@ static const VSFrame *VS_CC blankClipGetframe(int n, int activationReason, void 
 static void VS_CC blankClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = reinterpret_cast<BlankClipData *>(instanceData);
     vsapi->freeFrame(d->f);
+    if (d->pool)
+        d->vkapi->freeGPUExecPool(d->pool);
     delete d;
 }
 
@@ -1581,9 +1640,13 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     int err;
 
     VSNode *node = vsapi->mapGetNode(in, "clip", 0, &err);
+    bool templateOnGPU = false;
 
     if (!err) {
         d->vi = *vsapi->getVideoInfo(node);
+        /* Residency is a property of the template like everything else here, so a blank
+           built from a GPU clip is GPU resident unless gpu says otherwise. */
+        templateOnGPU = vsapi->getNodeResidency(node) == nrGPU;
         vsapi->freeNode(node);
         hasvi = true;
     }
@@ -1705,7 +1768,29 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         deliveredInfo.format = {};
     }
 
-    vsapi->createVideoFilter(out, "BlankClip", &deliveredInfo, blankClipGetframe, blankClipFree, d->keep ? fmUnordered : fmParallel, nullptr, 0, d.get(), core);
+    tmp2 = vsapi->mapGetInt(in, "gpu", 0, &err);
+    d->gpu = err ? templateOnGPU : !!tmp2;
+
+    if (d->gpu) {
+        if (!deliveredInfo.width || !deliveredInfo.height || !deliveredInfo.format.numPlanes)
+            RETERROR("BlankClip: varsize and varformat are not supported on the GPU");
+
+        d->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
+        if (!d->vkapi)
+            RETERROR("BlankClip: the GPU API is not available");
+        char err2[512] = { 0 };
+        d->vk = d->vkapi->getVulkanFunctions(core, err2, sizeof(err2));
+        if (!d->vk)
+            RETERROR((std::string("BlankClip: ") + err2).c_str());
+        /* One frame is filled per instance when keep is set and one per request otherwise,
+           so the pool never needs to be deep. */
+        d->pool = d->vkapi->createGPUExecPool(core, vqCompute, 2, err2, sizeof(err2));
+        if (!d->pool)
+            RETERROR((std::string("BlankClip: ") + err2).c_str());
+    }
+
+    vsapi->createVideoFilterEx(out, "BlankClip", &deliveredInfo, blankClipGetframe, blankClipFree,
+        d->keep ? fmUnordered : fmParallel, d->gpu ? ffGPUOutput : 0, nullptr, 0, d.get(), core);
     d.release();
 }
 
@@ -3028,7 +3113,7 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Turn270", "clip:vnode:all;", "clip:vnode:all;", transposeCreate, (void *)tmTurn270, plugin);
     vspapi->registerFunction("StackVertical", "clips:vnode[]:all;", "clip:vnode:all;", stackCreate, (void *)1, plugin);
     vspapi->registerFunction("StackHorizontal", "clips:vnode[]:all;", "clip:vnode:all;", stackCreate, 0, plugin);
-    vspapi->registerFunction("BlankClip", "clip:vnode:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;varsize:int:opt;varformat:int:opt;", "clip:vnode;", blankClipCreate, 0, plugin);
+    vspapi->registerFunction("BlankClip", "clip:vnode:all:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;varsize:int:opt;varformat:int:opt;gpu:int:opt;", "clip:vnode:all;", blankClipCreate, 0, plugin);
     vspapi->registerFunction("AssumeFPS", "clip:vnode:all;src:vnode:all:opt;fpsnum:int:opt;fpsden:int:opt;", "clip:vnode:all;", assumeFPSCreate, 0, plugin);
     vspapi->registerFunction("FrameEval", "clip:vnode:all;eval:func;prop_src:vnode[]:all:opt;clip_src:vnode[]:all:opt;", "clip:vnode:all;", frameEvalCreate, 0, plugin);
     vspapi->registerFunction("ModifyFrame", "clip:vnode:all;clips:vnode[]:all;selector:func;", "clip:vnode:all;", modifyFrameCreate, 0, plugin);

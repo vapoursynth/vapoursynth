@@ -32,7 +32,9 @@
 #include <VSHelper4.h>
 #include "filtershared.h"
 #include "float16_helper.h"
+#include "gpufilter.h"
 #include "version.h"
+#include "VSVulkan4.h"
 
 namespace {
 
@@ -231,6 +233,95 @@ typedef struct {
 } AverageFrameDataExtra;
 
 typedef VariableNodeData<AverageFrameDataExtra> AverageFrameData;
+
+/* Up to 31 inputs and a weight set that scenechange can rewrite per frame, so this declares
+   a FilterDesc rather than going through SimpleFilter, whose three input cap and fixed
+   parameter block neither fits. One pass, one binding per input plus the output. */
+namespace {
+
+constexpr int avgMaxWeights = 31;
+
+struct AveragePush {
+    uint32_t width, height;
+    uint32_t srcStride, dstStride; /* every input shares clip 0's plane geometry */
+    float rscale;
+    int32_t maxval, bias, isFloat;
+    float weights[avgMaxWeights];
+};
+
+const char averageGlsl[] =
+    "#extension GL_EXT_shader_8bit_storage : require\n"
+    "#extension GL_EXT_shader_16bit_storage : require\n"
+    "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
+    "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
+    "#ifdef FLOAT_SAMPLES\n"
+    "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
+    "#endif\n"
+    "\n"
+    "layout(local_size_x = 16, local_size_y = 16) in;\n"
+    "layout(std430, set = 0, binding = 0) writeonly buffer Dst { SAMPLE_T dstData[]; };\n"
+    "layout(push_constant) uniform PC {\n"
+    "    uint width, height, srcStride, dstStride;\n"
+    "    float rscale;\n"
+    "    int maxval, bias, isFloat;\n"
+    "    float weights[31];\n"
+    "} pc;\n"
+    "SRC_DECLS\n"
+    "\n"
+    "void main() {\n"
+    "    uint x = gl_GlobalInvocationID.x;\n"
+    "    uint y = gl_GlobalInvocationID.y;\n"
+    "    if (x >= pc.width || y >= pc.height) return;\n"
+    "    uint idx = y * pc.srcStride + x;\n"
+    "#ifdef FLOAT_SAMPLES\n"
+    /* Float accumulates the samples themselves; the weights are already float. */
+    "    float accum = 0.0;\n"
+    "SRC_ACCUM_F\n"
+    "    dstData[y * pc.dstStride + x] = SAMPLE_T(accum * pc.rscale);\n"
+    "#else\n"
+    /* Integer accumulates exactly in int32 against the bias, exactly as the scalar path
+       does, and only crosses into float for the scale and the tie to even rounding. */
+    "    int accum = 0;\n"
+    "SRC_ACCUM_I\n"
+    "    int r = int(roundEven(float(accum) * pc.rscale)) + pc.bias;\n"
+    "    dstData[y * pc.dstStride + x] = SAMPLE_T(clamp(r, 0, pc.maxval));\n"
+    "#endif\n"
+    "}\n";
+
+/* The input count is fixed at create, so the bindings and the accumulate loop are emitted
+   rather than looped over -- it keeps the weights as literals in the addressing and lets the
+   compiler unroll something it can see the extent of. */
+std::string averageSource(const VSVideoFormat &fmt, int numInputs) {
+    std::string decls, accumF, accumI;
+    for (int i = 0; i < numInputs; i++) {
+        const std::string k = std::to_string(i);
+        decls += "layout(std430, set = 0, binding = " + std::to_string(i + 1) +
+                 ") readonly buffer Src" + k + " { SAMPLE_T s" + k + "[]; };\n";
+        accumF += "    accum += float(s" + k + "[idx]) * pc.weights[" + k + "];\n";
+        accumI += "    accum += (int(s" + k + "[idx]) - pc.bias) * int(pc.weights[" + k + "]);\n";
+    }
+
+    std::string preamble = "#version 460\n";
+    if (fmt.sampleType == stInteger)
+        preamble += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
+    else if (fmt.bytesPerSample == 4)
+        preamble += "#define SAMPLE_T float\n#define FLOAT_SAMPLES\n";
+    else
+        preamble += "#define SAMPLE_T float16_t\n#define FLOAT_SAMPLES\n";
+
+    std::string s = preamble + averageGlsl;
+    auto replace = [&s](const char *token, const std::string &with) {
+        const size_t at = s.find(token);
+        if (at != std::string::npos)
+            s.replace(at, strlen(token), with);
+    };
+    replace("SRC_DECLS\n", decls);
+    replace("SRC_ACCUM_F\n", accumF);
+    replace("SRC_ACCUM_I\n", accumI);
+    return s;
+}
+
+} // namespace
 
 static const VSFrame *VS_CC averageFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AverageFrameData *d = static_cast<AverageFrameData *>(instanceData);
@@ -464,6 +555,129 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         for (int i = 0; i < numNodes; i++)
             deps.push_back({d->nodes[i], (vsapi->getVideoInfo(d->nodes[i])->numFrames >= d->vi.numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
     }
+    bool allGPU = true, anyGPU = false;
+    for (int i = 0; i < numNodes; i++) {
+        const bool gpu = vsapi->getNodeResidency(d->nodes[i]) == nrGPU;
+        allGPU = allGPU && gpu;
+        anyGPU = anyGPU || gpu;
+    }
+    if (anyGPU && !allGPU)
+        RETERROR("AverageFrames: clips are mismatched in residency; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match");
+
+    if (allGPU) {
+        const int taps = static_cast<int>(d->weights.size());
+        const bool single = numNodes == 1;
+
+        vsgpu::FilterDesc desc;
+        desc.vi = d->vi;
+        for (int p = 0; p < 3; p++)
+            desc.process[p] = d->process[p];
+        /* Single clip mode reads a window centred on n from the one clip; otherwise each
+           clip contributes its own frame n. Either way the driver clamps at the ends, which
+           is the same saturation the scalar path applies with its max(0, fn). */
+        if (single) {
+            desc.nodes.push_back(d->nodes[0]);
+            desc.mapFrame = [taps](int n, int, int frameOffset) { return n + frameOffset - taps / 2; };
+            /* Properties and any unprocessed plane come from the centre tap, which is the
+               frame this output actually corresponds to. */
+            desc.refOffset = taps / 2;
+        } else {
+            desc.nodes = d->nodes;
+        }
+
+        vsgpu::Program program;
+        program.glsl = averageSource(d->vi.format, taps);
+        program.storageBufferCount = taps + 1;
+        program.pushConstantBytes = sizeof(AveragePush);
+        desc.programs.push_back(std::move(program));
+
+        vsgpu::Pass pass;
+        pass.bindings.push_back(vsgpu::Operand::output());
+        for (int i = 0; i < taps; i++)
+            pass.bindings.push_back(single ? vsgpu::Operand::source(0, i) : vsgpu::Operand::source(i));
+        desc.passes.push_back(std::move(pass));
+
+        /* Scenechange folds the weights of frames across the cut into the centre tap, so the
+           effective weights are only known once the frames are in hand. */
+        const std::vector<int> baseWeights = d->weights;
+        const std::vector<float> baseFWeights = d->fweights;
+        const bool useSceneChange = d->useSceneChange;
+        const bool isFloat = d->vi.format.sampleType == stFloat;
+        desc.frameParamCount = avgMaxWeights;
+        desc.prepareFrame = [baseWeights, baseFWeights, useSceneChange, isFloat, taps](
+                int, const VSFrame *const *sources, int, const VSAPI *vsapi,
+                uint32_t *params, std::string &) {
+            std::vector<int> weights(baseWeights);
+            std::vector<float> fweights(baseFWeights);
+            if (useSceneChange) {
+                int fromFrame = 0, toFrame = taps;
+                for (int i = taps / 2; i > 0; i--) {
+                    int err;
+                    if (vsapi->mapGetInt(vsapi->getFramePropertiesRO(sources[i]), "_SceneChangePrev", 0, &err)) {
+                        fromFrame = i;
+                        break;
+                    }
+                }
+                for (int i = taps / 2; i < taps - 1; i++) {
+                    int err;
+                    if (vsapi->mapGetInt(vsapi->getFramePropertiesRO(sources[i]), "_SceneChangeNext", 0, &err)) {
+                        toFrame = i;
+                        break;
+                    }
+                }
+                if (isFloat) {
+                    float acc = 0;
+                    for (int i = toFrame + 1; i < taps; i++) { acc += fweights[i]; fweights[i] = 0; }
+                    for (int i = 0; i < fromFrame; i++) { acc += fweights[i]; fweights[i] = 0; }
+                    fweights[taps / 2] += acc;
+                } else {
+                    int acc = 0;
+                    for (int i = toFrame + 1; i < taps; i++) { acc += weights[i]; weights[i] = 0; }
+                    for (int i = 0; i < fromFrame; i++) { acc += weights[i]; weights[i] = 0; }
+                    weights[taps / 2] += acc;
+                }
+            }
+            /* Carried as float bits either way; an integer weight is small enough to survive
+               the trip exactly, which keeps one parameter block for both sample types. */
+            for (int i = 0; i < taps; i++) {
+                const float w = isFloat ? fweights[i] : static_cast<float>(weights[i]);
+                std::memcpy(&params[i], &w, sizeof(w));
+            }
+            return true;
+        };
+
+        const uint32_t bits = d->vi.format.bitsPerSample;
+        const uint32_t colorFamily = d->vi.format.colorFamily;
+        const float fscale = d->fscale;
+        const unsigned scale = d->scale;
+        desc.fillPush = [taps, isFloat, bits, colorFamily, fscale, scale](
+                const vsgpu::PassInfo &info, void *pushData) {
+            AveragePush push = {};
+            push.width = info.width;
+            push.height = info.height;
+            /* Binding 0 is the output; the inputs follow and all share its plane geometry. */
+            push.dstStride = info.strideElements[0];
+            push.srcStride = info.strideElements[1];
+            push.rscale = 1.0f / (isFloat ? fscale : static_cast<float>(scale));
+            push.maxval = static_cast<int32_t>((1u << bits) - 1);
+            const bool chroma = (info.plane == 1 || info.plane == 2) && colorFamily == cfYUV;
+            push.bias = chroma ? static_cast<int32_t>(1u << (bits - 1)) : 0;
+            push.isFloat = isFloat;
+            for (int i = 0; i < taps && i < avgMaxWeights; i++)
+                std::memcpy(&push.weights[i], &info.frameParams[i], sizeof(float));
+            std::memcpy(pushData, &push, sizeof(push));
+        };
+
+        std::string error;
+        VSNode *result = vsgpu::createFilter("AverageFrames", desc, deps.data(), numNodes, core, vsapi, error);
+        d->nodes.clear(); /* consumed either way */
+        if (result)
+            vsapi->mapConsumeNode(out, "clip", result, maAppend);
+        else
+            vsapi->mapSetError(out, ("AverageFrames: " + error).c_str());
+        return;
+    }
+
     vsapi->createVideoFilter(out, "AverageFrames", &d->vi, averageFramesGetFrame, filterFree<AverageFrameData>, fmParallel, deps.data(), numNodes, d.get(), core);
     d.release();
 }
@@ -474,5 +688,5 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
 // Init
 
 void averageFramesInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->registerFunction("AverageFrames", "clips:vnode[];weights:float[];scale:float:opt;scenechange:int:opt;planes:int[]:opt;", "clip:vnode;", averageFramesCreate, 0, plugin);
+    vspapi->registerFunction("AverageFrames", "clips:vnode[]:all;weights:float[];scale:float:opt;scenechange:int:opt;planes:int[]:opt;", "clip:vnode:all;", averageFramesCreate, 0, plugin);
 }
