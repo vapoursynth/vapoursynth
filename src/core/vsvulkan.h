@@ -214,7 +214,9 @@ public:
        memory in both directions; the free lists segregate on the same flag. */
     bool allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDeviceSize size, VkDeviceSize alignment,
         bool exportable, Block *&block, VkDeviceSize &offset, VkDeviceSize &roundedSize, std::string &errorMessage);
-    void free(VSVulkanDevice &dev, Block *block, VkDeviceSize offset, VkDeviceSize roundedSize);
+    /* No device needed: returning a region only moves it into a bucket, and the memory it
+       came from goes back to the driver in trim() or destroy() instead. */
+    void free(Block *block, VkDeviceSize offset, VkDeviceSize roundedSize);
     /* Hands every block with no live regions back to the driver, called under memory pressure
        after cache eviction so the reclaimed VRAM is real for the rest of the system rather
        than banked in the free lists forever. Returns the bytes given back. */

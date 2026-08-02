@@ -94,6 +94,10 @@ struct Program {
     size_t spirvBytes = 0;
     int storageBufferCount = 2;
     int pushConstantBytes = 0;
+    /* Must agree with the layout(local_size_x/y) the kernel declares: this is what the
+       dispatch is divided by, and nothing checks the two against each other. The simple
+       layer below derives both from simpleLocalSize so they cannot drift; a hand written
+       program states the number twice and has to keep it that way. */
     uint32_t localSizeX = 16;
     uint32_t localSizeY = 16;
 };
@@ -120,7 +124,9 @@ struct PassInfo {
     int pass = 0;
     uint32_t width = 0;   /* of the plane this pass dispatches over */
     uint32_t height = 0;
-    uint32_t srcWidth = 0;  /* of clip 0's plane, which a geometry changing filter needs */
+    /* Of the reference clip's plane at the reference offset, which is clip 0 at offset 0 for
+       everything but AverageFrames, and is what a geometry changing filter needs. */
+    uint32_t srcWidth = 0;
     uint32_t srcHeight = 0;
     uint32_t strideElements[maxBindings] = {}; /* per binding, in samples */
     const uint32_t *frameParams = nullptr; /* whatever prepareFrame produced, if anything */
@@ -412,6 +418,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
 
             VkDescriptorBufferInfo bufferInfo[maxBindings] = {};
             VkWriteDescriptorSet writes[maxBindings] = {};
+            std::string bindError;
             for (size_t b = 0; b < pass.bindings.size(); b++) {
                 const Operand &op = pass.bindings[b];
                 VkBuffer buffer = VK_NULL_HANDLE;
@@ -420,8 +427,17 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                     const VSFrame *srcFrame = fetch(op.clip, op.frameOffset);
                     const int srcPlane = op.plane >= 0 ? op.plane : p;
                     VSVulkanPlaneInfo planeInfo;
-                    if (!inst->vkapi->getGPUPlane(srcFrame, srcPlane, &planeInfo))
-                        buffer = planeInfo.buffer;
+                    /* Reported rather than bound: a null VkBuffer in a descriptor is
+                       undefined behaviour that surfaces as a device loss somewhere else
+                       entirely, so the two ways to get one -- a source that turned out not
+                       to be resident, and a plane index the source does not have -- say so
+                       here instead. */
+                    if (inst->vkapi->getGPUPlane(srcFrame, srcPlane, &planeInfo)) {
+                        bindError = "GPU filter: clip " + std::to_string(op.clip) +
+                            " has no GPU resident plane " + std::to_string(srcPlane);
+                        break;
+                    }
+                    buffer = planeInfo.buffer;
                     /* Each source is measured in its own sample size, not the output's:
                        Expr accepts clips whose format differs from what it writes, and
                        dividing an 8 bit source's stride by a 16 bit output would halve it. */
@@ -442,6 +458,13 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                 writes[b].descriptorCount = 1;
                 writes[b].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 writes[b].pBufferInfo = &bufferInfo[b];
+            }
+            if (!bindError.empty()) {
+                vsapi->setFilterError(bindError.c_str(), frameCtx);
+                inst->vkapi->gpuExecAbandon(ctx);
+                releaseSources();
+                vsapi->freeFrame(dst);
+                return nullptr;
             }
 
             if (!firstDispatch && !pass.independent)
@@ -524,6 +547,43 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
         return fail("a GPU filter needs at least one program and one pass");
     if (desc.programs.size() > 8)
         return fail("too many programs");
+
+    /* The frame loop builds its descriptor writes in fixed size stack arrays and indexes
+       scratch, constants and nodes with whatever the operands say, none of it checked once
+       the frames are flowing. This is the one place a filter that declared something
+       impossible can be turned away with a message. AverageFrames sits exactly on the
+       binding limit at 31 taps plus its output, so the bound is real, not theoretical. */
+    for (const Program &prog : desc.programs) {
+        if (prog.storageBufferCount < 1 || prog.storageBufferCount > maxBindings)
+            return fail("a program must declare between 1 and " + std::to_string(maxBindings) +
+                " storage buffers, not " + std::to_string(prog.storageBufferCount));
+    }
+    for (const Pass &pass : desc.passes) {
+        if (pass.program < 0 || pass.program >= static_cast<int>(desc.programs.size()))
+            return fail("a pass names program " + std::to_string(pass.program) + ", which does not exist");
+        if (pass.bindings.empty() || pass.bindings.size() > static_cast<size_t>(maxBindings))
+            return fail("a pass must bind between 1 and " + std::to_string(maxBindings) + " operands");
+        if (pass.bindings.size() > static_cast<size_t>(desc.programs[pass.program].storageBufferCount))
+            return fail("a pass binds more operands than its program declares storage buffers");
+        for (const Operand &op : pass.bindings) {
+            if (op.kind == Operand::SourcePlane &&
+                    (op.clip < 0 || op.clip >= static_cast<int>(desc.nodes.size())))
+                return fail("a binding reads clip " + std::to_string(op.clip) + ", which was not given");
+            if (op.kind == Operand::Scratch && (op.slot < 0 || op.slot >= desc.scratchCount))
+                return fail("a binding names scratch buffer " + std::to_string(op.slot) +
+                    ", but only " + std::to_string(desc.scratchCount) + " were requested");
+            if (op.kind == Operand::Constant &&
+                    (op.slot < 0 || op.slot >= static_cast<int>(desc.constants.size())))
+                return fail("a binding names constant buffer " + std::to_string(op.slot) +
+                    ", which does not exist");
+        }
+    }
+    for (int p = 0; p < 3 && p < desc.vi.format.numPlanes; p++) {
+        if (!desc.process[p] && (desc.shareClip[p] < 0 || desc.shareClip[p] >= static_cast<int>(desc.nodes.size())))
+            return fail("an unprocessed plane shares from a clip that was not given");
+    }
+    if (!desc.nodes.empty() && (desc.refClip < 0 || desc.refClip >= static_cast<int>(desc.nodes.size())))
+        return fail("the reference clip does not exist");
 
     char err[512] = { 0 };
     inst->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
@@ -687,10 +747,13 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
 constexpr int simpleMaxInputs = 3;
 constexpr int simpleFloatParams = 32; /* enough for a 5x5 convolution matrix */
 constexpr int simpleUintParams = 8;
+/* Emitted into the kernel and handed to Program, so the declared workgroup and the dispatch
+   arithmetic always come from the same number. */
+constexpr uint32_t simpleLocalSize = 16;
 
 struct SimplePush {
     uint32_t width, height;         /* of the output plane, which is what is dispatched over */
-    uint32_t srcWidth, srcHeight;   /* of clip 0's plane; differs once geometry changes */
+    uint32_t srcWidth, srcHeight;   /* of the reference clip's plane; differs once geometry changes */
     uint32_t srcStride[simpleMaxInputs];
     uint32_t dstStride;
     float f[simpleFloatParams];
@@ -728,6 +791,15 @@ struct SimpleFilter {
     /* Optional host side frame property fixup; see FilterDesc::finishFrame. */
     std::function<void(int n, VSFrame *dst, const VSFrame *const *sources, int numSources,
         const uint32_t *params, VSCore *core, const VSAPI *vsapi)> finishFrame;
+
+    /* What the core is told about which source frames this filter asks for, applied to every
+       input. The default suits the pointwise and neighbourhood filters that are most of the
+       tree, but a filter setting mapFrame reads a frame index other than n and must say so:
+       rpStrictSpatial on a node's only consumer switches that node's cache off, so claiming
+       it falsely makes the whole upstream run again for every output frame that revisits a
+       source frame -- which is exactly what mapFrame is for. Match what the filter's scalar
+       path declares. */
+    int requestPattern = rpStrictSpatial;
 
     /* Optional source frame index mapping and per frame parameters; see FilterDesc. When
        prepare is set, fillFrame runs instead of fill so the body can reach what it produced. */
@@ -776,7 +848,8 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
     if (isHalf)
         s += "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n";
 
-    s += "\nlayout(local_size_x = 16, local_size_y = 16) in;\n\n"
+    s += "\nlayout(local_size_x = " + std::to_string(simpleLocalSize) +
+         ", local_size_y = " + std::to_string(simpleLocalSize) + ") in;\n\n"
          "layout(push_constant) uniform PC {\n"
          "    uint width, height;\n"
          "    uint srcWidth, srcHeight;\n"
@@ -895,6 +968,8 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
     program.glsl = detail::simpleSource(sf, vi->format);
     program.storageBufferCount = sf.inputs + 1 + static_cast<int>(sf.constants.size());
     program.pushConstantBytes = sizeof(SimplePush);
+    program.localSizeX = simpleLocalSize;
+    program.localSizeY = simpleLocalSize;
     desc.programs.push_back(std::move(program));
 
     /* Constants bind after the output, matching the order simpleSource declares them in.
@@ -935,7 +1010,7 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
 
     std::vector<VSFilterDependency> deps;
     for (int i = 0; i < numNodes; i++)
-        deps.push_back({ nodes[i], rpStrictSpatial });
+        deps.push_back({ nodes[i], sf.requestPattern });
     return createFilter(sf.name, desc, deps.data(), numNodes, core, vsapi, errorMessage);
 }
 

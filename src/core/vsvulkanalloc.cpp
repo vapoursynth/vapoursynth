@@ -154,7 +154,7 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
     return true;
 }
 
-void VSVulkanAllocator::free(VSVulkanDevice &dev, Block *block, VkDeviceSize offset, VkDeviceSize roundedSize) {
+void VSVulkanAllocator::free(Block *block, VkDeviceSize offset, VkDeviceSize roundedSize) {
     std::lock_guard<std::mutex> lock(mutex);
     freeLists[{ block->typeIndex | (block->exportable ? (1ull << 32) : 0), roundedSize }].push_back({ block, offset });
     freeRegions++;
@@ -279,7 +279,7 @@ bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize siz
     bindInfo.memoryOffset = offset;
     res = vk.vkBindBufferMemory2(deviceHandle, 1, &bindInfo);
     if (res != VK_SUCCESS) {
-        allocator.free(*this, block, offset, roundedSize);
+        allocator.free(block, offset, roundedSize);
         errorMessage = "vkBindBufferMemory2 failed (VkResult " + std::to_string(res) + ")";
         destroyBuffer(buffer);
         return false;

@@ -24,9 +24,9 @@
 #include "vsvulkan.h"
 
 #include <atomic>
-#include <cassert>
 #include <condition_variable>
 #include <memory>
+#include <vector>
 
 struct VSFrame;
 
@@ -41,35 +41,33 @@ struct VSVulkanWait {
 /* Collects the dependencies of one submission, deduplicating on the fly since the common case
    is several planes produced by the same timeline, which collapse into one wait at the highest
    value. Null semaphores mean host produced content that needs no wait and are simply dropped,
-   so callers can append every plane of every frame without caring which are resident where. */
+   so callers can append every plane of every frame without caring which are resident where.
+
+   Unbounded on purpose. One distinct timeline per upstream filter instance is the rule, and
+   the filters that combine clips do not cap how many they take -- StackHorizontal accepts any
+   number, Expr 26, AverageFrames 31 -- so no fixed size is a safe one. This held sixteen and
+   dropped the rest behind an assert, which in an NDEBUG build is a silent drop: the consumer
+   then reads planes whose producing dispatch may still be running, and nothing says so. */
 class VSVulkanWaitList {
 public:
-    static constexpr uint32_t capacity = 16;
-
     void add(VkSemaphore semaphore, uint64_t value) {
         if (!semaphore)
             return;
-        for (uint32_t i = 0; i < count; i++) {
-            if (waits[i].semaphore == semaphore) {
-                if (value > waits[i].value)
-                    waits[i].value = value;
+        for (VSVulkanWait &wait : waits) {
+            if (wait.semaphore == semaphore) {
+                if (value > wait.value)
+                    wait.value = value;
                 return;
             }
         }
-        /* A submission depends on at most a handful of distinct timelines, one per pool it
-           consumes from; running out of room means the design changed and this should too —
-           a wait must never be dropped quietly, so the tripwire is loud. */
-        assert(count < capacity);
-        if (count < capacity)
-            waits[count++] = { semaphore, value };
+        waits.push_back({ semaphore, value });
     }
 
-    const VSVulkanWait *data() const { return waits; }
-    uint32_t size() const { return count; }
+    const VSVulkanWait *data() const { return waits.data(); }
+    uint32_t size() const { return static_cast<uint32_t>(waits.size()); }
 
 private:
-    VSVulkanWait waits[capacity] = {};
-    uint32_t count = 0;
+    std::vector<VSVulkanWait> waits;
 };
 
 /* One recording and submission slot: a command pool holding a single primary command buffer,

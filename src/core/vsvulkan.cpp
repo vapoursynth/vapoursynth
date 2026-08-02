@@ -856,6 +856,12 @@ bool VSVulkanDevice::flushDeviceWrites(const VkSemaphore *waitSemaphores, const 
         semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
         semInfo.pNext = &typeInfo;
         if (vk.vkCreateSemaphore(deviceHandle, &semInfo, nullptr, &flushTimeline) != VK_SUCCESS) {
+            /* All or nothing: leaving the pool behind would make the next call skip this
+               block and submit against a null timeline. */
+            vk.vkDestroyCommandPool(deviceHandle, flushPool, nullptr);
+            flushPool = VK_NULL_HANDLE;
+            flushCmd = VK_NULL_HANDLE;
+            flushTimeline = VK_NULL_HANDLE;
             errorMessage = "vkCreateSemaphore failed for the flush context";
             return false;
         }
@@ -1099,7 +1105,7 @@ void VSVulkanDevice::destroyBuffer(VSVulkanBuffer &buffer) {
         /* The block owns the memory and its mapping; only the buffer object and the region go. */
         if (buffer.buffer)
             vk.vkDestroyBuffer(deviceHandle, buffer.buffer, nullptr);
-        allocator.free(*this, buffer.poolBlock, buffer.poolOffset, buffer.poolSize);
+        allocator.free(buffer.poolBlock, buffer.poolOffset, buffer.poolSize);
         buffer = {};
         return;
     }

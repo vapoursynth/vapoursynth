@@ -101,33 +101,6 @@ const char *premulPrelude =
     "    return diff < 0 ? -int(mag) : int(mag);\n"
     "}\n";
 
-/* Gathers the mask at the plane being written. Separable and normalised on each axis, so the
-   outer product is normalised too, and one fused pass replaces the scalar path's H then V with
-   a quantised intermediate between them. Mirroring matches compute_filter's, which reflects the
-   tap position and then lets coefficients landing on the same sample accumulate -- summing over
-   the mirrored indices does exactly that. */
-std::string maskResamplePrelude(int idx, int sx, int sy, int tapsH, int tapsV) {
-    const std::string n = std::to_string(idx);
-    const std::string sxs = std::to_string(sx), sys = std::to_string(sy);
-    return
-        "float vsMaskAt(int xx, int yy) {\n"
-        "    return float(s" + n + "[uint(vsMirror(yy, int(pc.u[4]))) * pc.srcStride[" + n + "]\n"
-        "        + uint(vsMirror(xx, int(pc.u[3])))]);\n"
-        "}\n"
-        "float vsMaskResampled(int x, int y) {\n"
-        "    int bx = " + sxs + " * x + int(pc.u[5]);\n"
-        "    int by = " + sys + " * y + int(pc.u[6]);\n"
-        "    float acc = 0.0;\n"
-        "    for (int jy = 0; jy < " + std::to_string(tapsV) + "; jy++) {\n"
-        "        float row = 0.0;\n"
-        "        for (int jx = 0; jx < " + std::to_string(tapsH) + "; jx++)\n"
-        "            row += pc.f[jx] * vsMaskAt(bx + jx, by + jy);\n"
-        "        acc += pc.f[8 + jy] * row;\n"
-        "    }\n"
-        "    return acc;\n"
-        "}\n";
-}
-
 } // namespace
 
 //////////////////////////////////////////

@@ -137,8 +137,8 @@ bool VSVulkanTransfer::waitPlanesHost(VSVulkanPlane *const planes[], int numPlan
     if (!list.size())
         return true;
 
-    VkSemaphore semaphores[VSVulkanWaitList::capacity];
-    uint64_t values[VSVulkanWaitList::capacity];
+    std::vector<VkSemaphore> semaphores(list.size());
+    std::vector<uint64_t> values(list.size());
     for (uint32_t i = 0; i < list.size(); i++) {
         semaphores[i] = list.data()[i].semaphore;
         values[i] = list.data()[i].value;
@@ -146,8 +146,8 @@ bool VSVulkanTransfer::waitPlanesHost(VSVulkanPlane *const planes[], int numPlan
     VkSemaphoreWaitInfo waitInfo = {};
     waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
     waitInfo.semaphoreCount = list.size();
-    waitInfo.pSemaphores = semaphores;
-    waitInfo.pValues = values;
+    waitInfo.pSemaphores = semaphores.data();
+    waitInfo.pValues = values.data();
     VkResult res = dev->vk.vkWaitSemaphores(dev->device(), &waitInfo, UINT64_MAX);
     if (res != VK_SUCCESS) {
         errorMessage = "vkWaitSemaphores failed (VkResult " + std::to_string(res) + ")";
@@ -212,9 +212,14 @@ void VSVulkanTransfer::releaseSlot(SlotRing &ring, Slot &slot) {
 
 bool VSVulkanTransfer::uploadPlanes(VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
     const uint8_t *const srcPlanes[], const ptrdiff_t srcStrides[], std::string &errorMessage) {
+    /* Host visible is what makes the plane mappable, but only coherence makes the memcpy
+       visible to the device without an explicit flush, and createGPUPlane only *prefers*
+       coherence -- a device offering device local host visible memory without it would
+       otherwise take this path and lose the writes. */
     bool rebar = !forceStaging;
     for (int p = 0; p < numPlanes; p++)
-        rebar = rebar && planes[p]->buffer.mapped;
+        rebar = rebar && planes[p]->buffer.mapped &&
+            (planes[p]->buffer.memoryFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     if (rebar) {
         /* Straight into VRAM, no staging, no submission. The only wait is for whatever last

@@ -895,8 +895,11 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     if (vsapi->getNodeResidency(d->node) == nrGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "SeparateFields";
-        /* Two output frames per source frame, each taking every other line. */
+        /* Two output frames per source frame, each taking every other line. Both halves ask
+           for the same source frame, so this is rpGeneral exactly as the scalar create is --
+           claiming strict spatial would switch the source's cache off and produce it twice. */
         sf.mapFrame = [](int n, int, int) { return n / 2; };
+        sf.requestPattern = rpGeneral;
         /* Which line the field starts on is decided by _FieldBased on the frame, so it can
            only be known once the frame is here; params[0] carries it to the kernel. */
         const int tff = d->tff;
@@ -1063,8 +1066,10 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
         vsgpu::SimpleFilter sf;
         sf.name = "DoubleWeave";
         sf.inputs = 2;
-        /* Both inputs are the same clip, read one frame apart. */
+        /* Both inputs are the same clip, read one frame apart, so the second input alone
+           already breaks strict spatial; rpGeneral matches the scalar create. */
         sf.mapFrame = [](int n, int clip, int) { return n + clip; };
+        sf.requestPattern = rpGeneral;
         /* Which of the pair is the top field comes from _Field on the frames, falling back
            to tff and the output parity exactly as the scalar path does. */
         const int tff = d->tff;
