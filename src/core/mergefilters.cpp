@@ -38,6 +38,22 @@ using namespace vsh;
 
 namespace {
 
+/* The same tail for the filters that keep their inputs in a vector rather than as a pair.
+   Nulling what was handed over matters: the data object still owns the vector, and its
+   destructor would free nodes the new filter now holds. */
+template<typename T>
+void createGPUFromVector(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, int count, VSMap *out,
+    VSCore *core, const VSAPI *vsapi) {
+    std::string error;
+    VSNode *node = vsgpu::createSimpleFilter(sf, d->nodes.data(), count, d->vi, core, vsapi, error);
+    for (int i = 0; i < count; i++)
+        d->nodes[i] = nullptr; /* consumed on success and failure alike */
+    if (node)
+        vsapi->mapConsumeNode(out, "clip", node, maAppend);
+    else
+        vsapi->mapSetError(out, (std::string(sf.name) + ": " + error).c_str());
+}
+
 /* Shared tail for the two input GPU branches here: build the node, hand it back or report
    the error, and take both input nodes with it either way. */
 template<typename T>
@@ -61,6 +77,55 @@ void createGPUFromDecl2(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *o
    the time a create runs; this is just the branch predicate. */
 bool bothOnGPU(VSNode *a, VSNode *b, const VSAPI *vsapi) {
     return vsapi->getNodeResidency(a) == nrGPU && vsapi->getNodeResidency(b) == nrGPU;
+}
+
+/* All GPU, all CPU, or mixed. A vnode:all argument leaves residency to the filter, so a
+   mixed set reaches create unfixed and is rejected here the way Expr and Lut2 reject theirs
+   -- guessing which way to coerce a set of inputs is the caller's decision, not this one's. */
+enum class Residency { AllCPU, AllGPU, Mixed };
+
+Residency residencyOf(const std::vector<VSNode *> &nodes, int count, const VSAPI *vsapi) {
+    int onGPU = 0;
+    for (int i = 0; i < count; i++)
+        onGPU += vsapi->getNodeResidency(nodes[i]) == nrGPU;
+    if (onGPU == 0)
+        return Residency::AllCPU;
+    return onGPU == count ? Residency::AllGPU : Residency::Mixed;
+}
+
+const char *premulPrelude =
+    "int vsPremul(uint x, uint a, uint offset, uint maxval) {\n"
+    "    int diff = int(x) - int(offset);\n"
+    "    uint mag = uint(abs(diff));\n"
+    "    mag = (mag * a + maxval / 2u) / maxval;\n"
+    "    return diff < 0 ? -int(mag) : int(mag);\n"
+    "}\n";
+
+/* Gathers the mask at the plane being written. Separable and normalised on each axis, so the
+   outer product is normalised too, and one fused pass replaces the scalar path's H then V with
+   a quantised intermediate between them. Mirroring matches compute_filter's, which reflects the
+   tap position and then lets coefficients landing on the same sample accumulate -- summing over
+   the mirrored indices does exactly that. */
+std::string maskResamplePrelude(int idx, int sx, int sy, int tapsH, int tapsV) {
+    const std::string n = std::to_string(idx);
+    const std::string sxs = std::to_string(sx), sys = std::to_string(sy);
+    return
+        "float vsMaskAt(int xx, int yy) {\n"
+        "    return float(s" + n + "[uint(vsMirror(yy, int(pc.u[4]))) * pc.srcStride[" + n + "]\n"
+        "        + uint(vsMirror(xx, int(pc.u[3])))]);\n"
+        "}\n"
+        "float vsMaskResampled(int x, int y) {\n"
+        "    int bx = " + sxs + " * x + int(pc.u[5]);\n"
+        "    int by = " + sys + " * y + int(pc.u[6]);\n"
+        "    float acc = 0.0;\n"
+        "    for (int jy = 0; jy < " + std::to_string(tapsV) + "; jy++) {\n"
+        "        float row = 0.0;\n"
+        "        for (int jx = 0; jx < " + std::to_string(tapsH) + "; jx++)\n"
+        "            row += pc.f[jx] * vsMaskAt(bx + jx, by + jy);\n"
+        "        acc += pc.f[8 + jy] * row;\n"
+        "    }\n"
+        "    return acc;\n"
+        "}\n";
 }
 
 } // namespace
@@ -162,6 +227,192 @@ static int resolveChromaLocation(const VSFrame *frame, const VSAPI *vsapi) {
     return static_cast<int>(raw);
 }
 
+namespace {
+
+/* zimg's compute_filter (zimg/src/zimg/resize/filter.cpp) for the one shape these two filters
+   ever ask of it: a bilinear downscale by a whole number with a constant shift. What the
+   compute path uses instead of invoking the resize plugin, which has no GPU implementation.
+
+   That shape is what makes the coefficients position INDEPENDENT. The output sample's position
+   on the input grid advances by exactly the subsampling factor, an integer, so round_halfup's
+   argument advances by the same integer and every tap offset and weight repeats unchanged. So
+   they are computed once here rather than per sample in the kernel, and what the kernel gets is
+   a fixed short filter plus an origin.
+
+   Note the tap count: zimg divides the filter's support by the scaling step, so bilinear
+   downscaling by two is a FOUR tap filter and by four an eight tap one -- not the two tap lerp
+   the name suggests. Getting that wrong passes 4:2:0 and fails 4:1:1.
+
+   Deliberately NOT bit exact with the scalar path on integer formats: zimg quantises these to
+   Q14 with error diffusion and rounds through a uint16 intermediate between its horizontal and
+   vertical passes. One fused pass in float is nearer the exact answer, and reproducing the
+   fixed point pipeline would cost a second pass to reproduce a CPU artefact. Measured, the two
+   agree within 1 LSB. */
+/* Subsampling is valid up to 4 per axis, a factor of sixteen, and the filter is twice the
+   factor wide. Exotic, but constructible, and covering it costs only table space -- the total
+   tap work per frame is actually constant, since the tap count grows as the square of the
+   factor while the plane it is computed over shrinks by the same square. */
+constexpr int maxChromaTaps = 32;
+
+struct AxisFilter {
+    int taps = 1;
+    int origin = 0; /* first tap index, relative to subsampling factor * output index */
+    float coeff[maxChromaTaps] = { 1.0f };
+};
+
+AxisFilter chromaAxisFilter(int subsampling, double shift) {
+    const int s = 1 << subsampling;
+    /* scale is 1/s and step is min(scale, 1); support is BilinearFilter's 1 over the step. */
+    const double step = 1.0 / s;
+    const double support = 1.0 / step;
+    auto bilinear = [](double x) { return std::max(1.0 - std::abs(x), 0.0); };
+
+    AxisFilter out;
+    out.taps = std::max(static_cast<int>(std::ceil(support)) * 2, 1);
+    /* Output sample zero is enough, by the argument above. Half UP, not half to even: zimg
+       needs round(x - 1) == round(x) - 1 to hold on the pixel grid. */
+    const double pos = 0.5 * s + shift;
+    const double beginPos = std::floor(pos - out.taps / 2.0 + 0.5) + 0.5;
+    out.origin = static_cast<int>(std::floor(beginPos));
+
+    double total = 0.0;
+    for (int j = 0; j < out.taps; j++)
+        total += bilinear((beginPos + j - pos) * step);
+    for (int j = 0; j < out.taps; j++)
+        out.coeff[j] = static_cast<float>(bilinear((beginPos + j - pos) * step) / total);
+    return out;
+}
+
+/* One pair per _ChromaLocation, since which one applies is a property of the frame and the
+   compute path picks between them with a push constant rather than with six resize nodes. */
+struct ChromaFilters {
+    AxisFilter h[numChromaLocations];
+    AxisFilter v[numChromaLocations];
+};
+
+ChromaFilters chromaFiltersFor(int subSamplingW, int subSamplingH) {
+    ChromaFilters out;
+    for (int loc = 0; loc < numChromaLocations; loc++) {
+        double srcLeft, srcTop;
+        getChromalocLumaShift(loc, subSamplingW, subSamplingH, &srcLeft, &srcTop);
+        out.h[loc] = chromaAxisFilter(subSamplingW, srcLeft);
+        out.v[loc] = chromaAxisFilter(subSamplingH, srcTop);
+    }
+    return out;
+}
+
+/* Every chroma location's coefficients, uploaded once, since which one applies is a property of
+   the frame and the widest filter would not fit the push constant block anyway. Laid out
+   [location][axis][tap]; the kernel is handed the base for the location as a push constant. */
+std::vector<uint8_t> chromaCoefficientTable(const ChromaFilters &cf) {
+    std::vector<float> table(static_cast<size_t>(numChromaLocations) * 2 * maxChromaTaps, 0.0f);
+    for (int loc = 0; loc < numChromaLocations; loc++) {
+        float *h = table.data() + (static_cast<size_t>(loc) * 2) * maxChromaTaps;
+        float *v = h + maxChromaTaps;
+        for (int j = 0; j < cf.h[loc].taps; j++)
+            h[j] = cf.h[loc].coeff[j];
+        for (int j = 0; j < cf.v[loc].taps; j++)
+            v[j] = cf.v[loc].coeff[j];
+    }
+    std::vector<uint8_t> blob(table.size() * sizeof(float));
+    std::memcpy(blob.data(), table.data(), blob.size());
+    return blob;
+}
+
+/* How a kernel reaches the mask: a name for the plain read, plus the gather when the plane
+   being written is smaller than the mask. Assembled per filter because which input carries the
+   mask differs -- alpha is PreMultiply's second clip, mask is MaskedMerge's third. */
+struct MaskSource {
+    std::string prelude;
+    std::string intExpr;   /* declares `uint m` */
+    std::string floatExpr; /* declares `float mraw`, unclamped: the merge bodies clamp */
+};
+
+MaskSource maskSource(int idx, const VSVideoFormat &fmt, bool resamples, const ChromaFilters &cf) {
+    const std::string n = std::to_string(idx);
+    MaskSource out;
+    out.prelude = "#define SRCMASK(xx, yy) SRC" + n + "(xx, yy)\n";
+    if (!resamples) {
+        out.intExpr = "    uint m = uint(SRCMASK(x, y));\n";
+        out.floatExpr = "    float mraw = float(SRCMASK(x, y));\n";
+        return out;
+    }
+    /* Tap counts follow the subsampling alone, so any chroma location's pair will do. */
+    /* The mask's own dimensions rather than the plane being written, and derived rather than
+       pushed: a subsampled format's dimensions must divide by the factor exactly -- odd sizes
+       are rejected outright -- so shifting the chroma extent back up recovers the luma one. */
+    out.prelude +=
+        "float vsMaskAt(int xx, int yy) {\n"
+        "    return float(s" + n + "[uint(vsMirror(yy, int(pc.height) * " + std::to_string(1 << fmt.subSamplingH) + ")) * pc.srcStride[" + n + "]\n"
+        "        + uint(vsMirror(xx, int(pc.width) * " + std::to_string(1 << fmt.subSamplingW) + "))]);\n"
+        "}\n"
+        /* Separable and normalised on each axis, so the outer product is normalised too, and
+           one fused pass replaces the scalar path's horizontal then vertical with a quantised
+           intermediate between them. The mirroring matches compute_filter's, which reflects the
+           tap position and lets coefficients landing on the same sample accumulate -- summing
+           over mirrored indices does exactly that. */
+        "float vsMaskResampled(int x, int y) {\n"
+        "    int bx = " + std::to_string(1 << fmt.subSamplingW) + " * x + int(pc.u[4]);\n"
+        "    int by = " + std::to_string(1 << fmt.subSamplingH) + " * y + int(pc.u[5]);\n"
+        "    uint ch = pc.u[3];\n"
+        "    uint cv = ch + " + std::to_string(maxChromaTaps) + "u;\n"
+        "    float acc = 0.0;\n"
+        "    for (int jy = 0; jy < " + std::to_string(cf.v[0].taps) + "; jy++) {\n"
+        "        float row = 0.0;\n"
+        "        for (int jx = 0; jx < " + std::to_string(cf.h[0].taps) + "; jx++)\n"
+        "            row += lut0[ch + uint(jx)] * vsMaskAt(bx + jx, by + jy);\n"
+        "        acc += lut0[cv + uint(jy)] * row;\n"
+        "    }\n"
+        "    return acc;\n"
+        "}\n";
+    /* pc.u[6] is set only on the planes that need it, so luma still reads the mask straight.
+       The integer form rounds half up and clamps, which is what pack_pixel_u16 does at the end
+       of zimg's own resample; the float form leaves the value alone for the merge to clamp. */
+    out.intExpr =
+        "    uint m = pc.u[6] != 0u\n"
+        "        ? uint(clamp(floor(vsMaskResampled(x, y) + 0.5), 0.0, float(pc.u[0])))\n"
+        "        : uint(SRCMASK(x, y));\n";
+    out.floatExpr =
+        "    float mraw = pc.u[6] != 0u ? vsMaskResampled(x, y) : float(SRCMASK(x, y));\n";
+    return out;
+}
+
+/* Just the two tap origins per chroma location, which is all the gather needs from the host
+   once the coefficients live in the constant buffer -- passing the whole ChromaFilters would
+   copy a couple of kilobytes of tables into the callback for the sake of twelve ints. */
+struct ChromaOrigins {
+    int32_t h[numChromaLocations] = {};
+    int32_t v[numChromaLocations] = {};
+};
+
+ChromaOrigins originsOf(const ChromaFilters &cf) {
+    ChromaOrigins out;
+    for (int loc = 0; loc < numChromaLocations; loc++) {
+        out.h[loc] = cf.h[loc].origin;
+        out.v[loc] = cf.v[loc].origin;
+    }
+    return out;
+}
+
+/* The half of the push constants the gather needs. u[0] to u[2] belong to the caller. */
+void fillMaskParams(int plane, int loc, const ChromaOrigins &origins, bool resamples, uint32_t *u) {
+    if (!resamples || plane == 0) {
+        u[3] = 0;
+        u[4] = 0;
+        u[5] = 0;
+        u[6] = 0;
+        return;
+    }
+    if (loc < 0 || loc >= numChromaLocations)
+        loc = VSC_CHROMA_LEFT;
+    u[3] = static_cast<uint32_t>(loc) * 2u * maxChromaTaps;
+    u[4] = static_cast<uint32_t>(origins.h[loc]);
+    u[5] = static_cast<uint32_t>(origins.v[loc]);
+    u[6] = 1;
+}
+
+} // namespace
+
 //////////////////////////////////////////
 // PreMultiply
 
@@ -174,12 +425,18 @@ typedef struct {
 
 typedef VariableNodeData<PreMultiplyDataExtra> PreMultiplyData;
 
-static unsigned getLimitedRangeOffset(const VSFrame *f, const VSVideoInfo *vi, const VSAPI *vsapi) {
+/* Takes the format rather than the VideoInfo so a compute path can capture it by value; the
+   VideoInfo overload is what the scalar paths already had. */
+static unsigned getLimitedRangeOffset(const VSFrame *f, const VSVideoFormat &fmt, const VSAPI *vsapi) {
     int err;
     bool limited = (vsapi->mapGetInt(vsapi->getFramePropertiesRO(f), "_Range", 0, &err) == VSC_RANGE_LIMITED);
     if (err)
-        limited = (vi->format.colorFamily == cfGray || vi->format.colorFamily == cfYUV);
-    return (limited ? (16 << (vi->format.bitsPerSample - 8)) : 0);
+        limited = (fmt.colorFamily == cfGray || fmt.colorFamily == cfYUV);
+    return (limited ? (16 << (fmt.bitsPerSample - 8)) : 0);
+}
+
+static unsigned getLimitedRangeOffset(const VSFrame *f, const VSVideoInfo *vi, const VSAPI *vsapi) {
+    return getLimitedRangeOffset(f, vi->format, vsapi);
 }
 
 static const VSFrame *VS_CC preMultiplyGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -289,6 +546,65 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
 
     bool subsampled = (d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0);
     d->chroma_dispatch = subsampled;
+
+    Residency residency = residencyOf(d->nodes, 2, vsapi);
+    if (residency == Residency::Mixed)
+        RETERROR("PreMultiply: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+
+    if (residency == Residency::AllGPU) {
+        const VSVideoFormat &fmt = d->vi->format;
+        const ChromaFilters cf = chromaFiltersFor(fmt.subSamplingW, fmt.subSamplingH);
+        const unsigned depth = fmt.bitsPerSample;
+        const uint32_t maxval = (1u << depth) - 1u;
+        const bool isYUV = fmt.colorFamily == cfYUV;
+        const bool isInt = fmt.sampleType == stInteger;
+        const MaskSource ms = maskSource(1, fmt, subsampled, cf);
+
+        vsgpu::SimpleFilter sf;
+        sf.name = "PreMultiply";
+        sf.inputs = 2;
+        /* Every plane reads the same single plane alpha; on subsampled chroma the gather in
+           the prelude is what brings it to the right resolution. */
+        sf.srcPlane[1] = 0;
+        sf.prelude = std::string(premulPrelude) + ms.prelude;
+        sf.bodyInt = ms.intExpr +
+            "    STORE(uint(vsPremul(uint(SRC0(x, y)), m, pc.u[1], pc.u[0]) + int(pc.u[1])));";
+        /* The scalar float kernel ignores the offset outright: a premultiplied float chroma
+           sample is already centred on zero. */
+        sf.bodyFloat = ms.floatExpr +
+            "    STORE(float(SRC0(x, y)) * mraw);";
+        if (subsampled) {
+            sf.constants.push_back(chromaCoefficientTable(cf));
+            sf.constantType = "float";
+        }
+
+        /* The offset on integer, and the chroma location when the alpha is resampled; both are
+           properties of the frame rather than of the clip. A float clip with nothing subsampled
+           wants neither, and then reading frame properties every frame would buy nothing. */
+        const ChromaOrigins origins = originsOf(cf);
+        if (isInt || subsampled) {
+            const VSVideoFormat capturedFmt = fmt;
+            sf.prepareParams = 2;
+            sf.prepare = [capturedFmt, isInt, subsampled](int, const VSFrame *const *sources,
+                    int numSources, const VSAPI *api, uint32_t *params, std::string &) {
+                params[0] = (isInt && numSources > 0) ? getLimitedRangeOffset(sources[0], capturedFmt, api) : 0;
+                params[1] = (subsampled && numSources > 0)
+                    ? static_cast<uint32_t>(resolveChromaLocation(sources[0], api)) : 0;
+                return true;
+            };
+            sf.fillFrame = [isYUV, depth, maxval, origins, subsampled](
+                    int plane, const uint32_t *params, float *, uint32_t *u) {
+                u[0] = maxval;
+                u[1] = (plane > 0 && isYUV) ? (1u << (depth - 1)) : params[0];
+                fillMaskParams(plane, static_cast<int>(params[1]), origins, subsampled, u);
+            };
+        } else {
+            sf.fill = [maxval](int, float *, uint32_t *u) { u[0] = maxval; };
+        }
+
+        createGPUFromVector(d, sf, 2, out, core, vsapi);
+        return;
+    }
 
     if (subsampled) {
         VSNode *candidates[numChromaLocations] = {};
@@ -685,6 +1001,119 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
                               && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0)
                               && (d->process[1] || d->process[2]);
     d->chroma_dispatch = need_chroma_resize;
+
+    Residency maskedResidency = residencyOf(d->nodes, 3, vsapi);
+    if (maskedResidency == Residency::Mixed)
+        RETERROR("MaskedMerge: clips are mismatched in residency; all must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match");
+
+    if (maskedResidency == Residency::AllGPU) {
+        const VSVideoFormat &fmt = d->vi->format;
+        const ChromaFilters cf = chromaFiltersFor(fmt.subSamplingW, fmt.subSamplingH);
+        const unsigned depth = fmt.bitsPerSample;
+        const uint32_t maxval = (1u << depth) - 1u;
+        const bool isYUV = fmt.colorFamily == cfYUV;
+        const bool isInt = fmt.sampleType == stInteger;
+        const bool premul = d->premultiplied;
+
+        vsgpu::SimpleFilter sf;
+        sf.name = "MaskedMerge";
+        sf.inputs = 3;
+        /* The mask is read as the OUTPUT's sample type, not its own -- which is what the
+           scalar kernels do, casting the mask pointer to the same type as the sources. */
+        sf.srcPlane[2] = d->first_plane ? 0 : -1;
+        const MaskSource ms = maskSource(2, fmt, need_chroma_resize, cf);
+        /* vsPremul is only reached from the premultiplied bodies. */
+        sf.prelude = (premul ? std::string(premulPrelude) : std::string()) + ms.prelude;
+        for (int p = 0; p < 3; p++)
+            sf.process[p] = d->process[p];
+        if (need_chroma_resize) {
+            sf.constants.push_back(chromaCoefficientTable(cf));
+            sf.constantType = "float";
+        }
+
+        /* u[2] is the storage width, not maxval: the scalar kernels hold invmask in the
+           sample type, so a mask sample above maxval -- which nothing forbids at a depth
+           the type has room above -- wraps there and has to wrap identically here. A
+           resampled mask is already clamped, so this only bites on the direct read. */
+        if (premul) {
+            /* Premultiplied clamps where the plain form cannot go out of range at all:
+               clipb is already scaled, so the sum can leave the storage range. */
+            sf.bodyInt = ms.intExpr +
+                "    uint inv = (pc.u[0] - m) & pc.u[2];\n"
+                "    int v = vsPremul(uint(SRC0(x, y)), inv, pc.u[1], pc.u[0]) + int(uint(SRC1(x, y)));\n"
+                "    STORE(uint(clamp(v, 0, int(pc.u[0]))));";
+            sf.bodyFloat = ms.floatExpr +
+                "    float m = clamp(mraw, 0.0, 1.0);\n"
+                "    STORE((1.0 - m) * float(SRC0(x, y)) + float(SRC1(x, y)));";
+        } else {
+            sf.bodyInt = ms.intExpr +
+                "    uint inv = (pc.u[0] - m) & pc.u[2];\n"
+                "    STORE((inv * uint(SRC0(x, y)) + m * uint(SRC1(x, y)) + pc.u[0] / 2u) / pc.u[0]);";
+            sf.bodyFloat = ms.floatExpr +
+                "    float m = clamp(mraw, 0.0, 1.0);\n"
+                "    float v1 = float(SRC0(x, y));\n"
+                "    STORE(v1 + (float(SRC1(x, y)) - v1) * m);";
+        }
+        const uint32_t storageMask = fmt.bytesPerSample == 1 ? 0xFFu : 0xFFFFu;
+
+        /* Two per frame checks the scalar path makes and the compute path must keep: the
+           two inputs have to agree on chroma siting before their chroma can be merged at
+           all, and premultiplied integer needs them to agree on black level too, since
+           one offset is applied to both. */
+        const bool checkLoc = (d->process[1] || d->process[2]) &&
+            (fmt.subSamplingW > 0 || fmt.subSamplingH > 0);
+        const bool checkRange = premul && isInt;
+
+        /* Resampling always implies checkLoc -- both want subsampling and chroma being
+           processed -- so the chroma location the gather needs is already being read and
+           already known to agree between the two inputs. */
+        const ChromaOrigins origins = originsOf(cf);
+        if (checkLoc || checkRange) {
+            const VSVideoFormat capturedFmt = fmt;
+            sf.prepareParams = 2;
+            sf.prepare = [capturedFmt, checkLoc, checkRange](int, const VSFrame *const *sources,
+                    int numSources, const VSAPI *api, uint32_t *params, std::string &error) {
+                if (numSources < 2) {
+                    error = "MaskedMerge: missing source frames";
+                    return false;
+                }
+                params[1] = 0;
+                if (checkLoc) {
+                    int loc1 = resolveChromaLocation(sources[0], api);
+                    int loc2 = resolveChromaLocation(sources[1], api);
+                    if (loc1 != loc2) {
+                        error = "MaskedMerge: clipa and clipb have different chroma locations (_ChromaLocation "
+                            + std::to_string(loc1) + " vs " + std::to_string(loc2) + ")";
+                        return false;
+                    }
+                    params[1] = static_cast<uint32_t>(loc1);
+                }
+                unsigned offset1 = getLimitedRangeOffset(sources[0], capturedFmt, api);
+                if (checkRange && offset1 != getLimitedRangeOffset(sources[1], capturedFmt, api)) {
+                    error = "MaskedMerge: Input frames must have the same range";
+                    return false;
+                }
+                params[0] = offset1;
+                return true;
+            };
+            sf.fillFrame = [isYUV, depth, maxval, storageMask, origins, need_chroma_resize](
+                    int plane, const uint32_t *params, float *, uint32_t *u) {
+                u[0] = maxval;
+                u[1] = (plane > 0 && isYUV) ? (1u << (depth - 1)) : params[0];
+                u[2] = storageMask;
+                fillMaskParams(plane, static_cast<int>(params[1]), origins, need_chroma_resize, u);
+            };
+        } else {
+            /* Never resamples: reaching here needs no chroma processed or no subsampling. */
+            sf.fill = [maxval, storageMask](int, float *, uint32_t *u) {
+                u[0] = maxval;
+                u[2] = storageMask;
+            };
+        }
+
+        createGPUFromVector(d, sf, 3, out, core, vsapi);
+        return;
+    }
 
     if (need_chroma_resize) {
         // If the mask has more than 1 plane, extract plane 0 first so the
@@ -1236,9 +1665,9 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
 // Init
 
 void mergeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->registerFunction("PreMultiply", "clip:vnode;alpha:vnode;", "clip:vnode;", preMultiplyCreate, 0, plugin);
+    vspapi->registerFunction("PreMultiply", "clip:vnode:all;alpha:vnode:all;", "clip:vnode:all;", preMultiplyCreate, 0, plugin);
     vspapi->registerFunction("Merge", "clipa:vnode:all;clipb:vnode:all;weight:float[]:opt;", "clip:vnode:all;", mergeCreate, 0, plugin);
-    vspapi->registerFunction("MaskedMerge", "clipa:vnode;clipb:vnode;mask:vnode;planes:int[]:opt;first_plane:int:opt;premultiplied:int:opt;", "clip:vnode;", maskedMergeCreate, 0, plugin);
+    vspapi->registerFunction("MaskedMerge", "clipa:vnode:all;clipb:vnode:all;mask:vnode:all;planes:int[]:opt;first_plane:int:opt;premultiplied:int:opt;", "clip:vnode:all;", maskedMergeCreate, 0, plugin);
     vspapi->registerFunction("MakeDiff", "clipa:vnode:all;clipb:vnode:all;planes:int[]:opt;", "clip:vnode:all;", makeDiffCreate, 0, plugin);
     vspapi->registerFunction("MakeFullDiff", "clipa:vnode:all;clipb:vnode:all;", "clip:vnode:all;", makeFullDiffCreate, 0, plugin);
     vspapi->registerFunction("MergeDiff", "clipa:vnode:all;clipb:vnode:all;planes:int[]:opt;", "clip:vnode:all;", mergeDiffCreate, 0, plugin);

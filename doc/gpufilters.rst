@@ -74,6 +74,28 @@ C API, reading a GPU frame's planes is a fatal error instead: for compiled
 plugins it is a programming error and must fail loudly, never silently
 download.)
 
+A filter with a compute path takes every call it accepts at all; none of them
+quietly downloads its inputs and runs the scalar code instead, so a resident
+chain stays resident and a shape a filter cannot handle is an error rather
+than a silent transfer. Where several clips contribute planes they must share
+one residency, as everywhere else; mixing is likewise an error.
+
+One deliberate difference from the scalar path is worth knowing about.
+std.MaskedMerge_ and std.PreMultiply_ have to resample a grayscale mask or
+alpha to chroma resolution when the clip has subsampled chroma, shifted to the
+siting the frame's ``_ChromaLocation`` names. The scalar path does it by
+calling resize.Bilinear_, which for integer formats carries the filter in Q14
+fixed point and rounds through a 16-bit intermediate between its horizontal
+and vertical passes; the compute path does it in one fused pass in float,
+which is nearer the exact answer and does not materialize the intermediate at
+all. So on integer formats the two agree to within 1 LSB rather than exactly.
+Everything else about both filters is bit identical, including a mask in the
+clip's own format, which needs no resampling at all.
+
+.. _std.MaskedMerge: functions/video/maskedmerge.html
+.. _std.PreMultiply: functions/video/premultiply.html
+.. _resize.Bilinear: functions/video/resize.html
+
 Device selection
 ################
 

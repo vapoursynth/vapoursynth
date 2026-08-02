@@ -62,9 +62,21 @@ struct Operand {
     int clip = 0;         /* which source clip, for multi input filters */
     int frameOffset = 0;  /* temporal: 0 is the frame being produced */
     int slot = 0;         /* scratch index */
+    /* Which plane of that clip to read. -1, the default, is the plane being produced, which
+       is what every filter treating its planes independently wants. A single plane mask or
+       alpha applied to all three planes of the output names 0 instead -- without which the
+       driver asks a one plane frame for its plane 1 and gets nothing.
+
+       It says nothing about geometry: the named plane still has to be the size of the plane
+       being written, since the dispatch is over the output. A luma resolution mask against
+       subsampled chroma needs a resample, not this. */
+    int plane = -1;
 
     static Operand source(int clip = 0, int frameOffset = 0) {
         Operand o; o.kind = SourcePlane; o.clip = clip; o.frameOffset = frameOffset; return o;
+    }
+    static Operand sourcePlane(int plane, int clip = 0, int frameOffset = 0) {
+        Operand o = source(clip, frameOffset); o.plane = plane; return o;
     }
     static Operand output() { Operand o; o.kind = OutputPlane; return o; }
     static Operand scratch(int slot) { Operand o; o.kind = Scratch; o.slot = slot; return o; }
@@ -90,11 +102,9 @@ struct Pass {
     int program = 0;
     std::vector<Operand> bindings;
     /* Dispatch geometry comes from the output plane by default, which is what geometry
-       changing filters need; passes writing scratch shaped like the source say so. */
-    bool geometryFromSource = false;
-    /* Dispatch over this binding's plane instead. Needed when the passes of one filter have
-       different shapes -- a stack runs one pass per input, each sized to that input -- which
-       geometryFromSource cannot express, since it always means clip 0. -1 leaves it off. */
+       changing filters need. Naming a binding dispatches over that binding's plane instead,
+       which is what a filter whose passes differ in shape needs -- a stack runs one pass per
+       input, each sized to that input. -1 leaves it off. */
     int geometryFromBinding = -1;
     /* Drop the barrier before this pass. Only for a pass that cannot observe what an earlier
        one in the same submission wrote: disjoint output regions, typically. The default is
@@ -408,14 +418,15 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                 uint32_t strideElems = dstStrideElems;
                 if (op.kind == Operand::SourcePlane) {
                     const VSFrame *srcFrame = fetch(op.clip, op.frameOffset);
+                    const int srcPlane = op.plane >= 0 ? op.plane : p;
                     VSVulkanPlaneInfo planeInfo;
-                    if (!inst->vkapi->getGPUPlane(srcFrame, p, &planeInfo))
+                    if (!inst->vkapi->getGPUPlane(srcFrame, srcPlane, &planeInfo))
                         buffer = planeInfo.buffer;
                     /* Each source is measured in its own sample size, not the output's:
                        Expr accepts clips whose format differs from what it writes, and
                        dividing an 8 bit source's stride by a 16 bit output would halve it. */
                     const VSVideoFormat *srcFmt = vsapi->getVideoFrameFormat(srcFrame);
-                    strideElems = static_cast<uint32_t>(vsapi->getStride(srcFrame, p) / srcFmt->bytesPerSample);
+                    strideElems = static_cast<uint32_t>(vsapi->getStride(srcFrame, srcPlane) / srcFmt->bytesPerSample);
                 } else if (op.kind == Operand::OutputPlane) {
                     buffer = dstPlane.buffer;
                 } else if (op.kind == Operand::Constant) {
@@ -441,14 +452,19 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             inst->vk->vkCmdPushDescriptorSet(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, inst->pipeLayouts[pass.program],
                 0, static_cast<uint32_t>(pass.bindings.size()), writes);
 
-            const VSFrame *geometry = pass.geometryFromSource && first ? first : dst;
+            const VSFrame *geometry = dst;
+            int geometryPlane = p;
             if (pass.geometryFromBinding >= 0 && pass.geometryFromBinding < static_cast<int>(pass.bindings.size())) {
                 const Operand &g = pass.bindings[pass.geometryFromBinding];
-                if (g.kind == Operand::SourcePlane)
+                if (g.kind == Operand::SourcePlane) {
                     geometry = fetch(g.clip, g.frameOffset);
+                    /* A binding that names its plane is measured on that plane, or the
+                       geometry would come from one the pass never reads. */
+                    geometryPlane = g.plane >= 0 ? g.plane : p;
+                }
             }
-            info.width = static_cast<uint32_t>(vsapi->getFrameWidth(geometry, p));
-            info.height = static_cast<uint32_t>(vsapi->getFrameHeight(geometry, p));
+            info.width = static_cast<uint32_t>(vsapi->getFrameWidth(geometry, geometryPlane));
+            info.height = static_cast<uint32_t>(vsapi->getFrameHeight(geometry, geometryPlane));
             info.srcWidth = static_cast<uint32_t>(vsapi->getFrameWidth(first ? first : dst, p));
             info.srcHeight = static_cast<uint32_t>(vsapi->getFrameHeight(first ? first : dst, p));
             info.frameParams = frameParamData;
@@ -697,6 +713,10 @@ struct SimpleFilter {
        The destination keeps the output format either way. */
     const VSVideoFormat *srcFormat = nullptr;
     const VSVideoFormat *srcFormats[simpleMaxInputs] = { nullptr, nullptr, nullptr };
+    /* Which plane of each input to read; -1, the default, follows the plane being produced.
+       A grayscale mask or alpha applied to every plane of the output names 0. Only legal
+       while that plane is the size of the plane being written -- see Operand::plane. */
+    int srcPlane[simpleMaxInputs] = { -1, -1, -1 };
     /* Uploaded once at create and bound after the output, readable as lut0, lut1, ... */
     std::vector<std::vector<uint8_t>> constants;
     /* The element type the constants are read as; defaults to the output's. */
@@ -882,7 +902,7 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
     desc.constants = sf.constants;
     Pass pass;
     for (int i = 0; i < sf.inputs; i++)
-        pass.bindings.push_back(Operand::source(i));
+        pass.bindings.push_back(Operand::sourcePlane(sf.srcPlane[i], i));
     pass.bindings.push_back(Operand::output());
     for (size_t i = 0; i < sf.constants.size(); i++)
         pass.bindings.push_back(Operand::constant(static_cast<int>(i)));
