@@ -611,6 +611,9 @@ static std::string transferToString(int transfer) {
         return s;
 }
 
+static VSFrame *scrawl_text_gpu(const std::string &txt, TextData *d, const VSFrame *src,
+    VSCore *core, const VSAPI *vsapi, std::string &error);
+
 static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     TextData *d = static_cast<TextData *>(instanceData);
 
@@ -676,11 +679,11 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
             std::string text = "Clip info:\n";
 
             if (d->vi->width) {
-                text += "Width: " + std::to_string(vsapi->getFrameWidth(dst, 0)) + " px\n";
-                text += "Height: " + std::to_string(vsapi->getFrameHeight(dst, 0)) + " px\n";
+                text += "Width: " + std::to_string(vsapi->getFrameWidth(src, 0)) + " px\n";
+                text += "Height: " + std::to_string(vsapi->getFrameHeight(src, 0)) + " px\n";
             } else {
-                text += "Width: " + std::to_string(vsapi->getFrameWidth(dst, 0)) + " px (may vary)\n";
-                text += "Height: " + std::to_string(vsapi->getFrameHeight(dst, 0)) + " px (may vary)\n";
+                text += "Width: " + std::to_string(vsapi->getFrameWidth(src, 0)) + " px (may vary)\n";
+                text += "Height: " + std::to_string(vsapi->getFrameHeight(src, 0)) + " px (may vary)\n";
             }
 
             int snerr, sderr;
@@ -820,9 +823,16 @@ static VSFrame *scrawl_text_gpu(const std::string &txt, TextData *d, const VSFra
             error = "frame is not GPU resident";
             return nullptr;
         }
-        VkBufferCopy region = {};
+        VkBufferCopy2 region = {};
+        region.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
         region.size = std::min(srcPlane[plane].bufferSize, dstPlane[plane].bufferSize);
-        d->vk->vkCmdCopyBuffer(cmd, srcPlane[plane].buffer, dstPlane[plane].buffer, 1, &region);
+        VkCopyBufferInfo2 copyInfo = {};
+        copyInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
+        copyInfo.srcBuffer = srcPlane[plane].buffer;
+        copyInfo.dstBuffer = dstPlane[plane].buffer;
+        copyInfo.regionCount = 1;
+        copyInfo.pRegions = &region;
+        d->vk->vkCmdCopyBuffer2(cmd, &copyInfo);
         d->vkapi->gpuExecWritesPlane(ctx, dst, plane);
     }
 

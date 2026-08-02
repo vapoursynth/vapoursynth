@@ -51,8 +51,11 @@ class MemoryUse {
     std::atomic_size_t m_limit{ 0 };
 
     /* GPU memory is only accounted here, never allocated: the Vulkan block allocator reports
-       region grants and returns through account_gpu so cache pressure can see both pools in
-       one place, which is the whole reason this lives in MemoryUse instead of its own class. */
+       block grants and returns through account_gpu so cache pressure can see both pools in
+       one place, which is the whole reason this lives in MemoryUse instead of its own class.
+       Blocks, not the regions carved out of them, because a block is what the driver's budget
+       is actually spent on -- accounting the live subset let the core sit inside its limit
+       while the driver held nearly twenty percent more and ran into the wall. */
     std::atomic_size_t m_gpu_allocated{ 0 };
     std::atomic_size_t m_gpu_limit{ 0 };
 
@@ -119,9 +122,12 @@ public:
         s_gpu_call_delta += delta;
         if (s_gpu_call_delta > s_gpu_call_peak)
             s_gpu_call_peak = s_gpu_call_delta;
-        /* GPU frames outliving the core return their regions through here, so this mirrors the
-           self delete in do_deallocate; the plain reads are enough for the same reason — only
-           the core creates allocations, and surviving references die one at a time. */
+        /* Mirrors the self delete in do_deallocate. GPU frames outliving the core keep the
+           device alive, and the last of them to go takes the device with it, which tears the
+           blocks down through here — so reaching zero means the allocator has nothing left to
+           report and cannot call back into a deleted this. The plain reads are enough for the
+           same reason as the host side: only the core creates allocations, and surviving
+           references die one at a time. */
         if (delta < 0 && m_core_freed && !m_allocated && !m_gpu_allocated)
             delete this;
     }

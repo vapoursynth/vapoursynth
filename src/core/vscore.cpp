@@ -1773,11 +1773,14 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         static_cast<vs::MemoryUse *>(userData)->account_gpu(delta);
     }, memory);
     size_t budget = static_cast<size_t>(dev->memoryBudget());
-    /* The override exists for testing the pressure paths without a 12 GB workload; the real
-       user facing setter arrives with the rest of the API surface. */
+    /* The override exists for testing the pressure paths without a 12 GB workload, so it wins.
+       Otherwise the default only applies when nothing has set a limit yet: the device is created
+       lazily on first GPU use, so a script calling setMaxVRAMUse up front -- the natural place,
+       beside setMaxCacheSize -- would otherwise have its limit silently replaced here, after the
+       setter had already returned it as the one in effect. */
     if (const char *envLimit = std::getenv("VS_VULKAN_MAX_VRAM_MB"))
         memory->set_gpu_limit(static_cast<size_t>(std::strtoull(envLimit, nullptr, 10)) << 20);
-    else
+    else if (!memory->gpu_limit())
         memory->set_gpu_limit(budget - budget / 5);
 
     auto trans = std::make_unique<VSVulkanTransfer>();
@@ -2433,8 +2436,14 @@ void VSCore::freeCore() {
         logMessage(mtWarning, "Core freed but " + safe_to_string(numFilterInstances.load() - 1) + " filter instance(s) still exist");
     if (memory->allocated_bytes())
         logMessage(mtWarning, "Core freed but " + safe_to_string(memory->allocated_bytes()) + " bytes still allocated in framebuffers");
-    if (memory->gpu_allocated_bytes())
-        logMessage(mtWarning, "Core freed but " + safe_to_string(memory->gpu_allocated_bytes()) + " bytes still allocated in GPU framebuffers");
+    /* Live regions, not the accounted total: accounting follows the blocks the driver has
+       committed, and those only go back in the device destructor, necessarily after this point.
+       Regions are what frames hold, so this asks the question the warning means to ask. */
+    if (vulkanDev) {
+        uint64_t gpuLive = vulkanDev->allocatorStats().usedBytes;
+        if (gpuLive)
+            logMessage(mtWarning, "Core freed but " + safe_to_string(gpuLive) + " bytes still allocated in GPU framebuffers");
+    }
     // Remove all message handlers on free to prevent a zombie core from crashing the whole application by calling a no longer usable
     // message handler
     while (!messageHandlers.empty())

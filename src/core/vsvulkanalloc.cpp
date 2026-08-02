@@ -58,7 +58,6 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
         freeRegions--;
         usedBytes += roundedSize;
         block->liveRegions++;
-        dev.accountAllocation(static_cast<int64_t>(roundedSize));
         return true;
     }
 
@@ -72,7 +71,6 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
             offset = aligned;
             usedBytes += roundedSize;
             candidate->liveRegions++;
-            dev.accountAllocation(static_cast<int64_t>(roundedSize));
             return true;
         }
     }
@@ -107,11 +105,25 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
         /* The freelists may bank fully idle blocks of other types and sizes holding exactly
            the memory this block needs; hand those back and retry once so an allocation racing
            ahead of the next cache sweep does not fail while VRAM sits reclaimable. */
-        if (trimLocked(dev) > 0)
+        const VkDeviceSize reclaimed = trimLocked(dev);
+        if (reclaimed > 0)
             res = dev.vk.vkAllocateMemory(dev.device(), &allocInfo, nullptr, &fresh->memory);
         if (res != VK_SUCCESS) {
+            /* What the allocator was holding when the driver said no. Without this the message
+               says only that VRAM ran out, which is equally true of a leak, of fragmentation
+               and of a workload that simply wants more than the card has -- and those want
+               different fixes. blockBytes is what the driver handed us; usedBytes is what is
+               live inside it, and the gap between them is what suballocation is costing. */
+            VkDeviceSize blockBytes = 0;
+            for (const auto &b : blocks)
+                blockBytes += b->size;
             errorMessage = "vkAllocateMemory failed for a " + std::to_string(newBlockSize >> 20) +
-                " MB allocator block (VkResult " + std::to_string(res) + ")";
+                " MB allocator block (VkResult " + std::to_string(res) + "); allocator held " +
+                std::to_string(blocks.size()) + " blocks totalling " +
+                std::to_string(blockBytes >> 20) + " MB, of which " +
+                std::to_string(usedBytes >> 20) + " MB was live in " +
+                std::to_string(freeRegions) + " free regions, and trimming reclaimed " +
+                std::to_string(reclaimed >> 20) + " MB";
             return false;
         }
     }
@@ -134,7 +146,10 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
     block = fresh.get();
     offset = 0;
     usedBytes += roundedSize;
-    dev.accountAllocation(static_cast<int64_t>(roundedSize));
+    /* The whole block, once: the block is what the driver has committed, and that is what the
+       budget is measured against. Accounting the live regions instead let the core sit just
+       under its limit while the driver held ~18 percent more and hit the wall. */
+    dev.accountAllocation(static_cast<int64_t>(newBlockSize));
     blocks.push_back(std::move(fresh));
     return true;
 }
@@ -145,7 +160,6 @@ void VSVulkanAllocator::free(VSVulkanDevice &dev, Block *block, VkDeviceSize off
     freeRegions++;
     usedBytes -= roundedSize;
     block->liveRegions--;
-    dev.accountAllocation(-static_cast<int64_t>(roundedSize));
 }
 
 VkDeviceSize VSVulkanAllocator::trim(VSVulkanDevice &dev) {
@@ -173,6 +187,7 @@ VkDeviceSize VSVulkanAllocator::trimLocked(VSVulkanDevice &dev) {
             bucket = regions.empty() ? freeLists.erase(bucket) : std::next(bucket);
         }
         dev.vk.vkFreeMemory(dev.device(), victim->memory, nullptr); /* implicitly unmaps */
+        dev.accountAllocation(-static_cast<int64_t>(victim->size));
         freed += victim->size;
         it = blocks.erase(it);
     }
@@ -182,8 +197,10 @@ VkDeviceSize VSVulkanAllocator::trimLocked(VSVulkanDevice &dev) {
 void VSVulkanAllocator::destroy(VSVulkanDevice &dev) {
     std::lock_guard<std::mutex> lock(mutex);
     for (auto &block : blocks) {
-        if (block->memory)
+        if (block->memory) {
             dev.vk.vkFreeMemory(dev.device(), block->memory, nullptr); /* implicitly unmaps */
+            dev.accountAllocation(-static_cast<int64_t>(block->size));
+        }
     }
     blocks.clear();
     freeLists.clear();

@@ -290,7 +290,7 @@ void MemoryUse::deallocate(uint8_t *buf)
 
     // self delete when the last buffer is returned after the core is gone, plain reads are
     // enough since references that outlive freeCore may only be released one at a time; the
-    // GPU pool gates too since surviving GPU planes report their frees through account_gpu
+    // GPU pool gates too since the allocator reports its block teardown through account_gpu
     if (m_core_freed && !m_allocated && !m_gpu_allocated)
         delete this;
 }

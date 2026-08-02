@@ -187,8 +187,9 @@ struct VSVulkanAllocatorStats {
    into maxMemoryAllocationCount, which is only 4096, after a few hundred cached frames. Blocks
    are carved with a bump pointer and freed regions go into free lists bucketed by exact rounded
    size: video workloads allocate the same handful of plane sizes over and over, so exact reuse
-   hits nearly always and no coalescing is needed. Blocks are only returned in destroy(), and
-   feeding usedBytes into MemoryUse is the planned cache integration.
+   hits nearly always and no coalescing is needed. A block goes back to the driver only once
+   every region in it is free, in trim() or destroy(); blockBytes is what MemoryUse accounts,
+   since the driver's budget is spent on blocks rather than on the regions carved out of them.
 
    Only buffers live here, which is what makes ignoring bufferImageGranularity legal; images
    keep their dedicated allocations. */
@@ -455,9 +456,10 @@ public:
 
     VkDeviceSize trimAllocator() { return allocator.trim(*this); }
 
-    /* Region grants and returns are reported here with signed byte deltas, which is how the
-       core's MemoryUse sees VRAM without this layer depending on it. Set before any pooled
-       allocation happens. */
+    /* Block grants and returns are reported here with signed byte deltas, which is how the
+       core's MemoryUse sees VRAM without this layer depending on it. Blocks rather than the
+       regions carved out of them because the budget is measured against what the driver has
+       committed. Set before any pooled allocation happens. */
     typedef void (*VSVulkanAccountFn)(int64_t delta, void *userData);
     void setAllocationCallback(VSVulkanAccountFn callback, void *userData) {
         accountFn = callback;
