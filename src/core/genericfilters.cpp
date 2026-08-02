@@ -163,6 +163,16 @@ struct GenericDataExtra {
 
 typedef SingleNodeData<GenericDataExtra> GenericData;
 
+/* Both are defined further down, next to the GPU declarations they build, but genericCreate
+   is a template that calls them with arguments whose types do not depend on its parameter.
+   Two phase lookup therefore resolves them where the template is defined, not where it is
+   instantiated, so they have to be visible from here. MSVC and clang-cl parse template
+   bodies lazily and accept the later definitions, which is why only the gcc and non-MSVC
+   clang builds -- every Linux and macOS target -- reject it. */
+template<typename T>
+static void createGPUFromDecl(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *out, VSCore *core, const VSAPI *vsapi);
+static bool buildGenericGPU(int op, const GenericData *d, vsgpu::SimpleFilter &sf);
+
 template<typename T, typename OP>
 static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     T *d = reinterpret_cast<T *>(instanceData);
