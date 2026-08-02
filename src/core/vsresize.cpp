@@ -579,7 +579,9 @@ class vszimg {
 
             m_params.cpu_type = ZIMG_CPU_AUTO_64B;
             m_params.allow_approximate_gamma = propGetScalarDef<int>(in, "approximate_gamma", 1, vsapi);
+#if ZIMG_API_VERSION >= ZIMG_MAKE_API_VERSION(2, 5)
             m_params.chromatic_adaptation = propGetScalarDef<int>(in, "chromatic_adaptation", 1, vsapi);
+#endif
             m_params.resample_filter = u.filter;
             m_params.filter_param_a = propGetScalarDef<double>(in, "filter_param_a", m_params.filter_param_a, vsapi);
             m_params.filter_param_b = propGetScalarDef<double>(in, "filter_param_b", m_params.filter_param_b, vsapi);
