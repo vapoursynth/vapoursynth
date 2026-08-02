@@ -153,6 +153,17 @@ bool instanceExtensionAvailable(const VSVulkanFunctions &vkf, const char *layerN
     return false;
 }
 
+/* Portability drivers -- MoltenVK is the one that matters -- are not reported by
+   vkEnumeratePhysicalDevices unless the instance opts in, and since loader 1.3.216 an
+   instance whose only driver is one of them fails outright with
+   VK_ERROR_INCOMPATIBLE_DRIVER. Asked for whenever the loader offers the extension, which
+   costs nothing on the platforms where no such driver can exist. Both instance creation
+   paths go through here, so device enumeration for a frontend sees the same devices the
+   core would use.
+
+   Opting in only makes the device visible; it still has to pass the same 1.4 version and
+   feature gate as everything else, and is reported as unusable with a reason when it does
+   not. */
 VkResult createBareInstance(const VSVulkanFunctions &vkf, uint32_t layerCount, const char *const *layers,
     uint32_t extensionCount, const char *const *extensions, VkInstance &instance) {
     VkApplicationInfo app = {};
@@ -160,13 +171,25 @@ VkResult createBareInstance(const VSVulkanFunctions &vkf, uint32_t layerCount, c
     app.pApplicationName = "VapourSynth";
     app.apiVersion = VS_VULKAN_API_VERSION;
 
+    std::vector<const char *> instanceExtensions;
+    instanceExtensions.reserve(extensionCount + 1);
+    for (uint32_t i = 0; i < extensionCount; i++)
+        instanceExtensions.push_back(extensions[i]);
+
+    VkInstanceCreateFlags createFlags = 0;
+    if (instanceExtensionAvailable(vkf, nullptr, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME)) {
+        instanceExtensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+        createFlags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+    }
+
     VkInstanceCreateInfo create = {};
     create.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    create.flags = createFlags;
     create.pApplicationInfo = &app;
     create.enabledLayerCount = layerCount;
     create.ppEnabledLayerNames = layers;
-    create.enabledExtensionCount = extensionCount;
-    create.ppEnabledExtensionNames = extensions;
+    create.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
+    create.ppEnabledExtensionNames = instanceExtensions.empty() ? nullptr : instanceExtensions.data();
 
     return vkf.vkCreateInstance(&create, nullptr, &instance);
 }
@@ -697,12 +720,22 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     hostImageCopyFlag = queried.f14.hostImageCopy != 0;
     shaderFloat16Flag = queried.f12.shaderFloat16 != 0;
 
-    const char *enabledExtensions[2];
+    /* The one extension that is not a choice: a device advertising VK_KHR_portability_subset
+       is invalid to create without it enabled, so a portability implementation is refused at
+       vkCreateDevice otherwise. Spelled out rather than taken from the header macro, which
+       lives in vulkan_beta.h behind VK_ENABLE_BETA_EXTENSIONS and would drag the provisional
+       header into a build that wants nothing else from it. */
+    const char *portabilitySubsetName = "VK_KHR_portability_subset";
+    const bool portabilitySubset = deviceExtensionAvailable(vk, physicalDeviceHandle, portabilitySubsetName);
+
+    const char *enabledExtensions[3];
     uint32_t enabledExtensionCount = 0;
     if (exportType)
         enabledExtensions[enabledExtensionCount++] = exportExtensionName;
     if (semaphoreExportType)
         enabledExtensions[enabledExtensionCount++] = semExportExtensionName;
+    if (portabilitySubset)
+        enabledExtensions[enabledExtensionCount++] = portabilitySubsetName;
 
     VkDeviceCreateInfo deviceCreate = {};
     deviceCreate.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
