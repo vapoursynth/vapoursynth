@@ -467,6 +467,11 @@ if enable_x86_asm
             filters_sources + sse2_kernel_sources,
             c_args: march_levels[g.to_string()],
             cpp_args: march_levels[g.to_string()],
+            # The GPU filter paths include VSVulkan4.h, which needs vulkan_core.h. Only the
+            # kernel static libraries above are free of it. Invisible wherever the headers
+            # already sit on the default include path and fatal wherever they come from the
+            # bundled subproject instead, which is why it can pass locally and fail in CI.
+            dependencies: vulkan_headers,
             gnu_symbol_visibility: 'hidden',
             include_directories: incdir,
             link_with: vlibs,
@@ -523,7 +528,7 @@ else
 
     shared_module('libvapoursynthfilters',
         filters_sources + arm_filter_sources,
-        dependencies: vulkan_headers, # BoxBlur's GPU path includes VSVulkan4.h
+        dependencies: vulkan_headers, # the GPU filter paths include VSVulkan4.h
         gnu_symbol_visibility: 'hidden',
         include_directories: incdir,
         link_with: arm_vlibs,
