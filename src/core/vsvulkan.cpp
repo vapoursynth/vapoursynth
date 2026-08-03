@@ -750,7 +750,6 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     enabled.f##ver.member = (req == VS_VK_REQUIRED) ? VK_TRUE : queried.f##ver.member;
     VS_VK_FEATURE_LIST(VS_VK_ENABLE_FEATURE)
 #undef VS_VK_ENABLE_FEATURE
-    hostImageCopyFlag = queried.f14.hostImageCopy != 0;
     shaderFloat16Flag = queried.f12.shaderFloat16 != 0;
 
     /* The one extension that is not a choice: a device advertising VK_KHR_portability_subset

@@ -131,10 +131,11 @@ inline void setFrameProduced(VSVulkanFrame &frame, VSVulkanTimeline *timeline, u
 /* Owns the machinery moving frames across the PCIe bus with the policies the transfer benchmark
    picked: uploads memcpy straight into the plane buffer when it landed in host visible device
    local memory (resizable BAR), otherwise they go through a pipelined staging ring on the DMA
-   queue; downloads always run a DMA copy into host cached staging and memcpy out, because CPU
-   reads from VRAM are two to three orders of magnitude too slow to ever be the answer. All plane
-   copies of a frame travel in one submission since the ~0.2 ms per submission floor dwarfs the
-   per plane cost at common sizes.
+   queue. Downloads mirror that, but gate on host CACHED rather than coherent: reading a
+   discrete card's write combined memory over PCIe really is orders of magnitude too slow, so
+   those keep the DMA copy into host cached staging, while unified memory hands back plane
+   memory that is cached and reads at memcpy speed. All plane copies of a frame travel in one
+   submission since the ~0.2 ms per submission floor dwarfs the per plane cost at common sizes.
 
    Thread safe the same way the exec pool is: slots are claimed with a CAS walk, claims are held
    only across CPU work, and slots are always claimed before exec contexts so the two rings

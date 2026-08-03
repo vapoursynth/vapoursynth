@@ -87,11 +87,16 @@ private:
    capabilities or through the exposed API surface; internal-only conveniences and mandatory
    graphics-pipeline state are left out on purpose.
 
-   The two OPTIONAL entries are the only genuinely capability-diverse ones: shaderFloat16 is
-   optional in every core version, and hostImageCopy is optional the hard way: promotion to
-   core does not make a feature mandatory (1.4 demands it only where no dedicated transfer
-   queue exists), and AMD gates it by hardware generation, so the transfer path treats
-   staging buffers as the baseline and this as the fast path. */
+   The single OPTIONAL entry is the only genuinely capability-diverse one: shaderFloat16 is
+   optional in every core version.
+
+   hostImageCopy used to sit here as a second optional entry, meant to skip the staging buffer
+   and the submission a transfer otherwise needs. Measured on two Metal drivers it is 17-26x
+   slower than the path already in use and 4-9x slower than even the staging fallback, because
+   the image is optimally tiled and the driver swizzles on the CPU: it exists to avoid a
+   staging allocation, not to move bulk linear data. Nothing ever read the flag, so it and its
+   four entry points are gone -- and with the feature no longer enabled at device creation,
+   leaving those callable would only have been a trap. */
 #define VS_VK_FEATURE_LIST(FT) \
     /* 10 is the plain VkPhysicalDeviceFeatures block; everything here became mandatory in
        1.4. The 8 and 16 bit storage and arithmetic features let kernels address planes as
@@ -145,8 +150,7 @@ private:
     FT(14, shaderSubgroupRotateClustered, VS_VK_REQUIRED) \
     FT(14, shaderFloatControls2, VS_VK_REQUIRED) \
     FT(14, shaderExpectAssume, VS_VK_REQUIRED) \
-    FT(14, pipelineRobustness, VS_VK_REQUIRED) \
-    FT(14, hostImageCopy,      VS_VK_OPTIONAL)
+    FT(14, pipelineRobustness, VS_VK_REQUIRED)
 
 enum VSVulkanLogSeverity {
     VS_VK_LOG_INFO = 0,
@@ -384,10 +388,6 @@ public:
     VSVulkanQueue &transferQueue() { return *transferPtr; }
     bool hasDedicatedTransferQueue() const { return transferPtr != &computeQ; }
 
-    /* Whether uploads and downloads may go through vkCopyMemoryToImage and friends, still
-       subject to the per format queries. */
-    bool hostImageCopySupported() const { return hostImageCopyFlag; }
-
     /* Whether kernels may declare float16_t, needed for half precision plane formats. */
     bool shaderFloat16Supported() const { return shaderFloat16Flag; }
 
@@ -507,7 +507,6 @@ private:
     VSVulkanQueue transferQ;
     VSVulkanQueue *transferPtr = &computeQ;
     VSVulkanAllocator allocator;
-    bool hostImageCopyFlag = false;
     bool shaderFloat16Flag = false;
     bool unifiedMemoryFlag = false;
     bool memoryBudgetFlag = false;

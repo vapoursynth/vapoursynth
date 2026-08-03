@@ -47,8 +47,8 @@
 
 
 /* Vulkan 1.4 is required rather than negotiated. It brings timeline semaphores, synchronization2,
-   descriptor indexing, buffer device address, push descriptors, host image copy and maintenance5/6
-   into core, which is what lets this table be almost entirely unconditional. */
+   descriptor indexing, buffer device address, push descriptors and maintenance5/6 into core,
+   which is what lets this table be almost entirely unconditional. */
 #define VS_VULKAN_API_VERSION VK_API_VERSION_1_4
 
 /* Which handle a function is resolved against. Device level entry points are deliberately fetched
@@ -133,16 +133,6 @@ enum VSVulkanRequirement {
     FN(VS_VK_DEVICE,   VS_VK_REQUIRED, DestroyImageView) \
     FN(VS_VK_DEVICE,   VS_VK_REQUIRED, GetImageSubresourceLayout2) \
     FN(VS_VK_DEVICE,   VS_VK_REQUIRED, GetDeviceImageMemoryRequirements) \
-    \
-    /* ---- Host image copy, core in 1.4. Uploads and downloads without a staging buffer, a \
-       command buffer or a queue submission, which is most of what a transfer path otherwise \
-       needs. Core commands always resolve, so these stay required, but calling them is gated \
-       on the optional hostImageCopy feature (see VS_VK_FEATURE_LIST) plus per format support, \
-       so query both before relying on it. ---- */ \
-    FN(VS_VK_DEVICE,   VS_VK_REQUIRED, CopyMemoryToImage) \
-    FN(VS_VK_DEVICE,   VS_VK_REQUIRED, CopyImageToMemory) \
-    FN(VS_VK_DEVICE,   VS_VK_REQUIRED, CopyImageToImage) \
-    FN(VS_VK_DEVICE,   VS_VK_REQUIRED, TransitionImageLayout) \
     \
     /* ---- Samplers ---- */ \
     FN(VS_VK_DEVICE,   VS_VK_REQUIRED, CreateSampler) \
@@ -299,7 +289,7 @@ typedef struct VSVulkanCoreHandles {
  *   required (Vulkan14Features): maintenance5, maintenance6, pushDescriptor,
  *     shaderSubgroupRotate, shaderSubgroupRotateClustered, shaderFloatControls2,
  *     shaderExpectAssume, pipelineRobustness
- *   optional, used when enabled: hostImageCopy, shaderFloat16 */
+ *   optional, used when enabled: shaderFloat16 */
 
 /* One GPU resident plane: a linear pitched storage buffer laid out exactly like the equivalent
  * CPU plane, so getStride and the frame dimension functions apply unchanged. */
