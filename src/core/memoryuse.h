@@ -174,6 +174,25 @@ public:
 
     size_t combined_limit() const { return m_combined_limit; }
 
+    /* What the retained freelist has to fit under. Normally the host limit, but on unified
+       memory the GPU pool is the same RAM, so the buffers kept back for reuse have to give
+       way as it grows. This is the only lever that returns host memory to the system --
+       eviction merely moves it here -- and on a unified device it is also the only one of
+       the two pools that gives anything back promptly: freeing GPU frames returns regions to
+       the allocator's buckets, and the block they came from stays committed until every
+       region in it is free. Measured: releasing 7 of every 8 held frames returned 0 of 415
+       MB, because each 128 MB block still held a survivor. */
+    size_t freelist_target() const {
+        size_t limit = m_limit;
+        if (m_unified && m_combined_limit) {
+            size_t gpu = m_gpu_allocated;
+            size_t room = m_combined_limit > gpu ? m_combined_limit - gpu : 0;
+            if (room < limit)
+                limit = room;
+        }
+        return limit;
+    }
+
     size_t physical_memory() const { return m_total_ram; }
 
     struct CallTracking {

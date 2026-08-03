@@ -1451,19 +1451,16 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
         size_t hostExcess = poolExcess(hostNeedsMemory, memory->allocated_bytes(), memory->limit());
         size_t gpuExcess = poolExcess(gpuNeedsMemory, memory->gpu_allocated_bytes(), memory->gpu_limit());
 
-        /* On unified memory the split above is fiction: both pools are the same RAM, and the
-           machine can be over its ceiling while each pool is comfortably inside its own
-           limit, which would evict nothing and leave the pressure path spinning. One shared
-           excess instead, so the sweep takes from the least valuable caches of either
-           residency until the overshoot is covered rather than from a pool chosen up front. */
-        size_t sharedExcess = 0;
-        if (memory->unified()) {
-            sharedExcess = poolExcess(memory->over_combined_limit(),
-                memory->allocated_bytes() + memory->gpu_allocated_bytes(), memory->combined_limit());
-            if (sharedExcess)
-                sharedExcess = std::max(sharedExcess, std::max(hostExcess, gpuExcess));
-        }
-        const bool shared = sharedExcess > 0;
+        /* Deliberately NOT pooled on unified memory, tempting as it looks. Evicting one pool
+           to relieve the other assumes the bytes are fungible, and measurement says they are
+           not: a GPU frame's release returns its region to a bucket while the 128 MB block
+           stays committed until every region in it is free, so a fragmented eviction returns
+           nothing at all (0 of 415 MB, measured). Cross evicting would spend real host cache
+           to buy no GPU memory. The combined ceiling is a brake instead -- it stops both
+           caches growing and throttles admission, which needs no fungibility -- and the
+           conservative unified default is what keeps the two pools from promising too much
+           in the first place. */
+        const bool combinedPressure = memory->over_combined_limit();
 
         struct CacheEntry {
             VSNode *node;
@@ -1486,18 +1483,20 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
         });
 
         for (const CacheEntry &entry : entries) {
-            size_t &excess = shared ? sharedExcess : (entry.gpu ? gpuExcess : hostExcess);
+            size_t &excess = entry.gpu ? gpuExcess : hostExcess;
             if (excess == 0)
                 continue;
             excess -= std::min(entry.node->evictCacheBytes(excess), excess);
-            if (shared ? sharedExcess == 0 : (hostExcess == 0 && gpuExcess == 0))
+            if (hostExcess == 0 && gpuExcess == 0)
                 break;
         }
 
         // evicted GPU frames only return regions to the buckets; trimming hands fully idle
         // blocks back to the driver so the freed VRAM is real for the rest of the system,
-        // which on unified memory is the host pool too
-        if ((gpuNeedsMemory || shared) && vulkanDev)
+        // which on unified memory is the host pool too. Worth attempting under combined
+        // pressure even when the GPU pool is inside its own limit: it is the only action
+        // that returns VRAM at all, and it costs a walk of the block list when it fails.
+        if ((gpuNeedsMemory || combinedPressure) && vulkanDev)
             vulkanDev->trimAllocator();
     } else {
         // caches only get to grow while memory usage stays comfortably under the limit of the
@@ -1802,13 +1801,19 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
        against, so the two defaults would between them promise more of the machine than it
        has -- on a device reporting all of RAM as device local, half again as much. The GPU
        share is the one that yields, since GPU residency is opt-in while the host limit may
-       be something the caller set deliberately. A quarter of the machine is left for
-       everything that is not VapourSynth. */
+       be something the caller set deliberately.
+
+       An eighth of RAM rather than a larger share because what the GPU pool takes here it
+       gives back slowly: blocks are big so that a single large frame always fits, and a
+       block only returns to the driver once every region carved from it is free, so one
+       surviving cached frame holds 128 MB of the host's memory. Claiming little up front
+       costs a script that really wants more nothing but a setMaxVRAMUse call, while claiming
+       too much cannot be undone at the moment the host needs it back. */
     const size_t combinedCeiling = memory->physical_memory() - memory->physical_memory() / 4;
     if (dev->unifiedMemory() && memory->physical_memory()) {
         const size_t hostLimit = memory->limit();
         const size_t headroom = combinedCeiling > hostLimit ? combinedCeiling - hostLimit : 0;
-        defaultLimit = std::min(defaultLimit, memory->physical_memory() / 4);
+        defaultLimit = std::min(defaultLimit, memory->physical_memory() / 8);
         defaultLimit = std::min(defaultLimit, headroom);
         /* A host limit large enough to swallow the ceiling would otherwise leave nothing at
            all, and a zero GPU limit stalls every GPU task in the thread pool's admission

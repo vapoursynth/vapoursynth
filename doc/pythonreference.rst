@@ -282,11 +282,15 @@ Classes and Functions
       reported budget. Returns the limit in effect.
 
       On a device with *unified_memory* the budget is a share of system RAM
-      rather than separate hardware, so the default is additionally capped to
-      leave the machine a quarter of its memory once *max_cache_size* is
-      counted, and both caches come under pressure when their combined use
-      approaches that ceiling. Setting the limit explicitly overrides the cap;
-      the startup log says which limit ended up in effect.
+      rather than separate hardware, and the default is deliberately
+      conservative: an eighth of the machine's memory at most, and never enough
+      that it and *max_cache_size* together leave less than a quarter of the
+      machine free. Video memory taken there is slow to come back — a block
+      only returns to the driver once every frame carved out of it is gone — so
+      a workload that wants more should ask for it here rather than have the
+      default guess high. Both caches stop growing, and frame production is
+      throttled, once their combined use approaches the ceiling. The startup
+      log says which limit ended up in effect.
 
       GPU resident clips and frames expose a *gpu_resident* property on
       VideoNode and on frames. Pixel data of a GPU resident frame cannot be

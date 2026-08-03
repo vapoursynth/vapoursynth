@@ -214,7 +214,7 @@ void MemoryUse::deallocate_to_freelist(uint8_t *ptr, size_t size)
 void MemoryUse::gc_freelist()
 {
     size_t total = m_allocated + m_freelist_size;
-    size_t limit = m_limit;
+    size_t limit = freelist_target();
 
     while (total > limit) {
         std::unique_lock<std::mutex> lock{ m_mutex };
@@ -225,7 +225,7 @@ void MemoryUse::gc_freelist()
 
         // Recalculate while holding the mutex.
         total = m_allocated + m_freelist_size;
-        limit = m_limit;
+        limit = freelist_target();
 
         if (total <= limit)
             return;
