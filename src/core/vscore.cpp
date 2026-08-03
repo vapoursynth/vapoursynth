@@ -1451,6 +1451,20 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
         size_t hostExcess = poolExcess(hostNeedsMemory, memory->allocated_bytes(), memory->limit());
         size_t gpuExcess = poolExcess(gpuNeedsMemory, memory->gpu_allocated_bytes(), memory->gpu_limit());
 
+        /* On unified memory the split above is fiction: both pools are the same RAM, and the
+           machine can be over its ceiling while each pool is comfortably inside its own
+           limit, which would evict nothing and leave the pressure path spinning. One shared
+           excess instead, so the sweep takes from the least valuable caches of either
+           residency until the overshoot is covered rather than from a pool chosen up front. */
+        size_t sharedExcess = 0;
+        if (memory->unified()) {
+            sharedExcess = poolExcess(memory->over_combined_limit(),
+                memory->allocated_bytes() + memory->gpu_allocated_bytes(), memory->combined_limit());
+            if (sharedExcess)
+                sharedExcess = std::max(sharedExcess, std::max(hostExcess, gpuExcess));
+        }
+        const bool shared = sharedExcess > 0;
+
         struct CacheEntry {
             VSNode *node;
             int value;
@@ -1472,17 +1486,18 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
         });
 
         for (const CacheEntry &entry : entries) {
-            size_t &excess = entry.gpu ? gpuExcess : hostExcess;
+            size_t &excess = shared ? sharedExcess : (entry.gpu ? gpuExcess : hostExcess);
             if (excess == 0)
                 continue;
             excess -= std::min(entry.node->evictCacheBytes(excess), excess);
-            if (hostExcess == 0 && gpuExcess == 0)
+            if (shared ? sharedExcess == 0 : (hostExcess == 0 && gpuExcess == 0))
                 break;
         }
 
         // evicted GPU frames only return regions to the buckets; trimming hands fully idle
-        // blocks back to the driver so the freed VRAM is real for the rest of the system
-        if (gpuNeedsMemory && vulkanDev)
+        // blocks back to the driver so the freed VRAM is real for the rest of the system,
+        // which on unified memory is the host pool too
+        if ((gpuNeedsMemory || shared) && vulkanDev)
             vulkanDev->trimAllocator();
     } else {
         // caches only get to grow while memory usage stays comfortably under the limit of the
@@ -1491,6 +1506,14 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
         bool memoryComfortable = memory->allocated_bytes() < memLimit - memLimit * 3 / 20;
         size_t gpuLimit = memory->gpu_limit();
         bool gpuComfortable = gpuLimit == 0 || memory->gpu_allocated_bytes() < gpuLimit - gpuLimit * 3 / 20;
+        /* Neither pool gets to grow on a share of RAM the other is already using. */
+        if (memory->unified() && memory->combined_limit()) {
+            size_t ceiling = memory->combined_limit();
+            bool combinedComfortable =
+                (memory->allocated_bytes() + memory->gpu_allocated_bytes()) < ceiling - ceiling * 3 / 20;
+            memoryComfortable = memoryComfortable && combinedComfortable;
+            gpuComfortable = gpuComfortable && combinedComfortable;
+        }
         for (auto &cache : caches)
             cache->notifyCache(cache->isGPUOutput() ? gpuComfortable : memoryComfortable, completedExtFrames);
     }
@@ -1773,6 +1796,27 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         static_cast<vs::MemoryUse *>(userData)->account_gpu(delta);
     }, memory);
     size_t budget = static_cast<size_t>(dev->memoryBudget());
+    size_t defaultLimit = budget - budget / 5;
+
+    /* Unified memory: the heap the budget came from is the same RAM the host limit is drawn
+       against, so the two defaults would between them promise more of the machine than it
+       has -- on a device reporting all of RAM as device local, half again as much. The GPU
+       share is the one that yields, since GPU residency is opt-in while the host limit may
+       be something the caller set deliberately. A quarter of the machine is left for
+       everything that is not VapourSynth. */
+    const size_t combinedCeiling = memory->physical_memory() - memory->physical_memory() / 4;
+    if (dev->unifiedMemory() && memory->physical_memory()) {
+        const size_t hostLimit = memory->limit();
+        const size_t headroom = combinedCeiling > hostLimit ? combinedCeiling - hostLimit : 0;
+        defaultLimit = std::min(defaultLimit, memory->physical_memory() / 4);
+        defaultLimit = std::min(defaultLimit, headroom);
+        /* A host limit large enough to swallow the ceiling would otherwise leave nothing at
+           all, and a zero GPU limit stalls every GPU task in the thread pool's admission
+           control rather than merely making the cache small. */
+        defaultLimit = std::max(defaultLimit, static_cast<size_t>(256) << 20);
+        memory->set_unified(combinedCeiling);
+    }
+
     /* The override exists for testing the pressure paths without a 12 GB workload, so it wins.
        Otherwise the default only applies when nothing has set a limit yet: the device is created
        lazily on first GPU use, so a script calling setMaxVRAMUse up front -- the natural place,
@@ -1781,15 +1825,23 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
     if (const char *envLimit = std::getenv("VS_VULKAN_MAX_VRAM_MB"))
         memory->set_gpu_limit(static_cast<size_t>(std::strtoull(envLimit, nullptr, 10)) << 20);
     else if (!memory->gpu_limit())
-        memory->set_gpu_limit(budget - budget / 5);
+        memory->set_gpu_limit(defaultLimit);
 
     auto trans = std::make_unique<VSVulkanTransfer>();
     if (!trans->init(*dev, 4, vulkanDeviceError))
         return false;
     vulkanDev = dev.release(); /* the core's reference; the device was born with it counted */
     vulkanTrans = std::move(trans);
+    /* Silently halving a limit is the kind of thing that costs someone an afternoon later, so
+       the unified case says what it did and what the two pools now add up to. */
+    std::string limitInfo = "VRAM limit " + std::to_string(memory->gpu_limit() >> 20) +
+        " MB of " + std::to_string(budget >> 20) + " MB budget";
+    if (memory->unified())
+        limitInfo += ", unified memory so it shares system RAM with the " +
+            std::to_string(memory->limit() >> 20) + " MB host limit (combined ceiling " +
+            std::to_string(memory->combined_limit() >> 20) + " MB)";
     logMessage(mtInformation, "Vulkan device: " + std::string(vulkanDev->properties().deviceName) +
-        ", VRAM limit " + std::to_string(memory->gpu_limit() >> 20) + " MB of " + std::to_string(budget >> 20) + " MB budget");
+        ", " + limitInfo);
     return true;
 }
 

@@ -270,8 +270,9 @@ Classes and Functions
 
       A dict describing the core's active Vulkan device: *name*,
       *device_memory*, *budget* (what the driver says the process may use
-      right now), *allocated* (current VapourSynth VRAM use) and *limit* (the
-      eviction limit). Accessing it initializes the device like the first GPU
+      right now), *allocated* (current VapourSynth VRAM use), *limit* (the
+      eviction limit) and *unified_memory* (whether the device's memory is
+      system RAM). Accessing it initializes the device like the first GPU
       filter would.
 
    .. py:method:: set_max_vram_use(bytes)
@@ -279,6 +280,13 @@ Classes and Functions
       Sets the VRAM limit GPU frame caching works against, the equivalent of
       *max_cache_size* for video memory. The default is 80% of the driver
       reported budget. Returns the limit in effect.
+
+      On a device with *unified_memory* the budget is a share of system RAM
+      rather than separate hardware, so the default is additionally capped to
+      leave the machine a quarter of its memory once *max_cache_size* is
+      counted, and both caches come under pressure when their combined use
+      approaches that ceiling. Setting the limit explicitly overrides the cap;
+      the startup log says which limit ended up in effect.
 
       GPU resident clips and frames expose a *gpu_resident* property on
       VideoNode and on frames. Pixel data of a GPU resident frame cannot be

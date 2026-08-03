@@ -780,6 +780,8 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     props2.pNext = &idProps;
     vk.vkGetPhysicalDeviceProperties2(physicalDeviceHandle, &props2);
     props = props2.properties;
+    unifiedMemoryFlag = props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ||
+                        props.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU;
     memcpy(uuid, idProps.deviceUUID, VK_UUID_SIZE);
     memcpy(luid, idProps.deviceLUID, VK_LUID_SIZE);
     nodeMask = idProps.deviceNodeMask;

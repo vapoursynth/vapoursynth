@@ -59,6 +59,15 @@ class MemoryUse {
     std::atomic_size_t m_gpu_allocated{ 0 };
     std::atomic_size_t m_gpu_limit{ 0 };
 
+    /* Set once the device turns out to share the host's RAM. Both pools then answer to this
+       ceiling as well as to their own limit, since two limits sized against one physical
+       resource can each look satisfied while the machine is out of memory. */
+    std::atomic_bool m_unified{ false };
+    std::atomic_size_t m_combined_limit{ 0 };
+    /* What the host limit was derived from, kept so the GPU default can be sized against the
+       machine instead of against a heap that is really the same RAM. Zero where unknown. */
+    std::atomic_size_t m_total_ram{ 0 };
+
     std::atomic_bool m_core_freed{ false };
 
     static thread_local int64_t s_call_delta;
@@ -110,9 +119,21 @@ public:
 
     size_t limit() const { return m_limit; }
 
-    bool is_over_limit() const { return m_allocated > m_limit; }
+    bool is_over_limit() const { return m_allocated > m_limit || over_combined_limit(); }
 
-    bool is_under_limit() const { return m_allocated < (m_limit >> 1); }
+    /* The second gate on a unified memory device; always false elsewhere, where the two
+       pools really are separate hardware and their limits are independent. */
+    bool over_combined_limit() const {
+        return m_unified && m_combined_limit && (m_allocated + m_gpu_allocated) > m_combined_limit;
+    }
+
+    bool is_under_limit() const {
+        if (m_allocated >= (m_limit >> 1))
+            return false;
+        if (!m_unified || !m_combined_limit)
+            return true;
+        return (m_allocated + m_gpu_allocated) < (m_combined_limit >> 1);
+    }
 
     void account_gpu(int64_t delta) {
         m_gpu_allocated.fetch_add(static_cast<size_t>(delta), std::memory_order_relaxed);
@@ -141,7 +162,19 @@ public:
 
     size_t gpu_limit() const { return m_gpu_limit; }
 
-    bool is_gpu_over_limit() const { return m_gpu_allocated > m_gpu_limit; }
+    bool is_gpu_over_limit() const { return m_gpu_allocated > m_gpu_limit || over_combined_limit(); }
+
+    /* Called once, when a device turns out to be unified; the ceiling covers both pools. */
+    void set_unified(size_t combined_limit) {
+        m_combined_limit = combined_limit;
+        m_unified = true;
+    }
+
+    bool unified() const { return m_unified; }
+
+    size_t combined_limit() const { return m_combined_limit; }
+
+    size_t physical_memory() const { return m_total_ram; }
 
     struct CallTracking {
         int64_t delta;

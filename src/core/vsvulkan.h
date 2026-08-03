@@ -391,6 +391,13 @@ public:
     /* Whether kernels may declare float16_t, needed for half precision plane formats. */
     bool shaderFloat16Supported() const { return shaderFloat16Flag; }
 
+    /* Whether the device's memory is the host's memory. Integrated and software devices
+       carve their heaps out of system RAM, so a VRAM limit and the host memory limit are
+       two claims on the same bytes and cannot be sized independently. Taken from the device
+       type rather than from the heaps: a discrete card with resizable BAR also reports a
+       host visible device local heap, which would make any heap based test say yes. */
+    bool unifiedMemory() const { return unifiedMemoryFlag; }
+
     /* The opaque handle type pooled memory can be exported as (OPAQUE_WIN32 or OPAQUE_FD),
        or 0 when the platform extension is absent or export of our buffer shape is not
        possible. When nonzero, pooled buffers that REQUIRE device local memory (every frame
@@ -502,6 +509,7 @@ private:
     VSVulkanAllocator allocator;
     bool hostImageCopyFlag = false;
     bool shaderFloat16Flag = false;
+    bool unifiedMemoryFlag = false;
     bool memoryBudgetFlag = false;
     VkExternalMemoryHandleTypeFlagBits exportType = static_cast<VkExternalMemoryHandleTypeFlagBits>(0);
     VkExternalSemaphoreHandleTypeFlagBits semaphoreExportType = static_cast<VkExternalSemaphoreHandleTypeFlagBits>(0);

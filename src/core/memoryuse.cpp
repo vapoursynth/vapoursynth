@@ -87,6 +87,7 @@ MemoryUse::MemoryUse()
 {
 #if SIZE_MAX > UINT32_MAX
     size_t total_ram = get_total_ram();
+    m_total_ram = total_ram;
     m_limit = (total_ram > 0) ? total_ram / 2 : 4 * (1ULL << 30);
 #else
     m_limit = 1 * (1ULL << 30);

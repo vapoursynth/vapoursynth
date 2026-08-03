@@ -1397,6 +1397,7 @@ static int VS_CC vkGetVulkanCoreInfo(VSCore *core, VSVulkanCoreInfo *info, char 
     memcpy(info->deviceLUID, dev->deviceLUID(), VK_LUID_SIZE);
     info->deviceNodeMask = dev->deviceNodeMask();
     info->deviceLUIDValid = dev->deviceLUIDValid() ? 1 : 0;
+    info->unifiedMemory = dev->unifiedMemory() ? 1 : 0;
     info->exportHandleType = static_cast<int>(dev->exportHandleType());
     info->semaphoreExportHandleType = static_cast<int>(dev->semaphoreExportHandleType());
     return 0;

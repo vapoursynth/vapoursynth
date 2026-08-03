@@ -399,6 +399,13 @@ Filled in by getVulkanCoreInfo_.
      passes to VkExportSemaphoreCreateInfo to make its own timeline
      exportable
 
+   * int unifiedMemory — nonzero when the device's memory is the host's, which
+     is the case for integrated and software devices. *deviceMemory* and
+     *budget* then describe a share of system RAM rather than separate
+     hardware, and *limit* is capped so that it and the host memory limit
+     together leave the machine some room. A plugin sizing pools of its own
+     should treat its allocations as competing with host memory here.
+
 .. _VSVulkanDeviceListEntry:
 
 struct VSVulkanDeviceListEntry

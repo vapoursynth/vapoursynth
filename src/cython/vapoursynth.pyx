@@ -3106,7 +3106,8 @@ cdef extern from *:
 
     static int vspy_get_vulkan_core_info(const VSAPI *api, VSCore *core, char *name, int nameSize,
             int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit,
-            char *uuidHex, int uuidHexSize, int *exportHandleType, int *semExportHandleType, char *err, int errSize) {
+            char *uuidHex, int uuidHexSize, int *exportHandleType, int *semExportHandleType,
+            int *unifiedMemory, char *err, int errSize) {
         const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
         VSVulkanCoreInfo info;
         int i;
@@ -3121,6 +3122,7 @@ cdef extern from *:
             snprintf(uuidHex + i * 2, 3, "%02x", info.deviceUUID[i]);
         *exportHandleType = info.exportHandleType;
         *semExportHandleType = info.semaphoreExportHandleType;
+        *unifiedMemory = info.unifiedMemory;
         return 0;
     }
 
@@ -3163,7 +3165,7 @@ cdef extern from *:
     }
     """
     int vspy_set_vulkan_device(const VSAPI *api, VSCore *core, int index, char *err, int errSize) nogil
-    int vspy_get_vulkan_core_info(const VSAPI *api, VSCore *core, char *name, int nameSize, int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit, char *uuidHex, int uuidHexSize, int *exportHandleType, int *semExportHandleType, char *err, int errSize) nogil
+    int vspy_get_vulkan_core_info(const VSAPI *api, VSCore *core, char *name, int nameSize, int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit, char *uuidHex, int uuidHexSize, int *exportHandleType, int *semExportHandleType, int *unifiedMemory, char *err, int errSize) nogil
     int vspy_is_gpu_frame(const VSAPI *api, const VSFrame *f) nogil
     int vspy_is_gpu_node(const VSAPI *api, VSNode *node) nogil
     int64_t vspy_set_max_vram_use(const VSAPI *api, VSCore *core, int64_t bytes) nogil
@@ -3282,12 +3284,14 @@ cdef class Core(object):
         cdef char uuidHex[64]
         cdef int exportHandleType = 0
         cdef int semExportHandleType = 0
+        cdef int unifiedMemory = 0
         cdef int64_t deviceMemory = 0, budget = 0, allocated = 0, limit = 0
-        if vspy_get_vulkan_core_info(self.funcs, self.core, name, 256, &deviceMemory, &budget, &allocated, &limit, uuidHex, 64, &exportHandleType, &semExportHandleType, err, 512):
+        if vspy_get_vulkan_core_info(self.funcs, self.core, name, 256, &deviceMemory, &budget, &allocated, &limit, uuidHex, 64, &exportHandleType, &semExportHandleType, &unifiedMemory, err, 512):
             raise Error(err.decode('utf-8'))
         return { 'name': name.decode('utf-8'), 'device_memory': deviceMemory, 'budget': budget, 'allocated': allocated, 'limit': limit,
                  'uuid': uuidHex.decode('utf-8'), 'export_handle_type': exportHandleType,
-                 'semaphore_export_handle_type': semExportHandleType }
+                 'semaphore_export_handle_type': semExportHandleType,
+                 'unified_memory': bool(unifiedMemory) }
 
     @property
     def flags(self):

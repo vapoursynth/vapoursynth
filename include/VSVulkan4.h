@@ -404,6 +404,11 @@ typedef struct VSVulkanCoreInfo {
     int deviceLUIDValid;
     int exportHandleType; /* VkExternalMemoryHandleTypeFlagBits exportGPUPlane hands out, 0 when export is unavailable */
     int semaphoreExportHandleType; /* VkExternalSemaphoreHandleTypeFlagBits exportGPUSemaphore hands out, 0 when unavailable */
+    /* Nonzero when the device's memory is the host's, which is the case for integrated and
+       software devices. deviceMemory and budget then describe a share of system RAM rather
+       than separate hardware, and limit is capped so it and the host memory limit together
+       leave the machine some room; a plugin sizing its own pools should do likewise. */
+    int unifiedMemory;
 } VSVulkanCoreInfo;
 
 /* One entry per physical device; the position in the enumeration is exactly the index

@@ -1219,6 +1219,7 @@ class VulkanDeviceInfo(TypedDict):
     uuid: str
     export_handle_type: int
     semaphore_export_handle_type: int
+    unified_memory: bool
 
 
 class Core:
