@@ -1838,6 +1838,14 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
     auto trans = std::make_unique<VSVulkanTransfer>();
     if (!trans->init(*dev, 4, vulkanDeviceError))
         return false;
+    /* Makes the transfer machinery take its staging paths even where a direct one is
+       available, which is otherwise decided by the memory the driver handed back and so
+       cannot be varied on a given machine. The point is to be able to measure the two
+       against each other: the direct upload has the CPU write the plane across the BAR,
+       while staging hands the copy to the DMA engine, and which of those wins is a property
+       of the platform rather than something to assume. */
+    if (std::getenv("VS_VULKAN_FORCE_STAGING"))
+        trans->setForceStaging(true);
     vulkanDev = dev.release(); /* the core's reference; the device was born with it counted */
     vulkanTrans = std::move(trans);
     /* Silently halving a limit is the kind of thing that costs someone an afternoon later, so
