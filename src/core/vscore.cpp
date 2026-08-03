@@ -150,13 +150,16 @@ VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem
 VSPlaneData::~VSPlaneData() {
     if (gpu) {
         /* The producer may still be writing this plane; the wait is instant once it signaled.
-           Reader safety is the exec pools' retained references. After the core is gone the
-           wait must be skipped, not just spared: every submission completed when the pools
-           were torn down, and the timeline handles in the producer pair died with them. */
+           Reader safety is the exec pools' retained references. The handle stays valid however
+           late this runs -- the plane holds a reference to the timeline it names -- so the skip
+           after the core is gone is now only about the value: every submission completed when
+           the pools were torn down, but a pool that died with a failed submit outstanding never
+           signaled the value some plane is still carrying, and waiting for it would hang
+           teardown forever. Nothing left to wait for, so don't. */
         if (!gpuDevice->coreFreed())
             waitPlaneHost(*gpuDevice, *gpu);
         gpuDevice->destroyBuffer(gpu->buffer);
-        delete gpu;
+        delete gpu; /* releases the plane's timeline reference */
         /* Buffer before device: returning the region keeps MemoryUse alive until this point,
            so the accounting always lands in live memory. */
         gpuDevice->release();

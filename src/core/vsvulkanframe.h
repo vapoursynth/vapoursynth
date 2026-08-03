@@ -39,9 +39,46 @@ struct VSVulkanPlane {
     ptrdiff_t stride = 0; /* bytes per row, aligned like a CPU plane would be */
     uint32_t width = 0;   /* in samples */
     uint32_t height = 0;
-    VkSemaphore readySemaphore = VK_NULL_HANDLE;
+    /* Counted, so the plane keeps its producer's timeline alive for exactly as long as the pair
+       remains something a consumer might wait on. Null means host produced. Always go through
+       setPlaneProducer rather than assigning the two fields, which is what keeps the count and
+       the pair in step. */
+    VSVulkanTimeline *readyTimeline = nullptr;
     uint64_t readyValue = 0;
+
+    VSVulkanPlane() = default;
+    ~VSVulkanPlane() {
+        if (readyTimeline)
+            readyTimeline->release();
+    }
+    /* Copying would need a second reference and there is no reason to: planes are shared by
+       counting the VSPlaneData that owns them, never by duplicating this. Which also means
+       `plane = {}` no longer compiles, so clearing goes through reset(). */
+    VSVulkanPlane(const VSVulkanPlane &) = delete;
+    VSVulkanPlane &operator=(const VSVulkanPlane &) = delete;
+
+    void reset() {
+        if (readyTimeline)
+            readyTimeline->release();
+        readyTimeline = nullptr;
+        readyValue = 0;
+        buffer = {};
+        stride = 0;
+        width = 0;
+        height = 0;
+    }
 };
+
+/* addRef before release so republishing the same timeline onto a plane -- the ordinary case for
+   a filter writing a plane twice -- cannot drop the last reference in between. */
+inline void setPlaneProducer(VSVulkanPlane &plane, VSVulkanTimeline *timeline, uint64_t value) {
+    if (timeline)
+        timeline->addRef();
+    if (plane.readyTimeline)
+        plane.readyTimeline->release();
+    plane.readyTimeline = timeline;
+    plane.readyValue = value;
+}
 
 /* A GPU resident video frame. Reader tracking is left for the filter runtime, where exec
    contexts will hold frame references until their submissions complete; until then a frame
@@ -50,13 +87,20 @@ struct VSVulkanFrame {
     VSVideoFormat format = {};
     int numPlanes = 0;
     VSVulkanPlane planes[3];
+
+    void reset() {
+        format = {};
+        numPlanes = 0;
+        for (VSVulkanPlane &plane : planes)
+            plane.reset();
+    }
 };
 
 /* Appends every plane's producer pair; host ready planes contribute nothing and same timeline
    pairs collapse, so the common all-planes-one-producer frame adds a single wait. */
 inline void addFrameWaits(VSVulkanWaitList &list, const VSVulkanFrame &frame) {
     for (int p = 0; p < frame.numPlanes; p++)
-        list.add(frame.planes[p].readySemaphore, frame.planes[p].readyValue);
+        list.add(frame.planes[p].readyTimeline, frame.planes[p].readyValue);
 }
 
 /* One linear pitched device local plane with the stride the caller decided on, which is how
@@ -66,23 +110,22 @@ bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int
 
 /* Host wait for one plane's producer; the common case is already signaled and returns at once. */
 inline bool waitPlaneHost(VSVulkanDevice &device, const VSVulkanPlane &plane) {
-    if (!plane.readySemaphore)
+    if (!plane.readyTimeline)
         return true;
+    VkSemaphore semaphore = plane.readyTimeline->semaphore();
     VkSemaphoreWaitInfo waitInfo = {};
     waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
     waitInfo.semaphoreCount = 1;
-    waitInfo.pSemaphores = &plane.readySemaphore;
+    waitInfo.pSemaphores = &semaphore;
     waitInfo.pValues = &plane.readyValue;
     return device.vk.vkWaitSemaphores(device.device(), &waitInfo, UINT64_MAX) == VK_SUCCESS;
 }
 
 /* The common case after one submission wrote every plane. Partially produced frames set their
    plane pairs individually instead. */
-inline void setFrameProduced(VSVulkanFrame &frame, VkSemaphore semaphore, uint64_t value) {
-    for (int p = 0; p < frame.numPlanes; p++) {
-        frame.planes[p].readySemaphore = semaphore;
-        frame.planes[p].readyValue = value;
-    }
+inline void setFrameProduced(VSVulkanFrame &frame, VSVulkanTimeline *timeline, uint64_t value) {
+    for (int p = 0; p < frame.numPlanes; p++)
+        setPlaneProducer(frame.planes[p], timeline, value);
 }
 
 /* Owns the machinery moving frames across the PCIe bus with the policies the transfer benchmark

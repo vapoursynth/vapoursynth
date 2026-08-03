@@ -27,8 +27,9 @@
  *   nothing is linked.
  * - vkQueueSubmit on the shared queues must happen with the matching queue lock held.
  * - Before reading a plane on the GPU, wait for its (readySemaphore, readyValue) pair; after
- *   producing one, publish your own pair through setGPUPlaneProducer. A null semaphore means
- *   host produced content that is ready immediately.
+ *   producing one, publish your own pair through setGPUPlaneProducer, whose timeline is a
+ *   counted VSGPUTimeline the plane keeps alive by itself. A null semaphore means host produced
+ *   content that is ready immediately.
  * - Hold references to every frame a submission touches until that submission has completed.
  * - GPU producing functions declare "vnode:gpu" returns and create their nodes with ffGPUOutput.
  */
@@ -309,6 +310,20 @@ typedef struct VSVulkanPlaneInfo {
     uint64_t readyValue;
 } VSVulkanPlaneInfo;
 
+/* A timeline semaphore for publishing producer pairs, reference counted and owned by the core.
+ * A filter signals it and hands it to setGPUPlaneProducer; every plane it is published on takes
+ * its own reference, so the semaphore lives exactly as long as something might still wait on it.
+ *
+ * This is why a filter's timeline no longer has to outlive its consumers: release your reference
+ * whenever you are done signalling -- the free callback is the natural place -- and any frame
+ * still in flight keeps the semaphore alive on its own. Frames legitimately outlive the filter
+ * that made them (FrameEval and ModifyFrame hand one back from a node they then drop, and the
+ * cache can hold one indefinitely), which is exactly the case this counting exists for.
+ *
+ * The semaphore is created exportable wherever the device supports it, so a foreign API can wait
+ * on the pairs you publish device side. */
+typedef struct VSGPUTimeline VSGPUTimeline;
+
 /* A scratch buffer from the core's pooled VRAM allocator, for filters needing memory that is
  * not a frame plane: reduction partials, lookup tables, intermediate rows. Owned through the
  * opaque handle; the info struct is everything a kernel or the host needs to use it. */
@@ -381,9 +396,9 @@ typedef enum VSGPUShaderLanguage {
  * no separate availability flush is needed on that path.
  *
  * Every call returns a NEW handle for the same semaphore. Cache imports keyed by the
- * VkSemaphore value from VSVulkanPlaneInfo, scoped to your filter instance: the producer
- * pair contract guarantees those semaphores outlive every consumer, so the key cannot go
- * stale within your lifetime. Handle ownership follows the same platform rules as memory
+ * VkSemaphore value from VSVulkanPlaneInfo, scoped to your filter instance: a plane holds a
+ * reference to the timeline it names, so as long as you hold the frame the handle stays
+ * live and the key cannot go stale. Handle ownership follows the same platform rules as memory
  * export (close NT handles after importing; fds are consumed by a successful import). */
 typedef struct VSVulkanExportedSemaphore {
     int handleType;      /* the VkExternalSemaphoreHandleTypeFlagBits of the handle */
@@ -444,7 +459,7 @@ struct VSVULKANAPI {
     /* GPU resident frames for filter output; identical semantics to newVideoFrame otherwise. */
     VSFrame *(VS_CC *newGPUVideoFrame)(const VSVideoFormat *format, int width, int height, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *getGPUPlane)(const VSFrame *frame, int plane, VSVulkanPlaneInfo *info) VS_NOEXCEPT; /* nonzero when the frame is not GPU resident or the plane does not exist */
-    void (VS_CC *setGPUPlaneProducer)(VSFrame *frame, int plane, VkSemaphore semaphore, uint64_t value) VS_NOEXCEPT; /* the semaphore must outlive every possible consumer, in practice the filter instance */
+    void (VS_CC *setGPUPlaneProducer)(VSFrame *frame, int plane, VSGPUTimeline *timeline, uint64_t value) VS_NOEXCEPT; /* the plane takes its own reference; NULL publishes the plane as host ready */
 
     /* Lists every physical device through a temporary instance, so it works before any device
        selection and needs no core. Returns the total device count, which may exceed
@@ -554,6 +569,24 @@ struct VSVULKANAPI {
        rest of its life, has to know the copy landed before recording anything that reads
        it. Also releases everything those submissions were keeping alive. */
     int (VS_CC *gpuExecPoolWaitIdle)(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+
+    /* The same timeline as gpuExecPoolSemaphore, as the counted object setGPUPlaneProducer
+       takes. The pool holds its own reference, so publishing it needs no reference of yours. */
+    VSGPUTimeline *(VS_CC *gpuExecPoolTimeline)(VSGPUExecPool *pool) VS_NOEXCEPT;
+
+    /* A timeline of your own, for filters recording and submitting without the core's exec
+       pool. Created with an initial value of 0, exportable where the device allows it, and
+       returned with one reference which is yours to release -- in the free callback, without
+       waiting for consumers, since planes you published it on hold their own. Returns NULL
+       with the error set. */
+    VSGPUTimeline *(VS_CC *createGPUTimeline)(VSCore *core, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+    void (VS_CC *freeGPUTimeline)(VSGPUTimeline *timeline) VS_NOEXCEPT;
+    /* Takes another reference, for handing the same timeline to something with its own
+       lifetime. Every added reference needs a matching freeGPUTimeline. */
+    void (VS_CC *addGPUTimelineRef)(VSGPUTimeline *timeline) VS_NOEXCEPT;
+    /* The raw handle, to signal in your own vkQueueSubmit and to pass to exportGPUSemaphore.
+       Valid for as long as you hold a reference. */
+    VkSemaphore (VS_CC *getGPUTimelineSemaphore)(VSGPUTimeline *timeline) VS_NOEXCEPT;
 };
 
 #endif

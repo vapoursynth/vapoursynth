@@ -50,7 +50,11 @@ typedef struct {
     VkPipeline pass2;
 
     /* Only signaled so this filter can wait for its own submissions; nothing downstream ever
-       sees it since no plane is produced here. Values are allocated under the queue lock. */
+       sees it since no plane is produced here. Values are allocated under the queue lock.
+
+       A plain semaphore rather than a VSGPUTimeline precisely because of that: the counted
+       timeline exists so a producer pair can outlive the filter that published it, and this
+       one is never published anywhere. Filters that do write planes want the counted kind. */
     VkSemaphore timeline;
     uint64_t nextValue;
 } StatsData;

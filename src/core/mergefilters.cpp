@@ -72,16 +72,11 @@ void createGPUFromDecl2(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *o
         vsapi->mapSetError(out, (std::string(sf.name) + ": " + error).c_str());
 }
 
-/* True when both inputs are GPU resident. A vnode:all argument only auto transfers when
-   every residency in the signature agrees, so a mixed pair has already been rejected by
-   the time a create runs; this is just the branch predicate. */
-bool bothOnGPU(VSNode *a, VSNode *b, const VSAPI *vsapi) {
-    return vsapi->getNodeResidency(a) == nrGPU && vsapi->getNodeResidency(b) == nrGPU;
-}
-
 /* All GPU, all CPU, or mixed. A vnode:all argument leaves residency to the filter, so a
    mixed set reaches create unfixed and is rejected here the way Expr and Lut2 reject theirs
-   -- guessing which way to coerce a set of inputs is the caller's decision, not this one's. */
+   -- guessing which way to coerce a set of inputs is the caller's decision, not this one's.
+   Every caller must reject Mixed: falling through to the scalar path with a GPU input left
+   in it reaches getReadPtr on a GPU resident frame, which is fatal. */
 enum class Residency { AllCPU, AllGPU, Mixed };
 
 Residency residencyOf(const std::vector<VSNode *> &nodes, int count, const VSAPI *vsapi) {
@@ -91,6 +86,14 @@ Residency residencyOf(const std::vector<VSNode *> &nodes, int count, const VSAPI
     if (onGPU == 0)
         return Residency::AllCPU;
     return onGPU == count ? Residency::AllGPU : Residency::Mixed;
+}
+
+/* The two node filters keep their inputs as plain members rather than a vector. */
+Residency residencyOf(VSNode *a, VSNode *b, const VSAPI *vsapi) {
+    const int onGPU = (vsapi->getNodeResidency(a) == nrGPU) + (vsapi->getNodeResidency(b) == nrGPU);
+    if (onGPU == 0)
+        return Residency::AllCPU;
+    return onGPU == 2 ? Residency::AllGPU : Residency::Mixed;
 }
 
 const char *premulPrelude =
@@ -758,7 +761,11 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     if (nweight > d->vi->format.numPlanes)
         RETERROR("Merge: more weights given than the number of planes to merge");
 
-    if (bothOnGPU(d->node1, d->node2, vsapi)) {
+    Residency residency = residencyOf(d->node1, d->node2, vsapi);
+    if (residency == Residency::Mixed)
+        RETERROR("Merge: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+
+    if (residency == Residency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "Merge";
         sf.inputs = 2;
@@ -1246,7 +1253,11 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    if (bothOnGPU(d->node1, d->node2, vsapi)) {
+    Residency residency = residencyOf(d->node1, d->node2, vsapi);
+    if (residency == Residency::Mixed)
+        RETERROR("MakeDiff: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+
+    if (residency == Residency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MakeDiff";
         sf.inputs = 2;
@@ -1369,7 +1380,11 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    if (bothOnGPU(d->node1, d->node2, vsapi)) {
+    Residency residency = residencyOf(d->node1, d->node2, vsapi);
+    if (residency == Residency::Mixed)
+        RETERROR("MakeFullDiff: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+
+    if (residency == Residency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MakeFullDiff";
         sf.inputs = 2;
@@ -1493,7 +1508,11 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    if (bothOnGPU(d->node1, d->node2, vsapi)) {
+    Residency residency = residencyOf(d->node1, d->node2, vsapi);
+    if (residency == Residency::Mixed)
+        RETERROR("MergeDiff: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+
+    if (residency == Residency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MergeDiff";
         sf.inputs = 2;
@@ -1612,7 +1631,11 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    if (bothOnGPU(d->node1, d->node2, vsapi)) {
+    Residency residency = residencyOf(d->node1, d->node2, vsapi);
+    if (residency == Residency::Mixed)
+        RETERROR("MergeFullDiff: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+
+    if (residency == Residency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MergeFullDiff";
         sf.inputs = 2;

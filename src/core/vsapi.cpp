@@ -1440,18 +1440,17 @@ static int VS_CC vkGetGPUPlane(const VSFrame *frame, int plane, VSVulkanPlaneInf
         return 1;
     info->buffer = gpuPlane->buffer.buffer;
     info->bufferSize = gpuPlane->buffer.size;
-    info->readySemaphore = gpuPlane->readySemaphore;
+    info->readySemaphore = gpuPlane->readyTimeline ? gpuPlane->readyTimeline->semaphore() : VK_NULL_HANDLE;
     info->readyValue = gpuPlane->readyValue;
     return 0;
 }
 
-static void VS_CC vkSetGPUPlaneProducer(VSFrame *frame, int plane, VkSemaphore semaphore, uint64_t value) VS_NOEXCEPT {
+static void VS_CC vkSetGPUPlaneProducer(VSFrame *frame, int plane, VSGPUTimeline *timeline, uint64_t value) VS_NOEXCEPT {
     assert(frame);
     VSVulkanPlane *gpuPlane = frame->getGPUPlane(plane);
     if (!gpuPlane)
         return;
-    gpuPlane->readySemaphore = semaphore;
-    gpuPlane->readyValue = value;
+    setPlaneProducer(*gpuPlane, reinterpret_cast<VSVulkanTimeline *>(timeline), value);
 }
 
 static const VSVulkanFunctions *VS_CC vkGetVulkanFunctions(VSCore *core, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
@@ -1553,18 +1552,19 @@ static int VS_CC vkWaitGPUFrame(const VSFrame *frame, char *errorMessage, int er
     uint32_t waitCount = 0;
     for (int p = 0; p < fmt->numPlanes; p++) {
         const VSVulkanPlane *gpuPlane = frame->getGPUPlane(p);
-        if (!gpuPlane || !gpuPlane->readySemaphore)
+        if (!gpuPlane || !gpuPlane->readyTimeline)
             continue;
+        VkSemaphore planeSem = gpuPlane->readyTimeline->semaphore();
         uint32_t w = 0;
         for (; w < waitCount; w++) {
-            if (sems[w] == gpuPlane->readySemaphore) {
+            if (sems[w] == planeSem) {
                 if (gpuPlane->readyValue > values[w])
                     values[w] = gpuPlane->readyValue;
                 break;
             }
         }
         if (w == waitCount) {
-            sems[waitCount] = gpuPlane->readySemaphore;
+            sems[waitCount] = planeSem;
             values[waitCount] = gpuPlane->readyValue;
             waitCount++;
         }
@@ -1693,7 +1693,7 @@ static void VS_CC vkGPUExecReadsFrame(VSGPUExecContext *context, const VSFrame *
     for (int p = 0; fmt && p < fmt->numPlanes; p++) {
         const VSVulkanPlane *plane = frame->getGPUPlane(p);
         if (plane)
-            context->waits.add(plane->readySemaphore, plane->readyValue);
+            context->waits.add(plane->readyTimeline, plane->readyValue);
     }
     /* The context's own reference, so the caller's lifetime stays its own business. */
     VSFrame *owned = const_cast<VSFrame *>(frame);
@@ -1723,10 +1723,8 @@ static int VS_CC vkGPUExecSubmit(VSGPUExecContext *context, char *errorMessage, 
     }
     for (const auto &target : context->publish) {
         VSVulkanPlane *plane = target.frame->getGPUPlane(target.plane);
-        if (plane) {
-            plane->readySemaphore = context->owner->pool.semaphore();
-            plane->readyValue = value;
-        }
+        if (plane)
+            setPlaneProducer(*plane, context->owner->pool.timelineObject(), value);
     }
     return 0;
 }
@@ -1741,6 +1739,41 @@ static void VS_CC vkGPUExecAbandon(VSGPUExecContext *context) VS_NOEXCEPT {
 static VkSemaphore VS_CC vkGPUExecPoolSemaphore(VSGPUExecPool *pool) VS_NOEXCEPT {
     assert(pool);
     return pool->pool.semaphore();
+}
+
+static VSGPUTimeline *VS_CC vkGPUExecPoolTimeline(VSGPUExecPool *pool) VS_NOEXCEPT {
+    assert(pool);
+    return reinterpret_cast<VSGPUTimeline *>(pool->pool.timelineObject());
+}
+
+static VSGPUTimeline *VS_CC vkCreateGPUTimeline(VSCore *core, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(core);
+    std::string err;
+    VSVulkanDevice *dev = core->vulkanDevice(err);
+    if (!dev) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    VSVulkanTimeline *timeline = VSVulkanTimeline::create(*dev, err);
+    if (!timeline) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    return reinterpret_cast<VSGPUTimeline *>(timeline);
+}
+
+static void VS_CC vkFreeGPUTimeline(VSGPUTimeline *timeline) VS_NOEXCEPT {
+    if (timeline)
+        reinterpret_cast<VSVulkanTimeline *>(timeline)->release();
+}
+
+static void VS_CC vkAddGPUTimelineRef(VSGPUTimeline *timeline) VS_NOEXCEPT {
+    if (timeline)
+        reinterpret_cast<VSVulkanTimeline *>(timeline)->addRef();
+}
+
+static VkSemaphore VS_CC vkGetGPUTimelineSemaphore(VSGPUTimeline *timeline) VS_NOEXCEPT {
+    return timeline ? reinterpret_cast<VSVulkanTimeline *>(timeline)->semaphore() : VK_NULL_HANDLE;
 }
 
 static int VS_CC vkGPUExecPoolWaitIdle(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
@@ -1806,7 +1839,12 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkGPUExecSubmit,
     &vkGPUExecAbandon,
     &vkGPUExecPoolSemaphore,
-    &vkGPUExecPoolWaitIdle
+    &vkGPUExecPoolWaitIdle,
+    &vkGPUExecPoolTimeline,
+    &vkCreateGPUTimeline,
+    &vkFreeGPUTimeline,
+    &vkAddGPUTimelineRef,
+    &vkGetGPUTimelineSemaphore
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {

@@ -533,4 +533,47 @@ private:
     void *accountUserData = nullptr;
 };
 
+/* A timeline semaphore owned by everyone still naming it rather than by whoever created it.
+
+   Every GPU plane carries one as its producer pair, and a frame routinely outlives the filter
+   that produced it: FrameEval and ModifyFrame both hand back a frame from a node they then
+   drop, and any frame can sit in a cache long after its producer is gone. Counting the timeline
+   is what makes that legal -- the last plane to let go destroys the semaphore -- so a producer
+   pair is never a dangling handle and a consumer can wait on one without knowing anything about
+   the filter that filled it in. Filters get the shorter obligation in exchange: release your
+   reference whenever you are done signalling it, and let the frames still in flight decide when
+   the semaphore actually dies.
+
+   The device reference is held for the same reason VSPlaneData holds one -- the last release may
+   well come after the core is gone, and the semaphore still has to be destroyed through a live
+   device. */
+struct VSVulkanTimeline {
+public:
+    /* Exportable whenever the device can, since a producer pair a foreign API can wait on
+       device side beats one that forces a host stall. Returns null with the error set. */
+    static VSVulkanTimeline *create(VSVulkanDevice &device, std::string &errorMessage);
+
+    VkSemaphore semaphore() const { return sem; }
+
+    void addRef() {
+        refs.fetch_add(1, std::memory_order_relaxed);
+    }
+    void release() {
+        if (refs.fetch_sub(1, std::memory_order_acq_rel) == 1)
+            delete this;
+    }
+
+private:
+    VSVulkanTimeline(VSVulkanDevice &device, VkSemaphore semaphore) : dev(&device), sem(semaphore) {
+        dev->addRef();
+    }
+    ~VSVulkanTimeline();
+    VSVulkanTimeline(const VSVulkanTimeline &) = delete;
+    VSVulkanTimeline &operator=(const VSVulkanTimeline &) = delete;
+
+    VSVulkanDevice *dev;
+    VkSemaphore sem;
+    std::atomic<long> refs{1};
+};
+
 #endif

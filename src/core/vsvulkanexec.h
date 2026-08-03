@@ -50,6 +50,14 @@ struct VSVulkanWait {
    then reads planes whose producing dispatch may still be running, and nothing says so. */
 class VSVulkanWaitList {
 public:
+    /* Producer pairs arrive as counted timelines; the raw handle is what a submission needs and
+       is safe to hold here, since whoever assembles a wait list holds the frames supplying it
+       for at least as long as the submit call. */
+    void add(VSVulkanTimeline *timeline, uint64_t value) {
+        if (timeline)
+            add(timeline->semaphore(), value);
+    }
+
     void add(VkSemaphore semaphore, uint64_t value) {
         if (!semaphore)
             return;
@@ -149,8 +157,11 @@ public:
     bool waitValue(uint64_t value, std::string &errorMessage);
     bool waitAll(std::string &errorMessage);
 
-    /* The pool's timeline, handed to frames as their producer sync. */
-    VkSemaphore semaphore() const { return timeline; }
+    /* The pool's timeline, handed to frames as their producer sync. The pool holds one
+       reference; frames published from it hold their own, so the semaphore survives the pool
+       whenever a frame it produced does. */
+    VSVulkanTimeline *timelineObject() const { return timeline; }
+    VkSemaphore semaphore() const { return timeline ? timeline->semaphore() : VK_NULL_HANDLE; }
     VSVulkanQueue *queue() const { return q; }
 
     /* The public exec pool handle wraps one of these plus the device reference that keeps
@@ -162,7 +173,7 @@ private:
 
     VSVulkanDevice *dev = nullptr;
     VSVulkanQueue *q = nullptr;
-    VkSemaphore timeline = VK_NULL_HANDLE;
+    VSVulkanTimeline *timeline = nullptr;
     uint64_t nextValue = 0; /* guarded by the queue lock */
     std::vector<std::unique_ptr<VSVulkanExecContext>> contexts;
     std::atomic<uint32_t> cursor{0};

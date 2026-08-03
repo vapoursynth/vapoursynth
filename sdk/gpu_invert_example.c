@@ -81,9 +81,12 @@ typedef struct {
     int nextSlot;
 
     /* The filter's own timeline: it signals rising values and publishes them as the producer
-       pairs of the frames it writes. It must outlive every consumer, so it lives and dies
-       with the filter instance. */
-    VkSemaphore timeline;
+       pairs of the frames it writes. Counted and owned by the core, so releasing it in the
+       free callback is enough -- frames still carrying it as their producer hold their own
+       reference and keep the semaphore alive for exactly as long as they need it. The raw
+       handle is cached beside it for signalling and counter queries. */
+    VSGPUTimeline *timeline;
+    VkSemaphore timelineSem;
     uint64_t nextValue;
 
     /* Source frames whose references are held until the submission reading them completes.
@@ -97,7 +100,7 @@ typedef struct {
 static void sweepRetained(InvertData *d, const VSAPI *vsapi) {
     uint64_t completed = 0;
     int i, kept = 0;
-    if (d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timeline, &completed) != VK_SUCCESS)
+    if (d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timelineSem, &completed) != VK_SUCCESS)
         return;
     for (i = 0; i < d->retainedCount; i++) {
         if (d->retained[i].value <= completed)
@@ -135,13 +138,13 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
            would rather size the ring generously. */
         slot = d->nextSlot;
         d->nextSlot = (d->nextSlot + 1) % CMD_SLOTS;
-        d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timeline, &completed);
+        d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timelineSem, &completed);
         if (d->slotValue[slot] > completed) {
             VkSemaphoreWaitInfo waitInfo;
             memset(&waitInfo, 0, sizeof(waitInfo));
             waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
             waitInfo.semaphoreCount = 1;
-            waitInfo.pSemaphores = &d->timeline;
+            waitInfo.pSemaphores = &d->timelineSem;
             waitInfo.pValues = &d->slotValue[slot];
             d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
         }
@@ -210,7 +213,7 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
         cmdInfo.commandBuffer = cmd;
         memset(&signalInfo, 0, sizeof(signalInfo));
         signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        signalInfo.semaphore = d->timeline;
+        signalInfo.semaphore = d->timelineSem;
         signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
         memset(&submit, 0, sizeof(submit));
         submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
@@ -246,7 +249,7 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
             memset(&waitInfo, 0, sizeof(waitInfo));
             waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
             waitInfo.semaphoreCount = 1;
-            waitInfo.pSemaphores = &d->timeline;
+            waitInfo.pSemaphores = &d->timelineSem;
             waitInfo.pValues = &value;
             d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
             vsapi->freeFrame(src);
@@ -261,12 +264,12 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
 
 static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *)instanceData;
-    if (d->timeline && d->nextValue) {
+    if (d->timelineSem && d->nextValue) {
         VkSemaphoreWaitInfo waitInfo;
         memset(&waitInfo, 0, sizeof(waitInfo));
         waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &d->timeline;
+        waitInfo.pSemaphores = &d->timelineSem;
         waitInfo.pValues = &d->nextValue;
         d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
     }
@@ -279,8 +282,9 @@ static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsap
         d->vk->vkDestroyPipelineLayout(d->h.device, d->pipeLayout, NULL);
     if (d->setLayout)
         d->vk->vkDestroyDescriptorSetLayout(d->h.device, d->setLayout, NULL);
+    /* Just this filter's reference; frames still naming it keep the semaphore alive. */
     if (d->timeline)
-        d->vk->vkDestroySemaphore(d->h.device, d->timeline, NULL);
+        d->vkapi->freeGPUTimeline(d->timeline);
     LOCK_FREE(&d->lock);
     vsapi->freeNode(d->node);
     free(d);
@@ -298,10 +302,6 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     VkPipelineLayoutCreateInfo layoutInfo;
     VkShaderModuleCreateInfo moduleInfo;
     VkComputePipelineCreateInfo pipeInfo;
-    VkExportSemaphoreCreateInfo semExport;
-    VkSemaphoreTypeCreateInfo semType;
-    VkSemaphoreCreateInfo semInfo;
-    VSVulkanCoreInfo coreInfo;
     VkCommandPoolCreateInfo poolInfo;
     VkCommandBufferAllocateInfo allocInfo;
     VkDeviceQueueInfo2 queueInfo;
@@ -395,22 +395,16 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     d->vkapi->freeGPUShader(shader);
     shader = NULL;
 
-    /* Created exportable when the device can, so CUDA and other Vulkan devices consuming
-       this filter's frames may import the producer pair and wait it device side instead of
-       falling back to waitGPUFrame. Costs nothing when nobody imports it. */
-    memset(&coreInfo, 0, sizeof(coreInfo));
-    d->vkapi->getVulkanCoreInfo(core, &coreInfo, err, sizeof(err));
-    memset(&semExport, 0, sizeof(semExport));
-    semExport.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
-    semExport.handleTypes = (VkExternalSemaphoreHandleTypeFlags)coreInfo.semaphoreExportHandleType;
-    memset(&semType, 0, sizeof(semType));
-    semType.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-    semType.pNext = coreInfo.semaphoreExportHandleType ? &semExport : NULL;
-    semType.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-    memset(&semInfo, 0, sizeof(semInfo));
-    semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semInfo.pNext = &semType;
-    d->vk->vkCreateSemaphore(d->h.device, &semInfo, NULL, &d->timeline);
+    /* The core makes it exportable wherever the device can, so CUDA and other Vulkan devices
+       consuming this filter's frames may import the producer pair and wait it device side
+       instead of falling back to waitGPUFrame. Costs nothing when nobody imports it. */
+    d->timeline = d->vkapi->createGPUTimeline(core, err, sizeof(err));
+    if (!d->timeline) {
+        vsapi->mapSetError(out, err);
+        invertFree(d, core, vsapi);
+        return;
+    }
+    d->timelineSem = d->vkapi->getGPUTimelineSemaphore(d->timeline);
 
     memset(&poolInfo, 0, sizeof(poolInfo));
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;

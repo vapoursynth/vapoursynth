@@ -80,7 +80,7 @@ bool VSVulkanTransfer::init(VSVulkanDevice &device, uint32_t slots, std::string 
    exactly what the block allocator exists for. */
 bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int bytesPerSample,
     ptrdiff_t stride, VSVulkanPlane &plane, std::string &errorMessage) {
-    plane = {};
+    plane.reset();
     plane.width = width;
     plane.height = height;
     plane.stride = stride;
@@ -89,14 +89,14 @@ bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, errorMessage)) {
-        plane = {};
+        plane.reset();
         return false;
     }
     return true;
 }
 
 bool VSVulkanTransfer::createFrame(VSVulkanFrame &frame, const VSVideoFormat &format, int width, int height, std::string &errorMessage) {
-    frame = {};
+    frame.reset();
 
     if (format.numPlanes < 1 || format.numPlanes > 3 || format.bytesPerSample < 1 || format.bytesPerSample > 4 ||
         width <= 0 || height <= 0) {
@@ -127,13 +127,13 @@ bool VSVulkanTransfer::createFrame(VSVulkanFrame &frame, const VSVideoFormat &fo
 void VSVulkanTransfer::destroyFrame(VSVulkanFrame &frame) {
     for (int p = 0; p < frame.numPlanes; p++)
         dev->destroyBuffer(frame.planes[p].buffer);
-    frame = {};
+    frame.reset();
 }
 
 bool VSVulkanTransfer::waitPlanesHost(VSVulkanPlane *const planes[], int numPlanes, std::string &errorMessage) {
     VSVulkanWaitList list;
     for (int p = 0; p < numPlanes; p++)
-        list.add(planes[p]->readySemaphore, planes[p]->readyValue);
+        list.add(planes[p]->readyTimeline, planes[p]->readyValue);
     if (!list.size())
         return true;
 
@@ -230,8 +230,7 @@ bool VSVulkanTransfer::uploadPlanes(VSVulkanPlane *const planes[], int numPlanes
         for (int p = 0; p < numPlanes; p++) {
             copyPlane(static_cast<uint8_t *>(planes[p]->buffer.mapped), planes[p]->stride, srcPlanes[p], srcStrides[p],
                 static_cast<size_t>(planes[p]->width) * bytesPerSample, planes[p]->height);
-            planes[p]->readySemaphore = VK_NULL_HANDLE;
-            planes[p]->readyValue = 0;
+            setPlaneProducer(*planes[p], nullptr, 0);
         }
         return true;
     }
@@ -278,14 +277,13 @@ bool VSVulkanTransfer::uploadPlanes(VSVulkanPlane *const planes[], int numPlanes
        the host; fresh planes have no producers and wait on nothing. */
     VSVulkanWaitList waits;
     for (int p = 0; p < numPlanes; p++)
-        waits.add(planes[p]->readySemaphore, planes[p]->readyValue);
+        waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
     uint64_t value = 0;
     bool ok = execPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size());
     if (ok) {
         slot->value = value;
         for (int p = 0; p < numPlanes; p++) {
-            planes[p]->readySemaphore = execPool.semaphore();
-            planes[p]->readyValue = value;
+            setPlaneProducer(*planes[p], execPool.timelineObject(), value);
         }
     }
     releaseSlot(staging, *slot);
@@ -331,7 +329,7 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
 
     VSVulkanWaitList waits;
     for (int p = 0; p < numPlanes; p++)
-        waits.add(planes[p]->readySemaphore, planes[p]->readyValue);
+        waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
     uint64_t value = 0;
     if (!execPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size())) {
         releaseSlot(readback, *slot);

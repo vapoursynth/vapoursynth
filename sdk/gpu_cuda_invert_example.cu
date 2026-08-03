@@ -81,8 +81,11 @@ typedef struct {
     int semImportCount;
 
     /* The filter's own timeline: created exportable on the Vulkan side, imported once into
-       CUDA, signalled from the stream, published as the producer pair of every output. */
-    VkSemaphore timeline;
+       CUDA, signalled from the stream, published as the producer pair of every output.
+       Counted, so releasing it in the free callback is enough however many outputs are still
+       in flight naming it. The raw handle is cached beside it for signalling and export. */
+    VSGPUTimeline *timeline;
+    VkSemaphore timelineSem;
     cudaExternalSemaphore_t cudaTimeline;
     uint64_t nextValue;
 
@@ -208,7 +211,7 @@ static cudaExternalSemaphore_t mapSemaphore(CudaInvertData *d, VSCore *core, VkS
 static void sweepRetained(CudaInvertData *d, const VSAPI *vsapi) {
     uint64_t completed = 0;
     int i, kept = 0;
-    if (d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timeline, &completed) != VK_SUCCESS)
+    if (d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timelineSem, &completed) != VK_SUCCESS)
         return;
     for (i = 0; i < d->retainedCount; i++) {
         if (d->retained[i].value <= completed)
@@ -322,12 +325,12 @@ static void VS_CC cudaInvertFree(void *instanceData, VSCore *core, const VSAPI *
     int i;
     cudaSetDevice(d->cudaDevice);
     cudaStreamSynchronize(d->stream);
-    if (d->timeline && d->nextValue) {
+    if (d->timelineSem && d->nextValue) {
         VkSemaphoreWaitInfo wi;
         memset(&wi, 0, sizeof(wi));
         wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         wi.semaphoreCount = 1;
-        wi.pSemaphores = &d->timeline;
+        wi.pSemaphores = &d->timelineSem;
         wi.pValues = &d->nextValue;
         d->vk->vkWaitSemaphores(d->h.device, &wi, UINT64_MAX);
     }
@@ -340,8 +343,9 @@ static void VS_CC cudaInvertFree(void *instanceData, VSCore *core, const VSAPI *
         cudaDestroyExternalMemory(d->imports[i].mem);
     if (d->stream)
         cudaStreamDestroy(d->stream);
+    /* Just this filter's reference; outputs still naming it keep the semaphore alive. */
     if (d->timeline)
-        d->vk->vkDestroySemaphore(d->h.device, d->timeline, NULL);
+        d->vkapi->freeGPUTimeline(d->timeline);
     vsapi->freeNode(d->node);
     free(d);
 }
@@ -400,22 +404,13 @@ static void VS_CC cudaInvertCreate(const VSMap *in, VSMap *out, void *userData, 
        own; without it the filter still works, host synchronized. */
     d->semCapable = 0;
     if (info.semaphoreExportHandleType) {
-        VkExportSemaphoreCreateInfo exportInfo;
-        VkSemaphoreTypeCreateInfo typeInfo;
-        VkSemaphoreCreateInfo semInfo;
         VSVulkanExportedSemaphore sexp;
-        memset(&exportInfo, 0, sizeof(exportInfo));
-        exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
-        exportInfo.handleTypes = (VkExternalSemaphoreHandleTypeFlags)info.semaphoreExportHandleType;
-        memset(&typeInfo, 0, sizeof(typeInfo));
-        typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-        typeInfo.pNext = &exportInfo;
-        typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-        memset(&semInfo, 0, sizeof(semInfo));
-        semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        semInfo.pNext = &typeInfo;
-        if (d->vk->vkCreateSemaphore(d->h.device, &semInfo, NULL, &d->timeline) == VK_SUCCESS &&
-            !d->vkapi->exportGPUSemaphore(core, d->timeline, &sexp, err, sizeof(err))) {
+        /* createGPUTimeline already asks for export wherever the device supports it, which
+           this branch has just established it does. */
+        d->timeline = d->vkapi->createGPUTimeline(core, err, sizeof(err));
+        d->timelineSem = d->vkapi->getGPUTimelineSemaphore(d->timeline);
+        if (d->timeline &&
+            !d->vkapi->exportGPUSemaphore(core, d->timelineSem, &sexp, err, sizeof(err))) {
             cudaExternalSemaphoreHandleDesc sd;
             memset(&sd, 0, sizeof(sd));
 #ifdef _WIN32

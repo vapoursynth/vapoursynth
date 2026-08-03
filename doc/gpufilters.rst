@@ -96,6 +96,31 @@ clip's own format, which needs no resampling at all.
 .. _std.PreMultiply: functions/video/premultiply.html
 .. _resize.Bilinear: functions/video/resize.html
 
+Three narrower cases do not reach bit exactness either, all of them rounding
+rather than a different result:
+
+* **Float box blur.** std.BoxBlur_ on float formats accumulates the window and
+  multiplies by 1/(2r+1), where the scalar path carries a running sum along
+  the row. Neither order is the more correct one, they simply round
+  differently, and the gap grows with the radius — a few tens of ulp at the
+  radii a blur is normally used at.
+* **Levels.** The scalar path bakes the transfer curve into a lookup table at
+  create time; the compute path evaluates it per pixel, so the two differ by
+  whatever ``pow`` gets wrong in its last ulp. Visible as an occasional 1 LSB
+  on 16-bit integer formats, where a table entry can sit exactly on a rounding
+  boundary.
+* **Sobel and Prewitt on 16-bit integer formats.** Both paths form
+  ``gx*gx + gy*gy`` in float32, and for 16-bit input that sum needs more
+  mantissa than float32 has, so it is already rounded before the square root
+  ever runs. A handful of samples per frame land on the wrong side of the
+  half-way point as a result — a few in ten thousand, differing by 1. Which
+  samples they are depends on the driver, and neither path is reliably the
+  correct one: measured against exact arithmetic the compute path is right
+  more often than the scalar path, not less.
+
+Everywhere else, integer results are bit identical, which includes every
+filter not named above.
+
 Device selection
 ################
 
@@ -217,8 +242,11 @@ A filter's obligations
    so signals reach the queue in increasing order.
 
 #. **Publish your producers.** After submitting, setGPUPlaneProducer on every
-   plane you wrote with your timeline and the signaled value. Your timeline
-   must outlive all consumers — it lives as long as the filter instance.
+   plane you wrote with your timeline and the signaled value. The timeline is
+   a reference counted ``VSGPUTimeline`` from createGPUTimeline (or the exec
+   pool's, through gpuExecPoolTimeline), and every plane you publish it on
+   takes its own reference — so it outlives your filter instance by itself
+   whenever a frame still names it, and you never have to arrange that.
 
 #. **Keep sources alive.** The GPU may still be reading a source frame long
    after your getframe returned. Hold the reference until your submission's
@@ -231,9 +259,12 @@ A filter's obligations
    short internal locking, never hold a lock across a GPU wait.
 
 #. **Clean up in order.** In the free callback: wait your final timeline
-   value, then destroy pipelines, pools, scratch buffers and the timeline.
-   Scratch buffers have no producer pair anyone waits on — destroying them
-   before the device finished using them is a bug the core cannot catch.
+   value, then destroy pipelines, pools and scratch buffers, and release your
+   reference to the timeline. Scratch buffers have no producer pair anyone
+   waits on — destroying them before the device finished using them is a bug
+   the core cannot catch. The wait is about your own objects, not about
+   consumers: frames you produced keep the timeline alive on their own, so
+   freeGPUTimeline never has to wait for anybody.
 
 When to wait on the host
 ------------------------
@@ -294,12 +325,12 @@ The pattern, per frame:
      (``cudaSignalExternalSemaphoresAsync``), publish that (semaphore, value)
      with setGPUPlaneProducer, and return immediately. Nothing blocks; the
      graph pipelines across the API boundary exactly as it does between
-     Vulkan filters. Create your timeline with VkExportSemaphoreCreateInfo
-     using the handle type from
-     ``VSVulkanCoreInfo::semaphoreExportHandleType``, and take on the
-     asynchronous obligations that come with it: retain source frames until
-     your signalled value completes, and let the timeline live as long as the
-     filter instance.
+     Vulkan filters. Create your timeline with createGPUTimeline, which asks
+     for export wherever ``VSVulkanCoreInfo::semaphoreExportHandleType`` says
+     the device allows it, and take on the one asynchronous obligation that
+     remains: retain source frames until your signalled value completes. The
+     timeline itself needs no arranging — the frames you published it on keep
+     it alive past your filter.
 
    Not every producer's timeline is exportable — third party filters may not
    opt in — so when exportGPUSemaphore fails on an input, fall back to

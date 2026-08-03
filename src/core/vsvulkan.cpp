@@ -289,22 +289,55 @@ bool VSVulkanLoader::initialize(std::string &errorMessage) {
 #ifdef VS_TARGET_OS_WINDOWS
     const char *libraryName = "vulkan-1.dll";
     library = LoadLibraryA(libraryName);
-#elif defined(__APPLE__)
-    const char *libraryName = "libvulkan.1.dylib";
-    library = dlopen(libraryName, RTLD_NOW | RTLD_LOCAL);
-    if (!library) {
-        libraryName = "libMoltenVK.dylib";
-        library = dlopen(libraryName, RTLD_NOW | RTLD_LOCAL);
-    }
-#else
-    const char *libraryName = "libvulkan.so.1";
-    library = dlopen(libraryName, RTLD_NOW | RTLD_LOCAL);
-#endif
 
     if (!library) {
         errorMessage = std::string("Failed to load the Vulkan loader (") + libraryName + ")";
         return false;
     }
+#else
+    /* A leaf name is resolved by the dynamic linker against a search path the *host process*
+       decides, which on macOS is the difference between working and not: nothing installs a
+       Vulkan loader in /usr/lib, so a bare name is found only through DYLD_LIBRARY_PATH or an
+       LC_RPATH somebody happened to link in. Homebrew's Python framework carries
+       LC_RPATH /opt/homebrew/lib and so finds the loader by pure accident, while vspipe, which
+       carries none, did not -- the same script worked in Python and failed under vspipe. Hence
+       the explicit list: the leaf name first, so DYLD_LIBRARY_PATH and any rpath still win,
+       then VULKAN_SDK, then the prefixes macOS package managers actually install into. Linux
+       keeps the bare soname, where ldconfig makes it findable for everyone. */
+    std::vector<std::string> candidates;
+#ifdef __APPLE__
+    static const char *const stems[] = { "libvulkan.1.dylib", "libMoltenVK.dylib" };
+    static const char *const prefixes[] = {
+        "@executable_path/../Frameworks/", /* app bundles shipping their own loader */
+        "/opt/homebrew/lib/",              /* Homebrew on Apple Silicon */
+        "/usr/local/lib/",                 /* Homebrew on Intel, and manual installs */
+        "/opt/local/lib/",                 /* MacPorts */
+    };
+    const char *vulkanSdk = std::getenv("VULKAN_SDK");
+    for (const char *stem : stems) {
+        candidates.push_back(stem);
+        if (vulkanSdk && *vulkanSdk)
+            candidates.push_back(std::string(vulkanSdk) + "/lib/" + stem);
+        for (const char *prefix : prefixes)
+            candidates.push_back(std::string(prefix) + stem);
+    }
+#else
+    candidates.push_back("libvulkan.so.1");
+#endif
+
+    for (const std::string &candidate : candidates) {
+        library = dlopen(candidate.c_str(), RTLD_NOW | RTLD_LOCAL);
+        if (library)
+            break;
+    }
+
+    if (!library) {
+        errorMessage = "Failed to load the Vulkan loader, tried: ";
+        for (size_t i = 0; i < candidates.size(); i++)
+            errorMessage += (i ? ", " : "") + candidates[i];
+        return false;
+    }
+#endif
 
 #ifdef VS_TARGET_OS_WINDOWS
     PFN_vkGetInstanceProcAddr entry = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
@@ -1289,4 +1322,36 @@ bool VSVulkanDevice::enumerateDevices(std::vector<VSVulkanDeviceInfo> &devices, 
 
     vkf.vkDestroyInstance(instance, nullptr);
     return true;
+}
+
+/* The one place a producer timeline is made, so the export opt-in and the value semantics are
+   decided once for core exec pools and third party filters alike. */
+VSVulkanTimeline *VSVulkanTimeline::create(VSVulkanDevice &device, std::string &errorMessage) {
+    VkExportSemaphoreCreateInfo exportInfo = {};
+    exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
+    exportInfo.handleTypes = device.semaphoreExportHandleType();
+    VkSemaphoreTypeCreateInfo typeInfo = {};
+    typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    typeInfo.pNext = device.semaphoreExportHandleType() ? &exportInfo : nullptr;
+    typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+    typeInfo.initialValue = 0;
+    VkSemaphoreCreateInfo semaphoreInfo = {};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphoreInfo.pNext = &typeInfo;
+
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    VkResult res = device.vk.vkCreateSemaphore(device.device(), &semaphoreInfo, nullptr, &semaphore);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkCreateSemaphore failed for a producer timeline (VkResult " + std::to_string(res) + ")";
+        return nullptr;
+    }
+    return new VSVulkanTimeline(device, semaphore);
+}
+
+/* Semaphore before device, like VSPlaneData destroys its buffer before releasing the device:
+   the reference taken at construction is what guarantees there is still a device to destroy
+   the semaphore through, however long after the core the last plane let go. */
+VSVulkanTimeline::~VSVulkanTimeline() {
+    dev->vk.vkDestroySemaphore(dev->device(), sem, nullptr);
+    dev->release();
 }

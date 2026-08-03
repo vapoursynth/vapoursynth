@@ -32,8 +32,10 @@ VSVulkanExecPool::~VSVulkanExecPool() {
         if (context->commandPool)
             dev->vk.vkDestroyCommandPool(dev->device(), context->commandPool, nullptr);
     }
+    /* Just the pool's own reference. Frames this pool produced hold theirs, so the semaphore
+       outlives the pool exactly when something still needs to wait on it. */
     if (timeline)
-        dev->vk.vkDestroySemaphore(dev->device(), timeline, nullptr);
+        timeline->release();
 }
 
 void VSVulkanExecPool::retain(VSVulkanExecContext &context, void (*release)(void *object), void *object) {
@@ -60,26 +62,13 @@ bool VSVulkanExecPool::init(VSVulkanDevice &device, VSVulkanQueue &queue, uint32
     dev = &device;
     q = &queue;
 
-    /* Exportable when the device can: this timeline becomes the producer pair of every frame
-       this pool writes, and an exportable pair is what lets CUDA and other Vulkan devices
-       wait it device side instead of stalling a worker thread. */
-    VkExportSemaphoreCreateInfo exportInfo = {};
-    exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
-    exportInfo.handleTypes = dev->semaphoreExportHandleType();
-    VkSemaphoreTypeCreateInfo typeInfo = {};
-    typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-    typeInfo.pNext = dev->semaphoreExportHandleType() ? &exportInfo : nullptr;
-    typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-    typeInfo.initialValue = 0;
-    VkSemaphoreCreateInfo semaphoreInfo = {};
-    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semaphoreInfo.pNext = &typeInfo;
-    VkResult res = dev->vk.vkCreateSemaphore(dev->device(), &semaphoreInfo, nullptr, &timeline);
-    if (res != VK_SUCCESS) {
-        errorMessage = "vkCreateSemaphore failed for the pool timeline (VkResult " + std::to_string(res) + ")";
+    /* This timeline becomes the producer pair of every frame the pool writes, so it is counted
+       and may well outlive the pool; see VSVulkanTimeline. */
+    timeline = VSVulkanTimeline::create(*dev, errorMessage);
+    if (!timeline)
         return false;
-    }
 
+    VkResult res;
     for (uint32_t i = 0; i < contextCount; i++) {
         auto context = std::make_unique<VSVulkanExecContext>();
 
@@ -216,7 +205,7 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
     cmdInfo.commandBuffer = context.cmd;
     VkSemaphoreSubmitInfo signalInfo = {};
     signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-    signalInfo.semaphore = timeline;
+    signalInfo.semaphore = timeline->semaphore();
     signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
     VkSubmitInfo2 submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
@@ -251,10 +240,11 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
 }
 
 bool VSVulkanExecPool::waitValue(uint64_t value, std::string &errorMessage) {
+    VkSemaphore semaphore = timeline->semaphore();
     VkSemaphoreWaitInfo waitInfo = {};
     waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
     waitInfo.semaphoreCount = 1;
-    waitInfo.pSemaphores = &timeline;
+    waitInfo.pSemaphores = &semaphore;
     waitInfo.pValues = &value;
     VkResult res = dev->vk.vkWaitSemaphores(dev->device(), &waitInfo, UINT64_MAX);
     if (res != VK_SUCCESS) {
