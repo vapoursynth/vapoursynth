@@ -31,6 +31,7 @@
 #include "ter-116n.h"
 #include "internalfilters.h"
 #include "VSVulkan4.h"
+#include "gpufilter.h"
 
 const int margin_h = 16;
 const int margin_v = 16;
@@ -40,22 +41,24 @@ using namespace std::string_literals;
 
 typedef std::vector<std::string> stringlist;
 
-/* One dispatch draws one run of characters sharing a baseline, which is what lets the run
-   be pushed as packed bytes rather than a per glyph position each: four characters to the
-   word against a single origin. The budget is the 256 byte push constant floor every
-   device guarantees, so a long frame property dump simply becomes more dispatches -- all in
-   one submission, and this is a debug overlay, so paying a few dozen dispatches for it is
-   cheaper than teaching the driver to upload buffers per frame. */
-constexpr int textHeaderWords = 10;
-constexpr int textRunWords = (256 / 4) - textHeaderWords;
-constexpr int textRunChars = textRunWords * 4;
-
-struct TextPush {
+/* GPU path, declared through the gpufilter.h driver: a copy pass lays the source plane
+   down and one glyph pass overdraws every character of the frame in a single dispatch.
+   The per frame glyph list -- the text varies per frame for FrameNum and friends --
+   travels in the driver's frame data buffer as two words per glyph: character and luma x
+   packed in the first, luma y in the second. The kernel shifts the luma coordinates by
+   the plane's subsampling, which is exact because cell strides (character_width and
+   character_height times scale) divide by every subsampling factor -- the same per glyph
+   shift the CPU path applies. The glyph count rides in frameParams so the pass's
+   reshape, which runs after prepareFrame fills them, sizes the grid to the text being
+   drawn rather than to a worst case. */
+struct TextGlyphPush {
     uint32_t dstStride, cellW, cellH, count;
-    int32_t startX, startY;
-    uint32_t scaleX, scaleY;
+    uint32_t scaleX, scaleY, subW, subH;
     float fg, bg;
-    uint32_t chars[textRunWords];
+};
+
+struct TextCopyPush {
+    uint32_t width, height, srcStride, dstStride;
 };
 
 } // namespace
@@ -131,12 +134,7 @@ static void scrawl_character_half(unsigned char c, uint8_t *image, ptrdiff_t str
     }
 }
 
-/* The font is a static 4 KB table, so it goes into the source as literals: no buffer, no
-   upload, and the core caches shaders by source text, so every Text instance in a script
-   shares the one compile. Chroma runs pass scaleX of zero, which is the flag for "flat
-   rectangle" -- the character cell is still the dispatch, just filled with the neutral
-   value the luma glyph background uses. */
-static std::string textKernelSource(const VSVideoFormat &fmt) {
+static std::string textSamplePreamble(const VSVideoFormat &fmt) {
     std::string s = "#version 460\n";
     if (fmt.sampleType == stInteger)
         s += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
@@ -151,15 +149,24 @@ static std::string textKernelSource(const VSVideoFormat &fmt) {
          "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
          "#ifdef HALF_SAMPLES\n"
          "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
-         "#endif\n"
-         "\nlayout(local_size_x = 8, local_size_y = 8) in;\n"
+         "#endif\n";
+    return s;
+}
+
+/* The font is a static 4 KB table, so it goes into the source as literals: no buffer, no
+   upload, and the core caches shaders by source text, so every Text instance in a script
+   shares the one compile. Chroma passes scaleX of zero, which is the flag for "flat
+   rectangle" -- the character cell is still drawn, just filled with the neutral value the
+   luma glyph background uses. */
+static std::string textKernelSource(const VSVideoFormat &fmt) {
+    std::string s = textSamplePreamble(fmt);
+    s += "\nlayout(local_size_x = 8, local_size_y = 8) in;\n"
          "layout(std430, set = 0, binding = 0) writeonly buffer Dst { SAMPLE_T dstData[]; };\n"
+         "layout(std430, set = 0, binding = 1) readonly buffer Glyphs { uint fd[]; };\n"
          "layout(push_constant) uniform PC {\n"
          "    uint dstStride, cellW, cellH, count;\n"
-         "    int startX, startY;\n"
-         "    uint scaleX, scaleY;\n"
+         "    uint scaleX, scaleY, subW, subH;\n"
          "    float fg, bg;\n"
-         "    uint chars[" + std::to_string(textRunWords) + "];\n"
          "} pc;\n\n";
 
     /* 256 glyphs of 16 rows, one byte per row, packed four rows to a word. */
@@ -181,16 +188,34 @@ static std::string textKernelSource(const VSVideoFormat &fmt) {
          "    uint glyph = gx / pc.cellW;\n"
          "    if (glyph >= pc.count || cy >= pc.cellH) return;\n"
          "    uint cx = gx - glyph * pc.cellW;\n"
+         "    uint w0 = fd[glyph * 2u];\n"
          "    bool on = false;\n"
          "    if (pc.scaleX != 0u) {\n"
-         "        uint ch = (pc.chars[glyph >> 2] >> ((glyph & 3u) * 8u)) & 0xFFu;\n"
+         "        uint ch = w0 >> 24u;\n"
          "        uint byteIndex = ch * 16u + cy / pc.scaleY;\n"
          "        uint row = (font[byteIndex >> 2] >> ((byteIndex & 3u) * 8u)) & 0xFFu;\n"
          "        on = (row & (1u << (7u - cx / pc.scaleX))) != 0u;\n"
          "    }\n"
-         "    int px = pc.startX + int(glyph * pc.cellW + cx);\n"
-         "    int py = pc.startY + int(cy);\n"
-         "    dstData[uint(py) * pc.dstStride + uint(px)] = SAMPLE_T(on ? pc.fg : pc.bg);\n"
+         "    uint px = ((w0 & 0xFFFFFFu) >> pc.subW) + cx;\n"
+         "    uint py = (fd[glyph * 2u + 1u] >> pc.subH) + cy;\n"
+         "    dstData[py * pc.dstStride + px] = SAMPLE_T(on ? pc.fg : pc.bg);\n"
+         "}\n";
+    return s;
+}
+
+/* The whole-plane copy ahead of the glyphs. The driver's passes are dispatches, so the
+   plain buffer copy of the hand-recorded version becomes a one-line kernel; the loads and
+   stores move SAMPLE_T values untouched, which preserves the bits for every format. */
+static std::string textCopySource(const VSVideoFormat &fmt) {
+    std::string s = textSamplePreamble(fmt);
+    s += "\nlayout(local_size_x = 16, local_size_y = 16) in;\n"
+         "layout(std430, set = 0, binding = 0) readonly buffer Src { SAMPLE_T srcData[]; };\n"
+         "layout(std430, set = 0, binding = 1) writeonly buffer Dst { SAMPLE_T dstData[]; };\n"
+         "layout(push_constant) uniform PC { uint width, height, srcStride, dstStride; } pc;\n"
+         "void main() {\n"
+         "    uint x = gl_GlobalInvocationID.x, y = gl_GlobalInvocationID.y;\n"
+         "    if (x >= pc.width || y >= pc.height) return;\n"
+         "    dstData[y * pc.dstStride + x] = srcData[y * pc.srcStride + x];\n"
          "}\n";
     return s;
 }
@@ -391,26 +416,23 @@ enum Filters {
 
 namespace {
 
+/* Everything either path needs to assemble and place the text, copyable so the GPU
+   declaration's callbacks can hold it by shared_ptr. vi is a copy: ClipInfo prints from
+   it, and the callbacks outlive any pointer into the node. */
+struct TextState {
+    std::string text;
+    int alignment = 7;
+    int scale = 1;
+    intptr_t filter = 0;
+    stringlist props;
+    std::string instanceName;
+    VSVideoInfo vi = {};
+};
+
 typedef struct {
     VSNode *node;
     const VSVideoInfo *vi;
-
-    std::string text;
-    int alignment;
-    int scale;
-    intptr_t filter;
-    stringlist props;
-    std::string instanceName;
-
-    /* GPU path. One pipeline, built at create; everything else is per frame. */
-    bool gpu;
-    const VSVULKANAPI *vkapi;
-    const VSVulkanFunctions *vk;
-    VSVulkanCoreHandles handles;
-    VSGPUExecPool *pool;
-    VkDescriptorSetLayout setLayout;
-    VkPipelineLayout pipeLayout;
-    VkPipeline pipeline;
+    TextState st;
 } TextData;
 
 } // namespace
@@ -611,8 +633,160 @@ static std::string transferToString(int transfer) {
         return s;
 }
 
-static VSFrame *scrawl_text_gpu(const std::string &txt, TextData *d, const VSFrame *src,
-    VSCore *core, const VSAPI *vsapi, std::string &error);
+/* The per frame string, shared by both paths: the CPU getFrame builds it right before
+   scrawling, the GPU declaration's prepareFrame/prepareFrameData build it when the frame
+   arrives. Everything it reads is the state copy, the source frame and the core. */
+static std::string buildText(const TextState &st, int n, const VSFrame *src, VSCore *core, const VSAPI *vsapi) {
+    std::string drawText;
+
+    if (st.filter == FILTER_FRAMENUM) {
+        drawText = std::to_string(n);
+    } else if (st.filter == FILTER_FRAMEPROPS) {
+        const VSMap *props = vsapi->getFramePropertiesRO(src);
+        int numKeys = vsapi->mapNumKeys(props);
+        int i;
+        std::string text = "Frame properties:\n";
+
+        if (!st.props.empty()) {
+            for (const auto &iter : st.props) {
+                append_prop(text, iter, props, vsapi);
+            }
+        } else {
+            for (i = 0; i < numKeys; i++) {
+                const char *key = vsapi->mapGetKey(props, i);
+                append_prop(text, key, props, vsapi);
+            }
+        }
+
+        drawText = text;
+    } else if (st.filter == FILTER_COREINFO) {
+        VSCoreInfo ci;
+        vsapi->getCoreInfo(core, &ci);
+
+        std::string text;
+        text.append(ci.versionString).append("\n");
+        text.append("Threads: ").append(std::to_string(ci.numThreads)).append("\n");
+        text.append("Maximum framebuffer cache size: ").append(std::to_string(ci.maxFramebufferSize)).append(" bytes\n");
+        text.append("Used framebuffer cache size: ").append(std::to_string(ci.usedFramebufferSize)).append(" bytes");
+
+        drawText = text;
+    } else if (st.filter == FILTER_CLIPINFO) {
+        const VSMap *props = vsapi->getFramePropertiesRO(src);
+        const VSVideoFormat *frame_format = vsapi->getVideoFrameFormat(src);
+        std::string text = "Clip info:\n";
+
+        if (st.vi.width) {
+            text += "Width: " + std::to_string(vsapi->getFrameWidth(src, 0)) + " px\n";
+            text += "Height: " + std::to_string(vsapi->getFrameHeight(src, 0)) + " px\n";
+        } else {
+            text += "Width: " + std::to_string(vsapi->getFrameWidth(src, 0)) + " px (may vary)\n";
+            text += "Height: " + std::to_string(vsapi->getFrameHeight(src, 0)) + " px (may vary)\n";
+        }
+
+        int snerr, sderr;
+        int64_t sn = vsapi->mapGetInt(props, "_SARNum", 0, &snerr);
+        int64_t sd = vsapi->mapGetInt(props, "_SARDen", 0, &sderr);
+        if (snerr || sderr)
+            text += "Sample aspect ratio: Unknown\n";
+        else
+            text += "Sample aspect ratio: " + std::to_string(sn) + ":" + std::to_string(sd) + "\n";
+
+        text += "Length: " + std::to_string(st.vi.numFrames) + " frames\n";
+
+        char nameBuffer[32];
+        vsapi->getVideoFormatName(&st.vi.format, nameBuffer);
+
+        text += "Format name: "s + std::string(nameBuffer) + (st.vi.format.colorFamily == cfUndefined ? " (may vary)\n" : "\n");
+
+        text += "Color family: " + colorFamilyToString(frame_format->colorFamily) + "\n";
+        text += "Sample type: "s + (frame_format->sampleType == stInteger ? "Integer" : "Float") + "\n";
+        text += "Bits per sample: " + std::to_string(frame_format->bitsPerSample) + "\n";
+        text += "Subsampling Height/Width: " + std::to_string(1 << frame_format->subSamplingH) + "x/" + std::to_string(1 << frame_format->subSamplingW) + "x\n";
+
+        int err;
+        int matrix = vsapi->mapGetIntSaturated(props, "_Matrix", 0, &err);
+        if (err)
+            matrix = -1;
+        int primaries = vsapi->mapGetIntSaturated(props, "_Primaries", 0, &err);
+        if (err)
+            primaries = -1;
+        int transfer = vsapi->mapGetIntSaturated(props, "_Transfer", 0, &err);
+        if (err)
+            transfer = -1;
+        int range = vsapi->mapGetIntSaturated(props, "_Range", 0, &err);
+        if (err)
+            range = -1;
+        int location = vsapi->mapGetIntSaturated(props, "_ChromaLocation", 0, &err);
+        if (err)
+            location = -1;
+        int field = vsapi->mapGetIntSaturated(props, "_FieldBased", 0, &err);
+        if (err)
+            field = -1;
+
+        const char *picttype = vsapi->mapGetData(props, "_PictType", 0, &err);
+
+        text += "Matrix: " + matrixToString(matrix) + "\n";
+        text += "Primaries: " + primariesToString(primaries) + "\n";
+        text += "Transfer: " + transferToString(transfer) + "\n";
+        text += "Range: " + rangeToString(range) + "\n";
+        text += "Chroma Location: " + chromaLocationToString(location) + "\n";
+        text += "Field handling: " + fieldBasedToString(field) + "\n";
+        text += "Picture type: "s + (picttype ? picttype : "Unknown") + "\n";
+
+        if (st.vi.fpsNum && st.vi.fpsDen) {
+            text += "Fps: " + std::to_string(st.vi.fpsNum) + "/" + std::to_string(st.vi.fpsDen) + " (" + std::to_string(static_cast<double>(st.vi.fpsNum) / st.vi.fpsDen) + ")\n";
+        } else {
+            text += "Fps: Unknown\n";
+        }
+
+        int fnerr, fderr;
+        int64_t fn = vsapi->mapGetInt(props, "_DurationNum", 0, &fnerr);
+        int64_t fd = vsapi->mapGetInt(props, "_DurationDen", 0, &fderr);
+        if (fnerr || fderr) {
+            text += "Frame duration: Unknown\n";
+        } else {
+            text += "Frame duration: " + std::to_string(fn) + "/" + std::to_string(fd) + " (" + std::to_string(static_cast<double>(fn) / fd) + ")\n";
+        }
+
+        drawText = text;
+    } else {
+        drawText = st.text;
+    }
+
+    return drawText;
+}
+
+/* The glyph layout, shared by both paths in shape: the same sanitise/split/alignment walk
+   scrawl_text performs, emitted as records instead of drawn. Two words per glyph:
+   character and luma x in the first, luma y in the second. */
+static std::vector<uint32_t> buildGlyphRecords(std::string txt, int width, int height, int alignment, int scale) {
+    sanitise_text(txt);
+    const stringlist lines = split_text(txt, width - margin_h * 2, height - margin_v * 2, scale);
+
+    int start_y = 0;
+    switch (alignment) {
+    case 7: case 8: case 9: start_y = margin_v; break;
+    case 4: case 5: case 6: start_y = (height - static_cast<int>(lines.size()) * character_height * scale) / 2; break;
+    case 1: case 2: case 3: start_y = height - static_cast<int>(lines.size()) * character_height * scale - margin_v; break;
+    }
+
+    std::vector<uint32_t> records;
+    for (const auto &line : lines) {
+        int start_x = 0;
+        switch (alignment) {
+        case 1: case 4: case 7: start_x = margin_h; break;
+        case 2: case 5: case 8: start_x = (width - static_cast<int>(line.size()) * character_width * scale) / 2; break;
+        case 3: case 6: case 9: start_x = width - static_cast<int>(line.size()) * character_width * scale - margin_h; break;
+        }
+        for (size_t i = 0; i < line.size(); i++) {
+            const uint32_t x = static_cast<uint32_t>(start_x + static_cast<int>(i) * character_width * scale);
+            records.push_back((static_cast<uint32_t>(static_cast<unsigned char>(line[i])) << 24) | (x & 0xFFFFFFu));
+            records.push_back(static_cast<uint32_t>(start_y));
+        }
+        start_y += character_height * scale;
+    }
+    return records;
+}
 
 static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     TextData *d = static_cast<TextData *>(instanceData);
@@ -625,150 +799,26 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
         const VSVideoFormat *frame_format = vsapi->getVideoFrameFormat(src);
         if (!is8to16orFloatFormat(*frame_format)) {
             vsapi->freeFrame(src);
-            vsapi->setFilterError(invalidVideoFormatMessage(*frame_format, vsapi, d->instanceName.c_str()).c_str(), frameCtx);
+            vsapi->setFilterError(invalidVideoFormatMessage(*frame_format, vsapi, d->st.instanceName.c_str()).c_str(), frameCtx);
             return nullptr;
         }
 
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
 
-        int minimum_width = 2 * margin_h + character_width * d->scale;
-        int minimum_height = 2 * margin_v + character_height * d->scale;
+        int minimum_width = 2 * margin_h + character_width * d->st.scale;
+        int minimum_height = 2 * margin_v + character_height * d->st.scale;
 
         if (width < minimum_width || height < minimum_height) {
             vsapi->freeFrame(src);
-            vsapi->setFilterError((d->instanceName + ": frame size must be at least " + std::to_string(minimum_width) + "x" + std::to_string(minimum_height) + " pixels.").c_str(), frameCtx);
+            vsapi->setFilterError((d->st.instanceName + ": frame size must be at least " + std::to_string(minimum_width) + "x" + std::to_string(minimum_height) + " pixels.").c_str(), frameCtx);
             return nullptr;
         }
 
-        std::string drawText;
+        std::string drawText = buildText(d->st, n, src, core, vsapi);
 
-        if (d->filter == FILTER_FRAMENUM) {
-            drawText = std::to_string(n);
-        } else if (d->filter == FILTER_FRAMEPROPS) {
-            const VSMap *props = vsapi->getFramePropertiesRO(src);
-            int numKeys = vsapi->mapNumKeys(props);
-            int i;
-            std::string text = "Frame properties:\n";
-
-            if (!d->props.empty()) {
-                for (const auto &iter : d->props) {
-                    append_prop(text, iter, props, vsapi);
-                }
-            } else {
-                for (i = 0; i < numKeys; i++) {
-                    const char *key = vsapi->mapGetKey(props, i);
-                    append_prop(text, key, props, vsapi);
-                }
-            }
-
-            drawText = text;
-        } else if (d->filter == FILTER_COREINFO) {
-            VSCoreInfo ci;
-            vsapi->getCoreInfo(core, &ci);
-
-            std::string text;
-            text.append(ci.versionString).append("\n");
-            text.append("Threads: ").append(std::to_string(ci.numThreads)).append("\n");
-            text.append("Maximum framebuffer cache size: ").append(std::to_string(ci.maxFramebufferSize)).append(" bytes\n");
-            text.append("Used framebuffer cache size: ").append(std::to_string(ci.usedFramebufferSize)).append(" bytes");
-
-            drawText = text;
-        } else if (d->filter == FILTER_CLIPINFO) {
-            const VSMap *props = vsapi->getFramePropertiesRO(src);
-            std::string text = "Clip info:\n";
-
-            if (d->vi->width) {
-                text += "Width: " + std::to_string(vsapi->getFrameWidth(src, 0)) + " px\n";
-                text += "Height: " + std::to_string(vsapi->getFrameHeight(src, 0)) + " px\n";
-            } else {
-                text += "Width: " + std::to_string(vsapi->getFrameWidth(src, 0)) + " px (may vary)\n";
-                text += "Height: " + std::to_string(vsapi->getFrameHeight(src, 0)) + " px (may vary)\n";
-            }
-
-            int snerr, sderr;
-            int64_t sn = vsapi->mapGetInt(props, "_SARNum", 0, &snerr);
-            int64_t sd = vsapi->mapGetInt(props, "_SARDen", 0, &sderr);
-            if (snerr || sderr)
-                text += "Sample aspect ratio: Unknown\n";
-            else
-                text += "Sample aspect ratio: " + std::to_string(sn) + ":" + std::to_string(sd) + "\n";
-
-            text += "Length: " + std::to_string(d->vi->numFrames) + " frames\n";
-
-            char nameBuffer[32];
-            vsapi->getVideoFormatName(&d->vi->format, nameBuffer);
-
-            text += "Format name: "s + std::string(nameBuffer) + (d->vi->format.colorFamily == cfUndefined ? " (may vary)\n" : "\n");
-
-            text += "Color family: " + colorFamilyToString(frame_format->colorFamily) + "\n";
-            text += "Sample type: "s + (frame_format->sampleType == stInteger ? "Integer" : "Float") + "\n";
-            text += "Bits per sample: " + std::to_string(frame_format->bitsPerSample) + "\n";
-            text += "Subsampling Height/Width: " + std::to_string(1 << frame_format->subSamplingH) + "x/" + std::to_string(1 << frame_format->subSamplingW) + "x\n";
-
-            int err;
-            int matrix = vsapi->mapGetIntSaturated(props, "_Matrix", 0, &err);
-            if (err)
-                matrix = -1;
-            int primaries = vsapi->mapGetIntSaturated(props, "_Primaries", 0, &err);
-            if (err)
-                primaries = -1;
-            int transfer = vsapi->mapGetIntSaturated(props, "_Transfer", 0, &err);
-            if (err)
-                transfer = -1;
-            int range = vsapi->mapGetIntSaturated(props, "_Range", 0, &err);
-            if (err)
-                range = -1;
-            int location = vsapi->mapGetIntSaturated(props, "_ChromaLocation", 0, &err);
-            if (err)
-                location = -1;
-            int field = vsapi->mapGetIntSaturated(props, "_FieldBased", 0, &err);
-            if (err)
-                field = -1;
-
-            const char *picttype = vsapi->mapGetData(props, "_PictType", 0, &err);
-
-            text += "Matrix: " + matrixToString(matrix) + "\n";
-            text += "Primaries: " + primariesToString(primaries) + "\n";
-            text += "Transfer: " + transferToString(transfer) + "\n";
-            text += "Range: " + rangeToString(range) + "\n";
-            text += "Chroma Location: " + chromaLocationToString(location) + "\n";
-            text += "Field handling: " + fieldBasedToString(field) + "\n";
-            text += "Picture type: "s + (picttype ? picttype : "Unknown") + "\n";
-
-            if (d->vi->fpsNum && d->vi->fpsDen) {
-                text += "Fps: " + std::to_string(d->vi->fpsNum) + "/" + std::to_string(d->vi->fpsDen) + " (" + std::to_string(static_cast<double>(d->vi->fpsNum) / d->vi->fpsDen) + ")\n";
-            } else {
-                text += "Fps: Unknown\n";
-            }
-
-            int fnerr, fderr;
-            int64_t fn = vsapi->mapGetInt(props, "_DurationNum", 0, &fnerr);
-            int64_t fd = vsapi->mapGetInt(props, "_DurationDen", 0, &fderr);
-            if (fnerr || fderr) {
-                text += "Frame duration: Unknown\n";
-            } else {
-                text += "Frame duration: " + std::to_string(fn) + "/" + std::to_string(fd) + " (" + std::to_string(static_cast<double>(fn) / fd) + ")\n";
-            }
-
-            drawText = text;
-        } else {
-            drawText = d->text;
-        }
-
-        VSFrame *dst;
-        if (d->gpu) {
-            std::string error;
-            dst = scrawl_text_gpu(drawText, d, src, core, vsapi, error);
-            if (!dst) {
-                vsapi->setFilterError((d->instanceName + ": " + error).c_str(), frameCtx);
-                vsapi->freeFrame(src);
-                return nullptr;
-            }
-        } else {
-            dst = vsapi->copyFrame(src, core);
-            scrawl_text(drawText, d->alignment, d->scale, dst, vsapi);
-        }
+        VSFrame *dst = vsapi->copyFrame(src, core);
+        scrawl_text(drawText, d->st.alignment, d->st.scale, dst, vsapi);
 
         vsapi->freeFrame(src);
         return dst;
@@ -777,166 +827,144 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
     return nullptr;
 }
 
+/* The GPU declaration. Two passes per plane -- copy the source down, overdraw the glyph
+   cells -- with the per frame text carried entirely by the driver: prepareFrame counts
+   the glyphs into frameParams for the reshape, prepareFrameData lays them out into the
+   frame data buffer after the source frame (and so its properties) has arrived. The
+   buffer is sized once at create to the screen's character capacity, the same bound
+   split_text enforces, so any text the layout can produce fits. */
+static void createGPUText(std::unique_ptr<TextData> &d, VSMap *out, VSCore *core, const VSAPI *vsapi) {
+    const std::string name = d->st.instanceName;
+    auto fail = [&](const std::string &msg) {
+        vsapi->mapSetError(out, (name + ": " + msg).c_str());
+        if (d->node)
+            vsapi->freeNode(d->node);
+        d->node = nullptr;
+    };
 
-/* Copies the source into a fresh GPU frame and overdraws the text, all in one submission.
-   The copy is a plain buffer to buffer transfer -- copyFrame cannot be used here, since it
-   shares the plane blocks and getWritePtr is not available on a GPU frame. */
-static VSFrame *scrawl_text_gpu(const std::string &txt, TextData *d, const VSFrame *src,
-    VSCore *core, const VSAPI *vsapi, std::string &error) {
-    const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
-    const int width = vsapi->getFrameWidth(src, 0);
-    const int height = vsapi->getFrameHeight(src, 0);
-
-    std::string text = txt;
-    sanitise_text(text);
-    const stringlist lines = split_text(text, width - margin_h * 2, height - margin_v * 2, d->scale);
-
-    int startY = 0;
-    switch (d->alignment) {
-    case 7: case 8: case 9: startY = margin_v; break;
-    case 4: case 5: case 6: startY = (height - static_cast<int>(lines.size()) * character_height * d->scale) / 2; break;
-    case 1: case 2: case 3: startY = height - static_cast<int>(lines.size()) * character_height * d->scale - margin_v; break;
+    if (!vsh::isConstantVideoFormat(d->vi)) {
+        fail("the GPU path needs a constant format clip");
+        return;
     }
 
-    VSFrame *dst = d->vkapi->newGPUVideoFrame(fi, width, height, src, core);
-    if (!dst) {
-        error = "failed to allocate the output frame";
-        return nullptr;
-    }
+    const VSVideoFormat fmt = d->vi->format;
+    const int width = d->vi->width, height = d->vi->height;
+    const int scale = d->st.scale;
+    const bool rgb = fmt.colorFamily == cfRGB;
+    const bool isInt = fmt.sampleType == stInteger;
+    const float shift = isInt ? static_cast<float>(1 << (fmt.bitsPerSample - 8)) : 0.0f;
+    const uint32_t ssW = fmt.subSamplingW, ssH = fmt.subSamplingH;
 
-    char err[512] = { 0 };
-    VSGPUExecContext *ctx = d->vkapi->gpuExecAcquire(d->pool, err, sizeof(err));
-    if (!ctx) {
-        error = err;
-        vsapi->freeFrame(dst);
-        return nullptr;
-    }
-    d->vkapi->gpuExecReadsFrame(ctx, src);
+    /* The same capacity split_text clamps to, so the frame data buffer bounds every
+       layout; a frame smaller than one glyph plus margins keeps failing per frame below,
+       like the CPU path does. */
+    const int hcap = std::max(0, (width - 2 * margin_h) / character_width / scale);
+    const int vcap = std::max(0, (height - 2 * margin_v) / character_height / scale);
+    const uint32_t maxGlyphs = static_cast<uint32_t>(std::max(1, hcap * vcap));
 
-    VkCommandBuffer cmd = d->vkapi->gpuExecCommandBuffer(ctx);
-    VSVulkanPlaneInfo srcPlane[3], dstPlane[3];
-    for (int plane = 0; plane < fi->numPlanes; plane++) {
-        if (d->vkapi->getGPUPlane(src, plane, &srcPlane[plane]) ||
-            d->vkapi->getGPUPlane(dst, plane, &dstPlane[plane])) {
-            d->vkapi->gpuExecAbandon(ctx);
-            vsapi->freeFrame(dst);
-            error = "frame is not GPU resident";
-            return nullptr;
+    auto st = std::make_shared<TextState>(d->st);
+    const int minW = 2 * margin_h + character_width * scale;
+    const int minH = 2 * margin_v + character_height * scale;
+
+    vsgpu::FilterDesc desc;
+    desc.vi = *d->vi;
+    desc.nodes.push_back(d->node);
+
+    desc.frameParamCount = 1;
+    desc.prepareFrame = [st, core, minW, minH](int n, const VSFrame *const *sources, int,
+        const VSAPI *vsapi, uint32_t *params, std::string &error) {
+        const int w = vsapi->getFrameWidth(sources[0], 0), h = vsapi->getFrameHeight(sources[0], 0);
+        if (w < minW || h < minH) {
+            error = st->instanceName + ": frame size must be at least " + std::to_string(minW) +
+                "x" + std::to_string(minH) + " pixels.";
+            return false;
         }
-        VkBufferCopy2 region = {};
-        region.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
-        region.size = std::min(srcPlane[plane].bufferSize, dstPlane[plane].bufferSize);
-        VkCopyBufferInfo2 copyInfo = {};
-        copyInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
-        copyInfo.srcBuffer = srcPlane[plane].buffer;
-        copyInfo.dstBuffer = dstPlane[plane].buffer;
-        copyInfo.regionCount = 1;
-        copyInfo.pRegions = &region;
-        d->vk->vkCmdCopyBuffer2(cmd, &copyInfo);
-        d->vkapi->gpuExecWritesPlane(ctx, dst, plane);
+        params[0] = static_cast<uint32_t>(
+            buildGlyphRecords(buildText(*st, n, sources[0], core, vsapi), w, h, st->alignment, st->scale).size() / 2);
+        return true;
+    };
+    desc.frameDataBytes = maxGlyphs * 2 * sizeof(uint32_t);
+    desc.prepareFrameData = [st, core](int n, const VSFrame *const *sources, int,
+        const VSAPI *vsapi, void *data, std::string &) {
+        const std::vector<uint32_t> records = buildGlyphRecords(buildText(*st, n, sources[0], core, vsapi),
+            vsapi->getFrameWidth(sources[0], 0), vsapi->getFrameHeight(sources[0], 0), st->alignment, st->scale);
+        std::memcpy(data, records.data(), records.size() * sizeof(uint32_t));
+        return true;
+    };
+
+    vsgpu::Program copyProg;
+    copyProg.glsl = textCopySource(fmt);
+    copyProg.storageBufferCount = 2;
+    copyProg.pushConstantBytes = sizeof(TextCopyPush);
+    desc.programs.push_back(std::move(copyProg));
+
+    vsgpu::Program glyphProg;
+    glyphProg.glsl = textKernelSource(fmt);
+    glyphProg.storageBufferCount = 2;
+    glyphProg.pushConstantBytes = sizeof(TextGlyphPush);
+    glyphProg.localSizeX = 8;
+    glyphProg.localSizeY = 8;
+    desc.programs.push_back(std::move(glyphProg));
+
+    {
+        vsgpu::Pass pass;
+        pass.bindings = { vsgpu::Operand::source(), vsgpu::Operand::output() };
+        desc.passes.push_back(std::move(pass));
+    }
+    {
+        vsgpu::Pass pass;
+        pass.program = 1;
+        pass.bindings = { vsgpu::Operand::output(), vsgpu::Operand::frameData() };
+        pass.reshape = [scale, rgb, ssW, ssH](vsgpu::PassInfo &info) {
+            const uint32_t subW = (!rgb && info.plane > 0) ? ssW : 0;
+            const uint32_t subH = (!rgb && info.plane > 0) ? ssH : 0;
+            info.width = info.frameParams[0] * ((character_width * scale) >> subW);
+            info.height = (character_height * scale) >> subH;
+        };
+        desc.passes.push_back(std::move(pass));
     }
 
-    /* The glyphs overwrite what the copy just laid down. */
-    VkMemoryBarrier2 mb = {};
-    mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
-    mb.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-    mb.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-    mb.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-    mb.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
-    VkDependencyInfo dep = {};
-    dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    dep.memoryBarrierCount = 1;
-    dep.pMemoryBarriers = &mb;
-    d->vk->vkCmdPipelineBarrier2(cmd, &dep);
-
-    d->vk->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, d->pipeline);
-
-    const bool isRGB = fi->colorFamily == cfRGB;
-    const bool isInt = fi->sampleType == stInteger;
-    const float shift = static_cast<float>(1 << (fi->bitsPerSample - 8));
-
-    for (int plane = 0; plane < fi->numPlanes; plane++) {
-        const bool chroma = !isRGB && plane > 0;
-        const int subW = chroma ? fi->subSamplingW : 0;
-        const int subH = chroma ? fi->subSamplingH : 0;
-        const uint32_t cellW = (character_width * d->scale) >> subW;
-        const uint32_t cellH = (character_height * d->scale) >> subH;
-        if (!cellW || !cellH)
-            continue;
-
-        VkDescriptorBufferInfo bufferInfo = {};
-        bufferInfo.buffer = dstPlane[plane].buffer;
-        bufferInfo.range = VK_WHOLE_SIZE;
-        VkWriteDescriptorSet write = {};
-        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write.descriptorCount = 1;
-        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        write.pBufferInfo = &bufferInfo;
-        d->vk->vkCmdPushDescriptorSet(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, d->pipeLayout, 0, 1, &write);
-
-        int lineY = startY;
-        for (const auto &line : lines) {
-            int startX = 0;
-            switch (d->alignment) {
-            case 1: case 4: case 7: startX = margin_h; break;
-            case 2: case 5: case 8: startX = (width - static_cast<int>(line.size()) * character_width * d->scale) / 2; break;
-            case 3: case 6: case 9: startX = width - static_cast<int>(line.size()) * character_width * d->scale - margin_h; break;
-            }
-
-            for (size_t at = 0; at < line.size(); at += textRunChars) {
-                const uint32_t count = static_cast<uint32_t>(std::min<size_t>(textRunChars, line.size() - at));
-                TextPush push = {};
-                push.dstStride = static_cast<uint32_t>(vsapi->getStride(dst, plane) / fi->bytesPerSample);
-                push.cellW = cellW;
-                push.cellH = cellH;
-                push.count = count;
-                push.startX = (startX + static_cast<int>(at) * character_width * d->scale) >> subW;
-                push.startY = lineY >> subH;
-                /* Zero scaleX is the flat rectangle case; chroma never carries a glyph. */
-                push.scaleX = chroma ? 0u : static_cast<uint32_t>(d->scale);
-                push.scaleY = static_cast<uint32_t>(d->scale);
-                if (chroma) {
-                    push.fg = push.bg = isInt ? 128.0f * shift : 0.0f;
-                } else {
-                    push.fg = isInt ? 235.0f * shift : 1.0f;
-                    push.bg = isInt ? 16.0f * shift : 0.0f;
-                }
-                for (uint32_t i = 0; i < count; i++)
-                    push.chars[i >> 2] |= static_cast<uint32_t>(static_cast<unsigned char>(line[at + i])) << ((i & 3) * 8);
-
-                VkPushConstantsInfo pushInfo = {};
-                pushInfo.sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO;
-                pushInfo.layout = d->pipeLayout;
-                pushInfo.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-                pushInfo.size = sizeof(push);
-                pushInfo.pValues = &push;
-                d->vk->vkCmdPushConstants2(cmd, &pushInfo);
-
-                d->vk->vkCmdDispatch(cmd, (count * cellW + 7) / 8, (cellH + 7) / 8, 1);
-            }
-            lineY += character_height * d->scale;
+    desc.fillPush = [scale, rgb, isInt, shift, ssW, ssH](const vsgpu::PassInfo &info, void *push) {
+        if (info.pass == 0) {
+            TextCopyPush pc = { info.width, info.height, info.strideElements[0], info.strideElements[1] };
+            std::memcpy(push, &pc, sizeof(pc));
+            return;
         }
-    }
+        const bool chroma = !rgb && info.plane > 0;
+        const uint32_t subW = chroma ? ssW : 0, subH = chroma ? ssH : 0;
+        TextGlyphPush pc = {};
+        pc.dstStride = info.strideElements[0];
+        pc.cellW = (character_width * scale) >> subW;
+        pc.cellH = (character_height * scale) >> subH;
+        pc.count = info.frameParams[0];
+        /* Zero scaleX is the flat rectangle case; chroma never carries a glyph. */
+        pc.scaleX = chroma ? 0u : static_cast<uint32_t>(scale);
+        pc.scaleY = static_cast<uint32_t>(scale);
+        pc.subW = subW;
+        pc.subH = subH;
+        if (chroma) {
+            pc.fg = pc.bg = isInt ? 128.0f * shift : 0.0f;
+        } else {
+            pc.fg = isInt ? 235.0f * shift : 1.0f;
+            pc.bg = isInt ? 16.0f * shift : 0.0f;
+        }
+        std::memcpy(push, &pc, sizeof(pc));
+    };
 
-    if (d->vkapi->gpuExecSubmit(ctx, nullptr, err, sizeof(err))) {
-        error = err;
-        vsapi->freeFrame(dst);
-        return nullptr;
-    }
-    return dst;
+    VSFilterDependency deps[] = {{ d->node, rpStrictSpatial }};
+    std::string error;
+    VSNode *node = vsgpu::createFilter(name.c_str(), desc, deps, 1, core, vsapi, error);
+    d->node = nullptr; /* consumed on success and failure alike */
+    if (node)
+        vsapi->mapConsumeNode(out, "clip", node, maAppend);
+    else
+        vsapi->mapSetError(out, (name + ": " + error).c_str());
 }
+
 
 static void VS_CC textFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     TextData *d = static_cast<TextData *>(instanceData);
     vsapi->freeNode(d->node);
-    if (d->pool)
-        d->vkapi->freeGPUExecPool(d->pool);
-    if (d->pipeline)
-        d->vk->vkDestroyPipeline(d->handles.device, d->pipeline, nullptr);
-    if (d->pipeLayout)
-        d->vk->vkDestroyPipelineLayout(d->handles.device, d->pipeLayout, nullptr);
-    if (d->setLayout)
-        d->vk->vkDestroyDescriptorSetLayout(d->handles.device, d->setLayout, nullptr);
     delete d;
 }
 
@@ -971,124 +999,66 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         return;
     }
 
-    d->alignment = vsapi->mapGetIntSaturated(in, "alignment", 0, &err);
+    d->st.alignment = vsapi->mapGetIntSaturated(in, "alignment", 0, &err);
     if (err) {
-        d->alignment = 7; // top left
+        d->st.alignment = 7; // top left
     }
 
-    if (d->alignment < 1 || d->alignment > 9) {
+    if (d->st.alignment < 1 || d->st.alignment > 9) {
         vsapi->mapSetError(out, "Text: alignment must be between 1 and 9 (think numpad)");
         vsapi->freeNode(d->node);
         return;
     }
 
-    d->scale = vsh::int64ToIntS(vsapi->mapGetInt(in, "scale", 0, &err));
+    d->st.scale = vsh::int64ToIntS(vsapi->mapGetInt(in, "scale", 0, &err));
     if (err) {
-        d->scale = 1;
+        d->st.scale = 1;
     }
 
-    if (d->scale < 1 || d->scale > (1 << 16)) {
+    if (d->st.scale < 1 || d->st.scale > (1 << 16)) {
         vsapi->mapSetError(out, "Text: scale must be a positive integer no larger than 65536");
         vsapi->freeNode(d->node);
         return;
     }
 
-    d->filter = reinterpret_cast<intptr_t>(userData);
+    d->st.filter = reinterpret_cast<intptr_t>(userData);
+    d->st.vi = *d->vi;
 
-    switch (d->filter) {
+    switch (d->st.filter) {
     case FILTER_TEXT:
-        d->text = vsapi->mapGetData(in, "text", 0, nullptr);
-        d->instanceName = "Text";
+        d->st.text = vsapi->mapGetData(in, "text", 0, nullptr);
+        d->st.instanceName = "Text";
         break;
     case FILTER_CLIPINFO:
-        d->instanceName = "ClipInfo";
+        d->st.instanceName = "ClipInfo";
         break;
     case FILTER_COREINFO:
         {
-            d->instanceName = "CoreInfo";
+            d->st.instanceName = "CoreInfo";
             break;
         }
     case FILTER_FRAMENUM:
-        d->instanceName = "FrameNum";
+        d->st.instanceName = "FrameNum";
         break;
     case FILTER_FRAMEPROPS:
         int numProps = vsapi->mapNumElements(in, "props");
 
         for (int i = 0; i < numProps; i++) {
-            d->props.push_back(vsapi->mapGetData(in, "props", i, nullptr));
+            d->st.props.push_back(vsapi->mapGetData(in, "props", i, nullptr));
         }
 
-        d->instanceName = "FrameProps";
+        d->st.instanceName = "FrameProps";
         break;
     }
 
-    d->gpu = vsapi->getNodeResidency(d->node) == nrGPU;
-    if (d->gpu) {
-        char verr[512] = { 0 };
-        d->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
-        if (!d->vkapi)
-            RETERROR((d->instanceName + ": the GPU API is not available").c_str());
-        if (d->vkapi->getVulkanHandles(core, &d->handles, verr, sizeof(verr)))
-            RETERROR((d->instanceName + ": " + verr).c_str());
-        d->vk = d->vkapi->getVulkanFunctions(core, verr, sizeof(verr));
-        if (!d->vk)
-            RETERROR((d->instanceName + ": " + verr).c_str());
-
-        VSGPUShader *shader = d->vkapi->compileGPUShader(core, slGLSL,
-            textKernelSource(d->vi->format).c_str(), verr, sizeof(verr));
-        if (!shader)
-            RETERROR((d->instanceName + ": text kernel failed to compile: " + verr).c_str());
-        size_t spirvBytes = 0;
-        const uint32_t *spirv = d->vkapi->getGPUShaderCode(shader, &spirvBytes);
-
-        VkDescriptorSetLayoutBinding binding = {};
-        binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        binding.descriptorCount = 1;
-        binding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-        VkDescriptorSetLayoutCreateInfo setInfo = {};
-        setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        setInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT;
-        setInfo.bindingCount = 1;
-        setInfo.pBindings = &binding;
-        VkResult vr = d->vk->vkCreateDescriptorSetLayout(d->handles.device, &setInfo, nullptr, &d->setLayout);
-
-        VkPushConstantRange range = {};
-        range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-        range.size = sizeof(TextPush);
-        VkPipelineLayoutCreateInfo layoutInfo = {};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        layoutInfo.setLayoutCount = 1;
-        layoutInfo.pSetLayouts = &d->setLayout;
-        layoutInfo.pushConstantRangeCount = 1;
-        layoutInfo.pPushConstantRanges = &range;
-        if (vr == VK_SUCCESS)
-            vr = d->vk->vkCreatePipelineLayout(d->handles.device, &layoutInfo, nullptr, &d->pipeLayout);
-
-        VkShaderModuleCreateInfo moduleInfo = {};
-        moduleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        moduleInfo.codeSize = spirvBytes;
-        moduleInfo.pCode = spirv;
-        VkComputePipelineCreateInfo pipeInfo = {};
-        pipeInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-        pipeInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        pipeInfo.stage.pNext = &moduleInfo;
-        pipeInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-        pipeInfo.stage.pName = "main";
-        pipeInfo.layout = d->pipeLayout;
-        if (vr == VK_SUCCESS)
-            vr = d->vk->vkCreateComputePipelines(d->handles.device, VK_NULL_HANDLE, 1, &pipeInfo, nullptr, &d->pipeline);
-        d->vkapi->freeGPUShader(shader); /* the pipeline owns the code now */
-        if (vr != VK_SUCCESS)
-            RETERROR((d->instanceName + ": failed to build the text pipeline").c_str());
-
-        d->pool = d->vkapi->createGPUExecPool(core, vqCompute, verr, sizeof(verr));
-        if (!d->pool)
-            RETERROR((d->instanceName + ": " + verr).c_str());
+    if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        createGPUText(d, out, core, vsapi);
+        return;
     }
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilterEx(out, d->instanceName.c_str(), d->vi, textGetFrame, textFree,
-        fmParallel, d->gpu ? ffGPUOutput : 0, deps, 1, d.get(), core);
+    vsapi->createVideoFilterEx(out, d->st.instanceName.c_str(), d->vi, textGetFrame, textFree,
+        fmParallel, 0, deps, 1, d.get(), core);
     d.release();
 }
 
