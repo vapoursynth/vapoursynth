@@ -1747,11 +1747,6 @@ static void VS_CC vkGPUExecAbandon(VSGPUExecContext *context) VS_NOEXCEPT {
     context->owner->pool.abandon(*context->context);
 }
 
-static VkSemaphore VS_CC vkGPUExecPoolSemaphore(VSGPUExecPool *pool) VS_NOEXCEPT {
-    assert(pool);
-    return pool->pool.semaphore();
-}
-
 static VSGPUTimeline *VS_CC vkGPUExecPoolTimeline(VSGPUExecPool *pool) VS_NOEXCEPT {
     assert(pool);
     return reinterpret_cast<VSGPUTimeline *>(pool->pool.timelineObject());
@@ -1849,7 +1844,6 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkGPUExecUsesBuffer,
     &vkGPUExecSubmit,
     &vkGPUExecAbandon,
-    &vkGPUExecPoolSemaphore,
     &vkGPUExecPoolWaitIdle,
     &vkGPUExecPoolTimeline,
     &vkCreateGPUTimeline,

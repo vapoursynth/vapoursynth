@@ -25,7 +25,9 @@
 
 /* Note that the base version of the API is 4.1 due to that change happening very soon after the API4 release */
 #define VSSCRIPT_API_MAJOR 4
-#if defined(VSSCRIPT_USE_LATEST_API) || defined(VSSCRIPT_USE_API_43)
+#if defined(VSSCRIPT_USE_LATEST_API) || defined(VSSCRIPT_USE_API_44)
+#define VSSCRIPT_API_MINOR 4
+#elif defined(VSSCRIPT_USE_API_43)
 #define VSSCRIPT_API_MINOR 3
 #elif defined(VSSCRIPT_USE_API_42)
 #define VSSCRIPT_API_MINOR 2
@@ -36,6 +38,12 @@
 
 typedef struct VSScript VSScript;
 typedef struct VSSCRIPTAPI VSSCRIPTAPI;
+
+#if VSSCRIPT_API_MINOR >= 4
+typedef enum VSScriptGetFlags {
+    sgfAllowGPUResident = 1 /* return nodes and frames with the residency the script gave them */
+} VSScriptGetFlags;
+#endif
 
 struct VSSCRIPTAPI {
     /* Returns the highest supported VSSCRIPT_API_VERSION */
@@ -74,7 +82,10 @@ struct VSSCRIPTAPI {
     /* Returns the script's reported exit code */
     int (VS_CC *getExitCode)(VSScript *handle) VS_NOEXCEPT;
 
-    /* Fetches a variable of any VSMap storable type set in a script. It is stored in the key with the same name in dst. Returns 0 on success. */
+    /*
+    * Fetches a variable of any VSMap storable type set in a script. It is stored in the key with the same name in dst. Returns 0 on success.
+    * Behaves like getVariableEx with flags 0: GPU resident nodes come back GPUDownload wrapped and a variable holding a GPU resident frame fails.
+    */
     int (VS_CC *getVariable)(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT;
 
     /* Sets all keys in the provided VSMap as variables in the script. Returns 0 on success. */
@@ -84,6 +95,8 @@ struct VSSCRIPTAPI {
     * The returned nodes must be freed using freeNode() before calling freeScript() since they may depend on data in the VSScript
     * environment. Returns NULL if no node was set as output in the script. Index 0 is used by default in scripts and other
     * values are rarely used.
+    * Behaves like the Ex variants with flags 0: a GPU resident output comes back with a GPUDownload automatically
+    * inserted, so the frames these nodes produce are always CPU readable.
     */
     VSNode *(VS_CC *getOutputNode)(VSScript *handle, int index) VS_NOEXCEPT;
     VSNode *(VS_CC *getOutputAlphaNode)(VSScript *handle, int index) VS_NOEXCEPT;
@@ -103,6 +116,22 @@ struct VSSCRIPTAPI {
     * Always returns the total number of available output index values.
     */
     int (VS_CC *getAvailableOutputNodes)(VSScript *handle, int size, int *dst) VS_NOEXCEPT;
+#endif
+
+#if VSSCRIPT_API_MINOR >= 4
+    /*
+    * The Ex variants take a bitmask of VSScriptGetFlags. Scripts may legally leave outputs
+    * and variables GPU resident; a consumer that passes sgfAllowGPUResident declares it can
+    * handle that and receives them exactly as the script set them. Without the flag -- and
+    * through every non-Ex function above, which behaves exactly like flags 0 -- GPU resident
+    * nodes come back with a GPUDownload automatically inserted so their frames are CPU
+    * readable, and a variable fetch that would hand out a GPU resident frame fails instead,
+    * since no equivalent wrapping exists for a frame that already left its node.
+    */
+    VSNode *(VS_CC *getOutputNodeEx)(VSScript *handle, int index, int flags) VS_NOEXCEPT;
+    VSNode *(VS_CC *getOutputAlphaNodeEx)(VSScript *handle, int index, int flags) VS_NOEXCEPT;
+    int (VS_CC *getAvailableOutputNodesEx)(VSScript *handle, int size, int *dst, int flags) VS_NOEXCEPT;
+    int (VS_CC *getVariableEx)(VSScript *handle, const char *name, VSMap *dst, int flags) VS_NOEXCEPT;
 #endif
 };
 

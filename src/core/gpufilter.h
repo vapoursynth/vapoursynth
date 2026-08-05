@@ -146,11 +146,11 @@ struct FilterDesc {
        that degenerates to one of its inputs per plane -- Merge at weight 1, say -- needs to
        name the other one instead of computing an identity. */
     int shareClip[3] = { 0, 0, 0 };
-    /* The source the output is really derived from: it supplies frame properties, and the
-       temporal offset any shared plane is taken at. Clip 0 at offset 0 for almost everything,
-       but a filter reading a window around the frame -- AverageFrames -- means its centre,
-       not the oldest frame in the window, which is what the fetch order would otherwise give. */
-    int refClip = 0;
+    /* The temporal offset on clip 0 of the frame the output is really derived from: it
+       supplies frame properties, and the moment any shared plane is taken at. Zero for
+       almost everything, but a filter reading a window around the frame -- AverageFrames --
+       means its centre, not the oldest frame in the window, which is what the fetch order
+       would otherwise give. */
     int refOffset = 0;
     /* Blobs uploaded to device local memory at create, addressed by Operand::constant.
        Device local rather than host visible because the reads are random per pixel, which
@@ -255,7 +255,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             }
         }
         if (!desc.nodes.empty())
-            vsapi->requestFrameFilter(sourceIndex(desc.refClip, desc.refOffset), desc.nodes[desc.refClip], frameCtx);
+            vsapi->requestFrameFilter(sourceIndex(0, desc.refOffset), desc.nodes[0], frameCtx);
         /* A clip only named as a share source has no binding to be picked up above. */
         for (int p = 0; p < 3 && p < desc.vi.format.numPlanes; p++) {
             if (!desc.process[p])
@@ -287,7 +287,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             vsapi->freeFrame(s.frame);
     };
 
-    const VSFrame *first = desc.nodes.empty() ? nullptr : fetch(desc.refClip, desc.refOffset);
+    const VSFrame *first = desc.nodes.empty() ? nullptr : fetch(0, desc.refOffset);
     const VSVideoFormat *fmt = &desc.vi.format;
     const int w = desc.vi.width, h = desc.vi.height;
     char err[512] = { 0 };
@@ -582,9 +582,6 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
         if (!desc.process[p] && (desc.shareClip[p] < 0 || desc.shareClip[p] >= static_cast<int>(desc.nodes.size())))
             return fail("an unprocessed plane shares from a clip that was not given");
     }
-    if (!desc.nodes.empty() && (desc.refClip < 0 || desc.refClip >= static_cast<int>(desc.nodes.size())))
-        return fail("the reference clip does not exist");
-
     char err[512] = { 0 };
     inst->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
     if (!inst->vkapi)
@@ -1009,8 +1006,18 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
     };
 
     std::vector<VSFilterDependency> deps;
-    for (int i = 0; i < numNodes; i++)
-        deps.push_back({ nodes[i], sf.requestPattern });
+    for (int i = 0; i < numNodes; i++) {
+        /* A secondary clip shorter than the output is legal, and the driver clamps its
+           requests to the last frame -- which is frame reuse, not strict spatial access.
+           Declaring strict here anyway would be a lie with a cost: a single consumer
+           claiming strict spatial disables the upstream cache, so the clamped last frame
+           would be recomputed for every output past the short clip's end. Derive the
+           pattern per clip exactly like the scalar creation sites do. */
+        int pattern = sf.requestPattern;
+        if (pattern == rpStrictSpatial && vi->numFrames > vsapi->getVideoInfo(nodes[i])->numFrames)
+            pattern = rpFrameReuseLastOnly;
+        deps.push_back({ nodes[i], pattern });
+    }
     return createFilter(sf.name, desc, deps.data(), numNodes, core, vsapi, errorMessage);
 }
 

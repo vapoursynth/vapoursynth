@@ -562,10 +562,6 @@ struct VSVULKANAPI {
     /* Gives up a recording without submitting: everything retained is released at once. */
     void (VS_CC *gpuExecAbandon)(VSGPUExecContext *context) VS_NOEXCEPT;
 
-    /* The pool's timeline, for exportGPUSemaphore or for publishing producer pairs by
-       hand on frames the pool does not know about. */
-    VkSemaphore (VS_CC *gpuExecPoolSemaphore)(VSGPUExecPool *pool) VS_NOEXCEPT;
-
     /* Blocks until every submission made through this pool has completed. Filters do not
        need this per frame — producer pairs make consumers wait on the device instead — but
        one shot setup work, such as uploading weights or tables a filter will read for the
@@ -573,8 +569,10 @@ struct VSVULKANAPI {
        it. Also releases everything those submissions were keeping alive. */
     int (VS_CC *gpuExecPoolWaitIdle)(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 
-    /* The same timeline as gpuExecPoolSemaphore, as the counted object setGPUPlaneProducer
-       takes. The pool holds its own reference, so publishing it needs no reference of yours. */
+    /* The pool's timeline as the counted object setGPUPlaneProducer takes, for publishing
+       producer pairs by hand on frames the pool does not know about. The pool holds its own
+       reference, so publishing it needs no reference of yours; getGPUTimelineSemaphore gives
+       the raw handle when exportGPUSemaphore or your own submission needs one. */
     VSGPUTimeline *(VS_CC *gpuExecPoolTimeline)(VSGPUExecPool *pool) VS_NOEXCEPT;
 
     /* A timeline of your own, for filters recording and submitting without the core's exec

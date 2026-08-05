@@ -19,6 +19,7 @@
 */
 
 #include "VapourSynth4.h"
+#include "VSHelper4.h"
 #include "VSScript4.h"
 #include "vsscript_internal.h"
 #include "cython/vapoursynth_api.h"
@@ -293,14 +294,49 @@ static const VSAPI *VS_CC getVSApi(int version) VS_NOEXCEPT {
     return vpy4_getVSAPI(version);
 }
 
-static VSNode *VS_CC getOutputNode(VSScript *handle, int index) VS_NOEXCEPT {
+/* Scripts may legally leave outputs and variables GPU resident. Consumers predating that,
+   or new ones that did not pass sgfAllowGPUResident, expect frames they can read with
+   getReadPtr, so the boundary they never knew they needed is inserted for them here. The
+   caller holds vsscriptlock. Consumes the node; returns the wrapped replacement, the node
+   unchanged when it is already CPU resident, or NULL when the wrap failed. */
+static VSNode *downloadIfGPUResident(VSScript *handle, VSNode *node) {
+    if (!node)
+        return nullptr;
+    const VSAPI *vsapi = vpy4_getVSAPI(VAPOURSYNTH_API_VERSION);
+    if (vsapi->getNodeResidency(node) != nrGPU)
+        return node;
+    VSCore *core = vpy4_getCore(handle);
+    VSMap *args = vsapi->createMap();
+    vsapi->mapConsumeNode(args, "clip", node, maAppend);
+    VSMap *result = vsapi->invoke(vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core), "GPUDownload", args);
+    vsapi->freeMap(args);
+    VSNode *wrapped = nullptr;
+    if (!vsapi->mapGetError(result))
+        wrapped = vsapi->mapGetNode(result, "clip", 0, nullptr);
+    vsapi->freeMap(result);
+    if (wrapped)
+        vsapi->logMessage(mtInformation, "GPUDownload automatically inserted for a GPU resident script output; pass sgfAllowGPUResident to consume it directly", core);
+    return wrapped;
+}
+
+static VSNode *VS_CC getOutputNodeEx(VSScript *handle, int index, int flags) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
-    return vpy4_getOutput(handle, index);
+    VSNode *node = vpy4_getOutput(handle, index);
+    return (flags & sgfAllowGPUResident) ? node : downloadIfGPUResident(handle, node);
+}
+
+static VSNode *VS_CC getOutputAlphaNodeEx(VSScript *handle, int index, int flags) VS_NOEXCEPT {
+    std::lock_guard<std::mutex> lock(vsscriptlock);
+    VSNode *node = vpy4_getAlphaOutput(handle, index);
+    return (flags & sgfAllowGPUResident) ? node : downloadIfGPUResident(handle, node);
+}
+
+static VSNode *VS_CC getOutputNode(VSScript *handle, int index) VS_NOEXCEPT {
+    return getOutputNodeEx(handle, index, 0);
 }
 
 static VSNode *VS_CC getOutputAlphaNode(VSScript *handle, int index) VS_NOEXCEPT {
-    std::lock_guard<std::mutex> lock(vsscriptlock);
-    return vpy4_getAlphaOutput(handle, index);
+    return getOutputAlphaNodeEx(handle, index, 0);
 }
 
 static int VS_CC getAltOutputMode(VSScript *handle, int index) VS_NOEXCEPT {
@@ -313,9 +349,57 @@ static VSCore *VS_CC getCore(VSScript *handle) VS_NOEXCEPT {
     return vpy4_getCore(handle);
 }
 
-static int VS_CC getVariable(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT {
+static int VS_CC getVariableEx(VSScript *handle, const char *name, VSMap *dst, int flags) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
-    return vpy4_getVariable(handle, name, dst);
+    int result = vpy4_getVariable(handle, name, dst);
+    if (result || (flags & sgfAllowGPUResident))
+        return result;
+
+    const VSAPI *vsapi = vpy4_getVSAPI(VAPOURSYNTH_API_VERSION);
+    const int type = vsapi->mapGetType(dst, name);
+    const int num = vsapi->mapNumElements(dst, name);
+
+    if (type == ptVideoFrame) {
+        /* A frame has already left its node, so there is nothing to wrap a download around;
+           failing is the only answer that does not hand a caller memory it cannot read. */
+        for (int i = 0; i < num; i++) {
+            const VSFrame *frame = vsapi->mapGetFrame(dst, name, i, nullptr);
+            const bool gpu = vsapi->getFrameResidency(frame) == nrGPU;
+            vsapi->freeFrame(frame);
+            if (gpu) {
+                vsapi->mapDeleteKey(dst, name);
+                return 1;
+            }
+        }
+    } else if (type == ptVideoNode) {
+        std::vector<VSNode *> nodes(num, nullptr);
+        bool anyWrapped = false;
+        for (int i = 0; i < num; i++) {
+            nodes[i] = vsapi->mapGetNode(dst, name, i, nullptr);
+            if (vsapi->getNodeResidency(nodes[i]) == nrGPU) {
+                nodes[i] = downloadIfGPUResident(handle, nodes[i]);
+                anyWrapped = true;
+                if (!nodes[i]) {
+                    for (VSNode *n : nodes)
+                        vsapi->freeNode(n);
+                    vsapi->mapDeleteKey(dst, name);
+                    return 1;
+                }
+            }
+        }
+        if (anyWrapped) {
+            for (int i = 0; i < num; i++)
+                vsapi->mapConsumeNode(dst, name, nodes[i], i == 0 ? maReplace : maAppend);
+        } else {
+            for (VSNode *n : nodes)
+                vsapi->freeNode(n);
+        }
+    }
+    return 0;
+}
+
+static int VS_CC getVariable(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT {
+    return getVariableEx(handle, name, dst, 0);
 }
 
 static int VS_CC setVariable(VSScript *handle, const VSMap *vars) VS_NOEXCEPT {
@@ -328,13 +412,18 @@ static void VS_CC evalSetWorkingDir(VSScript *handle, int setCWD) VS_NOEXCEPT {
     handle->setCWD = setCWD;
 }
 
-static int VS_CC getAvailableOutputNodes(VSScript *handle, int size, int *dst) VS_NOEXCEPT {
+static int VS_CC getAvailableOutputNodesEx(VSScript *handle, int size, int *dst, int flags) VS_NOEXCEPT {
     assert(size <= 0 || dst);
+    (void)flags;
     std::lock_guard<std::mutex> lock(vsscriptlock);
     int count = vpy4_getAvailableOutputNodes(handle, size, dst);
     if (size > 0)
         std::sort(dst, dst + std::min(size, count));
     return count;
+}
+
+static int VS_CC getAvailableOutputNodes(VSScript *handle, int size, int *dst) VS_NOEXCEPT {
+    return getAvailableOutputNodesEx(handle, size, dst, 0);
 }
 
 static VSSCRIPTAPI vsscript_api = {
@@ -353,7 +442,11 @@ static VSSCRIPTAPI vsscript_api = {
     &getAltOutputMode,
     &freeScript,
     &evalSetWorkingDir,
-    &getAvailableOutputNodes
+    &getAvailableOutputNodes,
+    &getOutputNodeEx,
+    &getOutputAlphaNodeEx,
+    &getAvailableOutputNodesEx,
+    &getVariableEx
 };
 
 const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {

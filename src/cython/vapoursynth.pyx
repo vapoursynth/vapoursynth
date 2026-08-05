@@ -2450,15 +2450,11 @@ cdef class VideoNode(RawNode):
 
     def set_output(self, int index = 0, VideoNode alpha = None, int alt_output = 0):
         self.ensure_valid()
-        # Outputs are consumed on the CPU, so the download boundary is inserted here
-        # automatically, mirroring the automatic upload on the way into GPU filters.
-        if self.gpu_resident or (alpha is not None and alpha.gpu_resident):
-            self.funcs.logMessage(mtInformation, "GPUDownload automatically inserted for output", self.core.core)
-            main = self.core.std.GPUDownload(clip=self) if self.gpu_resident else self
-            if alpha is not None and alpha.gpu_resident:
-                alpha = self.core.std.GPUDownload(clip=alpha)
-            main.set_output(index, alpha, alt_output)
-            return
+        # GPU resident outputs are legal; whoever consumes the output decides where the
+        # download boundary goes (vspipe inserts one itself). The only requirement is that
+        # main and alpha agree, so a consumer never has to bridge residencies per frame.
+        if alpha is not None and self.gpu_resident != alpha.gpu_resident:
+            raise Error('Alpha clip must have the same residency as the main video; insert GPUUpload or GPUDownload to make them match')
         if alpha is not None:
             if (self.vi.width != alpha.vi.width) or (self.vi.height != alpha.vi.height):
                 raise Error('Alpha clip dimensions must match the main video')

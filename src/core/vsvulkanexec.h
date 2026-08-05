@@ -179,7 +179,6 @@ public:
        reference; frames published from it hold their own, so the semaphore survives the pool
        whenever a frame it produced does. */
     VSVulkanTimeline *timelineObject() const { return timeline; }
-    VkSemaphore semaphore() const { return timeline ? timeline->semaphore() : VK_NULL_HANDLE; }
     VSVulkanQueue *queue() const { return q; }
 
     /* The public exec pool handle wraps one of these plus the device reference that keeps

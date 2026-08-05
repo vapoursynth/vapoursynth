@@ -2314,13 +2314,10 @@ constexpr int reduceGroup = 16; /* 16x16 = 256 threads per workgroup */
 
 struct ReducePush {
     uint32_t width, height, srcStride, src2Stride;
-    uint32_t groupsX, hasSecond, isFloat, maxval;
-    float lower, upper;
+    uint32_t groupsX, hasSecond, isFloat;
 };
 
-/* Four uints per workgroup. PlaneStats packs (min, max, sum, diffsum); PEMVerifier packs
-   (bad, value, coord, unused) and merges by taking the lowest coordinate, so the reported
-   sample is the same one the scalar path would have stopped at. */
+/* Four uints per workgroup: (min, max, sum, diffsum). */
 struct ReduceRecord {
     uint32_t a, b, c, d;
 };
@@ -2343,8 +2340,7 @@ std::string reduceKernel(const VSVideoFormat &fmt) {
          "layout(std430, set = 0, binding = 2) writeonly buffer Out { uvec4 outRec[]; };\n"
          "layout(push_constant) uniform PC {\n"
          "    uint width, height, srcStride, src2Stride;\n"
-         "    uint groupsX, hasSecond, isFloat, maxval;\n"
-         "    float lower, upper;\n"
+         "    uint groupsX, hasSecond, isFloat;\n"
          "} pc;\n\n";
 
     /* Everything reduces as a tree, min and max included: shared atomics have no float form
@@ -2714,7 +2710,6 @@ static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void
             push.src2Stride = src2 ? static_cast<uint32_t>(vsapi->getStride(src2, d->plane) / fi->bytesPerSample) : 0;
             push.hasSecond = src2 ? 1u : 0u;
             push.isFloat = isFloat ? 1u : 0u;
-            push.maxval = (1u << fi->bitsPerSample) - 1;
 
             std::vector<ReduceRecord> recs;
             std::string error;
