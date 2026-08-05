@@ -2719,8 +2719,7 @@ void VS_CC gpuResizeFree(void *instanceData, VSCore *, const VSAPI *vsapi) {
 }
 
 /* ------------------------------------------------------------------------------------------
-   Argument resolution into the spec, shared by the real create and the plan debug
-   function so the two can never disagree about what a call means. */
+   Argument resolution into the spec. */
 
 double optFloat(const VSMap *in, const char *key, double def, const VSAPI *vsapi) {
     int err;
@@ -2777,7 +2776,7 @@ bool anyColourArg(const VSMap *in, const VSAPI *vsapi) {
 }
 
 /* Builds the spec from the argument map, or declines with a reason. Touches no Vulkan
-   state and owns nothing, so the plan debug function can run it without a device. */
+   state and owns nothing. */
 bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
     const VSVideoInfo *vi, VSCore *core, const VSAPI *vsapi, ConversionSpec *out,
     std::string &decline) {
@@ -3120,109 +3119,6 @@ bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
 }
 
 } // namespace
-
-/* Reports the plan the compute path would run for these arguments and properties,
-   without touching a device: the planner is a pure function, and its answers -- which
-   axes run, where the window lands, what shares -- are exactly the things worth pinning
-   in tests without rendering a frame. Property values arrive as arguments since there is
-   no frame to read them from. */
-void VS_CC gpuResizePlanDebug(const VSMap *in, VSMap *out, void *userData, VSCore *core,
-    const VSAPI *vsapi) {
-    (void)userData;
-    VSNode *node = vsapi->mapGetNode(in, "clip", 0, nullptr);
-    const VSVideoInfo *vi = vsapi->getVideoInfo(node);
-
-    int err;
-    const char *kernel = vsapi->mapGetData(in, "kernel", 0, &err);
-    if (err)
-        kernel = "bicubic";
-
-    ConversionSpec spec;
-    std::string decline;
-    if (!resolveSpec(in, kernel, false, vi, core, vsapi, &spec, decline)) {
-        vsapi->mapSetData(out, "decline", decline.c_str(), -1, dtUtf8, maReplace);
-        vsapi->freeNode(node);
-        return;
-    }
-    vsapi->freeNode(node);
-
-    /* The property values a frame would carry, spelled as arguments. */
-    VSMap *fakeProps = vsapi->createMap();
-    auto copyProp = [&](const char *arg, const char *prop) {
-        int perr;
-        const int64_t v = vsapi->mapGetInt(in, arg, 0, &perr);
-        if (!perr)
-            vsapi->mapSetInt(fakeProps, prop, v, maReplace);
-    };
-    copyProp("prop_chromaloc", "_ChromaLocation");
-    copyProp("prop_range", "_Range");
-    copyProp("prop_matrix", "_Matrix");
-    copyProp("prop_transfer", "_Transfer");
-    copyProp("prop_primaries", "_Primaries");
-    copyProp("prop_fieldbased", "_FieldBased");
-    copyProp("prop_field", "_Field");
-
-    FrameState st;
-    std::string stateError;
-    if (!resolveFrameState(spec, fakeProps, vsapi, &st, stateError)) {
-        vsapi->mapSetData(out, "decline", stateError.c_str(), -1, dtUtf8, maReplace);
-        vsapi->freeMap(fakeProps);
-        return;
-    }
-    vsapi->freeMap(fakeProps);
-
-    const FramePlan fp = planFrame(spec, st);
-    char line[300];
-    auto surfaceName = [](const Surface &s) {
-        switch (s.kind) {
-        case Surface::SrcPlane: return "src";
-        case Surface::DstPlane: return "dst";
-        case Surface::WorkIn: return "workin";
-        default: return "workout";
-        }
-    };
-    auto emitChain = [&](const char *prefix, int p, const PlanePlan &pp) {
-        for (int i = 0; i < pp.count; i++) {
-            const PassPlan &ps = pp.pass[i];
-            const bool identity = ps.ax.taps == 1 && ps.ax.invScale == 1.0f && ps.ax.shift == 0.0f;
-            const char *dir = ps.vertical
-                ? (ps.srcStrideMul == 2 ? (ps.srcRowOffset ? "Vb" : "Vt") : "V") : "H";
-            snprintf(line, sizeof(line),
-                "%s%d: %s %s->%s %ux%u taps %u invScale %.9g shift %.9g affine %.9g %+.9g%s%s",
-                prefix, p, ps.fill ? "fill" : identity ? "copy" : dir,
-                ps.readsFrame ? surfaceName(pp.from) : "mid",
-                ps.writesFrame ? surfaceName(pp.to) : "mid",
-                ps.outW, ps.outH, ps.ax.taps,
-                ps.ax.invScale, ps.ax.shift, ps.scale, ps.offset,
-                ps.roundEven ? " round-even" : "",
-                ps.fill ? " (reads luma)" : "");
-            vsapi->mapSetData(out, "plan", line, -1, dtUtf8, maAppend);
-        }
-    };
-    for (int p = 0; p < 3; p++)
-        emitChain("in-plane", p, fp.inChain[p]);
-    if (fp.colourActive) {
-        std::string cl = "colour: " + std::to_string(fp.workW) + "x" + std::to_string(fp.workH) +
-            " flags 0x";
-        char hex[16];
-        snprintf(hex, sizeof(hex), "%x", fp.consts.flags);
-        cl += hex;
-        cl += " in[";
-        for (int i = 0; i < 3; i++)
-            cl += std::string(i ? "," : "") + surfaceName(fp.colourIn[i]);
-        cl += "] out[";
-        for (int i = 0; i < fp.colourOutPlanes; i++)
-            cl += std::string(i ? "," : "") + surfaceName(fp.colourOut[i]);
-        cl += "]";
-        vsapi->mapSetData(out, "plan", cl.c_str(), -1, dtUtf8, maAppend);
-    }
-    for (int p = 0; p < spec.dstFmt.numPlanes; p++) {
-        const PlanePlan &pp = fp.plane[p];
-        vsapi->mapSetInt(out, "share", pp.share ? 1 : 0, maAppend);
-        emitChain("plane", p, pp);
-    }
-    vsapi->mapSetInt(out, "hfirst", spec.hFirst ? 1 : 0, maReplace);
-}
 
 /* Builds a GPU resize node into out and returns true, or returns false with a reason
    after touching nothing, in which case the caller runs the scalar graph. */

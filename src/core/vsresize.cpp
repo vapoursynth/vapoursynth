@@ -1008,20 +1008,6 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
        possible point. */
     vspapi->registerFunction("Bob", "clip:vnode:all;filter:data:opt;tff:int:opt;" COMMON_ARGS, RETURN_VALUE, bobCreate, vszimg_userdata(ZIMG_RESIZE_BICUBIC), plugin);
 
-    /* Reports the compute path's plan for these arguments without rendering a frame, so
-       tests can pin planner decisions -- which axes run, what shares, where the window
-       lands. Frame properties are spelled as prop_* arguments since no frame exists. */
-    vspapi->registerFunction("PlanDebug",
-        "clip:vnode:all;"
-        "kernel:data:opt;"
-        "prop_chromaloc:int:opt;prop_range:int:opt;prop_matrix:int:opt;"
-        "prop_transfer:int:opt;prop_primaries:int:opt;"
-        "prop_fieldbased:int:opt;prop_field:int:opt;"
-        INT_OPT(width)
-        INT_OPT(height)
-        COMMON_ARGS,
-        "plan:data[]:opt;share:int[]:opt;hfirst:int:opt;decline:data:opt;",
-        gpuResizePlanDebug, nullptr, plugin);
 #undef COMMON_ARGS
 #undef INT_OPT
 #undef FLOAT_OPT

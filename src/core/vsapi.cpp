@@ -1393,9 +1393,6 @@ static int VS_CC vkGetVulkanCoreInfo(VSCore *core, VSVulkanCoreInfo *info, char 
     info->budget = static_cast<int64_t>(dev->memoryBudget());
     info->allocated = static_cast<int64_t>(core->memory->gpu_allocated_bytes());
     info->limit = static_cast<int64_t>(core->memory->gpu_limit());
-    VSVulkanAllocatorStats allocStats = dev->allocatorStats();
-    info->liveBytes = static_cast<int64_t>(allocStats.usedBytes);
-    info->freeRegions = static_cast<int64_t>(allocStats.freeRegionCount);
     memcpy(info->deviceUUID, dev->deviceUUID(), VK_UUID_SIZE);
     memcpy(info->deviceLUID, dev->deviceLUID(), VK_LUID_SIZE);
     info->deviceNodeMask = dev->deviceNodeMask();

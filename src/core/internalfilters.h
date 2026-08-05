@@ -42,10 +42,5 @@ void gpuTransferInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool deinterlace,
     VSCore *core, const VSAPI *vsapi, std::string &decline);
 
-/* Reports the plan the compute path would run for these arguments and properties without
-   touching a device; registered by vsresize.cpp so tests can pin planner decisions. */
-void VS_CC gpuResizePlanDebug(const VSMap *in, VSMap *out, void *userData, VSCore *core,
-    const VSAPI *vsapi);
-
 
 #endif // INTERNALFILTERS_H
