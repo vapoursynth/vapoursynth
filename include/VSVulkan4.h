@@ -570,9 +570,13 @@ struct VSVULKANAPI {
     int (VS_CC *gpuExecPoolWaitIdle)(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 
     /* The pool's timeline as the counted object setGPUPlaneProducer takes, for publishing
-       producer pairs by hand on frames the pool does not know about. The pool holds its own
-       reference, so publishing it needs no reference of yours; getGPUTimelineSemaphore gives
-       the raw handle when exportGPUSemaphore or your own submission needs one. */
+       producer pairs by hand on frames the pool does not know about -- the out of order
+       producer case, where the submission that wrote a plane was submitted calls ago and
+       gpuExecSubmit's signaledValue was saved for this moment. The pool holds its own
+       reference, so publishing it needs no reference of yours; getGPUTimelineSemaphore
+       gives the raw handle when exportGPUSemaphore needs one. NEVER signal that handle
+       yourself: the pool allocates signal values under the queue lock at submit, and an
+       external signal races them on a timeline where values must only increase. */
     VSGPUTimeline *(VS_CC *gpuExecPoolTimeline)(VSGPUExecPool *pool) VS_NOEXCEPT;
 
     /* A timeline of your own, for filters recording and submitting without the core's exec
