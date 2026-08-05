@@ -414,6 +414,12 @@ typedef struct VSVulkanCoreInfo {
        than separate hardware, and limit is capped so it and the host memory limit together
        leave the machine some room; a plugin sizing its own pools should do likewise. */
     int unifiedMemory;
+    /* The pooled allocator's internals, mirroring what its failure message reports:
+       allocated above is the driver-committed block total; liveBytes is what is carved out
+       and in use inside those blocks, and freeRegions counts the recycled regions banked in
+       the free lists. allocated minus liveBytes is what suballocation and banking hold. */
+    int64_t liveBytes;
+    int64_t freeRegions;
 } VSVulkanCoreInfo;
 
 /* One entry per physical device; the position in the enumeration is exactly the index

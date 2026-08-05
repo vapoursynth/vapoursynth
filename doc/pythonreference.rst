@@ -278,8 +278,10 @@ Classes and Functions
    .. py:method:: set_max_vram_use(bytes)
 
       Sets the VRAM limit GPU frame caching works against, the equivalent of
-      *max_cache_size* for video memory. The default is 80% of the driver
-      reported budget. Returns the limit in effect.
+      *max_cache_size* for video memory. The default is two thirds of the
+      driver reported budget, leaving the rest for the transient working sets
+      of large processing filters and for whatever the desktop needs after the
+      budget was sampled. Returns the limit in effect.
 
       On a device with *unified_memory* the budget is a share of system RAM
       rather than separate hardware, and the default is deliberately

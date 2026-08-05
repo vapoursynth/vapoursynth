@@ -23,6 +23,9 @@
 VSVulkanExecPool::~VSVulkanExecPool() {
     if (!dev)
         return;
+    /* Off the device's sweep list before anything is torn down; unregistration blocks while
+       a sweep is walking the pools, so after it returns no sweep can be touching this one. */
+    dev->unregisterExecPool(this);
     std::string ignored;
     waitAll(ignored);
     for (auto &context : contexts) {
@@ -98,7 +101,30 @@ bool VSVulkanExecPool::init(VSVulkanDevice &device, VSVulkanQueue &queue, uint32
         }
     }
 
+    dev->registerExecPool(this);
     return true;
+}
+
+void VSVulkanExecPool::sweepCompleted() {
+    uint64_t counter = 0;
+    if (dev->vk.vkGetSemaphoreCounterValue(dev->device(), timeline->semaphore(), &counter) != VK_SUCCESS)
+        return;
+    for (auto &context : contexts) {
+        if (context->retained.empty() || context->claimed.load(std::memory_order_relaxed))
+            continue;
+        bool expected = false;
+        if (!context->claimed.compare_exchange_strong(expected, true, std::memory_order_acquire))
+            continue;
+        /* Everything retained belongs to the context's last submission, so one value check
+           covers the lot; an unsubmitted context can hold nothing here since abandon and
+           acquire both clear before the claim drops. */
+        if (context->pendingValue && context->pendingValue <= counter) {
+            for (const auto &r : context->retained)
+                r.release(r.object);
+            context->retained.clear();
+        }
+        releaseClaim(*context);
+    }
 }
 
 VSVulkanExecContext *VSVulkanExecPool::acquire(std::string &errorMessage) {

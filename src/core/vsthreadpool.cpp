@@ -188,11 +188,14 @@ void VSThreadPool::runTasks(bool &stop) {
             }
 
             /* The same admission control against the VRAM budget; only nodes producing GPU
-               frames ever predict a nonzero value here. */
+               frames ever predict a nonzero value here. The allowed overshoot is a twentieth
+               where the host side gets a quarter: the host limit is a soft target backed by
+               swap, while the VRAM limit typically sits a fifth under a hard wall the driver
+               enforces, and a quarter of a large card's limit overshoots the card itself. */
             int64_t expectedGPUAlloc = node->expectedGPUTransientAllocation();
             if (expectedGPUAlloc > 0 && processingThreads.load(std::memory_order_relaxed) > 0) {
                 int64_t gpuLimit = static_cast<int64_t>(core->memory->gpu_limit());
-                if (static_cast<int64_t>(core->memory->gpu_allocated_bytes()) + gpuInflightAllocation.load(std::memory_order_relaxed) + expectedGPUAlloc > gpuLimit + gpuLimit / 4)
+                if (static_cast<int64_t>(core->memory->gpu_allocated_bytes()) + gpuInflightAllocation.load(std::memory_order_relaxed) + expectedGPUAlloc > gpuLimit + gpuLimit / 20)
                     continue;
             }
 

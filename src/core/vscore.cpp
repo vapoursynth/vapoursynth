@@ -1440,6 +1440,15 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
     uint64_t completedExtFrames = threadPool->getCompletedExternalFrames();
     std::lock_guard<std::mutex> lock(cacheLock);
 
+    /* Exec pool retentions whose submissions have completed are pure dead weight — the
+       sources and scratch of work that already finished, normally dropped at the context's
+       next acquire. A pool gone idle never acquires again and parks its whole in-flight
+       footprint, which for a deep chain of heavy filters is gigabytes, so every sweep
+       releases what has completed; steady state pools lose nothing they would not have
+       released moments later anyway. */
+    if (vulkanDev)
+        vulkanDev->sweepExecPools();
+
     if (hostNeedsMemory || gpuNeedsMemory) {
         // free the excess in a single pass by taking frames from the caches where each held byte
         // has demonstrably provided the least value instead of uniformly decaying every cache;
@@ -1508,6 +1517,16 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
         bool memoryComfortable = memory->allocated_bytes() < memLimit - memLimit * 3 / 20;
         size_t gpuLimit = memory->gpu_limit();
         bool gpuComfortable = gpuLimit == 0 || memory->gpu_allocated_bytes() < gpuLimit - gpuLimit * 3 / 20;
+        /* Blocks whose regions all sit banked in the free lists cost the rest of the system
+           real VRAM — the driver has them committed however idle they are, and on a card
+           whose limit is most of its memory that is the compositor's working set. A burst
+           leaves this state behind; steady use never accumulates much banked at once, so the
+           quarter-limit threshold keeps the trim from fighting the recycling it exists for. */
+        if (vulkanDev && gpuLimit) {
+            VSVulkanAllocatorStats stats = vulkanDev->allocatorStats();
+            if (stats.blockBytes - stats.usedBytes > gpuLimit / 4)
+                vulkanDev->trimAllocator();
+        }
         /* Neither pool gets to grow on a share of RAM the other is already using. */
         if (memory->unified() && memory->combined_limit()) {
             size_t ceiling = memory->combined_limit();
@@ -1790,15 +1809,29 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         return false;
 
     /* VRAM flows into the same MemoryUse as host memory, wired before the first pooled
-       allocation can happen. The default limit leaves a fifth of the live budget for whatever
-       else the system is doing, the same spirit as the host default of half the RAM. The
-       callback context cannot dangle: MemoryUse gates its post core self delete on the GPU
-       pool too, so it lives at least until the last region is returned through here. */
+       allocation can happen. The callback context cannot dangle: MemoryUse gates its post
+       core self delete on the GPU pool too, so it lives at least until the last region is
+       returned through here. */
     dev->setAllocationCallback([](int64_t delta, void *userData) {
         static_cast<vs::MemoryUse *>(userData)->account_gpu(delta);
     }, memory);
+    /* The allocator's last resort before failing a frame: evict every cached GPU frame.
+       Blunt on purpose — this only runs once the driver has already refused an allocation,
+       where half measures just fail again a few frames later. Cleared in the destructor
+       because the device can outlive the core. */
+    dev->setPressureCallback([](void *userData) {
+        static_cast<VSCore *>(userData)->gpuMemoryPanic();
+    }, this);
     size_t budget = static_cast<size_t>(dev->memoryBudget());
-    size_t defaultLimit = budget - budget / 5;
+    /* Two thirds of the live budget, not more, because everything the limit does NOT cover
+       has to fit in the remainder: the desktop's fluctuations after this one-time budget
+       sample, the admission overshoot, and above all the transient working sets of large
+       processing filters, whose per-call estimates start as guesses of twice the output
+       frame and only learn from completed calls -- the first wave of a heavy filter lands
+       before any of the pressure machinery has numbers to act on. A fifth of headroom left
+       the enforcement no room to work on a card whose desktop already held a gigabyte;
+       scripts that genuinely want more raise it with one setMaxVRAMUse call. */
+    size_t defaultLimit = budget - budget / 3;
 
     /* Unified memory: the heap the budget came from is the same RAM the host limit is drawn
        against, so the two defaults would between them promise more of the machine than it
@@ -2384,6 +2417,22 @@ void VSCore::clearCaches(bool resetSize) {
         iter->clearCache(resetSize);
 }
 
+void VSCore::gpuMemoryPanic() {
+    /* The allocator's escalation path: the driver refused an allocation, so every cached GPU
+       frame goes, fixed size caches included — a failed frame is strictly worse than any
+       cache miss. Host caches are left alone; their bytes cannot become VRAM. The exec pool
+       sweep has already run by the time this is called. */
+    {
+        std::lock_guard<std::mutex> lock(cacheLock);
+        for (const auto &iter : caches) {
+            if (iter->isGPUOutput())
+                iter->clearCache(true);
+        }
+    }
+    if (vulkanDev)
+        vulkanDev->trimAllocator();
+}
+
 bool VSCore::getNodeTiming() noexcept {
     return enableFilterTiming;
 }
@@ -2531,6 +2580,10 @@ VSCore::~VSCore() {
        alive until they are released, mirroring how CPU frames may outlive the core. */
     vulkanTrans.reset();
     if (vulkanDev) {
+        /* The device may outlive this core through surviving frames, and a late pooled
+           allocation must not call back into a deleted core. The account callback stays:
+           MemoryUse gates its own deletion on the GPU pool reaching zero. */
+        vulkanDev->setPressureCallback(nullptr, nullptr);
         vulkanDev->onCoreFreed();
         vulkanDev = nullptr;
     }

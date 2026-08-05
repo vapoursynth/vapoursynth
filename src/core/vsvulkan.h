@@ -179,6 +179,7 @@ struct VSVulkanDeviceInfo {
 };
 
 class VSVulkanDevice;
+class VSVulkanExecPool;
 
 struct VSVulkanAllocatorStats {
     uint64_t blockCount = 0;
@@ -480,6 +481,22 @@ public:
             accountFn(delta, accountUserData);
     }
 
+    /* Exec pools register so the memory pressure paths can reclaim their completed but
+       unswept retentions — the scratch and source frames of submissions that finished but
+       whose context was never acquired again. See VSVulkanExecPool::sweepCompleted. */
+    void registerExecPool(VSVulkanExecPool *pool);
+    void unregisterExecPool(VSVulkanExecPool *pool);
+    void sweepExecPools();
+
+    /* Called when a pooled allocation fails at the driver, before the retry: the core hooks
+       this to evict cached GPU frames, which the allocator cannot reach on its own. Cleared
+       by the core before teardown, since the device may outlive it. */
+    typedef void (*VSVulkanPressureFn)(void *userData);
+    void setPressureCallback(VSVulkanPressureFn callback, void *userData) {
+        pressureFn = callback;
+        pressureUserData = userData;
+    }
+
     /* How much device local memory this process can reasonably use right now. Uses the
        driver's live budget when VK_EXT_memory_budget is present, which subtracts what other
        processes already hold, and falls back to the raw heap size otherwise. */
@@ -530,6 +547,12 @@ private:
     std::atomic<void *> logUserData{nullptr};
     VSVulkanAccountFn accountFn = nullptr;
     void *accountUserData = nullptr;
+    VSVulkanPressureFn pressureFn = nullptr;
+    void *pressureUserData = nullptr;
+    /* Held for the whole of a sweep, which is what makes unregistration in the pool
+       destructor a safe rendezvous: after unregister returns no sweep can see the pool. */
+    std::mutex execPoolsMutex;
+    std::vector<VSVulkanExecPool *> execPools;
 };
 
 /* A timeline semaphore owned by everyone still naming it rather than by whoever created it.

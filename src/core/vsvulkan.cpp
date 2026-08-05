@@ -31,6 +31,7 @@
 #endif
 
 #include "vsvulkan.h"
+#include "vsvulkanexec.h"
 
 /* The opaque handle export path; the win32 structs live outside vulkan_core.h. */
 #ifdef VS_TARGET_OS_WINDOWS
@@ -1059,6 +1060,22 @@ VkDeviceSize VSVulkanDevice::memoryBudget() const {
     }
 
     return bestSize;
+}
+
+void VSVulkanDevice::registerExecPool(VSVulkanExecPool *pool) {
+    std::lock_guard<std::mutex> lock(execPoolsMutex);
+    execPools.push_back(pool);
+}
+
+void VSVulkanDevice::unregisterExecPool(VSVulkanExecPool *pool) {
+    std::lock_guard<std::mutex> lock(execPoolsMutex);
+    execPools.erase(std::remove(execPools.begin(), execPools.end(), pool), execPools.end());
+}
+
+void VSVulkanDevice::sweepExecPools() {
+    std::lock_guard<std::mutex> lock(execPoolsMutex);
+    for (VSVulkanExecPool *pool : execPools)
+        pool->sweepCompleted();
 }
 
 uint32_t VSVulkanDevice::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags required, VkMemoryPropertyFlags preferred) const {

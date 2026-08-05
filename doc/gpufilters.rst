@@ -135,11 +135,13 @@ VRAM and caching
 ################
 
 GPU frames participate in caching exactly like CPU frames, against a separate
-VRAM budget that defaults to 80% of what the driver reports as available to
-the process. ``core.set_max_vram_use(bytes)`` adjusts it. Under pressure the
-cache evicts GPU frames, returns the memory to the driver, and the thread pool
-throttles frame requests the same way it does when host memory runs short —
-workloads far larger than VRAM complete correctly, just slower.
+VRAM budget that defaults to two thirds of what the driver reports as
+available to the process — the remainder is headroom for the transient
+working sets of large processing filters and for the rest of the system.
+``core.set_max_vram_use(bytes)`` adjusts it. Under pressure the cache evicts
+GPU frames, returns the memory to the driver, and the thread pool throttles
+frame requests the same way it does when host memory runs short — workloads
+far larger than VRAM complete correctly, just slower.
 
 Environment variables
 #####################

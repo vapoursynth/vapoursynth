@@ -157,6 +157,15 @@ public:
     bool waitValue(uint64_t value, std::string &errorMessage);
     bool waitAll(std::string &errorMessage);
 
+    /* Releases every retained object whose submission has completed, without waiting for
+       anything. Normally retentions drop at the context's next acquire, which is the right
+       lag for a pool in steady use — but a pool that has gone idle parks its last
+       contextCount submissions' sources and scratch indefinitely, and a deep graph of heavy
+       filters parks gigabytes that way. The device calls this across all registered pools
+       from the memory pressure paths. Safe from any thread: a context is only touched when
+       its claim is won, so recordings in progress are simply skipped. */
+    void sweepCompleted();
+
     /* The pool's timeline, handed to frames as their producer sync. The pool holds one
        reference; frames published from it hold their own, so the semaphore survives the pool
        whenever a frame it produced does. */

@@ -149,9 +149,9 @@ signals reach the queue in increasing order.
 
 **Memory.** Frame planes and scratch buffers (createGPUBuffer_) come from a
 pooled sub-allocator whose use is accounted against a VRAM limit
-(setMaxVRAMUse_, default 80% of the driver reported budget). Cache pressure,
-eviction and the thread pool's admission control all see GPU memory the same
-way they see host memory.
+(setMaxVRAMUse_, default two thirds of the driver reported budget). Cache
+pressure, eviction and the thread pool's admission control all see GPU memory
+the same way they see host memory.
 
 **Lifetime.** GPU frames may legally outlive the core, exactly like CPU
 frames; releasing one after ``freeCore`` still returns its VRAM. Everything
@@ -474,8 +474,9 @@ int64_t setMaxVRAMUse(int64_t bytes, VSCore \*core)
 
    Sets the VRAM limit cache pressure works against, mirroring
    setMaxCacheSize for the host pool. Values of zero or less leave the limit
-   unchanged. Returns the limit in effect. The default is 80% of the live
-   driver budget at device creation.
+   unchanged. Returns the limit in effect. The default is two thirds of the
+   live driver budget at device creation, the rest being headroom for filter
+   working sets and for the system.
 
 ----------
 

@@ -268,8 +268,23 @@ bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize siz
     VkDeviceSize offset = 0, roundedSize = 0;
     if (!allocator.allocate(*this, typeIndex, req.memoryRequirements.size, req.memoryRequirements.alignment,
             exportable, block, offset, roundedSize, errorMessage)) {
-        destroyBuffer(buffer);
-        return false;
+        /* The driver said no, and the allocator's own trim found nothing idle. What usually
+           holds the missing VRAM at this point is reclaimable without waiting for anything:
+           completed-but-unswept exec pool retentions (the scratch and sources of submissions
+           that finished but whose context was never acquired again — a graph mid-teardown or
+           gone idle parks its whole in-flight footprint that way), and cached GPU frames,
+           which the pressure callback has the core evict. Both free regions and empty out
+           blocks, so the retried allocate can be satisfied from the free lists or by the
+           trim it runs internally when a fresh block still fails. */
+        sweepExecPools();
+        if (pressureFn)
+            pressureFn(pressureUserData);
+        errorMessage.clear();
+        if (!allocator.allocate(*this, typeIndex, req.memoryRequirements.size, req.memoryRequirements.alignment,
+                exportable, block, offset, roundedSize, errorMessage)) {
+            destroyBuffer(buffer);
+            return false;
+        }
     }
 
     VkBindBufferMemoryInfo bindInfo = {};

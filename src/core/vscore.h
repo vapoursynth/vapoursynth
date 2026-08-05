@@ -1348,6 +1348,9 @@ public:
     void filterInstanceDestroyed() noexcept;
     void destroyFilterInstance(VSNode *node);
     void clearCaches(bool resetSize);
+    /* The Vulkan allocator's escalation hook: drops every cached GPU frame and trims, called
+       between a failed driver allocation and its retry. */
+    void gpuMemoryPanic();
     bool getNodeTiming() noexcept;
     void setNodeTiming(bool enable) noexcept;
     int64_t getFreedNodeProcessingTime(bool reset) noexcept;
