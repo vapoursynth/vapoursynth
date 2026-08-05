@@ -97,8 +97,9 @@ does not require the Vulkan loader to be linked, since every entry point is
 handed to the plugin ready to call.
 
 For a guided introduction with complete example filters see
-:doc:`../gpufilters`. The examples in the sdk dir (gpu_invert_example.c and
-gpu_planestats_example.c) exercise everything described here.
+:doc:`../gpufilters`. The examples in the sdk dir (gpu_invert_example.c,
+gpu_invert_raw_example.c and gpu_planestats_example.c) exercise everything
+described here.
 
 
 The GPU model

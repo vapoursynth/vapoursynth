@@ -241,7 +241,11 @@ endif
 libvapoursynth = library('libvapoursynth',
     files(
         'src/core/cpufeatures.cpp',
+        'src/core/gpuresize.cpp',
         'src/core/internalfilters.cpp',
+        'src/core/zimg/blue.cpp',
+        'src/core/zimg/colorspace_param.cpp',
+        'src/core/zimg/matrix3.cpp',
         'src/core/kernel/cpulevel.cpp',
         'src/core/memoryuse.cpp',
         'src/core/textfilter.cpp',

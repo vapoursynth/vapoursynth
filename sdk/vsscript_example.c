@@ -8,6 +8,7 @@
 * processing is done.
 */
 
+#define VS_USE_LATEST_API
 #define VSSCRIPT_USE_LATEST_API
 
 #include "VSScript4.h"
@@ -50,7 +51,7 @@ static int loadVSScriptLibrary() {
     }
     return 0;
 #else
-    const char *vsscriptPath = getenv(L"VSSCRIPT_PATH");
+    const char *vsscriptPath = getenv("VSSCRIPT_PATH");
 #ifdef __APPLE__
     const char *defaultLibName = "libvsscript.dylib";
 #else

@@ -1,21 +1,29 @@
 /*
 * GPU filter example: plane statistics (min/max/average) of 8-16 bit integer clips, computed
 * on the GPU and delivered as frame properties, with the input planes passed through untouched.
-* Where gpu_invert_example.c shows the asynchronous map pattern, this shows the reduce pattern,
-* and with it the two things reductions need that maps do not:
+* Where gpu_invert_example.c shows the asynchronous map pattern on the execution pool, this
+* shows the reduce pattern, and with it the two things reductions need that maps do not:
 *
 *   - scratch memory that is not a frame plane: a partials buffer sized by the dispatch
 *     geometry and a tiny host visible readback buffer, both taken per call from the core's
 *     pooled VRAM allocator through createGPUBuffer/destroyGPUBuffer. The pool recycles
 *     same size regions through free lists, so per call allocate/destroy is cheap, counted
-*     against the VRAM limit, and visible to the thread pool's admission control.
+*     against the VRAM limit, and visible to the thread pool's admission control. The two
+*     buffers here deliberately show both lifetime idioms: the partials are handed to the
+*     context with gpuExecUsesBuffer and forgotten -- destroyed for us when the submission
+*     retires -- while the readback buffer stays owned HERE, because the host reads it after
+*     the wait, and only then destroys it.
 *
 *   - a legitimate host wait: properties are CPU data, so the filter must wait for its own
-*     submission before it can return the frame. That sync point is also why this example
-*     needs none of the invert example's machinery — no retained source ring, no command
-*     buffer slot ring, no producer publication: everything is finished before returning.
-*     The scratch destruction rule (only after your submissions complete) is satisfied the
-*     same way.
+*     submission before it can return the frame. gpuExecPoolWaitIdle is that wait. It drains
+*     everything this instance's pool has in flight, not just this call's submission; for a
+*     reduction that must block anyway the over-wait is noise, and it is the same pattern the
+*     core's own GPU PlaneStats uses.
+*
+* Everything the invert example's pool discharges is discharged here too: the source's
+* producer pairs become device side waits through gpuExecReadsFrame, the source stays alive
+* until the submission completes, and the queue lock and timeline values are the pool's
+* business. Nothing is published, since no plane is produced here.
 *
 * The output frame shares every input plane (newVideoFrame2), producer pairs riding along
 * unchanged, so downstream GPU filters chain on without this filter ever touching pixel data.
@@ -43,20 +51,11 @@ typedef struct {
     VSVulkanCoreHandles h;
     const VSVulkanFunctions *vk;
 
-    VkQueue computeQueue;
     VkDescriptorSetLayout setLayout; /* both passes: two storage buffers, push descriptors */
     VkPipelineLayout pipeLayout;
     VkPipeline pass1;
     VkPipeline pass2;
-
-    /* Only signaled so this filter can wait for its own submissions; nothing downstream ever
-       sees it since no plane is produced here. Values are allocated under the queue lock.
-
-       A plain semaphore rather than a VSGPUTimeline precisely because of that: the counted
-       timeline exists so a producer pair can outlive the filter that published it, and this
-       one is never published anywhere. Filters that do write planes want the counted kind. */
-    VkSemaphore timeline;
-    uint64_t nextValue;
+    VSGPUExecPool *pool;
 } StatsData;
 
 typedef struct {
@@ -80,25 +79,17 @@ static const VSFrame *VS_CC statsGetFrame(int n, int activationReason, void *ins
         VSGPUBuffer *partials = NULL, *result = NULL;
         VSVulkanBufferInfo partialsInfo, resultInfo;
         VSVulkanPlaneInfo srcPlane;
-        VkCommandPoolCreateInfo poolInfo;
-        VkCommandBufferAllocateInfo allocInfo;
-        VkCommandPool cmdPool = VK_NULL_HANDLE;
+        VSGPUExecContext *ctx = NULL;
         VkCommandBuffer cmd;
-        VkCommandBufferBeginInfo begin;
         VkDescriptorBufferInfo bufferInfo[2];
         VkWriteDescriptorSet writes[2];
         VkPushConstantsInfo pushInfo;
         VkMemoryBarrier2 barrier;
         VkDependencyInfo dep;
-        VkSemaphoreSubmitInfo waitInfo, signalInfo;
-        VkCommandBufferSubmitInfo cmdInfo;
-        VkSubmitInfo2 submit;
-        VkSemaphoreWaitInfo hostWait;
         StatsPush pc;
         char err[512] = { 0 };
         const uint32_t *res32;
         double sum, maxVal;
-        uint64_t value;
         uint32_t pw, ph, gx, gy, groups;
         int b;
 
@@ -123,27 +114,20 @@ static const VSFrame *VS_CC statsGetFrame(int n, int activationReason, void *ins
         if (!result)
             goto error;
 
-        /* A transient pool per call keeps concurrent calls of this instance fully independent;
-           its cost is noise next to the wait this filter must do anyway. */
-        memset(&poolInfo, 0, sizeof(poolInfo));
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-        poolInfo.queueFamilyIndex = d->h.computeQueueFamily;
-        if (d->vk->vkCreateCommandPool(d->h.device, &poolInfo, NULL, &cmdPool) != VK_SUCCESS) {
-            snprintf(err, sizeof(err), "command pool creation failed");
+        ctx = d->vkapi->gpuExecAcquire(d->pool, err, sizeof(err));
+        if (!ctx)
             goto error;
-        }
-        memset(&allocInfo, 0, sizeof(allocInfo));
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = cmdPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = 1;
-        d->vk->vkAllocateCommandBuffers(d->h.device, &allocInfo, &cmd);
 
-        memset(&begin, 0, sizeof(begin));
-        begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        d->vk->vkBeginCommandBuffer(cmd, &begin);
+        /* The source's producer pairs become device side waits of this submission, and the
+           frame stays alive until it completes -- the same declaration a map filter makes. */
+        d->vkapi->gpuExecReadsFrame(ctx, src);
+        /* The partials never meet the host again, so their lifetime is the submission's:
+           ownership passes to the context, which destroys them when it retires. The result
+           buffer is NOT handed over -- the host still has to read it after the wait. */
+        d->vkapi->gpuExecUsesBuffer(ctx, partials);
+        partials = NULL;
+
+        cmd = d->vkapi->gpuExecCommandBuffer(ctx);
 
         d->vkapi->getGPUPlane(src, d->plane, &srcPlane);
 
@@ -197,45 +181,19 @@ static const VSFrame *VS_CC statsGetFrame(int n, int activationReason, void *ins
         d->vk->vkCmdPushDescriptorSet(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, d->pipeLayout, 0, 2, writes);
         d->vk->vkCmdDispatch(cmd, 1, 1, 1);
 
-        d->vk->vkEndCommandBuffer(cmd);
+        /* Queue lock, timeline value in queue order, submission: the pool's business. The
+           context is consumed either way. */
+        if (d->vkapi->gpuExecSubmit(ctx, err, sizeof(err))) {
+            ctx = NULL;
+            goto error;
+        }
+        ctx = NULL;
 
-        /* Wait the read plane's producer device side, exactly like a plane consumer. */
-        memset(&waitInfo, 0, sizeof(waitInfo));
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        waitInfo.semaphore = srcPlane.readySemaphore;
-        waitInfo.value = srcPlane.readyValue;
-        waitInfo.stageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-        memset(&signalInfo, 0, sizeof(signalInfo));
-        signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        signalInfo.semaphore = d->timeline;
-        signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-        memset(&cmdInfo, 0, sizeof(cmdInfo));
-        cmdInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-        cmdInfo.commandBuffer = cmd;
-        memset(&submit, 0, sizeof(submit));
-        submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-        submit.waitSemaphoreInfoCount = srcPlane.readySemaphore ? 1 : 0;
-        submit.pWaitSemaphoreInfos = srcPlane.readySemaphore ? &waitInfo : NULL;
-        submit.commandBufferInfoCount = 1;
-        submit.pCommandBufferInfos = &cmdInfo;
-        submit.signalSemaphoreInfoCount = 1;
-        submit.pSignalSemaphoreInfos = &signalInfo;
-
-        d->vkapi->lockVulkanQueue(core, vqCompute);
-        value = ++d->nextValue;
-        signalInfo.value = value;
-        d->vk->vkQueueSubmit2(d->computeQueue, 1, &submit, VK_NULL_HANDLE);
-        d->vkapi->unlockVulkanQueue(core, vqCompute);
-
-        /* The mandatory sync point: properties are CPU data. After this wait the submission is
-           done, so the source may be freed at once and the scratch destroyed immediately —
-           the buffer destruction rule satisfied trivially. */
-        memset(&hostWait, 0, sizeof(hostWait));
-        hostWait.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        hostWait.semaphoreCount = 1;
-        hostWait.pSemaphores = &d->timeline;
-        hostWait.pValues = &value;
-        d->vk->vkWaitSemaphores(d->h.device, &hostWait, UINT64_MAX);
+        /* The mandatory sync point: properties are CPU data. This drains everything the pool
+           has in flight, which includes this call's submission; after it the readback buffer
+           may be read and destroyed, the destruction rule satisfied by the wait itself. */
+        if (d->vkapi->gpuExecPoolWaitIdle(d->pool, err, sizeof(err)))
+            goto error;
 
         res32 = (const uint32_t *)resultInfo.mapped;
         sum = (double)res32[1] * 4294967296.0 + (double)res32[0];
@@ -248,15 +206,13 @@ static const VSFrame *VS_CC statsGetFrame(int n, int activationReason, void *ins
             vsapi->mapSetFloat(props, "PlaneStatsGPUAverage", sum / ((double)pw * ph * maxVal), maReplace);
         }
 
-        d->vk->vkDestroyCommandPool(d->h.device, cmdPool, NULL);
-        d->vkapi->destroyGPUBuffer(partials);
         d->vkapi->destroyGPUBuffer(result);
         vsapi->freeFrame(src);
         return dst;
 
 error:
-        if (cmdPool)
-            d->vk->vkDestroyCommandPool(d->h.device, cmdPool, NULL);
+        if (ctx)
+            d->vkapi->gpuExecAbandon(ctx);
         if (partials)
             d->vkapi->destroyGPUBuffer(partials);
         if (result)
@@ -272,8 +228,10 @@ error:
 
 static void VS_CC statsFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     StatsData *d = (StatsData *)instanceData;
-    /* Nothing can be in flight here: every call waits out its own submission before
-       returning, which is what lets this free skip the wait the invert example needs. */
+    /* The pool drains the device before returning; with every call also waiting out its own
+       submission there is nothing in flight anyway, but the order stays the safe one. */
+    if (d->pool)
+        d->vkapi->freeGPUExecPool(d->pool);
     if (d->pass1)
         d->vk->vkDestroyPipeline(d->h.device, d->pass1, NULL);
     if (d->pass2)
@@ -282,8 +240,6 @@ static void VS_CC statsFree(void *instanceData, VSCore *core, const VSAPI *vsapi
         d->vk->vkDestroyPipelineLayout(d->h.device, d->pipeLayout, NULL);
     if (d->setLayout)
         d->vk->vkDestroyDescriptorSetLayout(d->h.device, d->setLayout, NULL);
-    if (d->timeline)
-        d->vk->vkDestroySemaphore(d->h.device, d->timeline, NULL);
     vsapi->freeNode(d->node);
     free(d);
 }
@@ -315,9 +271,6 @@ static void VS_CC statsCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     VkDescriptorSetLayoutCreateInfo setInfo;
     VkPushConstantRange range;
     VkPipelineLayoutCreateInfo layoutInfo;
-    VkSemaphoreTypeCreateInfo semType;
-    VkSemaphoreCreateInfo semInfo;
-    VkDeviceQueueInfo2 queueInfo;
     int errSet = 0, b;
 
     d->node = vsapi->mapGetNode(in, "clip", 0, NULL);
@@ -350,12 +303,6 @@ static void VS_CC statsCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         vsapi->mapSetError(out, err);
         goto fail;
     }
-
-    memset(&queueInfo, 0, sizeof(queueInfo));
-    queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2;
-    queueInfo.queueFamilyIndex = d->h.computeQueueFamily;
-    queueInfo.queueIndex = d->h.computeQueueIndex;
-    d->vk->vkGetDeviceQueue2(d->h.device, &queueInfo, &d->computeQueue);
 
     /* Both passes use the same shape: two storage buffers and the shared push range. */
     memset(bindings, 0, sizeof(bindings));
@@ -393,13 +340,13 @@ static void VS_CC statsCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         goto fail;
     }
 
-    memset(&semType, 0, sizeof(semType));
-    semType.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-    semType.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-    memset(&semInfo, 0, sizeof(semInfo));
-    semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semInfo.pNext = &semType;
-    d->vk->vkCreateSemaphore(d->h.device, &semInfo, NULL, &d->timeline);
+    /* Four contexts keeps recording concurrent even though each call ends in a pool-wide
+       wait; the wait serialises completion, not recording. */
+    d->pool = d->vkapi->createGPUExecPool(core, vqCompute, 4, err, sizeof(err));
+    if (!d->pool) {
+        vsapi->mapSetError(out, err);
+        goto fail;
+    }
 
     {
         VSFilterDependency deps[] = {{ d->node, rpStrictSpatial }};
@@ -410,6 +357,8 @@ static void VS_CC statsCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     return;
 
 fail:
+    if (d->pool)
+        d->vkapi->freeGPUExecPool(d->pool);
     if (d->pass1 && d->vk)
         d->vk->vkDestroyPipeline(d->h.device, d->pass1, NULL);
     if (d->pass2 && d->vk)

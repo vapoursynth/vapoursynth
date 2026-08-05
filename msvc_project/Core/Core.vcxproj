@@ -109,6 +109,18 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\..\sdk\gpu_invert_example.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\sdk\gpu_invert_raw_example.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\sdk\gpu_planestats_example.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\sdk\invert_example.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
@@ -118,7 +130,11 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\core\cpufeatures.cpp" />
+    <ClCompile Include="..\..\src\core\gpuresize.cpp" />
     <ClCompile Include="..\..\src\core\internalfilters.cpp" />
+    <ClCompile Include="..\..\src\core\zimg\blue.cpp" />
+    <ClCompile Include="..\..\src\core\zimg\colorspace_param.cpp" />
+    <ClCompile Include="..\..\src\core\zimg\matrix3.cpp" />
     <ClCompile Include="..\..\src\core\kernel\cpulevel.cpp" />
     <ClCompile Include="..\..\src\core\memoryuse.cpp" />
     <ClCompile Include="..\..\src\core\textfilter.cpp" />
@@ -140,6 +156,11 @@
     <ClInclude Include="..\..\include\VSHelper.h" />
     <ClInclude Include="..\..\include\VSHelper4.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
+    <ClInclude Include="..\..\src\core\resizesharedargs.h" />
+    <ClInclude Include="..\..\src\core\zimg\colorspace.h" />
+    <ClInclude Include="..\..\src\core\zimg\colorspace_param.h" />
+    <ClInclude Include="..\..\src\core\zimg\except.h" />
+    <ClInclude Include="..\..\src\core\zimg\matrix3.h" />
     <ClInclude Include="..\..\src\core\intrusive_ptr.h" />
     <ClInclude Include="..\..\src\core\kernel\cpulevel.h" />
     <ClInclude Include="..\..\src\core\memoryuse.h" />

@@ -1,0 +1,18 @@
+Vendored from zimg, unmodified except that "common/x.h" includes are flattened to "x.h".
+
+Source revision: release-3.0.6-251-g274b46e
+
+Why these files are copied rather than used from libzimg: zimg installs only
+src/zimg/api/zimg.h and zimg++.hpp, and links with -export-symbols-regex '^zimg_',
+so the colorspace matrix helpers are neither declared nor exported in a system build.
+VapourSynth resolves zimg through dependency('zimg') with the subproject only as a
+fallback, so on any distro build these symbols do not exist.
+
+What is used: the colorspace helpers turn primaries and matrix enums into 3x3 matrices
+for the GPU resize's fused colour kernel -- pure scalar math with no SIMD and no
+dependency on zimg's execution engine. The resampling side of the GPU path evaluates
+its kernels in the shader and needs nothing from here.
+
+Keeping this in step with the zimg the CPU path links against is manual. If the two
+drift, the GPU path's colour constants stop matching resize's, which is exactly the
+difference the differential tests are meant to catch -- so re-copy on a zimg bump.

@@ -207,7 +207,17 @@ namespace {
 
 /* zimg's compute_filter (zimg/src/zimg/resize/filter.cpp) for the one shape these two filters
    ever ask of it: a bilinear downscale by a whole number with a constant shift. What the
-   compute path uses instead of invoking the resize plugin, which has no GPU implementation.
+   compute path uses instead of invoking the resize plugin.
+
+   The resize plugin HAS a GPU implementation now (gpuresize.cpp), so the six-candidate
+   architecture the scalar path uses below would stay resident too. The fused gather is kept
+   anyway, deliberately: it reads the luma-resolution mask inside the merge kernel, so there is
+   no intermediate mask frame, no extra nodes and no barrier -- the same fusion economics that
+   shaped the resize's own colour core -- and the per-frame choice among six candidate NODES is
+   something the declarative driver cannot express, since _ChromaLocation is a frame property
+   and a FilterDesc's clip bindings are fixed at create. Going back to the invoke would cost a
+   driver extension to buy an extra round trip. */
+/*
 
    That shape is what makes the coefficients position INDEPENDENT. The output sample's position
    on the input grid advances by exactly the subsampling factor, an integer, so round_halfup's

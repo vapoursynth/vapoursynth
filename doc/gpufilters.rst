@@ -166,37 +166,47 @@ touching pixels with the CPU.
 Start from the examples
 -----------------------
 
-The sdk dir contains two deliberately small filters that, together with the
-in-tree GPU path of std.BoxBlur (src/core/boxblurfilter.cpp), cover the three
-fundamental kernel shapes:
+The sdk dir contains three deliberately small Vulkan filters and one CUDA
+filter that, together with the in-tree GPU path of std.BoxBlur
+(src/core/boxblurfilter.cpp), cover the fundamental kernel shapes:
 
 +---------------------------+-----------+---------------------------------------------------------------+
 | Example                   | Shape     | What it demonstrates                                          |
 +===========================+===========+===============================================================+
-| gpu_invert_example.c      | map       | The full asynchronous pattern: producer pair waits, own       |
-|                           |           | timeline, publishing producers, keeping sources alive with a  |
-|                           |           | retained ring, a command buffer slot ring for frames in       |
-|                           |           | flight. Also the runtime compilation pattern: its kernel      |
-|                           |           | ships as GLSL source and compileGPUShader turns it into       |
-|                           |           | SPIR-V at filter creation.                                    |
+| gpu_invert_example.c      | map       | The standard shape of a GPU filter: an execution pool         |
+|                           |           | created with the filter, then per frame acquire, declare      |
+|                           |           | reads and writes, record one dispatch per plane, submit.      |
+|                           |           | Also the runtime compilation pattern: its kernel ships as     |
+|                           |           | GLSL source and compileGPUShader turns it into SPIR-V at      |
+|                           |           | filter creation. Start here.                                  |
 +---------------------------+-----------+---------------------------------------------------------------+
-| BoxBlur GPU path         | stencil   | Multi-pass kernels with barriers, scratch reuse, plane         |
+| gpu_invert_raw_example.c  | map, by   | The same filter without the pool: producer pair waits, own    |
+|                           | hand      | timeline, queue locking, publishing producers, keeping        |
+|                           |           | sources alive with a retained ring, a command buffer slot     |
+|                           |           | ring for frames in flight. Read it to see everything the      |
+|                           |           | pool discharges, or as the template for filters whose         |
+|                           |           | submissions the pool cannot carry.                            |
++---------------------------+-----------+---------------------------------------------------------------+
+| BoxBlur GPU path          | stencil   | Multi-pass kernels with barriers, scratch reuse, plane        |
 |                           |           | sharing for unprocessed planes. Compiled into the core but    |
 |                           |           | written against nothing but these public headers, in its own  |
 |                           |           | translation unit so that stays true, which makes              |
 |                           |           | src/core/boxblurfilter.cpp readable as a plugin would be.     |
 +---------------------------+-----------+---------------------------------------------------------------+
-| gpu_planestats_example.c  | reduce    | Scratch buffers that are not frame shaped, a compute→compute  |
-|                           |           | barrier between dependent dispatches, and the one legitimate  |
-|                           |           | host wait — results delivered as frame properties must exist  |
-|                           |           | before returning. The wait removes every piece of async       |
-|                           |           | machinery the invert example needs, which is the lesson.      |
+| gpu_planestats_example.c  | reduce    | Scratch buffers that are not frame shaped, in both lifetime   |
+|                           |           | idioms: handed to the context with gpuExecUsesBuffer, or      |
+|                           |           | kept for host readback. A compute→compute barrier between     |
+|                           |           | dependent dispatches, and the one legitimate host wait —      |
+|                           |           | gpuExecPoolWaitIdle before reading results that leave as      |
+|                           |           | frame properties.                                             |
 +---------------------------+-----------+---------------------------------------------------------------+
 | gpu_cuda_invert_example.cu| foreign   | The complete CUDA interop pattern: UUID device matching,      |
 |                           | API       | cached memory imports, device side producer pair waits with   |
 |                           |           | graceful host sync fallback, and signalling its own           |
-|                           |           | exportable timeline from the stream. Reference code — it has  |
-|                           |           | not run on NVIDIA hardware yet.                               |
+|                           |           | exportable timeline from the stream. Its work enters a CUDA   |
+|                           |           | stream, which the exec pool cannot carry, so the raw          |
+|                           |           | obligations are discharged by hand across the API boundary.   |
+|                           |           | Reference code — it has not run on NVIDIA hardware yet.       |
 +---------------------------+-----------+---------------------------------------------------------------+
 
 Shaders reach the pipeline two ways, and the examples show one each: the
@@ -250,7 +260,7 @@ A filter's obligations
 
 #. **Keep sources alive.** The GPU may still be reading a source frame long
    after your getframe returned. Hold the reference until your submission's
-   value completes; the examples sweep a small ring with
+   value completes; the raw example sweeps a small ring with
    vkGetSemaphoreCounterValue, falling back to a blocking wait when full.
 
 #. **Bound your frames in flight.** Reusing a per-stream command buffer or
@@ -266,6 +276,28 @@ A filter's obligations
    consumers: frames you produced keep the timeline alive on their own, so
    freeGPUTimeline never has to wait for anybody.
 
+The execution pool
+------------------
+
+Obligations 3 through 8 are the same plumbing in every filter, so the core
+ships it: create a VSGPUExecPool with the filter and per frame do ::
+
+   ctx = gpuExecAcquire(pool);          /* backpressure: waits out the oldest submission (7) */
+   gpuExecReadsFrame(ctx, src);         /* producer waits + keeps src alive (3, 6) */
+   gpuExecWritesPlane(ctx, dst, p);     /* published as producer pairs on submit (5) */
+   gpuExecUsesBuffer(ctx, scratch);     /* destroyed when the submission retires */
+   /* ... record into gpuExecCommandBuffer(ctx) ... */
+   gpuExecSubmit(ctx);                  /* queue lock, values in queue order (4) */
+
+with contextCount bounding frames in flight (7) and freeGPUExecPool draining
+the device in the free callback (8). gpu_invert_example.c is this pattern
+whole, and every in-tree GPU filter is built on it. The context hands out its
+command buffer and imposes nothing on what goes into it — indirect dispatches,
+custom barriers and query pools record the same way — so the raw path
+underneath, spelled out by gpu_invert_raw_example.c, remains for filters whose
+*submissions* the pool cannot carry: work entering another API's queue (the
+CUDA example) or producer pairs published on frames the pool never sees.
+
 When to wait on the host
 ------------------------
 
@@ -273,9 +305,9 @@ Never for frame data — that is what producer pairs are for, and host waits
 destroy the pipelining the whole design exists to provide. The exception is
 results that must be CPU visible before your getframe returns, i.e. frame
 properties: a reduction writing its result into a mapped buffer must wait for
-its own submission, and in exchange needs none of the asynchronous machinery
-(no retained sources, no producer publication for planes it merely passes
-through). gpu_planestats_example.c is exactly this trade.
+its own submission before returning — gpuExecPoolWaitIdle is the sanctioned
+form — and in exchange publishes nothing, since it produced no plane.
+gpu_planestats_example.c is exactly this trade.
 
 Scratch memory
 --------------

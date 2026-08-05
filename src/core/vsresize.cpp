@@ -36,9 +36,42 @@
 #include "VSHelper4.h"
 #include "VSConstants4.h"
 #include "internalfilters.h"
+#include "resizesharedargs.h"
 #include "version.h"
 
 using namespace vsh;
+
+/* The shared tables carry the H.273/property values; everything below static_casts them
+   into zimg's enums, which is only sound while the two domains agree number for number.
+   Asserted entry by entry rather than trusted, range included -- VSRange under the
+   current API numbers full 1 exactly as zimg does. */
+static_assert(ZIMG_RANGE_LIMITED == VSC_RANGE_LIMITED && ZIMG_RANGE_FULL == VSC_RANGE_FULL);
+static_assert(ZIMG_CHROMA_LEFT == VSC_CHROMA_LEFT && ZIMG_CHROMA_CENTER == VSC_CHROMA_CENTER &&
+    ZIMG_CHROMA_TOP_LEFT == VSC_CHROMA_TOP_LEFT && ZIMG_CHROMA_TOP == VSC_CHROMA_TOP &&
+    ZIMG_CHROMA_BOTTOM_LEFT == VSC_CHROMA_BOTTOM_LEFT && ZIMG_CHROMA_BOTTOM == VSC_CHROMA_BOTTOM);
+static_assert(ZIMG_MATRIX_RGB == VSC_MATRIX_RGB && ZIMG_MATRIX_BT709 == VSC_MATRIX_BT709 &&
+    ZIMG_MATRIX_UNSPECIFIED == VSC_MATRIX_UNSPECIFIED && ZIMG_MATRIX_ST170_M == VSC_MATRIX_ST170_M &&
+    ZIMG_MATRIX_ST240_M == VSC_MATRIX_ST240_M && ZIMG_MATRIX_BT470_BG == VSC_MATRIX_BT470_BG &&
+    ZIMG_MATRIX_FCC == VSC_MATRIX_FCC && ZIMG_MATRIX_YCGCO == VSC_MATRIX_YCGCO &&
+    ZIMG_MATRIX_BT2020_NCL == VSC_MATRIX_BT2020_NCL && ZIMG_MATRIX_BT2020_CL == VSC_MATRIX_BT2020_CL &&
+    ZIMG_MATRIX_CHROMATICITY_DERIVED_CL == VSC_MATRIX_CHROMATICITY_DERIVED_CL &&
+    ZIMG_MATRIX_CHROMATICITY_DERIVED_NCL == VSC_MATRIX_CHROMATICITY_DERIVED_NCL &&
+    ZIMG_MATRIX_ICTCP == VSC_MATRIX_ICTCP);
+static_assert(ZIMG_TRANSFER_BT709 == VSC_TRANSFER_BT709 && ZIMG_TRANSFER_UNSPECIFIED == VSC_TRANSFER_UNSPECIFIED &&
+    ZIMG_TRANSFER_BT601 == VSC_TRANSFER_BT601 && ZIMG_TRANSFER_LINEAR == VSC_TRANSFER_LINEAR &&
+    ZIMG_TRANSFER_BT2020_10 == VSC_TRANSFER_BT2020_10 && ZIMG_TRANSFER_BT2020_12 == VSC_TRANSFER_BT2020_12 &&
+    ZIMG_TRANSFER_ST240_M == VSC_TRANSFER_ST240_M && ZIMG_TRANSFER_BT470_M == VSC_TRANSFER_BT470_M &&
+    ZIMG_TRANSFER_BT470_BG == VSC_TRANSFER_BT470_BG && ZIMG_TRANSFER_LOG_100 == VSC_TRANSFER_LOG_100 &&
+    ZIMG_TRANSFER_LOG_316 == VSC_TRANSFER_LOG_316 && ZIMG_TRANSFER_ST2084 == VSC_TRANSFER_ST2084 &&
+    ZIMG_TRANSFER_ARIB_B67 == VSC_TRANSFER_ARIB_B67 && ZIMG_TRANSFER_ST428 == VSC_TRANSFER_ST428 &&
+    ZIMG_TRANSFER_IEC_61966_2_1 == VSC_TRANSFER_IEC_61966_2_1 &&
+    ZIMG_TRANSFER_IEC_61966_2_4 == VSC_TRANSFER_IEC_61966_2_4);
+static_assert(ZIMG_PRIMARIES_BT709 == VSC_PRIMARIES_BT709 && ZIMG_PRIMARIES_UNSPECIFIED == VSC_PRIMARIES_UNSPECIFIED &&
+    ZIMG_PRIMARIES_ST170_M == VSC_PRIMARIES_ST170_M && ZIMG_PRIMARIES_ST240_M == VSC_PRIMARIES_ST240_M &&
+    ZIMG_PRIMARIES_BT470_M == VSC_PRIMARIES_BT470_M && ZIMG_PRIMARIES_BT470_BG == VSC_PRIMARIES_BT470_BG &&
+    ZIMG_PRIMARIES_FILM == VSC_PRIMARIES_FILM && ZIMG_PRIMARIES_BT2020 == VSC_PRIMARIES_BT2020 &&
+    ZIMG_PRIMARIES_ST428 == VSC_PRIMARIES_ST428 && ZIMG_PRIMARIES_ST431_2 == VSC_PRIMARIES_ST431_2 &&
+    ZIMG_PRIMARIES_ST432_1 == VSC_PRIMARIES_ST432_1 && ZIMG_PRIMARIES_EBU3213_E == VSC_PRIMARIES_EBU3213_E);
 
 namespace {
 
@@ -57,6 +90,13 @@ const T *findEnum(const EnumEntry<T> (&table)[N], std::string_view name) {
             return &entry.value;
     }
     return nullptr;
+}
+
+/* The shared tables carry int values; the identity asserts above are what make the
+   static_cast at the lookup sites sound. */
+template<size_t N>
+const int *findEnum(const ResizeEnumEntry (&table)[N], std::string_view name) {
+    return findResizeEnum(table, name);
 }
 
 constexpr EnumEntry<zimg_cpu_type_e> g_cpu_type_table[] = {
@@ -81,70 +121,8 @@ constexpr EnumEntry<zimg_cpu_type_e> g_cpu_type_table[] = {
 #endif
 };
 
-constexpr EnumEntry<zimg_pixel_range_e> g_range_table[] = {
-    { "limited", ZIMG_RANGE_LIMITED },
-    { "full",    ZIMG_RANGE_FULL },
-};
-
-constexpr EnumEntry<zimg_chroma_location_e> g_chromaloc_table[] = {
-    { "left",        ZIMG_CHROMA_LEFT },
-    { "center",      ZIMG_CHROMA_CENTER },
-    { "top_left",    ZIMG_CHROMA_TOP_LEFT },
-    { "top",         ZIMG_CHROMA_TOP },
-    { "bottom_left", ZIMG_CHROMA_BOTTOM_LEFT },
-    { "bottom",      ZIMG_CHROMA_BOTTOM },
-};
-
-constexpr EnumEntry<zimg_matrix_coefficients_e> g_matrix_table[] = {
-    { "rgb",         ZIMG_MATRIX_RGB },
-    { "709",         ZIMG_MATRIX_BT709 },
-    { "unspec",      ZIMG_MATRIX_UNSPECIFIED },
-    { "170m",        ZIMG_MATRIX_ST170_M },
-    { "240m",        ZIMG_MATRIX_ST240_M },
-    { "470bg",       ZIMG_MATRIX_BT470_BG },
-    { "fcc",         ZIMG_MATRIX_FCC },
-    { "ycgco",       ZIMG_MATRIX_YCGCO },
-    { "2020ncl",     ZIMG_MATRIX_BT2020_NCL },
-    { "2020cl",      ZIMG_MATRIX_BT2020_CL },
-    { "chromacl",    ZIMG_MATRIX_CHROMATICITY_DERIVED_CL },
-    { "chromancl",   ZIMG_MATRIX_CHROMATICITY_DERIVED_NCL },
-    { "ictcp",       ZIMG_MATRIX_ICTCP },
-};
-
-constexpr EnumEntry<zimg_transfer_characteristics_e> g_transfer_table[] = {
-    { "709",     ZIMG_TRANSFER_BT709 },
-    { "unspec",  ZIMG_TRANSFER_UNSPECIFIED },
-    { "601",     ZIMG_TRANSFER_BT601 },
-    { "linear",  ZIMG_TRANSFER_LINEAR },
-    { "2020_10", ZIMG_TRANSFER_BT2020_10 },
-    { "2020_12", ZIMG_TRANSFER_BT2020_12 },
-    { "240m",    ZIMG_TRANSFER_ST240_M },
-    { "470m",    ZIMG_TRANSFER_BT470_M },
-    { "470bg",   ZIMG_TRANSFER_BT470_BG },
-    { "log100",  ZIMG_TRANSFER_LOG_100 },
-    { "log316",  ZIMG_TRANSFER_LOG_316 },
-    { "st2084",  ZIMG_TRANSFER_ST2084 },
-    { "std-b67", ZIMG_TRANSFER_ARIB_B67 },
-    { "st428",   ZIMG_TRANSFER_ST428 },
-    { "srgb",    ZIMG_TRANSFER_IEC_61966_2_1 },
-    { "xvycc",   ZIMG_TRANSFER_IEC_61966_2_4 },
-};
-
-constexpr EnumEntry<zimg_color_primaries_e> g_primaries_table[] = {
-    { "709",       ZIMG_PRIMARIES_BT709 },
-    { "unspec",    ZIMG_PRIMARIES_UNSPECIFIED },
-    { "170m",      ZIMG_PRIMARIES_ST170_M },
-    { "240m",      ZIMG_PRIMARIES_ST240_M },
-    { "470m",      ZIMG_PRIMARIES_BT470_M },
-    { "470bg",     ZIMG_PRIMARIES_BT470_BG },
-    { "film",      ZIMG_PRIMARIES_FILM },
-    { "2020",      ZIMG_PRIMARIES_BT2020 },
-    { "st428",     ZIMG_PRIMARIES_ST428 },
-    { "xyz",       ZIMG_PRIMARIES_ST428 },
-    { "st431-2",   ZIMG_PRIMARIES_ST431_2 },
-    { "st432-1",   ZIMG_PRIMARIES_ST432_1 },
-    { "ebu3213-e", ZIMG_PRIMARIES_EBU3213_E },
-};
+/* The colorspace vocabulary lives in resizesharedargs.h, shared with the compute path;
+   the tables below are statements about the scalar implementation and stay here. */
 
 constexpr EnumEntry<zimg_dither_type_e> g_dither_type_table[] = {
     { "none",            ZIMG_DITHER_NONE },
@@ -510,7 +488,7 @@ class vszimg {
         if (vsapi->mapNumElements(map, key) > 0) {
             const char *enum_str = propGetScalar<const char *>(map, key, vsapi);
             if (const auto *value = findEnum(enum_table, enum_str))
-                *out = *value;
+                *out = static_cast<T>(*value);
             else
                 throw std::runtime_error{ "bad value: "s + key };
         }
@@ -565,17 +543,17 @@ class vszimg {
                 m_vi.format = node_vi.format;
             }
 
-            lookup_enum(in, "matrix", g_matrix_table, &m_frame_params.matrix, vsapi);
-            lookup_enum(in, "transfer", g_transfer_table, &m_frame_params.transfer, vsapi);
-            lookup_enum(in, "primaries", g_primaries_table, &m_frame_params.primaries, vsapi);
-            lookup_enum(in, "range", g_range_table, &m_frame_params.range, vsapi);
-            lookup_enum(in, "chromaloc", g_chromaloc_table, &m_frame_params.chromaloc, vsapi);
+            lookup_enum(in, "matrix", resizeMatrixTable, &m_frame_params.matrix, vsapi);
+            lookup_enum(in, "transfer", resizeTransferTable, &m_frame_params.transfer, vsapi);
+            lookup_enum(in, "primaries", resizePrimariesTable, &m_frame_params.primaries, vsapi);
+            lookup_enum(in, "range", resizeRangeTable, &m_frame_params.range, vsapi);
+            lookup_enum(in, "chromaloc", resizeChromaLocTable, &m_frame_params.chromaloc, vsapi);
 
-            lookup_enum(in, "matrix_in", g_matrix_table, &m_frame_params_in.matrix, vsapi);
-            lookup_enum(in, "transfer_in", g_transfer_table, &m_frame_params_in.transfer, vsapi);
-            lookup_enum(in, "primaries_in", g_primaries_table, &m_frame_params_in.primaries, vsapi);
-            lookup_enum(in, "range_in", g_range_table, &m_frame_params_in.range, vsapi);
-            lookup_enum(in, "chromaloc_in", g_chromaloc_table, &m_frame_params_in.chromaloc, vsapi);
+            lookup_enum(in, "matrix_in", resizeMatrixTable, &m_frame_params_in.matrix, vsapi);
+            lookup_enum(in, "transfer_in", resizeTransferTable, &m_frame_params_in.transfer, vsapi);
+            lookup_enum(in, "primaries_in", resizePrimariesTable, &m_frame_params_in.primaries, vsapi);
+            lookup_enum(in, "range_in", resizeRangeTable, &m_frame_params_in.range, vsapi);
+            lookup_enum(in, "chromaloc_in", resizeChromaLocTable, &m_frame_params_in.chromaloc, vsapi);
 
             m_params.cpu_type = ZIMG_CPU_AUTO_64B;
             m_params.allow_approximate_gamma = propGetScalarDef<int>(in, "approximate_gamma", 1, vsapi);
@@ -597,9 +575,6 @@ class vszimg {
 
             lookup_enum_str_opt(in, "dither_type", g_dither_type_table, &m_params.dither_type, vsapi);
             lookup_enum_str_opt(in, "cpu_type", g_cpu_type_table, &m_params.cpu_type, vsapi);
-
-            if (vsapi->mapNumElements(in, "prefer_props") >= 0)
-                vsapi->logMessage(mtWarning, "The deprecated argument prefer_props was passed to a resizer. Ignoring argument.", core);
 
             m_src_left = propGetScalarDef<double>(in, "src_left", NAN, vsapi);
             m_src_top = propGetScalarDef<double>(in, "src_top", NAN, vsapi);
@@ -839,26 +814,72 @@ public:
         return ret;
     }
 
-    static void VS_CC create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-        try {
-            vszimg *x = new vszimg{ in, userData, core, vsapi };
-            vszimg_userdata u{ userData };
-            const char *name = "";
+    /* Brings a GPU clip back to host memory so the scalar graph below can run on it,
+       returning a copy of the arguments with only the clip replaced. */
+    static VSMap *downloadedArgs(const VSMap *in, VSCore *core, const VSAPI *vsapi) {
+        VSPlugin *stdplugin = vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core);
+        VSMap *args = vsapi->createMap();
+        vsapi->mapConsumeNode(args, "clip", vsapi->mapGetNode(in, "clip", 0, nullptr), maReplace);
+        VSMap *downloaded = vsapi->invoke(stdplugin, "GPUDownload", args);
+        vsapi->freeMap(args);
 
-            if (u.op == FieldOp::DEINTERLACE) {
-                name = "Bob";
-            } else {
-                switch (u.filter) {
-                case ZIMG_RESIZE_POINT: name = "Point"; break;
-                case ZIMG_RESIZE_BILINEAR: name = "Bilinear"; break;
-                case ZIMG_RESIZE_BICUBIC: name = "Bicubic"; break;
-                case ZIMG_RESIZE_SPLINE16: name = "Spline16"; break;
-                case ZIMG_RESIZE_SPLINE36: name = "Spline36"; break;
-                case ZIMG_RESIZE_SPLINE64: name = "Spline64"; break;
-                case ZIMG_RESIZE_LANCZOS: name = "Lanczos"; break;
-                }
+        if (const char *err = vsapi->mapGetError(downloaded)) {
+            std::string message = err;
+            vsapi->freeMap(downloaded);
+            throw std::runtime_error{ message };
+        }
+        VSMap *result = vsapi->createMap();
+        vsapi->copyMap(in, result);
+        vsapi->mapConsumeNode(result, "clip", vsapi->mapGetNode(downloaded, "clip", 0, nullptr), maReplace);
+        vsapi->freeMap(downloaded);
+        return result;
+    }
+
+    static void VS_CC create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+        VSMap *downloaded = nullptr;
+
+        try {
+            vszimg_userdata u{ userData };
+            /* Two different things, and Bob is where they part: the kernel is what
+               resamples, and the name is what the node is called. */
+            const char *kernelName = "";
+            switch (u.filter) {
+            case ZIMG_RESIZE_POINT: kernelName = "Point"; break;
+            case ZIMG_RESIZE_BILINEAR: kernelName = "Bilinear"; break;
+            case ZIMG_RESIZE_BICUBIC: kernelName = "Bicubic"; break;
+            case ZIMG_RESIZE_SPLINE16: kernelName = "Spline16"; break;
+            case ZIMG_RESIZE_SPLINE36: kernelName = "Spline36"; break;
+            case ZIMG_RESIZE_SPLINE64: kernelName = "Spline64"; break;
+            case ZIMG_RESIZE_LANCZOS: kernelName = "Lanczos"; break;
+            }
+            const char *name = u.op == FieldOp::DEINTERLACE ? "Bob" : kernelName;
+
+            /* Warned here rather than in the constructor, which does not run when the
+               compute path takes the call. */
+            if (vsapi->mapNumElements(in, "prefer_props") >= 0)
+                vsapi->logMessage(mtWarning, "The deprecated argument prefer_props was passed to a resizer. Ignoring argument.", core);
+
+            /* Residency polymorphic, but only partly: the compute path covers a slice of
+               the arguments, and everything else has to come back to host memory the way
+               the core would have done automatically before this argument became
+               vnode:all. Said out loud, because a chain meant to stay on the device just
+               left it. */
+            const VSMap *args = in;
+            VSNode *node = vsapi->mapGetNode(in, "clip", 0, nullptr);
+            const bool onGPU = vsapi->getNodeResidency(node) == nrGPU;
+            vsapi->freeNode(node);
+
+            if (onGPU) {
+                std::string decline;
+                if (createGPUResize(in, out, kernelName, u.op == FieldOp::DEINTERLACE, core, vsapi, decline))
+                    return;
+                vsapi->logMessage(mtInformation,
+                    ("Resize: "s + decline + ", so the frames are downloaded and resized on the CPU").c_str(), core);
+                downloaded = downloadedArgs(in, core, vsapi);
+                args = downloaded;
             }
 
+            vszimg *x = new vszimg{ args, userData, core, vsapi };
             VSFilterDependency deps[] = {{x->m_node, rpStrictSpatial}};
             vsapi->createVideoFilter(out, name, &x->m_vi, &vszimg::static_get_frame, &vszimg::free, fmParallel, deps, 1, x, core);
         } catch (const vszimgxx::zerror &e) {
@@ -867,6 +888,8 @@ public:
         } catch (const std::exception &e) {
             vsapi->mapSetError(out, ("Resize error: "s + e.what()).c_str());
         }
+
+        vsapi->freeMap(downloaded);
     }
 
     static void VS_CC free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
@@ -957,13 +980,17 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
   INT_OPT(approximate_gamma) \
   INT_OPT(chromatic_adaptation)
 
+    /* vnode:all rather than plain vnode: a GPU clip has to reach create for the compute
+       path to be offered it at all. What the core used to insert automatically now
+       happens inside create, and only when the compute path declines, so the CPU
+       behaviour is unchanged. */
     static const char RESAMPLE_ARGS[] =
-        "clip:vnode;"
+        "clip:vnode:all;"
         INT_OPT(width)
         INT_OPT(height)
         COMMON_ARGS;
 
-    static const char RETURN_VALUE[] = "clip:vnode;";
+    static const char RETURN_VALUE[] = "clip:vnode:all;";
 
     vspapi->configPlugin(VSH_RESIZE_PLUGIN_ID, "resize", "VapourSynth Resize", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("Bilinear", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_BILINEAR), plugin);
@@ -974,7 +1001,27 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Spline36", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE36), plugin);
     vspapi->registerFunction("Spline64", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE64), plugin);
 
-    vspapi->registerFunction("Bob", "clip:vnode;filter:data:opt;tff:int:opt;" COMMON_ARGS, RETURN_VALUE, bobCreate, vszimg_userdata(ZIMG_RESIZE_BICUBIC), plugin);
+    /* vnode:all even though the whole of Bob may still decline: what the modifier
+       decides is WHERE a download happens. As plain vnode it landed on Bob's own
+       argument, ahead of the SeparateFields this builds on top of, so even the parts
+       with a compute path ran on the host and the round trip happened at the earliest
+       possible point. */
+    vspapi->registerFunction("Bob", "clip:vnode:all;filter:data:opt;tff:int:opt;" COMMON_ARGS, RETURN_VALUE, bobCreate, vszimg_userdata(ZIMG_RESIZE_BICUBIC), plugin);
+
+    /* Reports the compute path's plan for these arguments without rendering a frame, so
+       tests can pin planner decisions -- which axes run, what shares, where the window
+       lands. Frame properties are spelled as prop_* arguments since no frame exists. */
+    vspapi->registerFunction("PlanDebug",
+        "clip:vnode:all;"
+        "kernel:data:opt;"
+        "prop_chromaloc:int:opt;prop_range:int:opt;prop_matrix:int:opt;"
+        "prop_transfer:int:opt;prop_primaries:int:opt;"
+        "prop_fieldbased:int:opt;prop_field:int:opt;"
+        INT_OPT(width)
+        INT_OPT(height)
+        COMMON_ARGS,
+        "plan:data[]:opt;share:int[]:opt;hfirst:int:opt;decline:data:opt;",
+        gpuResizePlanDebug, nullptr, plugin);
 #undef COMMON_ARGS
 #undef INT_OPT
 #undef FLOAT_OPT

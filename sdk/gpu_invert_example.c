@@ -1,21 +1,30 @@
 /*
 * GPU filter example: bitwise invert of 8-16 bit integer clips, running entirely on the core's
-* Vulkan device through the public API in VSVulkan4.h. This demonstrates every obligation an
-* out of tree GPU filter has:
+* Vulkan device through the public API in VSVulkan4.h, built on the EXECUTION POOL -- the
+* recommended shape for a GPU filter. The pool is the plumbing every submission needs
+* regardless of what it records, and using it reduces a filter's obligations to three:
 *
-*   - calling Vulkan through the core's ready loaded dispatch table (getVulkanFunctions);
-*     nothing is linked and nothing is loaded by hand. The handles' getInstanceProcAddr
-*     remains available for entry points outside the curated table.
-*   - creating its own pipeline (push descriptors, SPIR-V chained via maintenance5)
-*   - reading source planes by waiting their (semaphore, value) producer pairs device side
-*   - submitting on the shared compute queue with the queue lock held, allocating its own
-*     timeline values inside that same lock so signals reach the queue in increasing order
-*   - publishing producer pairs for the planes it wrote through setGPUPlaneProducer
-*   - keeping source frames alive until its submissions complete, swept without blocking
-*     through vkGetSemaphoreCounterValue
+*   - create the pool once (createGPUExecPool); its context count is how many frames stay in
+*     flight, and acquiring beyond that waits out the oldest submission, which is the intended
+*     backpressure
+*   - per frame: acquire a context, declare what the submission touches (gpuExecReadsFrame for
+*     every source, gpuExecWritesPlane for every plane written), record ordinary Vulkan into
+*     the context's command buffer, submit
+*   - destroy the pool in the free callback; it drains the device first, so everything a
+*     submission still held is released safely
+*
+* Everything else is the pool's problem: waiting the sources' producer pairs device side,
+* keeping the frames alive until the submission completes, taking the queue lock, allocating
+* timeline values in queue order, and publishing the producer pairs on the written planes.
+* gpu_invert_raw_example.c is the same filter with all of that spelled out by hand, for
+* filters that need what the pool does not model.
+*
+* What no abstraction takes over: calling Vulkan through the core's ready loaded dispatch
+* table (getVulkanFunctions) and building the pipeline (push descriptors, SPIR-V chained via
+* maintenance5, kernel source compiled by the core at create).
 *
 * The kernel is dst[i] = ~src[i] over 32 bit words, which is exact pixel inversion for 8 and
-* 16 bit integer samples, padding included. SPIR-V source: bench_vulkan/invert.comp.
+* 16 bit integer samples, padding included.
 */
 
 #define VS_USE_API_43
@@ -26,24 +35,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <windows.h>
-typedef SRWLOCK InstanceLock;
-#define LOCK_INIT(l) InitializeSRWLock(l)
-#define LOCK_ACQUIRE(l) AcquireSRWLockExclusive(l)
-#define LOCK_RELEASE(l) ReleaseSRWLockExclusive(l)
-#define LOCK_FREE(l)
-#else
-#include <pthread.h>
-typedef pthread_mutex_t InstanceLock;
-#define LOCK_INIT(l) pthread_mutex_init(l, NULL)
-#define LOCK_ACQUIRE(l) pthread_mutex_lock(l)
-#define LOCK_RELEASE(l) pthread_mutex_unlock(l)
-#define LOCK_FREE(l) pthread_mutex_destroy(l)
-#endif
-
 /* The kernel ships as readable source and the core compiles it at filter creation through
-   compileGPUShader — the runtime compilation path, no SPIR-V blob and no build time shader
+   compileGPUShader -- the runtime compilation path, no SPIR-V blob and no build time shader
    toolchain. The accepted dialect is pinned by the core: #version 460 compute, Vulkan 1.4
    client, SPIR-V 1.6 target. gpu_planestats_example keeps the committed blob pattern; both
    feed the identical pipeline creation. Bindings match the push descriptor writes below:
@@ -60,56 +53,18 @@ static const char invertGlsl[] =
     "        dstWords[i] = ~srcWords[i];\n"
     "}\n";
 
-#define CMD_SLOTS 4
-#define MAX_RETAINED 64
-
 typedef struct {
     VSNode *node;
     VSVideoInfo vi;
-    VSCore *core;
     const VSVULKANAPI *vkapi;
     VSVulkanCoreHandles h;
     const VSVulkanFunctions *vk; /* the core's dispatch table, everything Vulkan goes through it */
 
-    VkQueue computeQueue;
     VkDescriptorSetLayout setLayout;
     VkPipelineLayout pipeLayout;
     VkPipeline pipeline;
-    VkCommandPool cmdPool;
-    VkCommandBuffer cmd[CMD_SLOTS];
-    uint64_t slotValue[CMD_SLOTS];
-    int nextSlot;
-
-    /* The filter's own timeline: it signals rising values and publishes them as the producer
-       pairs of the frames it writes. Counted and owned by the core, so releasing it in the
-       free callback is enough -- frames still carrying it as their producer hold their own
-       reference and keep the semaphore alive for exactly as long as they need it. The raw
-       handle is cached beside it for signalling and counter queries. */
-    VSGPUTimeline *timeline;
-    VkSemaphore timelineSem;
-    uint64_t nextValue;
-
-    /* Source frames whose references are held until the submission reading them completes.
-       Swept opportunistically with the non blocking counter query. */
-    struct { const VSFrame *frame; uint64_t value; } retained[MAX_RETAINED];
-    int retainedCount;
-
-    InstanceLock lock;
+    VSGPUExecPool *pool;
 } InvertData;
-
-static void sweepRetained(InvertData *d, const VSAPI *vsapi) {
-    uint64_t completed = 0;
-    int i, kept = 0;
-    if (d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timelineSem, &completed) != VK_SUCCESS)
-        return;
-    for (i = 0; i < d->retainedCount; i++) {
-        if (d->retained[i].value <= completed)
-            vsapi->freeFrame(d->retained[i].frame);
-        else
-            d->retained[kept++] = d->retained[i];
-    }
-    d->retainedCount = kept;
-}
 
 static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *)instanceData;
@@ -120,41 +75,33 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fmt = vsapi->getVideoFrameFormat(src);
         VSFrame *dst = d->vkapi->newGPUVideoFrame(fmt, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
-        VkSemaphoreSubmitInfo waits[3];
-        uint32_t waitCount = 0;
-        VkCommandBufferBeginInfo begin;
-        VkCommandBufferSubmitInfo cmdInfo;
-        VkSemaphoreSubmitInfo signalInfo;
-        VkSubmitInfo2 submit;
+        VSGPUExecContext *ctx;
         VkCommandBuffer cmd;
-        uint64_t value, completed = 0;
-        int slot, p;
+        char err[512] = { 0 };
+        int p;
 
-        LOCK_ACQUIRE(&d->lock);
-        sweepRetained(d, vsapi);
-
-        /* One command buffer per in flight submission; reusing a slot waits out its previous
-           life first. An example may block holding the instance lock, a production filter
-           would rather size the ring generously. */
-        slot = d->nextSlot;
-        d->nextSlot = (d->nextSlot + 1) % CMD_SLOTS;
-        d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timelineSem, &completed);
-        if (d->slotValue[slot] > completed) {
-            VkSemaphoreWaitInfo waitInfo;
-            memset(&waitInfo, 0, sizeof(waitInfo));
-            waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-            waitInfo.semaphoreCount = 1;
-            waitInfo.pSemaphores = &d->timelineSem;
-            waitInfo.pValues = &d->slotValue[slot];
-            d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
+        if (!dst) {
+            vsapi->setFilterError("InvertGPU: failed to allocate the output frame", frameCtx);
+            vsapi->freeFrame(src);
+            return NULL;
         }
-        cmd = d->cmd[slot];
 
-        d->vk->vkResetCommandBuffer(cmd, 0);
-        memset(&begin, 0, sizeof(begin));
-        begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        d->vk->vkBeginCommandBuffer(cmd, &begin);
+        /* Claim a recording. Acquire waits out the oldest in flight submission when every
+           context is busy, which is what bounds this filter's frames in flight. */
+        ctx = d->vkapi->gpuExecAcquire(d->pool, err, sizeof(err));
+        if (!ctx) {
+            vsapi->setFilterError(err, frameCtx);
+            vsapi->freeFrame(dst);
+            vsapi->freeFrame(src);
+            return NULL;
+        }
+
+        /* Declaring the read is what makes the sources' producer pairs device side waits of
+           this submission AND keeps the frame alive until it completes; the context takes
+           its own reference, so this filter frees src normally below. */
+        d->vkapi->gpuExecReadsFrame(ctx, src);
+
+        cmd = d->vkapi->gpuExecCommandBuffer(ctx);
         d->vk->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, d->pipeline);
 
         for (p = 0; p < fmt->numPlanes; p++) {
@@ -165,19 +112,13 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
             uint32_t words;
             int b;
 
+            /* Declaring the write is what publishes the pool's (timeline, value) pair on the
+               plane when the submission goes out, so consumers wait on the device instead of
+               the host. */
+            d->vkapi->gpuExecWritesPlane(ctx, dst, p);
+
             d->vkapi->getGPUPlane(src, p, &srcPlane);
             d->vkapi->getGPUPlane(dst, p, &dstPlane);
-
-            /* Wait each source plane's producer device side; duplicates are harmless here and
-               a real filter would deduplicate to the highest value per semaphore. */
-            if (srcPlane.readySemaphore && waitCount < 3) {
-                memset(&waits[waitCount], 0, sizeof(waits[0]));
-                waits[waitCount].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-                waits[waitCount].semaphore = srcPlane.readySemaphore;
-                waits[waitCount].value = srcPlane.readyValue;
-                waits[waitCount].stageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-                waitCount++;
-            }
 
             memset(bufferInfo, 0, sizeof(bufferInfo));
             memset(writes, 0, sizeof(writes));
@@ -206,56 +147,20 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
             d->vk->vkCmdPushConstants2(cmd, &pushInfo);
             d->vk->vkCmdDispatch(cmd, (words + 255) / 256, 1, 1);
         }
-        d->vk->vkEndCommandBuffer(cmd);
 
-        memset(&cmdInfo, 0, sizeof(cmdInfo));
-        cmdInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-        cmdInfo.commandBuffer = cmd;
-        memset(&signalInfo, 0, sizeof(signalInfo));
-        signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        signalInfo.semaphore = d->timelineSem;
-        signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-        memset(&submit, 0, sizeof(submit));
-        submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-        submit.waitSemaphoreInfoCount = waitCount;
-        submit.pWaitSemaphoreInfos = waitCount ? waits : NULL;
-        submit.commandBufferInfoCount = 1;
-        submit.pCommandBufferInfos = &cmdInfo;
-        submit.signalSemaphoreInfoCount = 1;
-        submit.pSignalSemaphoreInfos = &signalInfo;
-
-        /* Value allocation and submission belong inside the queue lock together: this is what
-           keeps this instance's timeline signals reaching the queue in increasing order while
-           other filters, and the core itself, submit concurrently. */
-        d->vkapi->lockVulkanQueue(core, vqCompute);
-        value = ++d->nextValue;
-        signalInfo.value = value;
-        d->vk->vkQueueSubmit2(d->computeQueue, 1, &submit, VK_NULL_HANDLE);
-        d->vkapi->unlockVulkanQueue(core, vqCompute);
-
-        d->slotValue[slot] = value;
-        for (p = 0; p < fmt->numPlanes; p++)
-            d->vkapi->setGPUPlaneProducer(dst, p, d->timeline, value);
-
-        /* The source reference is handed to the retained ring instead of being freed: the GPU
-           may still be reading it long after this function returns. */
-        if (d->retainedCount < MAX_RETAINED) {
-            d->retained[d->retainedCount].frame = src;
-            d->retained[d->retainedCount].value = value;
-            d->retainedCount++;
-        } else {
-            /* Ring full: fall back to a blocking wait so correctness never depends on luck. */
-            VkSemaphoreWaitInfo waitInfo;
-            memset(&waitInfo, 0, sizeof(waitInfo));
-            waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-            waitInfo.semaphoreCount = 1;
-            waitInfo.pSemaphores = &d->timelineSem;
-            waitInfo.pValues = &value;
-            d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
+        /* Ends recording, takes the queue lock, allocates the timeline value in queue order,
+           submits, and publishes the producer pairs declared above. The context is consumed
+           either way. */
+        if (d->vkapi->gpuExecSubmit(ctx, err, sizeof(err))) {
+            vsapi->setFilterError(err, frameCtx);
+            vsapi->freeFrame(dst);
             vsapi->freeFrame(src);
+            return NULL;
         }
-        LOCK_RELEASE(&d->lock);
 
+        /* The GPU may still be reading src, but the context holds its own reference; this
+           one is simply no longer needed. */
+        vsapi->freeFrame(src);
         return dst;
     }
 
@@ -264,28 +169,16 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
 
 static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *)instanceData;
-    if (d->timelineSem && d->nextValue) {
-        VkSemaphoreWaitInfo waitInfo;
-        memset(&waitInfo, 0, sizeof(waitInfo));
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &d->timelineSem;
-        waitInfo.pValues = &d->nextValue;
-        d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
-    }
-    sweepRetained(d, vsapi);
-    if (d->cmdPool)
-        d->vk->vkDestroyCommandPool(d->h.device, d->cmdPool, NULL);
+    /* The pool drains the device before returning, so the pipeline objects a submission was
+       still using are safe to destroy only after this point. */
+    if (d->pool)
+        d->vkapi->freeGPUExecPool(d->pool);
     if (d->pipeline)
         d->vk->vkDestroyPipeline(d->h.device, d->pipeline, NULL);
     if (d->pipeLayout)
         d->vk->vkDestroyPipelineLayout(d->h.device, d->pipeLayout, NULL);
     if (d->setLayout)
         d->vk->vkDestroyDescriptorSetLayout(d->h.device, d->setLayout, NULL);
-    /* Just this filter's reference; frames still naming it keep the semaphore alive. */
-    if (d->timeline)
-        d->vkapi->freeGPUTimeline(d->timeline);
-    LOCK_FREE(&d->lock);
     vsapi->freeNode(d->node);
     free(d);
 }
@@ -302,14 +195,10 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     VkPipelineLayoutCreateInfo layoutInfo;
     VkShaderModuleCreateInfo moduleInfo;
     VkComputePipelineCreateInfo pipeInfo;
-    VkCommandPoolCreateInfo poolInfo;
-    VkCommandBufferAllocateInfo allocInfo;
-    VkDeviceQueueInfo2 queueInfo;
     int b;
 
     d->node = vsapi->mapGetNode(in, "clip", 0, NULL);
     d->vi = *vsapi->getVideoInfo(d->node);
-    d->core = core;
 
     if (d->vi.format.colorFamily == cfUndefined || d->vi.format.sampleType != stInteger ||
         (d->vi.format.bytesPerSample != 1 && d->vi.format.bytesPerSample != 2)) {
@@ -333,12 +222,6 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         vsapi->mapSetError(out, err);
         goto fail;
     }
-
-    memset(&queueInfo, 0, sizeof(queueInfo));
-    queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2;
-    queueInfo.queueFamilyIndex = d->h.computeQueueFamily;
-    queueInfo.queueIndex = d->h.computeQueueIndex;
-    d->vk->vkGetDeviceQueue2(d->h.device, &queueInfo, &d->computeQueue);
 
     memset(bindings, 0, sizeof(bindings));
     for (b = 0; b < 2; b++) {
@@ -395,30 +278,14 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     d->vkapi->freeGPUShader(shader);
     shader = NULL;
 
-    /* The core makes it exportable wherever the device can, so CUDA and other Vulkan devices
-       consuming this filter's frames may import the producer pair and wait it device side
-       instead of falling back to waitGPUFrame. Costs nothing when nobody imports it. */
-    d->timeline = d->vkapi->createGPUTimeline(core, err, sizeof(err));
-    if (!d->timeline) {
+    /* Four contexts is four frames in flight, matching fmParallel's appetite without letting
+       submissions pile up without bound. The pool's timeline is created exportable wherever
+       the device allows, so foreign APIs can wait the producer pairs it publishes. */
+    d->pool = d->vkapi->createGPUExecPool(core, vqCompute, 4, err, sizeof(err));
+    if (!d->pool) {
         vsapi->mapSetError(out, err);
-        invertFree(d, core, vsapi);
-        return;
+        goto fail;
     }
-    d->timelineSem = d->vkapi->getGPUTimelineSemaphore(d->timeline);
-
-    memset(&poolInfo, 0, sizeof(poolInfo));
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    poolInfo.queueFamilyIndex = d->h.computeQueueFamily;
-    d->vk->vkCreateCommandPool(d->h.device, &poolInfo, NULL, &d->cmdPool);
-    memset(&allocInfo, 0, sizeof(allocInfo));
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = d->cmdPool;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = CMD_SLOTS;
-    d->vk->vkAllocateCommandBuffers(d->h.device, &allocInfo, d->cmd);
-
-    LOCK_INIT(&d->lock);
 
     {
         VSFilterDependency deps[] = {{ d->node, rpStrictSpatial }};
@@ -431,6 +298,14 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 fail:
     if (shader)
         d->vkapi->freeGPUShader(shader);
+    if (d->pool)
+        d->vkapi->freeGPUExecPool(d->pool);
+    if (d->pipeline)
+        d->vk->vkDestroyPipeline(d->h.device, d->pipeline, NULL);
+    if (d->pipeLayout)
+        d->vk->vkDestroyPipelineLayout(d->h.device, d->pipeLayout, NULL);
+    if (d->setLayout)
+        d->vk->vkDestroyDescriptorSetLayout(d->h.device, d->setLayout, NULL);
     if (d->node)
         vsapi->freeNode(d->node);
     free(d);

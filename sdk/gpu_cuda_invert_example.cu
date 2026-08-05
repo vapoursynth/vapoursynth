@@ -21,6 +21,14 @@
 *     completes, swept non blockingly with vkGetSemaphoreCounterValue through the core's
 *     function table
 *
+* This is the one species of GPU filter the core's execution pool (VSGPUExecPool, see
+* gpu_invert_example.c) cannot carry: the pool records and submits Vulkan command buffers on
+* the core's queue, and this filter submits nothing there — its work enters a CUDA stream.
+* So the obligations the pool normally discharges are discharged by hand across the API
+* boundary instead, the same set gpu_invert_raw_example.c spells out within Vulkan: waiting
+* the producers of what it reads, keeping sources alive until completion, allocating timeline
+* values in order, and publishing producer pairs on what it writes.
+*
 * REFERENCE CODE: written and reviewed against the documented contracts, but developed on a
 * machine without NVIDIA hardware, so it has not been executed. The cross device import
 * mechanics it relies on are covered by the Vulkan-to-Vulkan tests shipped with the core.
