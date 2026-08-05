@@ -918,7 +918,7 @@ static VSFrame *scrawl_text_gpu(const std::string &txt, TextData *d, const VSFra
         }
     }
 
-    if (d->vkapi->gpuExecSubmit(ctx, err, sizeof(err))) {
+    if (d->vkapi->gpuExecSubmit(ctx, nullptr, err, sizeof(err))) {
         error = err;
         vsapi->freeFrame(dst);
         return nullptr;

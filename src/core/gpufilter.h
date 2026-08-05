@@ -510,7 +510,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         }
     }
 
-    if (inst->vkapi->gpuExecSubmit(ctx, err, sizeof(err))) {
+    if (inst->vkapi->gpuExecSubmit(ctx, nullptr, err, sizeof(err))) {
         vsapi->setFilterError((std::string("GPU filter: ") + err).c_str(), frameCtx);
         releaseSources();
         vsapi->freeFrame(dst);
@@ -708,7 +708,7 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
         copyInfo.regionCount = 1;
         copyInfo.pRegions = &region;
         inst->vk->vkCmdCopyBuffer2(inst->vkapi->gpuExecCommandBuffer(ctx), &copyInfo);
-        if (inst->vkapi->gpuExecSubmit(ctx, err, sizeof(err)))
+        if (inst->vkapi->gpuExecSubmit(ctx, nullptr, err, sizeof(err)))
             return fail(err);
     }
     /* The first frame must not race the upload, and there is no producer pair on a buffer

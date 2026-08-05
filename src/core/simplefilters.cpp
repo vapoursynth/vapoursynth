@@ -1567,7 +1567,7 @@ static bool blankClipFillGPU(VSFrame *frame, const VSVideoInfo &vi, const uint32
         vkapi->gpuExecWritesPlane(ctx, frame, plane);
     }
 
-    return vkapi->gpuExecSubmit(ctx, err, errSize) == 0;
+    return vkapi->gpuExecSubmit(ctx, nullptr, err, errSize) == 0;
 }
 
 static const VSFrame *VS_CC blankClipGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2387,6 +2387,9 @@ struct GPUReducer {
     const VSVulkanFunctions *vk = nullptr;
     VSVulkanCoreHandles handles = {};
     VSGPUExecPool *pool = nullptr;
+    /* The pool's timeline, kept raw for the per submission waits in run(); the pool owns
+       it and outlives every use here. */
+    VkSemaphore poolTimelineSem = VK_NULL_HANDLE;
     VkDescriptorSetLayout setLayout = VK_NULL_HANDLE;
     VkPipelineLayout pipeLayout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
@@ -2461,6 +2464,7 @@ struct GPUReducer {
 
         pool = vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
         if (!pool) { error = err; return false; }
+        poolTimelineSem = vkapi->getGPUTimelineSemaphore(vkapi->gpuExecPoolTimeline(pool));
         return true;
     }
 
@@ -2517,13 +2521,22 @@ struct GPUReducer {
         vk->vkCmdPushConstants2(cmd, &pushInfo);
         vk->vkCmdDispatch(cmd, groupsX, groupsY, 1);
 
-        if (vkapi->gpuExecSubmit(ctx, err, sizeof(err))) {
+        uint64_t signaled = 0;
+        if (vkapi->gpuExecSubmit(ctx, &signaled, err, sizeof(err))) {
             error = err;
             vkapi->destroyGPUBuffer(partials);
             return false;
         }
-        if (vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err))) {
-            error = err;
+        /* Wait for exactly this submission on the pool timeline: concurrent frames on the
+           node keep their own submissions flowing instead of serializing behind the pool's
+           newest value the way gpuExecPoolWaitIdle would. */
+        VkSemaphoreWaitInfo waitInfo = {};
+        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        waitInfo.semaphoreCount = 1;
+        waitInfo.pSemaphores = &poolTimelineSem;
+        waitInfo.pValues = &signaled;
+        if (vk->vkWaitSemaphores(handles.device, &waitInfo, UINT64_MAX) != VK_SUCCESS) {
+            error = "waiting for the reduction to complete failed";
             vkapi->destroyGPUBuffer(partials);
             return false;
         }

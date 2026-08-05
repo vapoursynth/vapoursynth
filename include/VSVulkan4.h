@@ -557,8 +557,16 @@ struct VSVULKANAPI {
 
     /* Ends recording and submits, allocating the timeline value inside the queue lock so
        signals reach the queue in increasing order, then publishes the producer pairs. The
-       context is consumed either way. Returns nonzero with the error set on failure. */
-    int (VS_CC *gpuExecSubmit)(VSGPUExecContext *context, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+       context is consumed either way. Returns nonzero with the error set on failure.
+
+       signaledValue, when non-NULL, receives the value this submission signals on the
+       pool's timeline. Waiting for it — vkWaitSemaphores on
+       getGPUTimelineSemaphore(gpuExecPoolTimeline(pool)) — waits for exactly this
+       submission, which is what a filter reading results back on the host wants:
+       gpuExecPoolWaitIdle also works but waits the pool's newest submission, so
+       concurrent frames serialize on each other's work. Filters that only produce
+       planes never need either; the producer pairs carry the synchronization. */
+    int (VS_CC *gpuExecSubmit)(VSGPUExecContext *context, uint64_t *signaledValue, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
     /* Gives up a recording without submitting: everything retained is released at once. */
     void (VS_CC *gpuExecAbandon)(VSGPUExecContext *context) VS_NOEXCEPT;
 

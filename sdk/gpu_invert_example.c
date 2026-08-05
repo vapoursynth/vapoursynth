@@ -151,7 +151,7 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
         /* Ends recording, takes the queue lock, allocates the timeline value in queue order,
            submits, and publishes the producer pairs declared above. The context is consumed
            either way. */
-        if (d->vkapi->gpuExecSubmit(ctx, err, sizeof(err))) {
+        if (d->vkapi->gpuExecSubmit(ctx, NULL, err, sizeof(err))) {
             vsapi->setFilterError(err, frameCtx);
             vsapi->freeFrame(dst);
             vsapi->freeFrame(src);

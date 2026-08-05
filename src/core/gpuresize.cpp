@@ -2701,7 +2701,7 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
     if (bindFailed)
         return abandon("Resize: a frame plane is not GPU resident");
 
-    if (d->vkapi->gpuExecSubmit(ctx, err, sizeof(err))) {
+    if (d->vkapi->gpuExecSubmit(ctx, nullptr, err, sizeof(err))) {
         vsapi->freeFrame(dst);
         return fail(std::string("Resize: ") + err);
     }

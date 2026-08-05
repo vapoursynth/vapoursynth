@@ -295,7 +295,9 @@ ships it: create a VSGPUExecPool with the filter and per frame do ::
    gpuExecWritesPlane(ctx, dst, p);     /* published as producer pairs on submit (5) */
    gpuExecUsesBuffer(ctx, scratch);     /* destroyed when the submission retires */
    /* ... record into gpuExecCommandBuffer(ctx) ... */
-   gpuExecSubmit(ctx);                  /* queue lock, values in queue order (4) */
+   gpuExecSubmit(ctx, NULL);            /* queue lock, values in queue order (4);
+                                           non-NULL receives this submission's
+                                           timeline value for host readback waits */
 
 with the pool's context ring bounding frames in flight (7) — the core sizes
 it from its worker thread count, since how many recordings can be concurrent

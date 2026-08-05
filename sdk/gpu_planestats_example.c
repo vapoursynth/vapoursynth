@@ -87,6 +87,9 @@ static const VSFrame *VS_CC statsGetFrame(int n, int activationReason, void *ins
         VkMemoryBarrier2 barrier;
         VkDependencyInfo dep;
         StatsPush pc;
+        VkSemaphoreWaitInfo waitInfo;
+        VkSemaphore poolSem;
+        uint64_t signaled = 0;
         char err[512] = { 0 };
         const uint32_t *res32;
         double sum, maxVal;
@@ -182,17 +185,25 @@ static const VSFrame *VS_CC statsGetFrame(int n, int activationReason, void *ins
         d->vk->vkCmdDispatch(cmd, 1, 1, 1);
 
         /* Queue lock, timeline value in queue order, submission: the pool's business. The
-           context is consumed either way. */
-        if (d->vkapi->gpuExecSubmit(ctx, err, sizeof(err))) {
+           context is consumed either way, and signaledValue receives the value this
+           submission signals on the pool's timeline. */
+        if (d->vkapi->gpuExecSubmit(ctx, &signaled, err, sizeof(err))) {
             ctx = NULL;
             goto error;
         }
         ctx = NULL;
 
-        /* The mandatory sync point: properties are CPU data. This drains everything the pool
-           has in flight, which includes this call's submission; after it the readback buffer
-           may be read and destroyed, the destruction rule satisfied by the wait itself. */
-        if (d->vkapi->gpuExecPoolWaitIdle(d->pool, err, sizeof(err)))
+        /* The mandatory sync point: properties are CPU data. Waiting for the submission's
+           own timeline value waits for exactly this frame's work, so concurrent frames on
+           this node never serialize behind each other the way gpuExecPoolWaitIdle would
+           make them; after the wait the readback buffer may be read and destroyed. */
+        poolSem = d->vkapi->getGPUTimelineSemaphore(d->vkapi->gpuExecPoolTimeline(d->pool));
+        memset(&waitInfo, 0, sizeof(waitInfo));
+        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        waitInfo.semaphoreCount = 1;
+        waitInfo.pSemaphores = &poolSem;
+        waitInfo.pValues = &signaled;
+        if (d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX) != VK_SUCCESS)
             goto error;
 
         res32 = (const uint32_t *)resultInfo.mapped;

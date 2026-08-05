@@ -1723,7 +1723,7 @@ static void VS_CC vkGPUExecUsesBuffer(VSGPUExecContext *context, VSGPUBuffer *bu
         context->owner->pool.retain(*context->context, releaseRetainedBuffer, buffer, buffer->buffer.poolSize);
 }
 
-static int VS_CC vkGPUExecSubmit(VSGPUExecContext *context, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+static int VS_CC vkGPUExecSubmit(VSGPUExecContext *context, uint64_t *signaledValue, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     assert(context);
     std::unique_ptr<VSGPUExecContext> owned(context); /* consumed either way */
     std::string err;
@@ -1732,6 +1732,8 @@ static int VS_CC vkGPUExecSubmit(VSGPUExecContext *context, char *errorMessage, 
         copyVulkanError(err, errorMessage, errorMessageSize);
         return 1;
     }
+    if (signaledValue)
+        *signaledValue = value;
     for (const auto &target : context->publish) {
         VSVulkanPlane *plane = target.frame->getGPUPlane(target.plane);
         if (plane)

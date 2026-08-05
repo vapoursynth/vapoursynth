@@ -130,6 +130,11 @@ private:
     FT(12, shaderInt8,         VS_VK_REQUIRED) \
     FT(12, scalarBlockLayout,  VS_VK_REQUIRED) \
     FT(12, shaderFloat16,      VS_VK_OPTIONAL) \
+    /* 64 bit integer arithmetic is universal on desktop devices and lets ported CUDA/HIP
+       kernels keep size_t shaped arguments; optional like shaderFloat16, so a plugin that
+       needs it checks the physical device. Lives in the plain features block, exposed
+       through the 1.1 features2 chain like the rest of this table. */ \
+    FT(10, shaderInt64,        VS_VK_OPTIONAL) \
     /* Mandatory in 1.3. subgroupSizeControl/computeFullSubgroups because kernels built
        around a fixed subgroup size (one subgroup per work item is a common GPU filter
        shape) must pin it at pipeline creation or wave size variance silently breaks them. */ \
