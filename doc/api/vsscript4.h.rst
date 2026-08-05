@@ -43,8 +43,18 @@ Functions_
    getAltOutputMode_
       
    freeScript_
-      
+
    evalSetWorkingDir_
+
+   getAvailableOutputNodes_
+
+   getOutputNodeEx_
+
+   getOutputAlphaNodeEx_
+
+   getAvailableOutputNodesEx_
+
+   getVariableEx_
 
 
 Introduction
@@ -206,6 +216,10 @@ getVariable
     *dst*
         Map where the variable's value will be placed, with the key *name*.
 
+    Behaves like getVariableEx_ with *flags* 0: a GPU resident node comes back with a
+    GPUDownload automatically inserted, and fetching a variable that holds a GPU resident
+    frame fails, since a lone frame cannot be wrapped.
+
     Returns non-zero on error.
 
 
@@ -235,9 +249,12 @@ getOutputNode
 
     The returned node has its reference count incremented by one.
 
+    Behaves like getOutputNodeEx_ with *flags* 0: a GPU resident output comes back with a
+    GPUDownload automatically inserted, so the frames it produces are always CPU readable.
+
     Returns NULL if there is no node at the requested index.
 
-    
+
 getOutputAlphaNode
 ------------------
 
@@ -246,6 +263,8 @@ getOutputAlphaNode
     Retrieves an alpha node from the script environment. A node with associated alpha in the script must have been marked for output with the requested *index*.
 
     The returned node has its reference count incremented by one.
+
+    Behaves like getOutputAlphaNodeEx_ with *flags* 0, see getOutputNode_.
 
     Returns NULL if there is no alpha node at the requested index.
 
@@ -288,3 +307,62 @@ evalSetWorkingDir
 
     Set whether or not the working directory is temporarily changed to the same
     location as the script file when evaluateFile is called. Off by default.
+
+
+getAvailableOutputNodes
+-----------------------
+
+.. c:function:: int getAvailableOutputNodes(VSScript *handle, int size, int *dst)
+
+    Writes the list of output index values set in the script to *dst*, at most *size* of
+    them. Always returns the total number of available output index values.
+
+    Added in VSSCRIPT_API_MINOR 2.
+
+
+GPU resident outputs and the Ex functions
+#########################################
+
+Scripts may legally leave their outputs and variables GPU resident. The Ex variants below
+take a *flags* bitmask of ``VSScriptGetFlags``; a consumer that passes
+``sgfAllowGPUResident`` declares it can handle GPU residency and receives nodes and frames
+exactly as the script set them. Without the flag — and through every non-Ex function, which
+behaves exactly like *flags* 0 — GPU resident nodes come back with a GPUDownload
+automatically inserted so their frames are CPU readable, and a variable fetch that would
+hand out a GPU resident frame fails instead. All four were added in VSSCRIPT_API_MINOR 4.
+
+
+getOutputNodeEx
+---------------
+
+.. c:function:: VSNode *getOutputNodeEx(VSScript *handle, int index, int flags)
+
+    getOutputNode_ with residency control, see above.
+
+
+getOutputAlphaNodeEx
+--------------------
+
+.. c:function:: VSNode *getOutputAlphaNodeEx(VSScript *handle, int index, int flags)
+
+    getOutputAlphaNode_ with residency control, see above.
+
+
+getAvailableOutputNodesEx
+-------------------------
+
+.. c:function:: int getAvailableOutputNodesEx(VSScript *handle, int size, int *dst, int flags)
+
+    getAvailableOutputNodes_ with the same signature scheme as the other Ex functions. Every
+    output is listed whichever way it will be retrieved, so *flags* currently changes
+    nothing; it exists so the Ex family stays uniform.
+
+
+getVariableEx
+-------------
+
+.. c:function:: int getVariableEx(VSScript *handle, const char *name, VSMap *dst, int flags)
+
+    getVariable_ with residency control, see above. Without ``sgfAllowGPUResident`` a GPU
+    resident node value is replaced by a GPUDownload wrapped one, and a GPU resident frame
+    value fails the whole fetch with nothing stored.
