@@ -100,6 +100,14 @@ struct Program {
        program states the number twice and has to keep it that way. */
     uint32_t localSizeX = 16;
     uint32_t localSizeY = 16;
+    /* Specialization constants applied at pipeline creation; entries index into specData.
+       Constant ids a module does not declare are ignored. Several programs may share one
+       glsl string and differ only here: the compiler parses the text once (the shader
+       cache is keyed by source) and each pipeline folds its constants -- including dead
+       branches on them -- at creation, which is what makes a program-per-plane split
+       cheaper than branching on a push constant inside one kernel. */
+    std::vector<uint8_t> specData;
+    std::vector<VkSpecializationMapEntry> specEntries;
 };
 
 struct Pass {
@@ -114,6 +122,12 @@ struct Pass {
        one in the same submission wrote: disjoint output regions, typically. The default is
        the safe one, so this is opt in per pass. */
     bool independent = false;
+    /* Which processed planes this pass runs for; all of them by default. A filter whose
+       program differs per plane declares one pass per plane (or per group of planes that
+       share a body) instead of branching on the plane inside one kernel, where every
+       dispatch would pay the register pressure of the heaviest plane's code. Every
+       processed plane must be covered by at least one pass. */
+    bool planes[3] = { true, true, true };
 };
 
 /* Everything the push constant callback could want about the dispatch it is filling. The
@@ -409,6 +423,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
 
         for (size_t i = 0; i < desc.passes.size(); i++) {
             const Pass &pass = desc.passes[i];
+            if (!pass.planes[p])
+                continue;
             const Program &prog = desc.programs[pass.program];
 
             PassInfo info;
@@ -581,6 +597,13 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
     for (int p = 0; p < 3 && p < desc.vi.format.numPlanes; p++) {
         if (!desc.process[p] && (desc.shareClip[p] < 0 || desc.shareClip[p] >= static_cast<int>(desc.nodes.size())))
             return fail("an unprocessed plane shares from a clip that was not given");
+        if (desc.process[p]) {
+            bool covered = false;
+            for (const Pass &pass : desc.passes)
+                covered = covered || pass.planes[p];
+            if (!covered)
+                return fail("processed plane " + std::to_string(p) + " is not covered by any pass");
+        }
     }
     char err[512] = { 0 };
     inst->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
@@ -657,6 +680,14 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
         pipeInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
         pipeInfo.stage.pName = "main";
         pipeInfo.layout = inst->pipeLayouts[idx];
+        VkSpecializationInfo specInfo = {};
+        if (!prog.specEntries.empty()) {
+            specInfo.mapEntryCount = static_cast<uint32_t>(prog.specEntries.size());
+            specInfo.pMapEntries = prog.specEntries.data();
+            specInfo.dataSize = prog.specData.size();
+            specInfo.pData = prog.specData.data();
+            pipeInfo.stage.pSpecializationInfo = &specInfo;
+        }
         if (inst->vk->vkCreateComputePipelines(inst->handles.device, VK_NULL_HANDLE, 1, &pipeInfo, nullptr, &inst->pipelines[idx]) != VK_SUCCESS)
             return fail("compute pipeline creation failed");
 

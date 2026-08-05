@@ -528,9 +528,13 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     if (allGPU) {
-        /* One kernel for the whole filter, with the planes as branches on a push constant:
-           each plane has its own bytecode, and the driver runs a pass per plane, so the
-           alternative would be a program per plane and a way to select between them. */
+        /* One glsl source for the whole filter, with the plane bodies as branches on a
+           specialization constant and one program per distinct body: the text is parsed
+           once however many bodies there are, and each pipeline folds the other bodies
+           away at creation. Branching on a push constant instead -- the previous shape --
+           kept one pipeline but made every dispatch carry the register pressure of the
+           heaviest plane's code, so a trivial chroma expression paid for an elaborate
+           luma one. */
         std::string planes[3];
         int maxReg = 1;
         bool ok = true;
@@ -548,6 +552,22 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         if (!ok) {
             vsapi->mapSetError(out, "Expr: the expression uses an operation with no GPU kernel");
             return;
+        }
+
+        /* Planes sharing a body share a program, so the common case of one expression for
+           every plane still builds a single pipeline. */
+        std::vector<std::string> groupBodies;
+        int planeGroup[3] = { -1, -1, -1 };
+        for (int i = 0; i < d->vi.format.numPlanes; i++) {
+            if (planes[i].empty())
+                continue;
+            for (size_t g = 0; g < groupBodies.size(); g++)
+                if (groupBodies[g] == planes[i])
+                    planeGroup[i] = static_cast<int>(g);
+            if (planeGroup[i] < 0) {
+                planeGroup[i] = static_cast<int>(groupBodies.size());
+                groupBodies.push_back(planes[i]);
+            }
         }
 
         std::string src = "#version 460\n";
@@ -575,8 +595,9 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
         src += "layout(std430, set = 0, binding = " + std::to_string(d->numInputs) +
                ") writeonly buffer Dst { SAMPLE_T dstData[]; };\n";
+        src += "layout(constant_id = 0) const uint GROUP = 0u;\n";
         src += "layout(push_constant) uniform PC {\n"
-               "    uint width, height, plane, dstStride;\n"
+               "    uint width, height, dstStride;\n"
                "    uint srcStride[" + std::to_string(MAX_EXPR_INPUTS) + "];\n"
                "} pc;\n\n";
         src += "float vsSqrt(float s) {\n"
@@ -596,15 +617,12 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         for (int i = 1; i < maxReg; i++)
             src += "    float r" + std::to_string(i) + " = 0.0;\n";
         src += "    float r0 = 0.0;\n";
-        for (int i = 0; i < d->vi.format.numPlanes; i++) {
-            if (planes[i].empty())
-                continue;
-            src += "    if (pc.plane == " + std::to_string(i) + "u) {\n" + planes[i] + "    }\n";
-        }
+        for (size_t g = 0; g < groupBodies.size(); g++)
+            src += "    if (GROUP == " + std::to_string(g) + "u) {\n" + groupBodies[g] + "    }\n";
         src += "}\n";
 
         struct ExprPush {
-            uint32_t width, height, plane, dstStride;
+            uint32_t width, height, dstStride;
             uint32_t srcStride[MAX_EXPR_INPUTS];
         };
 
@@ -617,24 +635,35 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         for (int i = 0; i < 3; i++)
             desc.process[i] = d->plane[i] != poCopy;
 
-        vsgpu::Program program;
-        program.glsl = std::move(src);
-        program.storageBufferCount = d->numInputs + 1;
-        program.pushConstantBytes = sizeof(ExprPush);
-        desc.programs.push_back(std::move(program));
+        for (size_t g = 0; g < groupBodies.size(); g++) {
+            vsgpu::Program program;
+            program.glsl = src; /* shared text: the shader cache parses it once */
+            program.storageBufferCount = d->numInputs + 1;
+            program.pushConstantBytes = sizeof(ExprPush);
+            const uint32_t group = static_cast<uint32_t>(g);
+            program.specData.resize(sizeof(group));
+            std::memcpy(program.specData.data(), &group, sizeof(group));
+            program.specEntries.push_back({ 0, 0, sizeof(uint32_t) });
+            desc.programs.push_back(std::move(program));
 
-        vsgpu::Pass pass;
-        for (int i = 0; i < d->numInputs; i++)
-            pass.bindings.push_back(vsgpu::Operand::source(i));
-        pass.bindings.push_back(vsgpu::Operand::output());
-        desc.passes.push_back(std::move(pass));
+            vsgpu::Pass pass;
+            pass.program = static_cast<int>(g);
+            for (int i = 0; i < d->numInputs; i++)
+                pass.bindings.push_back(vsgpu::Operand::source(i));
+            pass.bindings.push_back(vsgpu::Operand::output());
+            for (int i = 0; i < 3; i++)
+                pass.planes[i] = planeGroup[i] == static_cast<int>(g);
+            /* Every pass reads only source planes and writes only its own planes, so the
+               passes cannot observe each other and no barriers are needed between them. */
+            pass.independent = true;
+            desc.passes.push_back(std::move(pass));
+        }
 
         const int numInputs = d->numInputs;
         desc.fillPush = [numInputs](const vsgpu::PassInfo &info, void *pushData) {
             ExprPush push = {};
             push.width = info.width;
             push.height = info.height;
-            push.plane = static_cast<uint32_t>(info.plane);
             push.dstStride = info.dstStrideElements();
             for (int i = 0; i < numInputs && i < MAX_EXPR_INPUTS; i++)
                 push.srcStride[i] = info.strideElements[i];
