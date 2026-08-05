@@ -167,6 +167,12 @@ struct PassInfo {
     uint32_t srcWidth = 0;
     uint32_t srcHeight = 0;
     uint32_t strideElements[maxBindings] = {}; /* per binding, in samples */
+    /* Per binding device addresses, for pointer-ABI kernels that take their buffers as
+       GL_EXT_buffer_reference pointers in push constants instead of descriptors; see
+       FilterDesc::operandAddresses. Zero for operands whose buffer carries no address --
+       frame planes, until the frame allocator opts its blocks in -- so pointer kernels
+       stage planes through address-enabled scratch. */
+    VkDeviceAddress addresses[maxBindings] = {};
     const uint32_t *frameParams = nullptr; /* whatever prepareFrame produced, if anything */
 
     uint32_t srcStrideElements() const { return strideElements[0]; }
@@ -256,6 +262,17 @@ struct FilterDesc {
     uint32_t readbackBytes = 0;
     std::function<void(int n, VSFrame *dst, const void *data, const uint32_t *params,
         VSCore *core, const VSAPI *vsapi)> finishReadback;
+
+    /* Pointer-ABI support. When set, the scratch, constant, readback and frame data
+       buffers the driver creates carry VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, and
+       every pass sees its operands' device addresses in PassInfo::addresses for fillPush
+       to place into push constants for GL_EXT_buffer_reference kernels. The descriptor
+       writes still happen -- a kernel is free to ignore them -- and frame plane operands
+       report zero, so pointer kernels stage planes through address-enabled scratch. This
+       is the kernel ABI a fused chain wants: the operand set varies per composition, and
+       addresses in push constants scale where descriptor layout permutations would
+       not. */
+    bool operandAddresses = false;
 };
 
 namespace detail {
@@ -462,6 +479,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                     bytes = desc.scratchDefs[i].bytes;
                 usage |= desc.scratchDefs[i].extraUsage;
             }
+            if (desc.operandAddresses)
+                usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
             VSGPUBuffer *buffer = inst->vkapi->createGPUBuffer(core, bytes, usage,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, &scratch[i], err, sizeof(err));
             if (!buffer) {
@@ -482,7 +501,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
     VSGPUBuffer *readbackBuffer = nullptr;
     if (desc.readbackBytes > 0) {
         readbackBuffer = inst->vkapi->createGPUBuffer(core, desc.readbackBytes,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                (desc.operandAddresses ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT : 0),
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             VK_MEMORY_PROPERTY_HOST_CACHED_BIT, &readbackInfo, err, sizeof(err));
         if (!readbackBuffer) {
@@ -510,7 +530,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             return nullptr;
         };
         VSGPUBuffer *device = inst->vkapi->createGPUBuffer(core, desc.frameDataBytes,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                (desc.operandAddresses ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT : 0),
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, &frameDataInfo, err, sizeof(err));
         if (!device)
             return frameDataFail((std::string("GPU filter: ") + err).c_str());
@@ -629,12 +650,16 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                     buffer = dstPlane.buffer;
                 } else if (op.kind == Operand::Constant) {
                     buffer = inst->constantInfo[op.slot].buffer;
+                    info.addresses[b] = inst->constantInfo[op.slot].address;
                 } else if (op.kind == Operand::Readback) {
                     buffer = readbackInfo.buffer;
+                    info.addresses[b] = readbackInfo.address;
                 } else if (op.kind == Operand::FrameData) {
                     buffer = frameDataInfo.buffer;
+                    info.addresses[b] = frameDataInfo.address;
                 } else {
                     buffer = scratch[op.slot].buffer;
+                    info.addresses[b] = scratch[op.slot].address;
                 }
                 info.strideElements[b] = strideElems;
                 bufferInfo[b].buffer = buffer;
@@ -933,7 +958,8 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
 
         VSVulkanBufferInfo deviceInfo = {}, stagingInfo = {};
         VSGPUBuffer *device = inst->vkapi->createGPUBuffer(core, blob.size(),
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                (desc.operandAddresses ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT : 0),
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, &deviceInfo, err, sizeof(err));
         if (!device)
             return fail(err);
