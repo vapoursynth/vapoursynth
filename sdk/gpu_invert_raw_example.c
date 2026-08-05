@@ -15,6 +15,13 @@
 *   - recycling command buffers through a ring whose slots wait out their previous life,
 *     which is also the backpressure that bounds frames in flight
 *
+* One consequence of going raw that is easy to miss: the references this filter retains are
+* its own, so the core's memory pressure machinery cannot reclaim them. A pool's completed
+* retentions are released by the core's pressure sweeps even when the pool sits idle; a raw
+* filter's retained ring is invisible until its next call sweeps it or the instance dies.
+* Hence the shape below: sweep on every call, and a ring no deeper than the real pipelining
+* depth.
+*
 * What stays identical in both variants: calling Vulkan through the core's ready loaded
 * dispatch table (getVulkanFunctions) and building the pipeline (push descriptors, SPIR-V
 * chained via maintenance5, kernel source compiled by the core at create).

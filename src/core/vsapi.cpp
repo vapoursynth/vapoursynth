@@ -1410,7 +1410,11 @@ static int64_t VS_CC vkSetMaxVRAMUse(int64_t bytes, VSCore *core) VS_NOEXCEPT {
     assert(core);
     if (bytes <= 0)
         return static_cast<int64_t>(core->memory->gpu_limit());
-    return static_cast<int64_t>(core->memory->set_gpu_limit(static_cast<size_t>(bytes)));
+    int64_t limit = static_cast<int64_t>(core->memory->set_gpu_limit(static_cast<size_t>(bytes)));
+    /* The in-flight retention budget follows the limit; a no-op until the device exists,
+       whose creation derives it from the same place. */
+    core->refreshVulkanExecBudget();
+    return limit;
 }
 
 static void VS_CC vkLockVulkanQueue(VSCore *core, int queue) VS_NOEXCEPT {
@@ -1638,13 +1642,9 @@ static void releaseRetainedBuffer(void *object) {
     delete buffer;
 }
 
-static VSGPUExecPool *VS_CC vkCreateGPUExecPool(VSCore *core, int queue, int contextCount,
+static VSGPUExecPool *VS_CC vkCreateGPUExecPool(VSCore *core, int queue,
     char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     assert(core);
-    if (contextCount < 1) {
-        copyVulkanError("An exec pool needs at least one context", errorMessage, errorMessageSize);
-        return nullptr;
-    }
     std::string err;
     VSVulkanDevice *dev = core->vulkanDevice(err);
     if (!dev) {
@@ -1653,7 +1653,16 @@ static VSGPUExecPool *VS_CC vkCreateGPUExecPool(VSCore *core, int queue, int con
     }
     auto pool = std::make_unique<VSGPUExecPool>();
     VSVulkanQueue &q = (queue == vqTransfer) ? dev->transferQueue() : dev->computeQueue();
-    if (!pool->pool.init(*dev, q, static_cast<uint32_t>(contextCount), err)) {
+    /* The context count is core knowledge, not filter knowledge: worker threads bound how
+       many recordings can even be concurrent, two is the floor that overlaps recording with
+       execution at all, and past eight a single node is a fan-in point where extra depth
+       just queues. Contexts are a command pool and buffer each — cheap on purpose, since
+       the memory queued submissions pin is bounded separately, in bytes, by the device's
+       admission gate. Sized from the thread count at creation; later setThreadCount calls
+       do not resize existing pools. */
+    size_t threads = core->threadPool->threadCount();
+    uint32_t contextCount = static_cast<uint32_t>(threads < 2 ? 2 : (threads > 8 ? 8 : threads));
+    if (!pool->pool.init(*dev, q, contextCount, err)) {
         copyVulkanError(err, errorMessage, errorMessageSize);
         return nullptr;
     }
@@ -1698,10 +1707,12 @@ static void VS_CC vkGPUExecReadsFrame(VSGPUExecContext *context, const VSFrame *
         if (plane)
             context->waits.add(plane->readyTimeline, plane->readyValue);
     }
-    /* The context's own reference, so the caller's lifetime stays its own business. */
+    /* The context's own reference, so the caller's lifetime stays its own business. The
+       frame's bytes count against the device's in-flight retention budget while queued. */
     VSFrame *owned = const_cast<VSFrame *>(frame);
     owned->add_ref();
-    context->owner->pool.retain(*context->context, releaseRetainedFrame, owned);
+    context->owner->pool.retain(*context->context, releaseRetainedFrame, owned,
+        frame->isGPUResident() ? owned->totalByteSize() : 0);
 }
 
 static void VS_CC vkGPUExecWritesPlane(VSGPUExecContext *context, VSFrame *frame, int plane) VS_NOEXCEPT {
@@ -1712,7 +1723,7 @@ static void VS_CC vkGPUExecWritesPlane(VSGPUExecContext *context, VSFrame *frame
 static void VS_CC vkGPUExecUsesBuffer(VSGPUExecContext *context, VSGPUBuffer *buffer) VS_NOEXCEPT {
     assert(context);
     if (buffer)
-        context->owner->pool.retain(*context->context, releaseRetainedBuffer, buffer);
+        context->owner->pool.retain(*context->context, releaseRetainedBuffer, buffer, buffer->buffer.poolSize);
 }
 
 static int VS_CC vkGPUExecSubmit(VSGPUExecContext *context, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {

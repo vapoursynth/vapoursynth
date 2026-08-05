@@ -340,9 +340,9 @@ static void VS_CC statsCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         goto fail;
     }
 
-    /* Four contexts keeps recording concurrent even though each call ends in a pool-wide
-       wait; the wait serialises completion, not recording. */
-    d->pool = d->vkapi->createGPUExecPool(core, vqCompute, 4, err, sizeof(err));
+    /* Several contexts keep recording concurrent even though each call ends in a pool-wide
+       wait — the wait serialises completion, not recording. How many is the core's call. */
+    d->pool = d->vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
     if (!d->pool) {
         vsapi->mapSetError(out, err);
         goto fail;

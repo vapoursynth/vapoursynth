@@ -444,9 +444,12 @@ void VSVulkanDevice::teardown() {
        leaves the table filled only up to the missing function. */
     if (flushTimeline && vk.vkDestroySemaphore)
         vk.vkDestroySemaphore(deviceHandle, flushTimeline, nullptr);
+    if (execProgressSem && vk.vkDestroySemaphore)
+        vk.vkDestroySemaphore(deviceHandle, execProgressSem, nullptr);
     if (flushPool && vk.vkDestroyCommandPool)
         vk.vkDestroyCommandPool(deviceHandle, flushPool, nullptr);
     flushTimeline = VK_NULL_HANDLE;
+    execProgressSem = VK_NULL_HANDLE;
     flushPool = VK_NULL_HANDLE;
     if (deviceHandle && vk.vkDeviceWaitIdle && vk.vkDestroyDevice) {
         vk.vkDeviceWaitIdle(deviceHandle);
@@ -1076,6 +1079,49 @@ void VSVulkanDevice::sweepExecPools() {
     std::lock_guard<std::mutex> lock(execPoolsMutex);
     for (VSVulkanExecPool *pool : execPools)
         pool->sweepCompleted();
+}
+
+bool VSVulkanDevice::ensureExecProgressSemaphore() {
+    std::lock_guard<std::mutex> lock(execPoolsMutex);
+    if (execProgressSem)
+        return true;
+    VkSemaphoreTypeCreateInfo typeInfo = {};
+    typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+    VkSemaphoreCreateInfo semaphoreInfo = {};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphoreInfo.pNext = &typeInfo;
+    return vk.vkCreateSemaphore(deviceHandle, &semaphoreInfo, nullptr, &execProgressSem) == VK_SUCCESS;
+}
+
+void VSVulkanDevice::execAdmissionGate() {
+    const uint64_t budget = execRetainedBudget.load(std::memory_order_relaxed);
+    if (!budget || execRetainedBytes.load(std::memory_order_relaxed) <= budget)
+        return;
+    for (;;) {
+        /* First reap everything already completed — a gated thread must collect for itself,
+           since the case where every worker stands here is exactly the one where nobody
+           else is left to sweep. */
+        sweepExecPools();
+        if (execRetainedBytes.load(std::memory_order_relaxed) <= budget)
+            return;
+        if (!execProgressSem)
+            return; /* no wakeup available: running past the budget beats spinning */
+        uint64_t counter = 0;
+        if (vk.vkGetSemaphoreCounterValue(deviceHandle, execProgressSem, &counter) != VK_SUCCESS)
+            return;
+        /* Sleep until any compute submission completes. The bound is not decorative: bytes
+           can be pinned by recordings that have not submitted yet and by pools on other
+           queues, neither of which will ever signal this semaphore. */
+        const uint64_t target = counter + 1;
+        VkSemaphoreWaitInfo waitInfo = {};
+        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        waitInfo.semaphoreCount = 1;
+        waitInfo.pSemaphores = &execProgressSem;
+        waitInfo.pValues = &target;
+        if (vk.vkWaitSemaphores(deviceHandle, &waitInfo, 50000000ull) == VK_ERROR_DEVICE_LOST)
+            return;
+    }
 }
 
 uint32_t VSVulkanDevice::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags required, VkMemoryPropertyFlags preferred) const {

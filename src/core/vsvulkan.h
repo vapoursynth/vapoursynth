@@ -488,6 +488,22 @@ public:
     void unregisterExecPool(VSVulkanExecPool *pool);
     void sweepExecPools();
 
+    /* The in-flight retention budget: queued-but-unexecuted submissions retain their
+       sources and scratch, and nothing else bounds how many of them pile up — per pool
+       contextCount caps multiply across a graph's nodes while the GPU executes one at a
+       time, so depth beyond a few is VRAM spent on nothing. acquire() blocks while the
+       total exceeds the budget, sweeping and sleeping on the progress timeline every
+       compute submission signals. Zero disables the gate. The core sets a quarter of the
+       VRAM limit. */
+    void setExecRetainedBudget(uint64_t bytes) { execRetainedBudget.store(bytes, std::memory_order_relaxed); }
+    void addExecRetained(uint64_t bytes) { execRetainedBytes.fetch_add(bytes, std::memory_order_relaxed); }
+    void subExecRetained(uint64_t bytes) { execRetainedBytes.fetch_sub(bytes, std::memory_order_relaxed); }
+    void execAdmissionGate();
+    bool ensureExecProgressSemaphore();
+    VkSemaphore execProgressSemaphore() const { return execProgressSem; }
+
+    friend class VSVulkanExecPool;
+
     /* Called when a pooled allocation fails at the driver, before the retry: the core hooks
        this to evict cached GPU frames, which the allocator cannot reach on its own. Cleared
        by the core before teardown, since the device may outlive it. */
@@ -553,6 +569,13 @@ private:
        destructor a safe rendezvous: after unregister returns no sweep can see the pool. */
     std::mutex execPoolsMutex;
     std::vector<VSVulkanExecPool *> execPools;
+    std::atomic<uint64_t> execRetainedBytes{0};
+    std::atomic<uint64_t> execRetainedBudget{0};
+    /* Signaled once per compute queue submission; the counter is guarded by the compute
+       queue's lock exactly like every pool's own nextValue. Created lazily by the first
+       compute pool, under execPoolsMutex. */
+    VkSemaphore execProgressSem = VK_NULL_HANDLE;
+    uint64_t execProgressNext = 0;
 };
 
 /* A timeline semaphore owned by everyone still naming it rather than by whoever created it.

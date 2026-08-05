@@ -3313,7 +3313,7 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
     if (!d->variable && !buildPipeSet(d.get(), d->fixed, core, error))
         return give_up(error);
 
-    d->pool = d->vkapi->createGPUExecPool(core, vqCompute, 4, err, sizeof(err));
+    d->pool = d->vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
     if (!d->pool)
         return give_up(err);
 

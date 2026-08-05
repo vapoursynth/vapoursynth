@@ -1789,7 +1789,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
             RETERROR((std::string("BlankClip: ") + err2).c_str());
         /* One frame is filled per instance when keep is set and one per request otherwise,
            so the pool never needs to be deep. */
-        d->pool = d->vkapi->createGPUExecPool(core, vqCompute, 2, err2, sizeof(err2));
+        d->pool = d->vkapi->createGPUExecPool(core, vqCompute, err2, sizeof(err2));
         if (!d->pool)
             RETERROR((std::string("BlankClip: ") + err2).c_str());
     }
@@ -2463,7 +2463,7 @@ struct GPUReducer {
         vkapi->freeGPUShader(shader);
         if (vr != VK_SUCCESS) { error = "failed to build the reduction pipeline"; return false; }
 
-        pool = vkapi->createGPUExecPool(core, vqCompute, 2, err, sizeof(err));
+        pool = vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
         if (!pool) { error = err; return false; }
         return true;
     }

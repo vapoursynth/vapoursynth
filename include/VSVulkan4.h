@@ -521,14 +521,27 @@ struct VSVULKANAPI {
     const uint32_t *(VS_CC *getGPUShaderCode)(const VSGPUShader *shader, size_t *sizeInBytes) VS_NOEXCEPT;
     void (VS_CC *freeGPUShader)(VSGPUShader *shader) VS_NOEXCEPT;
 
-    /* Creates an exec pool on one of the core's queues. contextCount is how many frames the
-       filter keeps in flight: acquiring waits out the oldest submission, which is the
-       intended backpressure. The pool's timeline is created exportable when the device can,
-       so consumers in other APIs can wait the producer pairs it publishes. Destroy it in
-       the filter's free callback; freeGPUExecPool drains the GPU first, so everything it
-       still holds is released safely. */
+    /* Creates an exec pool on one of the core's queues. The core sizes the pool's context
+       ring itself, from its worker thread count — how many recordings can even be
+       concurrent is core knowledge, not filter knowledge, and how much memory queued
+       submissions may pin is bounded separately: acquiring waits out the ring's oldest
+       submission, and may additionally wait on the core's device-wide in-flight budget,
+       which caps the total bytes queued submissions retain (a quarter of the VRAM limit)
+       across all pools. Filters notice nothing but an occasional slower acquire when a
+       graph runs far ahead of the GPU. The pool's timeline is created exportable when the
+       device can, so consumers in other APIs can wait the producer pairs it publishes.
+       Destroy it in the filter's free callback; freeGPUExecPool drains the GPU first, so
+       everything it still holds is released safely.
+
+       Retained objects (read frames, scratch handed over with gpuExecUsesBuffer) are
+       released once their submission is known complete: every submit on the pool reaps the
+       other contexts' completed retentions (about one submission of lag while active), and
+       the context's next acquire, pool destruction and the core's memory pressure sweeps
+       cover the rest — so a pool gone idle does not park its last submissions' footprint.
+       That reclamation is a pool-only property; references a filter retains privately on
+       the raw path are invisible to the core and cannot be freed by pressure. */
     VSGPUExecPool *(VS_CC *createGPUExecPool)(VSCore *core, int queue /* VSVulkanQueueType */,
-        int contextCount, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+        char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
     void (VS_CC *freeGPUExecPool)(VSGPUExecPool *pool) VS_NOEXCEPT;
 
     /* Claims a context and begins recording; returns NULL with the error set on device

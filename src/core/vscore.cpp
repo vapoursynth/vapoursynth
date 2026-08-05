@@ -1867,6 +1867,10 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         memory->set_gpu_limit(static_cast<size_t>(std::strtoull(envLimit, nullptr, 10)) << 20);
     else if (!memory->gpu_limit())
         memory->set_gpu_limit(defaultLimit);
+    /* A quarter of the limit for queued-but-unexecuted submissions: enough depth to hide
+       recording behind execution many times over, while the rest of the budget stays with
+       frames that have reuse value. setMaxVRAMUse keeps it in step. */
+    dev->setExecRetainedBudget(memory->gpu_limit() / 4);
 
     auto trans = std::make_unique<VSVulkanTransfer>();
     if (!trans->init(*dev, 4, vulkanDeviceError))
@@ -2415,6 +2419,11 @@ void VSCore::clearCaches(bool resetSize) {
     std::lock_guard<std::mutex> lock(cacheLock);
     for (const auto &iter : caches)
         iter->clearCache(resetSize);
+}
+
+void VSCore::refreshVulkanExecBudget() {
+    if (vulkanDev)
+        vulkanDev->setExecRetainedBudget(memory->gpu_limit() / 4);
 }
 
 void VSCore::gpuMemoryPanic() {

@@ -1081,7 +1081,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         if (vr != VK_SUCCESS)
             RETERROR((d->instanceName + ": failed to build the text pipeline").c_str());
 
-        d->pool = d->vkapi->createGPUExecPool(core, vqCompute, 4, verr, sizeof(verr));
+        d->pool = d->vkapi->createGPUExecPool(core, vqCompute, verr, sizeof(verr));
         if (!d->pool)
             RETERROR((d->instanceName + ": " + verr).c_str());
     }

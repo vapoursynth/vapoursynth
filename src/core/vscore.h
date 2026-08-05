@@ -1351,6 +1351,9 @@ public:
     /* The Vulkan allocator's escalation hook: drops every cached GPU frame and trims, called
        between a failed driver allocation and its retry. */
     void gpuMemoryPanic();
+    /* Re-derives the device's in-flight retention budget from the VRAM limit; no-op until
+       the device exists. */
+    void refreshVulkanExecBudget();
     bool getNodeTiming() noexcept;
     void setNodeTiming(bool enable) noexcept;
     int64_t getFreedNodeProcessingTime(bool reset) noexcept;

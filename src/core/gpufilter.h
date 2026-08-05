@@ -666,7 +666,7 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
         inst->pipelineCount++;
     }
 
-    inst->pool = inst->vkapi->createGPUExecPool(core, vqCompute, 4, err, sizeof(err));
+    inst->pool = inst->vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
     if (!inst->pool)
         return fail(err);
 

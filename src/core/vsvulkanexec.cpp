@@ -29,9 +29,7 @@ VSVulkanExecPool::~VSVulkanExecPool() {
     std::string ignored;
     waitAll(ignored);
     for (auto &context : contexts) {
-        for (const auto &r : context->retained)
-            r.release(r.object);
-        context->retained.clear();
+        releaseRetained(*context);
         if (context->commandPool)
             dev->vk.vkDestroyCommandPool(dev->device(), context->commandPool, nullptr);
     }
@@ -41,14 +39,26 @@ VSVulkanExecPool::~VSVulkanExecPool() {
         timeline->release();
 }
 
-void VSVulkanExecPool::retain(VSVulkanExecContext &context, void (*release)(void *object), void *object) {
+void VSVulkanExecPool::retain(VSVulkanExecContext &context, void (*release)(void *object), void *object, VkDeviceSize bytes) {
     context.retained.push_back({ release, object });
+    if (bytes) {
+        context.retainedBytes += bytes;
+        dev->addExecRetained(bytes);
+    }
 }
 
-void VSVulkanExecPool::abandon(VSVulkanExecContext &context) {
+void VSVulkanExecPool::releaseRetained(VSVulkanExecContext &context) {
     for (const auto &r : context.retained)
         r.release(r.object);
     context.retained.clear();
+    if (context.retainedBytes) {
+        dev->subExecRetained(context.retainedBytes);
+        context.retainedBytes = 0;
+    }
+}
+
+void VSVulkanExecPool::abandon(VSVulkanExecContext &context) {
+    releaseRetained(context);
     releaseClaim(context);
 }
 
@@ -101,6 +111,10 @@ bool VSVulkanExecPool::init(VSVulkanDevice &device, VSVulkanQueue &queue, uint32
         }
     }
 
+    /* Compute queue pools drive the device's progress timeline; failing to bring it up only
+       degrades the admission gate's sleep to its timeout, so it is not an init failure. */
+    signalsProgress = (q == &device.computeQueue()) && device.ensureExecProgressSemaphore();
+
     dev->registerExecPool(this);
     return true;
 }
@@ -118,16 +132,20 @@ void VSVulkanExecPool::sweepCompleted() {
         /* Everything retained belongs to the context's last submission, so one value check
            covers the lot; an unsubmitted context can hold nothing here since abandon and
            acquire both clear before the claim drops. */
-        if (context->pendingValue && context->pendingValue <= counter) {
-            for (const auto &r : context->retained)
-                r.release(r.object);
-            context->retained.clear();
-        }
+        if (context->pendingValue && context->pendingValue <= counter)
+            releaseRetained(*context);
         releaseClaim(*context);
     }
 }
 
 VSVulkanExecContext *VSVulkanExecPool::acquire(std::string &errorMessage) {
+    /* Admission: before this thread claims anything, the device may hold it back while the
+       bytes pinned by queued submissions exceed the in-flight budget. Blocking here rather
+       than in submit means a gated thread owns no context and no recording, and the queue
+       always drains without its help — every device side wait in it names a producer that
+       was already submitted when its consumer recorded. */
+    dev->execAdmissionGate();
+
     VSVulkanExecContext *context = nullptr;
     const size_t count = contexts.size();
 
@@ -166,9 +184,7 @@ VSVulkanExecContext *VSVulkanExecPool::acquire(std::string &errorMessage) {
     }
 
     /* The previous submission is done, so everything it kept alive can go now. */
-    for (const auto &r : context->retained)
-        r.release(r.object);
-    context->retained.clear();
+    releaseRetained(*context);
 
     VkResult res = dev->vk.vkResetCommandPool(dev->device(), context->commandPool, 0);
     if (res != VK_SUCCESS) {
@@ -229,35 +245,51 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
     VkCommandBufferSubmitInfo cmdInfo = {};
     cmdInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
     cmdInfo.commandBuffer = context.cmd;
-    VkSemaphoreSubmitInfo signalInfo = {};
-    signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-    signalInfo.semaphore = timeline->semaphore();
-    signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    /* The pool's own timeline, plus the device's progress timeline on the compute queue —
+       the admission gate sleeps on the latter, so every completion can wake it. */
+    VkSemaphoreSubmitInfo signalInfos[2] = {};
+    signalInfos[0].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+    signalInfos[0].semaphore = timeline->semaphore();
+    signalInfos[0].stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    signalInfos[1].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+    signalInfos[1].semaphore = dev->execProgressSemaphore();
+    signalInfos[1].stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
     VkSubmitInfo2 submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
     submitInfo.commandBufferInfoCount = 1;
     submitInfo.pCommandBufferInfos = &cmdInfo;
-    submitInfo.signalSemaphoreInfoCount = 1;
-    submitInfo.pSignalSemaphoreInfos = &signalInfo;
+    submitInfo.signalSemaphoreInfoCount = signalsProgress ? 2 : 1;
+    submitInfo.pSignalSemaphoreInfos = signalInfos;
     submitInfo.waitSemaphoreInfoCount = waitInfoCount;
     submitInfo.pWaitSemaphoreInfos = waitInfoCount ? waitInfos.data() : nullptr;
 
     {
         /* Value allocation and submission stay together under the queue lock, since timeline
            signal values must reach the queue in increasing order and the lock is already
-           mandatory for the submit itself. A failed submit burns no value. */
+           mandatory for the submit itself. A failed submit burns no value on either
+           timeline; a later success skipping past a burned progress value is fine, gaps are
+           legal on timelines and the gate only ever waits for counter + 1. */
         std::lock_guard<VSVulkanQueue> queueLock(*q);
-        signalInfo.value = nextValue + 1;
+        signalInfos[0].value = nextValue + 1;
+        if (signalsProgress)
+            signalInfos[1].value = dev->execProgressNext + 1;
         res = dev->vk.vkQueueSubmit2(q->handle(), 1, &submitInfo, VK_NULL_HANDLE);
         if (res == VK_SUCCESS) {
             nextValue++;
             context.pendingValue = nextValue;
+            if (signalsProgress)
+                dev->execProgressNext++;
             if (signaledValue)
                 *signaledValue = nextValue;
         }
     }
 
     releaseClaim(context);
+    /* Every submission also reaps what the pool's other contexts finished in the meantime,
+       so an active pool's parked footprint is what is genuinely in flight, not a whole ring
+       cycle of it per context. One counter read and a CAS walk against the ~0.2 ms the
+       submission itself costs; idle pools are the pressure sweeps' job. */
+    sweepCompleted();
     if (res != VK_SUCCESS) {
         errorMessage = "vkQueueSubmit2 failed (VkResult " + std::to_string(res) + ")";
         return false;

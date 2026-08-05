@@ -4,9 +4,9 @@
 * recommended shape for a GPU filter. The pool is the plumbing every submission needs
 * regardless of what it records, and using it reduces a filter's obligations to three:
 *
-*   - create the pool once (createGPUExecPool); its context count is how many frames stay in
-*     flight, and acquiring beyond that waits out the oldest submission, which is the intended
-*     backpressure
+*   - create the pool once (createGPUExecPool); the core sizes its context ring from the
+*     worker thread count, and acquiring beyond it waits out the oldest submission, which is
+*     the intended backpressure
 *   - per frame: acquire a context, declare what the submission touches (gpuExecReadsFrame for
 *     every source, gpuExecWritesPlane for every plane written), record ordinary Vulkan into
 *     the context's command buffer, submit
@@ -278,10 +278,11 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     d->vkapi->freeGPUShader(shader);
     shader = NULL;
 
-    /* Four contexts is four frames in flight, matching fmParallel's appetite without letting
-       submissions pile up without bound. The pool's timeline is created exportable wherever
-       the device allows, so foreign APIs can wait the producer pairs it publishes. */
-    d->pool = d->vkapi->createGPUExecPool(core, vqCompute, 4, err, sizeof(err));
+    /* The core sizes the context ring from its worker thread count, and separately bounds
+       the memory queued submissions pin across all pools. The pool's timeline is created
+       exportable wherever the device allows, so foreign APIs can wait the producer pairs it
+       publishes. */
+    d->pool = d->vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
     if (!d->pool) {
         vsapi->mapSetError(out, err);
         goto fail;

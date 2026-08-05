@@ -104,6 +104,9 @@ private:
     uint64_t pendingValue = 0;
     std::atomic<bool> claimed{false};
     std::vector<Retained> retained;
+    /* What the retained objects pin, mirrored into the device's in-flight total so the
+       admission gate can meter queued submissions by bytes. */
+    VkDeviceSize retainedBytes = 0;
 };
 
 /* A fixed set of exec contexts shared by however many threads a filter instance is called on.
@@ -142,11 +145,17 @@ public:
 
     /* Attaches an object to the context's current recording, called between acquire and
        submit: the release callback runs once the submission this recording becomes is known
-       complete, at the context's next acquire or at pool destruction. This is how work that
-       reads frames keeps them alive without the host ever waiting: the filter retains its
-       sources, submits, returns, and the references drop later. Bounded lag by design, one
-       ring cycle at most. */
-    void retain(VSVulkanExecContext &context, void (*release)(void *object), void *object);
+       complete — at the pool's next submit (every submission sweeps the others), at the
+       context's next acquire, at a pressure sweep, or at pool destruction, whichever looks
+       first. This is how work that reads frames keeps them alive without the host ever
+       waiting: the filter retains its sources, submits, returns, and the references drop
+       later. In an active pool the lag is about one submission; only a pool nobody touches
+       waits for the pressure sweeps.
+
+       bytes is what the object pins in device memory, counted against the device's
+       in-flight retention budget until release; pass 0 for objects that should not gate
+       (host memory, or pools exempt from admission). */
+    void retain(VSVulkanExecContext &context, void (*release)(void *object), void *object, VkDeviceSize bytes = 0);
 
     /* Gives up on a recording instead of submitting it. Everything retained is released at
        once since nothing will ever execute; the half recorded command buffer is reset by the
@@ -158,12 +167,12 @@ public:
     bool waitAll(std::string &errorMessage);
 
     /* Releases every retained object whose submission has completed, without waiting for
-       anything. Normally retentions drop at the context's next acquire, which is the right
-       lag for a pool in steady use — but a pool that has gone idle parks its last
+       anything. Called from submit, so an active pool reaps itself with about one
+       submission of lag — but a pool that has gone idle would otherwise park its last
        contextCount submissions' sources and scratch indefinitely, and a deep graph of heavy
-       filters parks gigabytes that way. The device calls this across all registered pools
-       from the memory pressure paths. Safe from any thread: a context is only touched when
-       its claim is won, so recordings in progress are simply skipped. */
+       filters parks gigabytes that way, so the device also calls this across all registered
+       pools from the memory pressure paths. Safe from any thread: a context is only touched
+       when its claim is won, so recordings in progress are simply skipped. */
     void sweepCompleted();
 
     /* The pool's timeline, handed to frames as their producer sync. The pool holds one
@@ -179,11 +188,16 @@ public:
 
 private:
     void releaseClaim(VSVulkanExecContext &context);
+    void releaseRetained(VSVulkanExecContext &context);
 
     VSVulkanDevice *dev = nullptr;
     VSVulkanQueue *q = nullptr;
     VSVulkanTimeline *timeline = nullptr;
     uint64_t nextValue = 0; /* guarded by the queue lock */
+    /* Compute queue pools additionally signal the device's progress timeline on every
+       submission, which is what the admission gate sleeps on; pools on other queues wake it
+       only through its timeout, and today pass no bytes anyway. */
+    bool signalsProgress = false;
     std::vector<std::unique_ptr<VSVulkanExecContext>> contexts;
     std::atomic<uint32_t> cursor{0};
     std::mutex claimMutex;

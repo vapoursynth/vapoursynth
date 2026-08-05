@@ -143,6 +143,12 @@ GPU frames, returns the memory to the driver, and the thread pool throttles
 frame requests the same way it does when host memory runs short — workloads
 far larger than VRAM complete correctly, just slower.
 
+Submissions the GPU has not executed yet pin their sources and scratch, so a
+deep graph recording far ahead of the device would turn queue depth into pure
+VRAM cost; the core bounds those in-flight bytes to a quarter of the VRAM
+limit and briefly holds back new recordings past it, which trades memory
+nothing needs for depth nothing uses.
+
 Environment variables
 #####################
 
@@ -291,14 +297,30 @@ ships it: create a VSGPUExecPool with the filter and per frame do ::
    /* ... record into gpuExecCommandBuffer(ctx) ... */
    gpuExecSubmit(ctx);                  /* queue lock, values in queue order (4) */
 
-with contextCount bounding frames in flight (7) and freeGPUExecPool draining
-the device in the free callback (8). gpu_invert_example.c is this pattern
-whole, and every in-tree GPU filter is built on it. The context hands out its
+with the pool's context ring bounding frames in flight (7) — the core sizes
+it from its worker thread count, since how many recordings can be concurrent
+is core knowledge, not filter knowledge — and freeGPUExecPool draining the
+device in the free callback (8). gpu_invert_example.c is this pattern whole,
+and every in-tree GPU filter is built on it. The context hands out its
 command buffer and imposes nothing on what goes into it — indirect dispatches,
 custom barriers and query pools record the same way — so the raw path
 underneath, spelled out by gpu_invert_raw_example.c, remains for filters whose
 *submissions* the pool cannot carry: work entering another API's queue (the
 CUDA example) or producer pairs published on frames the pool never sees.
+
+The pool buys one more thing the raw path cannot have: participation in
+memory pressure. What a context retains for a completed submission — source
+frames, gpuExecUsesBuffer scratch — is reaped by every subsequent submit on
+the pool (about one submission of lag while active), and what an idle pool
+still holds is released by the core's periodic pressure sweeps and by the
+allocation-failure escalation, so no pool parks its last submissions'
+footprint while the rest of the graph fights for VRAM. A raw filter's
+retained references are its own; the core cannot release what it does not
+hold, so nothing can reclaim them until the filter's next call sweeps or the
+instance dies. Raw filters should therefore sweep their ring on every call,
+keep it as shallow as their real pipelining depth, and avoid retaining large
+per-submission scratch — or put the scratch in the frame-shaped world the
+core can see.
 
 When to wait on the host
 ------------------------
