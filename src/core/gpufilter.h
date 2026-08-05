@@ -51,7 +51,8 @@
 namespace vsgpu {
 
 /* Bindings per pass. Sized for the widest thing in the tree: AverageFrames takes up to 31
-   input clips plus the output. Programs per filter stay at 8, which no filter approaches. */
+   input clips plus the output. The program list itself is unbounded; a program only costs
+   its pipeline. */
 constexpr int maxBindings = 32;
 
 /* What a pass binds at one descriptor slot. Never a VkBuffer: the driver resolves these to
@@ -202,10 +203,9 @@ struct Instance {
     const VSVulkanFunctions *vk = nullptr;
     VSVulkanCoreHandles handles = {};
     VSGPUExecPool *pool = nullptr;
-    VkDescriptorSetLayout setLayouts[8] = {};
-    VkPipelineLayout pipeLayouts[8] = {};
-    VkPipeline pipelines[8] = {};
-    int pipelineCount = 0;
+    std::vector<VkDescriptorSetLayout> setLayouts;
+    std::vector<VkPipelineLayout> pipeLayouts;
+    std::vector<VkPipeline> pipelines;
     std::vector<VSGPUBuffer *> constantBuffers;
     std::vector<VSVulkanBufferInfo> constantInfo;
 
@@ -218,7 +218,7 @@ struct Instance {
             vkapi->freeGPUExecPool(pool);
         for (VSGPUBuffer *b : constantBuffers)
             vkapi->destroyGPUBuffer(b);
-        for (int i = 0; i < pipelineCount; i++) {
+        for (size_t i = 0; i < pipelines.size(); i++) {
             if (pipelines[i])
                 vk->vkDestroyPipeline(handles.device, pipelines[i], nullptr);
             if (pipeLayouts[i])
@@ -242,7 +242,11 @@ inline void barrier(const VSVulkanFunctions *vk, VkCommandBuffer cmd) {
     mb.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
     mb.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
     mb.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-    mb.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+    /* The write bit makes the barrier sound for write-after-write pass pairs. No filter
+       written by hand has two passes writing the same bytes today, but a generated pass
+       chain -- fusion emitting ping-pong or accumulation steps -- cannot promise that,
+       and the wider second scope costs nothing measurable on a barrier already there. */
+    mb.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
     VkDependencyInfo dep = {};
     dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
     dep.memoryBarrierCount = 1;
@@ -561,8 +565,6 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
 
     if (desc.programs.empty() || desc.passes.empty())
         return fail("a GPU filter needs at least one program and one pass");
-    if (desc.programs.size() > 8)
-        return fail("too many programs");
 
     /* The frame loop builds its descriptor writes in fixed size stack arrays and indexes
        scratch, constants and nodes with whatever the operands say, none of it checked once
@@ -615,8 +617,11 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
     if (!inst->vk)
         return fail(err);
 
-    for (const Program &prog : desc.programs) {
-        const int idx = inst->pipelineCount;
+    inst->setLayouts.resize(desc.programs.size(), VK_NULL_HANDLE);
+    inst->pipeLayouts.resize(desc.programs.size(), VK_NULL_HANDLE);
+    inst->pipelines.resize(desc.programs.size(), VK_NULL_HANDLE);
+    for (size_t idx = 0; idx < desc.programs.size(); idx++) {
+        const Program &prog = desc.programs[idx];
 
         /* Compiled here and freed below: the pipeline holds the code from creation on, so
            the shader object never outlives this loop. The core caches by source text, so
@@ -690,8 +695,6 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
         }
         if (inst->vk->vkCreateComputePipelines(inst->handles.device, VK_NULL_HANDLE, 1, &pipeInfo, nullptr, &inst->pipelines[idx]) != VK_SUCCESS)
             return fail("compute pipeline creation failed");
-
-        inst->pipelineCount++;
     }
 
     inst->pool = inst->vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
