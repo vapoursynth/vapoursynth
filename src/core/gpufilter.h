@@ -58,7 +58,7 @@ constexpr int maxBindings = 32;
 /* What a pass binds at one descriptor slot. Never a VkBuffer: the driver resolves these to
    buffers per plane, which is what keeps a declaring filter free of Vulkan types. */
 struct Operand {
-    enum Kind { SourcePlane, OutputPlane, Scratch, Constant };
+    enum Kind { SourcePlane, OutputPlane, Scratch, Constant, Readback };
     Kind kind = SourcePlane;
     int clip = 0;         /* which source clip, for multi input filters */
     int frameOffset = 0;  /* temporal: 0 is the frame being produced */
@@ -83,6 +83,9 @@ struct Operand {
     static Operand scratch(int slot) { Operand o; o.kind = Scratch; o.slot = slot; return o; }
     /* Data uploaded once at create and read by every frame: a lookup table, typically. */
     static Operand constant(int slot) { Operand o; o.kind = Constant; o.slot = slot; return o; }
+    /* The per-frame host visible buffer a reducing filter writes its partials into; see
+       FilterDesc::readbackBytes. */
+    static Operand readback() { Operand o; o.kind = Readback; return o; }
 };
 
 /* A kernel, given either as source for the driver to compile or as SPIR-V a filter built
@@ -109,6 +112,16 @@ struct Program {
        cheaper than branching on a push constant inside one kernel. */
     std::vector<uint8_t> specData;
     std::vector<VkSpecializationMapEntry> specEntries;
+    /* Compute-stage subgroup control, for kernels whose lane arithmetic bakes the
+       subgroup width in: a reduction sizing its partials as workgroup / SGSIZE, a filter
+       mapping one subgroup per work item. Pinning the size is what keeps such a kernel
+       honest -- RDNA hardware runs wave32 or wave64 and the driver chooses per pipeline
+       unless told -- and requiring full subgroups makes per-subgroup bookkeeping exact.
+       Both device features are in the core's required set, but pinning also needs
+       VkPhysicalDeviceVulkan13Properties::requiredSubgroupSizeStages to cover compute;
+       the filter checks, the driver applies these as given. */
+    uint32_t requiredSubgroupSize = 0;
+    bool requireFullSubgroups = false;
 };
 
 struct Pass {
@@ -193,6 +206,24 @@ struct FilterDesc {
     int frameParamCount = 0;
     std::function<bool(int n, const VSFrame *const *sources, int numSources,
         const VSAPI *vsapi, uint32_t *params, std::string &error)> prepareFrame;
+
+    /* A filter that computes something about frames rather than new planes -- PlaneStats
+       -- declares itself a side effect: every plane is shared through untouched, and the
+       pass list runs once per frame (as plane 0) instead of once per processed plane.
+       Operand::output() has no meaning then; the passes read explicitly chosen source
+       planes and write the readback buffer. Scratch is not available in this mode yet,
+       since it is sized from processed planes. */
+    bool sideEffect = false;
+    /* When nonzero, every frame gets a host visible buffer of this many bytes, bound
+       through Operand::readback(). After submitting, the driver waits for exactly this
+       frame's submission on the pool timeline -- concurrent frames keep flowing -- and
+       hands the mapped bytes to finishReadback, which finishes the reduction on the host
+       and writes frame properties. This is the one shape that blocks in getFrame;
+       filters that only produce planes never need it, their producer pairs carry the
+       synchronization. */
+    uint32_t readbackBytes = 0;
+    std::function<void(int n, VSFrame *dst, const void *data, const uint32_t *params,
+        VSCore *core, const VSAPI *vsapi)> finishReadback;
 };
 
 namespace detail {
@@ -203,6 +234,9 @@ struct Instance {
     const VSVulkanFunctions *vk = nullptr;
     VSVulkanCoreHandles handles = {};
     VSGPUExecPool *pool = nullptr;
+    /* The pool's timeline, kept raw for the per submission readback waits; the pool owns
+       it and outlives every use here. */
+    VkSemaphore poolTimelineSem = VK_NULL_HANDLE;
     std::vector<VkDescriptorSetLayout> setLayouts;
     std::vector<VkPipelineLayout> pipeLayouts;
     std::vector<VkPipeline> pipelines;
@@ -358,8 +392,9 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
     };
 
     /* Nothing to run: every plane shares from the source, so the frame is already complete
-       and submitting an empty command buffer would only cost a round trip. */
-    if (!processAny) {
+       and submitting an empty command buffer would only cost a round trip. A side effect
+       filter's planes all share too, but running its passes is the whole point. */
+    if (!processAny && !desc.sideEffect) {
         finish();
         releaseSources();
         return dst;
@@ -400,6 +435,25 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         }
     }
 
+    /* The per-frame readback buffer, when the filter asked for one. Deliberately not
+       handed to the context: it must outlive the submission for the host to read it, so
+       it is destroyed below once finishReadback has run. */
+    VSVulkanBufferInfo readbackInfo = {};
+    VSGPUBuffer *readbackBuffer = nullptr;
+    if (desc.readbackBytes > 0) {
+        readbackBuffer = inst->vkapi->createGPUBuffer(core, desc.readbackBytes,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            VK_MEMORY_PROPERTY_HOST_CACHED_BIT, &readbackInfo, err, sizeof(err));
+        if (!readbackBuffer) {
+            vsapi->setFilterError((std::string("GPU filter: ") + err).c_str(), frameCtx);
+            inst->vkapi->gpuExecAbandon(ctx);
+            releaseSources();
+            vsapi->freeFrame(dst);
+            return nullptr;
+        }
+    }
+
     VkCommandBuffer cmd = inst->vkapi->gpuExecCommandBuffer(ctx);
     bool firstDispatch = true;
     /* Local, not a member: this node runs fmParallel, so concurrent frames would otherwise
@@ -407,23 +461,32 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
        same every frame, which is why it took one whose parameters vary per frame to show. */
     std::vector<uint8_t> pushScratch;
 
-    for (int p = 0; p < fmt->numPlanes; p++) {
-        if (!desc.process[p])
+    /* A side effect filter records its pass list once, as plane 0; everything else
+       records it per processed plane. */
+    const int planeCount = desc.sideEffect ? 1 : fmt->numPlanes;
+    for (int p = 0; p < planeCount; p++) {
+        if (!desc.sideEffect && !desc.process[p])
             continue;
-        inst->vkapi->gpuExecWritesPlane(ctx, dst, p);
+        VSVulkanPlaneInfo dstPlane = {};
+        uint32_t dstStrideElems = 0;
+        if (!desc.sideEffect) {
+            inst->vkapi->gpuExecWritesPlane(ctx, dst, p);
 
-        VSVulkanPlaneInfo dstPlane;
-        if (inst->vkapi->getGPUPlane(dst, p, &dstPlane)) {
-            vsapi->setFilterError("GPU filter: output frame is not GPU resident", frameCtx);
-            inst->vkapi->gpuExecAbandon(ctx);
-            releaseSources();
-            vsapi->freeFrame(dst);
-            return nullptr;
+            if (inst->vkapi->getGPUPlane(dst, p, &dstPlane)) {
+                vsapi->setFilterError("GPU filter: output frame is not GPU resident", frameCtx);
+                inst->vkapi->gpuExecAbandon(ctx);
+                if (readbackBuffer)
+                    inst->vkapi->destroyGPUBuffer(readbackBuffer);
+                releaseSources();
+                vsapi->freeFrame(dst);
+                return nullptr;
+            }
+
+            /* Scratch has no stride of its own: it is allocated to hold the widest
+               processed plane, so every pass addresses it with that plane's output
+               stride. */
+            dstStrideElems = static_cast<uint32_t>(vsapi->getStride(dst, p) / fmt->bytesPerSample);
         }
-
-        /* Scratch has no stride of its own: it is allocated to hold the widest processed
-           plane, so every pass addresses it with that plane's output stride. */
-        const uint32_t dstStrideElems = static_cast<uint32_t>(vsapi->getStride(dst, p) / fmt->bytesPerSample);
 
         for (size_t i = 0; i < desc.passes.size(); i++) {
             const Pass &pass = desc.passes[i];
@@ -467,6 +530,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                     buffer = dstPlane.buffer;
                 } else if (op.kind == Operand::Constant) {
                     buffer = inst->constantInfo[op.slot].buffer;
+                } else if (op.kind == Operand::Readback) {
+                    buffer = readbackInfo.buffer;
                 } else {
                     buffer = scratch[op.slot].buffer;
                 }
@@ -482,6 +547,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             if (!bindError.empty()) {
                 vsapi->setFilterError(bindError.c_str(), frameCtx);
                 inst->vkapi->gpuExecAbandon(ctx);
+                if (readbackBuffer)
+                    inst->vkapi->destroyGPUBuffer(readbackBuffer);
                 releaseSources();
                 vsapi->freeFrame(dst);
                 return nullptr;
@@ -530,11 +597,34 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         }
     }
 
-    if (inst->vkapi->gpuExecSubmit(ctx, nullptr, err, sizeof(err))) {
+    uint64_t signaled = 0;
+    if (inst->vkapi->gpuExecSubmit(ctx, readbackBuffer ? &signaled : nullptr, err, sizeof(err))) {
         vsapi->setFilterError((std::string("GPU filter: ") + err).c_str(), frameCtx);
+        if (readbackBuffer)
+            inst->vkapi->destroyGPUBuffer(readbackBuffer);
         releaseSources();
         vsapi->freeFrame(dst);
         return nullptr;
+    }
+
+    if (readbackBuffer) {
+        /* Wait for exactly this frame's submission on the pool timeline -- concurrent
+           frames keep their own submissions flowing -- then let the filter finish the
+           reduction on the host and write its properties. */
+        VkSemaphoreWaitInfo waitInfo = {};
+        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        waitInfo.semaphoreCount = 1;
+        waitInfo.pSemaphores = &inst->poolTimelineSem;
+        waitInfo.pValues = &signaled;
+        if (inst->vk->vkWaitSemaphores(inst->handles.device, &waitInfo, UINT64_MAX) != VK_SUCCESS) {
+            vsapi->setFilterError("GPU filter: waiting for the readback failed", frameCtx);
+            inst->vkapi->destroyGPUBuffer(readbackBuffer);
+            releaseSources();
+            vsapi->freeFrame(dst);
+            return nullptr;
+        }
+        desc.finishReadback(n, dst, readbackInfo.mapped, frameParamData, core, vsapi);
+        inst->vkapi->destroyGPUBuffer(readbackBuffer);
     }
 
     finish();
@@ -594,7 +684,20 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
                     (op.slot < 0 || op.slot >= static_cast<int>(desc.constants.size())))
                 return fail("a binding names constant buffer " + std::to_string(op.slot) +
                     ", which does not exist");
+            if (op.kind == Operand::Readback && desc.readbackBytes == 0)
+                return fail("a binding names the readback buffer, but readbackBytes is zero");
+            if (op.kind == Operand::OutputPlane && desc.sideEffect)
+                return fail("a side effect filter has no output planes to bind");
         }
+    }
+    if (desc.readbackBytes > 0 && !desc.finishReadback)
+        return fail("readbackBytes without finishReadback reads back to nowhere");
+    if (desc.sideEffect) {
+        for (int p = 0; p < 3; p++)
+            if (desc.process[p])
+                return fail("a side effect filter processes no planes; every plane is shared");
+        if (desc.scratchCount > 0)
+            return fail("scratch is sized from processed planes, which a side effect filter has none of");
     }
     for (int p = 0; p < 3 && p < desc.vi.format.numPlanes; p++) {
         if (!desc.process[p] && (desc.shareClip[p] < 0 || desc.shareClip[p] >= static_cast<int>(desc.nodes.size())))
@@ -693,6 +796,15 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
             specInfo.pData = prog.specData.data();
             pipeInfo.stage.pSpecializationInfo = &specInfo;
         }
+        VkPipelineShaderStageRequiredSubgroupSizeCreateInfo reqSg = {};
+        if (prog.requiredSubgroupSize) {
+            reqSg.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO;
+            reqSg.requiredSubgroupSize = prog.requiredSubgroupSize;
+            reqSg.pNext = pipeInfo.stage.pNext;
+            pipeInfo.stage.pNext = &reqSg;
+        }
+        if (prog.requireFullSubgroups)
+            pipeInfo.stage.flags |= VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT;
         if (inst->vk->vkCreateComputePipelines(inst->handles.device, VK_NULL_HANDLE, 1, &pipeInfo, nullptr, &inst->pipelines[idx]) != VK_SUCCESS)
             return fail("compute pipeline creation failed");
     }
@@ -700,6 +812,7 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
     inst->pool = inst->vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
     if (!inst->pool)
         return fail(err);
+    inst->poolTimelineSem = inst->vkapi->getGPUTimelineSemaphore(inst->vkapi->gpuExecPoolTimeline(inst->pool));
 
     /* Constants are staged and copied once, here, so every frame afterwards reads device
        local memory. The staging buffer is handed to the context, which destroys it when the
