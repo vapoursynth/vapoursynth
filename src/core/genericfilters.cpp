@@ -172,6 +172,7 @@ typedef SingleNodeData<GenericDataExtra> GenericData;
 template<typename T>
 static void createGPUFromDecl(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *out, VSCore *core, const VSAPI *vsapi);
 static bool buildGenericGPU(int op, const GenericData *d, vsgpu::SimpleFilter &sf);
+static void createGPUSeparableConvolution(std::unique_ptr<GenericData> &d, VSMap *out, VSCore *core, const VSAPI *vsapi);
 
 template<typename T, typename OP>
 static const VSFrame *VS_CC singlePixelGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -1133,6 +1134,13 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
     }
 
     if (vsapi->getNodeResidency(d->node) == nrGPU) {
+        /* Separable convolution is two chained 1D passes with a quantized intermediate --
+           a scratch buffer and a second program -- which the single pass SimpleFilter
+           cannot declare, so it builds its own FilterDesc. */
+        if (op == GenericConvolution && d->convolution_type == ConvolutionSeparable) {
+            createGPUSeparableConvolution(d, out, core, vsapi);
+            return;
+        }
         vsgpu::SimpleFilter sf;
         sf.name = d->filter_name;
         if (buildGenericGPU(op, d.get(), sf)) {
@@ -1281,10 +1289,10 @@ static std::string prewittSobelBody(bool isSobel, bool isFloat) {
    one shader compile per distinct matrix -- the core caches by source text, so instances
    sharing a matrix share the kernel -- and keeps an 11x11 square out of a push constant
    block that could never have held it. */
-static std::string convolutionBody(const GenericData *d, bool isFloat) {
+static std::string convolutionBody(const GenericData *d, bool isFloat, ConvolutionTypes type) {
     const int n = d->matrix_elements;
     const int radius = (n - 1) / 2;
-    const bool square = d->convolution_type == ConvolutionSquare;
+    const bool square = type == ConvolutionSquare;
     const int side = square ? static_cast<int>(std::lround(std::sqrt(static_cast<double>(n)))) : 0;
     const int sradius = square ? (side - 1) / 2 : 0;
 
@@ -1303,7 +1311,7 @@ static std::string convolutionBody(const GenericData *d, bool isFloat) {
         if (square) {
             dx = (i % side) - sradius;
             dy = (i / side) - sradius;
-        } else if (d->convolution_type == ConvolutionHorizontal) {
+        } else if (type == ConvolutionHorizontal) {
             dx = i - radius; dy = 0;
         } else {
             dx = 0; dy = i - radius;
@@ -1316,6 +1324,78 @@ static std::string convolutionBody(const GenericData *d, bool isFloat) {
          "    if (pc.u[3] == 0u) tmp = abs(tmp);\n";
     s += isFloat ? "    STORE(tmp);" : roundStoreInt;
     return s;
+}
+
+/* Convolution mode hv/vh. The CPU leaf (conv_plane_x in kernel/generic.cpp) runs the
+   vertical scanline into a temp row of the storage type, then the horizontal scanline over
+   that, each quantizing exactly like its standalone 1D mode. The GPU form is therefore the
+   two already verified 1D bodies chained through a plane sized scratch -- vertical into
+   scratch, horizontal out, in that order -- with both passes seeing the same parameters,
+   the same double application of divisor and bias the CPU does. SimpleFilter builds one
+   pass only, so this declares the FilterDesc itself while borrowing simpleSource for the
+   kernel text and SimplePush for the push layout. */
+static void createGPUSeparableConvolution(std::unique_ptr<GenericData> &d, VSMap *out, VSCore *core, const VSAPI *vsapi) {
+    vsgpu::FilterDesc desc;
+    desc.vi = *d->vi;
+    desc.nodes.push_back(d->node);
+    for (int p = 0; p < 3; p++)
+        desc.process[p] = d->process[p];
+
+    const bool isFloat = d->vi->format.sampleType == stFloat;
+    for (int dir = 0; dir < 2; dir++) {
+        vsgpu::SimpleFilter shell;
+        std::string body = convolutionBody(d.get(), isFloat, dir == 0 ? ConvolutionVertical : ConvolutionHorizontal);
+        (isFloat ? shell.bodyFloat : shell.bodyInt) = std::move(body);
+        vsgpu::Program program;
+        program.glsl = vsgpu::detail::simpleSource(shell, d->vi->format);
+        program.storageBufferCount = 2;
+        program.pushConstantBytes = sizeof(vsgpu::SimplePush);
+        program.localSizeX = vsgpu::simpleLocalSize;
+        program.localSizeY = vsgpu::simpleLocalSize;
+        desc.programs.push_back(std::move(program));
+    }
+
+    desc.scratchCount = 1;
+    {
+        vsgpu::Pass pass;
+        pass.bindings.push_back(vsgpu::Operand::source());
+        pass.bindings.push_back(vsgpu::Operand::scratch(0));
+        desc.passes.push_back(std::move(pass));
+    }
+    {
+        vsgpu::Pass pass;
+        pass.program = 1;
+        pass.bindings.push_back(vsgpu::Operand::scratch(0));
+        pass.bindings.push_back(vsgpu::Operand::output());
+        desc.passes.push_back(std::move(pass));
+    }
+
+    const uint32_t maxval = d->vi->format.sampleType == stInteger ? (1u << d->vi->format.bitsPerSample) - 1 : 0;
+    const float rdiv = d->rdiv, bias = d->bias;
+    const uint32_t saturate = d->saturate ? 1u : 0u;
+    desc.fillPush = [maxval, rdiv, bias, saturate](const vsgpu::PassInfo &info, void *pushData) {
+        vsgpu::SimplePush push = {};
+        push.width = info.width;
+        push.height = info.height;
+        push.srcWidth = info.srcWidth;
+        push.srcHeight = info.srcHeight;
+        push.srcStride[0] = info.strideElements[0];
+        push.dstStride = info.strideElements[1];
+        push.u[0] = maxval;
+        push.u[3] = saturate;
+        push.f[2] = rdiv;
+        push.f[3] = bias;
+        std::memcpy(pushData, &push, sizeof(push));
+    };
+
+    VSFilterDependency deps[] = {{ d->node, rpStrictSpatial }};
+    std::string error;
+    VSNode *node = vsgpu::createFilter(d->filter_name, desc, deps, 1, core, vsapi, error);
+    d->node = nullptr; /* consumed on success and failure alike */
+    if (node)
+        vsapi->mapConsumeNode(out, "clip", node, maAppend);
+    else
+        vsapi->mapSetError(out, (d->filter_name + ": "s + error).c_str());
 }
 
 /* Builds the declaration for one of the eight neighbourhood filters. */
@@ -1331,11 +1411,11 @@ static bool buildGenericGPU(int op, const GenericData *d, vsgpu::SimpleFilter &s
     case GenericDeflate:     sf.bodyInt = deflateInflateBody(false, false); sf.bodyFloat = deflateInflateBody(false, true); break;
     case GenericInflate:     sf.bodyInt = deflateInflateBody(true, false);  sf.bodyFloat = deflateInflateBody(true, true);  break;
     case GenericConvolution:
-        /* Separable runs as two nodes on the CPU side and never reaches a leaf create. */
+        /* Separable is created as its own two pass declaration before this is consulted. */
         if (d->convolution_type == ConvolutionSeparable)
             return false;
-        sf.bodyInt = convolutionBody(d, false);
-        sf.bodyFloat = convolutionBody(d, true);
+        sf.bodyInt = convolutionBody(d, false, d->convolution_type);
+        sf.bodyFloat = convolutionBody(d, true, d->convolution_type);
         break;
     default:
         return false;

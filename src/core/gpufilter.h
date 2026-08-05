@@ -32,9 +32,9 @@
    Deliberately a header of inline code built on the public VSVULKANAPI, not an entry in it.
    That means it can change shape freely: every consumer compiles the version it saw, the
    way VSHelper4.h works, so nothing here is an ABI commitment. Filters that need what this
-   does not model -- indirect dispatch, specialization constants, reductions that read back
-   on the host -- use VSVULKANAPI directly instead, and can still take the exec pool from it
-   for the same lifetime and synchronization guarantees.
+   does not model -- indirect dispatch, their own descriptor layouts -- use VSVULKANAPI
+   directly instead, and can still take the exec pool from it for the same lifetime and
+   synchronization guarantees.
 
    Compiles anywhere the public headers do; the core builds it into the filters plugin. */
 
@@ -124,6 +124,8 @@ struct Program {
     bool requireFullSubgroups = false;
 };
 
+struct PassInfo;
+
 struct Pass {
     int program = 0;
     std::vector<Operand> bindings;
@@ -142,6 +144,11 @@ struct Pass {
        dispatch would pay the register pressure of the heaviest plane's code. Every
        processed plane must be covered by at least one pass. */
     bool planes[3] = { true, true, true };
+    /* Adjusts the dispatch grid after PassInfo is filled: the default grid covers the
+       geometry plane, which is wrong for a pass over a derived layout -- a padded field
+       plane, a 1D list of pixels. Mutate info.width/height; the dispatch divides them by
+       the program's local size, and fillPush sees the adjusted values. */
+    std::function<void(PassInfo &)> reshape;
 };
 
 /* Everything the push constant callback could want about the dispatch it is filling. The
@@ -169,6 +176,16 @@ struct FilterDesc {
     std::vector<Program> programs;
     std::vector<Pass> passes;
     int scratchCount = 0;          /* plane sized scratch buffers, per frame */
+    /* Optional per-slot overrides: a nonzero size replaces the plane-derived default (a
+       float intermediate over an 8 bit output outgrows its plane; a padded working plane
+       outgrows every plane), and extraUsage is added to the storage bit. Slots past the
+       end of the vector keep the defaults. Explicit sizes are also what admit scratch
+       into side effect filters, which have no processed plane to size from. */
+    struct ScratchDef {
+        VkDeviceSize bytes = 0;
+        VkBufferUsageFlags extraUsage = 0;
+    };
+    std::vector<ScratchDef> scratchDefs;
     bool process[3] = { true, true, true };
     /* Which source an unprocessed plane is shared from. Almost always clip 0, but a filter
        that degenerates to one of its inputs per plane -- Merge at weight 1, say -- needs to
@@ -211,8 +228,8 @@ struct FilterDesc {
        -- declares itself a side effect: every plane is shared through untouched, and the
        pass list runs once per frame (as plane 0) instead of once per processed plane.
        Operand::output() has no meaning then; the passes read explicitly chosen source
-       planes and write the readback buffer. Scratch is not available in this mode yet,
-       since it is sized from processed planes. */
+       planes and write the readback buffer. Scratch needs explicit scratchDefs sizes in
+       this mode, since there is no processed plane to size from. */
     bool sideEffect = false;
     /* When nonzero, every frame gets a host visible buffer of this many bytes, bound
        through Operand::readback(). After submitting, the driver waits for exactly this
@@ -410,7 +427,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
     for (const SourceFrame &s : sources)
         inst->vkapi->gpuExecReadsFrame(ctx, s.frame);
 
-    /* Scratch is sized for the largest processed plane and lives for one submission. */
+    /* Scratch is sized for the largest processed plane unless its slot says otherwise,
+       and lives for one submission. */
     std::vector<VSVulkanBufferInfo> scratch(static_cast<size_t>(desc.scratchCount));
     if (desc.scratchCount > 0) {
         VkDeviceSize maxBytes = 0;
@@ -422,7 +440,14 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                 maxBytes = std::max(maxBytes, info.bufferSize);
         }
         for (int i = 0; i < desc.scratchCount; i++) {
-            VSGPUBuffer *buffer = inst->vkapi->createGPUBuffer(core, maxBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VkDeviceSize bytes = maxBytes;
+            VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+            if (i < static_cast<int>(desc.scratchDefs.size())) {
+                if (desc.scratchDefs[i].bytes)
+                    bytes = desc.scratchDefs[i].bytes;
+                usage |= desc.scratchDefs[i].extraUsage;
+            }
+            VSGPUBuffer *buffer = inst->vkapi->createGPUBuffer(core, bytes, usage,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, &scratch[i], err, sizeof(err));
             if (!buffer) {
                 vsapi->setFilterError((std::string("GPU filter: ") + err).c_str(), frameCtx);
@@ -578,6 +603,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             info.srcWidth = static_cast<uint32_t>(vsapi->getFrameWidth(first ? first : dst, p));
             info.srcHeight = static_cast<uint32_t>(vsapi->getFrameHeight(first ? first : dst, p));
             info.frameParams = frameParamData;
+            if (pass.reshape)
+                pass.reshape(info);
 
             if (prog.pushConstantBytes > 0 && desc.fillPush) {
                 pushScratch.assign(static_cast<size_t>(prog.pushConstantBytes), 0);
@@ -696,8 +723,10 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
         for (int p = 0; p < 3; p++)
             if (desc.process[p])
                 return fail("a side effect filter processes no planes; every plane is shared");
-        if (desc.scratchCount > 0)
-            return fail("scratch is sized from processed planes, which a side effect filter has none of");
+        for (int i = 0; i < desc.scratchCount; i++)
+            if (i >= static_cast<int>(desc.scratchDefs.size()) || desc.scratchDefs[i].bytes == 0)
+                return fail("a side effect filter has no processed plane to size scratch from; give scratch buffer " +
+                    std::to_string(i) + " an explicit size");
     }
     for (int p = 0; p < 3 && p < desc.vi.format.numPlanes; p++) {
         if (!desc.process[p] && (desc.shareClip[p] < 0 || desc.shareClip[p] >= static_cast<int>(desc.nodes.size())))

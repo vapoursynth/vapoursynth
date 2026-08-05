@@ -575,9 +575,10 @@ struct BlurPush {
 /* One box blur pass over one plane, horizontal or vertical by push constant. Integer
    variants match the CPU filter's math exactly: clamped edges and (sum + rounding)/(2r+1),
    with the caller alternating the rounding term between passes the same way the CPU code
-   does. Float variants accumulate in float and multiply by 1/(2r+1); they cannot be bit
-   exact against the CPU's running sum, which rounds differently, so they are verified with
-   a tolerance instead.
+   does. Float variants accumulate in float and multiply by 1/(2r+1); summing the window
+   afresh per pixel cannot be bit exact against the CPU's running sum, which rounds
+   differently, so this kernel's float output is verified with a tolerance instead. The
+   line kernel below has no such gap.
 
    Compiled at filter creation through compileGPUShader, specialized by a preamble carrying
    SAMPLE_T in {uint8_t, uint16_t} and, with FLOAT_SAMPLES, {float, float16_t}. The preamble
@@ -638,6 +639,85 @@ const char boxBlurGlsl[] =
     "#endif\n"
     "}\n";
 
+/* The large radius variant: one thread per blurred line running the CPU filter's sliding
+   sum, so a pass costs ~2 loads per pixel instead of 2r+1 -- the per pixel kernel falls
+   behind the CPU around radius 30 at 1080p and is 17x slower by radius 1000, while this
+   one is flat in the radius. The trade is parallelism (a plane's rows or columns, not its
+   pixels), which is why it only takes over past lineKernelMinRadius rather than replacing
+   the per pixel kernel outright.
+
+   The loop is the unified clamped form of blurH/blurHF above: their three sections only
+   exist to keep clamping out of the interior and perform these exact operations in this
+   exact order, so integer output is bit identical, and float32 now is too -- the
+   accumulator follows the CPU's add/store/subtract sequence tap for tap (half still
+   narrows through the device's FConvert, which truncates where floatToHalf rounds).
+   Vertical lines put consecutive threads on consecutive columns, so every load coalesces;
+   horizontal lines stride, which the caches absorb well enough at these thread counts. */
+const char boxBlurLineGlsl[] =
+    "#extension GL_EXT_shader_8bit_storage : require\n"
+    "#extension GL_EXT_shader_16bit_storage : require\n"
+    "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
+    "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
+    "#ifdef FLOAT_SAMPLES\n"
+    "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
+    "#endif\n"
+    "\n"
+    "layout(local_size_x = 64, local_size_y = 1) in;\n"
+    "\n"
+    "layout(std430, set = 0, binding = 0) readonly buffer Src { SAMPLE_T srcData[]; };\n"
+    "layout(std430, set = 0, binding = 1) writeonly buffer Dst { SAMPLE_T dstData[]; };\n"
+    "\n"
+    "layout(push_constant, std430) uniform Push {\n"
+    "    uint width;\n"
+    "    uint height;\n"
+    "    uint srcStride; /* in elements */\n"
+    "    uint dstStride;\n"
+    "    uint radius;\n"
+    "    uint rounding;  /* integer variants only */\n"
+    "    uint vertical;\n"
+    "    float invDiv;   /* float variants only */\n"
+    "} pc;\n"
+    "\n"
+    "void main() {\n"
+    "    uint t = gl_GlobalInvocationID.x;\n"
+    "    if (t >= (pc.vertical != 0u ? pc.width : pc.height)) return;\n"
+    "\n"
+    "    int len = int(pc.vertical != 0u ? pc.height : pc.width);\n"
+    "    int r = int(pc.radius);\n"
+    "    uint srcBase = pc.vertical != 0u ? t : t * pc.srcStride;\n"
+    "    uint dstBase = pc.vertical != 0u ? t : t * pc.dstStride;\n"
+    "    uint srcStep = pc.vertical != 0u ? pc.srcStride : 1u;\n"
+    "    uint dstStep = pc.vertical != 0u ? pc.dstStride : 1u;\n"
+    "\n"
+    "#ifdef FLOAT_SAMPLES\n"
+    "    float acc = float(r) * float(srcData[srcBase]);\n"
+    "    for (int i = 0; i < r; i++)\n"
+    "        acc += float(srcData[srcBase + uint(min(i, len - 1)) * srcStep]);\n"
+    "    for (int i = 0; i < len; i++) {\n"
+    "        acc += float(srcData[srcBase + uint(min(i + r, len - 1)) * srcStep]);\n"
+    "        dstData[dstBase + uint(i) * dstStep] = SAMPLE_T(acc * pc.invDiv);\n"
+    "        acc -= float(srcData[srcBase + uint(max(i - r, 0)) * srcStep]);\n"
+    "    }\n"
+    "#else\n"
+    "    uint acc = uint(r) * uint(srcData[srcBase]);\n"
+    "    for (int i = 0; i < r; i++)\n"
+    "        acc += uint(srcData[srcBase + uint(min(i, len - 1)) * srcStep]);\n"
+    "    uint div = 2u * pc.radius + 1u;\n"
+    "    for (int i = 0; i < len; i++) {\n"
+    "        acc += uint(srcData[srcBase + uint(min(i + r, len - 1)) * srcStep]);\n"
+    "        dstData[dstBase + uint(i) * dstStep] = SAMPLE_T((acc + pc.rounding) / div);\n"
+    "        acc -= uint(srcData[srcBase + uint(max(i - r, 0)) * srcStep]);\n"
+    "    }\n"
+    "#endif\n"
+    "}\n";
+
+/* Where the per pixel kernel hands over to the line kernel, per pass, so a small h radius
+   keeps the wide dispatch while a large v radius on the same clip does not. Measured on a
+   discrete card at 1080p the crossover sits near radius 60; below it the line kernel's
+   thousand-odd threads cannot feed the machine and above it the tap count buries the per
+   pixel form (1.6x ahead by radius 128, 5x by radius 1000). */
+constexpr uint32_t lineKernelMinRadius = 64;
+
 /* The pass schedule replicates the CPU filter exactly: horizontal passes first with
    rounding div-1, 0, div-1, ... then vertical ones restarting the pattern with their own
    divisor. Float formats have no rounding term, just the reciprocal divisor. */
@@ -682,14 +762,32 @@ VSNode *createGPUBoxBlur(VSNode *node, const bool process[3], int hradius, int h
     for (int p = 0; p < 3; p++)
         desc.process[p] = process[p];
 
+    const std::vector<BlurPass> schedule = buildSchedule(hradius, hpasses, vradius, vpasses);
+    const int passes = static_cast<int>(schedule.size());
+
     vsgpu::Program program;
     program.glsl = preamble + boxBlurGlsl;
     program.storageBufferCount = 2;
     program.pushConstantBytes = sizeof(BlurPush);
     desc.programs.push_back(program);
 
-    const std::vector<BlurPass> schedule = buildSchedule(hradius, hpasses, vradius, vpasses);
-    const int passes = static_cast<int>(schedule.size());
+    /* The line program joins only when some pass crosses the radius threshold, so the
+       common small blur keeps a single pipeline. */
+    int lineProgram = -1;
+    for (const BlurPass &p : schedule) {
+        if (p.radius >= lineKernelMinRadius) {
+            vsgpu::Program line;
+            line.glsl = preamble + boxBlurLineGlsl;
+            line.storageBufferCount = 2;
+            line.pushConstantBytes = sizeof(BlurPush);
+            line.localSizeX = 64;
+            line.localSizeY = 1;
+            lineProgram = static_cast<int>(desc.programs.size());
+            desc.programs.push_back(std::move(line));
+            break;
+        }
+    }
+
     desc.scratchCount = passes > 1 ? 1 : 0;
 
     /* Alternate so the final pass always lands in the destination plane. */
@@ -698,14 +796,28 @@ VSNode *createGPUBoxBlur(VSNode *node, const bool process[3], int hradius, int h
         pass.bindings.push_back(i == 0 ? vsgpu::Operand::source()
                                        : (((passes - i) % 2 == 0) ? vsgpu::Operand::output() : vsgpu::Operand::scratch(0)));
         pass.bindings.push_back(((passes - 1 - i) % 2 == 0) ? vsgpu::Operand::output() : vsgpu::Operand::scratch(0));
+        if (schedule[i].radius >= lineKernelMinRadius) {
+            pass.program = lineProgram;
+            /* One thread per blurred line: rows for a horizontal pass, columns for a
+               vertical one. The kernel reads the plane dimensions from the push block,
+               which carries them independently of the grid. */
+            const bool vert = schedule[i].vertical != 0;
+            pass.reshape = [vert](vsgpu::PassInfo &info) {
+                info.width = vert ? info.width : info.height;
+                info.height = 1;
+            };
+        }
         desc.passes.push_back(std::move(pass));
     }
 
     desc.fillPush = [schedule](const vsgpu::PassInfo &info, void *pushData) {
         const BlurPass &p = schedule[info.pass];
         BlurPush push = {};
-        push.width = info.width;
-        push.height = info.height;
+        /* The source plane's dimensions are the blurred plane's dimensions for every pass
+           of this geometry preserving filter, and unlike info.width/height they survive
+           the line passes' reshape to a 1D grid. */
+        push.width = info.srcWidth;
+        push.height = info.srcHeight;
         push.srcStride = info.srcStrideElements();
         push.dstStride = info.dstStrideElements();
         push.radius = p.radius;
