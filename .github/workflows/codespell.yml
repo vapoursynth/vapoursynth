@@ -13,5 +13,5 @@ jobs:
       with:
         exclude_file: .codespellignore
         skip: ./src/avfs/include,./src/avisynth/avisynth.h,./src/avisynth/interface.cpp,./src/core/ter-116n.h,./src/core/expr/jitasm.h
-        ignore_words_list: indx,sme,allReady,sems,inout,curveLinear,needIn,WorkIn,parIn
+        ignore_words_list: indx,sme,allReady,sems,inout,curveLinear,needIn,WorkIn,parIn,workIn
         
