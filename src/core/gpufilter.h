@@ -58,7 +58,7 @@ constexpr int maxBindings = 32;
 /* What a pass binds at one descriptor slot. Never a VkBuffer: the driver resolves these to
    buffers per plane, which is what keeps a declaring filter free of Vulkan types. */
 struct Operand {
-    enum Kind { SourcePlane, OutputPlane, Scratch, Constant, Readback };
+    enum Kind { SourcePlane, OutputPlane, Scratch, Constant, Readback, FrameData };
     Kind kind = SourcePlane;
     int clip = 0;         /* which source clip, for multi input filters */
     int frameOffset = 0;  /* temporal: 0 is the frame being produced */
@@ -86,6 +86,9 @@ struct Operand {
     /* The per-frame host visible buffer a reducing filter writes its partials into; see
        FilterDesc::readbackBytes. */
     static Operand readback() { Operand o; o.kind = Readback; return o; }
+    /* The per-frame device local buffer prepareFrameData filled; see
+       FilterDesc::frameDataBytes. */
+    static Operand frameData() { Operand o; o.kind = FrameData; return o; }
 };
 
 /* A kernel, given either as source for the driver to compile or as SPIR-V a filter built
@@ -223,6 +226,18 @@ struct FilterDesc {
     int frameParamCount = 0;
     std::function<bool(int n, const VSFrame *const *sources, int numSources,
         const VSAPI *vsapi, uint32_t *params, std::string &error)> prepareFrame;
+
+    /* prepareFrame's big sibling: per-frame data larger than a push constant block, staged
+       to device local memory ahead of the first pass -- a frame property array feeding an
+       expression, a table recomputed per frame. prepareFrameData runs after the source
+       frames arrive, so it can read their properties, and fills frameDataBytes bytes
+       directly into the staging buffer; the driver copies that to a device local buffer
+       bound through Operand::frameData() and fences the copy against the first dispatch.
+       Both buffers are created per frame and retire with the submission, so concurrent
+       frames never share. Returning false fails the frame with the message. */
+    uint32_t frameDataBytes = 0;
+    std::function<bool(int n, const VSFrame *const *sources, int numSources,
+        const VSAPI *vsapi, void *data, std::string &error)> prepareFrameData;
 
     /* A filter that computes something about frames rather than new planes -- PlaneStats
        -- declares itself a side effect: every plane is shared through untouched, and the
@@ -479,7 +494,66 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         }
     }
 
+    /* The per-frame data pair: prepareFrameData fills host visible staging, a copy at the
+       top of the command buffer moves it device local -- kernels read it per pixel, which
+       over PCIe would cost more than the data is worth -- and both buffers are handed to
+       the context, retiring with the submission. */
+    VSVulkanBufferInfo frameDataInfo = {}, frameDataStaging = {};
+    if (desc.frameDataBytes > 0) {
+        auto frameDataFail = [&](const char *message) -> const VSFrame * {
+            vsapi->setFilterError(message, frameCtx);
+            inst->vkapi->gpuExecAbandon(ctx);
+            if (readbackBuffer)
+                inst->vkapi->destroyGPUBuffer(readbackBuffer);
+            releaseSources();
+            vsapi->freeFrame(dst);
+            return nullptr;
+        };
+        VSGPUBuffer *device = inst->vkapi->createGPUBuffer(core, desc.frameDataBytes,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, &frameDataInfo, err, sizeof(err));
+        if (!device)
+            return frameDataFail((std::string("GPU filter: ") + err).c_str());
+        inst->vkapi->gpuExecUsesBuffer(ctx, device);
+        VSGPUBuffer *staging = inst->vkapi->createGPUBuffer(core, desc.frameDataBytes,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 0,
+            &frameDataStaging, err, sizeof(err));
+        if (!staging)
+            return frameDataFail((std::string("GPU filter: ") + err).c_str());
+        inst->vkapi->gpuExecUsesBuffer(ctx, staging);
+        std::string prepareError;
+        if (!desc.prepareFrameData(n, sourceFrames.data(), static_cast<int>(sourceFrames.size()),
+                vsapi, frameDataStaging.mapped, prepareError))
+            return frameDataFail(prepareError.c_str());
+    }
+
     VkCommandBuffer cmd = inst->vkapi->gpuExecCommandBuffer(ctx);
+    if (desc.frameDataBytes > 0) {
+        VkBufferCopy2 region = {};
+        region.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
+        region.size = desc.frameDataBytes;
+        VkCopyBufferInfo2 copyInfo = {};
+        copyInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
+        copyInfo.srcBuffer = frameDataStaging.buffer;
+        copyInfo.dstBuffer = frameDataInfo.buffer;
+        copyInfo.regionCount = 1;
+        copyInfo.pRegions = &region;
+        inst->vk->vkCmdCopyBuffer2(cmd, &copyInfo);
+        /* The inter-pass barriers are compute to compute; the copy needs its own fence
+           ahead of the first dispatch that reads it. */
+        VkMemoryBarrier2 mb = {};
+        mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+        mb.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+        mb.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        mb.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        mb.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+        VkDependencyInfo dep = {};
+        dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        dep.memoryBarrierCount = 1;
+        dep.pMemoryBarriers = &mb;
+        inst->vk->vkCmdPipelineBarrier2(cmd, &dep);
+    }
     bool firstDispatch = true;
     /* Local, not a member: this node runs fmParallel, so concurrent frames would otherwise
        fill the same buffer and race. Harmless for a filter whose push constants are the
@@ -557,6 +631,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                     buffer = inst->constantInfo[op.slot].buffer;
                 } else if (op.kind == Operand::Readback) {
                     buffer = readbackInfo.buffer;
+                } else if (op.kind == Operand::FrameData) {
+                    buffer = frameDataInfo.buffer;
                 } else {
                     buffer = scratch[op.slot].buffer;
                 }
@@ -713,12 +789,16 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
                     ", which does not exist");
             if (op.kind == Operand::Readback && desc.readbackBytes == 0)
                 return fail("a binding names the readback buffer, but readbackBytes is zero");
+            if (op.kind == Operand::FrameData && desc.frameDataBytes == 0)
+                return fail("a binding names the frame data buffer, but frameDataBytes is zero");
             if (op.kind == Operand::OutputPlane && desc.sideEffect)
                 return fail("a side effect filter has no output planes to bind");
         }
     }
     if (desc.readbackBytes > 0 && !desc.finishReadback)
         return fail("readbackBytes without finishReadback reads back to nowhere");
+    if (desc.frameDataBytes > 0 && !desc.prepareFrameData)
+        return fail("frameDataBytes without prepareFrameData has nothing to fill the buffer");
     if (desc.sideEffect) {
         for (int p = 0; p < 3; p++)
             if (desc.process[p])
