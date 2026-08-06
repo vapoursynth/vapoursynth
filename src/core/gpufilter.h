@@ -784,6 +784,17 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
     if (desc.programs.empty() || desc.passes.empty())
         return fail("a GPU filter needs at least one program and one pass");
 
+    /* Every kernel here is compiled from desc.vi's format at create and every frame is
+       allocated at its dimensions, so a variable clip has nothing to build from: its
+       format is cfUndefined and its width and height are zero. Declaring that unsupported
+       is the whole of the contract, but it has to be said HERE rather than left to each
+       filter -- a filter that forgets does not get a wrong answer, it gets a kernel
+       compiled for an undefined sample type or a zero sized frame allocation, which is an
+       access violation and a fatal error respectively. */
+    if (desc.vi.format.colorFamily == cfUndefined || desc.vi.width <= 0 || desc.vi.height <= 0)
+        return fail("the GPU path needs a clip with constant format and dimensions; "
+            "insert GPUDownload to process a variable clip on the CPU");
+
     /* The frame loop builds its descriptor writes in fixed size stack arrays and indexes
        scratch, constants and nodes with whatever the operands say, none of it checked once
        the frames are flowing. This is the one place a filter that declared something
