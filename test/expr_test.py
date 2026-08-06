@@ -10,6 +10,11 @@ def get_pixel_value(clip):
     return arr[0, 0]
 
 
+def get_row(clip, row=0):
+    arr = clip.get_frame(0)[0]
+    return [arr[row, x] for x in range(clip.width)]
+
+
 class CoreTestSequence(unittest.TestCase):
     def setUp(self):
         self.core = vs.core
@@ -391,6 +396,65 @@ class CoreTestSequence(unittest.TestCase):
 
     def test_expr_cos65(self):
         self.helper_sincos("cos", lambda x: math.cos(x))
+
+    # The tests above build the clip with BlankClip's default 640x480 and assert
+    # a single pixel. 640 is a multiple of every vector width a backend is likely
+    # to use, and [0, 0] is always in the first vector, so a backend that
+    # mishandles the partial vector at the end of a row - or whose vector path
+    # disagrees with its own scalar remainder path - passes all of them.
+
+    EDGE_EXPR = (
+        "x 3.5 * 1.75 + sqrt x 2.25 / 0.5 max + x x * 1000 / + "
+        "x 17.5 > x 1.5 / x 2.5 * ? min"
+    )
+
+    def test_expr_row_tail66(self):
+        # Evaluating the same pixels at different offsets moves each of them
+        # through every position within a vector and gives each run a different
+        # remainder length, so a vector/remainder disagreement shows up here.
+        WIDTH = 64
+        src = self.core.std.BlankClip(
+            format=vs.GRAYS, width=WIDTH, height=1, length=1
+        )
+
+        def ramp(n, f):
+            fout = f.copy()
+            arr = fout[0]
+            for x in range(WIDTH):
+                arr[0, x] = (x * 7 % 251) / 3.0 + 0.25
+            return fout
+
+        src = self.core.std.ModifyFrame(src, src, ramp)
+
+        full = get_row(self.core.std.Expr(src, self.EDGE_EXPR))
+        for off in range(1, 8):
+            sub = self.core.std.CropAbs(
+                src, width=WIDTH - off, height=1, left=off, top=0
+            )
+            got = get_row(self.core.std.Expr(sub, self.EDGE_EXPR))
+            self.assertEqual(
+                got, full[off:], "offset %d disagrees with the unshifted result" % off
+            )
+
+    def test_expr_widths67(self):
+        # Every sample format, at widths either side of the usual vector widths,
+        # checking every pixel rather than only the first.
+        for fmt, peak in (
+            (vs.GRAY8, 255),
+            (vs.GRAY10, 1023),
+            (vs.GRAY16, 65535),
+            (vs.GRAYH, 1),
+            (vs.GRAYS, 1),
+        ):
+            for w in (1, 2, 3, 4, 5, 7, 8, 9, 13, 15, 16, 17, 31, 33, 719):
+                a = self.core.std.BlankClip(
+                    format=fmt, width=w, height=2, length=1, color=[peak]
+                )
+                b = self.core.std.BlankClip(
+                    format=fmt, width=w, height=2, length=1, color=[0]
+                )
+                got = get_row(self.core.std.Expr((a, b), "x y max"))
+                self.assertEqual(got, [peak] * w, "format %s width %d" % (fmt, w))
 
 
 if __name__ == "__main__":

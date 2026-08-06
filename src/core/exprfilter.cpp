@@ -35,6 +35,7 @@
 #include "float16_helper.h"
 #include "expr/expr.h"
 #include "expr/jitcompiler.h"
+#include "expr/interpreter_neon.h"
 #include "kernel/cpulevel.h"
 
 #ifdef VS_TARGET_OS_WINDOWS
@@ -61,6 +62,7 @@ struct ExprData {
     ExprCompiler::ProcessLineProc proc[3];
     size_t procSize[3];
     int procPixels[3] = { 8, 8, 8 };  // pixels/iteration of the JIT proc (16 for the AVX-512 path)
+    int cpulevel = VS_CPU_LEVEL_MAX;
 
     ExprData() : node(), vi(), plane(), numInputs(), proc() {}
 
@@ -222,9 +224,22 @@ static const VSFrame *VS_CC exprGetFrame(int n, int activationReason, void *inst
                 }
             } else {
                 ExprInterpreter interpreter(d->bytecode[plane].data(), d->bytecode[plane].size());
+#ifdef VS_TARGET_CPU_ARM64
+                // No JIT backend for this target, so the bytecode is interpreted.
+                // Do it a vector at a time where possible and leave the last
+                // (w % pixelsPerIteration()) pixels to the scalar interpreter.
+                std::unique_ptr<NeonInterpreter> neon;
+                if (d->cpulevel >= VS_CPU_LEVEL_NEON)
+                    neon.reset(new NeonInterpreter(d->bytecode[plane].data(), d->bytecode[plane].size()));
+#endif
 
                 for (int y = 0; y < h; y++) {
-                    for (int x = 0; x < w; x++) {
+                    int x = 0;
+#ifdef VS_TARGET_CPU_ARM64
+                    if (neon)
+                        x = neon->processRow(srcp, dstp, w);
+#endif
+                    for (; x < w; x++) {
                         interpreter.eval(srcp, dstp, x);
                     }
 
@@ -268,6 +283,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     try {
         int cpulevel = vs_get_cpulevel(core);
+        d->cpulevel = cpulevel;
 
         d->numInputs = vsapi->mapNumElements(in, "clips");
         if (d->numInputs > 26)

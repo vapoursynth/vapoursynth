@@ -445,6 +445,7 @@ else
     if enable_arm_asm
         # NEON is the AArch64 baseline; its kernels ride with the plugin proper.
         arm_filter_sources += files(
+            'src/core/expr/interpreter_neon.cpp',
             'src/core/kernel/arm/convolution_neon.cpp',
             'src/core/kernel/arm/generic_neon.cpp',
             'src/core/kernel/arm/lut_neon.cpp',
