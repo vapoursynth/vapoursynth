@@ -104,6 +104,15 @@ jobs:
         $zip = @(Get-ChildItem $dir -Filter *.zip -ErrorAction SilentlyContinue)
         if ($exe.Count -lt 1) { throw 'installer .exe was not produced' }
         if ($zip.Count -lt 2) { throw "expected the two portable zips, found $($zip.Count)" }
+        # Entry names are separated by forward slashes; a backslash is an ordinary
+        # character in the name to every extractor that is not Windows, which is how
+        # the releases once shipped directories called "wheel\vapoursynth-....whl".
+        foreach ($z in $zip) {
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($z.FullName)
+          $bad = @($archive.Entries | Where-Object { $_.FullName.Contains([char]92) })
+          $archive.Dispose()
+          if ($bad.Count -gt 0) { throw "$($z.Name): $($bad.Count) entries use backslash separators" }
+        }
         Get-ChildItem $dir | Select-Object Name, Length
 
     - name: Upload installer and portable
