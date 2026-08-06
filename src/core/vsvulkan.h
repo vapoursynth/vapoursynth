@@ -302,16 +302,6 @@ struct VSGPUMemoryReservation {
     VSCore *core = nullptr;
 };
 
-/* An optimally tiled device local image and its memory, freed with destroyImage. Layout
-   transitions are the caller's business since they belong to command recording. */
-struct VSVulkanImage {
-    VkImage image = VK_NULL_HANDLE;
-    VkDeviceMemory memory = VK_NULL_HANDLE;
-    VkFormat format = VK_FORMAT_UNDEFINED;
-    uint32_t width = 0;
-    uint32_t height = 0;
-};
-
 /* One queue plus the mutex that serializes access to it. vkQueueSubmit is externally
    synchronized and filters run fmParallel, submitting from many threads at once, so taking
    the lock around every submission is mandatory, not defensive. The interface is
@@ -502,9 +492,6 @@ public:
         std::string &errorMessage);
     void freePooled(const VSVulkanPooledRegion &region);
     bool poolAllowsMixedResourceTypes() const;
-    bool createImage2D(VSVulkanImage &image, VkFormat format, uint32_t width, uint32_t height,
-        VkImageUsageFlags usage, std::string &errorMessage);
-    void destroyImage(VSVulkanImage &image);
 
     VSVulkanAllocatorStats allocatorStats() const { return allocator.stats(); }
 
