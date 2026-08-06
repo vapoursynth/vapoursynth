@@ -1944,51 +1944,59 @@ static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int 
     return static_cast<int>(devices.size());
 }
 
+/* Designated, so this cannot silently drift from the header: C++ requires the initializers to
+   appear in declaration order, which turns a reordered or renamed member into a compile error
+   instead of an entry pointing at the wrong function. */
 const VSVULKANAPI vs_internal_vsvulkanapi = {
-    &vkSetVulkanDevice,
-    &vkGetVulkanHandles,
-    &vkGetVulkanCoreInfo,
-    &vkSetMaxVRAMUse,
-    &vkLockVulkanQueue,
-    &vkUnlockVulkanQueue,
-    &vkNewGPUVideoFrame,
-    &vkGetGPUPlane,
-    &vkSetGPUPlaneProducer,
-    &vkEnumerateVulkanDevices,
-    &vkGetVulkanFunctions,
-    &vkCreateGPUBuffer,
-    &vkDestroyGPUBuffer,
-    &vkExportGPUPlane,
-    &vkWaitGPUFrame,
-    &vkExportGPUSemaphore,
-    &vkCompileGPUShader,
-    &vkGetGPUShaderCode,
-    &vkFreeGPUShader,
-    &vkCreateGPUExecPool,
-    &vkFreeGPUExecPool,
-    &vkGPUExecAcquire,
-    &vkGPUExecCommandBuffer,
-    &vkGPUExecReadsFrame,
-    &vkGPUExecWritesPlane,
-    &vkGPUExecUsesBuffer,
-    &vkGPUExecSubmit,
-    &vkGPUExecAbandon,
-    &vkGPUExecPoolWaitIdle,
-    &vkGPUExecPoolTimeline,
-    &vkCreateGPUTimeline,
-    &vkFreeGPUTimeline,
-    &vkAddGPUTimelineRef,
-    &vkGetGPUTimelineSemaphore,
+    .enumerateVulkanDevices = &vkEnumerateVulkanDevices,
+    .setVulkanDevice = &vkSetVulkanDevice,
+    .getVulkanCoreInfo = &vkGetVulkanCoreInfo,
+    .setMaxVRAMUse = &vkSetMaxVRAMUse,
 
-    &vkAllocateGPUMemory,
-    &vkFreeGPUMemory,
-    &vkGPUExecUsesMemory,
+    .getVulkanHandles = &vkGetVulkanHandles,
+    .getVulkanFunctions = &vkGetVulkanFunctions,
+    .lockVulkanQueue = &vkLockVulkanQueue,
+    .unlockVulkanQueue = &vkUnlockVulkanQueue,
 
-    &vkReserveGPUMemory,
-    &vkUpdateGPUMemoryReservation,
-    &vkReleaseGPUMemoryReservation,
+    .newGPUVideoFrame = &vkNewGPUVideoFrame,
+    .getGPUPlane = &vkGetGPUPlane,
+    .setGPUPlaneProducer = &vkSetGPUPlaneProducer,
 
-    &vkGPUExecRetain
+    .createGPUTimeline = &vkCreateGPUTimeline,
+    .freeGPUTimeline = &vkFreeGPUTimeline,
+    .addGPUTimelineRef = &vkAddGPUTimelineRef,
+    .getGPUTimelineSemaphore = &vkGetGPUTimelineSemaphore,
+
+    .createGPUBuffer = &vkCreateGPUBuffer,
+    .destroyGPUBuffer = &vkDestroyGPUBuffer,
+    .allocateGPUMemory = &vkAllocateGPUMemory,
+    .freeGPUMemory = &vkFreeGPUMemory,
+    .reserveGPUMemory = &vkReserveGPUMemory,
+    .updateGPUMemoryReservation = &vkUpdateGPUMemoryReservation,
+    .releaseGPUMemoryReservation = &vkReleaseGPUMemoryReservation,
+
+    .compileGPUShader = &vkCompileGPUShader,
+    .getGPUShaderCode = &vkGetGPUShaderCode,
+    .freeGPUShader = &vkFreeGPUShader,
+
+    .createGPUExecPool = &vkCreateGPUExecPool,
+    .freeGPUExecPool = &vkFreeGPUExecPool,
+    .gpuExecPoolWaitIdle = &vkGPUExecPoolWaitIdle,
+    .gpuExecPoolTimeline = &vkGPUExecPoolTimeline,
+
+    .gpuExecAcquire = &vkGPUExecAcquire,
+    .gpuExecCommandBuffer = &vkGPUExecCommandBuffer,
+    .gpuExecReadsFrame = &vkGPUExecReadsFrame,
+    .gpuExecWritesPlane = &vkGPUExecWritesPlane,
+    .gpuExecUsesBuffer = &vkGPUExecUsesBuffer,
+    .gpuExecUsesMemory = &vkGPUExecUsesMemory,
+    .gpuExecRetain = &vkGPUExecRetain,
+    .gpuExecSubmit = &vkGPUExecSubmit,
+    .gpuExecAbandon = &vkGPUExecAbandon,
+
+    .exportGPUPlane = &vkExportGPUPlane,
+    .exportGPUSemaphore = &vkExportGPUSemaphore,
+    .waitGPUFrame = &vkWaitGPUFrame
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {

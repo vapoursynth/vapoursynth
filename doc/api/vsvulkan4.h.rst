@@ -25,9 +25,25 @@ Structs_
 
    VSVulkanPlaneInfo_
 
+   VSGPUTimeline_
+
    VSGPUBuffer_
 
    VSVulkanBufferInfo_
+
+   VSGPUMemory_
+
+   VSVulkanMemoryInfo_
+
+   VSGPUMemoryReservation_
+
+   VSGPUShader_
+
+   VSGPUExecPool_
+
+   VSGPUExecContext_
+
+   VSGPUReleaseFunc_
 
    VSVulkanExportedMemory_
 
@@ -38,17 +54,27 @@ Structs_
    VSVulkanDeviceListEntry_
 
 Functions_
-   setVulkanDevice_
+   **Device selection and information**
 
-   getVulkanHandles_
+   enumerateVulkanDevices_
+
+   setVulkanDevice_
 
    getVulkanCoreInfo_
 
    setMaxVRAMUse_
 
+   **Calling Vulkan on the core's device**
+
+   getVulkanHandles_
+
+   getVulkanFunctions_
+
    lockVulkanQueue_
 
    unlockVulkanQueue_
+
+   **GPU resident frames**
 
    newGPUVideoFrame_
 
@@ -56,25 +82,77 @@ Functions_
 
    setGPUPlaneProducer_
 
-   enumerateVulkanDevices_
+   **Timelines**
 
-   getVulkanFunctions_
+   createGPUTimeline_
+
+   freeGPUTimeline_
+
+   addGPUTimelineRef_
+
+   getGPUTimelineSemaphore_
+
+   **Memory from the core's pool**
 
    createGPUBuffer_
 
    destroyGPUBuffer_
 
-   exportGPUPlane_
+   allocateGPUMemory_
 
-   waitGPUFrame_
+   freeGPUMemory_
 
-   exportGPUSemaphore_
+   reserveGPUMemory_
+
+   updateGPUMemoryReservation_
+
+   releaseGPUMemoryReservation_
+
+   **Shader compilation**
 
    compileGPUShader_
 
    getGPUShaderCode_
 
    freeGPUShader_
+
+   **Exec pools**
+
+   createGPUExecPool_
+
+   freeGPUExecPool_
+
+   gpuExecPoolWaitIdle_
+
+   gpuExecPoolTimeline_
+
+   **Recording contexts**
+
+   gpuExecAcquire_
+
+   gpuExecCommandBuffer_
+
+   gpuExecReadsFrame_
+
+   gpuExecWritesPlane_
+
+   gpuExecUsesBuffer_
+
+   gpuExecUsesMemory_
+
+   gpuExecRetain_
+
+   gpuExecSubmit_
+
+   gpuExecAbandon_
+
+   **Sharing frames with other APIs**
+
+   exportGPUPlane_
+
+   exportGPUSemaphore_
+
+   waitGPUFrame_
 
 
 Introduction
@@ -98,8 +176,8 @@ handed to the plugin ready to call.
 
 For a guided introduction with complete example filters see
 :doc:`../gpufilters`. The examples in the sdk dir (gpu_invert_example.c,
-gpu_invert_raw_example.c and gpu_planestats_example.c) exercise everything
-described here.
+gpu_invert_raw_example.c, gpu_planestats_example.c and, for the foreign API
+side, gpu_cuda_invert_example.cu) exercise everything described here.
 
 
 The GPU model
@@ -133,12 +211,14 @@ their output residency follows their input.
 producer pair: a timeline semaphore and the value whose completion means the
 plane's contents are ready (VSVulkanPlaneInfo_). Consumers make their
 submissions wait on the pairs of every plane they read; producers publish the
-pair their submission signals through setGPUPlaneProducer_. A NULL semaphore
-means host produced content that is ready immediately. Because frames created
-with ``newVideoFrame2`` share plane data, one frame's planes can have
-different producers — always wait per plane, deduplicating waits on the same
-semaphore to the highest value. The host never blocks in this scheme; a
-filter records, submits and returns, and the graph pipelines.
+pair their submission signals through setGPUPlaneProducer_, which takes the
+semaphore as a reference counted VSGPUTimeline_ so each plane keeps the
+timeline it names alive by itself. A NULL semaphore means host produced
+content that is ready immediately. Because frames created with
+``newVideoFrame2`` share plane data, one frame's planes can have different
+producers — always wait per plane, deduplicating waits on the same semaphore
+to the highest value. The host never blocks in this scheme; a filter records,
+submits and returns, and the graph pipelines.
 
 **Queues.** The core exposes a compute queue and a transfer queue (the same
 queue when the device has no dedicated transfer family). ``VkQueue`` is
@@ -147,19 +227,46 @@ matching lock via lockVulkanQueue_/unlockVulkanQueue_. Filters that signal
 their own timeline should allocate the value inside that same lock, so
 signals reach the queue in increasing order.
 
+**Recording and submitting.** Doing the above by hand is the same work in
+every filter, so the core offers it as an exec pool (createGPUExecPool_): a
+timeline, a command pool and a ring of command buffers, from which a thread
+claims one context for the duration of one recording. The context waits the
+producer pairs of the frames declared with gpuExecReadsFrame_, keeps those
+frames and any scratch handed to it alive until the submission completes,
+allocates its timeline value under the queue lock, and publishes the producer
+pairs of the planes declared with gpuExecWritesPlane_. What goes into the
+command buffer is entirely the filter's business — gpuExecCommandBuffer_
+hands it over and the pool imposes nothing on it — so indirect dispatches,
+custom barriers and private query pools are as usable as a plain dispatch.
+Filters that would rather own their submissions can still do everything by
+hand with createGPUTimeline_ and the queue locks; the two paths interoperate,
+since both end in producer pairs on planes.
+
 **Memory.** Frame planes and scratch buffers (createGPUBuffer_) come from a
 pooled sub-allocator whose use is accounted against a VRAM limit
-(setMaxVRAMUse_, default two thirds of the driver reported budget). Cache
+(setMaxVRAMUse_, default two thirds of the driver reported budget, clamped
+further on unified memory devices where that VRAM is the host's RAM). Cache
 pressure, eviction and the thread pool's admission control all see GPU memory
-the same way they see host memory.
+the same way they see host memory. Resources the API has no constructor for —
+images above all — take a bare region of the same pool through
+allocateGPUMemory_ and bind against it, so they are accounted like everything
+else. Memory a plugin allocates through some other API entirely (a CUDA pool,
+a second Vulkan device, a video session) can still be declared to the same
+budget with reserveGPUMemory_, which is how a foreign consumer avoids
+competing with the core's cache for the same VRAM.
 
 **Lifetime.** GPU frames may legally outlive the core, exactly like CPU
 frames; releasing one after ``freeCore`` still returns its VRAM. Everything
-else is bounded by the filter instance: destroy pipelines, pools, semaphores
-and scratch buffers in the filter's free callback at the latest, and only
-after the submissions using them have completed on the device. A timeline
-published as a producer pair must outlive every possible consumer, which in
-practice means it lives exactly as long as the filter instance.
+else is bounded by the filter instance: destroy pipelines, pools, images and
+scratch buffers in the filter's free callback at the latest, and only after
+the submissions using them have completed on the device. Timelines are the
+exception, because they are reference counted: release yours whenever you are
+done signalling, and any plane still naming it keeps it alive on its own.
+That matters because frames legitimately outlive the filter that made them —
+FrameEval and ModifyFrame hand back a frame from a node they then drop, and
+the cache can hold one indefinitely. An exec pool takes care of the rest of
+the timing on its own: what it retains is released once the submission is
+known complete, and freeGPUExecPool_ drains the GPU before returning.
 
 **The function table.** getVulkanFunctions_ returns every Vulkan entry point
 a filter normally needs, loaded and device bound (VSVulkanFunctions_). The
@@ -180,8 +287,8 @@ VSVULKAN_API_VERSION
 --------------------
 
 The version of the GPU API and the VSVulkanFunctions_ table, currently 1.
-Pass it to getVulkanAPI. Both grow append-only, so a plugin built against an
-older version keeps working against every newer core.
+Pass it to getVulkanAPI. Both grow append-only once stable, so a plugin built
+against an older version keeps working against every newer core.
 
 
 Enums
@@ -215,16 +322,6 @@ enum VSGPUShaderLanguage
      property: write ``#version 460``, compiled for the Vulkan 1.4 client
      targeting SPIR-V 1.6.
 
-.. _VSGPUShader:
-
-struct VSGPUShader
-------------------
-
-   Opaque handle to a runtime compiled shader holding the SPIR-V words,
-   returned by compileGPUShader_ and read through getGPUShaderCode_. It is
-   independent of everything else once returned — it stays valid after the
-   core that compiled it is freed — and is released with freeGPUShader_.
-
 
 Structs
 #######
@@ -238,6 +335,11 @@ This struct is the whole GPU API. It is threadsafe and boringly stable: use
 getVulkanAPI (VapourSynth4.h, API 4.3) to obtain it, together with the
 VSVULKAN_API_VERSION_ you were compiled against. Returns NULL if the
 requested version is newer than the core supports.
+
+Unless an entry says otherwise, a status returning function returns 0 on
+success and nonzero on failure, and one returning a handle returns NULL on
+failure; either way the reason lands in *errorMessage* where the function
+takes one.
 
 .. _VSVulkanFunctions:
 
@@ -281,13 +383,32 @@ One GPU resident plane, as returned by getGPUPlane_.
 
    * uint64_t readyValue
 
+.. _VSGPUTimeline:
+
+struct VSGPUTimeline
+--------------------
+
+Opaque handle to a reference counted timeline semaphore, the object
+setGPUPlaneProducer_ publishes. Get one from createGPUTimeline_ or, for an
+exec pool's own timeline, from gpuExecPoolTimeline_; the raw ``VkSemaphore``
+behind it comes from getGPUTimelineSemaphore_.
+
+Every plane a timeline is published on takes its own reference, so the
+semaphore lives exactly as long as something might still wait on it. This is
+why a filter's timeline no longer has to outlive its consumers: release your
+reference whenever you are done signalling — the free callback is the natural
+place — and any frame still in flight keeps it alive by itself. The semaphore
+is created exportable wherever the device supports it, so a foreign API can
+wait the pairs you publish device side.
+
 .. _VSGPUBuffer:
 
 struct VSGPUBuffer
 ------------------
 
 Opaque handle to a scratch buffer from createGPUBuffer_; pass it to
-destroyGPUBuffer_ when done.
+destroyGPUBuffer_ when done, or hand it to gpuExecUsesBuffer_ and let the
+submission retire it.
 
 .. _VSVulkanBufferInfo:
 
@@ -309,6 +430,90 @@ the buffer.
 
    * VkMemoryPropertyFlags memoryFlags — what the chosen memory type actually
      provides
+
+.. _VSGPUMemory:
+
+struct VSGPUMemory
+------------------
+
+Opaque handle to a bare region of the same pooled VRAM, from
+allocateGPUMemory_, for resources the core has no constructor for. An image
+is the case that motivates it: memory is never passed to ``vkCreateImage``,
+it is bound afterwards, so nothing would be gained by wrapping image creation
+— the filter creates the image its own way and only the allocation comes from
+the pool. Release with freeGPUMemory_, or hand it to gpuExecUsesMemory_.
+
+.. _VSVulkanMemoryInfo:
+
+struct VSVulkanMemoryInfo
+-------------------------
+
+Filled in by allocateGPUMemory_; what ``vkBindBufferMemory2`` and
+``vkBindImageMemory2`` need.
+
+   * VkDeviceMemory memory — the shared block; bind against it, never free it
+
+   * VkDeviceSize offset — where the region starts in that block, and what to
+     pass to the bind call; **not** zero, and not to be assumed so
+
+   * VkDeviceSize size — what the region actually reserves, at least the
+     requested size
+
+   * void \*mapped — nonnull when host visible, already offset to the region
+
+   * VkMemoryPropertyFlags memoryFlags — what the chosen memory type actually
+     provides
+
+.. _VSGPUMemoryReservation:
+
+struct VSGPUMemoryReservation
+-----------------------------
+
+Opaque handle to a declaration of GPU memory allocated outside the core, from
+reserveGPUMemory_, so that the byte count takes part in the core's budgeting.
+It holds no memory itself, only the number.
+
+.. _VSGPUShader:
+
+struct VSGPUShader
+------------------
+
+Opaque handle to a runtime compiled shader holding the SPIR-V words,
+returned by compileGPUShader_ and read through getGPUShaderCode_. It is
+independent of everything else once returned — it stays valid after the
+core that compiled it is freed — and is released with freeGPUShader_.
+
+.. _VSGPUExecPool:
+
+struct VSGPUExecPool
+--------------------
+
+Opaque handle to an exec pool from createGPUExecPool_: a timeline semaphore,
+a command pool and a ring of command buffers on one of the core's queues.
+This is the plumbing every GPU filter needs regardless of what it records —
+waiting on the producers of the frames it reads, keeping those frames alive
+until the GPU is done, allocating timeline values in queue order, and
+publishing producer pairs on the planes it writes. Destroy it with
+freeGPUExecPool_ in the filter's free callback.
+
+.. _VSGPUExecContext:
+
+struct VSGPUExecContext
+-----------------------
+
+Opaque handle to one of the pool's recording slots, claimed by one thread
+from gpuExecAcquire_ until gpuExecSubmit_ or gpuExecAbandon_. It hands out
+its command buffer and imposes nothing on what goes into it, so filters
+recording indirect dispatches, custom barriers or their own query pools use
+it exactly like filters recording a plain dispatch.
+
+.. _VSGPUReleaseFunc:
+
+typedef void (VS_CC \*VSGPUReleaseFunc)(void \*object)
+
+   Cleanup a filter hands to an exec context with gpuExecRetain_, run once
+   the submission it was recorded against has completed. It runs on whichever
+   thread reaps that submission, so it must be safe to call from any thread.
 
 .. _VSVulkanExportedMemory:
 
@@ -363,9 +568,9 @@ flush waitGPUFrame_ performs is not needed on that path.
 
 Every call returns a new handle for the same semaphore; cache imports keyed
 by the VkSemaphore value from VSVulkanPlaneInfo_, scoped to your filter
-instance, since the producer pair contract guarantees those semaphores
-outlive every consumer. Handle ownership follows the same platform rules as
-VSVulkanExportedMemory_.
+instance. That key cannot go stale while you hold the frame, because a plane
+holds a reference to the timeline it names (VSGPUTimeline_). Handle ownership
+follows the same platform rules as VSVulkanExportedMemory_.
 
 .. _VSVulkanCoreInfo:
 
@@ -436,6 +641,17 @@ the enumeration is exactly the index setVulkanDevice_ takes.
 Functions
 #########
 
+.. _enumerateVulkanDevices:
+
+int enumerateVulkanDevices(VSVulkanDeviceListEntry_ \*entries, int maxEntries, char \*errorMessage, int errorMessageSize)
+
+   Lists every physical device through a temporary instance, so it works
+   before any device selection and needs no core. Returns the total device
+   count, which may exceed *maxEntries*, or -1 with the error set. Passing
+   NULL and 0 just counts.
+
+----------
+
 .. _setVulkanDevice:
 
 int setVulkanDevice(VSCore \*core, int deviceIndex, char \*errorMessage, int errorMessageSize)
@@ -446,8 +662,28 @@ int setVulkanDevice(VSCore \*core, int deviceIndex, char \*errorMessage, int err
    is an error. Unusable devices may be selected and fail with their reason,
    so a frontend can let the user pick from the full list.
 
-   All int returning functions in this struct return 0 on success and fill
-   *errorMessage* otherwise.
+----------
+
+.. _getVulkanCoreInfo:
+
+int getVulkanCoreInfo(VSCore \*core, VSVulkanCoreInfo_ \*info, char \*errorMessage, int errorMessageSize)
+
+   Reports the device name, its identity for matching against other APIs'
+   device enumerations, the memory budget and the current VapourSynth VRAM
+   use. Brings the device up on first call, like the first GPU filter would.
+
+----------
+
+.. _setMaxVRAMUse:
+
+int64_t setMaxVRAMUse(int64_t bytes, VSCore \*core)
+
+   Sets the VRAM limit cache pressure works against, mirroring
+   setMaxCacheSize for the host pool. Values of zero or less leave the limit
+   unchanged. Returns the limit in effect. The default is two thirds of the
+   live driver budget at device creation, the rest being headroom for filter
+   working sets and for the system; on a unified memory device it is clamped
+   further, since that VRAM and the host's memory are the same RAM.
 
 ----------
 
@@ -460,23 +696,14 @@ int getVulkanHandles(VSCore \*core, VSVulkanCoreHandles_ \*handles, char \*error
 
 ----------
 
-.. _getVulkanCoreInfo:
+.. _getVulkanFunctions:
 
-int getVulkanCoreInfo(VSCore \*core, VSVulkanCoreInfo_ \*info, char \*errorMessage, int errorMessageSize)
+const VSVulkanFunctions_ \*getVulkanFunctions(VSCore \*core, char \*errorMessage, int errorMessageSize)
 
-   Reports the device name, memory budget and current VapourSynth VRAM use.
-
-----------
-
-.. _setMaxVRAMUse:
-
-int64_t setMaxVRAMUse(int64_t bytes, VSCore \*core)
-
-   Sets the VRAM limit cache pressure works against, mirroring
-   setMaxCacheSize for the host pool. Values of zero or less leave the limit
-   unchanged. Returns the limit in effect. The default is two thirds of the
-   live driver budget at device creation, the rest being headroom for filter
-   working sets and for the system.
+   The core's ready loaded dispatch table, the normal way for filters to call
+   Vulkan; nothing needs to be linked or loaded by hand. Brings the device up
+   on first call and stays valid for the core's lifetime. Returns NULL with
+   the error set when no device is available.
 
 ----------
 
@@ -488,7 +715,8 @@ void lockVulkanQueue(VSCore \*core, int queue)
    every vkQueueSubmit a plugin performs, since VkQueue is externally
    synchronized and the core and other plugins submit to the same queues.
    Allocate your timeline values inside the lock so their signal order
-   matches their numeric order.
+   matches their numeric order. Filters using an exec pool never need this;
+   gpuExecSubmit_ does both.
 
 ----------
 
@@ -523,34 +751,56 @@ int getGPUPlane(const VSFrame \*frame, int plane, VSVulkanPlaneInfo_ \*info)
 
 .. _setGPUPlaneProducer:
 
-void setGPUPlaneProducer(VSFrame \*frame, int plane, VkSemaphore semaphore, uint64_t value)
+void setGPUPlaneProducer(VSFrame \*frame, int plane, VSGPUTimeline_ \*timeline, uint64_t value)
 
    Publishes the producer pair of a plane you write: consumers will make
-   their submissions wait for *semaphore* to reach *value* before reading.
-   The semaphore must outlive every possible consumer, in practice the
-   filter instance. Only ever call this on frames you are producing.
+   their submissions wait for *timeline* to reach *value* before reading.
+   The plane takes its own reference on the timeline, so publishing needs no
+   reference of yours to be kept afterwards, and you may release yours as
+   soon as you are done signalling. Passing NULL publishes the plane as host
+   ready. Only ever call this on frames you are producing.
 
 ----------
 
-.. _enumerateVulkanDevices:
+.. _createGPUTimeline:
 
-int enumerateVulkanDevices(VSVulkanDeviceListEntry_ \*entries, int maxEntries, char \*errorMessage, int errorMessageSize)
+VSGPUTimeline_ \*createGPUTimeline(VSCore \*core, char \*errorMessage, int errorMessageSize)
 
-   Lists every physical device through a temporary instance, so it works
-   before any device selection and needs no core. Returns the total device
-   count, which may exceed *maxEntries*, or -1 with the error set. Passing
-   NULL and 0 just counts.
+   A timeline of your own, for filters recording and submitting without the
+   core's exec pool. Created with an initial value of 0, exportable where the
+   device allows it, and returned with one reference which is yours to
+   release — in the free callback, without waiting for consumers, since
+   planes you published it on hold their own.
 
 ----------
 
-.. _getVulkanFunctions:
+.. _freeGPUTimeline:
 
-const VSVulkanFunctions_ \*getVulkanFunctions(VSCore \*core, char \*errorMessage, int errorMessageSize)
+void freeGPUTimeline(VSGPUTimeline_ \*timeline)
 
-   The core's ready loaded dispatch table, the normal way for filters to call
-   Vulkan; nothing needs to be linked or loaded by hand. Brings the device up
-   on first call and stays valid for the core's lifetime. Returns NULL with
-   the error set when no device is available.
+   Drops one reference. The semaphore is destroyed when the last one goes,
+   which may be long after this call if planes still name it.
+
+----------
+
+.. _addGPUTimelineRef:
+
+void addGPUTimelineRef(VSGPUTimeline_ \*timeline)
+
+   Takes another reference, for handing the same timeline to something with
+   its own lifetime. Every added reference needs a matching freeGPUTimeline_.
+
+----------
+
+.. _getGPUTimelineSemaphore:
+
+VkSemaphore getGPUTimelineSemaphore(VSGPUTimeline_ \*timeline)
+
+   The raw handle, to signal in your own vkQueueSubmit and to pass to
+   exportGPUSemaphore_. Valid for as long as you hold a reference. Never
+   signal an exec pool's timeline this way: the pool allocates its signal
+   values under the queue lock at submit, and an external signal races them
+   on a timeline whose values must only increase.
 
 ----------
 
@@ -569,7 +819,7 @@ VSGPUBuffer_ \*createGPUBuffer(VSCore \*core, VkDeviceSize size, VkBufferUsageFl
    Lifetime is the caller's, with one rule: unlike frames, buffers have no
    producer pair anyone waits on, so destroy only after the submissions using
    the buffer have completed on the device, and at the latest in the filter's
-   free callback.
+   free callback. gpuExecUsesBuffer_ takes that timing off your hands.
 
 ----------
 
@@ -581,58 +831,118 @@ void destroyGPUBuffer(VSGPUBuffer_ \*buffer)
 
 ----------
 
-.. _exportGPUPlane:
+.. _allocateGPUMemory:
 
-int exportGPUPlane(const VSFrame \*frame, int plane, VSVulkanExportedMemory_ \*out, char \*errorMessage, int errorMessageSize)
+VSGPUMemory_ \*allocateGPUMemory(VSCore \*core, const VkMemoryRequirements \*requirements, VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, VSVulkanMemoryInfo_ \*info, char \*errorMessage, int errorMessageSize)
 
-   Exports the allocation backing a GPU frame plane as an opaque handle
-   another API in the process can import; see VSVulkanExportedMemory_ for the
-   identity, ownership and synchronization rules. Only available when
-   VSVulkanCoreInfo_::exportHandleType is nonzero; fails on CPU frames and
-   missing planes. This is how a CUDA filter reads and writes frames in
-   place: import once per *memoryId*, map, and run kernels on the same VRAM
-   the Vulkan buffers occupy.
+   A region of the pool frame planes come from, for a resource this API has
+   no constructor for. Create the resource, ask Vulkan what memory it needs,
+   allocate it here, and bind against the memory and offset that come back::
+
+      vkCreateImage(device, &imageInfo, NULL, &image);
+      vkGetImageMemoryRequirements2(device, &reqInfo, &req);
+      VSGPUMemory *mem = allocateGPUMemory(core, &req.memoryRequirements,
+          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, &info, err, sizeof(err));
+      VkBindImageMemoryInfo bind = { ..., image, info.memory, info.offset };
+      vkBindImageMemory2(device, 1, &bind);
+
+   What this buys over a private vkAllocateMemory is everything the pool
+   does: the region counts against the VRAM limit, is visible to the thread
+   pool's admission control, is recycled through the size buckets, and takes
+   part in the reclamation the core performs under pressure. A private
+   allocation is none of those things — the core cannot see it, so it can
+   neither account for it nor make room for it.
+
+   Bind at *info.offset*, not at the start of *info.memory*: the region sits
+   inside a shared block, and images in particular are aligned further inside
+   it, since their requirements are routinely coarser than the pool's regions
+   (65536 for a small image on hardware that asks 256 for a large one). That
+   is handled by reserving the distance, so any alignment is satisfied; the
+   cost is a bounded overshoot that is invisible at plane sizes.
+
+   Two resources must not bind here, and neither is detectable from what this
+   is given, so both are the caller's to check: one created with external
+   memory info, since these blocks are not exportable, and one whose
+   VkMemoryDedicatedRequirements report *requiresDedicatedAllocation*, since
+   a suballocated region is by definition not a dedicated allocation. Chain
+   VkMemoryDedicatedRequirements onto the vkGet\*MemoryRequirements2 call to
+   see the latter; it is false for ordinary images and buffers, and true
+   mostly for external and platform specific formats. Allocate those
+   yourself. (*prefersDedicatedAllocation* is only a hint and is safe to
+   ignore here.)
+
+   A device whose buffer/image granularity is coarser than the pool's regions
+   is refused with a message rather than risking two resources sharing a
+   granularity page.
+
+   A freed region returns to the pool at once and may back another resource
+   immediately, so freeing early aliases live data rather than faulting: free
+   only once the submissions using the resource have completed, or hand the
+   region to gpuExecUsesMemory_ and let it retire on its own.
 
 ----------
 
-.. _waitGPUFrame:
+.. _freeGPUMemory:
 
-int waitGPUFrame(const VSFrame \*frame, char \*errorMessage, int errorMessageSize)
+void freeGPUMemory(VSGPUMemory_ \*memory)
 
-   Host waits every plane's producer pair and makes the completed writes
-   available outside the device's own domain — the part a bare producer wait
-   does not give you, since the spec only defines cross device visibility
-   through external semaphores or an availability chain like this one. Call
-   once per frame before reading it through an exported handle; costs one
-   submission round trip. Frames consumed by Vulkan work on the same device
-   never need this, their producer pairs carry the dependency. Foreign
-   consumers that import the producer pair through exportGPUSemaphore_ do not
-   need it either — a device side external wait carries the dependency.
+   Returns the region to the pool. NULL is ignored. The resource bound to it
+   is still yours to destroy; do that first.
 
 ----------
 
-.. _exportGPUSemaphore:
+.. _reserveGPUMemory:
 
-int exportGPUSemaphore(VSCore \*core, VkSemaphore semaphore, VSVulkanExportedSemaphore_ \*out, char \*errorMessage, int errorMessageSize)
+VSGPUMemoryReservation_ \*reserveGPUMemory(VSCore \*core, int64_t bytes, char \*errorMessage, int errorMessageSize)
 
-   Exports a timeline semaphore as an opaque handle another API can import.
-   Use it on the *readySemaphore* of a plane you consume — every core exec
-   pool timeline is created exportable when the capability exists — to wait
-   the producer pair on the device instead of the host, and on your own
-   timeline (created with VkExportSemaphoreCreateInfo, handle type from
-   VSVulkanCoreInfo_::semaphoreExportHandleType) to signal your producer
-   pairs from the foreign API. Only available when
-   VSVulkanCoreInfo_::semaphoreExportHandleType is nonzero.
+   Declares GPU memory the core did not allocate — a CUDA pool, another
+   Vulkan device with its own queues and features, a video session — into the
+   same accounting the core's pool uses, so the frame cache, the thread
+   pool's admission control and the unified memory brake all see it.
 
-   Third party filters are not obliged to create exportable timelines: when
-   the export of some other plugin's producer semaphore fails, fall back to
-   waitGPUFrame_ for that frame.
+   The core never refuses a reservation: it does not own the memory and
+   cannot veto it. What an increase buys is cooperation. When the declared
+   bytes push the GPU pool past its limit, the least valuable cached GPU
+   frames are evicted down to a tenth under it and fully idle allocator
+   blocks are handed back to the driver before the call returns — so reserve
+   or update **before** the foreign allocation, and the VRAM it is about to
+   ask the driver for has actually been vacated. Shrinking and releasing just
+   subtract.
+
+   Only declare memory living on the core's device: match *deviceUUID* or
+   *deviceLUID* from getVulkanCoreInfo_ against your API's device
+   enumeration, and keep a second GPU's bytes out of this core's budget.
+   Never declare bytes the core already accounts — anything from
+   createGPUBuffer_, allocateGPUMemory_ or GPU frames — or they count twice.
+   On unified memory devices this bookkeeping matters doubly, since the
+   pool's bytes and the host's are the same RAM.
+
+----------
+
+.. _updateGPUMemoryReservation:
+
+void updateGPUMemoryReservation(VSGPUMemoryReservation_ \*reservation, int64_t bytes)
+
+   Republishes the reservation's total. *bytes* is an absolute total, not a
+   delta: keep publishing what you hold and drift is impossible, however the
+   calls interleave. Concurrent updates are safe and the last written total
+   wins; negative is treated as zero. An increase runs the same eviction an
+   initial reservation does.
+
+----------
+
+.. _releaseGPUMemoryReservation:
+
+void releaseGPUMemoryReservation(VSGPUMemoryReservation_ \*reservation)
+
+   Drops the whole reservation together with the handle; NULL is ignored.
+   Late release — in the filter's free callback — is the intended place.
 
 ----------
 
 .. _compileGPUShader:
 
-VSGPUShader \*compileGPUShader(VSCore \*core, int language, const char \*source, char \*errorLog, int errorLogSize)
+VSGPUShader_ \*compileGPUShader(VSCore \*core, int language, const char \*source, char \*errorLog, int errorLogSize)
 
    Compiles compute shader source to SPIR-V at runtime through the statically
    embedded glslang, so plugins can ship readable kernels instead of blobs
@@ -641,7 +951,7 @@ VSGPUShader \*compileGPUShader(VSCore \*core, int language, const char \*source,
    wants pre optimized modules keeps shipping ``glslc -O`` output, since both
    feed the identical pipeline creation path.
 
-   *language* is a VSGPUShaderLanguage; only GLSL exists today and unknown
+   *language* is a VSGPUShaderLanguage_; only GLSL exists today and unknown
    values fail so a future language becomes an additive value rather than an
    ABI event. The accepted dialect is pinned by the core as a platform
    property: write ``#version 460``, compiled for the Vulkan 1.4 client
@@ -660,7 +970,7 @@ VSGPUShader \*compileGPUShader(VSCore \*core, int language, const char \*source,
 
 .. _getGPUShaderCode:
 
-const uint32_t \*getGPUShaderCode(const VSGPUShader \*shader, size_t \*sizeInBytes)
+const uint32_t \*getGPUShaderCode(const VSGPUShader_ \*shader, size_t \*sizeInBytes)
 
    The compiled SPIR-V words, ready for VkShaderModuleCreateInfo (with
    maintenance5, chained straight into pipeline creation). Valid until
@@ -671,8 +981,256 @@ const uint32_t \*getGPUShaderCode(const VSGPUShader \*shader, size_t \*sizeInByt
 
 .. _freeGPUShader:
 
-void freeGPUShader(VSGPUShader \*shader)
+void freeGPUShader(VSGPUShader_ \*shader)
 
    Releases the shader handle. The typical lifetime is short: compile, create
    the pipeline, free — the per core cache keeps the words for the next
    instance.
+
+----------
+
+.. _createGPUExecPool:
+
+VSGPUExecPool_ \*createGPUExecPool(VSCore \*core, int queue, char \*errorMessage, int errorMessageSize)
+
+   Creates an exec pool on one of the core's queues (VSVulkanQueueType_).
+
+   The core sizes the pool's context ring itself, from its worker thread
+   count — how many recordings can even be concurrent is core knowledge, not
+   filter knowledge — and how much memory queued submissions may pin is
+   bounded separately: acquiring waits out the ring's oldest submission, and
+   may additionally wait on the core's device-wide in-flight budget, which
+   caps the total bytes queued submissions retain across all pools. Filters
+   notice nothing but an occasional slower acquire when a graph runs far
+   ahead of the GPU. The pool's timeline is created exportable when the
+   device can, so consumers in other APIs can wait the producer pairs it
+   publishes.
+
+   Destroy it in the filter's free callback; freeGPUExecPool_ drains the GPU
+   first, so everything it still holds is released safely.
+
+   Retained objects — frames from gpuExecReadsFrame_, scratch from
+   gpuExecUsesBuffer_ and gpuExecUsesMemory_, anything from gpuExecRetain_ —
+   are released once their submission is known complete: every submit on the
+   pool reaps the other contexts' completed retentions (about one submission
+   of lag while active), and the context's next acquire, pool destruction and
+   the core's memory pressure sweeps cover the rest, so a pool gone idle does
+   not park its last submissions' footprint. That reclamation is a pool-only
+   property; references a filter retains privately on the raw path are
+   invisible to the core and cannot be freed by pressure.
+
+----------
+
+.. _freeGPUExecPool:
+
+void freeGPUExecPool(VSGPUExecPool_ \*pool)
+
+   Drains every submission the pool made, releases everything they retained,
+   and destroys the pool. NULL is ignored.
+
+----------
+
+.. _gpuExecPoolWaitIdle:
+
+int gpuExecPoolWaitIdle(VSGPUExecPool_ \*pool, char \*errorMessage, int errorMessageSize)
+
+   Blocks until every submission made through this pool has completed.
+   Filters do not need this per frame — producer pairs make consumers wait on
+   the device instead — but one shot setup work, such as uploading weights or
+   tables a filter will read for the rest of its life, has to know the copy
+   landed before recording anything that reads it. Also releases everything
+   those submissions were keeping alive.
+
+----------
+
+.. _gpuExecPoolTimeline:
+
+VSGPUTimeline_ \*gpuExecPoolTimeline(VSGPUExecPool_ \*pool)
+
+   The pool's timeline as the counted object setGPUPlaneProducer_ takes, for
+   publishing producer pairs by hand on frames the pool does not know about —
+   the out of order producer case, where the submission that wrote a plane
+   was submitted calls ago and gpuExecSubmit_'s *signaledValue* was saved for
+   this moment. The pool holds its own reference, so publishing it needs no
+   reference of yours; getGPUTimelineSemaphore_ gives the raw handle when
+   exportGPUSemaphore_ needs one.
+
+   Never signal that handle yourself: the pool allocates signal values under
+   the queue lock at submit, and an external signal races them on a timeline
+   where values must only increase.
+
+----------
+
+.. _gpuExecAcquire:
+
+VSGPUExecContext_ \*gpuExecAcquire(VSGPUExecPool_ \*pool, char \*errorMessage, int errorMessageSize)
+
+   Claims a context and begins recording; returns NULL with the error set on
+   device loss. Every acquire must end in exactly one gpuExecSubmit_ or
+   gpuExecAbandon_. May block briefly while the ring's oldest submission
+   finishes or the in-flight retention budget frees up.
+
+----------
+
+.. _gpuExecCommandBuffer:
+
+VkCommandBuffer gpuExecCommandBuffer(VSGPUExecContext_ \*context)
+
+   The command buffer being recorded: put anything Vulkan allows into it.
+
+----------
+
+.. _gpuExecReadsFrame:
+
+void gpuExecReadsFrame(VSGPUExecContext_ \*context, const VSFrame \*frame)
+
+   Declares that this submission reads the frame: its planes' producer pairs
+   become device side waits, and the frame is kept alive until the submission
+   completes. Takes its own reference, so the caller still releases its own
+   reference normally.
+
+----------
+
+.. _gpuExecWritesPlane:
+
+void gpuExecWritesPlane(VSGPUExecContext_ \*context, VSFrame \*frame, int plane)
+
+   Declares that this submission writes the plane: gpuExecSubmit_ publishes
+   the pool's (timeline, value) on it as the producer pair.
+
+----------
+
+.. _gpuExecUsesBuffer:
+
+void gpuExecUsesBuffer(VSGPUExecContext_ \*context, VSGPUBuffer_ \*buffer)
+
+   Hands a scratch buffer to the context, which destroys it once the
+   submission completes. Ownership transfers; do not destroy it yourself.
+
+----------
+
+.. _gpuExecUsesMemory:
+
+void gpuExecUsesMemory(VSGPUExecContext_ \*context, VSGPUMemory_ \*memory)
+
+   gpuExecUsesBuffer_ for a bare region: the region stays out of the pool
+   until the submission being recorded has completed, and its bytes count
+   against the in-flight retention budget meanwhile. Ownership transfers; do
+   not free it yourself. Release follows the ordinary retention timing
+   described at createGPUExecPool_, so what is guaranteed is that the region
+   is never recycled early, not that it returns at a particular moment.
+
+   The resource bound to the region is still yours to destroy, since this
+   never saw it. A resource whose lifetime is the filter's — created once,
+   reused every frame — is the easy case and wants no retention at all. One
+   created per frame has to outlive its submission too, so either keep those
+   handles and destroy them when the filter is freed, or register the whole
+   set with gpuExecRetain_.
+
+----------
+
+.. _gpuExecRetain:
+
+void gpuExecRetain(VSGPUExecContext_ \*context, VSGPUReleaseFunc_ release, void \*object, VkDeviceSize bytes)
+
+   Cleanup of your own on the retention list, for what the typed calls above
+   cannot name. ``release(object)`` runs once the submission being recorded
+   has completed, on the schedule described at createGPUExecPool_; call it
+   between acquire and submit like the others, and gpuExecAbandon_ runs it
+   immediately since nothing will execute.
+
+   This is what a per frame image wants, because the objects that have to
+   outlive a submission are not only the ones holding memory: an image, every
+   view recorded against it, and the region underneath all retire together,
+   and one registration of a struct holding the three frees them in the right
+   order — views, image, then freeGPUMemory_ — where a call per object could
+   not express the ordering. Anything else a submission borrowed can ride
+   along the same way.
+
+   *bytes* is what the object pins in device memory, counted against the
+   in-flight retention budget until release; pass 0 for host side
+   bookkeeping, and do not count bytes the typed calls already counted for
+   the same object.
+
+   The callback runs on whichever thread reaps the submission — another
+   filter's submit, or a core memory pressure sweep — so it must be safe to
+   call from any thread. No pool lock is held while it runs, so it may take
+   its own; it must not acquire a context from the pool that is reaping it.
+
+----------
+
+.. _gpuExecSubmit:
+
+int gpuExecSubmit(VSGPUExecContext_ \*context, uint64_t \*signaledValue, char \*errorMessage, int errorMessageSize)
+
+   Ends recording and submits, allocating the timeline value inside the queue
+   lock so signals reach the queue in increasing order, then publishes the
+   producer pairs. The context is consumed either way, success or failure.
+
+   *signaledValue*, when non-NULL, receives the value this submission signals
+   on the pool's timeline. Waiting for it — vkWaitSemaphores on
+   ``getGPUTimelineSemaphore(gpuExecPoolTimeline(pool))`` — waits for exactly
+   this submission, which is what a filter reading results back on the host
+   wants: gpuExecPoolWaitIdle_ also works but waits the pool's newest
+   submission, so concurrent frames serialize on each other's work. Filters
+   that only produce planes never need either; the producer pairs carry the
+   synchronization.
+
+----------
+
+.. _gpuExecAbandon:
+
+void gpuExecAbandon(VSGPUExecContext_ \*context)
+
+   Gives up a recording without submitting: everything retained is released
+   at once, including gpuExecRetain_ callbacks, and the context returns to
+   the ring. The way out of an error discovered halfway through recording.
+
+----------
+
+.. _exportGPUPlane:
+
+int exportGPUPlane(const VSFrame \*frame, int plane, VSVulkanExportedMemory_ \*out, char \*errorMessage, int errorMessageSize)
+
+   Exports the allocation backing a GPU frame plane as an opaque handle
+   another API in the process can import; see VSVulkanExportedMemory_ for the
+   identity, ownership and synchronization rules. Only available when
+   VSVulkanCoreInfo_::exportHandleType is nonzero; fails on CPU frames and
+   missing planes. This is how a CUDA filter reads and writes frames in
+   place: import once per *memoryId*, map, and run kernels on the same VRAM
+   the Vulkan buffers occupy.
+
+----------
+
+.. _exportGPUSemaphore:
+
+int exportGPUSemaphore(VSCore \*core, VkSemaphore semaphore, VSVulkanExportedSemaphore_ \*out, char \*errorMessage, int errorMessageSize)
+
+   Exports a timeline semaphore as an opaque handle another API can import.
+   Use it on the *readySemaphore* of a plane you consume — every core exec
+   pool timeline is created exportable when the capability exists — to wait
+   the producer pair on the device instead of the host, and on your own
+   timeline (createGPUTimeline_, or one made with VkExportSemaphoreCreateInfo
+   and the handle type from VSVulkanCoreInfo_::semaphoreExportHandleType) to
+   signal your producer pairs from the foreign API. Only available when
+   VSVulkanCoreInfo_::semaphoreExportHandleType is nonzero.
+
+   Third party filters are not obliged to create exportable timelines: when
+   the export of some other plugin's producer semaphore fails, fall back to
+   waitGPUFrame_ for that frame.
+
+----------
+
+.. _waitGPUFrame:
+
+int waitGPUFrame(const VSFrame \*frame, char \*errorMessage, int errorMessageSize)
+
+   Host waits every plane's producer pair and makes the completed writes
+   available outside the device's own domain — the part a bare producer wait
+   does not give you, since the spec only defines cross device visibility
+   through external semaphores or an availability chain like this one. Call
+   once per frame before reading it through an exported handle; costs one
+   submission round trip. Frames consumed by Vulkan work on the same device
+   never need this, their producer pairs carry the dependency. Foreign
+   consumers that import the producer pair through exportGPUSemaphore_ do not
+   need it either — a device side external wait carries the dependency.
