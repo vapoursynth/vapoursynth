@@ -816,28 +816,7 @@ public:
 
     /* Brings a GPU clip back to host memory so the scalar graph below can run on it,
        returning a copy of the arguments with only the clip replaced. */
-    static VSMap *downloadedArgs(const VSMap *in, VSCore *core, const VSAPI *vsapi) {
-        VSPlugin *stdplugin = vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core);
-        VSMap *args = vsapi->createMap();
-        vsapi->mapConsumeNode(args, "clip", vsapi->mapGetNode(in, "clip", 0, nullptr), maReplace);
-        VSMap *downloaded = vsapi->invoke(stdplugin, "GPUDownload", args);
-        vsapi->freeMap(args);
-
-        if (const char *err = vsapi->mapGetError(downloaded)) {
-            std::string message = err;
-            vsapi->freeMap(downloaded);
-            throw std::runtime_error{ message };
-        }
-        VSMap *result = vsapi->createMap();
-        vsapi->copyMap(in, result);
-        vsapi->mapConsumeNode(result, "clip", vsapi->mapGetNode(downloaded, "clip", 0, nullptr), maReplace);
-        vsapi->freeMap(downloaded);
-        return result;
-    }
-
     static void VS_CC create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-        VSMap *downloaded = nullptr;
-
         try {
             vszimg_userdata u{ userData };
             /* Two different things, and Bob is where they part: the kernel is what
@@ -859,11 +838,12 @@ public:
             if (vsapi->mapNumElements(in, "prefer_props") >= 0)
                 vsapi->logMessage(mtWarning, "The deprecated argument prefer_props was passed to a resizer. Ignoring argument.", core);
 
-            /* Residency polymorphic, but only partly: the compute path covers a slice of
-               the arguments, and everything else has to come back to host memory the way
-               the core would have done automatically before this argument became
-               vnode:all. Said out loud, because a chain meant to stay on the device just
-               left it. */
+            /* Residency polymorphic, but only over what the compute path implements: a
+               resident clip asking for anything outside it is an error naming the reason,
+               not a silent trip back to host memory. Downloading instead would keep the
+               call working, which is why it used to -- but it turns a chain meant to stay
+               on the device into two transfers per frame, discovered only by reading a log
+               line, and the fix is one GPUDownload the caller can place where it belongs. */
             const VSMap *args = in;
             VSNode *node = vsapi->mapGetNode(in, "clip", 0, nullptr);
             const bool onGPU = vsapi->getNodeResidency(node) == nrGPU;
@@ -871,12 +851,10 @@ public:
 
             if (onGPU) {
                 std::string decline;
-                if (createGPUResize(in, out, kernelName, u.op == FieldOp::DEINTERLACE, core, vsapi, decline))
-                    return;
-                vsapi->logMessage(mtInformation,
-                    ("Resize: "s + decline + ", so the frames are downloaded and resized on the CPU").c_str(), core);
-                downloaded = downloadedArgs(in, core, vsapi);
-                args = downloaded;
+                if (!createGPUResize(in, out, kernelName, u.op == FieldOp::DEINTERLACE, core, vsapi, decline))
+                    vsapi->mapSetError(out, ("Resize: "s + decline +
+                        ", which the GPU path does not implement; insert GPUDownload to resize on the CPU").c_str());
+                return;
             }
 
             vszimg *x = new vszimg{ args, userData, core, vsapi };
@@ -888,8 +866,6 @@ public:
         } catch (const std::exception &e) {
             vsapi->mapSetError(out, ("Resize error: "s + e.what()).c_str());
         }
-
-        vsapi->freeMap(downloaded);
     }
 
     static void VS_CC free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
@@ -1001,11 +977,11 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Spline36", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE36), plugin);
     vspapi->registerFunction("Spline64", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE64), plugin);
 
-    /* vnode:all even though the whole of Bob may still decline: what the modifier
-       decides is WHERE a download happens. As plain vnode it landed on Bob's own
-       argument, ahead of the SeparateFields this builds on top of, so even the parts
-       with a compute path ran on the host and the round trip happened at the earliest
-       possible point. */
+    /* vnode:all even though the whole of Bob may still decline: the modifier is what lets
+       a resident clip reach the compute path at all. As plain vnode the core downloaded on
+       Bob's own argument, ahead of the SeparateFields this builds on top of, so even the
+       parts with a compute path ran on the host. A decline is now an error rather than a
+       download, so the caller places the round trip themselves if they want one. */
     vspapi->registerFunction("Bob", "clip:vnode:all;filter:data:opt;tff:int:opt;" COMMON_ARGS, RETURN_VALUE, bobCreate, vszimg_userdata(ZIMG_RESIZE_BICUBIC), plugin);
 
 #undef COMMON_ARGS

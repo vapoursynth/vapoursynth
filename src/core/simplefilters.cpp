@@ -2696,8 +2696,9 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
         RETERROR("PlaneStats: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
 
     if (gpu) {
-        if (!isConstantVideoFormat(vi))
-            RETERROR("PlaneStats: the GPU path needs a constant format clip");
+        /* No constant format check of its own: nothing below reads the format in a way a
+           variable clip breaks, and vsgpu::createFilter refuses one before any pipeline is
+           built, with a message that also names the GPUDownload the caller needs. */
 
         /* Subgroup geometry: the reduction pins the subgroup size so the kernel's partial
            bookkeeping is exact and even the float last bits are stable on a given device

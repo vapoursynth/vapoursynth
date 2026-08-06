@@ -842,8 +842,12 @@ static void createGPUText(std::unique_ptr<TextData> &d, VSMap *out, VSCore *core
         d->node = nullptr;
     };
 
+    /* vsgpu::createFilter refuses a variable clip too, but not soon enough: everything
+       below reads the format, and the integer shift that derives the sample scale is
+       undefined when bitsPerSample is zero, which is what a variable clip reports. */
     if (!vsh::isConstantVideoFormat(d->vi)) {
-        fail("the GPU path needs a constant format clip");
+        fail("the GPU path needs a clip with constant format and dimensions; "
+            "insert GPUDownload to draw text on the CPU");
         return;
     }
 

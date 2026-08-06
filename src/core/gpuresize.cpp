@@ -62,8 +62,11 @@
    subsampling with per-frame _ChromaLocation, format conversion within a family and
    between grey and YUV, range conversion, source windows, a separate chroma kernel, and
    every registered kernel. Colour conversions (matrix, transfer, primaries -- anything
-   through RGB) and field-based frames are the remaining scope; those decline so the
-   scalar graph runs, the caller downloads the frames and says so in the log. */
+   through RGB) and field-based frames are the remaining scope. Anything outside it is a
+   create error naming the reason, not a quiet download: a resident clip stays resident or
+   the caller is told where to put the GPUDownload. Variable format and variable dimension
+   clips are outside it by construction, since every kernel here is compiled from the
+   clip's one format and every pipeline built for its one pair of dimensions. */
 
 #include <algorithm>
 #include <cmath>
@@ -2170,9 +2173,9 @@ struct ResizePipeline {
     VkPipeline pipeline = VK_NULL_HANDLE;
 };
 
-/* Everything one (source format, size) pairing needs: the resolved spec and its
-   pipelines. A constant clip has exactly one; a variable clip grows one per format pair
-   it actually delivers, like the scalar path's graph cache. */
+/* Everything the instance's one (source format, size) pairing needs: the resolved spec
+   and its pipelines. There is exactly one, since a resident clip must have a constant
+   format and constant dimensions to reach this path at all. */
 struct PipeSet {
     ConversionSpec spec;
     /* [class][vertical][chain source is a frame plane][chain destination is one]; the
@@ -2193,23 +2196,7 @@ struct GPUResizeData {
     VSVulkanCoreHandles handles = {};
     VSGPUExecPool *pool = nullptr;
 
-    PipeSet fixed;              /* the whole story for a constant format clip */
-
-    /* Variable format: the spec is a per-frame fact, resolved from the frame's own
-       format and cached with its pipelines. */
-    bool variable = false;
-    VSMap *args = nullptr;      /* a copy of the create arguments, clip removed */
-    std::string kernelName;
-    bool deinterlace = false;
-    std::mutex variantMutex;
-    struct VariantKey {
-        int colorFamily, sampleType, bits, subW, subH, w, h;
-        bool operator==(const VariantKey &o) const {
-            return colorFamily == o.colorFamily && sampleType == o.sampleType &&
-                bits == o.bits && subW == o.subW && subH == o.subH && w == o.w && h == o.h;
-        }
-    };
-    std::vector<std::pair<VariantKey, std::unique_ptr<PipeSet>>> variants;
+    PipeSet pipes;
 
     void destroyPipeSet(PipeSet &ps) {
         auto destroy = [&](ResizePipeline &p) {
@@ -2231,9 +2218,7 @@ struct GPUResizeData {
                was still using are safe to destroy only after this point. */
             if (pool)
                 vkapi->freeGPUExecPool(pool);
-            destroyPipeSet(fixed);
-            for (auto &v : variants)
-                destroyPipeSet(*v.second);
+            destroyPipeSet(pipes);
         }
     }
 };
@@ -2388,43 +2373,9 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
         return nullptr;
     };
 
-    /* A variable clip's spec is a fact of the frame's own format, resolved once per
-       pairing and cached with its pipelines -- the same shape as the scalar path's
-       graph cache. A pairing outside the compute path's scope is a frame error here,
-       since the download fallback was decided at create and cannot be revisited. */
-    const PipeSet *psp = &d->fixed;
-    if (d->variable) {
-        const VSVideoFormat *ffmt = vsapi->getVideoFrameFormat(src);
-        GPUResizeData::VariantKey key = { ffmt->colorFamily, ffmt->sampleType,
-            ffmt->bitsPerSample, ffmt->subSamplingW, ffmt->subSamplingH,
-            vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0) };
-        std::lock_guard<std::mutex> lock(d->variantMutex);
-        PipeSet *found = nullptr;
-        for (auto &v : d->variants) {
-            if (v.first == key) {
-                found = v.second.get();
-                break;
-            }
-        }
-        if (!found) {
-            VSVideoInfo fvi = {};
-            fvi.format = *ffmt;
-            fvi.width = key.w;
-            fvi.height = key.h;
-            fvi.numFrames = 1;
-            auto variant = std::make_unique<PipeSet>();
-            std::string reason;
-            if (!resolveSpec(d->args, d->kernelName.c_str(), d->deinterlace, &fvi, core,
-                    vsapi, &variant->spec, reason))
-                return fail("Resize: " + reason + " (variable format frame)");
-            if (!buildPipeSet(d, *variant, core, reason))
-                return fail("Resize: " + reason);
-            found = variant.get();
-            d->variants.emplace_back(key, std::move(variant));
-        }
-        psp = found;
-    }
-    const PipeSet &pset = *psp;
+    /* One spec and one set of pipelines for the instance: the clip's format and dimensions
+       are constant, which createGPUResize required before building any of it. */
+    const PipeSet &pset = d->pipes;
     const ConversionSpec &spec = pset.spec;
 
     FrameState st;
@@ -2714,7 +2665,6 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
 void VS_CC gpuResizeFree(void *instanceData, VSCore *, const VSAPI *vsapi) {
     GPUResizeData *d = static_cast<GPUResizeData *>(instanceData);
     vsapi->freeNode(d->node);
-    vsapi->freeMap(d->args);
     delete d;
 }
 
@@ -3134,62 +3084,19 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
     };
 
     auto d = std::make_unique<GPUResizeData>();
-    if (!isConstantVideoFormat(vi)) {
-        /* Variable format: the spec is a per-frame fact. Only the argument-level
-           declines that hold for EVERY format can be decided here; a frame whose format
-           pairing falls outside the compute path's scope becomes a frame error, since
-           the download fallback cannot be revisited per frame. */
-        if (present(in, "cpu_type", vsapi)) {
-            decline = "cpu_type was given";
-            vsapi->freeNode(node);
-            return false;
-        }
-        int ditherErr;
-        const char *ditherType = vsapi->mapGetData(in, "dither_type", 0, &ditherErr);
-        if (!ditherErr) {
-            const std::string dt = lowercased(ditherType);
-            if (dt != "none" && dt != "ordered" && dt != "random") {
-                decline = "error diffusion dithering";
-                vsapi->freeNode(node);
-                return false;
-            }
-        }
-        d->variable = true;
-        d->args = vsapi->createMap();
-        vsapi->copyMap(in, d->args);
-        vsapi->mapDeleteKey(d->args, "clip");
-        d->kernelName = kernelName;
-        d->deinterlace = deinterlace;
-        /* The output info mirrors the scalar wrapper: arguments pin whatever they name
-           and everything else stays variable. */
-        d->vi = *vi;
-        const int wArg = present(in, "width", vsapi) ? vsapi->mapGetIntSaturated(in, "width", 0, nullptr) : 0;
-        const int hArg = present(in, "height", vsapi) ? vsapi->mapGetIntSaturated(in, "height", 0, nullptr) : 0;
-        if (wArg > 0)
-            d->vi.width = wArg;
-        if (deinterlace)
-            d->vi.height = vi->height * 2;
-        else if (hArg > 0)
-            d->vi.height = hArg;
-        if (present(in, "format", vsapi)) {
-            const int id = vsapi->mapGetIntSaturated(in, "format", 0, nullptr);
-            if (!vsapi->getVideoFormatByID(&d->vi.format, static_cast<uint32_t>(id), core) ||
-                d->vi.format.colorFamily == cfUndefined) {
-                decline = "an unknown output format";
-                vsapi->freeNode(node);
-                return false;
-            }
-        }
-    } else {
-        if (!resolveSpec(in, kernelName, deinterlace, vi, core, vsapi, &d->fixed.spec, decline)) {
-            vsapi->freeNode(node);
-            return false;
-        }
-        d->vi = *vi;
-        d->vi.width = static_cast<int>(d->fixed.spec.dstW);
-        d->vi.height = static_cast<int>(d->fixed.spec.dstH);
-        d->vi.format = d->fixed.spec.dstFmt;
+    /* resolveSpec refuses a variable clip too, but saying it here keeps the reason the
+       caller is told the specific one rather than whatever the spec resolution happens to
+       trip over first. */
+    if (!isConstantVideoFormat(vi))
+        return give_up("a variable format or variable dimension clip");
+    if (!resolveSpec(in, kernelName, deinterlace, vi, core, vsapi, &d->pipes.spec, decline)) {
+        vsapi->freeNode(node);
+        return false;
     }
+    d->vi = *vi;
+    d->vi.width = static_cast<int>(d->pipes.spec.dstW);
+    d->vi.height = static_cast<int>(d->pipes.spec.dstH);
+    d->vi.format = d->pipes.spec.dstFmt;
 
     char err[512] = { 0 };
     d->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
@@ -3206,7 +3113,7 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
        the set of possibilities is not; the core caches compiles by source text, so the
        repeat combinations parse once. */
     std::string error;
-    if (!d->variable && !buildPipeSet(d.get(), d->fixed, core, error))
+    if (!buildPipeSet(d.get(), d->pipes, core, error))
         return give_up(error);
 
     d->pool = d->vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
