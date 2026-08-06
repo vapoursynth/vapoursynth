@@ -39,7 +39,7 @@ VSVulkanExecPool::~VSVulkanExecPool() {
         timeline->release();
 }
 
-void VSVulkanExecPool::retain(VSVulkanExecContext &context, void (*release)(void *object), void *object, VkDeviceSize bytes) {
+void VSVulkanExecPool::retain(VSVulkanExecContext &context, VSGPUReleaseFunc release, void *object, VkDeviceSize bytes) {
     context.retained.push_back({ release, object });
     if (bytes) {
         context.retainedBytes += bytes;

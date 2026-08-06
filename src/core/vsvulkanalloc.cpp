@@ -219,6 +219,67 @@ VSVulkanAllocatorStats VSVulkanAllocator::stats() const {
     return out;
 }
 
+/* Regions are whole regionGranularity pages -- offsets are multiples of it and sizes round up
+   to it -- so two resources can never land on the same buffer/image granularity page as long
+   as the device asks for no more than that. Every driver seen reports far less (1 on the cards
+   tested here), and one that did not would need per region type tracking, so the public memory
+   entry point refuses on such a device rather than pretending. */
+bool VSVulkanDevice::poolAllowsMixedResourceTypes() const {
+    return props.limits.bufferImageGranularity <= regionGranularity;
+}
+
+/* The allocation half shared by pooled buffers and by the public memory entry point: choose a
+   memory type, take a region, and when the driver says no, climb the reclamation ladder before
+   giving up. The allocator's own trim already ran inside allocate, so what is left to reclaim
+   is what other subsystems hold -- exec pool retentions whose submissions completed but whose
+   context was never acquired again (a graph mid teardown parks its whole in flight footprint
+   that way), and cached GPU frames, which the pressure callback has the core evict. Both free
+   regions and empty out blocks, so the retry can be satisfied from the free lists or by the
+   trim allocate runs internally when a fresh block still fails. */
+bool VSVulkanDevice::allocatePooled(const VkMemoryRequirements &req, VkMemoryPropertyFlags requiredFlags,
+    VkMemoryPropertyFlags preferredFlags, bool exportable, VSVulkanPooledRegion &region,
+    std::string &errorMessage) {
+    uint32_t typeIndex = findMemoryType(req.memoryTypeBits, requiredFlags, preferredFlags);
+    if (typeIndex == UINT32_MAX) {
+        errorMessage = "No memory type provides the requested properties for this allocation";
+        return false;
+    }
+
+    /* Regions are carved and recycled on regionGranularity boundaries, which every buffer is
+       happy with, but images routinely are not: this card wants 65536 for a 256x128 R32 image
+       and 256 for the same format at 1920x1080, so a coarser requirement is a normal case and
+       not an error to report. Reserving the extra distance to the next boundary and binding
+       inside the region satisfies it without disturbing the invariant the recycling depends
+       on -- the region still starts and ends where the buckets expect. The overshoot is at
+       most alignment - regionGranularity, since the region already starts on a granularity
+       boundary; that is invisible on a plane sized image and worst on a tiny one. */
+    VkDeviceSize request = req.size;
+    VkDeviceSize carveAlignment = req.alignment;
+    if (req.alignment > regionGranularity) {
+        request += req.alignment - regionGranularity;
+        carveAlignment = regionGranularity;
+    }
+
+    if (!allocator.allocate(*this, typeIndex, request, carveAlignment, exportable, region.block,
+            region.offset, region.size, errorMessage)) {
+        sweepExecPools();
+        if (pressureFn)
+            pressureFn(pressureUserData);
+        errorMessage.clear();
+        if (!allocator.allocate(*this, typeIndex, request, carveAlignment, exportable, region.block,
+                region.offset, region.size, errorMessage))
+            return false;
+    }
+
+    region.usableOffset = (region.offset + req.alignment - 1) & ~(req.alignment - 1);
+    assert(region.usableOffset + req.size <= region.offset + region.size);
+    return true;
+}
+
+void VSVulkanDevice::freePooled(const VSVulkanPooledRegion &region) {
+    allocator.free(region.block, region.offset, region.size);
+}
+
 bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize size, VkBufferUsageFlags usage,
     VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, std::string &errorMessage) {
     buffer = {};
@@ -257,35 +318,13 @@ bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize siz
     req.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
     vk.vkGetBufferMemoryRequirements2(deviceHandle, &reqInfo, &req);
 
-    uint32_t typeIndex = findMemoryType(req.memoryRequirements.memoryTypeBits, requiredFlags, preferredFlags);
-    if (typeIndex == UINT32_MAX) {
-        errorMessage = "No memory type provides the requested properties for this buffer";
+    VSVulkanPooledRegion region;
+    if (!allocatePooled(req.memoryRequirements, requiredFlags, preferredFlags, exportable, region, errorMessage)) {
         destroyBuffer(buffer);
         return false;
     }
-
-    VSVulkanAllocator::Block *block = nullptr;
-    VkDeviceSize offset = 0, roundedSize = 0;
-    if (!allocator.allocate(*this, typeIndex, req.memoryRequirements.size, req.memoryRequirements.alignment,
-            exportable, block, offset, roundedSize, errorMessage)) {
-        /* The driver said no, and the allocator's own trim found nothing idle. What usually
-           holds the missing VRAM at this point is reclaimable without waiting for anything:
-           completed-but-unswept exec pool retentions (the scratch and sources of submissions
-           that finished but whose context was never acquired again — a graph mid-teardown or
-           gone idle parks its whole in-flight footprint that way), and cached GPU frames,
-           which the pressure callback has the core evict. Both free regions and empty out
-           blocks, so the retried allocate can be satisfied from the free lists or by the
-           trim it runs internally when a fresh block still fails. */
-        sweepExecPools();
-        if (pressureFn)
-            pressureFn(pressureUserData);
-        errorMessage.clear();
-        if (!allocator.allocate(*this, typeIndex, req.memoryRequirements.size, req.memoryRequirements.alignment,
-                exportable, block, offset, roundedSize, errorMessage)) {
-            destroyBuffer(buffer);
-            return false;
-        }
-    }
+    VSVulkanAllocator::Block *block = region.block;
+    const VkDeviceSize offset = region.usableOffset;
 
     VkBindBufferMemoryInfo bindInfo = {};
     bindInfo.sType = VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO;
@@ -294,7 +333,7 @@ bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize siz
     bindInfo.memoryOffset = offset;
     res = vk.vkBindBufferMemory2(deviceHandle, 1, &bindInfo);
     if (res != VK_SUCCESS) {
-        allocator.free(block, offset, roundedSize);
+        freePooled(region);
         errorMessage = "vkBindBufferMemory2 failed (VkResult " + std::to_string(res) + ")";
         destroyBuffer(buffer);
         return false;
@@ -302,10 +341,12 @@ bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize siz
 
     buffer.memory = block->memory;
     buffer.size = size;
-    buffer.memoryFlags = memProps.memoryTypes[typeIndex].propertyFlags;
+    buffer.memoryFlags = memProps.memoryTypes[block->typeIndex].propertyFlags;
+    /* The region as carved, which is what gives it back; the buffer itself sits at the
+       usable offset inside it. */
     buffer.poolBlock = block;
-    buffer.poolOffset = offset;
-    buffer.poolSize = roundedSize;
+    buffer.poolOffset = region.offset;
+    buffer.poolSize = region.size;
     if (block->mapped)
         buffer.mapped = static_cast<uint8_t *>(block->mapped) + offset;
 

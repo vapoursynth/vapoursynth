@@ -327,6 +327,25 @@ typedef struct VSVulkanBufferInfo {
     VkMemoryPropertyFlags memoryFlags; /* what the chosen memory type actually provides */
 } VSVulkanBufferInfo;
 
+/* A bare region of the same pooled VRAM, for resources the core has no constructor for. An
+ * image is the case that motivates it: memory is never passed to vkCreateImage, it is bound
+ * afterwards, so nothing is gained by wrapping image creation -- the filter creates the image
+ * its own way and only the allocation comes from here. */
+typedef struct VSGPUMemory VSGPUMemory;
+
+typedef struct VSVulkanMemoryInfo {
+    VkDeviceMemory memory;   /* the shared block; bind against it, never free it */
+    VkDeviceSize offset;     /* where the region starts in that block; pass to vkBind*Memory2 */
+    VkDeviceSize size;       /* what the region actually reserves, at least the requested size */
+    void *mapped;            /* nonnull when host visible, already offset to the region */
+    VkMemoryPropertyFlags memoryFlags; /* what the chosen memory type actually provides */
+} VSVulkanMemoryInfo;
+
+/* A declaration of GPU memory allocated outside the core -- by CUDA, another Vulkan device
+ * ecosystem, a video session -- so the byte count takes part in the core's budgeting; see
+ * reserveGPUMemory. Holds no memory itself, only the number. */
+typedef struct VSGPUMemoryReservation VSGPUMemoryReservation;
+
 /* A frame plane's backing memory exported as an opaque handle, so CUDA and other Vulkan
  * devices in the same process can wrap the underlying allocation and read or write the plane
  * zero copy (cudaImportExternalMemory + cudaExternalMemoryGetMappedBuffer, or a second
@@ -369,6 +388,10 @@ typedef struct VSVulkanExportedMemory {
    hands out its command buffer and imposes nothing on what goes into it. */
 typedef struct VSGPUExecPool VSGPUExecPool;
 typedef struct VSGPUExecContext VSGPUExecContext;
+
+/* Cleanup a filter hands to an exec context, run once the submission it was recorded against
+ * has completed; see gpuExecRetain. */
+typedef void (VS_CC *VSGPUReleaseFunc)(void *object);
 
 /* A runtime compiled shader as an opaque handle holding the SPIR-V words. Independent of
    everything else once returned: it stays valid after the core that compiled it is freed
@@ -600,6 +623,118 @@ struct VSVULKANAPI {
     /* The raw handle, to signal in your own vkQueueSubmit and to pass to exportGPUSemaphore.
        Valid for as long as you hold a reference. */
     VkSemaphore (VS_CC *getGPUTimelineSemaphore)(VSGPUTimeline *timeline) VS_NOEXCEPT;
+
+    /* A region of the pool frame planes come from, for a resource this API has no constructor
+       for. Create the resource, ask Vulkan what memory it needs, allocate it here, and bind
+       against the memory and offset that come back:
+
+           vkCreateImage(device, &imageInfo, NULL, &image);
+           vkGetImageMemoryRequirements2(device, &reqInfo, &req);
+           VSGPUMemory *mem = allocateGPUMemory(core, &req.memoryRequirements,
+               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, &info, err, sizeof(err));
+           VkBindImageMemoryInfo bind = { ..., image, info.memory, info.offset };
+           vkBindImageMemory2(device, 1, &bind);
+
+       What this buys over a private vkAllocateMemory is everything the pool does: the region
+       counts against the VRAM limit, is visible to the thread pool's admission control, is
+       recycled through the size buckets, and takes part in the reclamation the core performs
+       under pressure. A private allocation is none of those things -- the core cannot see it,
+       so it cannot account for it or make room for it.
+
+       Bind at info.offset, not at the start of info.memory: the region sits inside a shared
+       block, and images in particular are aligned further inside it, since their requirements
+       are routinely coarser than the pool's regions (65536 for a small image on hardware that
+       asks 256 for a large one). That is handled by reserving the distance, so any alignment
+       is satisfied; the cost is a bounded overshoot that is invisible at plane sizes.
+
+       Two resources must not bind here, and neither is detectable from what this is given, so
+       both are the caller's to check: one created with external memory info, since these
+       blocks are not exportable, and one whose VkMemoryDedicatedRequirements report
+       requiresDedicatedAllocation, since a suballocated region is by definition not a
+       dedicated allocation. Chain VkMemoryDedicatedRequirements onto the
+       vkGet*MemoryRequirements2 call to see the latter; it is false for ordinary images and
+       buffers, and true mostly for external and platform specific formats. Allocate those
+       yourself. (prefersDedicatedAllocation is only a hint and is safe to ignore here.)
+
+       A device whose buffer/image granularity is coarser than the pool's regions is refused
+       with a message rather than risking two resources sharing a granularity page.
+
+       A freed region returns to the pool at once and may back another resource immediately,
+       so freeing early aliases live data rather than faulting: free only once the submissions
+       using the resource have completed, or hand the region to gpuExecUsesMemory and let it
+       retire on its own.
+
+       Returns NULL with the error set. */
+    VSGPUMemory *(VS_CC *allocateGPUMemory)(VSCore *core, const VkMemoryRequirements *requirements,
+        VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags,
+        VSVulkanMemoryInfo *info, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+    void (VS_CC *freeGPUMemory)(VSGPUMemory *memory) VS_NOEXCEPT;
+
+    /* gpuExecUsesBuffer for a bare region: the region stays out of the pool until the
+       submission being recorded has completed, and its bytes count against the in-flight
+       retention budget meanwhile. Ownership transfers; do not free it yourself. Release
+       follows the ordinary retention timing described at createGPUExecPool -- reaped by the
+       next submit on the pool, and by acquire, destruction or a pressure sweep otherwise --
+       so what is guaranteed is that the region is never recycled early, not that it returns
+       at a particular moment.
+
+       The resource bound to the region is still yours to destroy, since this never saw it. A
+       resource whose lifetime is the filter's -- created once, reused every frame -- is the
+       easy case and wants no retention at all. One created per frame has to outlive its
+       submission too, so keep those handles and destroy them when the filter is freed rather
+       than trying to guess when the submission retired. */
+    void (VS_CC *gpuExecUsesMemory)(VSGPUExecContext *context, VSGPUMemory *memory) VS_NOEXCEPT;
+
+    /* Declares GPU memory the core did not allocate -- a CUDA pool, another Vulkan device
+       with its own queues and features, a video session -- into the same accounting the
+       core's pool uses, so the frame cache, the thread pool's admission control and the
+       unified-memory brake all see it. The core never refuses a reservation: it does not
+       own the memory and cannot veto it. What an increase buys is cooperation: when the
+       declared bytes push the GPU pool past its limit, the least valuable cached GPU frames
+       are evicted down to a tenth under it and fully idle allocator blocks are handed back
+       to the driver before the call returns -- so reserve or update BEFORE the foreign
+       allocation, and the VRAM it is about to ask the driver for has actually been vacated.
+       Shrinking and releasing just subtract.
+
+       bytes is the reservation's absolute total, not a delta: keep publishing what you hold
+       and drift is impossible, however the calls interleave. Concurrent updates are safe;
+       the last written total wins. Negative is treated as zero. release drops the whole
+       reservation with the handle and ignores NULL; late release -- in the filter free
+       callback -- is the intended place.
+
+       Only declare memory living on the core's device: match deviceUUID or deviceLUID from
+       getVulkanCoreInfo against your API's device enumeration, and keep a second GPU's bytes
+       out of this core's budget. Never declare bytes the core already accounts -- anything
+       from createGPUBuffer, allocateGPUMemory or GPU frames -- or they count twice. On
+       unified memory devices this bookkeeping matters doubly, since the pool's bytes and
+       the host's are the same RAM. Returns NULL with the error set. */
+    VSGPUMemoryReservation *(VS_CC *reserveGPUMemory)(VSCore *core, int64_t bytes,
+        char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+    void (VS_CC *updateGPUMemoryReservation)(VSGPUMemoryReservation *reservation, int64_t bytes) VS_NOEXCEPT;
+    void (VS_CC *releaseGPUMemoryReservation)(VSGPUMemoryReservation *reservation) VS_NOEXCEPT;
+
+    /* Cleanup of your own on the retention list, for what the typed calls above cannot name.
+       release(object) runs once the submission being recorded has completed, on the schedule
+       described at createGPUExecPool; call it between acquire and submit like the others, and
+       abandon runs it immediately since nothing will execute.
+
+       This is what a per frame image wants, because the objects that have to outlive a
+       submission are not only the ones holding memory: an image, every view recorded against
+       it, and the region underneath all retire together, and one registration of a struct
+       holding the three frees them in the right order -- views, image, then freeGPUMemory --
+       where a call per object could not express the ordering. Anything else a submission
+       borrowed can ride along the same way.
+
+       bytes is what the object pins in device memory, counted against the in-flight retention
+       budget until release; pass 0 for host side bookkeeping, and do not count bytes the
+       typed calls already counted for the same object.
+
+       The callback runs on whichever thread reaps the submission -- another filter's submit,
+       or a core memory pressure sweep -- so it must be safe to call from any thread. No pool
+       lock is held while it runs, so it may take its own; it must not acquire a context from
+       the pool that is reaping it. */
+    void (VS_CC *gpuExecRetain)(VSGPUExecContext *context, VSGPUReleaseFunc release,
+        void *object, VkDeviceSize bytes) VS_NOEXCEPT;
 };
 
 #endif

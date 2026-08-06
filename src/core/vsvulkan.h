@@ -247,6 +247,16 @@ private:
     mutable std::mutex mutex;
 };
 
+/* One region taken from the allocator. offset/size are the region itself and are what gives
+   it back; usableOffset is where the resource actually binds, which differs only when the
+   resource wanted an alignment coarser than a region -- see VSVulkanDevice::allocatePooled. */
+struct VSVulkanPooledRegion {
+    VSVulkanAllocator::Block *block = nullptr;
+    VkDeviceSize offset = 0;
+    VkDeviceSize size = 0;
+    VkDeviceSize usableOffset = 0;
+};
+
 /* A buffer and the memory backing it, freed with destroyBuffer. Ownership is deliberately
    explicit rather than RAII: frame pooling and cache accounting will want to manage these
    lifetimes themselves later, and a device pointer per buffer would only get in the way.
@@ -272,6 +282,24 @@ struct VSVulkanBuffer {
 struct VSGPUBuffer {
     VSVulkanBuffer buffer;
     VSVulkanDevice *device = nullptr;
+};
+
+/* The public bare region handle from VSVULKANAPI::allocateGPUMemory: what the allocator needs
+   back to return the region, plus the device reference keeping it reachable. */
+struct VSGPUMemory {
+    VSVulkanPooledRegion region;
+    VSVulkanDevice *device = nullptr;
+};
+
+/* The public foreign-memory declaration from VSVULKANAPI::reserveGPUMemory: nothing but the
+   published byte total and the references that keep the accounting reachable. The core
+   pointer is only touched on increases, which a live filter performs while the core is
+   necessarily alive; a late release goes through the device's accounting callback alone,
+   which outlives the core by design. */
+struct VSGPUMemoryReservation {
+    std::atomic<int64_t> bytes{ 0 };
+    VSVulkanDevice *device = nullptr;
+    VSCore *core = nullptr;
 };
 
 /* An optimally tiled device local image and its memory, freed with destroyImage. Layout
@@ -463,6 +491,17 @@ public:
     bool createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize size, VkBufferUsageFlags usage,
         VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, std::string &errorMessage);
     void destroyBuffer(VSVulkanBuffer &buffer);
+
+    /* A pooled region on its own, without a resource wrapped around it: what createBufferPooled
+       uses underneath, and what VSVULKANAPI::allocateGPUMemory hands to filters binding their
+       own images. Non-exportable for the public path, since the caller's resource carries no
+       external memory info. poolAllowsMixedResourceTypes says whether images may share these
+       blocks with buffers on this device at all. */
+    bool allocatePooled(const VkMemoryRequirements &req, VkMemoryPropertyFlags requiredFlags,
+        VkMemoryPropertyFlags preferredFlags, bool exportable, VSVulkanPooledRegion &region,
+        std::string &errorMessage);
+    void freePooled(const VSVulkanPooledRegion &region);
+    bool poolAllowsMixedResourceTypes() const;
     bool createImage2D(VSVulkanImage &image, VkFormat format, uint32_t width, uint32_t height,
         VkImageUsageFlags usage, std::string &errorMessage);
     void destroyImage(VSVulkanImage &image);

@@ -95,7 +95,9 @@ public:
 
 private:
     struct Retained {
-        void (*release)(void *object);
+        /* VS_CC so this is the same type VSVULKANAPI::gpuExecRetain takes, which lets a
+           filter's own callback be stored directly instead of through a trampoline. */
+        VSGPUReleaseFunc release;
         void *object;
     };
 
@@ -155,7 +157,7 @@ public:
        bytes is what the object pins in device memory, counted against the device's
        in-flight retention budget until release; pass 0 for objects that should not gate
        (host memory, or pools exempt from admission). */
-    void retain(VSVulkanExecContext &context, void (*release)(void *object), void *object, VkDeviceSize bytes = 0);
+    void retain(VSVulkanExecContext &context, VSGPUReleaseFunc release, void *object, VkDeviceSize bytes = 0);
 
     /* Gives up on a recording instead of submitting it. Everything retained is released at
        once since nothing will ever execute; the half recorded command buffer is reset by the

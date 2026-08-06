@@ -1507,6 +1507,56 @@ static void VS_CC vkDestroyGPUBuffer(VSGPUBuffer *buffer) VS_NOEXCEPT {
     delete buffer;
 }
 
+static VSGPUMemory *VS_CC vkAllocateGPUMemory(VSCore *core, const VkMemoryRequirements *requirements,
+    VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags,
+    VSVulkanMemoryInfo *info, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(core && requirements && info);
+    if (requirements->size == 0) {
+        copyVulkanError("A GPU allocation needs a nonzero size", errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    std::string err;
+    VSVulkanDevice *dev = core->vulkanDevice(err);
+    if (!dev) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    if (!dev->poolAllowsMixedResourceTypes()) {
+        copyVulkanError("This device's buffer/image granularity is coarser than the pool's regions, "
+            "so a resource cannot safely share them; use your own vkAllocateMemory",
+            errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    auto handle = std::make_unique<VSGPUMemory>();
+    /* Never exportable: the caller's resource was created without external memory info, and
+       binding it to an exportable block is invalid. */
+    if (!dev->allocatePooled(*requirements, requiredFlags, preferredFlags, false, handle->region, err)) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    /* Same as buffers: the reference makes a late free reclaim memory rather than crash. */
+    handle->device = dev;
+    dev->addRef();
+    const VSVulkanPooledRegion &region = handle->region;
+    info->memory = region.block->memory;
+    /* Where the resource binds, which is the region's own start unless the requirement was
+       coarser than a region and it had to be aligned up inside one. */
+    info->offset = region.usableOffset;
+    info->size = region.size - (region.usableOffset - region.offset);
+    info->mapped = region.block->mapped
+        ? static_cast<uint8_t *>(region.block->mapped) + region.usableOffset : nullptr;
+    info->memoryFlags = dev->memoryProperties().memoryTypes[region.block->typeIndex].propertyFlags;
+    return handle.release();
+}
+
+static void VS_CC vkFreeGPUMemory(VSGPUMemory *memory) VS_NOEXCEPT {
+    if (!memory)
+        return;
+    memory->device->freePooled(memory->region);
+    memory->device->release();
+    delete memory;
+}
+
 static int VS_CC vkExportGPUPlane(const VSFrame *frame, int plane, VSVulkanExportedMemory *out,
     char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     assert(frame && out);
@@ -1626,17 +1676,25 @@ static void VS_CC vkFreeGPUShader(VSGPUShader *shader) VS_NOEXCEPT {
     delete shader;
 }
 
-/* Release callbacks for whatever a context was told to keep alive; both run once the
-   submission that used them has completed. */
-static void releaseRetainedFrame(void *object) {
+/* Release callbacks for whatever a context was told to keep alive; all run once the
+   submission that used them has completed. VS_CC because the retention list holds
+   VSGPUReleaseFunc, the same type gpuExecRetain takes from a filter. */
+static void VS_CC releaseRetainedFrame(void *object) {
     static_cast<VSFrame *>(object)->release();
 }
 
-static void releaseRetainedBuffer(void *object) {
+static void VS_CC releaseRetainedBuffer(void *object) {
     VSGPUBuffer *buffer = static_cast<VSGPUBuffer *>(object);
     buffer->device->destroyBuffer(buffer->buffer);
     buffer->device->release();
     delete buffer;
+}
+
+static void VS_CC releaseRetainedMemory(void *object) {
+    VSGPUMemory *memory = static_cast<VSGPUMemory *>(object);
+    memory->device->freePooled(memory->region);
+    memory->device->release();
+    delete memory;
 }
 
 static VSGPUExecPool *VS_CC vkCreateGPUExecPool(VSCore *core, int queue,
@@ -1721,6 +1779,75 @@ static void VS_CC vkGPUExecUsesBuffer(VSGPUExecContext *context, VSGPUBuffer *bu
     assert(context);
     if (buffer)
         context->owner->pool.retain(*context->context, releaseRetainedBuffer, buffer, buffer->buffer.poolSize);
+}
+
+static void VS_CC vkGPUExecUsesMemory(VSGPUExecContext *context, VSGPUMemory *memory) VS_NOEXCEPT {
+    assert(context);
+    if (memory)
+        context->owner->pool.retain(*context->context, releaseRetainedMemory, memory, memory->region.size);
+}
+
+/* The filter's callback goes straight onto the retention list: the list holds exactly this
+   type, so nothing is wrapped and nothing is allocated to carry it. */
+static void VS_CC vkGPUExecRetain(VSGPUExecContext *context, VSGPUReleaseFunc release,
+    void *object, VkDeviceSize bytes) VS_NOEXCEPT {
+    assert(context && release);
+    if (release)
+        context->owner->pool.retain(*context->context, release, object, bytes);
+}
+
+/* The cooperative half of a reservation change: the new total joins the accounting first,
+   and when that pushes the GPU pool past its limit the graduated reclamation runs before
+   returning -- least valuable cached frames down to a tenth under the limit, then a trim so
+   the vacated VRAM is really the driver's to hand to the foreign allocator about to ask for
+   it. Deliberately the measured path rather than gpuMemoryPanic: a reservation nudging past
+   the limit is routine, not a failed allocation. Decreases just subtract. Concurrent calls
+   are safe: exchange serializes the totals and each caller accounts its own delta, so the
+   deltas sum to the true change whatever the interleaving. */
+static void reservationSetBytes(VSGPUMemoryReservation *reservation, int64_t bytes) {
+    const int64_t previous = reservation->bytes.exchange(bytes, std::memory_order_relaxed);
+    const int64_t delta = bytes - previous;
+    if (!delta)
+        return;
+    reservation->device->accountAllocation(delta);
+    if (delta > 0) {
+        const size_t limit = reservation->core->memory->gpu_limit();
+        if (limit && reservation->core->memory->gpu_allocated_bytes() > limit)
+            reservation->core->notifyCaches(false, true);
+    }
+}
+
+static VSGPUMemoryReservation *VS_CC vkReserveGPUMemory(VSCore *core, int64_t bytes,
+    char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(core);
+    std::string err;
+    VSVulkanDevice *dev = core->vulkanDevice(err);
+    if (!dev) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return nullptr;
+    }
+    auto handle = std::make_unique<VSGPUMemoryReservation>();
+    handle->device = dev;
+    handle->core = core;
+    dev->addRef();
+    if (bytes > 0)
+        reservationSetBytes(handle.get(), bytes);
+    return handle.release();
+}
+
+static void VS_CC vkUpdateGPUMemoryReservation(VSGPUMemoryReservation *reservation, int64_t bytes) VS_NOEXCEPT {
+    assert(reservation);
+    reservationSetBytes(reservation, bytes > 0 ? bytes : 0);
+}
+
+static void VS_CC vkReleaseGPUMemoryReservation(VSGPUMemoryReservation *reservation) VS_NOEXCEPT {
+    if (!reservation)
+        return;
+    const int64_t held = reservation->bytes.exchange(0, std::memory_order_relaxed);
+    if (held)
+        reservation->device->accountAllocation(-held);
+    reservation->device->release();
+    delete reservation;
 }
 
 static int VS_CC vkGPUExecSubmit(VSGPUExecContext *context, uint64_t *signaledValue, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
@@ -1851,7 +1978,17 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     &vkCreateGPUTimeline,
     &vkFreeGPUTimeline,
     &vkAddGPUTimelineRef,
-    &vkGetGPUTimelineSemaphore
+    &vkGetGPUTimelineSemaphore,
+
+    &vkAllocateGPUMemory,
+    &vkFreeGPUMemory,
+    &vkGPUExecUsesMemory,
+
+    &vkReserveGPUMemory,
+    &vkUpdateGPUMemoryReservation,
+    &vkReleaseGPUMemoryReservation,
+
+    &vkGPUExecRetain
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {
