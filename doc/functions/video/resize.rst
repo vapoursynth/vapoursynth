@@ -1,14 +1,14 @@
 Resize
 ======
 
-.. function::   Bilinear(vnode clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type="none", string cpu_type, float src_left, float src_top, float src_width, float src_height, float nominal_luminance, bint approximate_gamma=True, bint chromatic_adaptation=True])
-                Bicubic(vnode clip[, ...])
-                Point(vnode clip[, ...])
-                Lanczos(vnode clip[, ...])
-                Spline16(vnode clip[, ...])
-                Spline36(vnode clip[, ...])
-                Spline64(vnode clip[, ...])
-                Bob(vnode clip[, string filter="bicubic", bint tff, ...])
+.. function::   Bilinear(vnode:all clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type="none", string cpu_type, float src_left, float src_top, float src_width, float src_height, float nominal_luminance, bint approximate_gamma=True, bint chromatic_adaptation=True])
+                Bicubic(vnode:all clip[, ...])
+                Point(vnode:all clip[, ...])
+                Lanczos(vnode:all clip[, ...])
+                Spline16(vnode:all clip[, ...])
+                Spline36(vnode:all clip[, ...])
+                Spline64(vnode:all clip[, ...])
+                Bob(vnode:all clip[, string filter="bicubic", bint tff, ...])
    :module: resize
    
    In VapourSynth the resizers have several functions. In addition to scaling,
@@ -17,6 +17,21 @@ Resize
    the parameters specified by the user. The resize filters can handle
    varying size and format input clips and turn them into constant format
    clips.
+
+   The resizers accept GPU resident clips and stay on the device, producing a
+   GPU resident result. Scaling, depth and subsampling changes, Bob, ordered and
+   random dither and the usual colour conversions are all implemented there, but
+   the compute path does not cover quite everything the scalar path does. What
+   it lacks it refuses with a message naming the reason — variable size or
+   format input, *cpu_type*, error diffusion dither, integer samples wider than
+   16 bits, colour families other than Gray, YUV and RGB, and individual
+   kernels, matrices, transfers and primaries it does not implement.
+
+   A refusal is an error, not a silent download, because a hidden fallback would
+   turn one resident clip into two transfers per frame and say so only in a log
+   line. Insert *std.GPUDownload* to resize those on the CPU, where every
+   feature remains available; a CPU clip never reaches any of this and is
+   unaffected. See :doc:`../../gpufilters`.
 
    If you do not know which resizer to choose, then try Bicubic. It usually
    makes a good neutral default.

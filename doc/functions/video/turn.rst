@@ -1,9 +1,9 @@
 Turn
 ====
 
-.. function:: Turn90(vnode clip)
-              Turn180(vnode clip)
-              Turn270(vnode clip)
+.. function:: Turn90(vnode:all clip)
+              Turn180(vnode:all clip)
+              Turn270(vnode:all clip)
    :module: std
 
    Turns the frames in a clip by the given number of degrees clockwise, which

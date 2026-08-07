@@ -1,7 +1,7 @@
 SetFrameProps
 =============
 
-.. function:: SetFrameProps(vnode clip, ...)
+.. function:: SetFrameProps(vnode:all clip, ...)
    :module: std
 
    Adds the specified values as a frame property of every frame

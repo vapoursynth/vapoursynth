@@ -1,7 +1,7 @@
 Text
 ====
 
-.. function:: Text(vnode clip, string text[, int alignment=7, int scale=1])
+.. function:: Text(vnode:all clip, string text[, int alignment=7, int scale=1])
    :module: text
 
    Text is a simple text printing filter. It doesn't use any external libraries

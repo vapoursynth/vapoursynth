@@ -1,7 +1,7 @@
 ClipToProp
 ==========
 
-.. function:: ClipToProp(vnode clip, vnode mclip[, string prop='_Alpha'])
+.. function:: ClipToProp(vnode:all clip, vnode:all mclip[, string prop='_Alpha'])
    :module: std
 
    Stores each frame of *mclip* as a frame property named *prop* in *clip*. This

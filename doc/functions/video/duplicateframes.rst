@@ -1,7 +1,7 @@
 DuplicateFrames
 ===============
 
-.. function:: DuplicateFrames(vnode clip, int[] frames)
+.. function:: DuplicateFrames(vnode:all clip, int[] frames)
    :module: std
 
    Duplicates the specified frames.

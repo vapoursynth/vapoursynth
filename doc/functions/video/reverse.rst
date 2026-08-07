@@ -1,7 +1,7 @@
 Reverse
 =======
 
-.. function::   Reverse(vnode clip)
+.. function::   Reverse(vnode:all clip)
    :module: std
 
    Returns a clip with the frame or sample order reversed. For example, a clip with 3

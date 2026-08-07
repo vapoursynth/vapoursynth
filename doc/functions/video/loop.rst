@@ -1,7 +1,7 @@
 Loop
 ====
 
-.. function::   Loop(vnode clip[, int times=0])
+.. function::   Loop(vnode:all clip[, int times=0])
    :module: std
 
    Returns a clip with the frames or samples repeated over and over again. If *times* is

@@ -1,7 +1,7 @@
 MergeFullDiff
 =============
 
-.. function::   MergeFullDiff(vnode clipa, vnode clipb)
+.. function::   MergeFullDiff(vnode:all clipa, vnode:all clipb)
    :module: std
 
    Merges back the difference in *clipb* to *clipa*. Note that the bitdepth of *clipb* has to be one higher than that of *clipa*.

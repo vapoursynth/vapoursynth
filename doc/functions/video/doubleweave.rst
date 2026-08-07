@@ -1,7 +1,7 @@
 DoubleWeave
 ===========
 
-.. function:: DoubleWeave(vnode clip[, bint tff])
+.. function:: DoubleWeave(vnode:all clip[, bint tff])
    :module: std
 
    Weaves the fields back together from a clip with interleaved fields.

@@ -1,7 +1,7 @@
 ModifyFrame
 ===========
 
-.. function:: ModifyFrame(vnode clip, clip[] clips, func selector)
+.. function:: ModifyFrame(vnode:all clip, clip[] clips, func selector)
    :module: std
 
    The *selector* function is called for every single frame and can modify the

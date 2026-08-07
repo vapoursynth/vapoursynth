@@ -1,8 +1,8 @@
 Invert/InvertMask
 =================
 
-.. function:: Invert(vnode clip[, int[] planes=[0, 1, 2]])
-              InvertMask(vnode clip[, int[] planes=[0, 1, 2]])
+.. function:: Invert(vnode:all clip[, int[] planes=[0, 1, 2]])
+              InvertMask(vnode:all clip[, int[] planes=[0, 1, 2]])
    :module: std
 
    Inverts the pixel values. Specifically, it subtracts the value of the

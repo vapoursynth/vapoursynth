@@ -1215,7 +1215,9 @@ struct VSAPI
    int64_t setMaxCacheSize(int64_t bytes, VSCore_ \*core)
 
       Sets the maximum size of the framebuffer cache. Returns the new maximum
-      size.
+      size. This covers host memory only; GPU resident frames are cached
+      against a separate VRAM limit, set with setMaxVRAMUse in
+      :doc:`vsvulkan4.h`.
 
 ----------
 
@@ -1417,6 +1419,16 @@ struct VSAPI
       Returns a pointer to the created frame. Ownership of the new frame is
       transferred to the caller.
 
+      Residency comes from the source planes: the new frame is GPU resident
+      when the frames in *planeSrc* are, and shared planes carry their producer
+      pairs across untouched, so this is how a GPU filter passes planes it does
+      not process through without copying them. Any NULL slot is then allocated
+      as a fresh GPU plane. All non-NULL entries must agree — mixing GPU and CPU
+      source planes in one frame is a fatal error, not a hidden transfer. With
+      every entry NULL there is nothing to infer from and the frame is CPU
+      resident; use newGPUVideoFrame (:doc:`vsvulkan4.h`) for a wholly new GPU
+      frame.
+
       Example (assume *frameA*, *frameB*, *frameC* are existing frames):
       
       .. code-block:: c
@@ -1561,6 +1573,14 @@ struct VSAPI
          Don't assume all three planes of a frame are allocated in one
          contiguous chunk (they're not).
 
+      .. warning::
+         Calling this on a GPU resident frame is a **fatal error**, not a
+         silent download — for a compiled plugin it is a programming error and
+         has to fail loudly. Check getFrameResidency_ if a frame's residency is
+         not already known from the node it came from, and insert a
+         GPUDownload to bring the data to the CPU. The GPU side of a plane is
+         reached through getGPUPlane instead (:doc:`vsvulkan4.h`).
+
 ----------
 
    .. _getWritePtr:
@@ -1573,6 +1593,12 @@ struct VSAPI
       .. note::
          Don't assume all three planes of a frame are allocated in one
          contiguous chunk (they're not).
+
+      .. warning::
+         Calling this on a GPU resident frame is a **fatal error**: GPU frames
+         can only be written by GPU filters, which record compute work against
+         the buffer from getGPUPlane (:doc:`vsvulkan4.h`) and publish a
+         producer pair on the plane afterwards.
 
 ----------
 

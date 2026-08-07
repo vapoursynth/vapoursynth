@@ -1,7 +1,7 @@
 Trim
 ====
 
-.. function::   Trim(vnode clip[, int first=0, int last, int length])
+.. function::   Trim(vnode:all clip[, int first=0, int last, int length])
    :module: std
 
    Trim returns a clip with only the frames between the arguments *first* and

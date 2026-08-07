@@ -1,7 +1,7 @@
 RemoveFrameProps
 ================
 
-.. function:: RemoveFrameProps(vnode clip[, string props[]])
+.. function:: RemoveFrameProps(vnode:all clip[, string props[]])
    :module: std
 
    Returns *clip* but with all the frame properties named in

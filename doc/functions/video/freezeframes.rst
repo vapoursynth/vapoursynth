@@ -1,7 +1,7 @@
 FreezeFrames
 ============
 
-.. function:: FreezeFrames(vnode clip, int[] first, int[] last, int[] replacement)
+.. function:: FreezeFrames(vnode:all clip, int[] first, int[] last, int[] replacement)
    :module: std
 
    FreezeFrames replaces all the frames in the [*first*,\ *last*] range

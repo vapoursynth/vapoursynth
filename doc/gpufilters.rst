@@ -80,6 +80,25 @@ chain stays resident and a shape a filter cannot handle is an error rather
 than a silent transfer. Where several clips contribute planes they must share
 one residency, as everywhere else; mixing is likewise an error.
 
+**GPU filters require a constant format and constant dimensions.** A kernel is
+compiled from the clip's format and its frames are allocated at the clip's
+dimensions, so a variable clip has nothing to build from and is refused at
+creation with a message naming the remedy — pass it through std.GPUDownload_
+and process it on the CPU, which handles variable clips as it always has. This
+applies to resize as well: the scalar resizers turn varying input into constant
+output, but on a resident clip that conversion is not available.
+
+For the same reason a decline is an **error, not a fallback**. The resize
+filters implement a large but not complete part of what their scalar path does,
+and where they fall short — *cpu_type*, error diffusion dither, integer samples
+wider than 16 bits, colour families outside Gray/YUV/RGB, and individual
+kernels, matrices, transfers and primaries — a GPU clip gets
+``Resize: <reason>, which the GPU path does not implement; insert GPUDownload to
+resize on the CPU``. Downloading silently would turn one resident clip into two
+transfers per frame, discoverable only by reading a log line; making it say so
+costs one explicit GPUDownload and puts it where the script author wants it. A
+CPU clip never reaches any of this and is unaffected.
+
 One deliberate difference from the scalar path is worth knowing about.
 std.MaskedMerge_ and std.PreMultiply_ have to resample a grayscale mask or
 alpha to chroma resolution when the clip has subsampled chroma, shifted to the
@@ -293,7 +312,9 @@ ships it: create a VSGPUExecPool with the filter and per frame do ::
    ctx = gpuExecAcquire(pool);          /* backpressure: waits out the oldest submission (7) */
    gpuExecReadsFrame(ctx, src);         /* producer waits + keeps src alive (3, 6) */
    gpuExecWritesPlane(ctx, dst, p);     /* published as producer pairs on submit (5) */
-   gpuExecUsesBuffer(ctx, scratch);     /* destroyed when the submission retires */
+   gpuExecUsesBuffer(ctx, scratch);     /* destroyed when the submission retires;
+                                           gpuExecUsesMemory for a bare region,
+                                           gpuExecRetain for anything else */
    /* ... record into gpuExecCommandBuffer(ctx) ... */
    gpuExecSubmit(ctx, NULL);            /* queue lock, values in queue order (4);
                                            non-NULL receives this submission's
@@ -347,6 +368,39 @@ persistently mapped. Long lived constant data (weight tables and the like)
 belongs in a DEVICE_LOCAL buffer filled once through a staging copy at
 filter creation.
 
+Anything that is not a buffer takes a bare region of the same pool instead.
+Memory is never passed to ``vkCreateImage`` — it is bound afterwards — so there
+is nothing to gain from wrapping image creation: create the image your own way,
+ask Vulkan what it needs, and allocate that with allocateGPUMemory, binding at
+the *offset* that comes back rather than at the start of the block::
+
+   vkGetImageMemoryRequirements2(device, &reqInfo, &req);
+   VSGPUMemory *mem = allocateGPUMemory(core, &req.memoryRequirements,
+       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, &info, err, sizeof(err));
+   VkBindImageMemoryInfo bind = { ..., image, info.memory, info.offset };
+   vkBindImageMemory2(device, 1, &bind);
+
+The offset matters because images are routinely aligned more coarsely than the
+pool's regions, which is handled by reserving the distance. Two cases must not
+bind here and neither is detectable from the requirements alone, so both are
+yours to check: a resource created with external memory info (these blocks are
+not exportable) and one whose ``VkMemoryDedicatedRequirements`` report
+*requiresDedicatedAllocation*. Allocate those with vkAllocateMemory yourself.
+
+Retention has a typed call per kind and a general one. gpuExecUsesBuffer hands
+over a VSGPUBuffer, gpuExecUsesMemory a bare region, and gpuExecRetain takes a
+callback plus a ``void *`` for everything else — which is what a per frame image
+actually needs, since the objects that must outlive a submission are not only
+the ones holding memory. An image, every view recorded against it and the region
+underneath all retire together, and one registration of a struct holding the
+three frees them in the right order (views, image, then freeGPUMemory) where a
+call per object could not express the ordering. The *bytes* argument is what the
+object pins in device memory, counted against the in-flight retention budget
+until release; pass 0 for host side bookkeeping. Retentions are released on the
+schedule described above — the pool's next submit, the context's next acquire,
+a pressure sweep or pool destruction — so the guarantee is that nothing is
+recycled early, not that it comes back at a particular moment.
+
 Borrowing frames from CUDA and other APIs
 -----------------------------------------
 
@@ -393,6 +447,22 @@ The pattern, per frame:
    Not every producer's timeline is exportable — third party filters may not
    opt in — so when exportGPUSemaphore fails on an input, fall back to
    waitGPUFrame for that frame.
+
+**Declare memory you allocate yourself.** A CUDA pool, a second Vulkan device
+or a video session allocates VRAM the core cannot see, and what it cannot see
+it cannot account for — so the frame cache keeps filling the card while your
+allocations compete with it for the same memory. reserveGPUMemory takes that
+number into the same budget, and updateGPUMemoryReservation republishes it as
+an absolute total (not a delta, so drift is impossible however the calls
+interleave). The core never refuses a reservation — it does not own the memory
+and cannot veto it. What an increase buys is cooperation: when the declared
+bytes push the pool past its limit, cached GPU frames are evicted and idle
+allocator blocks handed back to the driver *before the call returns*, so
+reserve or update **before** the allocation and the VRAM it is about to ask for
+has actually been vacated. Two rules: only declare memory on the core's own
+device (match by UUID, below), and never declare bytes the core already
+accounts — anything from createGPUBuffer, allocateGPUMemory or GPU frames —
+or they count twice. Release the reservation in the filter's free callback.
 
 Match devices by UUID: ``VSVulkanCoreInfo::deviceUUID`` equals the UUID CUDA
 reports for the same GPU. Whether export is available at all is

@@ -1,7 +1,7 @@
 Splice
 ======
 
-.. function::   Splice(vnode[] clips[, bint mismatch=0])
+.. function::   Splice(vnode[]:all clips[, bint mismatch=0])
    :module: std
 
    Returns a clip with all *clips* appended in the given order.

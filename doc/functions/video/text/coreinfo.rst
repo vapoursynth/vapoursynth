@@ -1,7 +1,7 @@
 CoreInfo
 ========
 
-.. function:: CoreInfo([vnode clip=std.BlankClip(), int alignment=7, int scale=1])
+.. function:: CoreInfo([vnode:all clip=std.BlankClip(), int alignment=7, int scale=1])
    :module: text
 
    Prints information about the VapourSynth core, such as version and memory

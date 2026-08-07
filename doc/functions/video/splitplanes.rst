@@ -1,7 +1,7 @@
 SplitPlanes
 ===========
 
-.. function::   SplitPlanes(vnode clip)
+.. function::   SplitPlanes(vnode:all clip)
    :module: std
 
    SplitPlanes returns each plane of the input as

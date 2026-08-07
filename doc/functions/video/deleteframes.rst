@@ -1,7 +1,7 @@
 DeleteFrames
 ============
 
-.. function:: DeleteFrames(vnode clip, int[] frames)
+.. function:: DeleteFrames(vnode:all clip, int[] frames)
    :module: std
 
    Deletes the specified frames.

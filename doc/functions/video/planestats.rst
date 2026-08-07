@@ -1,7 +1,7 @@
 PlaneStats
 ==========
 
-.. function:: PlaneStats(vnode clipa[, vnode clipb, int plane=0, string prop='PlaneStats'])
+.. function:: PlaneStats(vnode:all clipa[, vnode:all clipb, int plane=0, string prop='PlaneStats'])
    :module: std
 
    This function calculates the min, max and average normalized value of all

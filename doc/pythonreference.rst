@@ -294,15 +294,6 @@ Classes and Functions
       throttled, once their combined use approaches the ceiling. The startup
       log says which limit ended up in effect.
 
-      GPU resident clips and frames expose a *gpu_resident* property on
-      VideoNode and on frames. Pixel data of a GPU resident frame cannot be
-      accessed from Python — plane access raises an error until the clip has
-      passed through *std.GPUDownload* — while *set_output()* and *output()*
-      insert the download automatically. Frame *copy()* works on GPU frames
-      (the copy shares the planes and only the properties are independently
-      writable, which is what property editing in *std.ModifyFrame* needs);
-      pixel access on the copy stays guarded. See :doc:`gpufilters`.
-
    .. py:attribute:: core_version
 
       Returns the core version as VapourSynthVersion tuple.
@@ -399,6 +390,15 @@ Classes and Functions
    .. py:attribute:: num_frames
 
       The number of frames in the clip.
+
+   .. py:attribute:: gpu_resident
+
+      True when the clip's frames live in video memory, i.e. when its filter
+      was created with *ffGPUOutput*. Such a clip's pixel data cannot be read
+      from Python until it has passed through *std.GPUDownload*, but
+      *set_output()* and *output()* insert that download themselves, so
+      previewing and piping a GPU clip needs nothing special. See
+      :doc:`gpufilters`.
 
    .. py:attribute:: fps
 
@@ -533,6 +533,16 @@ Classes and Functions
 
       If *readonly* is True, the frame data and properties cannot be modified.
 
+   .. py:attribute:: gpu_resident
+
+      True when the frame's planes live in video memory. Reading pixel data of
+      such a frame raises an error rather than downloading it silently: plane
+      indexing (``frame[0]``, which is what numpy goes through), *readchunks()*,
+      *get_read_ptr()* and *get_write_ptr()* are all guarded. Pass the clip
+      through *std.GPUDownload* first. Dimensions, format, stride and frame
+      properties are unaffected — properties are always CPU side and work
+      normally either way. See :doc:`gpufilters`.
+
    .. py:attribute:: props
 
       This attribute holds all the frame's properties as a dict. They are also mapped as sub-attributes for
@@ -544,6 +554,11 @@ Classes and Functions
    .. py:method:: copy()
 
       Returns a writable copy of the frame.
+
+      This works on a GPU resident frame: the copy shares the planes and only
+      the properties become independently writable, which is what property
+      editing in *std.ModifyFrame* needs. Pixel access on the copy stays
+      guarded.
 
    .. py:method:: close()
 

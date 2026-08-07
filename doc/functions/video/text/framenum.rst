@@ -1,7 +1,7 @@
 FrameNum
 ========
 
-.. function:: FrameNum(vnode clip[, int alignment=7, int scale=1])
+.. function:: FrameNum(vnode:all clip[, int alignment=7, int scale=1])
    :module: text
 
    Prints the current frame number.

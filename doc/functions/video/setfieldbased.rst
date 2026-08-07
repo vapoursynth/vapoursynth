@@ -1,7 +1,7 @@
 SetFieldBased
 =============
 
-.. function:: SetFieldBased(vnode clip, int value)
+.. function:: SetFieldBased(vnode:all clip, int value)
    :module: std
    
    This is a convenience function. See *SetFrameProps* if you want to

@@ -1,7 +1,7 @@
 FrameEval
 =========
 
-.. function:: FrameEval(vnode clip, func eval[, vnode[] prop_src, vnode[] clip_src])
+.. function:: FrameEval(vnode:all clip, func eval[, vnode[]:all prop_src, vnode[]:all clip_src])
    :module: std
 
    Allows an arbitrary function to be evaluated every frame. The function gets

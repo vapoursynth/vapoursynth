@@ -1,7 +1,7 @@
 PreMultiply
 ===========
 
-.. function::   PreMultiply(vnode clip, vnode alpha)
+.. function::   PreMultiply(vnode:all clip, vnode:all alpha)
    :module: std
 
    PreMultiply simply multiplies *clip* and *alpha* in order to make it more suitable for

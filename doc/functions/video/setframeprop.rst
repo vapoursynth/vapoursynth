@@ -1,7 +1,7 @@
 SetFrameProp
 ============
 
-.. function:: SetFrameProp(vnode clip, string prop[, int[] intval, float[] floatval, string[] data])
+.. function:: SetFrameProp(vnode:all clip, string prop[, int[] intval, float[] floatval, string[] data])
    :module: std
 
    Adds a frame property to every frame in *clip*.

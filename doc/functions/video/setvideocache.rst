@@ -1,7 +1,7 @@
 SetVideoCache
 =============
 
-.. function:: SetVideoCache(vnode clip[, int mode, int fixedsize, int maxsize, int maxhistory])
+.. function:: SetVideoCache(vnode:all clip[, int mode, int fixedsize, int maxsize, int maxhistory])
    :module: std
 
    Every filter node has a cache associated with it that

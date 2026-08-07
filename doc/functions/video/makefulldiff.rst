@@ -1,7 +1,7 @@
 MakeFullDiff
 ============
 
-.. function::   MakeFullDiff(vnode clipa, vnode clipb)
+.. function::   MakeFullDiff(vnode:all clipa, vnode:all clipb)
    :module: std
 
    Calculates the difference between *clipa* and *clipb* and outputs a clip with a one higher bitdepth to avoid the clamping or wraparound issues

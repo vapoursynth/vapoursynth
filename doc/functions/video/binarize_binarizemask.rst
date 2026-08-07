@@ -1,8 +1,8 @@
 Binarize/BinarizeMask
 =====================
 
-.. function:: Binarize(vnode clip[, float[] threshold, float[] v0, float[] v1, int[] planes=[0, 1, 2]])
-              BinarizeMask(vnode clip[, float[] threshold, float[] v0, float[] v1, int[] planes=[0, 1, 2]])
+.. function:: Binarize(vnode:all clip[, float[] threshold, float[] v0, float[] v1, int[] planes=[0, 1, 2]])
+              BinarizeMask(vnode:all clip[, float[] threshold, float[] v0, float[] v1, int[] planes=[0, 1, 2]])
    :module: std
 
    Turns every pixel in the image into either *v0*, if it's below

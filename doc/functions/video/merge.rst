@@ -1,7 +1,7 @@
 Merge
 =====
 
-.. function::   Merge(vnode clipa, vnode clipb[, float[] weight = 0.5])
+.. function::   Merge(vnode:all clipa, vnode:all clipb[, float[] weight = 0.5])
    :module: std
 
    Merges *clipa* and *clipb* using the specified *weight* for each plane. The default
