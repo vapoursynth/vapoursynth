@@ -18,55 +18,31 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-/* GPU resize, take two. The previous attempt reimplemented zimg's model on the device:
-   coefficients baked into matrices at create time, one immutable pass list shared by every
-   plane, and every per-frame fact -- chroma siting, field parity -- pre-expanded into
-   variant tables the frame selected from. That factoring is what made it grow without
-   bound, and it was reverted; the tree at tag pre-revert-gpu-resize is the archive.
+/* GPU resize, factored the inverse of the scalar path: the kernel SHAPE is a compile-time
+   constant of the shader (bicubic's polynomial with its parameters baked in, lanczos'
+   windowed sinc), the GEOMETRY is push constants -- a scale, a shift and a tap count per
+   resampled axis. No coefficient tables, so nothing to build variants of.
 
-   This one factors the other way round, which is the way a GPU wants it:
+   Work is decided per frame, not per filter: arguments resolve once into a ConversionSpec,
+   each frame's properties into a FrameState, and a pure function of the two yields the plan
+   the recorder walks -- up to two passes per plane, each a geometry and an affine. Chroma
+   siting, ranges and field parity are just numbers through that function, so a chromaloc-only
+   change needs no special case; the identity-window test notices the moved grid itself.
 
-   - The kernel SHAPE is a compile-time constant of the shader -- bicubic's polynomial with
-     its parameters baked in, lanczos' windowed sinc evaluated with the device's sin -- and
-     the GEOMETRY is push constants: a scale, a shift and a tap count per resampled axis.
-     There are no coefficient tables anywhere, so there is nothing to build variants of.
+   Weights are evaluated per output pixel, normalised by their own sum, out-of-bounds taps
+   mirrored -- compute_filter's definition exactly, so this is the same resampling function
+   rather than an approximation. Accuracy is measured against an independent float64
+   reference (test/resize_reference.py), not against zimg.
 
-   - The work is decided per frame, not per filter. Arguments resolve once into a
-     ConversionSpec; each frame's properties resolve into a FrameState; a pure function of
-     the two produces the frame's plan -- up to two passes per plane, each a geometry and
-     an affine -- and the recorder walks it. Chroma siting, ranges and (eventually) field
-     parity are just numbers flowing through that function, so a case like a
-     chromaloc-only change needs no special flags: the identity-window test notices the
-     moved grid by itself.
+   Recording is imperative against VSVULKANAPI rather than through gpufilter.h, whose static
+   pass list cannot express a dispatch count that varies per frame.
 
-   - Weights are evaluated per output pixel and normalised by their own sum, with
-     out-of-bounds taps mirrored back into the image -- exactly compute_filter's
-     definition, so this is the same resampling function, not an approximation of it. The
-     distance from the scalar path is float32 arithmetic against zimg's double-computed
-     coefficient tables, and it is measured against an independent float64 reference
-     (test/resize_reference.py), not against zimg.
-
-   - Frames are recorded imperatively against VSVULKANAPI -- the same layer external
-     plugins use -- rather than through the declarative driver in gpufilter.h, whose
-     static pass list is exactly what cannot express a dispatch count that varies per
-     frame. gpufilter.h stays what it is: the simple-filter layer.
-
-   Output is not bit identical to the scalar path and is not meant to be; resampling in
-   float and rounding once is the more accurate chain (the scalar integer path quantises
-   and clips its intermediate). The declared rounding model: half up at the store where an
-   axis resampled, half to even for a plane that only converted format, matching which
-   zimg function the store stands in for -- decided per plane, since a chromaloc change
-   resamples chroma while luma converts.
-
-   What this build covers: every storage format (8-16 bit integer, half, float), any
-   subsampling with per-frame _ChromaLocation, format conversion within a family and
-   between grey and YUV, range conversion, source windows, a separate chroma kernel, and
-   every registered kernel. Colour conversions (matrix, transfer, primaries -- anything
-   through RGB) and field-based frames are the remaining scope. Anything outside it is a
-   create error naming the reason, not a quiet download: a resident clip stays resident or
-   the caller is told where to put the GPUDownload. Variable format and variable dimension
-   clips are outside it by construction, since every kernel here is compiled from the
-   clip's one format and every pipeline built for its one pair of dimensions. */
+   Output is deliberately not bit identical: resampling in float and rounding once beats the
+   scalar integer path's quantised intermediate. Rounding is half up where an axis resampled
+   and half to even where the plane only converted format, decided per plane. Anything
+   unimplemented is a create error naming the reason, never a quiet download. Variable format
+   and dimensions are excluded by construction -- kernels compile from the clip's one format,
+   pipelines are built for its one pair of dimensions. */
 
 #include <algorithm>
 #include <cmath>
@@ -233,14 +209,13 @@ std::string kernelBody(const KernelSpec &k) {
    compiles to a constant pattern, and by sample types at each end so any pass of a plan
    can read frames or the float intermediate with the same text.
 
-   The position arithmetic is compensated: pos = (o + 0.5) * invScale + shift carries an
-   ulp of the POSITION's magnitude in plain float32, which at 4K is half a thousandth of a
-   pixel -- a uniform window shift that costs ~25 dB against the reference. Splitting the
-   product and the sum into value + residual keeps the in-window offset accurate to an ulp
-   of ITSELF, and the window placement only ever consumes the rounded value, where being
-   off by an ulp can at most flip a tie whose boundary tap has zero weight. The `precise`
-   qualifiers are load bearing: they stop the compiler contracting the very operations
-   whose rounding the residuals recover. */
+   The position arithmetic is compensated. In plain float32, pos = (o + 0.5) * invScale + shift
+   carries an ulp of the POSITION's magnitude -- half a thousandth of a pixel at 4K, a uniform
+   window shift costing ~25 dB against the reference. Splitting the product and the sum into
+   value + residual keeps the in-window offset accurate to an ulp of ITSELF, and window
+   placement consumes only the rounded value, where an ulp can at most flip a tie whose
+   boundary tap has zero weight. The `precise` qualifiers are load bearing: without them the
+   compiler contracts the very operations whose rounding the residuals recover. */
 const char resizeMain[] =
     "float roundHalfup(float x) {\n"
     /* Positive ties nudge down one ulp so round(x - 1) == round(x) - 1 holds across
@@ -515,15 +490,15 @@ ScaleOffset affineFromUnity(const VSVideoFormat &fmt, bool chroma, bool full, bo
 
 /* ------------------------------------------------------------------------------------------
    Colour. The whole pixel-local core of a conversion -- in-matrix, decode, gamut, encode,
-   out-matrix or constant luminance, with the sample-numbering affines at both ends -- is
-   ONE pointwise pass: load three samples, do the mathematics, store up to three. The
-   previous attempt ran these as five separate passes, each a full read and write of three
-   working planes; on the integrated GPU that alone was most of a conversion's cost.
+   out-matrix or constant luminance, with the sample-numbering affines at both ends -- is ONE
+   pointwise pass: load three samples, do the mathematics, store up to three. Splitting it into
+   a pass per stage would cost a full read and write of three working planes each time, which
+   on an integrated GPU dominates the conversion.
 
    The constants are a per-frame fact (the in-matrix follows _Matrix, the curves follow
-   _Transfer), so they are built on the host in doubles each frame and ride to the device
-   in a small vkCmdUpdateBuffer -- they do not fit push space, whose only guaranteed size
-   is 128 bytes. */
+   _Transfer), so they are built on the host in doubles each frame and ride to the device in a
+   small vkCmdUpdateBuffer -- they do not fit push space, only 128 bytes of which is
+   guaranteed. */
 
 enum {
     curveLinear = 0,   /* identity, so a linear light intermediate costs nothing */

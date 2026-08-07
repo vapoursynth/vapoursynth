@@ -77,26 +77,18 @@ private:
    VkPhysicalDeviceVulkanNNFeatures struct the member lives in. A required feature missing makes
    the device unusable; an optional one is enabled when present and exposed as a capability.
 
-   Policy (settled 2026-07-30): every REQUIRED entry below is MANDATORY for a conformant
-   implementation of the Vulkan version noted next to it, verified against the 1.3/1.4
-   proposal documents and the spec's feature requirements. Requiring them therefore costs
-   zero hardware beyond the Vulkan 1.4 gate itself, and the list is deliberately maximal
-   within that rule: it is the baseline plugin kernels may target, published in VSVulkan4.h,
-   so additions after release must come with an API version bump plugins can gate on.
-   Included are the mandatory features a compute plugin can consume, either as SPIR-V
-   capabilities or through the exposed API surface; internal-only conveniences and mandatory
-   graphics-pipeline state are left out on purpose.
+   Every REQUIRED entry is mandatory for a conformant implementation of the Vulkan version
+   noted beside it, so requiring them costs no hardware beyond the 1.4 gate itself. The list is
+   maximal within that rule, being the baseline plugin kernels may target as published in
+   VSVulkan4.h; additions after release need an API version bump plugins can gate on. It covers
+   the mandatory features a compute plugin can consume, as SPIR-V capabilities or through the
+   exposed API, and omits internal conveniences and graphics-pipeline state.
 
-   The single OPTIONAL entry is the only genuinely capability-diverse one: shaderFloat16 is
-   optional in every core version.
+   shaderFloat16 is the one OPTIONAL entry, being optional in every core version.
 
-   hostImageCopy used to sit here as a second optional entry, meant to skip the staging buffer
-   and the submission a transfer otherwise needs. Measured on two Metal drivers it is 17-26x
-   slower than the path already in use and 4-9x slower than even the staging fallback, because
-   the image is optimally tiled and the driver swizzles on the CPU: it exists to avoid a
-   staging allocation, not to move bulk linear data. Nothing ever read the flag, so it and its
-   four entry points are gone -- and with the feature no longer enabled at device creation,
-   leaving those callable would only have been a trap. */
+   hostImageCopy is deliberately absent: it exists to avoid a staging allocation, not to move
+   bulk linear data, and measured 17-26x slower than the path in use on two Metal drivers
+   because the image is optimally tiled and the driver swizzles on the CPU. */
 #define VS_VK_FEATURE_LIST(FT) \
     /* 10 is the plain VkPhysicalDeviceFeatures block; everything here became mandatory in
        1.4. The 8 and 16 bit storage and arithmetic features let kernels address planes as
@@ -193,13 +185,13 @@ struct VSVulkanAllocatorStats {
     uint64_t freeRegionCount = 0; /* recycled regions waiting in the buckets */
 };
 
-/* Sub allocates plane memory out of big blocks, because one vkAllocateMemory per plane runs
-   into maxMemoryAllocationCount, which is only 4096, after a few hundred cached frames. Blocks
-   are carved with a bump pointer and freed regions go into free lists bucketed by exact rounded
-   size: video workloads allocate the same handful of plane sizes over and over, so exact reuse
-   hits nearly always and no coalescing is needed. A block goes back to the driver only once
-   every region in it is free, in trim() or destroy(); blockBytes is what MemoryUse accounts,
-   since the driver's budget is spent on blocks rather than on the regions carved out of them.
+/* Sub allocates plane memory out of big blocks: one vkAllocateMemory per plane would hit
+   maxMemoryAllocationCount, only 4096, after a few hundred cached frames. Blocks are carved
+   with a bump pointer and freed regions go into free lists bucketed by exact rounded size --
+   video workloads reuse the same handful of plane sizes, so exact reuse nearly always hits and
+   no coalescing is needed. A block returns to the driver only once every region in it is free,
+   in trim() or destroy(); MemoryUse accounts blockBytes, the driver's budget being spent on
+   blocks rather than the regions carved from them.
 
    Only buffers live here, which is what makes ignoring bufferImageGranularity legal; images
    keep their dedicated allocations. */
@@ -448,14 +440,12 @@ public:
 
     /* Makes writes available outside the device's own domain: one tiny submission that
        device-waits the given timeline pairs, then executes an ALL_COMMANDS/MEMORY_WRITE to
-       HOST/HOST_READ barrier, host waited. Cross device availability without external
-       semaphores is not something the spec grants implicitly, so this is what keeps foreign
-       reads of exported memory defined rather than driver-behavior; the semaphore waits must
-       be part of THIS submission, since an availability operation only covers writes inside
-       its first synchronization scope and producer work on other queues has to be chained in
-       by the waits. (In testing on AMD, plain producer completion already sufficed — this
-       exists for the drivers where it will not.) Serialized internally; costs a submission
-       round trip, the accepted price of the host synchronized interop stage. */
+       HOST/HOST_READ barrier, host waited. The spec does not grant cross device availability
+       implicitly, so this is what keeps foreign reads of exported memory defined rather than
+       driver-behaviour. The waits must belong to THIS submission: an availability operation
+       covers only writes in its first synchronization scope, so producer work on other queues
+       has to be chained in by them. Serialized internally, and costs a submission round trip.
+       AMD happened not to need it in testing; it exists for the drivers that will. */
     bool flushDeviceWrites(const VkSemaphore *waitSemaphores, const uint64_t *waitValues, uint32_t waitCount,
         std::string &errorMessage);
 
@@ -610,19 +600,15 @@ private:
 };
 
 /* A timeline semaphore owned by everyone still naming it rather than by whoever created it.
+   Every GPU plane carries one as its producer pair, and frames routinely outlive the filter
+   that produced them -- FrameEval and ModifyFrame return a frame from a node they then drop,
+   and caches hold frames indefinitely. Counting makes that legal: the last plane to let go
+   destroys the semaphore, so a producer pair is never dangling and a filter need only release
+   its reference once it is done signalling.
 
-   Every GPU plane carries one as its producer pair, and a frame routinely outlives the filter
-   that produced it: FrameEval and ModifyFrame both hand back a frame from a node they then
-   drop, and any frame can sit in a cache long after its producer is gone. Counting the timeline
-   is what makes that legal -- the last plane to let go destroys the semaphore -- so a producer
-   pair is never a dangling handle and a consumer can wait on one without knowing anything about
-   the filter that filled it in. Filters get the shorter obligation in exchange: release your
-   reference whenever you are done signalling it, and let the frames still in flight decide when
-   the semaphore actually dies.
-
-   The device reference is held for the same reason VSPlaneData holds one -- the last release may
-   well come after the core is gone, and the semaphore still has to be destroyed through a live
-   device. */
+   The device reference is held for the same reason VSPlaneData holds one: the last release may
+   come after the core is gone, and the semaphore still needs a live device to be destroyed
+   through. */
 struct VSVulkanTimeline {
 public:
     /* Exportable whenever the device can, since a producer pair a foreign API can wait on

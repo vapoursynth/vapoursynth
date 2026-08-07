@@ -136,32 +136,13 @@ VSPlaneData::VSPlaneData(VSVulkanPlane *plane, VSVulkanDevice *device, size_t da
     gpuDevice->addRef();
 }
 
-/* Copy on write, the mechanism that lets copyFrame share planes and only pay for the ones
-   actually written. It cannot be extended to GPU planes, and the obstacle is structural
-   rather than missing work:
-
-   - A host memcpy is not available. The bytes are in a VkBuffer; duplicating them means
-     recording vkCmdCopyBuffer2 into a command buffer and submitting it on a queue.
-   - Submitting needs things this function does not have and cannot be given without
-     changing every caller: the core (for the device, the queue and its lock) and an
-     exec context. This is a noexcept copy constructor reached from operator new inside
-     getWritePtr, one level below any error path.
-   - The source plane may not be readable yet. Its producer pair has to be waited before
-     the copy runs, and the copy has to publish a pair of its own, so a "copy" would
-     become an asynchronous operation whose result is not ready when it returns -- while
-     getWritePtr's contract is a pointer the caller may write through immediately.
-   - It would be a silent, unbounded VRAM allocation on the write path, under whatever
-     memory pressure happens to hold at that moment, with no way to report failure.
-
-   So getWritePtr returns null for GPU frames instead of reaching this, and a GPU plane is
-   written the only way it can be: a filter records compute work against the buffer and
-   publishes a producer pair. copyFrame still works on a GPU frame -- it shares the planes
-   and gives the copy independent properties, which is what property editing needs -- but
-   the pixels of that copy are not independently writable, and nothing pretends otherwise.
-
-   Reaching here with a GPU plane means a new caller found a path to plane duplication that
-   does not go through getWritePtr; it is a programming error in the core, not something a
-   plugin can trigger. */
+/* Copy on write cannot cover GPU planes: duplicating a VkBuffer needs a queue submission,
+   which this noexcept constructor has no core, queue lock or exec context to make, and whose
+   result would not be ready on return -- while getWritePtr must hand back an immediately
+   writable pointer. getWritePtr therefore returns null for GPU frames rather than reaching
+   here, and copyFrame gives such a frame independent properties over shared, read-only
+   planes. Reaching here with a GPU plane means some new caller duplicates planes without
+   going through getWritePtr. */
 VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem), size(d.size) {
     if (d.gpu)
         VS_FATAL_ERROR("Copy on write of GPU resident planes is not implemented");
@@ -503,13 +484,9 @@ const uint8_t *VSFrame::getReadPtr(int plane) const {
     if (plane < 0 || plane >= numPlanes)
         return nullptr;
 
-    /* A GPU plane has no host address to hand back, so this is the same answer the function
-       already gives for a plane that does not exist. Null rather than fatal because the
-       caller may well be probing: a filter handed a frame of unknown residency can ask and
-       act on it, where killing the process would leave it no way to find out. What must
-       never happen is a silent download behind the caller's back -- getGPUPlane in
-       VSVulkan4.h is where a resident plane is reached, and getFrameResidency says which
-       kind is in hand without guessing from a null. */
+    /* No host address for a GPU plane, so the same answer as a nonexistent one. Never a
+       silent download: getGPUPlane reaches a resident plane, getFrameResidency says which
+       kind this is. */
     if (gpuResident)
         return nullptr;
 
@@ -523,11 +500,9 @@ uint8_t *VSFrame::getWritePtr(int plane) {
     if (plane < 0 || plane >= numPlanes)
         return nullptr;
 
-    /* Null for the same reason as getReadPtr, with one more behind it: the copy on write
-       below cannot run for a GPU plane at all (see the VSPlaneData copy constructor), so
-       even a plane this frame owned alone could not be made writable through a host
-       pointer. GPU frames are written by recording compute work against the buffer from
-       getGPUPlane and publishing a producer pair on it. */
+    /* As getReadPtr, plus the copy on write below cannot run for a GPU plane at all (see the
+       VSPlaneData copy constructor). GPU frames are written by recording compute work against
+       the buffer from getGPUPlane and publishing a producer pair. */
     if (gpuResident)
         return nullptr;
 
@@ -1864,28 +1839,25 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         static_cast<VSCore *>(userData)->gpuMemoryPanic();
     }, this);
     size_t budget = static_cast<size_t>(dev->memoryBudget());
-    /* Two thirds of the live budget, not more, because everything the limit does NOT cover
-       has to fit in the remainder: the desktop's fluctuations after this one-time budget
-       sample, the admission overshoot, and above all the transient working sets of large
-       processing filters, whose per-call estimates start as guesses of twice the output
-       frame and only learn from completed calls -- the first wave of a heavy filter lands
-       before any of the pressure machinery has numbers to act on. A fifth of headroom left
-       the enforcement no room to work on a card whose desktop already held a gigabyte;
-       scripts that genuinely want more raise it with one setMaxVRAMUse call. */
+    /* Two thirds of the live budget, no more: the remainder has to absorb everything the limit
+       does not cover -- desktop fluctuation after this one-time sample, admission overshoot,
+       and above all the transient working sets of large filters, whose per-call estimates begin
+       as guesses of twice the output frame and only learn from completed calls, so a heavy
+       filter's first wave lands before the pressure machinery has numbers. A fifth of headroom
+       left enforcement no room on a card whose desktop already held a gigabyte; scripts wanting
+       more raise it with one setMaxVRAMUse call. */
     size_t defaultLimit = budget - budget / 3;
 
-    /* Unified memory: the heap the budget came from is the same RAM the host limit is drawn
-       against, so the two defaults would between them promise more of the machine than it
-       has -- on a device reporting all of RAM as device local, half again as much. The GPU
-       share is the one that yields, since GPU residency is opt-in while the host limit may
-       be something the caller set deliberately.
+    /* Unified memory: the budget's heap is the same RAM the host limit is drawn against, so
+       the two defaults would together promise more of the machine than it has -- half again as
+       much on a device reporting all of RAM as device local. The GPU share yields, GPU
+       residency being opt-in while the host limit may have been set deliberately.
 
-       An eighth of RAM rather than a larger share because what the GPU pool takes here it
-       gives back slowly: blocks are big so that a single large frame always fits, and a
-       block only returns to the driver once every region carved from it is free, so one
-       surviving cached frame holds 128 MB of the host's memory. Claiming little up front
-       costs a script that really wants more nothing but a setMaxVRAMUse call, while claiming
-       too much cannot be undone at the moment the host needs it back. */
+       An eighth of RAM, because what the GPU pool takes it gives back slowly: blocks are big so
+       a single large frame always fits, and a block only returns to the driver once every
+       region in it is free, so one surviving cached frame holds 128 MB. Claiming too little
+       costs a setMaxVRAMUse call; claiming too much cannot be undone when the host needs it
+       back. */
     const size_t combinedCeiling = memory->physical_memory() - memory->physical_memory() / 4;
     if (dev->unifiedMemory() && memory->physical_memory()) {
         const size_t hostLimit = memory->limit();

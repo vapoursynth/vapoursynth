@@ -77,13 +77,10 @@ py_dep = py.dependency(version: is_win ? '>=3.14' : '>=3.12')  # Py_NO_LINK_LIB 
 install_dir = py.get_install_dir() / 'vapoursynth'
 
 # The release number and its optional pre-release suffix live in VAPOURSYNTH_VERSION and
-# VAPOURSYNTH_VERSION_EXTRA, which src/core/version.h includes, installer/setmsvcvars.bat
-# parses into $(CurrentVersion) for the MSVC projects, and doc/conf.py reads. project()
-# above cannot read them: meson requires it to be the literal first statement, so nothing
-# -- not even a run_command -- may run before it, and its version: argument only accepts a
-# string or a file whose whole contents are the version. The version is therefore
-# necessarily written twice, and the point of the check below is to make the second copy
-# verifiable rather than merely hoped for.
+# VAPOURSYNTH_VERSION_EXTRA, which version.h includes, setmsvcvars.bat turns into
+# $(CurrentVersion) and doc/conf.py reads. project() cannot read them -- it must be the first
+# statement, so nothing may run before it -- so the version is necessarily written twice and
+# the check below is what keeps the copies honest.
 version_probe = run_command(
     py,
     '-c',

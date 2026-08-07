@@ -43,11 +43,10 @@ struct VSVulkanWait {
    value. Null semaphores mean host produced content that needs no wait and are simply dropped,
    so callers can append every plane of every frame without caring which are resident where.
 
-   Unbounded on purpose. One distinct timeline per upstream filter instance is the rule, and
-   the filters that combine clips do not cap how many they take -- StackHorizontal accepts any
-   number, Expr 26, AverageFrames 31 -- so no fixed size is a safe one. This held sixteen and
-   dropped the rest behind an assert, which in an NDEBUG build is a silent drop: the consumer
-   then reads planes whose producing dispatch may still be running, and nothing says so. */
+   Unbounded on purpose: one distinct timeline per upstream filter instance is the rule, and
+   the filters that combine clips do not cap how many they take -- StackHorizontal any number,
+   Expr 26, AverageFrames 31 -- so no fixed size is safe. Dropping a wait would let a consumer
+   read planes whose producing dispatch is still running, with nothing to say so. */
 class VSVulkanWaitList {
 public:
     /* Producer pairs arrive as counted timelines; the raw handle is what a submission needs and
@@ -112,18 +111,17 @@ private:
 };
 
 /* A fixed set of exec contexts shared by however many threads a filter instance is called on.
-   This is the piece the fmParallel decision shapes: filters get concurrent getFrame calls, so
-   claiming a context is a lock free ring walk, the only real lock taken is the queue's around
-   vkQueueSubmit2, and every wait for the GPU happens outside all of them. With N contexts a
-   filter keeps N frames in flight; more threads than contexts simply wait their turn at
-   acquire(), which is the intended backpressure.
+   Filters run fmParallel, so claiming a context is a lock free ring walk, the only real lock is
+   the queue's around vkQueueSubmit2, and every GPU wait happens outside both. N contexts means
+   N frames in flight; more threads than contexts wait their turn at acquire(), which is the
+   intended backpressure.
 
-   The pool owns one timeline semaphore. Timeline signal values must reach the queue in
-   increasing order, so the next value is allocated under the same queue lock as the submission
-   that signals it, making the pair atomic without any additional ordering machinery.
+   The pool owns one timeline semaphore. Signal values must reach the queue in increasing order,
+   so the next value is allocated under the same queue lock as the submission that signals it,
+   making the pair atomic without further ordering machinery.
 
-   The device must outlive the pool. Like the rest of the Vulkan layer it is single shot: init
-   once, and a failed init leaves only the destructor to run. */
+   The device must outlive the pool. Single shot like the rest of the Vulkan layer: init once,
+   and a failed init leaves only the destructor to run. */
 class VSVulkanExecPool {
 public:
     VSVulkanExecPool() = default;
@@ -145,18 +143,16 @@ public:
     bool submit(VSVulkanExecContext &context, std::string &errorMessage, uint64_t *signaledValue = nullptr,
         const VSVulkanWait *waits = nullptr, uint32_t waitCount = 0);
 
-    /* Attaches an object to the context's current recording, called between acquire and
-       submit: the release callback runs once the submission this recording becomes is known
-       complete — at the pool's next submit (every submission sweeps the others), at the
-       context's next acquire, at a pressure sweep, or at pool destruction, whichever looks
-       first. This is how work that reads frames keeps them alive without the host ever
-       waiting: the filter retains its sources, submits, returns, and the references drop
-       later. In an active pool the lag is about one submission; only a pool nobody touches
-       waits for the pressure sweeps.
+    /* Attaches an object to the context's current recording, called between acquire and submit.
+       The release callback runs once that submission is known complete — whichever of the
+       pool's next submit (each one sweeps the others), the context's next acquire, a pressure
+       sweep or pool destruction looks first. This is how work that reads frames keeps them
+       alive without the host ever waiting: retain the sources, submit, return, and the
+       references drop later. An active pool lags about one submission; only an untouched pool
+       waits for a pressure sweep.
 
-       bytes is what the object pins in device memory, counted against the device's
-       in-flight retention budget until release; pass 0 for objects that should not gate
-       (host memory, or pools exempt from admission). */
+       bytes is what the object pins in device memory, counted against the device's in-flight
+       retention budget until release; pass 0 for objects that should not gate. */
     void retain(VSVulkanExecContext &context, VSGPUReleaseFunc release, void *object, VkDeviceSize bytes = 0);
 
     /* Gives up on a recording instead of submitting it. Everything retained is released at
@@ -168,13 +164,12 @@ public:
     bool waitValue(uint64_t value, std::string &errorMessage);
     bool waitAll(std::string &errorMessage);
 
-    /* Releases every retained object whose submission has completed, without waiting for
-       anything. Called from submit, so an active pool reaps itself with about one
-       submission of lag — but a pool that has gone idle would otherwise park its last
-       contextCount submissions' sources and scratch indefinitely, and a deep graph of heavy
-       filters parks gigabytes that way, so the device also calls this across all registered
-       pools from the memory pressure paths. Safe from any thread: a context is only touched
-       when its claim is won, so recordings in progress are simply skipped. */
+    /* Releases every retained object whose submission has completed, without waiting. Called
+       from submit, so an active pool reaps itself with about one submission of lag; an idle
+       one would otherwise park its last contextCount submissions' sources and scratch
+       indefinitely — gigabytes in a deep graph of heavy filters — so the device also calls
+       this across all registered pools from the memory pressure paths. Safe from any thread:
+       a context is only touched once its claim is won, so live recordings are skipped. */
     void sweepCompleted();
 
     /* The pool's timeline, handed to frames as their producer sync. The pool holds one

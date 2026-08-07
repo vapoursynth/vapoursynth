@@ -29,12 +29,11 @@
    producer waits, retention, barriers between passes, dispatch geometry, producer
    publication and submission.
 
-   Deliberately a header of inline code built on the public VSVULKANAPI, not an entry in it.
-   That means it can change shape freely: every consumer compiles the version it saw, the
-   way VSHelper4.h works, so nothing here is an ABI commitment. Filters that need what this
-   does not model -- indirect dispatch, their own descriptor layouts -- use VSVULKANAPI
-   directly instead, and can still take the exec pool from it for the same lifetime and
-   synchronization guarantees.
+   Inline code over the public VSVULKANAPI rather than an entry in it, so it can change shape
+   freely: like VSHelper4.h, every consumer compiles the version it saw and nothing here is an
+   ABI commitment. Filters needing what this does not model -- indirect dispatch, their own
+   descriptor layouts -- use VSVULKANAPI directly, and can still take its exec pool for the
+   same lifetime and synchronization guarantees.
 
    Compiles anywhere the public headers do; the core builds it into the filters plugin. */
 
@@ -63,14 +62,14 @@ struct Operand {
     int clip = 0;         /* which source clip, for multi input filters */
     int frameOffset = 0;  /* temporal: 0 is the frame being produced */
     int slot = 0;         /* scratch index */
-    /* Which plane of that clip to read. -1, the default, is the plane being produced, which
-       is what every filter treating its planes independently wants. A single plane mask or
-       alpha applied to all three planes of the output names 0 instead -- without which the
-       driver asks a one plane frame for its plane 1 and gets nothing.
+    /* Which plane of that clip to read. -1, the default, is the plane being produced, suiting
+       any filter that treats its planes independently. A single plane mask or alpha applied
+       to all three output planes names 0 instead; without that the driver would ask a one
+       plane frame for its plane 1 and get nothing.
 
-       It says nothing about geometry: the named plane still has to be the size of the plane
-       being written, since the dispatch is over the output. A luma resolution mask against
-       subsampled chroma needs a resample, not this. */
+       This says nothing about geometry -- the dispatch is over the output, so the named plane
+       must be the size of the plane being written. A luma resolution mask against subsampled
+       chroma needs a resample, not this. */
     int plane = -1;
 
     static Operand source(int clip = 0, int frameOffset = 0) {
@@ -107,22 +106,21 @@ struct Program {
        program states the number twice and has to keep it that way. */
     uint32_t localSizeX = 16;
     uint32_t localSizeY = 16;
-    /* Specialization constants applied at pipeline creation; entries index into specData.
-       Constant ids a module does not declare are ignored. Several programs may share one
-       glsl string and differ only here: the compiler parses the text once (the shader
-       cache is keyed by source) and each pipeline folds its constants -- including dead
-       branches on them -- at creation, which is what makes a program-per-plane split
-       cheaper than branching on a push constant inside one kernel. */
+    /* Specialization constants applied at pipeline creation; entries index into specData, and
+       ids a module does not declare are ignored. Several programs may share one glsl string
+       and differ only here: the source is parsed once (the shader cache is keyed by text) and
+       each pipeline folds its constants, dead branches included, at creation -- which is why
+       a program per plane beats branching on a push constant inside one kernel. */
     std::vector<uint8_t> specData;
     std::vector<VkSpecializationMapEntry> specEntries;
-    /* Compute-stage subgroup control, for kernels whose lane arithmetic bakes the
-       subgroup width in: a reduction sizing its partials as workgroup / SGSIZE, a filter
-       mapping one subgroup per work item. Pinning the size is what keeps such a kernel
-       honest -- RDNA hardware runs wave32 or wave64 and the driver chooses per pipeline
-       unless told -- and requiring full subgroups makes per-subgroup bookkeeping exact.
-       Both device features are in the core's required set, but pinning also needs
-       VkPhysicalDeviceVulkan13Properties::requiredSubgroupSizeStages to cover compute;
-       the filter checks, the driver applies these as given. */
+    /* Compute-stage subgroup control, for kernels whose lane arithmetic bakes the subgroup
+       width in: a reduction sizing partials as workgroup / SGSIZE, a filter mapping one
+       subgroup per work item. RDNA hardware runs wave32 or wave64 and the driver picks per
+       pipeline unless told, so pinning the size is what keeps such a kernel correct, and
+       requiring full subgroups makes per-subgroup bookkeeping exact. Both device features are
+       in the core's required set, but pinning also needs
+       VkPhysicalDeviceVulkan13Properties::requiredSubgroupSizeStages to cover compute; the
+       filter checks that, the driver applies these as given. */
     uint32_t requiredSubgroupSize = 0;
     bool requireFullSubgroups = false;
 };
@@ -233,14 +231,14 @@ struct FilterDesc {
     std::function<bool(int n, const VSFrame *const *sources, int numSources,
         const VSAPI *vsapi, uint32_t *params, std::string &error)> prepareFrame;
 
-    /* prepareFrame's big sibling: per-frame data larger than a push constant block, staged
+    /* prepareFrame's big sibling: per-frame data too large for a push constant block, staged
        to device local memory ahead of the first pass -- a frame property array feeding an
-       expression, a table recomputed per frame. prepareFrameData runs after the source
-       frames arrive, so it can read their properties, and fills frameDataBytes bytes
-       directly into the staging buffer; the driver copies that to a device local buffer
-       bound through Operand::frameData() and fences the copy against the first dispatch.
-       Both buffers are created per frame and retire with the submission, so concurrent
-       frames never share. Returning false fails the frame with the message. */
+       expression, a table recomputed per frame. prepareFrameData runs once the source frames
+       have arrived, so it can read their properties, and fills frameDataBytes bytes straight
+       into the staging buffer; the driver copies that into a device local buffer bound through
+       Operand::frameData() and fences the copy against the first dispatch. Both buffers are
+       per frame and retire with the submission, so concurrent frames never share. Returning
+       false fails the frame with the message. */
     uint32_t frameDataBytes = 0;
     std::function<bool(int n, const VSFrame *const *sources, int numSources,
         const VSAPI *vsapi, void *data, std::string &error)> prepareFrameData;
@@ -252,26 +250,23 @@ struct FilterDesc {
        planes and write the readback buffer. Scratch needs explicit scratchDefs sizes in
        this mode, since there is no processed plane to size from. */
     bool sideEffect = false;
-    /* When nonzero, every frame gets a host visible buffer of this many bytes, bound
-       through Operand::readback(). After submitting, the driver waits for exactly this
-       frame's submission on the pool timeline -- concurrent frames keep flowing -- and
-       hands the mapped bytes to finishReadback, which finishes the reduction on the host
-       and writes frame properties. This is the one shape that blocks in getFrame;
-       filters that only produce planes never need it, their producer pairs carry the
-       synchronization. */
+    /* When nonzero, every frame gets a host visible buffer of this many bytes bound through
+       Operand::readback(). After submitting, the driver waits for exactly this frame's
+       submission on the pool timeline -- concurrent frames keep flowing -- and hands the
+       mapped bytes to finishReadback, which finishes the reduction on the host and writes
+       frame properties. The one shape that blocks in getFrame; filters that only produce
+       planes never need it, their producer pairs carrying the synchronization. */
     uint32_t readbackBytes = 0;
     std::function<void(int n, VSFrame *dst, const void *data, const uint32_t *params,
         VSCore *core, const VSAPI *vsapi)> finishReadback;
 
-    /* Pointer-ABI support. When set, the scratch, constant, readback and frame data
-       buffers the driver creates carry VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, and
-       every pass sees its operands' device addresses in PassInfo::addresses for fillPush
-       to place into push constants for GL_EXT_buffer_reference kernels. The descriptor
-       writes still happen -- a kernel is free to ignore them -- and frame plane operands
-       report zero, so pointer kernels stage planes through address-enabled scratch. This
-       is the kernel ABI a fused chain wants: the operand set varies per composition, and
-       addresses in push constants scale where descriptor layout permutations would
-       not. */
+    /* Pointer-ABI support. When set, the driver's scratch, constant, readback and frame data
+       buffers carry VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT and every pass sees its
+       operands' device addresses in PassInfo::addresses, for fillPush to place into push
+       constants for GL_EXT_buffer_reference kernels. Descriptor writes still happen and a
+       kernel may ignore them; frame plane operands report zero, so pointer kernels stage
+       planes through address-enabled scratch. This is the ABI a fused chain wants, its operand
+       set varying per composition where descriptor layout permutations would not scale. */
     bool operandAddresses = false;
 };
 
@@ -784,13 +779,11 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
     if (desc.programs.empty() || desc.passes.empty())
         return fail("a GPU filter needs at least one program and one pass");
 
-    /* Every kernel here is compiled from desc.vi's format at create and every frame is
-       allocated at its dimensions, so a variable clip has nothing to build from: its
-       format is cfUndefined and its width and height are zero. Declaring that unsupported
-       is the whole of the contract, but it has to be said HERE rather than left to each
-       filter -- a filter that forgets does not get a wrong answer, it gets a kernel
-       compiled for an undefined sample type or a zero sized frame allocation, which is an
-       access violation and a fatal error respectively. */
+    /* Kernels compile from desc.vi's format at create and frames are allocated at its
+       dimensions, so a variable clip has nothing to build from -- cfUndefined format, zero
+       width and height. Checked here rather than per filter because a filter that forgets
+       does not get a wrong answer: it gets a kernel compiled for an undefined sample type, or
+       a zero sized frame allocation, i.e. an access violation or a fatal error. */
     if (desc.vi.format.colorFamily == cfUndefined || desc.vi.width <= 0 || desc.vi.height <= 0)
         return fail("the GPU path needs a clip with constant format and dimensions; "
             "insert GPUDownload to process a variable clip on the CPU");
@@ -1020,19 +1013,17 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
 /* ---------------------------------------------------------------------------------------
    The common case, one step up from FilterDesc.
 
-   Nearly every pixel filter is: one dispatch per processed plane, one output, one to three
-   sources read at the same coordinate or in a small neighbourhood around it, and a handful
-   of scalar parameters that vary per plane. Declaring that through FilterDesc means
-   repeating a prologue, a bounds check and a push constant struct in every filter, so this
-   layer supplies all three and leaves the filter with its per pixel expression.
+   Nearly every pixel filter is one dispatch per processed plane, one output, one to three
+   sources read at the same coordinate or a small neighbourhood around it, and a few scalar
+   parameters varying per plane. Through FilterDesc that means repeating a prologue, a bounds
+   check and a push constant struct in every filter, so this layer supplies all three.
 
    A filter gives one GLSL statement block for integer formats and one for float, mirroring
-   how the CPU side already splits processPlane from processPlaneF, plus a callback filling
-   the parameter block for a plane. Everything past that -- format specialization, bindings,
-   geometry, edge clamping helpers -- comes from here.
+   the CPU side's processPlane/processPlaneF split, plus a callback filling a plane's parameter
+   block. Format specialization, bindings, geometry and edge clamping helpers come from here.
 
-   Filters that do not fit (multiple passes, scratch, geometry changes, their own descriptor
-   layout) drop to FilterDesc directly; the two compose, since this only builds one. */
+   Filters that do not fit -- multiple passes, scratch, geometry changes, their own descriptor
+   layout -- drop to FilterDesc directly; the two compose, since this only builds one. */
 
 constexpr int simpleMaxInputs = 3;
 constexpr int simpleFloatParams = 32; /* enough for a 5x5 convolution matrix */
@@ -1084,11 +1075,10 @@ struct SimpleFilter {
 
     /* What the core is told about which source frames this filter asks for, applied to every
        input. The default suits the pointwise and neighbourhood filters that are most of the
-       tree, but a filter setting mapFrame reads a frame index other than n and must say so:
-       rpStrictSpatial on a node's only consumer switches that node's cache off, so claiming
-       it falsely makes the whole upstream run again for every output frame that revisits a
-       source frame -- which is exactly what mapFrame is for. Match what the filter's scalar
-       path declares. */
+       tree; a filter setting mapFrame reads an index other than n and must say so, since
+       rpStrictSpatial on a node's only consumer switches that node's cache off, and claiming
+       it falsely reruns the whole upstream for every output frame that revisits a source.
+       Match what the filter's scalar path declares. */
     int requestPattern = rpStrictSpatial;
 
     /* Optional source frame index mapping and per frame parameters; see FilterDesc. When
@@ -1154,19 +1144,13 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
         s += "layout(std430, set = 0, binding = " + n + ") readonly buffer Src" + n +
              " { SRC" + n + "_T s" + n + "[]; };\n";
     }
-    /* Half output rounds however the device rounds, and that is deliberate.
-
-       SPIR-V leaves the rounding of a 32 to 16 bit FConvert implementation defined. This
-       driver truncates toward zero where floatToHalf and the JIT's vcvtps2ph both round to
-       nearest even, so roughly 41% of samples land one ulp low -- measured, not estimated.
-       Pinning it down is possible: declare RoundingModeRTE for 16 bit width through
-       VK_KHR_shader_float_controls, or narrow in integer arithmetic by hand. Neither is
-       worth its cost for a format whose whole point is that the last bit does not matter.
-
-       One dead end worth recording, because it looks like the obvious answer: packHalf2x16
-       does not help. GLSL describes it as round to nearest even, but on this hardware it
-       lowers to V_CVT_PKRTZ_F16_F32 -- round toward zero by definition -- so it changes
-       nothing. Verified against the scalar path, not assumed from the spec text. */
+    /* Half output rounds however the device rounds. SPIR-V leaves 32 to 16 bit FConvert
+       implementation defined, and this driver truncates toward zero where floatToHalf and the
+       JIT's vcvtps2ph round to nearest even, so ~41% of samples land one ulp low. Pinning it
+       would mean RoundingModeRTE through VK_KHR_shader_float_controls or narrowing by hand,
+       neither worth it for a format whose last bit does not matter. packHalf2x16 is not the
+       shortcut it looks like: GLSL calls it round to nearest even, but it lowers to
+       V_CVT_PKRTZ_F16_F32, round toward zero. */
     s += "layout(std430, set = 0, binding = " + std::to_string(sf.inputs) +
          ") writeonly buffer Dst { SAMPLE_T dstData[]; };\n";
     for (size_t i = 0; i < sf.constants.size(); i++) {
@@ -1188,12 +1172,11 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
          "    else if (pos >= len) pos = 2 * len - 1 - pos;\n"
          "    return clamp(pos, 0, len - 1);\n"
          "}\n"
-         /* Vulkan specifies sqrt to 3 ulp, where the scalar paths this tree is checked
-            against get a correctly rounded SQRTSS. One Newton step recovers the difference:
-            fma computes the residual s - y*y exactly, so the correction is exact to well
-            under an ulp of y and the final add rounds to the right result. Cheap enough to
-            be the default -- two flops on top of a square root -- and unlike doing the root
-            in fp64 it asks nothing of the device. */
+         /* Vulkan specifies sqrt to 3 ulp where the scalar paths this is checked against get a
+            correctly rounded SQRTSS. One Newton step recovers the difference: fma computes the
+            residual s - y*y exactly, so the correction is good to well under an ulp of y. Two
+            flops on top of a square root, and unlike an fp64 root it asks nothing of the
+            device, so it is the default. */
          "float vsSqrt(float s) {\n"
          "    float y = sqrt(s);\n"
          "    if (!(y > 0.0) || isinf(y)) return y;\n"
@@ -1300,12 +1283,11 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
 
     std::vector<VSFilterDependency> deps;
     for (int i = 0; i < numNodes; i++) {
-        /* A secondary clip shorter than the output is legal, and the driver clamps its
-           requests to the last frame -- which is frame reuse, not strict spatial access.
-           Declaring strict here anyway would be a lie with a cost: a single consumer
-           claiming strict spatial disables the upstream cache, so the clamped last frame
-           would be recomputed for every output past the short clip's end. Derive the
-           pattern per clip exactly like the scalar creation sites do. */
+        /* A secondary clip shorter than the output is legal and the driver clamps its requests
+           to the last frame, which is frame reuse rather than strict spatial access. Declaring
+           strict anyway would disable the upstream cache -- one consumer claiming it is enough
+           -- and recompute that clamped last frame for every output past the short clip's end.
+           Derive the pattern per clip, as the scalar creation sites do. */
         int pattern = sf.requestPattern;
         if (pattern == rpStrictSpatial && vi->numFrames > vsapi->getVideoInfo(nodes[i])->numFrames)
             pattern = rpFrameReuseLastOnly;

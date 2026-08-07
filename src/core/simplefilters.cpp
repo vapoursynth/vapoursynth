@@ -2299,19 +2299,18 @@ typedef SingleNodeData<PEMVerifierDataExtra> PEMVerifierData;
    The one filter that has to read a result back.
 
    Everything else here hands the GPU a frame and walks away; PlaneStats puts its answer in
-   frame properties, so it has to wait for the device. It is the driver's side effect and
-   readback shape: every plane is shared through untouched, one pass reduces a tile of the
-   plane per workgroup into the per frame host visible readback buffer, the driver waits
-   for exactly that submission, and finishReadback adds the partials into the same
-   accumulator width the scalar path uses -- which is what keeps the integer total
-   identical rather than merely close. A 256 thread workgroup sums at most
-   256 * 65535 = 16.7M, an exact integer in float32, and exact integers below 2^24 add
-   exactly in any order, so the subgroup reduction below keeps integer results bit
-   identical to the CPU filter no matter how the lanes combine. Only the float accumulator
-   is order dependent, and only in its last bits; pinning the subgroup size keeps even
-   those bits stable on a given device and driver.
-   PEMVerifier could use the same machinery but stays on the CPU deliberately: it is a
-   debugging filter, and a GPU clip reaching it simply gets a download inserted. */
+   frame properties, so it must wait for the device. It uses the driver's side effect and
+   readback shape: planes shared through untouched, one pass reducing a tile per workgroup into
+   the per frame host visible buffer, the driver waiting for exactly that submission, and
+   finishReadback adding the partials in the accumulator width the scalar path uses.
+
+   Integer totals come out bit identical rather than merely close: a 256 thread workgroup sums
+   at most 256 * 65535 = 16.7M, and exact integers below 2^24 add exactly in any order, so the
+   lane order does not matter. Only the float accumulator is order dependent, and only in its
+   last bits, which pinning the subgroup size keeps stable per device and driver.
+
+   PEMVerifier could use the same machinery but stays on the CPU: it is a debugging filter, and
+   a GPU clip reaching it simply gets a download inserted. */
 
 constexpr int reduceGroup = 16; /* 16x16 = 256 threads per workgroup */
 

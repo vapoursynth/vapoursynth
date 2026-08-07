@@ -639,12 +639,10 @@ const char boxBlurGlsl[] =
     "#endif\n"
     "}\n";
 
-/* The large radius variant: one thread per blurred line running the CPU filter's sliding
-   sum, so a pass costs ~2 loads per pixel instead of 2r+1 -- the per pixel kernel falls
-   behind the CPU around radius 30 at 1080p and is 17x slower by radius 1000, while this
-   one is flat in the radius. The trade is parallelism (a plane's rows or columns, not its
-   pixels), which is why it only takes over past lineKernelMinRadius rather than replacing
-   the per pixel kernel outright.
+/* The large radius variant: one thread per blurred line running the CPU filter's sliding sum,
+   so a pass costs ~2 loads per pixel instead of 2r+1 and is flat in the radius. It trades away
+   parallelism -- a plane's rows or columns, not its pixels -- so it only takes over past
+   lineKernelMinRadius.
 
    The loop is the unified clamped form of blurH/blurHF above: their three sections only
    exist to keep clamping out of the interior and perform these exact operations in this
@@ -711,11 +709,10 @@ const char boxBlurLineGlsl[] =
     "#endif\n"
     "}\n";
 
-/* Where the per pixel kernel hands over to the line kernel, per pass, so a small h radius
-   keeps the wide dispatch while a large v radius on the same clip does not. Measured on a
-   discrete card at 1080p the crossover sits near radius 60; below it the line kernel's
-   thousand-odd threads cannot feed the machine and above it the tap count buries the per
-   pixel form (1.6x ahead by radius 128, 5x by radius 1000). */
+/* Where the per pixel kernel hands over, per pass, so a small h radius keeps the wide dispatch
+   while a large v radius on the same clip does not. The crossover measured near radius 60 on a
+   discrete card at 1080p: below it the line kernel's thousand-odd threads cannot feed the
+   machine, above it the tap count buries the per pixel form. */
 constexpr uint32_t lineKernelMinRadius = 64;
 
 /* The pass schedule replicates the CPU filter exactly: horizontal passes first with

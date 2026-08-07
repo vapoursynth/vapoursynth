@@ -229,11 +229,10 @@ namespace {
    downscaling by two is a FOUR tap filter and by four an eight tap one -- not the two tap lerp
    the name suggests. Getting that wrong passes 4:2:0 and fails 4:1:1.
 
-   Deliberately NOT bit exact with the scalar path on integer formats: zimg quantises these to
-   Q14 with error diffusion and rounds through a uint16 intermediate between its horizontal and
-   vertical passes. One fused pass in float is nearer the exact answer, and reproducing the
-   fixed point pipeline would cost a second pass to reproduce a CPU artefact. Measured, the two
-   agree within 1 LSB. */
+   Not bit exact with the scalar path on integer formats: zimg quantises to Q14 with error
+   diffusion and rounds through a uint16 intermediate between its passes, where one fused pass
+   in float is nearer the exact answer. Reproducing the fixed point pipeline would cost a second
+   pass to recreate a CPU artefact. The two agree within 1 LSB. */
 /* Subsampling is valid up to 4 per axis, a factor of sixteen, and the filter is twice the
    factor wide. Exotic, but constructible, and covering it costs only table space -- the total
    tap work per frame is actually constant, since the tap count grows as the square of the

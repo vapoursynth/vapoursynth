@@ -298,14 +298,12 @@ bool VSVulkanTransfer::upload(VSVulkanFrame &frame, const uint8_t *const srcPlan
 bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
     uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[], std::string &errorMessage) {
     /* Read straight out of the plane when its memory is host CACHED, mirroring how the upload
-       side gates on host coherent. The blanket claim this path used to carry -- that CPU reads
-       from VRAM are orders of magnitude too slow to ever be the answer -- is true of a discrete
-       card's write combined memory over PCIe, and false on unified memory, where plane memory
-       comes back device local, host visible, coherent AND cached. Cached means reads run at
-       memcpy speed: measured on two Metal drivers a direct read is 5.8x faster than the DMA
-       into host cached staging plus a memcpy out of it, and within noise of a plain host to
-       host copy. Discrete cards keep the staging path, since their plane memory is either not
-       host visible at all or host visible and uncached, which is exactly what the gate says. */
+       side gates on host coherent. Cached is the condition that matters: reads then run at
+       memcpy speed, measuring 5.8x faster on two Metal drivers than a DMA into host cached
+       staging plus a memcpy out of it, and within noise of a host to host copy. Unified memory
+       hands back plane memory that is device local, host visible, coherent and cached; a
+       discrete card's is either not host visible or host visible and write combined, where
+       reads over PCIe are orders of magnitude too slow, so those keep the staging path. */
     bool direct = !forceStaging;
     for (int p = 0; p < numPlanes; p++)
         direct = direct && planes[p]->buffer.mapped &&

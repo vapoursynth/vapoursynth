@@ -190,25 +190,20 @@ struct ExprGlsl {
     }
 };
 
-/* Two builtins need help before they match the scalar reference, and both are semantic
-   rather than a question of the last bit:
+/* Two builtins need help before they match the scalar reference, both semantic rather than
+   last-bit questions.
 
-   pow, because the reference is std::pow, which is defined for a negative base raised to an
-   integral exponent, while the GLSL builtin is undefined for any negative base and returns
-   a NaN in practice. The sign is carried around the call instead.
+   pow: the reference std::pow is defined for a negative base with an integral exponent, while
+   the GLSL builtin is undefined for any negative base and returns NaN in practice, so the
+   sign is carried around the call.
 
-   sin and cos, because Vulkan only specifies their precision inside [-pi, pi]. Video
-   expressions routinely feed them raw sample values, which is far outside; reducing the
-   argument first keeps the builtin in the range where its guarantee applies.
-
-   The reduction here is a single float32 step, which is coarser than either scalar backend:
-   the interpreter calls std::sin, whose reduction is exact, and the JIT splits pi across
-   four float32 constants (float_pi1..pi4 in jitcompiler_x86.cpp) in a Cody-Waite reduction
-   that stays about an ulp from exact even at large arguments. Measured against the JIT at
-   arguments up to 65535 radians, this costs a mean absolute error of 7e-4 and a worst case
-   of 5e-3 on the result -- two samples per 1080p plane once quantised back to 16 bit
-   integer. Closing it does not need anything exotic: the same four piece pi would do it in
-   a few more lines, if the difference ever matters to someone. */
+   sin and cos: Vulkan specifies their precision only inside [-pi, pi], and expressions
+   routinely feed them raw sample values, so the argument is reduced first. That reduction is
+   a single float32 step, coarser than either scalar backend -- the interpreter's std::sin is
+   exact, the JIT uses a four constant Cody-Waite split (float_pi1..pi4 in
+   jitcompiler_x86.cpp). Against the JIT at arguments up to 65535 radians it costs a mean
+   absolute error of 7e-4 and a worst case of 5e-3, two samples per 1080p plane once quantised
+   back to 16 bit. The same four piece pi would close it. */
 const char exprHelpers[] =
     "float vsExprPow(float base, float e) {\n"
     "    if (base >= 0.0) return pow(base, e);\n"

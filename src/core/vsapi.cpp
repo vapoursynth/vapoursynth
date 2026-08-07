@@ -198,11 +198,9 @@ static VSFrame *VS_CC newVideoFrame3(const vs3::VSVideoFormat *format, int width
         return nullptr;
 }
 
-/* One frame cannot straddle the bus: every plane it shares has to come from the same side.
-   Checked here because this is the last point that can still answer with null -- the
-   constructor is noexcept and has no way to fail -- so a caller assembling planes from two
-   sources gets a return value it can test instead of a dead process. The constructor keeps
-   the same check as a backstop for the core's own callers. */
+/* One frame cannot straddle the bus. Checked here rather than in the constructor because
+   this is the last point that can still answer with null; the constructor keeps the same
+   check as a backstop for the core's own callers. */
 static bool uniformPlaneSrcResidency(const VSVideoFormat &format, const VSFrame **planeSrc) {
     const VSFrame *first = nullptr;
     for (int i = 0; i < format.numPlanes; i++) {

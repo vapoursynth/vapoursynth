@@ -228,14 +228,14 @@ bool VSVulkanDevice::poolAllowsMixedResourceTypes() const {
     return props.limits.bufferImageGranularity <= regionGranularity;
 }
 
-/* The allocation half shared by pooled buffers and by the public memory entry point: choose a
-   memory type, take a region, and when the driver says no, climb the reclamation ladder before
-   giving up. The allocator's own trim already ran inside allocate, so what is left to reclaim
-   is what other subsystems hold -- exec pool retentions whose submissions completed but whose
-   context was never acquired again (a graph mid teardown parks its whole in flight footprint
-   that way), and cached GPU frames, which the pressure callback has the core evict. Both free
-   regions and empty out blocks, so the retry can be satisfied from the free lists or by the
-   trim allocate runs internally when a fresh block still fails. */
+/* The allocation half shared by pooled buffers and the public memory entry point: choose a
+   memory type, take a region, and climb the reclamation ladder before giving up when the driver
+   says no. allocate already ran the allocator's own trim, so what is left to reclaim belongs to
+   other subsystems -- exec pool retentions whose submissions completed but whose context was
+   never reacquired (a graph mid teardown parks its whole in flight footprint that way) and
+   cached GPU frames, which the pressure callback has the core evict. Both free regions and
+   empty out blocks, so the retry can come from the free lists or from the trim inside
+   allocate. */
 bool VSVulkanDevice::allocatePooled(const VkMemoryRequirements &req, VkMemoryPropertyFlags requiredFlags,
     VkMemoryPropertyFlags preferredFlags, bool exportable, VSVulkanPooledRegion &region,
     std::string &errorMessage) {
@@ -245,14 +245,13 @@ bool VSVulkanDevice::allocatePooled(const VkMemoryRequirements &req, VkMemoryPro
         return false;
     }
 
-    /* Regions are carved and recycled on regionGranularity boundaries, which every buffer is
-       happy with, but images routinely are not: this card wants 65536 for a 256x128 R32 image
-       and 256 for the same format at 1920x1080, so a coarser requirement is a normal case and
-       not an error to report. Reserving the extra distance to the next boundary and binding
-       inside the region satisfies it without disturbing the invariant the recycling depends
-       on -- the region still starts and ends where the buckets expect. The overshoot is at
-       most alignment - regionGranularity, since the region already starts on a granularity
-       boundary; that is invisible on a plane sized image and worst on a tiny one. */
+    /* Regions are carved and recycled on regionGranularity boundaries, which suits every
+       buffer but not every image: hardware asking 65536 for a small image and 256 for a large
+       one is normal, not an error to report. Reserving the extra distance to the next boundary
+       and binding inside the region satisfies the requirement while leaving the region
+       starting and ending where the recycling buckets expect. The overshoot is at most
+       alignment - regionGranularity, invisible on a plane sized image and worst on a tiny
+       one. */
     VkDeviceSize request = req.size;
     VkDeviceSize carveAlignment = req.alignment;
     if (req.alignment > regionGranularity) {
