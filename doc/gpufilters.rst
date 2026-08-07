@@ -64,15 +64,18 @@ residency (properties are always CPU side). Where several clips contribute
 actual planes to one output (Splice, Interleave, ShufflePlanes) they must
 share one residency; mixing is an error rather than a hidden transfer.
 Property-only inputs like ``prop_src`` and ClipToProp's ``mclip`` are exempt.
-``set_output`` and ``output`` on a GPU
-node insert the download automatically, with a log message, so scripts
-and vspipe just work. Reading pixel data of a GPU resident *frame* from
+A script may leave its outputs GPU resident: ``set_output`` stores the node as
+given, and the consumer decides where the download goes — ``output`` inserts
+one, and so do the VSScript entry points vspipe and most applications use,
+each with a log message, so scripts just work. A clip and its alpha must share
+a residency, which is the one thing ``set_output`` checks. Reading pixel data
+of a GPU resident *frame* from
 Python raises an error — pass the clip through GPUDownload first; whether a
 node or frame is GPU resident is exposed as the ``gpu_resident`` property.
 Frame properties are always CPU side and work normally on GPU frames. (In the
-C API, reading a GPU frame's planes is a fatal error instead: for compiled
-plugins it is a programming error and must fail loudly, never silently
-download.)
+C API the same access returns NULL instead of raising: getReadPtr and
+getWritePtr have no host address to give and never download silently, and
+getFrameResidency tells that apart from a bad plane index.)
 
 A filter with a compute path takes every call it accepts at all; none of them
 quietly downloads its inputs and runs the scalar code instead, so a resident
@@ -302,6 +305,67 @@ A filter's obligations
    the core cannot catch. The wait is about your own objects, not about
    consumers: frames you produced keep the timeline alive on their own, so
    freeGPUTimeline never has to wait for anybody.
+
+Creating the output frame
+-------------------------
+
+There are two constructors and the choice is not stylistic — it decides whether
+unprocessed planes cost a copy.
+
+**newGPUVideoFrame(format, width, height, propSrc, core)** allocates every plane
+fresh in VRAM. It is the GPU counterpart of newVideoFrame and behaves the same
+in every other way, *propSrc* included, since properties are CPU side
+regardless of residency. The planes come back with NULL producer pairs, meaning
+"ready now" — which is a lie until your kernel has run, so publish the real pair
+with setGPUPlaneProducer (or let gpuExecWritesPlane do it at submit) on every
+plane you write, before returning the frame::
+
+   VSFrame *dst = vkapi->newGPUVideoFrame(&fi, w, h, src, core);
+   ctx = vkapi->gpuExecAcquire(pool, err, sizeof(err));
+   vkapi->gpuExecReadsFrame(ctx, src);
+   for (int p = 0; p < fi.numPlanes; p++)
+       vkapi->gpuExecWritesPlane(ctx, dst, p);
+   /* record into vkapi->gpuExecCommandBuffer(ctx) */
+   vkapi->gpuExecSubmit(ctx, NULL, err, sizeof(err));
+
+**newVideoFrame2(format, width, height, planeSrc, planes, propSrc, core)** is
+the one to reach for whenever the filter leaves some planes alone — a luma-only
+filter, anything honouring a *planes* argument. It takes residency from the
+source planes rather than from a flag: pass GPU resident frames and the result
+is GPU resident, with each shared plane carrying its producer pair across
+untouched, so a consumer still waits on whoever actually wrote it. Slots left
+NULL are allocated as fresh GPU planes, exactly as newGPUVideoFrame would::
+
+   const VSFrame *planeSrc[3] = { NULL, src, src };   /* process luma, share chroma */
+   const int planeIdx[3]      = { 0, 1, 2 };
+   VSFrame *dst = vsapi->newVideoFrame2(&fi, w, h, planeSrc, planeIdx, src, core);
+   /* plane 0 is fresh and yours to write; 1 and 2 already point at src's VRAM */
+
+Sharing is not an optimization detail — it is the difference between touching
+one plane and copying three, and at 4K the copy costs more than most kernels.
+Declare only the planes you actually write with gpuExecWritesPlane; publishing a
+producer pair on a shared plane would overwrite the pair of the filter that
+really produced it.
+
+Every non-NULL entry must have the same residency. One frame cannot straddle
+the bus, so a mixed set returns NULL — assemble on one side first. With every
+entry NULL there is nothing to infer from and you get a CPU frame, which is why
+the all-fresh case wants newGPUVideoFrame instead.
+
+Two CPU-side facilities do not carry over. copyFrame on a GPU frame copies the
+properties and shares the planes as usual, but the copy on write that normally
+makes those planes independent cannot run for VRAM (`the API reference
+<api/vapoursynth4.h.html#copyframe>`_ explains why), so the pixels of the copy
+stay read only — enough for property editing, not a route to a writable
+duplicate. And getReadPtr/getWritePtr return NULL on a GPU frame rather than
+downloading behind your back; getGPUPlane is the way in, and getFrameResidency
+distinguishes a resident frame from a bad plane index.
+
+In debug builds configured with ``VS_FRAME_GUARD``, the guard bands the core
+puts around CPU planes are absent from GPU planes and the verification is
+skipped: there is no host pointer to inspect, and a kernel writing out of bounds
+is the driver's and the validation layer's jurisdiction. Run with
+``VS_VULKAN_VALIDATION`` when that is what you are hunting.
 
 The execution pool
 ------------------

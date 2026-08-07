@@ -399,18 +399,30 @@ struct VSAPI {
 
     /* Frame related functions */
     VSFrame *(VS_CC *newVideoFrame)(const VSVideoFormat *format, int width, int height, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT;
-    VSFrame *(VS_CC *newVideoFrame2)(const VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT; /* same as newVideoFrame but allows the specified planes to be effectively copied from the source frames */
+    /* Same as newVideoFrame but allows the specified planes to be effectively copied from the source
+       frames. Residency follows the shared planes, so this is also how a GPU filter passes planes it
+       does not process through without copying them; NULL is returned if they do not all agree. */
+    VSFrame *(VS_CC *newVideoFrame2)(const VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT;
     VSFrame *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int numSamples, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT;
     VSFrame *(VS_CC *newAudioFrame2)(const VSAudioFormat *format, int numSamples, const VSFrame **channelSrc, const int *channels, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT; /* same as newAudioFrame but allows the specified channels to be effectively copied from the source frames */
     void (VS_CC *freeFrame)(const VSFrame *f) VS_NOEXCEPT;
     const VSFrame *(VS_CC *addFrameRef)(const VSFrame *f) VS_NOEXCEPT;
+    /* The planes are shared and only copied when written through getWritePtr. On a GPU resident
+       frame that copy on write cannot happen, so the result has independent properties but its
+       pixels stay read only -- which is exactly what property editing wants and all it gives. */
     VSFrame *(VS_CC *copyFrame)(const VSFrame *f, VSCore *core) VS_NOEXCEPT;
     const VSMap *(VS_CC *getFramePropertiesRO)(const VSFrame *f) VS_NOEXCEPT;
     VSMap *(VS_CC *getFramePropertiesRW)(VSFrame *f) VS_NOEXCEPT;
 
-    ptrdiff_t (VS_CC *getStride)(const VSFrame *f, int plane) VS_NOEXCEPT;
+    ptrdiff_t (VS_CC *getStride)(const VSFrame *f, int plane) VS_NOEXCEPT; /* valid on GPU resident frames too; the layout is the same */
+    /* NULL for an invalid plane, and NULL on a GPU resident frame, whose planes have no host
+       address -- never a silent download. Use getFrameResidency to tell the cases apart, and
+       getGPUPlane in VSVulkan4.h to reach a resident plane. */
     const uint8_t *(VS_CC *getReadPtr)(const VSFrame *f, int plane) VS_NOEXCEPT;
-    uint8_t *(VS_CC *getWritePtr)(VSFrame *f, int plane) VS_NOEXCEPT; /* calling this function invalidates previously gotten read pointers to the same frame */
+    /* Calling this function invalidates previously gotten read pointers to the same frame.
+       NULL on a GPU resident frame: those are written by recording compute work against the
+       buffer from getGPUPlane and publishing a producer pair, not through a host pointer. */
+    uint8_t *(VS_CC *getWritePtr)(VSFrame *f, int plane) VS_NOEXCEPT;
 
     const VSVideoFormat *(VS_CC *getVideoFrameFormat)(const VSFrame *f) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFrameFormat)(const VSFrame *f) VS_NOEXCEPT;

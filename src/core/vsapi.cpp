@@ -198,15 +198,35 @@ static VSFrame *VS_CC newVideoFrame3(const vs3::VSVideoFormat *format, int width
         return nullptr;
 }
 
+/* One frame cannot straddle the bus: every plane it shares has to come from the same side.
+   Checked here because this is the last point that can still answer with null -- the
+   constructor is noexcept and has no way to fail -- so a caller assembling planes from two
+   sources gets a return value it can test instead of a dead process. The constructor keeps
+   the same check as a backstop for the core's own callers. */
+static bool uniformPlaneSrcResidency(const VSVideoFormat &format, const VSFrame **planeSrc) {
+    const VSFrame *first = nullptr;
+    for (int i = 0; i < format.numPlanes; i++) {
+        if (!planeSrc[i])
+            continue;
+        if (!first)
+            first = planeSrc[i];
+        else if (planeSrc[i]->isGPUResident() != first->isGPUResident())
+            return false;
+    }
+    return true;
+}
+
 static VSFrame *VS_CC newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
+    if (!uniformPlaneSrcResidency(*format, planeSrc))
+        return nullptr;
     return new VSFrame(*format, width, height, planeSrc, planes, propSrc, core);
 }
 
 static VSFrame *VS_CC newVideoFrame23(const vs3::VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
     VSVideoFormat v4;
-    if (core->VideoFormatFromV3(v4, format))
+    if (core->VideoFormatFromV3(v4, format) && uniformPlaneSrcResidency(v4, planeSrc))
         return new VSFrame(v4, width, height, planeSrc, planes, propSrc, core);
     else
         return nullptr;

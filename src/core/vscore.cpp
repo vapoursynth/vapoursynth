@@ -136,6 +136,32 @@ VSPlaneData::VSPlaneData(VSVulkanPlane *plane, VSVulkanDevice *device, size_t da
     gpuDevice->addRef();
 }
 
+/* Copy on write, the mechanism that lets copyFrame share planes and only pay for the ones
+   actually written. It cannot be extended to GPU planes, and the obstacle is structural
+   rather than missing work:
+
+   - A host memcpy is not available. The bytes are in a VkBuffer; duplicating them means
+     recording vkCmdCopyBuffer2 into a command buffer and submitting it on a queue.
+   - Submitting needs things this function does not have and cannot be given without
+     changing every caller: the core (for the device, the queue and its lock) and an
+     exec context. This is a noexcept copy constructor reached from operator new inside
+     getWritePtr, one level below any error path.
+   - The source plane may not be readable yet. Its producer pair has to be waited before
+     the copy runs, and the copy has to publish a pair of its own, so a "copy" would
+     become an asynchronous operation whose result is not ready when it returns -- while
+     getWritePtr's contract is a pointer the caller may write through immediately.
+   - It would be a silent, unbounded VRAM allocation on the write path, under whatever
+     memory pressure happens to hold at that moment, with no way to report failure.
+
+   So getWritePtr returns null for GPU frames instead of reaching this, and a GPU plane is
+   written the only way it can be: a filter records compute work against the buffer and
+   publishes a producer pair. copyFrame still works on a GPU frame -- it shares the planes
+   and gives the copy independent properties, which is what property editing needs -- but
+   the pixels of that copy are not independently writable, and nothing pretends otherwise.
+
+   Reaching here with a GPU plane means a new caller found a path to plane duplication that
+   does not go through getWritePtr; it is a programming error in the core, not something a
+   plugin can trigger. */
 VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem), size(d.size) {
     if (d.gpu)
         VS_FATAL_ERROR("Copy on write of GPU resident planes is not implemented");
@@ -309,7 +335,10 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
     }
 
     /* Residency propagates from shared planes and must be uniform: one frame cannot straddle
-       the bus. Fresh planes follow whatever the shared ones are. */
+       the bus. Fresh planes follow whatever the shared ones are. The public entry points
+       reject a mixed set with null before reaching here (uniformPlaneSrcResidency in
+       vsapi.cpp), so the fatals below only catch the core's own callers -- a constructor
+       cannot fail any other way. */
     for (int i = 0; i < numPlanes; i++) {
         if (planeSrc[i]) {
             if (i == 0 || !planeSrc[0])
@@ -474,8 +503,15 @@ const uint8_t *VSFrame::getReadPtr(int plane) const {
     if (plane < 0 || plane >= numPlanes)
         return nullptr;
 
+    /* A GPU plane has no host address to hand back, so this is the same answer the function
+       already gives for a plane that does not exist. Null rather than fatal because the
+       caller may well be probing: a filter handed a frame of unknown residency can ask and
+       act on it, where killing the process would leave it no way to find out. What must
+       never happen is a silent download behind the caller's back -- getGPUPlane in
+       VSVulkan4.h is where a resident plane is reached, and getFrameResidency says which
+       kind is in hand without guessing from a null. */
     if (gpuResident)
-        core->logFatal("getReadPtr called on a GPU resident frame, insert a GPUDownload to bring it to the CPU");
+        return nullptr;
 
     if (contentType == mtVideo)
         return data[plane]->data + guardSpace;
@@ -487,8 +523,13 @@ uint8_t *VSFrame::getWritePtr(int plane) {
     if (plane < 0 || plane >= numPlanes)
         return nullptr;
 
+    /* Null for the same reason as getReadPtr, with one more behind it: the copy on write
+       below cannot run for a GPU plane at all (see the VSPlaneData copy constructor), so
+       even a plane this frame owned alone could not be made writable through a host
+       pointer. GPU frames are written by recording compute work against the buffer from
+       getGPUPlane and publishing a producer pair on it. */
     if (gpuResident)
-        core->logFatal("getWritePtr called on a GPU resident frame, GPU frames can only be written by GPU filters");
+        return nullptr;
 
     // copy the plane data if this isn't the only reference
     if (contentType == mtVideo) {

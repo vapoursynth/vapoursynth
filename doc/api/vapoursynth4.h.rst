@@ -1423,11 +1423,13 @@ struct VSAPI
       when the frames in *planeSrc* are, and shared planes carry their producer
       pairs across untouched, so this is how a GPU filter passes planes it does
       not process through without copying them. Any NULL slot is then allocated
-      as a fresh GPU plane. All non-NULL entries must agree — mixing GPU and CPU
-      source planes in one frame is a fatal error, not a hidden transfer. With
-      every entry NULL there is nothing to infer from and the frame is CPU
-      resident; use newGPUVideoFrame (:doc:`vsvulkan4.h`) for a wholly new GPU
-      frame.
+      as a fresh GPU plane. With every entry NULL there is nothing to infer
+      from and the frame is CPU resident; use newGPUVideoFrame
+      (:doc:`vsvulkan4.h`) for a wholly new GPU frame.
+
+      All non-NULL entries must agree. One frame cannot straddle the bus, so a
+      mixed set returns **NULL** rather than being resolved with a hidden
+      transfer — assemble the planes on one side first.
 
       Example (assume *frameA*, *frameB*, *frameC* are existing frames):
       
@@ -1532,6 +1534,27 @@ struct VSAPI
 
       Returns a pointer to the new frame. Ownership is transferred to the caller.
 
+      **On a GPU resident frame the copy is of the properties only.** The planes
+      are shared as always, but the copy on write that would make them
+      independent cannot happen, so getWritePtr_ keeps returning NULL and the
+      pixels stay read only. That is enough for the case this is usually wanted
+      for — editing frame properties, as *std.ModifyFrame* does — and it is the
+      whole of what is offered.
+
+      The obstacle is structural rather than unimplemented work. Duplicating a
+      GPU plane means recording a buffer copy and submitting it on a queue,
+      which needs a core, a queue lock and an exec context that a copy-on-write
+      path reached from getWritePtr_ does not have; the source plane's producer
+      pair would have to be waited first and a new pair published for the copy,
+      so the result would not be ready when the function returned, while
+      getWritePtr_'s contract is a pointer that can be written immediately; and
+      it would be an unbounded VRAM allocation on the write path with no way to
+      report failure. A GPU plane is written the one way it can be — a filter
+      records compute work against the buffer from getGPUPlane
+      (:doc:`vsvulkan4.h`) and publishes a producer pair. To get a genuinely
+      independent GPU frame, allocate one with newGPUVideoFrame and have a
+      kernel or a ``vkCmdCopyBuffer2`` write it.
+
 ----------
 
    .. _getFramePropertiesRO:
@@ -1573,13 +1596,12 @@ struct VSAPI
          Don't assume all three planes of a frame are allocated in one
          contiguous chunk (they're not).
 
-      .. warning::
-         Calling this on a GPU resident frame is a **fatal error**, not a
-         silent download — for a compiled plugin it is a programming error and
-         has to fail loudly. Check getFrameResidency_ if a frame's residency is
-         not already known from the node it came from, and insert a
-         GPUDownload to bring the data to the CPU. The GPU side of a plane is
-         reached through getGPUPlane instead (:doc:`vsvulkan4.h`).
+      Also returns NULL for a GPU resident frame, whose planes live in a
+      VkBuffer and have no host address. It is never a silent download. Use
+      getFrameResidency_ to tell that case apart from an invalid plane number,
+      and getGPUPlane (:doc:`vsvulkan4.h`) to reach a resident plane; a frame
+      whose data really has to be on the CPU gets there through a GPUDownload
+      in the graph.
 
 ----------
 
@@ -1594,11 +1616,12 @@ struct VSAPI
          Don't assume all three planes of a frame are allocated in one
          contiguous chunk (they're not).
 
-      .. warning::
-         Calling this on a GPU resident frame is a **fatal error**: GPU frames
-         can only be written by GPU filters, which record compute work against
-         the buffer from getGPUPlane (:doc:`vsvulkan4.h`) and publish a
-         producer pair on the plane afterwards.
+      Also returns NULL for a GPU resident frame. Those are written by
+      recording compute work against the buffer from getGPUPlane
+      (:doc:`vsvulkan4.h`) and publishing a producer pair on the plane
+      afterwards — there is no host pointer to write through, and the copy on
+      write this function performs for shared CPU planes has no GPU equivalent
+      (see copyFrame_).
 
 ----------
 

@@ -395,10 +395,16 @@ Classes and Functions
 
       True when the clip's frames live in video memory, i.e. when its filter
       was created with *ffGPUOutput*. Such a clip's pixel data cannot be read
-      from Python until it has passed through *std.GPUDownload*, but
-      *set_output()* and *output()* insert that download themselves, so
-      previewing and piping a GPU clip needs nothing special. See
-      :doc:`gpufilters`.
+      from Python until it has passed through *std.GPUDownload*.
+
+      A script may still leave its outputs GPU resident: *set_output()* stores
+      the node exactly as given, and whoever consumes the output decides where
+      the download goes — *output()* inserts one itself, and so do the VSScript
+      functions vspipe and most applications use, each with a log message. Only
+      a consumer that explicitly asks for GPU residency receives it unwrapped.
+      The one requirement *set_output()* imposes is that a clip and its alpha
+      have the same residency, so a consumer never has to bridge the two per
+      frame. See :doc:`gpufilters`.
 
    .. py:attribute:: fps
 
