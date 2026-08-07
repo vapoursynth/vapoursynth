@@ -197,9 +197,11 @@ touching pixels with the CPU.
 Start from the examples
 -----------------------
 
-The sdk dir contains three deliberately small Vulkan filters and one CUDA
+The sdk dir contains four deliberately small Vulkan filters and one CUDA
 filter that, together with the in-tree GPU path of std.BoxBlur
-(src/core/boxblurfilter.cpp), cover the fundamental kernel shapes:
+(src/core/boxblurfilter.cpp), cover the fundamental kernel shapes. The first
+three are the same invert filter written at three levels of abstraction, so
+reading them in order shows exactly what each layer takes over:
 
 +---------------------------+-----------+---------------------------------------------------------------+
 | Example                   | Shape     | What it demonstrates                                          |
@@ -217,6 +219,14 @@ filter that, together with the in-tree GPU path of std.BoxBlur
 |                           |           | ring for frames in flight. Read it to see everything the      |
 |                           |           | pool discharges, or as the template for filters whose         |
 |                           |           | submissions the pool cannot carry.                            |
++---------------------------+-----------+---------------------------------------------------------------+
+| gpu_invert_driver\_       | map, from | The same filter again, declared through gpufilter.h rather    |
+| example.cpp               | a         | than recorded: the driver owns the frame loop AND the         |
+|                           | declara-  | pipeline, so what is left is one GLSL statement per sample    |
+|                           | tion      | type and a callback filling the parameter block. Handles      |
+|                           |           | float as well as integer, which by hand would be a second     |
+|                           |           | kernel and a second pipeline. The shortest of the three,      |
+|                           |           | and the shape almost every pixel filter fits.                 |
 +---------------------------+-----------+---------------------------------------------------------------+
 | BoxBlur GPU path          | stencil   | Multi-pass kernels with barriers, scratch reuse, plane        |
 |                           |           | sharing for unprocessed planes. Compiled into the core but    |
@@ -424,6 +434,28 @@ instance dies. Raw filters should therefore sweep their ring on every call,
 keep it as shallow as their real pipelining depth, and avoid retaining large
 per-submission scratch — or put the scratch in the frame-shaped world the
 core can see.
+
+One level further up
+--------------------
+
+Obligations 1 to 8 and the recording itself are the same again in every filter
+whose shape is "one dispatch per plane over frame planes and a few parameters",
+which is most of them. The core factors that out into a declaration driver,
+src/core/gpufilter.h, and every in-tree GPU filter except resize is written
+against it: the filter supplies one GLSL statement per sample type and a
+callback filling the parameter block, and the driver owns the frame loop and
+the pipeline. gpu_invert_driver_example.cpp is the invert filter in that form,
+next to the same filter written both other ways.
+
+It is INTERNAL, not part of the installed API — inline code over VSVULKANAPI
+with no ABI commitment, free to change shape between releases. Copy it beside
+your source and build against your copy, the way VSHelper4.h is used, so a core
+update cannot change what your plugin compiles. It needs C++20.
+
+A filter outside the shape it models — indirect dispatch, its own descriptor
+layout, a dispatch count that varies per frame — drops back to VSVULKANAPI and
+looks like the two examples above. The two compose: such a filter still takes
+its exec pool from the same API, so nothing in this section stops applying.
 
 When to wait on the host
 ------------------------
