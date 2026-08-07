@@ -76,12 +76,38 @@ py_dep = py.dependency(version: is_win ? '>=3.14' : '>=3.12')  # Py_NO_LINK_LIB 
 
 install_dir = py.get_install_dir() / 'vapoursynth'
 
-vs_current_release = run_command(
+# The release number and its optional pre-release suffix live in VAPOURSYNTH_VERSION and
+# VAPOURSYNTH_VERSION_EXTRA, which src/core/version.h includes, installer/setmsvcvars.bat
+# parses into $(CurrentVersion) for the MSVC projects, and doc/conf.py reads. project()
+# above cannot read them: meson requires it to be the literal first statement, so nothing
+# -- not even a run_command -- may run before it, and its version: argument only accepts a
+# string or a file whose whole contents are the version. The version is therefore
+# necessarily written twice, and the point of the check below is to make the second copy
+# verifiable rather than merely hoped for.
+version_probe = run_command(
     py,
     '-c',
-    'print(open("VAPOURSYNTH_VERSION").read())',
+    '''import os
+print(open("VAPOURSYNTH_VERSION").read().split()[2].split("-")[0])
+print(open("VAPOURSYNTH_VERSION_EXTRA").read().split('"')[1].lower() if os.path.exists("VAPOURSYNTH_VERSION_EXTRA") else "")
+''',
     check: true,
-).stdout().strip().split()[2].split('-')[0]
+).stdout().strip().split('\n')
+
+vs_current_release = version_probe[0].strip()
+# An absent or empty VAPOURSYNTH_VERSION_EXTRA means a final release, so the suffix is empty
+# and the two spellings collapse to the bare number.
+vs_release_extra = version_probe.length() > 1 ? version_probe[1].strip() : ''
+vs_expected_version = vs_current_release + vs_release_extra
+
+if meson.project_version() != vs_expected_version
+    error(
+        'version mismatch: project() says @0@ but VAPOURSYNTH_VERSION and VAPOURSYNTH_VERSION_EXTRA say @1@ (release @2@, extra "@3@"). '.format(
+            meson.project_version(), vs_expected_version, vs_current_release, vs_release_extra) +
+        'These have to agree -- the first names the wheel, the second is what the core reports at runtime -- so update whichever is stale. ' +
+        'A deliberately different wheel version, such as a .postN re-upload, needs this check relaxed rather than worked around.',
+    )
+endif
 
 if get_option('buildtype') == 'release'
     if cxx.get_id() == 'clang-cl'
