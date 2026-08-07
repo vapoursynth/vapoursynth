@@ -267,10 +267,8 @@ struct VSVulkanBuffer {
     VkDeviceSize poolSize = 0;
 };
 
-/* The public scratch buffer handle from VSVULKANAPI::createGPUBuffer: a pooled buffer plus
-   the device reference that keeps the allocator reachable for however late the destroy
-   comes. Defined here so the buffer machinery stays in one place; only vsapi.cpp creates
-   these. */
+/* The public handle from VSVULKANAPI::createGPUBuffer: a pooled buffer plus the device
+   reference that keeps the allocator reachable for however late the destroy comes. */
 struct VSGPUBuffer {
     VSVulkanBuffer buffer;
     VSVulkanDevice *device = nullptr;
@@ -283,11 +281,10 @@ struct VSGPUMemory {
     VSVulkanDevice *device = nullptr;
 };
 
-/* The public foreign-memory declaration from VSVULKANAPI::reserveGPUMemory: nothing but the
-   published byte total and the references that keep the accounting reachable. The core
-   pointer is only touched on increases, which a live filter performs while the core is
-   necessarily alive; a late release goes through the device's accounting callback alone,
-   which outlives the core by design. */
+/* The public handle from VSVULKANAPI::reserveGPUMemory: the published byte total and the
+   references keeping the accounting reachable. The core pointer is touched only on increases,
+   which a live filter performs while the core is necessarily alive; a late release goes through
+   the device's accounting callback, which outlives the core by design. */
 struct VSGPUMemoryReservation {
     std::atomic<int64_t> bytes{ 0 };
     VSVulkanDevice *device = nullptr;
@@ -472,11 +469,10 @@ public:
         VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, std::string &errorMessage);
     void destroyBuffer(VSVulkanBuffer &buffer);
 
-    /* A pooled region on its own, without a resource wrapped around it: what createBufferPooled
-       uses underneath, and what VSVULKANAPI::allocateGPUMemory hands to filters binding their
-       own images. Non-exportable for the public path, since the caller's resource carries no
-       external memory info. poolAllowsMixedResourceTypes says whether images may share these
-       blocks with buffers on this device at all. */
+    /* A pooled region with no resource wrapped around it: what createBufferPooled uses
+       underneath and what allocateGPUMemory hands out. Non-exportable on the public path, the
+       caller's resource carrying no external memory info; poolAllowsMixedResourceTypes says
+       whether images may share these blocks with buffers at all. */
     bool allocatePooled(const VkMemoryRequirements &req, VkMemoryPropertyFlags requiredFlags,
         VkMemoryPropertyFlags preferredFlags, bool exportable, VSVulkanPooledRegion &region,
         std::string &errorMessage);
@@ -509,13 +505,11 @@ public:
     void unregisterExecPool(VSVulkanExecPool *pool);
     void sweepExecPools();
 
-    /* The in-flight retention budget: queued-but-unexecuted submissions retain their
-       sources and scratch, and nothing else bounds how many of them pile up — per pool
-       contextCount caps multiply across a graph's nodes while the GPU executes one at a
-       time, so depth beyond a few is VRAM spent on nothing. acquire() blocks while the
-       total exceeds the budget, sweeping and sleeping on the progress timeline every
-       compute submission signals. Zero disables the gate. The core sets a quarter of the
-       VRAM limit. */
+    /* The in-flight retention budget. Per pool contextCount caps multiply across a graph's
+       nodes while the GPU executes one submission at a time, so nothing else bounds how much
+       queued work pins. acquire() blocks while the total exceeds the budget, sweeping and
+       sleeping on the progress timeline every compute submission signals. Zero disables the
+       gate; the core sets a quarter of the VRAM limit. */
     void setExecRetainedBudget(uint64_t bytes) { execRetainedBudget.store(bytes, std::memory_order_relaxed); }
     void addExecRetained(uint64_t bytes) { execRetainedBytes.fetch_add(bytes, std::memory_order_relaxed); }
     void subExecRetained(uint64_t bytes) { execRetainedBytes.fetch_sub(bytes, std::memory_order_relaxed); }
@@ -599,12 +593,9 @@ private:
     uint64_t execProgressNext = 0;
 };
 
-/* A timeline semaphore owned by everyone still naming it rather than by whoever created it.
-   Every GPU plane carries one as its producer pair, and frames routinely outlive the filter
-   that produced them -- FrameEval and ModifyFrame return a frame from a node they then drop,
-   and caches hold frames indefinitely. Counting makes that legal: the last plane to let go
-   destroys the semaphore, so a producer pair is never dangling and a filter need only release
-   its reference once it is done signalling.
+/* The counted timeline behind VSGPUTimeline, whose contract VSVulkan4.h states: every plane
+   naming it holds a reference, so the last one to let go destroys the semaphore and a producer
+   pair is never dangling.
 
    The device reference is held for the same reason VSPlaneData holds one: the last release may
    come after the core is gone, and the semaphore still needs a live device to be destroyed

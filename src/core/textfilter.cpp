@@ -827,12 +827,11 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
     return nullptr;
 }
 
-/* The GPU declaration. Two passes per plane -- copy the source down, overdraw the glyph
-   cells -- with the per frame text carried entirely by the driver: prepareFrame counts
-   the glyphs into frameParams for the reshape, prepareFrameData lays them out into the
-   frame data buffer after the source frame (and so its properties) has arrived. The
-   buffer is sized once at create to the screen's character capacity, the same bound
-   split_text enforces, so any text the layout can produce fits. */
+/* The GPU declaration; the passes and the glyph record layout are described above.
+   prepareFrame counts the glyphs into frameParams for the reshape and prepareFrameData lays
+   them out once the source frame, and so its properties, has arrived. The frame data buffer is
+   sized at create to the screen's character capacity -- the bound split_text enforces -- so any
+   text the layout can produce fits. */
 static void createGPUText(std::unique_ptr<TextData> &d, VSMap *out, VSCore *core, const VSAPI *vsapi) {
     const std::string name = d->st.instanceName;
     auto fail = [&](const std::string &msg) {

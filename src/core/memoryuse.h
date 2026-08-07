@@ -51,11 +51,11 @@ class MemoryUse {
     std::atomic_size_t m_limit{ 0 };
 
     /* GPU memory is only accounted here, never allocated: the Vulkan block allocator reports
-       block grants and returns through account_gpu so cache pressure can see both pools in
-       one place, which is the whole reason this lives in MemoryUse instead of its own class.
-       Blocks, not the regions carved out of them, because a block is what the driver's budget
-       is actually spent on -- accounting the live subset let the core sit inside its limit
-       while the driver held nearly twenty percent more and ran into the wall. */
+       block grants and returns through account_gpu so cache pressure sees both pools in one
+       place, which is why this lives in MemoryUse rather than its own class. Blocks, not the
+       regions carved from them -- a block is what the driver's budget is spent on, and counting
+       only the live regions lets the core believe it is inside a limit the driver is already
+       nearly twenty percent past. */
     std::atomic_size_t m_gpu_allocated{ 0 };
     std::atomic_size_t m_gpu_limit{ 0 };
 
@@ -175,13 +175,12 @@ public:
     size_t combined_limit() const { return m_combined_limit; }
 
     /* What the retained freelist has to fit under. Normally the host limit, but on unified
-       memory the GPU pool is the same RAM, so the buffers kept back for reuse have to give
-       way as it grows. This is the only lever that returns host memory to the system --
-       eviction merely moves it here -- and on a unified device it is also the only one of
-       the two pools that gives anything back promptly: freeing GPU frames returns regions to
-       the allocator's buckets, and the block they came from stays committed until every
-       region in it is free. Measured: releasing 7 of every 8 held frames returned 0 of 415
-       MB, because each 128 MB block still held a survivor. */
+       memory the GPU pool is the same RAM, so buffers kept back for reuse must give way as it
+       grows. This is the only lever that returns host memory to the system -- eviction merely
+       moves it here -- and on a unified device the only one of the two pools that gives
+       anything back promptly: freeing GPU frames returns regions to the allocator's buckets,
+       and their block stays committed until every region in it is free, so releasing 7 of 8
+       held frames measured 0 of 415 MB returned. */
     size_t freelist_target() const {
         size_t limit = m_limit;
         if (m_unified && m_combined_limit) {

@@ -1726,13 +1726,11 @@ static VSGPUExecPool *VS_CC vkCreateGPUExecPool(VSCore *core, int queue,
     }
     auto pool = std::make_unique<VSGPUExecPool>();
     VSVulkanQueue &q = (queue == vqTransfer) ? dev->transferQueue() : dev->computeQueue();
-    /* The context count is core knowledge, not filter knowledge: worker threads bound how
-       many recordings can even be concurrent, two is the floor that overlaps recording with
-       execution at all, and past eight a single node is a fan-in point where extra depth
-       just queues. Contexts are a command pool and buffer each — cheap on purpose, since
-       the memory queued submissions pin is bounded separately, in bytes, by the device's
-       admission gate. Sized from the thread count at creation; later setThreadCount calls
-       do not resize existing pools. */
+    /* Worker threads bound how many recordings can be concurrent; two is the floor that
+       overlaps recording with execution at all, and past eight a single node is a fan-in point
+       where extra depth only queues. A context costs a command pool and buffer, deliberately
+       cheap since the bytes queued submissions pin are bounded separately by the device's
+       admission gate. Sized at creation: later setThreadCount calls do not resize a pool. */
     size_t threads = core->threadPool->threadCount();
     uint32_t contextCount = static_cast<uint32_t>(threads < 2 ? 2 : (threads > 8 ? 8 : threads));
     if (!pool->pool.init(*dev, q, contextCount, err)) {
@@ -1814,14 +1812,11 @@ static void VS_CC vkGPUExecRetain(VSGPUExecContext *context, VSGPUReleaseFunc re
         context->owner->pool.retain(*context->context, release, object, bytes);
 }
 
-/* The cooperative half of a reservation change: the new total joins the accounting first,
-   and when that pushes the GPU pool past its limit the graduated reclamation runs before
-   returning -- least valuable cached frames down to a tenth under the limit, then a trim so
-   the vacated VRAM is really the driver's to hand to the foreign allocator about to ask for
-   it. Deliberately the measured path rather than gpuMemoryPanic: a reservation nudging past
-   the limit is routine, not a failed allocation. Decreases just subtract. Concurrent calls
-   are safe: exchange serializes the totals and each caller accounts its own delta, so the
-   deltas sum to the true change whatever the interleaving. */
+/* Applies a reservation change; the contract is documented at reserveGPUMemory in VSVulkan4.h.
+   The graduated reclamation rather than gpuMemoryPanic, because a reservation nudging past the
+   limit is routine and not a failed allocation. Concurrent calls are safe: exchange serializes
+   the totals and each caller accounts its own delta, so the deltas sum to the true change
+   whatever the interleaving. */
 static void reservationSetBytes(VSGPUMemoryReservation *reservation, int64_t bytes) {
     const int64_t previous = reservation->bytes.exchange(bytes, std::memory_order_relaxed);
     const int64_t delta = bytes - previous;

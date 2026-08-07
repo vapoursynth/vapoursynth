@@ -296,15 +296,14 @@ bool VSVulkanLoader::initialize(std::string &errorMessage) {
         return false;
     }
 #else
-    /* A leaf name is resolved by the dynamic linker against a search path the *host process*
-       decides, which on macOS is the difference between working and not: nothing installs a
-       Vulkan loader in /usr/lib, so a bare name is found only through DYLD_LIBRARY_PATH or an
-       LC_RPATH somebody happened to link in. Homebrew's Python framework carries
-       LC_RPATH /opt/homebrew/lib and so finds the loader by pure accident, while vspipe, which
-       carries none, did not -- the same script worked in Python and failed under vspipe. Hence
-       the explicit list: the leaf name first, so DYLD_LIBRARY_PATH and any rpath still win,
-       then VULKAN_SDK, then the prefixes macOS package managers actually install into. Linux
-       keeps the bare soname, where ldconfig makes it findable for everyone. */
+    /* A leaf name is resolved against a search path the *host process* decides, which on macOS
+       decides whether this works at all: nothing installs a Vulkan loader in /usr/lib, so a
+       bare name is found only via DYLD_LIBRARY_PATH or an LC_RPATH someone happened to link in.
+       Homebrew's Python framework carries LC_RPATH /opt/homebrew/lib and finds the loader by
+       accident where vspipe, carrying none, does not. Hence the explicit list: the leaf name
+       first so DYLD_LIBRARY_PATH and any rpath still win, then VULKAN_SDK, then the prefixes
+       macOS package managers install into. Linux keeps the bare soname, ldconfig making it
+       findable for everyone. */
     std::vector<std::string> candidates;
 #ifdef __APPLE__
     static const char *const stems[] = { "libvulkan.1.dylib", "libMoltenVK.dylib" };

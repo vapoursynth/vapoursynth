@@ -25,15 +25,12 @@
 #include "VapourSynth4.h"
 
 /* One GPU resident plane: a linear pitched device local buffer, laid out exactly like the CPU
-   plane it mirrors so a matching stride uploads as a single flat copy. Shaped to slot in as an
-   alternative VSPlaneData payload later, which is why the frame below is little more than an
-   array of these.
+   plane it mirrors so a matching stride uploads as a single flat copy.
 
-   The producer pair lives here, per plane and not per frame, because plane sharing between
-   frames means one frame's planes can have different producers. Whoever writes the plane on
-   the GPU stores the timeline and value its submission signals; consumers wait on it device
-   side before reading. A null semaphore means host produced content, ready as soon as it is
-   handed over. */
+   The producer pair lives here per plane rather than per frame, because plane sharing means one
+   frame's planes can have different producers. Whoever writes the plane stores the timeline and
+   value its submission signals; consumers wait on it device side before reading. A null
+   semaphore means host produced content, ready as soon as it is handed over. */
 struct VSVulkanPlane {
     VSVulkanBuffer buffer;
     ptrdiff_t stride = 0; /* bytes per row, aligned like a CPU plane would be */

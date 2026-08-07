@@ -146,10 +146,8 @@ public:
     /* Attaches an object to the context's current recording, called between acquire and submit.
        The release callback runs once that submission is known complete — whichever of the
        pool's next submit (each one sweeps the others), the context's next acquire, a pressure
-       sweep or pool destruction looks first. This is how work that reads frames keeps them
-       alive without the host ever waiting: retain the sources, submit, return, and the
-       references drop later. An active pool lags about one submission; only an untouched pool
-       waits for a pressure sweep.
+       sweep or pool destruction looks first, so an active pool lags about one submission and
+       only an untouched one waits for a sweep.
 
        bytes is what the object pins in device memory, counted against the device's in-flight
        retention budget until release; pass 0 for objects that should not gate. */
