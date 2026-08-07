@@ -3232,13 +3232,27 @@ cdef class Core(object):
         if vspy_set_vulkan_device(self.funcs, self.core, index, err, 512):
             raise Error(err.decode('utf-8'))
 
-    def set_max_vram_use(self, int64_t bytes_):
-        """Sets the VRAM eviction limit in bytes, returning the new limit."""
+    @property
+    def max_vram_cache_size(self):
+        """The VRAM limit GPU frame caching works against, in megabytes, mirroring
+        max_cache_size. Zero until the Vulkan device is created, since that is when the
+        default is derived from the driver's budget; setting it beforehand is respected."""
         self.ensure_valid()
-        cdef int64_t result = vspy_set_max_vram_use(self.funcs, self.core, bytes_)
-        if result < 0:
+        cdef int64_t current_size = vspy_set_max_vram_use(self.funcs, self.core, 0)
+        if current_size < 0:
             raise Error('Vulkan API not available')
-        return result
+        current_size = (current_size + 1024 * 1024 - 1) // <int64_t>(1024 * 1024)
+        return current_size
+
+    @max_vram_cache_size.setter
+    def max_vram_cache_size(self, int mb):
+        self.ensure_valid()
+        if mb <= 0:
+            raise ValueError("Maximum VRAM cache size must be a positive number")
+        cdef int64_t new_size = mb
+        new_size = new_size * 1024 * 1024
+        if vspy_set_max_vram_use(self.funcs, self.core, new_size) < 0:
+            raise Error('Vulkan API not available')
 
     @property
     def vulkan_devices(self):

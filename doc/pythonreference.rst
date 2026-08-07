@@ -275,13 +275,18 @@ Classes and Functions
       system RAM). Accessing it initializes the device like the first GPU
       filter would.
 
-   .. py:method:: set_max_vram_use(bytes)
+   .. py:attribute:: max_vram_cache_size
 
-      Sets the VRAM limit GPU frame caching works against, the equivalent of
-      *max_cache_size* for video memory. The default is two thirds of the
-      driver reported budget, leaving the rest for the transient working sets
-      of large processing filters and for whatever the desktop needs after the
-      budget was sampled. Returns the limit in effect.
+      The upper GPU frame cache size after which video memory is aggressively
+      freed, the equivalent of *max_cache_size* for the device. The value is in
+      megabytes and can be set to change it.
+
+      The default is two thirds of the driver reported budget, leaving the rest
+      for the transient working sets of large processing filters and for
+      whatever the desktop needs after the budget was sampled. It is derived
+      when the Vulkan device is created, so reading this before any GPU filter
+      exists returns 0; setting it beforehand is respected and suppresses the
+      default.
 
       On a device with *unified_memory* the budget is a share of system RAM
       rather than separate hardware, and the default is deliberately

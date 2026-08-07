@@ -248,6 +248,14 @@ typedef struct VSVulkanFunctions {
 } VSVulkanFunctions;
 #define VSVULKAN_API_VERSION 1
 
+/* The two are NOT interchangeable, and Vulkan guarantees the implication one way only: a
+ * compute queue always accepts transfer commands, while a dedicated transfer queue need not
+ * accept compute ones -- a discrete card's DMA family typically reports VK_QUEUE_TRANSFER_BIT
+ * alone. So vqCompute takes anything, and vqTransfer must be given copies only; recording a
+ * dispatch against it is invalid usage wherever a real DMA family exists, and silently fine on
+ * the hardware where the two resolve to the same queue, which is what makes the mistake easy to
+ * ship. When in doubt use vqCompute: the cost is losing overlap with the core's own transfers,
+ * not correctness. */
 typedef enum VSVulkanQueueType {
     vqCompute = 0,
     vqTransfer = 1 /* the same underlying queue as vqCompute when no dedicated transfer queue exists */
@@ -606,7 +614,12 @@ struct VSVULKANAPI {
 
     /* ---- Exec pools ---- */
 
-    /* Creates an exec pool on one of the core's queues. The core sizes the pool's context
+    /* Creates an exec pool on one of the core's queues. A pool on vqTransfer may only ever
+       record copies, per VSVulkanQueueType, and does not drive the core's progress timeline, so
+       the in-flight budget below falls back to polling for it; a pool anything is dispatched
+       into belongs on vqCompute.
+
+       The core sizes the pool's context
        ring itself, from its worker thread count — how many recordings can even be
        concurrent is core knowledge, not filter knowledge, and how much memory queued
        submissions may pin is bounded separately: acquiring waits out the ring's oldest

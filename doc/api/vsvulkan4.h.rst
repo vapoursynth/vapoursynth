@@ -301,11 +301,21 @@ enum VSVulkanQueueType
 
    * vqCompute
 
+     Takes any work. Use it for anything that dispatches.
+
    * vqTransfer
 
-     The same underlying queue as vqCompute when the device has no dedicated
-     transfer queue family, so locking through this constant stays correct
-     either way.
+     Copies only. Vulkan guarantees the implication one way: a compute queue
+     always accepts transfer commands, while a dedicated transfer queue need
+     not accept compute ones, and a discrete card's DMA family typically
+     reports ``VK_QUEUE_TRANSFER_BIT`` alone. Recording a dispatch against a
+     pool created on this queue is therefore invalid usage wherever such a
+     family exists — and silently fine where it does not, since the two then
+     resolve to the same queue, which is what makes the mistake easy to ship.
+
+     Locking through either constant stays correct either way; it is
+     createGPUExecPool_ where the choice binds. When in doubt use *vqCompute*:
+     the cost is losing overlap with the core's own transfers, not correctness.
 
 .. _VSGPUShaderLanguage:
 
@@ -994,6 +1004,10 @@ void freeGPUShader(VSGPUShader_ \*shader)
 VSGPUExecPool_ \*createGPUExecPool(VSCore \*core, int queue, char \*errorMessage, int errorMessageSize)
 
    Creates an exec pool on one of the core's queues (VSVulkanQueueType_).
+
+   A pool on *vqTransfer* may only ever record copies, and does not drive the
+   core's progress timeline, so the in-flight budget below falls back to polling
+   for it. A pool anything is dispatched into belongs on *vqCompute*.
 
    The core sizes the pool's context ring itself, from its worker thread
    count — how many recordings can even be concurrent is core knowledge, not

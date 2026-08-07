@@ -111,10 +111,10 @@ private:
 };
 
 /* A fixed set of exec contexts shared by however many threads a filter instance is called on.
-   Filters run fmParallel, so claiming a context is a lock free ring walk, the only real lock is
-   the queue's around vkQueueSubmit2, and every GPU wait happens outside both. N contexts means
-   N frames in flight; more threads than contexts wait their turn at acquire(), which is the
-   intended backpressure.
+   A filter instance may be called on many threads at once, so claiming a context is a lock free
+   ring walk, the only real lock is the queue's around vkQueueSubmit2, and every GPU wait happens
+   outside both. N contexts means N frames in flight; more threads than contexts wait their turn
+   at acquire(), which is the intended backpressure.
 
    The pool owns one timeline semaphore. Signal values must reach the queue in increasing order,
    so the next value is allocated under the same queue lock as the submission that signals it,

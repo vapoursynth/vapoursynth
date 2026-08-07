@@ -160,7 +160,8 @@ GPU frames participate in caching exactly like CPU frames, against a separate
 VRAM budget that defaults to two thirds of what the driver reports as
 available to the process — the remainder is headroom for the transient
 working sets of large processing filters and for the rest of the system.
-``core.set_max_vram_use(bytes)`` adjusts it. Under pressure the cache evicts
+``core.max_vram_cache_size`` adjusts it, in megabytes, exactly as
+``core.max_cache_size`` does for host memory. Under pressure the cache evicts
 GPU frames, returns the memory to the driver, and the thread pool throttles
 frame requests the same way it does when host memory runs short — workloads
 far larger than VRAM complete correctly, just slower.
@@ -294,9 +295,24 @@ A filter's obligations
    vkGetSemaphoreCounterValue, falling back to a blocking wait when full.
 
 #. **Bound your frames in flight.** Reusing a per-stream command buffer or
-   scratch buffer must wait out its previous submission; the size of that
-   ring is your filter's pipelining depth. Filters run ``fmParallel`` — do
-   short internal locking, never hold a lock across a GPU wait.
+   scratch buffer must wait out its previous submission; the size of that ring
+   is your filter's pipelining depth.
+
+   ``fmParallel`` is the usual choice, and it is what makes internal locking
+   worth thinking about: getframe then runs concurrently on one instance, so
+   keep any lock short and never hold one across a GPU wait — that hands back
+   the concurrency the mode just gave you. The other modes are legal too;
+   std.BlankClip is ``fmUnordered`` whenever *keep* is set. Serializing getframe
+   does not serialize the device: a filter that records, submits and returns has
+   every submitted frame in flight regardless of how the calls were spaced,
+   since the producer pairs carry the ordering. What a serial mode costs is
+   recording concurrency, and recording is microseconds against a submission
+   floor of ~0.2 ms.
+
+   The exception is a filter that WAITS in getframe — a readback reduction.
+   There ``fmParallel`` is close to mandatory, because it is what lets other
+   frames flow past the wait; any serial mode queues the waits behind each
+   other and pipelining collapses to one frame at a time.
 
 #. **Clean up in order.** In the free callback: wait your final timeline
    value, then destroy pipelines, pools and scratch buffers, and release your
