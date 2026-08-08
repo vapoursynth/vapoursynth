@@ -143,6 +143,11 @@ void VS_CC gpuTransferCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->vi = *vsapi->getVideoInfo(d->node);
 
+    if ((vsapi->getNodeResidency(d->node) == nrGPU) == toGPU) {
+        vsapi->mapConsumeNode(out, "clip", d->node, maAppend);
+        return;
+    }
+
     /* This is the moment lazy device bringup was specified for: the first GPU filter. */
     std::string err;
     if (!core->vulkanDevice(err)) {
@@ -164,6 +169,6 @@ void VS_CC gpuTransferCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 } // namespace
 
 void gpuTransferInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->registerFunction("GPUUpload", "clip:vnode;", "clip:vnode:gpu;", gpuTransferCreate, reinterpret_cast<void *>(1), plugin);
-    vspapi->registerFunction("GPUDownload", "clip:vnode:gpu;", "clip:vnode;", gpuTransferCreate, nullptr, plugin);
+    vspapi->registerFunction("GPUUpload", "clip:vnode:all;", "clip:vnode:gpu;", gpuTransferCreate, reinterpret_cast<void *>(1), plugin);
+    vspapi->registerFunction("GPUDownload", "clip:vnode:all;", "clip:vnode;", gpuTransferCreate, nullptr, plugin);
 }
