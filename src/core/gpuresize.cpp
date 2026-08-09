@@ -1072,6 +1072,11 @@ struct ConversionSpec {
        of twice the height -- the one resize whose two ends do not share a parity. */
     bool deinterlace = false;
     DitherMode dither = DitherMode::None;
+    /* matrix_in, transfer_in and primaries_in when nothing is converted: they say what the
+       source is, so with no output side asked for they are simply what an untagged frame
+       carries out. VSC values; -1 unset. Only the colour-inactive path uses these -- a
+       conversion decides its own tags. */
+    int64_t tagMatrixIn = -1, tagTransferIn = -1, tagPrimariesIn = -1;
     ColourConfig colour;
 };
 
@@ -2120,15 +2125,18 @@ void finishResizeProps(const ConversionSpec &spec, const FrameState &st, VSFrame
         vsapi->mapSetInt(props, "_Matrix", st.colourMatrixTag, maReplace);
     else
         carry("_Matrix", VSC_MATRIX_UNSPECIFIED,
-            spec.dstFmt.colorFamily == cfRGB ? VSC_MATRIX_RGB : VSC_MATRIX_UNSPECIFIED);
+            spec.tagMatrixIn >= 0 ? spec.tagMatrixIn
+            : (spec.dstFmt.colorFamily == cfRGB ? VSC_MATRIX_RGB : VSC_MATRIX_UNSPECIFIED));
     if (st.colourTransferTag >= 0)
         vsapi->mapSetInt(props, "_Transfer", st.colourTransferTag, maReplace);
     else
-        carry("_Transfer", VSC_TRANSFER_UNSPECIFIED, VSC_TRANSFER_UNSPECIFIED);
+        carry("_Transfer", VSC_TRANSFER_UNSPECIFIED,
+            spec.tagTransferIn >= 0 ? spec.tagTransferIn : VSC_TRANSFER_UNSPECIFIED);
     if (st.colourPrimariesTag >= 0)
         vsapi->mapSetInt(props, "_Primaries", st.colourPrimariesTag, maReplace);
     else
-        carry("_Primaries", VSC_PRIMARIES_UNSPECIFIED, VSC_PRIMARIES_UNSPECIFIED);
+        carry("_Primaries", VSC_PRIMARIES_UNSPECIFIED,
+            spec.tagPrimariesIn >= 0 ? spec.tagPrimariesIn : VSC_PRIMARIES_UNSPECIFIED);
 
     int64_t sarNum = vsapi->mapGetInt(srcProps, "_SARNum", 0, &err);
     if (err)
@@ -2898,13 +2906,28 @@ bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
     const bool yuvToYuvSame = bothYUV && !yuvToYuvMatrix && (needsTransfer || needsGamut);
     const bool yuvToYuv = yuvToYuvMatrix || yuvToYuvSame;
 
+    /* The _in arguments state what the source is; they ask for nothing on their own. So
+       an output tag that no conversion decided falls back to them rather than to
+       unspecified, which is the rule the scalar path follows for a frame carrying no tag
+       of its own. True whether or not anything else here converts. */
+    if (matrixInArg == ArgLookup::Resolved)
+        spec.tagMatrixIn = matrixInVal;
+    if (transferInArg == ArgLookup::Resolved)
+        spec.tagTransferIn = transferInVal;
+    if (primariesInArg == ArgLookup::Resolved)
+        spec.tagPrimariesIn = primariesInVal;
+
     if (!(toRGB || toYUV || yuvToYuv || needsTransfer || needsGamut)) {
         if (!spec.sameFamily && !spec.dropsChroma && !spec.fillsChroma)
             return give_up("a colour family conversion");
-        /* Anything else these arguments could still mean -- matrix_in alone, a stray
-           transfer_in -- is a statement this path does not answer. */
-        if (anyColourArg(in, vsapi))
-            return give_up("colorspace conversion");
+        /* Nothing is converted and the only arguments that can still be here are the _in
+           ones, so the output is what it would be with no argument at all, retagged.
+           Declining these turned `matrix_in_s=...` on an ordinary 4:2:0 to 4:4:4 resize
+           into a hard error. The one combination left to refuse is the one the scalar
+           path refuses too, with "RGB color family cannot have YUV matrix coefficients". */
+        if (matrixInArg == ArgLookup::Resolved && spec.srcFmt.colorFamily == cfRGB &&
+                matrixInVal != VSC_MATRIX_RGB)
+            return give_up("matrix_in names something other than RGB on an RGB source");
     } else {
         if ((needsTransfer || needsGamut) && !(toRGB || toYUV || bothRGB || yuvToYuv))
             return give_up("a transfer or primaries conversion that does not pass through RGB");
@@ -3007,9 +3030,12 @@ bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
             /* chromatic_adaptation is accepted and ignored: zimg reads it only from API
                2.5 up, so the scalar path quietly does the same thing. The white patch
                test pins both paths to the no-adaptation answer. */
-        } else if (primariesInArg == ArgLookup::Resolved && !clSpecialNamed) {
-            return give_up("primaries_in without primaries");
         }
+        /* primaries_in without primaries used to be declined here. It converts no gamut
+           -- that needs the output side named -- so all it does is say what the source
+           is, which settles the input tag that then carries out, and feeds a
+           chromaticity-derived matrix if one is in play. The block below already does
+           both; declining first only stopped it. */
         if (primariesInArg == ArgLookup::Resolved) {
             zimg::colorspace::ColorPrimaries p;
             if (!primariesOfValue(primariesInVal, &p))
