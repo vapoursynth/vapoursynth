@@ -84,7 +84,8 @@ private:
    the mandatory features a compute plugin can consume, as SPIR-V capabilities or through the
    exposed API, and omits internal conveniences and graphics-pipeline state.
 
-   shaderFloat16 is the one OPTIONAL entry, being optional in every core version.
+   shaderFloat16 and shaderInt64 are the OPTIONAL entries, both being optional in every core
+   version, so a kernel wanting either asks the physical device rather than the 1.4 gate.
 
    hostImageCopy is deliberately absent: it exists to avoid a staging allocation, not to move
    bulk linear data, and measured 17-26x slower than the path in use on two Metal drivers

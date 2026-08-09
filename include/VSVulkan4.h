@@ -296,7 +296,7 @@ typedef struct VSVulkanCoreHandles {
  *   required (Vulkan14Features): maintenance5, maintenance6, pushDescriptor,
  *     shaderSubgroupRotate, shaderSubgroupRotateClustered, shaderFloatControls2,
  *     shaderExpectAssume, pipelineRobustness
- *   optional, used when enabled: shaderFloat16 */
+ *   optional, used when enabled: shaderFloat16 (Vulkan12Features), shaderInt64 (Features) */
 
 /* One GPU resident plane: a linear pitched storage buffer laid out exactly like the equivalent
  * CPU plane, so getStride and the frame dimension functions apply unchanged. */
