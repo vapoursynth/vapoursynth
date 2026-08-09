@@ -236,11 +236,32 @@ const char resizeMain[] =
     "    precise float bb = s - p;\n"
     "    precise float se = (p - (s - bb)) + (pc.shift - bb);\n"
     "\n"
-    "    float begin = roundHalfup(s - float(pc.taps) * 0.5) + 0.5;\n"
+    /* Not `half`, which GLSL reserves. */
+    "    float halfTaps = float(pc.taps) * 0.5;\n"
+    "    float begin = roundHalfup(s - halfTaps) + 0.5;\n"
     /* The low halves carry what narrowing the geometry to float32 lost -- without them a
        fractional ratio costs ~25 dB, since no amount of careful arithmetic can recover a
        constant that was rounded before the shader ever saw it. */
     "    precise float d = (s - begin) + ((pe + se) + fma(a, pc.invScaleLo, pc.shiftLo));\n"
+    /* begin came from s alone, whose error grows with the position -- 2e-4 of a pixel at
+       4K -- so a position near a window boundary can land on the wrong side of it. d is
+       that same offset accurate to an ulp of ITSELF, so redo the decision with it: the
+       window is canonical when d is in [half-1, half), and s is never a whole pixel out,
+       so one step always reaches it.
+
+       A position can sit exactly ON a boundary -- 224 to 96 chroma is shift -0.5 at a whole
+       ratio, so output 13 is at source 31.000000 -- and then the sample is decided by the
+       rule alone. Ties go up, which is what zimg does rather than what it says: its
+       round_halfup nudges positive ties down by 2^-54, but past a position of 1 that deficit
+       is below half an ulp of the addition, so floor() sees the whole number. Measured
+       against the scalar path over 120k outputs of real chroma geometries, ties up disagree
+       15 times and ties down 446. The rest is zimg's own division noise landing a few 1e-14
+       on either side of a boundary, which is per output rather than per axis and so is not
+       reachable from here: 3 outputs in 120k survive, all point. Only point notices any of
+       this -- a wider kernel's two candidate windows differ by one tap at each end, and both
+       sit at the support edge where the kernel is zero. */
+    "    if (d >= halfTaps) { begin += 1.0; d -= 1.0; }\n"
+    "    else if (d < halfTaps - 1.0) { begin -= 1.0; d += 1.0; }\n"
     "\n"
     "    float acc = 0.0;\n"
     "    float wsum = 0.0;\n"
