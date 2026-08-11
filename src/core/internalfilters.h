@@ -35,7 +35,6 @@ void genericInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void lutInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void boxBlurInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void averageFramesInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
-void gpuTransferInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 
 /* Builds a GPU resize node into out and returns true, or returns false with the decline
    reason after touching nothing, in which case the caller runs the scalar graph. */

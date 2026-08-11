@@ -72,9 +72,6 @@
     <ClCompile Include="..\..\src\core\vsvulkanalloc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core\vsvulkanfilters.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core\vsvulkanexec.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
