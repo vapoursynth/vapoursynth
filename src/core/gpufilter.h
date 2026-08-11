@@ -1043,7 +1043,7 @@ struct SimplePush {
 
 struct SimpleFilter {
     const char *name = nullptr;
-    int inputs = 1;
+    int numInputs = 1;
     /* GLSL statements with int x, int y in scope and the SRCn/STORE macros available.
        bodyInt serves stInteger, bodyFloat serves both float widths; give only the one that
        applies when a filter rejects the other sample type. */
@@ -1067,8 +1067,11 @@ struct SimpleFilter {
     const char *constantType = nullptr;
     bool process[3] = { true, true, true };
     int shareClip[3] = { 0, 0, 0 }; /* source for planes this filter does not compute */
-    /* Fills the per plane parameter block. Called once per plane per frame. */
-    std::function<void(int plane, float *f, uint32_t *u)> fill;
+    /* Fills the f/u parameter tail of the push constant block, once per plane per frame; the
+       wrapper fills the geometry and strides ahead of it. frameParams is whatever prepareFrame
+       produced for this frame, null when no prepareFrame is set -- so a filter with static
+       parameters simply ignores the argument. */
+    std::function<void(int plane, const uint32_t *frameParams, float *f, uint32_t *u)> fillParams;
     /* Optional host side frame property fixup; see FilterDesc::finishFrame. */
     std::function<void(int n, VSFrame *dst, const VSFrame *const *sources, int numSources,
         const uint32_t *params, VSCore *core, const VSAPI *vsapi)> finishFrame;
@@ -1081,13 +1084,13 @@ struct SimpleFilter {
        Match what the filter's scalar path declares. */
     int requestPattern = rpStrictSpatial;
 
-    /* Optional source frame index mapping and per frame parameters; see FilterDesc. When
-       prepare is set, fillFrame runs instead of fill so the body can reach what it produced. */
+    /* Optional source frame index mapping and per frame parameters, named as in FilterDesc,
+       which these are assigned to directly: prepareFrame inspects the source frames and
+       produces frameParamCount uint32s, which reach fillParams and finishFrame. */
     std::function<int(int n, int clip, int frameOffset)> mapFrame;
-    int prepareParams = 0;
+    int frameParamCount = 0;
     std::function<bool(int n, const VSFrame *const *sources, int numSources,
-        const VSAPI *vsapi, uint32_t *params, std::string &error)> prepare;
-    std::function<void(int plane, const uint32_t *params, float *f, uint32_t *u)> fillFrame;
+        const VSAPI *vsapi, uint32_t *params, std::string &error)> prepareFrame;
 };
 
 namespace detail {
@@ -1115,7 +1118,7 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
        out declared as uint16_t. */
     std::string s = "#version 460\n";
     s += std::string("#define SAMPLE_T ") + sampleTypeName(fmt) + "\n";
-    for (int i = 0; i < sf.inputs; i++) {
+    for (int i = 0; i < sf.numInputs; i++) {
         const VSVideoFormat &f = sf.srcFormats[i] ? *sf.srcFormats[i] : srcFmt;
         s += "#define SRC" + std::to_string(i) + "_T " + sampleTypeName(f) + "\n";
     }
@@ -1139,7 +1142,7 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
          "    uint u[" + std::to_string(simpleUintParams) + "];\n"
          "} pc;\n\n";
 
-    for (int i = 0; i < sf.inputs; i++) {
+    for (int i = 0; i < sf.numInputs; i++) {
         const std::string n = std::to_string(i);
         s += "layout(std430, set = 0, binding = " + n + ") readonly buffer Src" + n +
              " { SRC" + n + "_T s" + n + "[]; };\n";
@@ -1151,11 +1154,11 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
        neither worth it for a format whose last bit does not matter. packHalf2x16 is not the
        shortcut it looks like: GLSL calls it round to nearest even, but it lowers to
        V_CVT_PKRTZ_F16_F32, round toward zero. */
-    s += "layout(std430, set = 0, binding = " + std::to_string(sf.inputs) +
+    s += "layout(std430, set = 0, binding = " + std::to_string(sf.numInputs) +
          ") writeonly buffer Dst { SAMPLE_T dstData[]; };\n";
     for (size_t i = 0; i < sf.constants.size(); i++) {
         const std::string ci = std::to_string(i);
-        s += "layout(std430, set = 0, binding = " + std::to_string(sf.inputs + 1 + static_cast<int>(i)) +
+        s += "layout(std430, set = 0, binding = " + std::to_string(sf.numInputs + 1 + static_cast<int>(i)) +
              ") readonly buffer Lut" + ci + " { LUT_T lut" + ci + "[]; };\n";
     }
     s += "\n";
@@ -1191,7 +1194,7 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
        width is the source's height. */
     s += "#define SCX(xx) uint(clamp((xx), 0, int(pc.srcWidth) - 1))\n"
          "#define SCY(yy) uint(clamp((yy), 0, int(pc.srcHeight) - 1))\n";
-    for (int i = 0; i < sf.inputs; i++) {
+    for (int i = 0; i < sf.numInputs; i++) {
         const std::string n = std::to_string(i);
         s += "#define SRC" + n + "(xx, yy) s" + n + "[CY(yy) * pc.srcStride[" + n + "] + CX(xx)]\n";
         s += "#define MSRC" + n + "(xx, yy) s" + n + "[MY(yy) * pc.srcStride[" + n + "] + MX(xx)]\n";
@@ -1232,14 +1235,14 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
         return nullptr;
     };
 
-    if (numNodes != sf.inputs || sf.inputs < 1 || sf.inputs > simpleMaxInputs)
+    if (numNodes != sf.numInputs || sf.numInputs < 1 || sf.numInputs > simpleMaxInputs)
         return fail("wrong number of source clips for the declared kernel");
     if ((vi->format.sampleType == stFloat ? sf.bodyFloat : sf.bodyInt).empty())
         return fail("the format is not supported on the GPU path");
 
     Program program;
     program.glsl = detail::simpleSource(sf, vi->format);
-    program.storageBufferCount = sf.inputs + 1 + static_cast<int>(sf.constants.size());
+    program.storageBufferCount = sf.numInputs + 1 + static_cast<int>(sf.constants.size());
     program.pushConstantBytes = sizeof(SimplePush);
     program.localSizeX = simpleLocalSize;
     program.localSizeY = simpleLocalSize;
@@ -1249,7 +1252,7 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
        They are last so srcStrideElements and dstStrideElements keep meaning what they did. */
     desc.constants = sf.constants;
     Pass pass;
-    for (int i = 0; i < sf.inputs; i++)
+    for (int i = 0; i < sf.numInputs; i++)
         pass.bindings.push_back(Operand::sourcePlane(sf.srcPlane[i], i));
     pass.bindings.push_back(Operand::output());
     for (size_t i = 0; i < sf.constants.size(); i++)
@@ -1258,14 +1261,13 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
 
     desc.finishFrame = sf.finishFrame;
     desc.mapFrame = sf.mapFrame;
-    desc.prepareFrame = sf.prepare;
-    desc.frameParamCount = sf.prepareParams;
+    desc.prepareFrame = sf.prepareFrame;
+    desc.frameParamCount = sf.frameParamCount;
 
-    const auto fill = sf.fill;
-    const auto fillFrame = sf.fillFrame;
+    const auto fillParams = sf.fillParams;
     /* The output is at this binding, not at the end: constants follow it. */
-    const int dstBinding = sf.inputs;
-    desc.fillPush = [fill, fillFrame, dstBinding](const PassInfo &info, void *pushData) {
+    const int dstBinding = sf.numInputs;
+    desc.fillPush = [fillParams, dstBinding](const PassInfo &info, void *pushData) {
         SimplePush push = {};
         push.width = info.width;
         push.height = info.height;
@@ -1274,10 +1276,8 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
         for (int i = 0; i < simpleMaxInputs && i < dstBinding; i++)
             push.srcStride[i] = info.strideElements[i];
         push.dstStride = info.strideElements[dstBinding];
-        if (fillFrame)
-            fillFrame(info.plane, info.frameParams, push.f, push.u);
-        else if (fill)
-            fill(info.plane, push.f, push.u);
+        if (fillParams)
+            fillParams(info.plane, info.frameParams, push.f, push.u);
         std::memcpy(pushData, &push, sizeof(push));
     };
 

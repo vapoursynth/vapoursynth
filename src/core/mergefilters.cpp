@@ -547,7 +547,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
 
         vsgpu::SimpleFilter sf;
         sf.name = "PreMultiply";
-        sf.inputs = 2;
+        sf.numInputs = 2;
         /* Every plane reads the same single plane alpha; on subsampled chroma the gather in
            the prelude is what brings it to the right resolution. */
         sf.srcPlane[1] = 0;
@@ -569,22 +569,22 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         const ChromaOrigins origins = originsOf(cf);
         if (isInt || subsampled) {
             const VSVideoFormat capturedFmt = fmt;
-            sf.prepareParams = 2;
-            sf.prepare = [capturedFmt, isInt, subsampled](int, const VSFrame *const *sources,
+            sf.frameParamCount = 2;
+            sf.prepareFrame = [capturedFmt, isInt, subsampled](int, const VSFrame *const *sources,
                     int numSources, const VSAPI *api, uint32_t *params, std::string &) {
                 params[0] = (isInt && numSources > 0) ? getLimitedRangeOffset(sources[0], capturedFmt, api) : 0;
                 params[1] = (subsampled && numSources > 0)
                     ? static_cast<uint32_t>(resolveChromaLocation(sources[0], api)) : 0;
                 return true;
             };
-            sf.fillFrame = [isYUV, depth, maxval, origins, subsampled](
+            sf.fillParams = [isYUV, depth, maxval, origins, subsampled](
                     int plane, const uint32_t *params, float *, uint32_t *u) {
                 u[0] = maxval;
                 u[1] = (plane > 0 && isYUV) ? (1u << (depth - 1)) : params[0];
                 fillMaskParams(plane, static_cast<int>(params[1]), origins, subsampled, u);
             };
         } else {
-            sf.fill = [maxval](int, float *, uint32_t *u) { u[0] = maxval; };
+            sf.fillParams = [maxval](int, const uint32_t *, float *, uint32_t *u) { u[0] = maxval; };
         }
 
         createGPUFromVector(d, sf, 2, out, core, vsapi);
@@ -777,7 +777,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     if (residency == Residency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "Merge";
-        sf.inputs = 2;
+        sf.numInputs = 2;
         /* The integer form is deliberately modular: the scalar kernel subtracts in
            unsigned, so v2 < v1 wraps and the shift brings it back. uint does the same. */
         sf.bodyInt =
@@ -798,7 +798,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             sf.process[p] = d->process[p] == 0;
             sf.shareClip[p] = d->process[p] == 2 ? 1 : 0;
         }
-        sf.fill = [w, wf](int plane, float *f, uint32_t *u) {
+        sf.fillParams = [w, wf](int plane, const uint32_t *, float *f, uint32_t *u) {
             u[0] = w[plane];
             f[0] = wf[plane];
         };
@@ -1006,7 +1006,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
         vsgpu::SimpleFilter sf;
         sf.name = "MaskedMerge";
-        sf.inputs = 3;
+        sf.numInputs = 3;
         /* The mask is read as the OUTPUT's sample type, not its own -- which is what the
            scalar kernels do, casting the mask pointer to the same type as the sources. */
         sf.srcPlane[2] = d->first_plane ? 0 : -1;
@@ -1059,8 +1059,8 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
         const ChromaOrigins origins = originsOf(cf);
         if (checkLoc || checkRange) {
             const VSVideoFormat capturedFmt = fmt;
-            sf.prepareParams = 2;
-            sf.prepare = [capturedFmt, checkLoc, checkRange](int, const VSFrame *const *sources,
+            sf.frameParamCount = 2;
+            sf.prepareFrame = [capturedFmt, checkLoc, checkRange](int, const VSFrame *const *sources,
                     int numSources, const VSAPI *api, uint32_t *params, std::string &error) {
                 if (numSources < 2) {
                     error = "MaskedMerge: missing source frames";
@@ -1085,7 +1085,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
                 params[0] = offset1;
                 return true;
             };
-            sf.fillFrame = [isYUV, depth, maxval, storageMask, origins, need_chroma_resize](
+            sf.fillParams = [isYUV, depth, maxval, storageMask, origins, need_chroma_resize](
                     int plane, const uint32_t *params, float *, uint32_t *u) {
                 u[0] = maxval;
                 u[1] = (plane > 0 && isYUV) ? (1u << (depth - 1)) : params[0];
@@ -1094,7 +1094,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
             };
         } else {
             /* Never resamples: reaching here needs no chroma processed or no subsampling. */
-            sf.fill = [maxval, storageMask](int, float *, uint32_t *u) {
+            sf.fillParams = [maxval, storageMask](int, const uint32_t *, float *, uint32_t *u) {
                 u[0] = maxval;
                 u[2] = storageMask;
             };
@@ -1269,7 +1269,7 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
     if (residency == Residency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MakeDiff";
-        sf.inputs = 2;
+        sf.numInputs = 2;
         sf.bodyInt =
             "    int tmp = int(SRC0(x, y)) - int(SRC1(x, y)) + int(pc.u[1]);\n"
             "    STORE(uint(clamp(tmp, 0, int(pc.u[0]))));";
@@ -1278,7 +1278,7 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
         const uint32_t half = 1u << (d->vi->format.bitsPerSample - 1);
         for (int p = 0; p < 3; p++)
             sf.process[p] = d->process[p];
-        sf.fill = [maxval, half](int, float *, uint32_t *u) { u[0] = maxval; u[1] = half; };
+        sf.fillParams = [maxval, half](int, const uint32_t *, float *, uint32_t *u) { u[0] = maxval; u[1] = half; };
         createGPUFromDecl2(d, sf, out, core, vsapi);
         return;
     }
@@ -1396,13 +1396,13 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
     if (residency == Residency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MakeFullDiff";
-        sf.inputs = 2;
+        sf.numInputs = 2;
         /* Both inputs are the narrow format; the output is one bit wider, so the source and
            destination types differ and each is declared separately. */
         sf.srcFormat = &d->vi->format;
         sf.bodyInt = "    STORE(uint(int(SRC0(x, y)) - int(SRC1(x, y)) + int(pc.u[0])));";
         const uint32_t half = 1u << d->vi->format.bitsPerSample;
-        sf.fill = [half](int, float *, uint32_t *u) { u[0] = half; };
+        sf.fillParams = [half](int, const uint32_t *, float *, uint32_t *u) { u[0] = half; };
         createGPUFromDecl2(d, sf, out, core, vsapi, &d->outvi);
         return;
     }
@@ -1524,7 +1524,7 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
     if (residency == Residency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MergeDiff";
-        sf.inputs = 2;
+        sf.numInputs = 2;
         sf.bodyInt =
             "    int tmp = int(SRC0(x, y)) + int(SRC1(x, y)) - int(pc.u[1]);\n"
             "    STORE(uint(clamp(tmp, 0, int(pc.u[0]))));";
@@ -1533,7 +1533,7 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
         const uint32_t half = 1u << (d->vi->format.bitsPerSample - 1);
         for (int p = 0; p < 3; p++)
             sf.process[p] = d->process[p];
-        sf.fill = [maxval, half](int, float *, uint32_t *u) { u[0] = maxval; u[1] = half; };
+        sf.fillParams = [maxval, half](int, const uint32_t *, float *, uint32_t *u) { u[0] = maxval; u[1] = half; };
         createGPUFromDecl2(d, sf, out, core, vsapi);
         return;
     }
@@ -1647,7 +1647,7 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
     if (residency == Residency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MergeFullDiff";
-        sf.inputs = 2;
+        sf.numInputs = 2;
         /* clipa is the narrow original and clipb the wider diff, so the two inputs carry
            different sample types -- the case srcFormats exists for. */
         sf.srcFormats[0] = &d->vi->format;
@@ -1656,7 +1656,7 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
                      "    STORE(uint(clamp(tmp, 0, int(pc.u[1]))));";
         const uint32_t half = 1u << d->vi->format.bitsPerSample;
         const uint32_t maxval = (1u << d->vi->format.bitsPerSample) - 1;
-        sf.fill = [half, maxval](int, float *, uint32_t *u) { u[0] = half; u[1] = maxval; };
+        sf.fillParams = [half, maxval](int, const uint32_t *, float *, uint32_t *u) { u[0] = half; u[1] = maxval; };
         createGPUFromDecl2(d, sf, out, core, vsapi);
         return;
     }

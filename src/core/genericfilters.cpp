@@ -1425,7 +1425,7 @@ static bool buildGenericGPU(int op, const GenericData *d, vsgpu::SimpleFilter &s
     const uint16_t th = d->th;
     const float thf = d->thf, scale = d->scale, rdiv = d->rdiv, bias = d->bias;
     const uint32_t enable = d->enable, saturate = d->saturate ? 1u : 0u;
-    sf.fill = [maxval, th, thf, scale, rdiv, bias, enable, saturate](int, float *f, uint32_t *u) {
+    sf.fillParams = [maxval, th, thf, scale, rdiv, bias, enable, saturate](int, const uint32_t *, float *f, uint32_t *u) {
         u[0] = maxval;
         u[1] = enable;
         u[2] = th;
@@ -1508,7 +1508,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
                        "    STORE(pc.u[1] != 0u ? -s : 1.0 - s);";
         const bool mask = d->mask;
         const VSVideoFormat fmt = d->vi->format;
-        sf.fill = [mask, fmt](int plane, float *, uint32_t *u) {
+        sf.fillParams = [mask, fmt](int plane, const uint32_t *, float *, uint32_t *u) {
             u[0] = (1u << fmt.bitsPerSample) - 1;
             u[1] = (!mask && fmt.colorFamily == cfYUV && plane > 0) ? 1u : 0u;
         };
@@ -1589,7 +1589,7 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             mn[p] = d->min[p]; mx[p] = d->max[p];
             mnf[p] = d->minf[p]; mxf[p] = d->maxf[p];
         }
-        sf.fill = [mn, mx, mnf, mxf](int plane, float *f, uint32_t *u) {
+        sf.fillParams = [mn, mx, mnf, mxf](int plane, const uint32_t *, float *f, uint32_t *u) {
             u[0] = mn[plane];
             u[1] = mx[plane];
             f[0] = mnf[plane];
@@ -1679,7 +1679,7 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
             thr[p] = d->thr[p]; v0[p] = d->v0[p]; v1[p] = d->v1[p];
             thrf[p] = d->thrf[p]; v0f[p] = d->v0f[p]; v1f[p] = d->v1f[p];
         }
-        sf.fill = [thr, v0, v1, thrf, v0f, v1f](int plane, float *f, uint32_t *u) {
+        sf.fillParams = [thr, v0, v1, thrf, v0f, v1f](int plane, const uint32_t *, float *f, uint32_t *u) {
             u[0] = thr[plane]; u[1] = v0[plane]; u[2] = v1[plane];
             f[0] = thrf[plane]; f[1] = v0f[plane]; f[2] = v1f[plane];
         };
@@ -1952,7 +1952,7 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
             maxOut[p] = isInt ? std::round(d->max_out[p]) : d->max_out[p];
             gamma[p] = d->gamma[p];
         }
-        sf.fill = [minIn, maxIn, minOut, maxOut, gamma, maxval](int plane, float *f, uint32_t *u) {
+        sf.fillParams = [minIn, maxIn, minOut, maxOut, gamma, maxval](int plane, const uint32_t *, float *f, uint32_t *u) {
             f[0] = minIn[plane];
             f[1] = maxIn[plane];
             f[2] = minOut[plane];

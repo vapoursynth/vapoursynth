@@ -228,7 +228,7 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
         sf.bodyFloat = body;
         const int cx = d->x, cy = d->y;
         const int subW = d->vi->format.subSamplingW, subH = d->vi->format.subSamplingH;
-        sf.fill = [cx, cy, subW, subH](int plane, float *, uint32_t *u) {
+        sf.fillParams = [cx, cy, subW, subH](int plane, const uint32_t *, float *, uint32_t *u) {
             u[0] = cx >> (plane ? subW : 0);
             u[1] = cy >> (plane ? subH : 0);
         };
@@ -298,7 +298,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
         sf.bodyFloat = body;
         const int cx = d->x, cy = d->y;
         const int subW = d->vi->format.subSamplingW, subH = d->vi->format.subSamplingH;
-        sf.fill = [cx, cy, subW, subH](int plane, float *, uint32_t *u) {
+        sf.fillParams = [cx, cy, subW, subH](int plane, const uint32_t *, float *, uint32_t *u) {
             u[0] = cx >> (plane ? subW : 0);
             u[1] = cy >> (plane ? subH : 0);
         };
@@ -544,7 +544,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
                 colourf[p] = asFloat;
             }
         }
-        sf.fill = [left, top, subW, subH, colour, colourf](int plane, float *f, uint32_t *u) {
+        sf.fillParams = [left, top, subW, subH, colour, colourf](int plane, const uint32_t *, float *f, uint32_t *u) {
             u[0] = left >> (plane ? subW : 0);
             u[1] = top >> (plane ? subH : 0);
             u[2] = colour[plane];
@@ -903,8 +903,8 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
         /* Which line the field starts on is decided by _FieldBased on the frame, so it can
            only be known once the frame is here; params[0] carries it to the kernel. */
         const int tff = d->tff;
-        sf.prepareParams = 1;
-        sf.prepare = [tff](int n, const VSFrame *const *sources, int, const VSAPI *vsapi,
+        sf.frameParamCount = 1;
+        sf.prepareFrame = [tff](int n, const VSFrame *const *sources, int, const VSAPI *vsapi,
                 uint32_t *params, std::string &error) {
             int err = 0;
             const int fieldBased = vsapi->mapGetIntSaturated(vsapi->getFramePropertiesRO(sources[0]), "_FieldBased", 0, &err);
@@ -925,7 +925,7 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
         sf.bodyFloat = body;
         /* The scalar path steps down a line when the parity is zero, so the parity is the
            complement of the starting line. */
-        sf.fillFrame = [](int, const uint32_t *params, float *, uint32_t *u) {
+        sf.fillParams = [](int, const uint32_t *params, float *, uint32_t *u) {
             u[0] = params[0] ? 0u : 1u;
         };
         const bool modifyDuration = d->modifyDuration;
@@ -1065,7 +1065,7 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
     if (vsapi->getNodeResidency(d->node) == nrGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "DoubleWeave";
-        sf.inputs = 2;
+        sf.numInputs = 2;
         /* Both inputs are the same clip, read one frame apart, so the second input alone
            already breaks strict spatial; rpGeneral matches the scalar create. */
         sf.mapFrame = [](int n, int clip, int) { return n + clip; };
@@ -1073,8 +1073,8 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
         /* Which of the pair is the top field comes from _Field on the frames, falling back
            to tff and the output parity exactly as the scalar path does. */
         const int tff = d->tff;
-        sf.prepareParams = 1;
-        sf.prepare = [tff](int n, const VSFrame *const *sources, int, const VSAPI *vsapi,
+        sf.frameParamCount = 1;
+        sf.prepareFrame = [tff](int n, const VSFrame *const *sources, int, const VSAPI *vsapi,
                 uint32_t *params, std::string &error) {
             int err;
             int64_t field1 = vsapi->mapGetInt(vsapi->getFramePropertiesRO(sources[0]), "_Field", 0, &err);
@@ -1107,7 +1107,7 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
             "    bool useFirst = wantTop == (pc.u[0] != 0u);\n";
         sf.bodyInt = body + "    STORE(useFirst ? uint(GSRC0(x, row)) : uint(GSRC1(x, row)));";
         sf.bodyFloat = body + "    STORE(useFirst ? float(GSRC0(x, row)) : float(GSRC1(x, row)));";
-        sf.fillFrame = [](int, const uint32_t *params, float *, uint32_t *u) { u[0] = params[0]; };
+        sf.fillParams = [](int, const uint32_t *params, float *, uint32_t *u) { u[0] = params[0]; };
         sf.finishFrame = [](int, VSFrame *dst, const VSFrame *const *, int, const uint32_t *params,
                 VSCore *, const VSAPI *vsapi) {
             VSMap *props = vsapi->getFramePropertiesRW(dst);

@@ -63,12 +63,12 @@ static void VS_CC invertDriverCreate(const VSMap *in, VSMap *out, void *userData
 
     vsgpu::SimpleFilter sf;
     sf.name = "InvertDriverGPU";
-    sf.inputs = 1;
+    sf.numInputs = 1;
 
     /* One statement per sample type, with int x, int y in scope. SRC0(x, y) reads the source
        plane clamped to its edges and STORE() writes the output at (x, y); the driver supplies
        both macros already specialized to the clip's format, so the same text serves 8, 10, 12
-       and 16 bit integer. pc.u[] and pc.f[] are the parameter block fill() writes below. */
+       and 16 bit integer. pc.u[] and pc.f[] are the parameter block fillParams() writes below. */
     sf.bodyInt = "    STORE(pc.u[0] - min(uint(SRC0(x, y)), pc.u[0]));";
 
     /* Float inverts around 1.0 for luma and by negation for chroma, matching what std.Invert
@@ -77,10 +77,11 @@ static void VS_CC invertDriverCreate(const VSMap *in, VSMap *out, void *userData
     sf.bodyFloat = "    float s = float(SRC0(x, y));\n"
                    "    STORE(pc.u[1] != 0u ? -s : 1.0 - s);";
 
-    /* Called once per plane per frame to fill the parameter block the bodies read. Capture by
-       value: it outlives this function and runs on worker threads. */
+    /* Called once per plane per frame to fill the parameter block the bodies read; the middle
+       argument is the per-frame data a prepareFrame callback would have produced, unused (and
+       null) here. Capture by value: it outlives this function and runs on worker threads. */
     const VSVideoFormat fmt = d->vi->format;
-    sf.fill = [fmt](int plane, float *, uint32_t *u) {
+    sf.fillParams = [fmt](int plane, const uint32_t *, float *, uint32_t *u) {
         u[0] = (1u << fmt.bitsPerSample) - 1;                       /* peak value */
         u[1] = (fmt.colorFamily == cfYUV && plane > 0) ? 1u : 0u;   /* chroma? */
     };

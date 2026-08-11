@@ -590,7 +590,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std:
            laid out on the host. */
         vsgpu::SimpleFilter sf;
         sf.name = "Lut2";
-        sf.inputs = 2;
+        sf.numInputs = 2;
         sf.srcFormat = &d->vi[0]->format;
         const std::string body =
             "    uint idx = (uint(SRC1(x, y)) << pc.u[0]) | uint(SRC0(x, y));\n"
@@ -600,7 +600,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std:
         for (int i = 0; i < 3; i++)
             sf.process[i] = d->process[i];
         const uint32_t shiftBits = d->vi[0]->format.bitsPerSample;
-        sf.fill = [shiftBits](int, float *, uint32_t *u) { u[0] = shiftBits; };
+        sf.fillParams = [shiftBits](int, const uint32_t *, float *, uint32_t *u) { u[0] = shiftBits; };
         const uint8_t *table = reinterpret_cast<const uint8_t *>(d->lut);
         sf.constants.emplace_back(table, table + static_cast<size_t>(inrange) * sizeof(V));
 
