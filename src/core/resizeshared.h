@@ -18,13 +18,15 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#ifndef RESIZESHAREDARGS_H
-#define RESIZESHAREDARGS_H
+#ifndef RESIZESHARED_H
+#define RESIZESHARED_H
 
-/* The string spellings the resize entry points accept, shared between the scalar zimg
-   wrapper and the GPU compute path so the two cannot drift apart -- a name added to one
-   and not the other would make the same script mean different things depending on where
-   the clip lives.
+/* Everything the scalar zimg wrapper and the GPU compute path share: the argument
+   vocabulary below, and the one entry point vsresize.cpp calls to try the GPU first.
+
+   The string spellings the resize entry points accept are shared so the two cannot drift
+   apart -- a name added to one and not the other would make the same script mean different
+   things depending on where the clip lives.
 
    Values are the H.273 codes the frame properties use, which are numerically identical
    to zimg's own enums for every table here, range included: VSRange under the current
@@ -34,8 +36,15 @@
    Deliberately absent: the cpu, dither and resample filter tables, which are statements
    about the scalar implementation rather than shared vocabulary. */
 
+#include <string>
 #include <string_view>
 #include "VSConstants4.h"
+#include "VapourSynth4.h"
+
+/* Builds a GPU resize node into out and returns true, or returns false with the decline
+   reason after touching nothing, in which case the caller runs the scalar graph. */
+bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool deinterlace,
+    VSCore *core, const VSAPI *vsapi, std::string &decline);
 
 struct ResizeEnumEntry {
     std::string_view name;
@@ -117,4 +126,4 @@ constexpr ResizeEnumEntry resizePrimariesTable[] = {
     { "ebu3213-e", VSC_PRIMARIES_EBU3213_E },
 };
 
-#endif // RESIZESHAREDARGS_H
+#endif // RESIZESHARED_H

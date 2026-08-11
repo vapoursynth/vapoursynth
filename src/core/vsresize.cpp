@@ -36,7 +36,7 @@
 #include "VSHelper4.h"
 #include "VSConstants4.h"
 #include "internalfilters.h"
-#include "resizesharedargs.h"
+#include "resizeshared.h"
 #include "version.h"
 
 using namespace vsh;
@@ -121,7 +121,7 @@ constexpr EnumEntry<zimg_cpu_type_e> g_cpu_type_table[] = {
 #endif
 };
 
-/* The colorspace vocabulary lives in resizesharedargs.h, shared with the compute path;
+/* The colorspace vocabulary lives in resizeshared.h, shared with the compute path;
    the tables below are statements about the scalar implementation and stay here. */
 
 constexpr EnumEntry<zimg_dither_type_e> g_dither_type_table[] = {
