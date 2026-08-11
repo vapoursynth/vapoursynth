@@ -833,11 +833,6 @@ public:
             }
             const char *name = u.op == FieldOp::DEINTERLACE ? "Bob" : kernelName;
 
-            /* Warned here rather than in the constructor, which does not run when the
-               compute path takes the call. */
-            if (vsapi->mapNumElements(in, "prefer_props") >= 0)
-                vsapi->logMessage(mtWarning, "The deprecated argument prefer_props was passed to a resizer. Ignoring argument.", core);
-
             /* Residency polymorphic, but only over what the compute path implements: a
                resident clip asking for anything outside it is an error naming the reason,
                not a silent trip back to host memory. Downloading instead would keep the
@@ -947,7 +942,6 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
   FLOAT_OPT(filter_param_b_uv) \
   DATA_OPT(dither_type) \
   DATA_OPT(cpu_type) \
-  INT_OPT(prefer_props) \
   FLOAT_OPT(src_left) \
   FLOAT_OPT(src_top) \
   FLOAT_OPT(src_width) \
@@ -956,10 +950,6 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
   INT_OPT(approximate_gamma) \
   INT_OPT(chromatic_adaptation)
 
-    /* vnode:all rather than plain vnode: a GPU clip has to reach create for the compute
-       path to be offered it at all. What the core used to insert automatically now
-       happens inside create, and only when the compute path declines, so the CPU
-       behaviour is unchanged. */
     static const char RESAMPLE_ARGS[] =
         "clip:vnode:all;"
         INT_OPT(width)
@@ -976,12 +966,6 @@ void resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Spline16", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE16), plugin);
     vspapi->registerFunction("Spline36", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE36), plugin);
     vspapi->registerFunction("Spline64", RESAMPLE_ARGS, RETURN_VALUE, &vszimg::create, vszimg_userdata(ZIMG_RESIZE_SPLINE64), plugin);
-
-    /* vnode:all even though the whole of Bob may still decline: the modifier is what lets
-       a resident clip reach the compute path at all. As plain vnode the core downloaded on
-       Bob's own argument, ahead of the SeparateFields this builds on top of, so even the
-       parts with a compute path ran on the host. A decline is now an error rather than a
-       download, so the caller places the round trip themselves if they want one. */
     vspapi->registerFunction("Bob", "clip:vnode:all;filter:data:opt;tff:int:opt;" COMMON_ARGS, RETURN_VALUE, bobCreate, vszimg_userdata(ZIMG_RESIZE_BICUBIC), plugin);
 
 #undef COMMON_ARGS
