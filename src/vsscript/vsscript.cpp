@@ -294,11 +294,6 @@ static const VSAPI *VS_CC getVSApi(int version) VS_NOEXCEPT {
     return vpy4_getVSAPI(version);
 }
 
-/* Scripts may legally leave outputs and variables GPU resident. Consumers predating that,
-   or new ones that did not pass sgfAllowGPUResident, expect frames they can read with
-   getReadPtr, so the boundary they never knew they needed is inserted for them here. The
-   caller holds vsscriptlock. Consumes the node; returns the wrapped replacement, the node
-   unchanged when it is already CPU resident, or NULL when the wrap failed. */
 static VSNode *downloadIfGPUResident(VSScript *handle, VSNode *node) {
     if (!node)
         return nullptr;

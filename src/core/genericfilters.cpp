@@ -1400,8 +1400,6 @@ static void createGPUSeparableConvolution(std::unique_ptr<GenericData> &d, VSMap
 
 /* Builds the declaration for one of the eight neighbourhood filters. */
 static bool buildGenericGPU(int op, const GenericData *d, vsgpu::SimpleFilter &sf) {
-    const bool isFloat = d->vi->format.sampleType == stFloat;
-
     switch (op) {
     case GenericPrewitt:     sf.bodyInt = prewittSobelBody(false, false); sf.bodyFloat = prewittSobelBody(false, true); break;
     case GenericSobel:       sf.bodyInt = prewittSobelBody(true, false);  sf.bodyFloat = prewittSobelBody(true, true);  break;
@@ -1435,7 +1433,6 @@ static bool buildGenericGPU(int op, const GenericData *d, vsgpu::SimpleFilter &s
         f[2] = rdiv;
         f[3] = bias;
     };
-    (void)isFloat;
     return true;
 }
 
