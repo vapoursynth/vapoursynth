@@ -2909,8 +2909,8 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
     vi.numFrames = vi2->numFrames;
     /* Output residency follows the main clip; the embedded mclip frames live in a property
        as plain data and may be either. */
-    int flags = residencyFlags(d->node1, vsapi); /* before d.release(): argument order is unspecified */
-    vsapi->createVideoFilterEx(out, "ClipToProp", &vi, clipToPropGetFrame, filterFree<ClipToPropData>, fmParallel, flags, deps, 2, d.release(), core);
+    vsapi->createVideoFilterEx(out, "ClipToProp", &vi, clipToPropGetFrame, filterFree<ClipToPropData>, fmParallel, residencyFlags(d->node1, vsapi), deps, 2, d.get(), core);
+    d.release();
 }
 
 //////////////////////////////////////////

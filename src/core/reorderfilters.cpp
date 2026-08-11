@@ -31,14 +31,6 @@ using namespace vsh;
 //////////////////////////////////////////
 // Shared
 
-/* Every filter in this file only rearranges which frame comes out when, so the same code
-   serves CPU and GPU clips alike: the signatures declare vnode:all and each instance
-   declares its concrete output residency, taken from its input, through ffGPUOutput
-   (residencyFlags in filtershared.h). */
-
-/* One node cannot alternate between CPU and GPU frames, so multiple input filters require
-   uniform residency instead of guessing which clips to coerce. Returns the offending clip
-   index or 0 when uniform. */
 static int findMixedResidency(VSNode **nodes, int num, const VSAPI *vsapi) {
     int residency = vsapi->getNodeResidency(nodes[0]);
     for (int i = 1; i < num; i++)
@@ -186,8 +178,8 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     vi.numFrames = trimlen;
 
     VSFilterDependency deps[] = {{d->node, (d->first == 0) ? rpStrictSpatial : rpNoFrameReuse}};
-    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
-    vsapi->createVideoFilterEx(out, "Trim", &vi, trimGetframe, filterFree<TrimData>, fmParallel, flags, deps, 1, d.release(), core);
+    vsapi->createVideoFilterEx(out, "Trim", &vi, trimGetframe, filterFree<TrimData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    d.release();
 }
 
 //////////////////////////////////////////
@@ -364,8 +356,8 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
-    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
-    vsapi->createVideoFilterEx(out, "Loop", &vi, loopGetframe, filterFree<LoopData>, fmParallel, flags, deps, 1, d.release(), core);
+    vsapi->createVideoFilterEx(out, "Loop", &vi, loopGetframe, filterFree<LoopData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    d.release();
 }
 
 //////////////////////////////////////////
@@ -473,8 +465,8 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
         muldivRational(&vi.fpsNum, &vi.fpsDen, d->num, d->cycle);
 
     VSFilterDependency deps[] = {{d->node, duplicateOffset ? rpGeneral : rpNoFrameReuse}};
-    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
-    vsapi->createVideoFilterEx(out, "SelectEvery", &vi, selectEveryGetframe, filterFree<SelectEveryData>, fmParallel, flags, deps, 1, d.release(), core);
+    vsapi->createVideoFilterEx(out, "SelectEvery", &vi, selectEveryGetframe, filterFree<SelectEveryData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    d.release();
 }
 
 //////////////////////////////////////////
@@ -613,8 +605,8 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
     vi.numFrames += d->num_dups;
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
-    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
-    vsapi->createVideoFilterEx(out, "DuplicateFrames", &vi, duplicateFramesGetFrame, filterFree<DuplicateFramesData>, fmParallel, flags, deps, 1, d.release(), core);
+    vsapi->createVideoFilterEx(out, "DuplicateFrames", &vi, duplicateFramesGetFrame, filterFree<DuplicateFramesData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    d.release();
 }
 
 //////////////////////////////////////////
@@ -676,8 +668,8 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
     }
 
     VSFilterDependency deps[] = {{d->node, rpNoFrameReuse}};
-    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
-    vsapi->createVideoFilterEx(out, "DeleteFrames", &vi, deleteFramesGetFrame, filterFree<DeleteFramesData>, fmParallel, flags, deps, 1, d.release(), core);
+    vsapi->createVideoFilterEx(out, "DeleteFrames", &vi, deleteFramesGetFrame, filterFree<DeleteFramesData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    d.release();
 }
 
 //////////////////////////////////////////
@@ -759,8 +751,8 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
             RETERROR("FreezeFrames: the frame ranges must not overlap");
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
-    int flags = residencyFlags(d->node, vsapi); /* before d.release(): argument order is unspecified */
-    vsapi->createVideoFilterEx(out, "FreezeFrames", vi, freezeFramesGetFrame, filterFree<FreezeFramesData>, fmParallel, flags, deps, 1, d.release(), core);
+    vsapi->createVideoFilterEx(out, "FreezeFrames", vi, freezeFramesGetFrame, filterFree<FreezeFramesData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    d.release();
 }
 
 //////////////////////////////////////////
