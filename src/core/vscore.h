@@ -1004,8 +1004,6 @@ public:
         return filterMode;
     }
 
-    /* Whether this node's output frames live on the GPU. Set by internal GPU filters right
-       after creation; drives residency checking and automatic boundary insertion at invoke. */
     bool isGPUOutput() const {
         return gpuOutput;
     }
@@ -1228,9 +1226,7 @@ private:
 
     bool createVulkanDeviceLocked(int deviceIndex);
 
-    /* Runtime compiled shader blobs keyed by language byte + source text, so every filter
-       instance compiling the same kernel shares one parse and one copy of the words. Pure
-       CPU state, deliberately independent of the Vulkan device. */
+    // Shader cache
     std::mutex shaderCacheLock;
     std::map<std::string, std::shared_ptr<const std::vector<uint32_t>>> shaderCache;
 
@@ -1291,22 +1287,10 @@ public:
     [[noreturn]] void logFatal(const char *msg);
     [[noreturn]] void logFatal(const std::string &msg);
 
-    /* The core's single Vulkan device, brought up on the first call with the most powerful
-       suitable GPU and returned on every later one. Returns null with the error set when
-       bringup failed, and keeps failing the same way rather than retrying per frame. */
     VSVulkanDevice *vulkanDevice(std::string &errorMessage);
-    /* Explicit selection instead of the default, only allowed while no device exists yet;
-       -1 picks automatically. */
     bool setVulkanDevice(int deviceIndex, std::string &errorMessage);
-    /* The transfer machinery shared by every upload and download in this core, created
-       alongside the device on first use. */
     VSVulkanTransfer *vulkanTransfer(std::string &errorMessage);
-    /* Wraps a node in GPUUpload (toGPU) or GPUDownload, used by invoke() to fix residency
-       mismatches; returns a new reference or null with the error set. */
     VSNode *wrapGPUBoundary(VSNode *node, bool toGPU, std::string &errorMessage);
-    /* Runtime shader compilation with the per core cache; returns the shared immutable
-       words or null with the error set. Implemented in vsvulkanshader.cpp so glslang stays
-       out of every other translation unit. */
     std::shared_ptr<const std::vector<uint32_t>> compileShaderCached(int language, const char *source, std::string &errorMessage);
 
     /////////////////////////////////////
@@ -1348,11 +1332,7 @@ public:
     void filterInstanceDestroyed() noexcept;
     void destroyFilterInstance(VSNode *node);
     void clearCaches(bool resetSize);
-    /* The Vulkan allocator's escalation hook: drops every cached GPU frame and trims, called
-       between a failed driver allocation and its retry. */
     void gpuMemoryPanic();
-    /* Re-derives the device's in-flight retention budget from the VRAM limit; no-op until
-       the device exists. */
     void refreshVulkanExecBudget();
     bool getNodeTiming() noexcept;
     void setNodeTiming(bool enable) noexcept;
