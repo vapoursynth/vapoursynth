@@ -19,6 +19,7 @@
 
 cimport vapoursynth
 include 'vsconstants.pxd'
+from vsvulkan cimport VSVULKANAPI, VSVulkanCoreInfo, VSVulkanDeviceListEntry, VSVULKAN_API_VERSION
 from vshelper cimport bitblt
 from vsscript_internal cimport VSScript
 from wave cimport WaveHeader, Wave64Header, CreateWave64Header, CreateWaveHeader, PackChannels16to16le, PackChannels32to24le, PackChannels32to32le
@@ -1669,12 +1670,12 @@ cdef class RawFrame(object):
     @property
     def gpu_resident(self):
         self._ensure_open()
-        return bool(vspy_is_gpu_frame(self.funcs, self.constf))
+        return bool(self.funcs.getFrameResidency(self.constf) == nrGPU)
 
     cdef _ensure_cpu(self):
         # Reading a GPU frame through the CPU accessors is a fatal error in the core by
         # design; from python it must be an exception instead.
-        if vspy_is_gpu_frame(self.funcs, self.constf):
+        if self.funcs.getFrameResidency(self.constf) == nrGPU:
             raise Error('The frame is GPU resident and its pixel data cannot be accessed directly, pass the clip through std.GPUDownload first')
 
     def get_write_ptr(self, int plane):
@@ -2443,7 +2444,7 @@ cdef class VideoNode(RawNode):
     def gpu_resident(self):
         """Whether this node's frames live on the GPU, i.e. whether its filter was created with ffGPUOutput."""
         self.ensure_valid()
-        return bool(vspy_is_gpu_node(self.funcs, self.node))
+        return bool(self.funcs.getNodeResidency(self.node) == nrGPU)
 
     def set_output(self, int index = 0, VideoNode alpha = None, int alt_output = 0):
         self.ensure_valid()
@@ -3081,86 +3082,6 @@ cdef CoreTimings createCoreTimings(Core core):
     return instance
 
 
-# Small C shims around the separately versioned Vulkan API so its struct never has to be
-# mirrored in cython declarations.
-cdef extern from *:
-    """
-    #include "include/VSVulkan4.h"
-    #include <stdio.h>
-
-    static int vspy_set_vulkan_device(const VSAPI *api, VSCore *core, int index, char *err, int errSize) {
-        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
-        if (!vk) { snprintf(err, errSize, "Vulkan API not available"); return 1; }
-        return vk->setVulkanDevice(core, index, err, errSize);
-    }
-
-    static int vspy_get_vulkan_core_info(const VSAPI *api, VSCore *core, char *name, int nameSize,
-            int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit,
-            char *uuidHex, int uuidHexSize, int *exportHandleType, int *semExportHandleType,
-            int *unifiedMemory, char *err, int errSize) {
-        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
-        VSVulkanCoreInfo info;
-        int i;
-        if (!vk) { snprintf(err, errSize, "Vulkan API not available"); return 1; }
-        if (vk->getVulkanCoreInfo(core, &info, err, errSize)) return 1;
-        snprintf(name, nameSize, "%s", info.deviceName);
-        *deviceMemory = info.deviceMemory;
-        *budget = info.budget;
-        *allocated = info.allocated;
-        *limit = info.limit;
-        for (i = 0; i < 16 && i * 2 + 2 < uuidHexSize; i++)
-            snprintf(uuidHex + i * 2, 3, "%02x", info.deviceUUID[i]);
-        *exportHandleType = info.exportHandleType;
-        *semExportHandleType = info.semaphoreExportHandleType;
-        *unifiedMemory = info.unifiedMemory;
-        return 0;
-    }
-
-    static int64_t vspy_set_max_vram_use(const VSAPI *api, VSCore *core, int64_t bytes) {
-        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
-        if (!vk) return -1;
-        return vk->setMaxVRAMUse(bytes, core);
-    }
-
-    static int vspy_is_gpu_frame(const VSAPI *api, const VSFrame *f) {
-        return api->getFrameResidency(f) == nrGPU;
-    }
-
-    static int vspy_is_gpu_node(const VSAPI *api, VSNode *node) {
-        return api->getNodeResidency(node) == nrGPU;
-    }
-
-    static int vspy_enumerate_vulkan_devices(const VSAPI *api, int maxCount, char *names, int *apiVersions,
-            int *types, int64_t *mems, int *usables, char *reasons, char *uuids, char *err, int errSize) {
-        const VSVULKANAPI *vk = api->getVulkanAPI(VSVULKAN_API_VERSION);
-        VSVulkanDeviceListEntry entries[16];
-        int count, n, i;
-        if (!vk) { snprintf(err, errSize, "Vulkan API not available"); return -1; }
-        count = vk->enumerateVulkanDevices(entries, maxCount < 16 ? maxCount : 16, err, errSize);
-        if (count < 0) return -1;
-        n = count < maxCount ? count : maxCount;
-        if (n > 16) n = 16;
-        for (i = 0; i < n; i++) {
-            int b;
-            snprintf(names + i * 256, 256, "%s", entries[i].deviceName);
-            apiVersions[i] = (int)entries[i].apiVersion;
-            types[i] = entries[i].deviceType;
-            mems[i] = entries[i].deviceMemory;
-            usables[i] = entries[i].usable;
-            snprintf(reasons + i * 256, 256, "%s", entries[i].unusableReason);
-            for (b = 0; b < 16; b++)
-                snprintf(uuids + i * 64 + b * 2, 3, "%02x", entries[i].deviceUUID[b]);
-        }
-        return count;
-    }
-    """
-    int vspy_set_vulkan_device(const VSAPI *api, VSCore *core, int index, char *err, int errSize) nogil
-    int vspy_get_vulkan_core_info(const VSAPI *api, VSCore *core, char *name, int nameSize, int64_t *deviceMemory, int64_t *budget, int64_t *allocated, int64_t *limit, char *uuidHex, int uuidHexSize, int *exportHandleType, int *semExportHandleType, int *unifiedMemory, char *err, int errSize) nogil
-    int vspy_is_gpu_frame(const VSAPI *api, const VSFrame *f) nogil
-    int vspy_is_gpu_node(const VSAPI *api, VSNode *node) nogil
-    int64_t vspy_set_max_vram_use(const VSAPI *api, VSCore *core, int64_t bytes) nogil
-    int vspy_enumerate_vulkan_devices(const VSAPI *api, int maxCount, char *names, int *apiVersions, int *types, int64_t *mems, int *usables, char *reasons, char *uuids, char *err, int errSize) nogil
-
 cdef class Core(object):
     cdef int creationFlags
     cdef VSCore *core
@@ -3219,11 +3140,18 @@ cdef class Core(object):
         self.funcs.getCoreInfo2(self.core, &v)
         return v.usedFramebufferSize
 
+    cdef const VSVULKANAPI *_vulkan_api(self) except NULL:
+        cdef const VSVULKANAPI *vk = self.funcs.getVulkanAPI(VSVULKAN_API_VERSION)
+        if vk == NULL:
+            raise Error('Vulkan API not available')
+        return vk
+
     def set_vulkan_device(self, int index = -1):
         """Selects the Vulkan device, only before the first GPU filter; -1 picks the most powerful one."""
         self.ensure_valid()
+        cdef const VSVULKANAPI *vk = self._vulkan_api()
         cdef char err[512]
-        if vspy_set_vulkan_device(self.funcs, self.core, index, err, 512):
+        if vk.setVulkanDevice(self.core, index, err, 512):
             raise Error(err.decode('utf-8'))
 
     @property
@@ -3232,9 +3160,7 @@ cdef class Core(object):
         max_cache_size. Zero until the Vulkan device is created, since that is when the
         default is derived from the driver's budget; setting it beforehand is respected."""
         self.ensure_valid()
-        cdef int64_t current_size = vspy_set_max_vram_use(self.funcs, self.core, 0)
-        if current_size < 0:
-            raise Error('Vulkan API not available')
+        cdef int64_t current_size = self._vulkan_api().setMaxVRAMUse(0, self.core)
         current_size = (current_size + 1024 * 1024 - 1) // <int64_t>(1024 * 1024)
         return current_size
 
@@ -3245,23 +3171,17 @@ cdef class Core(object):
             raise ValueError("Maximum VRAM cache size must be a positive number")
         cdef int64_t new_size = mb
         new_size = new_size * 1024 * 1024
-        if vspy_set_max_vram_use(self.funcs, self.core, new_size) < 0:
-            raise Error('Vulkan API not available')
+        self._vulkan_api().setMaxVRAMUse(new_size, self.core)
 
     @property
     def vulkan_devices(self):
         """Every Vulkan physical device; the list index is exactly what set_vulkan_device takes.
         Unusable devices are listed with the reason and may still be selected, which fails with it."""
         self.ensure_valid()
-        cdef char names[4096]
-        cdef char reasons[4096]
-        cdef char uuids[1024]
-        cdef int apiVersions[16]
-        cdef int types[16]
-        cdef int64_t mems[16]
-        cdef int usables[16]
+        cdef const VSVULKANAPI *vk = self._vulkan_api()
+        cdef VSVulkanDeviceListEntry entries[16]
         cdef char err[512]
-        cdef int count = vspy_enumerate_vulkan_devices(self.funcs, 16, names, apiVersions, types, mems, usables, reasons, uuids, err, 512)
+        cdef int count = vk.enumerateVulkanDevices(entries, 16, err, 512)
         if count < 0:
             raise Error(err.decode('utf-8'))
         type_names = {0: 'other', 1: 'integrated', 2: 'discrete', 3: 'virtual', 4: 'cpu'}
@@ -3269,13 +3189,13 @@ cdef class Core(object):
         for i in range(min(count, 16)):
             result.append({
                 'index': i,
-                'name': (<bytes>(&names[i * 256])).decode('utf-8'),
-                'api_version': (apiVersions[i] >> 22, (apiVersions[i] >> 12) & 0x3ff, apiVersions[i] & 0xfff),
-                'type': type_names.get(types[i], 'other'),
-                'device_memory': mems[i],
-                'usable': bool(usables[i]),
-                'reason': (<bytes>(&reasons[i * 256])).decode('utf-8'),
-                'uuid': (<bytes>(&uuids[i * 64])).decode('utf-8'),
+                'name': (<bytes>(<char *>entries[i].deviceName)).decode('utf-8'),
+                'api_version': (entries[i].apiVersion >> 22, (entries[i].apiVersion >> 12) & 0x3ff, entries[i].apiVersion & 0xfff),
+                'type': type_names.get(entries[i].deviceType, 'other'),
+                'device_memory': entries[i].deviceMemory,
+                'usable': bool(entries[i].usable),
+                'reason': (<bytes>(<char *>entries[i].unusableReason)).decode('utf-8'),
+                'uuid': bytes(entries[i].deviceUUID[:16]).hex(),
             })
         return result
 
@@ -3283,19 +3203,18 @@ cdef class Core(object):
     def vulkan_device_info(self):
         """Name and memory state of the Vulkan device; initializes the device on first access."""
         self.ensure_valid()
-        cdef char name[256]
+        cdef const VSVULKANAPI *vk = self._vulkan_api()
+        cdef VSVulkanCoreInfo info
         cdef char err[512]
-        cdef char uuidHex[64]
-        cdef int exportHandleType = 0
-        cdef int semExportHandleType = 0
-        cdef int unifiedMemory = 0
-        cdef int64_t deviceMemory = 0, budget = 0, allocated = 0, limit = 0
-        if vspy_get_vulkan_core_info(self.funcs, self.core, name, 256, &deviceMemory, &budget, &allocated, &limit, uuidHex, 64, &exportHandleType, &semExportHandleType, &unifiedMemory, err, 512):
+        if vk.getVulkanCoreInfo(self.core, &info, err, 512):
             raise Error(err.decode('utf-8'))
-        return { 'name': name.decode('utf-8'), 'device_memory': deviceMemory, 'budget': budget, 'allocated': allocated, 'limit': limit,
-                 'uuid': uuidHex.decode('utf-8'), 'export_handle_type': exportHandleType,
-                 'semaphore_export_handle_type': semExportHandleType,
-                 'unified_memory': bool(unifiedMemory) }
+        return { 'name': (<bytes>(<char *>info.deviceName)).decode('utf-8'),
+                 'device_memory': info.deviceMemory, 'budget': info.budget,
+                 'allocated': info.allocated, 'limit': info.limit,
+                 'uuid': bytes(info.deviceUUID[:16]).hex(),
+                 'export_handle_type': info.exportHandleType,
+                 'semaphore_export_handle_type': info.semaphoreExportHandleType,
+                 'unified_memory': bool(info.unifiedMemory) }
 
     @property
     def flags(self):

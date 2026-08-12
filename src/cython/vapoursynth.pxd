@@ -22,6 +22,8 @@
 from libc.stdint cimport uint8_t, uint32_t, int64_t, uint64_t, uintptr_t
 from libc.stddef cimport ptrdiff_t
 
+from vsvulkan cimport VSVULKANAPI
+
 cdef extern from "include/VapourSynth4.h" nogil:
     enum:
         VS_CURRENT_RELEASE
@@ -52,6 +54,10 @@ cdef extern from "include/VapourSynth4.h" nogil:
     enum:
         mtVideo
         mtAudio
+
+    enum:
+        nrCPU
+        nrGPU
 
     enum:
         cfUndefined
@@ -416,6 +422,11 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void getCoreInfo(VSCore *core, VSCoreInfo *info) nogil
         void getCoreInfo2(VSCore *core, VSCoreInfo2 *info) nogil
         int getAPIVersion() nogil
+
+        # Residency and the separately versioned Vulkan API; see vsvulkan.pxd
+        const VSVULKANAPI *getVulkanAPI(int version) nogil
+        int getNodeResidency(VSNode *node) nogil
+        int getFrameResidency(const VSFrame *frame) nogil
 
         # Message handler
         void logMessage(int msgType, const char *msg, VSCore *core) nogil
