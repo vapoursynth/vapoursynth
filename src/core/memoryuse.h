@@ -50,22 +50,13 @@ class MemoryUse {
     std::atomic_size_t m_freelist_size{ 0 };
     std::atomic_size_t m_limit{ 0 };
 
-    /* GPU memory is only accounted here, never allocated: the Vulkan block allocator reports
-       block grants and returns through account_gpu so cache pressure sees both pools in one
-       place, which is why this lives in MemoryUse rather than its own class. Blocks, not the
-       regions carved from them -- a block is what the driver's budget is spent on, and counting
-       only the live regions lets the core believe it is inside a limit the driver is already
-       nearly twenty percent past. */
+    /* GPU memory is only accounted here, not allocated */
     std::atomic_size_t m_gpu_allocated{ 0 };
     std::atomic_size_t m_gpu_limit{ 0 };
 
-    /* Set once the device turns out to share the host's RAM. Both pools then answer to this
-       ceiling as well as to their own limit, since two limits sized against one physical
-       resource can each look satisfied while the machine is out of memory. */
+    /* Also enforce a common limit when unified memory is used since it's allocated from the same underlying resource */
     std::atomic_bool m_unified{ false };
     std::atomic_size_t m_combined_limit{ 0 };
-    /* What the host limit was derived from, kept so the GPU default can be sized against the
-       machine instead of against a heap that is really the same RAM. Zero where unknown. */
     std::atomic_size_t m_total_ram{ 0 };
 
     std::atomic_bool m_core_freed{ false };
@@ -121,8 +112,6 @@ public:
 
     bool is_over_limit() const { return m_allocated > m_limit || over_combined_limit(); }
 
-    /* The second gate on a unified memory device; always false elsewhere, where the two
-       pools really are separate hardware and their limits are independent. */
     bool over_combined_limit() const {
         return m_unified && m_combined_limit && (m_allocated + m_gpu_allocated) > m_combined_limit;
     }
@@ -137,18 +126,9 @@ public:
 
     void account_gpu(int64_t delta) {
         m_gpu_allocated.fetch_add(static_cast<size_t>(delta), std::memory_order_relaxed);
-        /* The same per call tracking the host side does, so the thread pool can predict GPU
-           allocations of filter calls too. Frees landing on other threads dent their deltas
-           harmlessly, exactly as host side frees already do. */
         s_gpu_call_delta += delta;
         if (s_gpu_call_delta > s_gpu_call_peak)
             s_gpu_call_peak = s_gpu_call_delta;
-        /* Mirrors the self delete in do_deallocate. GPU frames outliving the core keep the
-           device alive, and the last of them to go takes the device with it, which tears the
-           blocks down through here — so reaching zero means the allocator has nothing left to
-           report and cannot call back into a deleted this. The plain reads are enough for the
-           same reason as the host side: only the core creates allocations, and surviving
-           references die one at a time. */
         if (delta < 0 && m_core_freed && !m_allocated && !m_gpu_allocated)
             delete this;
     }
@@ -164,7 +144,6 @@ public:
 
     bool is_gpu_over_limit() const { return m_gpu_allocated > m_gpu_limit || over_combined_limit(); }
 
-    /* Called once, when a device turns out to be unified; the ceiling covers both pools. */
     void set_unified(size_t combined_limit) {
         m_combined_limit = combined_limit;
         m_unified = true;
