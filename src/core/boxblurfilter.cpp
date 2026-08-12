@@ -555,9 +555,7 @@ static void VS_CC boxBlurFree(void *instanceData, VSCore *core, const VSAPI *vsa
 }
 
 //////////////////////////////////////////
-// The GPU implementation of the same filter. std.BoxBlur is residency polymorphic:
-// declared vnode:all, it builds this single node when handed a GPU clip and the CPU
-// decomposition below otherwise, so a script only ever names one filter.
+// The GPU implementation
 
 namespace {
 
@@ -573,18 +571,7 @@ struct BlurPush {
 };
 
 /* One box blur pass over one plane, horizontal or vertical by push constant. Integer
-   variants match the CPU filter's math exactly: clamped edges and (sum + rounding)/(2r+1),
-   with the caller alternating the rounding term between passes the same way the CPU code
-   does. Float variants accumulate in float and multiply by 1/(2r+1); summing the window
-   afresh per pixel cannot be bit exact against the CPU's running sum, which rounds
-   differently, so this kernel's float output is verified with a tolerance instead. The
-   line kernel below has no such gap.
-
-   Compiled at filter creation through compileGPUShader, specialized by a preamble carrying
-   SAMPLE_T in {uint8_t, uint16_t} and, with FLOAT_SAMPLES, {float, float16_t}. The preamble
-   also supplies #version, which the language demands be the very first token, so the body
-   here starts at the extension list. The core caches by source text, so the four variants
-   parse once each however many instances a script builds. */
+   variants match the CPU filter's math exactly. */
 const char boxBlurGlsl[] =
     "#extension GL_EXT_shader_8bit_storage : require\n"
     "#extension GL_EXT_shader_16bit_storage : require\n"
@@ -640,17 +627,7 @@ const char boxBlurGlsl[] =
     "}\n";
 
 /* The large radius variant: one thread per blurred line running the CPU filter's sliding sum,
-   so a pass costs ~2 loads per pixel instead of 2r+1 and is flat in the radius. It trades away
-   parallelism -- a plane's rows or columns, not its pixels -- so it only takes over past
-   lineKernelMinRadius.
-
-   The loop is the unified clamped form of blurH/blurHF above: their three sections only
-   exist to keep clamping out of the interior and perform these exact operations in this
-   exact order, so integer output is bit identical, and float32 now is too -- the
-   accumulator follows the CPU's add/store/subtract sequence tap for tap (half still
-   narrows through the device's FConvert, which truncates where floatToHalf rounds).
-   Vertical lines put consecutive threads on consecutive columns, so every load coalesces;
-   horizontal lines stride, which the caches absorb well enough at these thread counts. */
+   so a pass costs ~2 loads per pixel instead of 2r+1 and is flat in the radius. */
 const char boxBlurLineGlsl[] =
     "#extension GL_EXT_shader_8bit_storage : require\n"
     "#extension GL_EXT_shader_16bit_storage : require\n"
@@ -715,9 +692,6 @@ const char boxBlurLineGlsl[] =
    machine, above it the tap count buries the per pixel form. */
 constexpr uint32_t lineKernelMinRadius = 64;
 
-/* The pass schedule replicates the CPU filter exactly: horizontal passes first with
-   rounding div-1, 0, div-1, ... then vertical ones restarting the pattern with their own
-   divisor. Float formats have no rounding term, just the reciprocal divisor. */
 struct BlurPass {
     uint32_t radius, rounding, vertical;
     float invDiv;
@@ -736,10 +710,6 @@ std::vector<BlurPass> buildSchedule(int hradius, int hpasses, int vradius, int v
     return schedule;
 }
 
-/* Builds the GPU node by describing it rather than recording it: the driver in gpufilter.h
-   owns the frame loop, so all that is left here is choosing the kernel variant, laying out
-   the ping pong so the last pass lands in the output plane, and filling push constants.
-   Consumes the node reference on success and leaves it to the caller on failure. */
 VSNode *createGPUBoxBlur(VSNode *node, const bool process[3], int hradius, int hpasses, int vradius, int vpasses,
     VSCore *core, const VSAPI *vsapi) {
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
@@ -810,9 +780,6 @@ VSNode *createGPUBoxBlur(VSNode *node, const bool process[3], int hradius, int h
     desc.fillPush = [schedule](const vsgpu::PassInfo &info, void *pushData) {
         const BlurPass &p = schedule[info.pass];
         BlurPush push = {};
-        /* The source plane's dimensions are the blurred plane's dimensions for every pass
-           of this geometry preserving filter, and unlike info.width/height they survive
-           the line passes' reshape to a 1D grid. */
         push.width = info.srcWidth;
         push.height = info.srcHeight;
         push.srcStride = info.srcStrideElements();
@@ -906,9 +873,6 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         if (vi->width < 4 || vi->height < 4)
             throw std::runtime_error("dimensions must be at least 4x4");
 
-        /* Residency polymorphic: a GPU clip gets the GPU node, which does every plane and
-           both directions in one submission, and a CPU clip gets the decomposition below.
-           The arguments, their validation and the results are the same either way. */
         if (vsapi->getNodeResidency(node) == nrGPU) {
             VSNode *gpuNode = createGPUBoxBlur(node, process, hradius, hpasses, vradius, vpasses, core, vsapi);
             node = nullptr; /* consumed on success */
