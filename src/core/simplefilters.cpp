@@ -44,11 +44,6 @@
 
 using namespace vsh;
 
-/* The vnode:all filters in this file never read pixel data — they edit frame props, embed
-   frames as props, shuffle plane references or delegate frame production — so one
-   implementation serves CPU and GPU clips and each instance declares its concrete output
-   residency through ffGPUOutput (residencyFlags in filtershared.h). */
-
 static inline uint32_t doubleToUInt32S(double v) {
     if (v < 0)
         return 0;
@@ -688,8 +683,6 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     if (err)
         d->nodes[3] = vsapi->addNodeRef(d->nodes[0]);
 
-    /* Output planes are shared straight from the sources, so the contributing clips must
-       agree on where they live; prop_src only supplies properties and may differ. */
     for (int i = 1; i < outplanes; i++) {
         if (vsapi->getNodeResidency(d->nodes[i]) != vsapi->getNodeResidency(d->nodes[0]))
             RETERROR("ShufflePlanes: plane source clips are mismatched in residency; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match");
@@ -895,13 +888,8 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     if (vsapi->getNodeResidency(d->node) == nrGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "SeparateFields";
-        /* Two output frames per source frame, each taking every other line. Both halves ask
-           for the same source frame, so this is rpGeneral exactly as the scalar create is --
-           claiming strict spatial would switch the source's cache off and produce it twice. */
         sf.mapFrame = [](int n, int, int) { return n / 2; };
         sf.requestPattern = rpGeneral;
-        /* Which line the field starts on is decided by _FieldBased on the frame, so it can
-           only be known once the frame is here; params[0] carries it to the kernel. */
         const int tff = d->tff;
         sf.frameParamCount = 1;
         sf.prepareFrame = [tff](int n, const VSFrame *const *sources, int, const VSAPI *vsapi,
@@ -1066,12 +1054,8 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
         vsgpu::SimpleFilter sf;
         sf.name = "DoubleWeave";
         sf.numInputs = 2;
-        /* Both inputs are the same clip, read one frame apart, so the second input alone
-           already breaks strict spatial; rpGeneral matches the scalar create. */
         sf.mapFrame = [](int n, int clip, int) { return n + clip; };
         sf.requestPattern = rpGeneral;
-        /* Which of the pair is the top field comes from _Field on the frames, falling back
-           to tff and the output parity exactly as the scalar path does. */
         const int tff = d->tff;
         sf.frameParamCount = 1;
         sf.prepareFrame = [tff](int n, const VSFrame *const *sources, int, const VSAPI *vsapi,
@@ -1083,10 +1067,6 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
             int64_t field2 = vsapi->mapGetInt(vsapi->getFramePropertiesRO(sources[1]), "_Field", 0, &err);
             if (err)
                 field2 = -1;
-            /* Picked as frame pointers, not as field values, because that is what the
-               scalar path compares when it writes _FieldBased. At the last frame both
-               requests resolve to the same frame, and the identity that falls out of that
-               is the answer it gives -- inferring from the values instead would disagree. */
             const VSFrame *srctop;
             if (field1 == 0 && field2 == 1)
                 srctop = sources[1];
@@ -1535,10 +1515,6 @@ typedef struct {
     VSGPUExecPool *pool;
 } BlankClipData;
 
-/* A constant plane is a buffer fill, not a dispatch: every sample is the same and the colour
-   is already stored as raw sample bits, so replicating those bits to 32 wide feeds
-   vkCmdFillBuffer directly and no kernel is needed. Filling the stride padding along with
-   the picture is harmless -- nothing reads it -- and lets each plane be a single command. */
 static bool blankClipFillGPU(VSFrame *frame, const VSVideoInfo &vi, const uint32_t color[3],
     VSGPUExecPool *pool, const VSVULKANAPI *vkapi, const VSVulkanFunctions *vk,
     char *err, int errSize) {
@@ -1649,8 +1625,6 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (!err) {
         d->vi = *vsapi->getVideoInfo(node);
-        /* Residency is a property of the template like everything else here, so a blank
-           built from a GPU clip is GPU resident unless gpu says otherwise. */
         templateOnGPU = vsapi->getNodeResidency(node) == nrGPU;
         vsapi->freeNode(node);
         hasvi = true;
@@ -2023,10 +1997,6 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
     std::unique_ptr<FrameEvalData> d(new FrameEvalData());
     VSNode *node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(node);
-    /* The template clip fixes output residency the same way it fixes the format contract:
-       the clips the eval function returns must match, checked per call since the function
-       is user code. prop_src and clip_src clips may have any residency — their frames are
-       only handed to the function or used for request pattern hints, never plane accessed. */
     d->gpuOutput = (vsapi->getNodeResidency(node) == nrGPU);
     int flags = d->gpuOutput ? ffGPUOutput : 0;
     vsapi->freeNode(node);
@@ -2146,10 +2116,6 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
     std::unique_ptr<ModifyFrameData> d(new ModifyFrameData());
     VSNode *formatnode = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(formatnode);
-    /* Like the format, output residency follows the template clip: the frames the selector
-       returns must match it, checked per frame since the selector is user code. The clips
-       whose frames are handed to the selector may have any residency each — a GPU frame is
-       still fine for prop reading and shallow prop editing copies. */
     d->gpuOutput = (vsapi->getNodeResidency(formatnode) == nrGPU);
     int flags = d->gpuOutput ? ffGPUOutput : 0;
     vsapi->freeNode(formatnode);
@@ -2269,8 +2235,6 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     d->cpulevel = vs_get_cpulevel(core);
 
     if (vsapi->getNodeResidency(d->node) == nrGPU) {
-        /* All three read the source transposed; the turns additionally reverse one axis,
-           which is exactly what the scalar path expresses by walking one side backwards. */
         const char *map = d->mode == tmTurn90  ? "y, int(pc.srcHeight) - 1 - x"
                         : d->mode == tmTurn270 ? "int(pc.srcWidth) - 1 - y, x"
                                                : "y, x";
@@ -2294,112 +2258,6 @@ typedef struct {
 } PEMVerifierDataExtra;
 
 typedef SingleNodeData<PEMVerifierDataExtra> PEMVerifierData;
-
-/* ---------------------------------------------------------------------------------------
-   The one filter that has to read a result back.
-
-   Everything else here hands the GPU a frame and walks away; PlaneStats puts its answer in
-   frame properties, so it must wait for the device. It uses the driver's side effect and
-   readback shape: planes shared through untouched, one pass reducing a tile per workgroup into
-   the per frame host visible buffer, the driver waiting for exactly that submission, and
-   finishReadback adding the partials in the accumulator width the scalar path uses.
-
-   Integer totals come out bit identical rather than merely close: a 256 thread workgroup sums
-   at most 256 * 65535 = 16.7M, and exact integers below 2^24 add exactly in any order, so the
-   lane order does not matter. Only the float accumulator is order dependent, and only in its
-   last bits, which pinning the subgroup size keeps stable per device and driver.
-
-   PEMVerifier could use the same machinery but stays on the CPU: it is a debugging filter, and
-   a GPU clip reaching it simply gets a download inserted. */
-
-constexpr int reduceGroup = 16; /* 16x16 = 256 threads per workgroup */
-
-struct ReducePush {
-    uint32_t width, height, srcStride, src2Stride;
-    uint32_t groupsX;
-};
-
-/* Four uints per workgroup: (min, max, sum, diffsum). */
-struct ReduceRecord {
-    uint32_t a, b, c, d;
-};
-
-std::string reduceKernel(const VSVideoFormat &fmt) {
-    const bool isFloat = fmt.sampleType == stFloat;
-    std::string s = "#version 460\n";
-    if (!isFloat)
-        s += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
-    else
-        s += fmt.bytesPerSample == 4 ? "#define SAMPLE_T float\n" : "#define SAMPLE_T float16_t\n";
-    s += "#extension GL_EXT_shader_8bit_storage : require\n"
-         "#extension GL_EXT_shader_16bit_storage : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
-         "#extension GL_KHR_shader_subgroup_basic : require\n"
-         "#extension GL_KHR_shader_subgroup_arithmetic : require\n"
-         /* Baked per instance: the pipeline pins the subgroup size to SGSIZE, so the
-            per-subgroup bookkeeping is exact, and the second-clip and float branches fold
-            away at pipeline creation. */
-         "layout(constant_id = 0) const uint SGSIZE = 32u;\n"
-         "layout(constant_id = 1) const uint HAS_SECOND = 0u;\n"
-         "layout(constant_id = 2) const uint IS_FLOAT = 0u;\n"
-         "\nlayout(local_size_x = 16, local_size_y = 16) in;\n"
-         "layout(std430, set = 0, binding = 0) readonly buffer Src { SAMPLE_T s0[]; };\n"
-         "layout(std430, set = 0, binding = 1) readonly buffer Src2 { SAMPLE_T s1[]; };\n"
-         "layout(std430, set = 0, binding = 2) writeonly buffer Out { uvec4 outRec[]; };\n"
-         "layout(push_constant) uniform PC {\n"
-         "    uint width, height, srcStride, src2Stride;\n"
-         "    uint groupsX;\n"
-         "} pc;\n\n";
-
-    /* Integer samples are exact in float32 up to 65535 and their partial sums stay below
-       2^24, so one float code path covers both sample types without losing the integer
-       exactness. Each subgroup reduces its lanes in registers, leaves one partial in
-       shared memory, and the first subgroup folds those after the one barrier; lanes
-       outside the plane contribute the identity. The partial arrays are sized for the
-       smallest subgroup a device could pick (256 / 8); the strided loop covers any
-       partial count without assuming it fits one subgroup. */
-    s += "shared float smn[32]; shared float smx[32];\n"
-         "shared float spart[32]; shared float sdpart[32];\n"
-         "void main() {\n"
-         "    uint x = gl_GlobalInvocationID.x, y = gl_GlobalInvocationID.y;\n"
-         "    float v = 0.0, dv = 0.0, lo = 1.0 / 0.0, hi = -1.0 / 0.0;\n"
-         "    if (x < pc.width && y < pc.height) {\n"
-         "        v = float(s0[y * pc.srcStride + x]);\n"
-         "        lo = v; hi = v;\n"
-         "        if (HAS_SECOND != 0u) dv = abs(v - float(s1[y * pc.src2Stride + x]));\n"
-         "    }\n"
-         "    float rlo = subgroupMin(lo), rhi = subgroupMax(hi);\n"
-         "    float rv = subgroupAdd(v), rdv = subgroupAdd(dv);\n"
-         "    if (gl_SubgroupInvocationID == 0u) {\n"
-         "        smn[gl_SubgroupID] = rlo; smx[gl_SubgroupID] = rhi;\n"
-         "        spart[gl_SubgroupID] = rv; sdpart[gl_SubgroupID] = rdv;\n"
-         "    }\n"
-         "    barrier();\n"
-         "    if (gl_SubgroupID == 0u) {\n"
-         "        const uint nsg = 256u / SGSIZE;\n"
-         "        uint lane = gl_SubgroupInvocationID;\n"
-         "        float l2 = 1.0 / 0.0, h2 = -1.0 / 0.0, v2 = 0.0, d2 = 0.0;\n"
-         "        for (uint i = lane; i < nsg; i += SGSIZE) {\n"
-         "            l2 = min(l2, smn[i]); h2 = max(h2, smx[i]);\n"
-         "            v2 += spart[i]; d2 += sdpart[i];\n"
-         "        }\n"
-         "        l2 = subgroupMin(l2); h2 = subgroupMax(h2);\n"
-         "        v2 = subgroupAdd(v2); d2 = subgroupAdd(d2);\n"
-         "        if (lane == 0u) {\n"
-         "            uint g = gl_WorkGroupID.y * pc.groupsX + gl_WorkGroupID.x;\n"
-         "            if (IS_FLOAT != 0u)\n"
-         "                outRec[g] = uvec4(floatBitsToUint(l2), floatBitsToUint(h2),\n"
-         "                                  floatBitsToUint(v2), floatBitsToUint(d2));\n"
-         "            else\n"
-         "                outRec[g] = uvec4(uint(l2), uint(h2), uint(v2), uint(d2));\n"
-         "        }\n"
-         "    }\n"
-         "}\n";
-    return s;
-}
-
 
 static const VSFrame *VS_CC pemVerifierGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     PEMVerifierData *d = reinterpret_cast<PEMVerifierData *>(instanceData);
@@ -2546,6 +2404,99 @@ typedef struct {
 } PlaneStatsDataExtra;
 
 typedef DualNodeData<PlaneStatsDataExtra> PlaneStatsData;
+
+/* The one filter here that has to read a result back: its answer goes in frame properties, so
+   it must wait for the device. One pass reduces a tile per workgroup into the per frame host
+   visible buffer, and finishReadback adds the partials in the accumulator width the scalar
+   path uses. */
+
+constexpr int reduceGroup = 16; /* 16x16 = 256 threads per workgroup */
+
+struct ReducePush {
+    uint32_t width, height, srcStride, src2Stride;
+    uint32_t groupsX;
+};
+
+/* Four uints per workgroup: (min, max, sum, diffsum). */
+struct ReduceRecord {
+    uint32_t a, b, c, d;
+};
+
+std::string reduceKernel(const VSVideoFormat &fmt) {
+    const bool isFloat = fmt.sampleType == stFloat;
+    std::string s = "#version 460\n";
+    if (!isFloat)
+        s += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
+    else
+        s += fmt.bytesPerSample == 4 ? "#define SAMPLE_T float\n" : "#define SAMPLE_T float16_t\n";
+    s += "#extension GL_EXT_shader_8bit_storage : require\n"
+         "#extension GL_EXT_shader_16bit_storage : require\n"
+         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
+         "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
+         "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
+         "#extension GL_KHR_shader_subgroup_basic : require\n"
+         "#extension GL_KHR_shader_subgroup_arithmetic : require\n"
+         /* Baked per instance: the pipeline pins the subgroup size to SGSIZE, so the
+            per-subgroup bookkeeping is exact, and the second-clip and float branches fold
+            away at pipeline creation. */
+         "layout(constant_id = 0) const uint SGSIZE = 32u;\n"
+         "layout(constant_id = 1) const uint HAS_SECOND = 0u;\n"
+         "layout(constant_id = 2) const uint IS_FLOAT = 0u;\n"
+         "\nlayout(local_size_x = 16, local_size_y = 16) in;\n"
+         "layout(std430, set = 0, binding = 0) readonly buffer Src { SAMPLE_T s0[]; };\n"
+         "layout(std430, set = 0, binding = 1) readonly buffer Src2 { SAMPLE_T s1[]; };\n"
+         "layout(std430, set = 0, binding = 2) writeonly buffer Out { uvec4 outRec[]; };\n"
+         "layout(push_constant) uniform PC {\n"
+         "    uint width, height, srcStride, src2Stride;\n"
+         "    uint groupsX;\n"
+         "} pc;\n\n";
+
+    /* Integer samples are exact in float32 up to 65535 and their partial sums stay below
+       2^24, so one float code path covers both sample types without losing the integer
+       exactness. Each subgroup reduces its lanes in registers, leaves one partial in
+       shared memory, and the first subgroup folds those after the one barrier; lanes
+       outside the plane contribute the identity. The partial arrays are sized for the
+       smallest subgroup a device could pick (256 / 8); the strided loop covers any
+       partial count without assuming it fits one subgroup. */
+    s += "shared float smn[32]; shared float smx[32];\n"
+         "shared float spart[32]; shared float sdpart[32];\n"
+         "void main() {\n"
+         "    uint x = gl_GlobalInvocationID.x, y = gl_GlobalInvocationID.y;\n"
+         "    float v = 0.0, dv = 0.0, lo = 1.0 / 0.0, hi = -1.0 / 0.0;\n"
+         "    if (x < pc.width && y < pc.height) {\n"
+         "        v = float(s0[y * pc.srcStride + x]);\n"
+         "        lo = v; hi = v;\n"
+         "        if (HAS_SECOND != 0u) dv = abs(v - float(s1[y * pc.src2Stride + x]));\n"
+         "    }\n"
+         "    float rlo = subgroupMin(lo), rhi = subgroupMax(hi);\n"
+         "    float rv = subgroupAdd(v), rdv = subgroupAdd(dv);\n"
+         "    if (gl_SubgroupInvocationID == 0u) {\n"
+         "        smn[gl_SubgroupID] = rlo; smx[gl_SubgroupID] = rhi;\n"
+         "        spart[gl_SubgroupID] = rv; sdpart[gl_SubgroupID] = rdv;\n"
+         "    }\n"
+         "    barrier();\n"
+         "    if (gl_SubgroupID == 0u) {\n"
+         "        const uint nsg = 256u / SGSIZE;\n"
+         "        uint lane = gl_SubgroupInvocationID;\n"
+         "        float l2 = 1.0 / 0.0, h2 = -1.0 / 0.0, v2 = 0.0, d2 = 0.0;\n"
+         "        for (uint i = lane; i < nsg; i += SGSIZE) {\n"
+         "            l2 = min(l2, smn[i]); h2 = max(h2, smx[i]);\n"
+         "            v2 += spart[i]; d2 += sdpart[i];\n"
+         "        }\n"
+         "        l2 = subgroupMin(l2); h2 = subgroupMax(h2);\n"
+         "        v2 = subgroupAdd(v2); d2 = subgroupAdd(d2);\n"
+         "        if (lane == 0u) {\n"
+         "            uint g = gl_WorkGroupID.y * pc.groupsX + gl_WorkGroupID.x;\n"
+         "            if (IS_FLOAT != 0u)\n"
+         "                outRec[g] = uvec4(floatBitsToUint(l2), floatBitsToUint(h2),\n"
+         "                                  floatBitsToUint(v2), floatBitsToUint(d2));\n"
+         "            else\n"
+         "                outRec[g] = uvec4(uint(l2), uint(h2), uint(v2), uint(d2));\n"
+         "        }\n"
+         "    }\n"
+         "}\n";
+    return s;
+}
 
 static const VSFrame *VS_CC planeStatsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     PlaneStatsData *d = reinterpret_cast<PlaneStatsData *>(instanceData);
@@ -2695,10 +2646,6 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
         RETERROR("PlaneStats: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
 
     if (gpu) {
-        /* No constant format check of its own: nothing below reads the format in a way a
-           variable clip breaks, and vsgpu::createFilter refuses one before any pipeline is
-           built, with a message that also names the GPUDownload the caller needs. */
-
         /* Subgroup geometry: the reduction pins the subgroup size so the kernel's partial
            bookkeeping is exact and even the float last bits are stable on a given device
            and driver. Pinning needs the compute stage in requiredSubgroupSizeStages; the
@@ -2907,8 +2854,6 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
 
     VSFilterDependency deps[] = {{d->node1, (vi.numFrames >= vi2->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}, {d->node2, 1}};
     vi.numFrames = vi2->numFrames;
-    /* Output residency follows the main clip; the embedded mclip frames live in a property
-       as plain data and may be either. */
     vsapi->createVideoFilterEx(out, "ClipToProp", &vi, clipToPropGetFrame, filterFree<ClipToPropData>, fmParallel, residencyFlags(d->node1, vsapi), deps, 2, d.get(), core);
     d.release();
 }
@@ -2993,10 +2938,6 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     d->vi.format = *vsapi->getVideoFrameFormat(msrc);
     d->vi.width = vsapi->getFrameWidth(msrc, 0);
     d->vi.height = vsapi->getFrameHeight(msrc, 0);
-    /* The sampled embedded frame determines output residency the same way it determines
-       the format; the carrier clip's own residency is irrelevant since only its props are
-       read. Later frames are user data and may disagree, so the frame getter checks them
-       like it checks the format instead of letting the core's delivery check abort. */
     d->gpuOutput = (vsapi->getFrameResidency(msrc) == nrGPU);
     int flags = d->gpuOutput ? ffGPUOutput : 0;
     vsapi->freeFrame(msrc);
@@ -3367,7 +3308,6 @@ static void VS_CC copyFramePropsCreate(const VSMap *in, VSMap *out, void *userDa
     d->node2 = vsapi->mapGetNode(in, "prop_src", 0, nullptr);
 
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (vsapi->getVideoInfo(d->node1)->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
-    /* prop_src contributes only properties, so its residency is free to differ. */
     vsapi->createVideoFilterEx(out, "CopyFrameProps", vsapi->getVideoInfo(d->node1), d->copyProps.empty() ? copyFramePropsAllGetFrame : copyFramePropsGetFrame, filterFree<CopyFramePropsData>, fmParallel, residencyFlags(d->node1, vsapi), deps, 2, d.get(), core);
     d.release();
 }
