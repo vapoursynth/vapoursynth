@@ -1716,9 +1716,6 @@ cdef class VideoFrame(RawFrame):
         raise Error('Class cannot be instantiated directly')
 
     def copy(self):
-        # Legal for GPU frames too: the copy shares the planes and only the properties are
-        # independently writable, which is exactly what prop editing in ModifyFrame needs.
-        # Pixel access on the copy stays guarded like on any GPU frame.
         self._ensure_open()
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
@@ -2450,9 +2447,6 @@ cdef class VideoNode(RawNode):
 
     def set_output(self, int index = 0, VideoNode alpha = None, int alt_output = 0):
         self.ensure_valid()
-        # GPU resident outputs are legal; whoever consumes the output decides where the
-        # download boundary goes (vspipe inserts one itself). The only requirement is that
-        # main and alpha agree, so a consumer never has to bridge residencies per frame.
         if alpha is not None and self.gpu_resident != alpha.gpu_resident:
             raise Error('Alpha clip must have the same residency as the main video; insert GPUUpload or GPUDownload to make them match')
         if alpha is not None:
