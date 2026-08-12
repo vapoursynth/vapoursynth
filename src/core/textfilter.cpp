@@ -66,10 +66,9 @@ struct TextCopyPush {
 static void scrawl_character_int(unsigned char c, uint8_t *image, ptrdiff_t stride, int dest_x, int dest_y, int bitsPerSample, int scale) {
     int black = 16 << (bitsPerSample - 8);
     int white = 235 << (bitsPerSample - 8);
-    int x, y;
     if (bitsPerSample == 8) {
-        for (y = 0; y < character_height * scale; y++) {
-            for (x = 0; x < character_width * scale; x++) {
+        for (int y = 0; y < character_height * scale; y++) {
+            for (int x = 0; x < character_width * scale; x++) {
                 if (__font_bitmap__[c * character_height + y/scale] & (1 << (7 - x/scale))) {
                     image[dest_y*stride + dest_x + x] = white;
                 } else {
@@ -80,8 +79,8 @@ static void scrawl_character_int(unsigned char c, uint8_t *image, ptrdiff_t stri
             dest_y++;
         }
     } else {
-        for (y = 0; y < character_height * scale; y++) {
-            for (x = 0; x < character_width * scale; x++) {
+        for (int y = 0; y < character_height * scale; y++) {
+            for (int x = 0; x < character_width * scale; x++) {
                 if (__font_bitmap__[c * character_height + y/scale] & (1 << (7 - x/scale))) {
                     reinterpret_cast<uint16_t *>(image)[dest_y*stride/2 + dest_x + x] = white;
                 } else {
@@ -94,14 +93,12 @@ static void scrawl_character_int(unsigned char c, uint8_t *image, ptrdiff_t stri
     }
 }
 
-
 static void scrawl_character_float(unsigned char c, uint8_t *image, ptrdiff_t stride, int dest_x, int dest_y, int scale) {
     float white = 1.0f;
     float black = 0.0f;
-    int x, y;
 
-    for (y = 0; y < character_height * scale; y++) {
-        for (x = 0; x < character_width * scale; x++) {
+    for (int y = 0; y < character_height * scale; y++) {
+        for (int x = 0; x < character_width * scale; x++) {
             if (__font_bitmap__[c * character_height + y/scale] & (1 << (7 - x/scale))) {
                 reinterpret_cast<float *>(image)[dest_y*stride/4 + dest_x + x] = white;
             } else {
@@ -113,16 +110,12 @@ static void scrawl_character_float(unsigned char c, uint8_t *image, ptrdiff_t st
     }
 }
 
-
-// Half (IEEE binary16) plane: 2 bytes/sample. Written directly as bit patterns -- the Core is C++17,
-// so float16_helper (std::bit_cast, C++20) is unavailable, and the two values needed are constants.
 static void scrawl_character_half(unsigned char c, uint8_t *image, ptrdiff_t stride, int dest_x, int dest_y, int scale) {
     const uint16_t white = 0x3C00; // 1.0
     const uint16_t black = 0x0000; // 0.0
-    int x, y;
 
-    for (y = 0; y < character_height * scale; y++) {
-        for (x = 0; x < character_width * scale; x++) {
+    for (int y = 0; y < character_height * scale; y++) {
+        for (int x = 0; x < character_width * scale; x++) {
             if (__font_bitmap__[c * character_height + y/scale] & (1 << (7 - x/scale))) {
                 reinterpret_cast<uint16_t *>(image)[dest_y*stride/2 + dest_x + x] = white;
             } else {
@@ -203,9 +196,6 @@ static std::string textKernelSource(const VSVideoFormat &fmt) {
     return s;
 }
 
-/* The whole-plane copy ahead of the glyphs. The driver's passes are dispatches, so the
-   plain buffer copy of the hand-recorded version becomes a one-line kernel; the loads and
-   stores move SAMPLE_T values untouched, which preserves the bits for every format. */
 static std::string textCopySource(const VSVideoFormat &fmt) {
     std::string s = textSamplePreamble(fmt);
     s += "\nlayout(local_size_x = 16, local_size_y = 16) in;\n"
@@ -220,7 +210,7 @@ static std::string textCopySource(const VSVideoFormat &fmt) {
     return s;
 }
 
-static void sanitise_text(std::string& txt) {
+static void map_text_to_font_indices(std::string& txt) {
     for (size_t i = 0; i < txt.length(); i++) {
         if (txt[i] == '\r') {
             if (txt[i+1] == '\n') {
@@ -233,8 +223,10 @@ static void sanitise_text(std::string& txt) {
             continue;
         }
 
-        // Must adjust the character code because of the five characters
-        // missing from the font.
+        /* Substitute what has no glyph, then subtract the number of absent codes below this
+           one. The thresholds are the absent codes themselves, and since each has just been
+           excluded above, every range below is half open: > 141 can only be 142, because 143
+           and 144 are handled by the branch above it. */
         unsigned char current_char = static_cast<unsigned char>(txt[i]);
         if (current_char < 32 ||
             current_char == 129 ||
@@ -298,7 +290,7 @@ static void scrawl_text(std::string txt, int alignment, int scale, VSFrame *fram
     int width = vsapi->getFrameWidth(frame, 0);
     int height = vsapi->getFrameHeight(frame, 0);
 
-    sanitise_text(txt);
+    map_text_to_font_indices(txt);
 
     stringlist lines = split_text(txt, width - margin_h*2, height - margin_v*2, scale);
 
@@ -633,9 +625,6 @@ static std::string transferToString(int transfer) {
         return s;
 }
 
-/* The per frame string, shared by both paths: the CPU getFrame builds it right before
-   scrawling, the GPU declaration's prepareFrame/prepareFrameData build it when the frame
-   arrives. Everything it reads is the state copy, the source frame and the core. */
 static std::string buildText(const TextState &st, int n, const VSFrame *src, VSCore *core, const VSAPI *vsapi) {
     std::string drawText;
 
@@ -756,11 +745,11 @@ static std::string buildText(const TextState &st, int n, const VSFrame *src, VSC
     return drawText;
 }
 
-/* The glyph layout, shared by both paths in shape: the same sanitise/split/alignment walk
+/* The glyph layout, shared by both paths in shape: the same map/split/alignment walk
    scrawl_text performs, emitted as records instead of drawn. Two words per glyph:
-   character and luma x in the first, luma y in the second. */
+   font index and luma x in the first, luma y in the second. */
 static std::vector<uint32_t> buildGlyphRecords(std::string txt, int width, int height, int alignment, int scale) {
-    sanitise_text(txt);
+    map_text_to_font_indices(txt);
     const stringlist lines = split_text(txt, width - margin_h * 2, height - margin_v * 2, scale);
 
     int start_y = 0;
@@ -827,11 +816,6 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
     return nullptr;
 }
 
-/* The GPU declaration; the passes and the glyph record layout are described above.
-   prepareFrame counts the glyphs into frameParams for the reshape and prepareFrameData lays
-   them out once the source frame, and so its properties, has arrived. The frame data buffer is
-   sized at create to the screen's character capacity -- the bound split_text enforces -- so any
-   text the layout can produce fits. */
 static void createGPUText(std::unique_ptr<TextData> &d, VSMap *out, VSCore *core, const VSAPI *vsapi) {
     const std::string name = d->st.instanceName;
     auto fail = [&](const std::string &msg) {
@@ -841,9 +825,6 @@ static void createGPUText(std::unique_ptr<TextData> &d, VSMap *out, VSCore *core
         d->node = nullptr;
     };
 
-    /* vsgpu::createFilter refuses a variable clip too, but not soon enough: everything
-       below reads the format, and the integer shift that derives the sample scale is
-       undefined when bitsPerSample is zero, which is what a variable clip reports. */
     if (!vsh::isConstantVideoFormat(d->vi)) {
         fail("the GPU path needs a clip with constant format and dimensions; "
             "insert GPUDownload to draw text on the CPU");
@@ -1036,10 +1017,8 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         d->st.instanceName = "ClipInfo";
         break;
     case FILTER_COREINFO:
-        {
-            d->st.instanceName = "CoreInfo";
-            break;
-        }
+        d->st.instanceName = "CoreInfo";
+        break;
     case FILTER_FRAMENUM:
         d->st.instanceName = "FrameNum";
         break;
