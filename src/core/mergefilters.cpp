@@ -72,11 +72,6 @@ void createGPUFromDecl2(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *o
         vsapi->mapSetError(out, (std::string(sf.name) + ": " + error).c_str());
 }
 
-/* All GPU, all CPU, or mixed. A vnode:all argument leaves residency to the filter, so a
-   mixed set reaches create unfixed and is rejected here the way Expr and Lut2 reject theirs
-   -- guessing which way to coerce a set of inputs is the caller's decision, not this one's.
-   Every caller must reject Mixed: falling through to the scalar path with a GPU input left
-   in it reaches getReadPtr on a GPU resident frame, which is fatal. */
 enum class Residency { AllCPU, AllGPU, Mixed };
 
 Residency residencyOf(const std::vector<VSNode *> &nodes, int count, const VSAPI *vsapi) {
@@ -108,15 +103,6 @@ const char *premulPrelude =
 
 //////////////////////////////////////////
 // Chroma-location-aware mask resampling helpers shared by MaskedMerge and PreMultiply.
-//
-// When a single-plane mask/alpha at luma resolution is applied to a YUV clip
-// with subsampled chroma, the mask must be downsampled to chroma resolution
-// with output samples landing on luma-aligned positions implied by the
-// source's _ChromaLocation. zimg's chromaloc handling only works for true U/V
-// plane resamples, so we instead invoke resize plugin on the GRAY mask with
-// explicit src_left/src_top shifts, pre-creating one candidate per
-// VSChromaLocation value, dispatched based on each source frame's
-// _ChromaLocation (guessing left when property is absent or invalid).
 
 static constexpr int numChromaLocations = 6; // VSC_CHROMA_LEFT (0) to VSC_CHROMA_BOTTOM (5)
 
@@ -148,9 +134,6 @@ static void getChromalocLumaShift(int chromaloc, int subSamplingW, int subSampli
     *src_top = v_offset - center_h;
 }
 
-// Pre-create one resize candidate per VSChromaLocation via src_left/src_top
-// shift. Return empty string on success. On fail, fill out with nullptrs and
-// return error string. Caller is responsible for freeing any resulting nodes.
 static std::string createChromaResizeCandidates(VSNode *mask_node, int dst_width, int dst_height,
                                               int subSamplingW, int subSamplingH,
                                               VSNode *out[numChromaLocations],
@@ -193,8 +176,6 @@ static std::string createChromaResizeCandidates(VSNode *mask_node, int dst_width
     return {};
 }
 
-// Read _ChromaLocation from frameprops, guessing left when prop absent or out
-// of range. Always returns a VSChromaLocation index.
 static int resolveChromaLocation(const VSFrame *frame, const VSAPI *vsapi) {
     int err;
     int64_t raw = vsapi->mapGetInt(vsapi->getFramePropertiesRO(frame), "_ChromaLocation", 0, &err);
@@ -204,39 +185,11 @@ static int resolveChromaLocation(const VSFrame *frame, const VSAPI *vsapi) {
 }
 
 namespace {
-
-/* zimg's compute_filter (zimg/src/zimg/resize/filter.cpp) for the one shape these two filters
-   ever ask of it: a bilinear downscale by a whole number with a constant shift. What the
-   compute path uses instead of invoking the resize plugin.
-
-   The resize plugin HAS a GPU implementation now (gpuresize.cpp), so the six-candidate
-   architecture the scalar path uses below would stay resident too. The fused gather is kept
-   anyway, deliberately: it reads the luma-resolution mask inside the merge kernel, so there is
-   no intermediate mask frame, no extra nodes and no barrier -- the same fusion economics that
-   shaped the resize's own colour core -- and the per-frame choice among six candidate NODES is
-   something the declarative driver cannot express, since _ChromaLocation is a frame property
-   and a FilterDesc's clip bindings are fixed at create. Going back to the invoke would cost a
-   driver extension to buy an extra round trip. */
-/*
-
-   That shape is what makes the coefficients position INDEPENDENT. The output sample's position
-   on the input grid advances by exactly the subsampling factor, an integer, so round_halfup's
-   argument advances by the same integer and every tap offset and weight repeats unchanged. So
-   they are computed once here rather than per sample in the kernel, and what the kernel gets is
-   a fixed short filter plus an origin.
-
-   Note the tap count: zimg divides the filter's support by the scaling step, so bilinear
-   downscaling by two is a FOUR tap filter and by four an eight tap one -- not the two tap lerp
-   the name suggests. Getting that wrong passes 4:2:0 and fails 4:1:1.
-
-   Not bit exact with the scalar path on integer formats: zimg quantises to Q14 with error
-   diffusion and rounds through a uint16 intermediate between its passes, where one fused pass
-   in float is nearer the exact answer. Reproducing the fixed point pipeline would cost a second
-   pass to recreate a CPU artefact. The two agree within 1 LSB. */
 /* Subsampling is valid up to 4 per axis, a factor of sixteen, and the filter is twice the
    factor wide. Exotic, but constructible, and covering it costs only table space -- the total
    tap work per frame is actually constant, since the tap count grows as the square of the
    factor while the plane it is computed over shrinks by the same square. */
+
 constexpr int maxChromaTaps = 32;
 
 struct AxisFilter {
@@ -548,8 +501,6 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         vsgpu::SimpleFilter sf;
         sf.name = "PreMultiply";
         sf.numInputs = 2;
-        /* Every plane reads the same single plane alpha; on subsampled chroma the gather in
-           the prelude is what brings it to the right resolution. */
         sf.srcPlane[1] = 0;
         sf.prelude = std::string(premulPrelude) + ms.prelude;
         sf.bodyInt = ms.intExpr +
@@ -791,9 +742,10 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             "    STORE(v1 + (v2 - v1) * pc.f[0]);";
         std::array<unsigned, 3> w;
         std::array<float, 3> wf;
-        for (int p = 0; p < 3; p++) { w[p] = d->weight[p]; wf[p] = d->fweight[p]; }
-        /* process is tri state here: 0 merges, 1 passes clipa through, 2 passes clipb. The
-           degenerate weights are exact copies rather than a merge that would round. */
+        for (int p = 0; p < 3; p++) {
+            w[p] = d->weight[p];
+            wf[p] = d->fweight[p];
+        }
         for (int p = 0; p < 3; p++) {
             sf.process[p] = d->process[p] == 0;
             sf.shareClip[p] = d->process[p] == 2 ? 1 : 0;
