@@ -84,7 +84,7 @@ typedef struct VSLogHandle VSLogHandle;
 typedef struct VSFrameContext VSFrameContext;
 typedef struct VSPLUGINAPI VSPLUGINAPI;
 typedef struct VSAPI VSAPI;
-typedef struct VSVULKANAPI VSVULKANAPI; /* defined in VSVulkan4.h, which is the only header pulling in Vulkan types */
+typedef struct VSVULKANAPI VSVULKANAPI;
 
 typedef enum VSColorFamily {
     cfUndefined = 0,
@@ -181,15 +181,11 @@ typedef enum VSFilterMode {
     fmFrameState = 3 /* DO NOT USE UNLESS ABSOLUTELY NECESSARY, for compatibility with external code that can only keep the processing state of a single frame at a time */
 } VSFilterMode;
 
-/* Properties of a created filter node, passed to createVideoFilterEx. Unknown flags are an
-   error rather than ignored so new flags can be introduced safely. */
+/* Passed to createVideoFilterEx */
 typedef enum VSFilterFlags {
-    ffGPUOutput = 1 /* the node returns GPU resident frames; must match the vnode residency modifier of the registered function returning it (":gpu" requires it, plain vnode forbids it, ":all" allows either) */
+    ffGPUOutput = 1 /* the filter returns GPU resident frames */
 } VSFilterFlags;
 
-/* Where a node's or frame's pixel data lives, returned by getNodeResidency/getFrameResidency.
-   Deliberately not part of VSMediaType: a GPU clip is still video in every way VSMediaType
-   cares about, residency is an orthogonal storage property. */
 typedef enum VSNodeResidency {
     nrCPU = 0,
     nrGPU = 1
@@ -399,30 +395,17 @@ struct VSAPI {
 
     /* Frame related functions */
     VSFrame *(VS_CC *newVideoFrame)(const VSVideoFormat *format, int width, int height, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT;
-    /* Same as newVideoFrame but allows the specified planes to be effectively copied from the source
-       frames. Residency follows the shared planes, so this is also how a GPU filter passes planes it
-       does not process through without copying them; NULL is returned if they do not all agree. */
-    VSFrame *(VS_CC *newVideoFrame2)(const VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT;
-    VSFrame *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int numSamples, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT;
+    VSFrame *(VS_CC *newVideoFrame2)(const VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT; /* same as newVideoFrame but allows the specified planes to be effectively copied from the source frames, can also be used with GPU frames */    VSFrame *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int numSamples, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT;
     VSFrame *(VS_CC *newAudioFrame2)(const VSAudioFormat *format, int numSamples, const VSFrame **channelSrc, const int *channels, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT; /* same as newAudioFrame but allows the specified channels to be effectively copied from the source frames */
     void (VS_CC *freeFrame)(const VSFrame *f) VS_NOEXCEPT;
     const VSFrame *(VS_CC *addFrameRef)(const VSFrame *f) VS_NOEXCEPT;
-    /* The planes are shared and only copied when written through getWritePtr. On a GPU resident
-       frame that copy on write cannot happen, so the result has independent properties but its
-       pixels stay read only -- which is exactly what property editing wants and all it gives. */
-    VSFrame *(VS_CC *copyFrame)(const VSFrame *f, VSCore *core) VS_NOEXCEPT;
+    VSFrame *(VS_CC *copyFrame)(const VSFrame *f, VSCore *core) VS_NOEXCEPT; /* Create a copy of a frame with COW semantics for the planes and property set independently, if used on a GPU frame the planes remain read-only */
     const VSMap *(VS_CC *getFramePropertiesRO)(const VSFrame *f) VS_NOEXCEPT;
     VSMap *(VS_CC *getFramePropertiesRW)(VSFrame *f) VS_NOEXCEPT;
 
-    ptrdiff_t (VS_CC *getStride)(const VSFrame *f, int plane) VS_NOEXCEPT; /* valid on GPU resident frames too; the layout is the same */
-    /* NULL for an invalid plane, and NULL on a GPU resident frame, whose planes have no host
-       address -- never a silent download. Use getFrameResidency to tell the cases apart, and
-       getGPUPlane in VSVulkan4.h to reach a resident plane. */
-    const uint8_t *(VS_CC *getReadPtr)(const VSFrame *f, int plane) VS_NOEXCEPT;
-    /* Calling this function invalidates previously gotten read pointers to the same frame.
-       NULL on a GPU resident frame: those are written by recording compute work against the
-       buffer from getGPUPlane and publishing a producer pair, not through a host pointer. */
-    uint8_t *(VS_CC *getWritePtr)(VSFrame *f, int plane) VS_NOEXCEPT;
+    ptrdiff_t (VS_CC *getStride)(const VSFrame *f, int plane) VS_NOEXCEPT;
+    const uint8_t *(VS_CC *getReadPtr)(const VSFrame *f, int plane) VS_NOEXCEPT; /* Always NULL on GPU frames */
+    uint8_t *(VS_CC *getWritePtr)(VSFrame *f, int plane) VS_NOEXCEPT; /* Calling this function invalidates previously gotten read pointers to the same frame, always NULL on GPU frames */
 
     const VSVideoFormat *(VS_CC *getVideoFrameFormat)(const VSFrame *f) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFrameFormat)(const VSFrame *f) VS_NOEXCEPT;
@@ -559,13 +542,10 @@ struct VSAPI {
     void (VS_CC *createVideoFilterEx)(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createVideoFilter plus VSFilterFlags; unknown flags are an error */
     VSNode *(VS_CC *createVideoFilterEx2)(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createVideoFilter2 plus VSFilterFlags; unknown flags return NULL */
     const VSVULKANAPI *(VS_CC *getVulkanAPI)(int version) VS_NOEXCEPT; /* see VSVulkan4.h; returns NULL if the requested version is unsupported */
-    int (VS_CC *getNodeResidency)(VSNode *node) VS_NOEXCEPT; /* VSNodeResidency; nrGPU when the node was created with ffGPUOutput, i.e. its frames are GPU resident; needed by residency polymorphic (vnode:all) filters and bindings, no Vulkan headers required */
-    int (VS_CC *getFrameResidency)(const VSFrame *frame) VS_NOEXCEPT; /* VSNodeResidency; nrGPU when the frame's planes live on the GPU, where the CPU data accessors are fatal */
+    int (VS_CC *getNodeResidency)(VSNode *node) VS_NOEXCEPT; /* returns VSNodeResidency; nrGPU when the node was created with ffGPUOutput */
+    int (VS_CC *getFrameResidency)(const VSFrame *frame) VS_NOEXCEPT; /* returns VSNodeResidency */
 #endif
 
-    /* The graph inspection block stays at the very end of the struct: it is conditionally
-       compiled, so anything placed after it would change offsets between clients built with
-       and without VS_GRAPH_API. */
 #if VAPOURSYNTH_API_MINOR >= 2
 #if defined(VS_GRAPH_API)
     /* !!! Experimental/expensive graph information, these function require both the major and minor version to match exactly when using them !!!
