@@ -120,13 +120,9 @@ struct VSSCRIPTAPI {
 
 #if VSSCRIPT_API_MINOR >= 4
     /*
-    * The Ex variants take a bitmask of VSScriptGetFlags. Scripts may legally leave outputs
-    * and variables GPU resident; a consumer that passes sgfAllowGPUResident declares it can
-    * handle that and receives them exactly as the script set them. Without the flag -- and
-    * through every non-Ex function above, which behaves exactly like flags 0 -- GPU resident
-    * nodes come back with a GPUDownload automatically inserted so their frames are CPU
-    * readable, and a variable fetch that would hand out a GPU resident frame fails instead,
-    * since no equivalent wrapping exists for a frame that already left its node.
+    * The Ex variants take additional VSScriptGetFlags. These flags control whether
+    * GPU resident nodes and frames are returned or if they are automatically downloaded
+    * or silently rejected respectively.
     */
     VSNode *(VS_CC *getOutputNodeEx)(VSScript *handle, int index, int flags) VS_NOEXCEPT;
     VSNode *(VS_CC *getOutputAlphaNodeEx)(VSScript *handle, int index, int flags) VS_NOEXCEPT;
