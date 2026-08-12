@@ -128,21 +128,11 @@ VSPlaneData::VSPlaneData(size_t dataSize, vs::MemoryUse &mem) noexcept : refcoun
 #endif
 }
 
-/* Takes ownership of the plane. VRAM is accounted at the allocator's region level, not here.
-   The device reference is what lets this plane outlive the core: the buffer always has a live
-   allocator to return to, however late the release comes. */
 VSPlaneData::VSPlaneData(VSVulkanPlane *plane, VSVulkanDevice *device, size_t dataSize) noexcept
     : refcount(1), mem(nullptr), data(nullptr), size(dataSize), gpu(plane), gpuDevice(device) {
     gpuDevice->addRef();
 }
 
-/* Copy on write cannot cover GPU planes: duplicating a VkBuffer needs a queue submission,
-   which this noexcept constructor has no core, queue lock or exec context to make, and whose
-   result would not be ready on return -- while getWritePtr must hand back an immediately
-   writable pointer. getWritePtr therefore returns null for GPU frames rather than reaching
-   here, and copyFrame gives such a frame independent properties over shared, read-only
-   planes. Reaching here with a GPU plane means some new caller duplicates planes without
-   going through getWritePtr. */
 VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem), size(d.size) {
     if (d.gpu)
         VS_FATAL_ERROR("Copy on write of GPU resident planes is not implemented");
@@ -156,13 +146,7 @@ VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem
 
 VSPlaneData::~VSPlaneData() {
     if (gpu) {
-        /* The producer may still be writing this plane; the wait is instant once it signaled.
-           Reader safety is the exec pools' retained references. The handle stays valid however
-           late this runs -- the plane holds a reference to the timeline it names -- so the skip
-           after the core is gone is now only about the value: every submission completed when
-           the pools were torn down, but a pool that died with a failed submit outstanding never
-           signaled the value some plane is still carrying, and waiting for it would hang
-           teardown forever. Nothing left to wait for, so don't. */
+        /* The producer may still be writing this plane so wait for it */
         if (!gpuDevice->coreFreed())
             waitPlaneHost(*gpuDevice, *gpu);
         gpuDevice->destroyBuffer(gpu->buffer);
@@ -315,11 +299,6 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
         stride[2] = 0;
     }
 
-    /* Residency propagates from shared planes and must be uniform: one frame cannot straddle
-       the bus. Fresh planes follow whatever the shared ones are. The public entry points
-       reject a mixed set with null before reaching here (uniformPlaneSrcResidency in
-       vsapi.cpp), so the fatals below only catch the core's own callers -- a constructor
-       cannot fail any other way. */
     for (int i = 0; i < numPlanes; i++) {
         if (planeSrc[i]) {
             if (i == 0 || !planeSrc[0])
@@ -484,9 +463,6 @@ const uint8_t *VSFrame::getReadPtr(int plane) const {
     if (plane < 0 || plane >= numPlanes)
         return nullptr;
 
-    /* No host address for a GPU plane, so the same answer as a nonexistent one. Never a
-       silent download: getGPUPlane reaches a resident plane, getFrameResidency says which
-       kind this is. */
     if (gpuResident)
         return nullptr;
 
@@ -500,9 +476,6 @@ uint8_t *VSFrame::getWritePtr(int plane) {
     if (plane < 0 || plane >= numPlanes)
         return nullptr;
 
-    /* As getReadPtr, plus the copy on write below cannot run for a GPU plane at all (see the
-       VSPlaneData copy constructor). GPU frames are written by recording compute work against
-       the buffer from getGPUPlane and publishing a producer pair. */
     if (gpuResident)
         return nullptr;
 
@@ -631,9 +604,6 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
                     throw std::runtime_error("Argument '" + argName + "' has duplicate argument specifier '" + argParts[i] + "'");
                 empty = true;
             } else if ((argParts[i] == "gpu" || argParts[i] == "all") && apiMajor > VAPOURSYNTH3_API_MAJOR) {
-                /* Residency: the unmarked form means CPU frames, ":gpu" GPU resident ones
-                   and ":all" accepts either, with the requirement enforced, and for node
-                   arguments fixed up, at invoke time. */
                 if (type != ptVideoNode && type != ptVideoFrame)
                     throw std::runtime_error("Argument '" + argName + "': residency modifier '" + argParts[i] + "' is only valid on vnode and vframe arguments");
                 if (residency != VSArgResidency::CPU)
@@ -718,11 +688,6 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
         if (!mismatch.empty())
             throw VSException(name + ": " + mismatch);
 
-        /* Residency: vnode:gpu arguments must be fed GPU nodes and plain vnode CPU ones. A
-           mismatch gets the matching transfer filter inserted automatically, with a message so
-           nobody wonders where the extra work came from; vnode:all arguments accept either and
-           leave residency to the filter. The copy is only made when something actually needs
-           fixing. */
         const VSMap *callArgs = &args;
         std::unique_ptr<VSMap> fixedArgs;
         for (const auto &fa : inArgs) {
@@ -783,10 +748,6 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
         if (plugin->apiMajor == VAPOURSYNTH3_API_MAJOR && !v->isV3Compatible())
             plugin->core->logFatal(name + ": filter node returned not yet supported type");
 
-        /* Residency is declared at node creation through ffGPUOutput and in the interface
-           through the vnode residency modifier; the two must agree, verified here for every
-           returned node so a mismatch dies at the function that lied rather than corrupting
-           downstream graphs. A vnode:all return is legitimately either, per instance. */
         if (!v->hasError()) {
             for (const auto &ra : retArgs) {
                 if (ra.type != ptVideoNode || ra.residency == VSArgResidency::All)
@@ -818,9 +779,6 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
 }
 
 bool VSPluginFunction::isV3Compatible() const {
-    /* A required-GPU argument or return makes a function invisible to V3 clients; ":all"
-       ones stay visible since a V3 client can only ever supply and receive CPU nodes,
-       which such a function accepts and then produces. */
     for (const auto &iter : inArgs)
         if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset || iter.residency == VSArgResidency::GPU)
             return false;
@@ -1479,15 +1437,6 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
         size_t hostExcess = poolExcess(hostNeedsMemory, memory->allocated_bytes(), memory->limit());
         size_t gpuExcess = poolExcess(gpuNeedsMemory, memory->gpu_allocated_bytes(), memory->gpu_limit());
 
-        /* Deliberately NOT pooled on unified memory, tempting as it looks. Evicting one pool
-           to relieve the other assumes the bytes are fungible, and measurement says they are
-           not: a GPU frame's release returns its region to a bucket while the 128 MB block
-           stays committed until every region in it is free, so a fragmented eviction returns
-           nothing at all (0 of 415 MB, measured). Cross evicting would spend real host cache
-           to buy no GPU memory. The combined ceiling is a brake instead -- it stops both
-           caches growing and throttles admission, which needs no fungibility -- and the
-           conservative unified default is what keeps the two pools from promising too much
-           in the first place. */
         const bool combinedPressure = memory->over_combined_limit();
 
         struct CacheEntry {
@@ -1871,11 +1820,7 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         memory->set_unified(combinedCeiling);
     }
 
-    /* The override exists for testing the pressure paths without a 12 GB workload, so it wins.
-       Otherwise the default only applies when nothing has set a limit yet: the device is created
-       lazily on first GPU use, so a script calling setMaxVRAMUse up front -- the natural place,
-       beside setMaxCacheSize -- would otherwise have its limit silently replaced here, after the
-       setter had already returned it as the one in effect. */
+    /* The override exists for testing the pressure paths */
     if (const char *envLimit = std::getenv("VS_VULKAN_MAX_VRAM_MB"))
         memory->set_gpu_limit(static_cast<size_t>(std::strtoull(envLimit, nullptr, 10)) << 20);
     else if (!memory->gpu_limit())
@@ -2575,9 +2520,6 @@ void VSCore::freeCore() {
         logMessage(mtWarning, "Core freed but " + safe_to_string(numFilterInstances.load() - 1) + " filter instance(s) still exist");
     if (memory->allocated_bytes())
         logMessage(mtWarning, "Core freed but " + safe_to_string(memory->allocated_bytes()) + " bytes still allocated in framebuffers");
-    /* Live regions, not the accounted total: accounting follows the blocks the driver has
-       committed, and those only go back in the device destructor, necessarily after this point.
-       Regions are what frames hold, so this asks the question the warning means to ask. */
     if (vulkanDev) {
         uint64_t gpuLive = vulkanDev->allocatorStats().usedBytes;
         if (gpuLive)
@@ -2596,10 +2538,6 @@ VSCore::~VSCore() {
     for(const auto &iter : plugins)
         delete iter.second;
     plugins.clear();
-    /* Transfer machinery first, while the device is certain to be alive: its pool waits out
-       every submission still in flight. Then the core's device reference goes; GPU frames the
-       application still holds keep the device (and through the GPU pool gate, MemoryUse)
-       alive until they are released, mirroring how CPU frames may outlive the core. */
     vulkanTrans.reset();
     if (vulkanDev) {
         /* The device may outlive this core through surviving frames, and a late pooled
