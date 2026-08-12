@@ -163,12 +163,6 @@ struct GenericDataExtra {
 
 typedef SingleNodeData<GenericDataExtra> GenericData;
 
-/* Both are defined further down, next to the GPU declarations they build, but genericCreate
-   is a template that calls them with arguments whose types do not depend on its parameter.
-   Two phase lookup therefore resolves them where the template is defined, not where it is
-   instantiated, so they have to be visible from here. MSVC and clang-cl parse template
-   bodies lazily and accept the later definitions, which is why only the gcc and non-MSVC
-   clang builds -- every Linux and macOS target -- reject it. */
 template<typename T>
 static void createGPUFromDecl(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *out, VSCore *core, const VSAPI *vsapi);
 static bool buildGenericGPU(int op, const GenericData *d, vsgpu::SimpleFilter &sf);
@@ -1160,9 +1154,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
 
 /* Shared tail for every GPU branch below: build the node from the declaration, hand it back
-   or report the error, and take the input node with it either way. The filters here are all
-   residency polymorphic, so this runs instead of the CPU createVideoFilter, never beside
-   it, and the arguments and their validation are already done by the time it is reached. */
+   or report the error, and take the input node with it either way. */
 template<typename T>
 static void createGPUFromDecl(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *out, VSCore *core, const VSAPI *vsapi) {
     for (int p = 0; p < 3; p++)
@@ -1177,9 +1169,6 @@ static void createGPUFromDecl(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VS
         vsapi->mapSetError(out, (sf.name + ": "s + error).c_str());
 }
 
-/* The 3x3 neighbourhood, named the way the scalar ops in kernel/generic.cpp name it, so a
-   body below reads against that reference line for line. Reads clamp at the plane edge,
-   which is the same replication filter_plane_3x3 does with its above/below index picks. */
 static std::string neighbourhood3x3(const char *type) {
     std::string t = type, s;
     for (int dy = -1; dy <= 1; dy++) {
@@ -1922,17 +1911,11 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     if (vsapi->getNodeResidency(d->node) == nrGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = d->name;
-        /* The CPU integer path bakes this same expression into a lookup table at create
-           time; evaluating it per pixel here trades a table upload for a pow, which the
-           device has in hardware. The rounded endpoints are what the table was built from,
-           so the only divergence left is pow's last ulp. */
         sf.bodyInt =
             "    float v = float(min(uint(SRC0(x, y)), pc.u[0]));\n"
             "    float t = max(min(v, pc.f[1]) - pc.f[0], 0.0) / (pc.f[1] - pc.f[0]);\n"
             "    float r = pow(t, pc.f[4]) * (pc.f[3] - pc.f[2]) + pc.f[2];\n"
             "    STORE(uint(clamp(r, 0.0, float(pc.u[0])) + 0.5));";
-        /* Float keeps the CPU's two shapes: gamma of one skips pow and scales directly,
-           and the reciprocal multiply is deliberate, matching how range_in is applied. */
         sf.bodyFloat =
             "    float t = max(min(float(SRC0(x, y)), pc.f[1]) - pc.f[0], 0.0);\n"
             "    float r = pc.u[1] != 0u ? t * pc.f[5] + pc.f[2]\n"
