@@ -541,7 +541,7 @@ struct VSAPI {
 #if VAPOURSYNTH_API_MINOR >= 3
     void (VS_CC *createVideoFilterEx)(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createVideoFilter plus VSFilterFlags; unknown flags are an error */
     VSNode *(VS_CC *createVideoFilterEx2)(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* same as createVideoFilter2 plus VSFilterFlags; unknown flags return NULL */
-    const VSVULKANAPI *(VS_CC *getVulkanAPI)(int version) VS_NOEXCEPT; /* see VSVulkan4.h; returns NULL if the requested version is unsupported */
+    const VSVULKANAPI *(VS_CC *getVulkanAPI)(void) VS_NOEXCEPT; /* see VSVulkan4.h; never NULL, it is versioned by the core API and getAPIVersion answers which one you got */
     int (VS_CC *getNodeResidency)(VSNode *node) VS_NOEXCEPT; /* returns VSNodeResidency; nrGPU when the node was created with ffGPUOutput */
     int (VS_CC *getFrameResidency)(const VSFrame *frame) VS_NOEXCEPT; /* returns VSNodeResidency */
 #endif

@@ -373,10 +373,10 @@ static void VS_CC cudaInvertCreate(const VSMap *in, VSMap *out, void *userData, 
         goto fail;
     }
 
-    d->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
-    if (!d->vkapi || d->vkapi->getVulkanHandles(core, &d->h, err, sizeof(err)) ||
+    d->vkapi = vsapi->getVulkanAPI();
+    if (d->vkapi->getVulkanHandles(core, &d->h, err, sizeof(err)) ||
         !(d->vk = d->vkapi->getVulkanFunctions(core, err, sizeof(err)))) {
-        vsapi->mapSetError(out, err[0] ? err : "InvertCUDA: Vulkan API not available");
+        vsapi->mapSetError(out, err);
         goto fail;
     }
 

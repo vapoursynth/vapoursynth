@@ -198,9 +198,6 @@ static VSFrame *VS_CC newVideoFrame3(const vs3::VSVideoFormat *format, int width
         return nullptr;
 }
 
-/* One frame cannot straddle the bus. Checked here rather than in the constructor because
-   this is the last point that can still answer with null; the constructor keeps the same
-   check as a backstop for the core's own callers. */
 static bool uniformPlaneSrcResidency(const VSVideoFormat &format, const VSFrame **planeSrc) {
     const VSFrame *first = nullptr;
     for (int i = 0; i < format.numPlanes; i++) {
@@ -1036,7 +1033,7 @@ static int VS_CC setLinearFilter(VSNode *node) VS_NOEXCEPT {
     return node->setLinear();
 }
 
-static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT;
+static const VSVULKANAPI *VS_CC getVulkanAPIImpl(void) VS_NOEXCEPT;
 
 static int VS_CC getNodeResidency(VSNode *node) VS_NOEXCEPT {
     assert(node);
@@ -1356,7 +1353,7 @@ const VSAPI vs_internal_vsapi = {
 };
 
 //////////////////////////////////////////
-// The Vulkan API surface, raw handles plus per plane buffer access; see VSVulkan4.h
+// Vulkan API
 
 static void copyVulkanError(const std::string &message, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     if (errorMessage && errorMessageSize > 0)
@@ -1812,11 +1809,6 @@ static void VS_CC vkGPUExecRetain(VSGPUExecContext *context, VSGPUReleaseFunc re
         context->owner->pool.retain(*context->context, release, object, bytes);
 }
 
-/* Applies a reservation change; the contract is documented at reserveGPUMemory in VSVulkan4.h.
-   The graduated reclamation rather than gpuMemoryPanic, because a reservation nudging past the
-   limit is routine and not a failed allocation. Concurrent calls are safe: exchange serializes
-   the totals and each caller accounts its own delta, so the deltas sum to the true change
-   whatever the interleaving. */
 static void reservationSetBytes(VSGPUMemoryReservation *reservation, int64_t bytes) {
     const int64_t previous = reservation->bytes.exchange(bytes, std::memory_order_relaxed);
     const int64_t delta = bytes - previous;
@@ -1957,9 +1949,6 @@ static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int 
     return static_cast<int>(devices.size());
 }
 
-/* Designated, so this cannot silently drift from the header: C++ requires the initializers to
-   appear in declaration order, which turns a reordered or renamed member into a compile error
-   instead of an entry pointing at the wrong function. */
 const VSVULKANAPI vs_internal_vsvulkanapi = {
     .enumerateVulkanDevices = &vkEnumerateVulkanDevices,
     .setVulkanDevice = &vkSetVulkanDevice,
@@ -2012,10 +2001,8 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     .waitGPUFrame = &vkWaitGPUFrame
 };
 
-static const VSVULKANAPI *VS_CC getVulkanAPIImpl(int version) VS_NOEXCEPT {
-    /* Every version is a prefix of the next by the append only rule, so anything current or
-       older is served from the same structs. */
-    return (version >= 1 && version <= VSVULKAN_API_VERSION) ? &vs_internal_vsvulkanapi : nullptr;
+static const VSVULKANAPI *VS_CC getVulkanAPIImpl(void) VS_NOEXCEPT {
+    return &vs_internal_vsvulkanapi;
 }
 
 const vs3::VSAPI3 vs_internal_vsapi3 = {

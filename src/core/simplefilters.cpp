@@ -1754,9 +1754,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         if (!deliveredInfo.width || !deliveredInfo.height || !deliveredInfo.format.numPlanes)
             RETERROR("BlankClip: varsize and varformat are not supported on the GPU");
 
-        d->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
-        if (!d->vkapi)
-            RETERROR("BlankClip: the GPU API is not available");
+        d->vkapi = vsapi->getVulkanAPI();
         char err2[512] = { 0 };
         d->vk = d->vkapi->getVulkanFunctions(core, err2, sizeof(err2));
         if (!d->vk)
@@ -2651,9 +2649,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
            and driver. Pinning needs the compute stage in requiredSubgroupSizeStages; the
            rare device without it runs at its reported default size unpinned. */
         char verr[512] = { 0 };
-        const VSVULKANAPI *vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
-        if (!vkapi)
-            RETERROR("PlaneStats: the GPU API is not available");
+        const VSVULKANAPI *vkapi = vsapi->getVulkanAPI();
         VSVulkanCoreHandles handles = {};
         if (vkapi->getVulkanHandles(core, &handles, verr, sizeof(verr)))
             RETERROR(("PlaneStats: " + std::string(verr)).c_str());

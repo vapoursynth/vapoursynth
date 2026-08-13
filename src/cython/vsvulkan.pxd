@@ -30,11 +30,6 @@ from libc.stdint cimport uint8_t, uint32_t, int64_t
 from vapoursynth cimport VSCore
 
 cdef extern from "include/VSVulkan4.h" nogil:
-    enum:
-        VSVULKAN_API_VERSION
-        VK_UUID_SIZE
-        VK_LUID_SIZE
-
     ctypedef struct VSVulkanCoreInfo:
         char deviceName[256]
         uint32_t apiVersion

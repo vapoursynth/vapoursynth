@@ -3120,9 +3120,7 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
     d->vi.format = d->pipes.spec.dstFmt;
 
     char err[512] = { 0 };
-    d->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
-    if (!d->vkapi)
-        return give_up("the GPU API is not available");
+    d->vkapi = vsapi->getVulkanAPI();
     if (d->vkapi->getVulkanHandles(core, &d->handles, err, sizeof(err)))
         return give_up(err);
     d->vk = d->vkapi->getVulkanFunctions(core, err, sizeof(err));

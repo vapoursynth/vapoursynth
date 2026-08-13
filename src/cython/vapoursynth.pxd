@@ -423,8 +423,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void getCoreInfo2(VSCore *core, VSCoreInfo2 *info) nogil
         int getAPIVersion() nogil
 
-        # Residency and the separately versioned Vulkan API; see vsvulkan.pxd
-        const VSVULKANAPI *getVulkanAPI(int version) nogil
+        # Residency and the Vulkan API; see vsvulkan.pxd
+        const VSVULKANAPI *getVulkanAPI() nogil
         int getNodeResidency(VSNode *node) nogil
         int getFrameResidency(const VSFrame *frame) nogil
 

@@ -19,7 +19,7 @@
 
 cimport vapoursynth
 include 'vsconstants.pxd'
-from vsvulkan cimport VSVULKANAPI, VSVulkanCoreInfo, VSVulkanDeviceListEntry, VSVULKAN_API_VERSION
+from vsvulkan cimport VSVULKANAPI, VSVulkanCoreInfo, VSVulkanDeviceListEntry
 from vshelper cimport bitblt
 from vsscript_internal cimport VSScript
 from wave cimport WaveHeader, Wave64Header, CreateWave64Header, CreateWaveHeader, PackChannels16to16le, PackChannels32to24le, PackChannels32to32le
@@ -3140,16 +3140,10 @@ cdef class Core(object):
         self.funcs.getCoreInfo2(self.core, &v)
         return v.usedFramebufferSize
 
-    cdef const VSVULKANAPI *_vulkan_api(self) except NULL:
-        cdef const VSVULKANAPI *vk = self.funcs.getVulkanAPI(VSVULKAN_API_VERSION)
-        if vk == NULL:
-            raise Error('Vulkan API not available')
-        return vk
-
     def set_vulkan_device(self, int index = -1):
         """Selects the Vulkan device, only before the first GPU filter; -1 picks the most powerful one."""
         self.ensure_valid()
-        cdef const VSVULKANAPI *vk = self._vulkan_api()
+        cdef const VSVULKANAPI *vk = self.funcs.getVulkanAPI()
         cdef char err[512]
         if vk.setVulkanDevice(self.core, index, err, 512):
             raise Error(err.decode('utf-8'))
@@ -3160,7 +3154,7 @@ cdef class Core(object):
         max_cache_size. Zero until the Vulkan device is created, since that is when the
         default is derived from the driver's budget; setting it beforehand is respected."""
         self.ensure_valid()
-        cdef int64_t current_size = self._vulkan_api().setMaxVRAMUse(0, self.core)
+        cdef int64_t current_size = self.funcs.getVulkanAPI().setMaxVRAMUse(0, self.core)
         current_size = (current_size + 1024 * 1024 - 1) // <int64_t>(1024 * 1024)
         return current_size
 
@@ -3171,14 +3165,14 @@ cdef class Core(object):
             raise ValueError("Maximum VRAM cache size must be a positive number")
         cdef int64_t new_size = mb
         new_size = new_size * 1024 * 1024
-        self._vulkan_api().setMaxVRAMUse(new_size, self.core)
+        self.funcs.getVulkanAPI().setMaxVRAMUse(new_size, self.core)
 
     @property
     def vulkan_devices(self):
         """Every Vulkan physical device; the list index is exactly what set_vulkan_device takes.
         Unusable devices are listed with the reason and may still be selected, which fails with it."""
         self.ensure_valid()
-        cdef const VSVULKANAPI *vk = self._vulkan_api()
+        cdef const VSVULKANAPI *vk = self.funcs.getVulkanAPI()
         cdef VSVulkanDeviceListEntry entries[16]
         cdef char err[512]
         cdef int count = vk.enumerateVulkanDevices(entries, 16, err, 512)
@@ -3203,7 +3197,7 @@ cdef class Core(object):
     def vulkan_device_info(self):
         """Name and memory state of the Vulkan device; initializes the device on first access."""
         self.ensure_valid()
-        cdef const VSVULKANAPI *vk = self._vulkan_api()
+        cdef const VSVULKANAPI *vk = self.funcs.getVulkanAPI()
         cdef VSVulkanCoreInfo info
         cdef char err[512]
         if vk.getVulkanCoreInfo(self.core, &info, err, 512):

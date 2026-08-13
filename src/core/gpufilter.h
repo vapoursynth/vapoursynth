@@ -849,9 +849,7 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
         }
     }
     char err[512] = { 0 };
-    inst->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
-    if (!inst->vkapi)
-        return fail("the GPU API is not available");
+    inst->vkapi = vsapi->getVulkanAPI();
     if (inst->vkapi->getVulkanHandles(core, &inst->handles, err, sizeof(err)))
         return fail(err);
     inst->vk = inst->vkapi->getVulkanFunctions(core, err, sizeof(err));

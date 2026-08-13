@@ -1256,13 +1256,15 @@ struct VSAPI
 
    .. _getVulkanAPI:
 
-   const VSVULKANAPI \*getVulkanAPI(int version)
+   const VSVULKANAPI \*getVulkanAPI(void)
 
       Returns the GPU filtering API, a separate struct so that only plugins
-      using it need the Vulkan headers. Pass VSVULKAN_API_VERSION from
-      VSVulkan4.h; every version up to the current one is served, since the
-      struct only ever grows. Returns NULL if *version* is unsupported. See
-      :doc:`vsvulkan4.h`. Added in API 4.3.
+      using it need the Vulkan headers. Never NULL: the struct has no version
+      of its own and grows append-only with the core API, so it is already
+      settled by the version you obtained this VSAPI for, and getAPIVersion_
+      says which one that was. Whether a usable device exists is a separate
+      question, answered by getVulkanHandles. See :doc:`vsvulkan4.h`. Added in
+      API 4.3.
 
 ----------
 

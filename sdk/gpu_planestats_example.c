@@ -300,11 +300,7 @@ static void VS_CC statsCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         goto fail;
     }
 
-    d->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
-    if (!d->vkapi) {
-        vsapi->mapSetError(out, "PlaneStatsGPU: Vulkan API not available");
-        goto fail;
-    }
+    d->vkapi = vsapi->getVulkanAPI();
     if (d->vkapi->getVulkanHandles(core, &d->h, err, sizeof(err))) {
         vsapi->mapSetError(out, err);
         goto fail;

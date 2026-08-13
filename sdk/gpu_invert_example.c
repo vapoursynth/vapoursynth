@@ -206,11 +206,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         goto fail;
     }
 
-    d->vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
-    if (!d->vkapi) {
-        vsapi->mapSetError(out, "InvertGPU: Vulkan API not available");
-        goto fail;
-    }
+    d->vkapi = vsapi->getVulkanAPI();
     if (d->vkapi->getVulkanHandles(core, &d->h, err, sizeof(err))) {
         vsapi->mapSetError(out, err);
         goto fail;

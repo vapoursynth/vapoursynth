@@ -8,9 +8,6 @@ Introduction_
 
 `The GPU model`_
 
-Macros_
-   VSVULKAN_API_VERSION_
-
 Enums_
    VSVulkanQueueType_
 
@@ -168,7 +165,7 @@ VSVULKANAPI_ struct, obtained with getVulkanAPI (added in API 4.3, so define
    #include <VapourSynth4.h>
    #include <VSVulkan4.h>
 
-   const VSVULKANAPI *vkapi = vsapi->getVulkanAPI(VSVULKAN_API_VERSION);
+   const VSVULKANAPI *vkapi = vsapi->getVulkanAPI();
 
 Building against this header requires the Vulkan headers; using it at runtime
 does not require the Vulkan loader to be linked, since every entry point is
@@ -272,24 +269,13 @@ known complete, and freeGPUExecPool_ drains the GPU before returning.
 **The function table.** getVulkanFunctions_ returns every Vulkan entry point
 a filter normally needs, loaded and device bound (VSVulkanFunctions_). The
 table is frozen ABI: existing entries never move or disappear, additions only
-happen together with a VSVULKAN_API_VERSION_ bump, and getVulkanAPI serves
-every version up to the current one from the same structs, so any older
-version's layout remains a valid prefix. The table deliberately carries the
+happen together with a VAPOURSYNTH_API_VERSION bump, which leaves a plugin
+built against an older one holding a still valid prefix of the same struct.
+The table deliberately carries the
 Vulkan 1.4 spellings only (``vkCmdPushConstants2``, ``vkCmdCopyBuffer2``,
 and so on). Anything outside the curated set — a function from a host
 enabled extension, for example — can be resolved through the
 ``getInstanceProcAddr`` in VSVulkanCoreHandles_.
-
-
-Macros
-######
-
-VSVULKAN_API_VERSION
---------------------
-
-The version of the GPU API and the VSVulkanFunctions_ table, currently 1.
-Pass it to getVulkanAPI. Both grow append-only once stable, so a plugin built
-against an older version keeps working against every newer core.
 
 
 Enums
@@ -343,9 +329,10 @@ struct VSVULKANAPI
 ------------------
 
 This struct is the whole GPU API. It is threadsafe and boringly stable: use
-getVulkanAPI (VapourSynth4.h, API 4.3) to obtain it, together with the
-VSVULKAN_API_VERSION_ you were compiled against. Returns NULL if the
-requested version is newer than the core supports.
+getVulkanAPI (VapourSynth4.h, API 4.3) to obtain it. It takes no arguments and
+never returns NULL — the GPU API has no version of its own, growing append-only
+with the core API instead, so which one you get was already settled when the
+VSAPI itself was, and getAPIVersion says which that was.
 
 Unless an entry says otherwise, a status returning function returns 0 on
 success and nonzero on failure, and one returning a handle returns NULL on

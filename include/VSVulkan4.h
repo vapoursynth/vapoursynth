@@ -18,10 +18,11 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-/* The GPU side of the API, obtained through VSAPI::getVulkanAPI and versioned independently of
- * the core API since it is expected to evolve faster. It is deliberately a raw exposure: the
- * core hands out its Vulkan handles and per plane buffers, and a GPU filter brings its own
- * pipelines, command buffers and synchronization on top of them. The contract in short:
+/* The GPU side of the API, obtained through VSAPI::getVulkanAPI. It has no version of its own and
+ * grows with the core API instead, so there is nothing to negotiate and the call cannot fail. It
+ * is deliberately a raw exposure: the core hands out its Vulkan handles and per plane buffers, and
+ * a GPU filter brings its own pipelines, command buffers and synchronization on top of them. The
+ * contract in short:
  *
  * - Resolve every entry point through getInstanceProcAddr/vkGetDeviceProcAddr from the handles;
  *   nothing is linked.
@@ -74,8 +75,8 @@ enum VSVulkanRequirement {
 
    THE LAYOUT IS FROZEN ABI. The set was completed against core Vulkan 1.4, which stays the
    required version for years, so changes should be rare: entries may only ever be APPENDED at
-   the end of the list, only together with a VSVULKAN_API_VERSION bump, and getVulkanAPI serves
-   every older version from the same structs since the layout is prefix stable. Members carry
+   the end of the list, only together with a VAPOURSYNTH_API_VERSION bump, which leaves an older
+   plugin holding a still valid prefix of the same struct. Members carry
    the vk prefix so no platform header macro (windows.h defines CreateSemaphore) can rename
    them in any translation unit, whatever the include order. */
 #define VS_VK_FUNCTION_LIST(FN) \
@@ -246,7 +247,6 @@ typedef struct VSVulkanFunctions {
     VS_VK_FUNCTION_LIST(VS_VK_DECLARE_MEMBER)
 #undef VS_VK_DECLARE_MEMBER
 } VSVulkanFunctions;
-#define VSVULKAN_API_VERSION 1
 
 /* The two are NOT interchangeable, and Vulkan guarantees the implication one way only: a
  * compute queue always accepts transfer commands, while a dedicated transfer queue need not
