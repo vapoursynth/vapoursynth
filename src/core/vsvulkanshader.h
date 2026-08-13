@@ -24,6 +24,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <cstdint>
 
 
 /* The public opaque runtime compiled shader handle: an immutable shared SPIR-V blob, so
