@@ -622,10 +622,15 @@ storage and arithmetic, scalar block layout, subgroup basic/vote/arithmetic/
 ballot/shuffle/rotate including extended types, integer dot product, variable
 pointers, the dynamic indexing set, push descriptors, maintenance5 module-less
 pipeline creation, timeline semaphores and synchronization2. The precise list
-lives in the VSVulkan4.h header. One capability is optional and must be
-queried: ``shaderFloat16`` (half precision arithmetic). Everything else that
-is optional in Vulkan is simply absent: core devices enable no extensions, and
-vendor specific paths cannot exist on them.
+lives in the VSVulkan4.h header. Two capabilities are optional and must be
+queried on the physical device: ``shaderFloat16`` (half precision arithmetic)
+and ``shaderInt64`` (64-bit integer arithmetic). The core enables either one
+when the device has it, but neither is promised and neither is reported back,
+so a kernel that wants one asks for itself. Everything else that is optional in
+Vulkan is simply absent: the only device extensions a core device enables are
+the platform's opaque handle export pair and, where the device demands it,
+VK_KHR_portability_subset — none of them reachable from a kernel, so vendor
+specific paths cannot exist on them.
 
 Porting an existing Vulkan filter
 ---------------------------------
