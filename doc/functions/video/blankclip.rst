@@ -20,14 +20,8 @@ BlankClip
    If *varformat* is set, a clip with variable format will be returned.
    The frames themselves will have the format given by the format argument.
 
-   If *gpu* is set, the generated frames are GPU resident and filled on the
-   device, so a blank clip can head a chain of GPU filters without a transfer.
-   It defaults to the residency of *clip* when one is given and to CPU
-   otherwise, which means a blank clip built from a GPU template is itself GPU
-   resident unless *gpu=0* says otherwise. GPU frames need a constant format and
-   constant dimensions, so combining *gpu* with *varsize* or *varformat* is an
-   error. See :doc:`../../gpufilters`.
+   If *gpu* is set, the generated frames are GPU resident. GPU frames need
+   constant format and constant dimensions, so combining *gpu* with *varsize*
+   or *varformat* is an error. See :doc:`../../gpufilters`.
 
-   It is never an error to use BlankClip, apart from the *gpu* combinations
-   above.
-
+   It is never an error to use BlankClip.
