@@ -19,7 +19,6 @@
 */
 
 #include "VapourSynth4.h"
-#include "VapourSynth3.h"
 #include "../../VAPOURSYNTH_VERSION"
 
 #if __has_include("../../VAPOURSYNTH_VERSION_EXTRA")
@@ -45,5 +44,4 @@
     "Copyright (c) 2012-2025 Fredrik Mellbin\n" \
     "Core R" XSTR(VAPOURSYNTH_CORE_VERSION) VS_CURRENT_RELEASE_EXTRA "\n" \
     "API R" XSTR(VAPOURSYNTH_API_MAJOR) "." XSTR(VAPOURSYNTH_API_MINOR) "\n" \
-    "API R" XSTR(VAPOURSYNTH3_API_MAJOR) "." XSTR(VAPOURSYNTH3_API_MINOR) "\n" \
     VS_OPTIONS_TEXT

@@ -22,8 +22,6 @@
 #define VSCORE_H
 
 #include "VapourSynth4.h"
-#include "VapourSynth3.h"
-#include "vslog.h"
 #include "intrusive_ptr.h"
 #include "memoryuse.h"
 #include <cstdlib>
@@ -80,8 +78,6 @@ typedef vs_intrusive_ptr<VSFrameContext> PVSFrameContext;
 
 extern const VSPLUGINAPI vs_internal_vspapi;
 extern const VSAPI vs_internal_vsapi;
-extern const vs3::VSAPI3 vs_internal_vsapi3;
-const VSAPI *getVSAPIInternal(int apiMajor);
 
 class VSException : public std::runtime_error {
     using std::runtime_error::runtime_error;
@@ -109,7 +105,6 @@ private:
     void *userData;
     VSFreeFunctionData freeFunction;
     VSCore *core; // never dereferenced, only passed on to the callback and may therefore be NULL
-    int apiMajor;
     ~VSFunction();
 public:
     void add_ref() noexcept {
@@ -122,7 +117,7 @@ public:
             delete this;
     }
 
-    VSFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core, int apiMajor);
+    VSFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core);
     void call(const VSMap *in, VSMap *out);
 };
 
@@ -377,7 +372,6 @@ public:
         }
     }
 
-    bool isV3Compatible() const noexcept;
 };
 
 /* Residency a signature declares for a video node or frame argument: the unmarked form
@@ -429,7 +423,6 @@ private:
         VSVideoFormat vf;
         VSAudioFormat af;
     } format;
-    mutable std::atomic<const vs3::VSVideoFormat *> v3format; /* API 3 compatibility */
     VSPlaneData *data[3] = {}; /* only the first data pointer is ever used for audio and is subdivided using the internal offset in height */
     int width; /* stores number of samples for audio */
     int height;
@@ -508,7 +501,6 @@ public:
         assert(contentType == mtVideo);
         return &format.vf;
     }
-    const vs3::VSVideoFormat *getVideoFormatV3() const noexcept;
 
     int getWidth(int plane) const {
         assert(contentType == mtVideo);
@@ -936,7 +928,6 @@ private:
     VSFilterMode filterMode;
     bool gpuOutput = false;
 
-    int apiMajor;
     VSCore *core;
     PVSFunctionFrame functionFrame;
     VSVideoInfo vi = {};
@@ -965,17 +956,13 @@ private:
     bool cacheLastOnly = false;
     VSCache cache;
 
-    // api3
-    vs3::VSVideoInfo v3vi = {};
-
     void registerCache(bool add);
     PVSFrame getCachedFrameInternal(int n);
     PVSFrame getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
     void updateTransientAllocEstimate(int64_t hostSample, int64_t gpuSample);
 public:
-    VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
-    VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core);
-    VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core);
+    VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core);
+    VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core);
     ~VSNode();
 
     void updateCacheState();
@@ -990,10 +977,6 @@ public:
         assert(refcount > 0);
         if (--refcount == 0)
             delete this;
-    }
-
-    int getApiMajor() const {
-        return apiMajor;
     }
 
     VSMediaType getNodeType() const {
@@ -1036,10 +1019,8 @@ public:
     void getFrame(const PVSFrameContext &ct);
 
     const VSVideoInfo &getVideoInfo() const;
-    const vs3::VSVideoInfo &getVideoInfo3() const;
     const VSAudioInfo &getAudioInfo() const;
 
-    void setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs);
 
     const std::string &getName() const {
         return name;
@@ -1130,7 +1111,7 @@ private:
     std::string returnType;
     std::vector<FilterArgument> inArgs;
     std::vector<FilterArgument> retArgs;
-    static void parseArgString(const std::string &argString, std::vector<FilterArgument> &argsOut, int apiMajor);
+    static void parseArgString(const std::string &argString, std::vector<FilterArgument> &argsOut);
     static std::string checkValues(const std::vector<FilterArgument> &fargs, const VSMap &m, const char *kind);
 public:
     VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, VSPlugin *plugin);
@@ -1138,9 +1119,6 @@ public:
     const std::string &getName() const;
     const std::string &getArguments() const;
     const std::string &getReturnType() const;
-    bool isV3Compatible() const;
-    std::string getV4ArgString() const;
-    std::string getV3ArgString() const;
 };
 
 
@@ -1180,7 +1158,6 @@ public:
     const std::string &getNamespace() const { return fnamespace; }
     const std::string &getFilename() const { return filename; }
     int getPluginVersion() const { return pluginVersion; }
-    void getFunctions3(VSMap *out) const;
 };
 
 struct VSLogHandle {
@@ -1206,8 +1183,6 @@ private:
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
-    std::map<int, vs3::VSVideoFormat> videoFormats;
-    std::mutex videoFormatLock;
     int videoFormatIdOffset = 1000;
     VSCoreInfo coreInfo; // API3 compatibility
     std::set<VSNode *> caches;
@@ -1236,7 +1211,6 @@ private:
 
     virtual ~VSCore();
 
-    void registerFormats();
 
     static constexpr size_t maxStoredLogMessages = 500;
 
@@ -1265,14 +1239,10 @@ public:
     //
 
     void notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory);
-    const vs3::VSVideoFormat *getV3VideoFormat(int id);
-    const vs3::VSVideoFormat *getVideoFormat3(int id);
     static bool queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept;
     bool getVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept;
     uint32_t queryVideoFormatID(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) const noexcept;
-    const vs3::VSVideoFormat *queryVideoFormat3(vs3::VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = 0) noexcept;
     static bool queryAudioFormat(VSAudioFormat &f, VSSampleType sampleType, int bitsPerSample, uint64_t channelLayout) noexcept;
-    bool isValidFormatPointer(const void *f);
     static bool isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept;
     static bool isValidVideoFormat(const VSVideoFormat &format) noexcept;
     static bool isValidAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout) noexcept;
@@ -1294,29 +1264,20 @@ public:
     std::shared_ptr<const std::vector<uint32_t>> compileShaderCached(int language, const char *source, std::string &errorMessage);
 
     /////////////////////////////////////
-    // V3 compat helper functions
-    static VSColorFamily ColorFamilyFromV3(int colorFamily) noexcept;
-    static vs3::VSColorFamily ColorFamilyToV3(int colorFamily) noexcept;
-    const vs3::VSVideoFormat *VideoFormatToV3(const VSVideoFormat &format) noexcept;
-    bool VideoFormatFromV3(VSVideoFormat &out, const vs3::VSVideoFormat *format) noexcept;
-    vs3::VSVideoInfo VideoInfoToV3(const VSVideoInfo &vi) noexcept;
-    VSVideoInfo VideoInfoFromV3(const vs3::VSVideoInfo &vi) noexcept;
 
 
     bool loadPluginManifest(const std::filesystem::path &path);
     void loadPlugin(const std::filesystem::path &filename, bool loadCPUOptimized = false, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
     bool loadAllPluginsInPath(const std::filesystem::path &path, bool pluginRoot = false);
 
-    void createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
-    void createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);
-    VSNode *createVideoFilter(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);
-    void createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);
-    VSNode *createAudioFilter(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor);
+    void createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData);
+    VSNode *createVideoFilter(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData);
+    void createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData);
+    VSNode *createAudioFilter(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData);
 
     virtual int getCpuLevel() const;
     virtual int setCpuLevel(int cpu);
 
-    VSMap *getPlugins3();
     VSPlugin *getPluginByID(const std::string &identifier);
     VSPlugin *getPluginByNamespace(const std::string &ns);
     VSPlugin *getNextPlugin(VSPlugin *plugin);

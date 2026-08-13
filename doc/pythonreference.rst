@@ -1061,7 +1061,7 @@ Classes and Functions
 
       This must be done before VapourSynth is used in any way. Here is a non-exhaustive list that automatically register a policy:
 
-      * Using "vsscript_init" in "VSScript.h"
+      * Using "createScript" in "VSScript4.h"
       * Using :func:`get_outputs`
       * Using :func:`get_output`
       * Using :func:`clear_output`

@@ -274,7 +274,6 @@ libvapoursynth = library('libvapoursynth',
         'src/core/textfilter.cpp',
         'src/core/vsapi.cpp',
         'src/core/vscore.cpp',
-        'src/core/vslog.cpp',
         'src/core/vsresize.cpp',
         'src/core/vsthreadpool.cpp',
         'src/core/vsvulkan.cpp',
@@ -567,7 +566,6 @@ endif
 install_subdir(
     'include',
     exclude_directories: 'cython',
-    exclude_files: ['VapourSynth.h', 'VSHelper.h'],
     install_dir: install_dir,
 )
 

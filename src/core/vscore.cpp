@@ -87,15 +87,7 @@ bool VSFrameContext::setError(const std::string &errorMsg) {
 
 ///////////////
 
-bool VSMap::isV3Compatible() const noexcept {
-    for (const auto &iter : data->data) {
-        if (iter.second->type() == ptAudioNode || iter.second->type() == ptAudioFrame || iter.second->type() == ptUnset)
-            return false;
-    }
-    return true;
-}
-
-VSFunction::VSFunction(VSPublicFunction func, void *userData, VSFreeFunctionData freeFunction, VSCore *core, int apiMajor) : refcount(1), func(func), userData(userData), freeFunction(freeFunction), core(core), apiMajor(apiMajor) {
+VSFunction::VSFunction(VSPublicFunction func, void *userData, VSFreeFunctionData freeFunction, VSCore *core) : refcount(1), func(func), userData(userData), freeFunction(freeFunction), core(core) {
 }
 
 VSFunction::~VSFunction() {
@@ -104,12 +96,7 @@ VSFunction::~VSFunction() {
 }
 
 void VSFunction::call(const VSMap *in, VSMap *out) {
-    if (apiMajor == VAPOURSYNTH3_API_MAJOR && !in->isV3Compatible()) {
-        vs_internal_vsapi.mapSetError(out, "Function was passed values that are unknown to its API version");
-        return;
-    }
-
-    func(in, out, userData, core, getVSAPIInternal(apiMajor));
+    func(in, out, userData, core, &vs_internal_vsapi);
 }
 
 ///////////////
@@ -192,7 +179,7 @@ void VSFrame::setAllocationInfo() noexcept {
     }
 }
 
-VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     frameRefDebug = core->enableFrameRefDebug;
     if (frameRefDebug) {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
@@ -228,7 +215,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
 }
 
 VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core, bool gpuFrame) noexcept
-    : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+    : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     assert(gpuFrame);
     (void)gpuFrame;
     gpuResident = true;
@@ -275,7 +262,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
         setAllocationInfo();
 }
 
-VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), v3format(nullptr), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     frameRefDebug = core->enableFrameRefDebug;
     if (frameRefDebug) {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
@@ -345,7 +332,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
 }
 
 VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc, VSCore *core) noexcept
-    : refcount(1), contentType(mtAudio), v3format(nullptr), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+    : refcount(1), contentType(mtAudio), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     frameRefDebug = core->enableFrameRefDebug;
     if (frameRefDebug) {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
@@ -369,7 +356,7 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc,
 }
 
 VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *channelSrc, const int *channel, const VSFrame *propSrc, VSCore *core) noexcept
-    : refcount(1), contentType(mtAudio), v3format(nullptr), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+    : refcount(1), contentType(mtAudio), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     frameRefDebug = core->enableFrameRefDebug;
     if (frameRefDebug) {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
@@ -402,7 +389,7 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *
         setAllocationInfo();
 }
 
-VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), v3format(nullptr), core(f.core) {
+VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), core(f.core) {
     frameRefDebug = core->enableFrameRefDebug;
     if (frameRefDebug) {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
@@ -442,13 +429,6 @@ VSFrame::~VSFrame() {
         std::lock_guard<std::mutex> lock(core->frameRefMutex);
         core->frameRefs.erase(this);
     }
-}
-
-const vs3::VSVideoFormat *VSFrame::getVideoFormatV3() const noexcept {
-    assert(contentType == mtVideo);
-    if (!v3format)
-        v3format = core->VideoFormatToV3(format.vf);
-    return v3format;
 }
 
 ptrdiff_t VSFrame::getStride(int plane) const {
@@ -543,7 +523,7 @@ Container& split(
     return result;
 }
 
-void VSPluginFunction::parseArgString(const std::string &argString, std::vector<FilterArgument> &argsOut, int apiMajor) {
+void VSPluginFunction::parseArgString(const std::string &argString, std::vector<FilterArgument> &argsOut) {
     std::vector<std::string> argList;
     split(argList, argString, std::string(";"), split1::no_empties);
 
@@ -580,13 +560,13 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
             type = ptFloat;
         } else if (typeName == "data") {
             type = ptData;
-        } else if ((typeName == "vnode" && apiMajor > VAPOURSYNTH3_API_MAJOR) || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "clip")) {
+        } else if (typeName == "vnode") {
             type = ptVideoNode;
-        } else if (typeName == "anode" && apiMajor > VAPOURSYNTH3_API_MAJOR) {
+        } else if (typeName == "anode") {
             type = ptAudioNode;
-        } else if ((typeName == "vframe" && apiMajor > VAPOURSYNTH3_API_MAJOR) || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "frame")) {
+        } else if (typeName == "vframe") {
             type = ptVideoFrame;
-        } else if (typeName == "aframe" && apiMajor > VAPOURSYNTH3_API_MAJOR) {
+        } else if (typeName == "aframe") {
             type = ptAudioFrame;
         } else if (typeName == "func") {
             type = ptFunction;
@@ -603,7 +583,7 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
                 if (empty)
                     throw std::runtime_error("Argument '" + argName + "' has duplicate argument specifier '" + argParts[i] + "'");
                 empty = true;
-            } else if ((argParts[i] == "gpu" || argParts[i] == "all") && apiMajor > VAPOURSYNTH3_API_MAJOR) {
+            } else if (argParts[i] == "gpu" || argParts[i] == "all") {
                 if (type != ptVideoNode && type != ptVideoFrame)
                     throw std::runtime_error("Argument '" + argName + "': residency modifier '" + argParts[i] + "' is only valid on vnode and vframe arguments");
                 if (residency != VSArgResidency::CPU)
@@ -626,11 +606,9 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
 
 VSPluginFunction::VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, VSPlugin *plugin)
     : func(func), functionData(functionData), plugin(plugin), name(name), argString(argString), returnType(returnType) {
-    parseArgString(argString, inArgs, plugin->apiMajor);
-    if (plugin->apiMajor == 3)
-        this->argString = getV4ArgString(); // construct to V4 equivalent arg string
+    parseArgString(argString, inArgs);
     if (returnType != "any")
-        parseArgString(returnType, retArgs, plugin->apiMajor);
+        parseArgString(returnType, retArgs);
 }
 
 std::string VSPluginFunction::checkValues(const std::vector<FilterArgument> &fargs, const VSMap &m, const char *kind) {
@@ -739,14 +717,11 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
         if (enableGraphInspection) {
             plugin->core->functionFrame = std::make_shared<VSFunctionFrame>(name, plugin->getID(), plugin->getNamespace(), new VSMap(&args), plugin->core->functionFrame);
         }
-        func(callArgs, v, functionData, plugin->core, getVSAPIInternal(plugin->apiMajor));
+        func(callArgs, v, functionData, plugin->core, &vs_internal_vsapi);
         if (enableGraphInspection) {
             assert(plugin->core->functionFrame);
             plugin->core->functionFrame = plugin->core->functionFrame->next;
         }
-
-        if (plugin->apiMajor == VAPOURSYNTH3_API_MAJOR && !v->isV3Compatible())
-            plugin->core->logFatal(name + ": filter node returned not yet supported type");
 
         if (!v->hasError()) {
             for (const auto &ra : retArgs) {
@@ -778,88 +753,6 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
     return v;
 }
 
-bool VSPluginFunction::isV3Compatible() const {
-    for (const auto &iter : inArgs)
-        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset || iter.residency == VSArgResidency::GPU)
-            return false;
-    for (const auto &iter : retArgs)
-        if (iter.type == ptAudioNode || iter.type == ptAudioFrame || iter.type == ptUnset || iter.residency == VSArgResidency::GPU)
-            return false;
-    return true;
-}
-
-std::string VSPluginFunction::getV4ArgString() const {
-    std::string tmp;
-    for (const auto &iter : inArgs) {
-        assert(iter.type != ptAudioNode && iter.type != ptAudioFrame);
-
-        tmp += iter.name + ":";
-
-        switch (iter.type) {
-            case ptInt:
-                tmp += "int"; break;
-            case ptFloat:
-                tmp += "float"; break;
-            case ptData:
-                tmp += "data"; break;
-            case ptVideoNode:
-                tmp += "vnode"; break;
-            case ptVideoFrame:
-                tmp += "vframe"; break;
-            case ptFunction:
-                tmp += "func"; break;
-            default:
-                assert(false);
-        }
-        if (iter.arr)
-            tmp += "[]";
-        if (iter.residency == VSArgResidency::GPU)
-            tmp += ":gpu";
-        else if (iter.residency == VSArgResidency::All)
-            tmp += ":all";
-        if (iter.opt)
-            tmp += ":opt";
-        if (iter.empty)
-            tmp += ":empty";
-        tmp += ";";
-    }
-    return tmp;
-}
-
-std::string VSPluginFunction::getV3ArgString() const {
-    std::string tmp;
-    for (const auto &iter : inArgs) {
-        assert(iter.type != ptAudioNode && iter.type != ptAudioFrame);
-
-        tmp += iter.name + ":";
-
-        switch (iter.type) {
-            case ptInt:
-                tmp += "int"; break;
-            case ptFloat:
-                tmp += "float"; break;
-            case ptData:
-                tmp += "data"; break;
-            case ptVideoNode:
-                tmp += "clip"; break;
-            case ptVideoFrame:
-                tmp += "frame"; break;
-            case ptFunction:
-                tmp += "func"; break;
-            default:
-                assert(false);
-        }
-        if (iter.arr)
-            tmp += "[]";
-        if (iter.opt)
-            tmp += ":opt";
-        if (iter.empty)
-            tmp += ":empty";
-        tmp += ";";
-    }
-    return tmp;
-}
-
 const std::string &VSPluginFunction::getName() const {
     return name;
 }
@@ -872,95 +765,13 @@ const std::string &VSPluginFunction::getReturnType() const {
     return returnType;
 }
 
-struct MakeLinearWrapper {
-    vs3::VSFilterGetFrame getFrameFunc;
-    VSFilterFree freeFunc;
-    void *instanceData;
-    int threshold;
-    int lastFrame = -1;
-
-    MakeLinearWrapper(VSFilterGetFrame g, VSFilterFree f, void *instanceData, int threshold) :
-        getFrameFunc(reinterpret_cast<vs3::VSFilterGetFrame>(g)),
-        freeFunc(f), instanceData(instanceData), threshold(threshold) {}
-
-    static const VSFrame *VS_CC getFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
-    static void VS_CC freeFilter(void *instanceData, VSCore *core, const VSAPI *vsapi);
-};
-
-VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1), processingTime(0) {
-
-    if (flags & ~(vs3::nfNoCache | vs3::nfIsCache | vs3::nfMakeLinear))
-        throw VSException("Filter " + name  + " specified unknown flags");
-
-    if ((flags & vs3::nfIsCache) && !(flags & vs3::nfNoCache))
-        throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
-
-
-    VSMap inval(in);
-    init(&inval, out, &this->instanceData, this, core, reinterpret_cast<const vs3::VSAPI3 *>(getVSAPIInternal(3)));
-
-    if (out->hasError()) {
-        throw VSException(vs_internal_vsapi.mapGetError(out));
-    }
-
-    if (vi.format.colorFamily == 0) {
-        throw VSException("Filter " + name + " didn't set videoinfo");
-    }
-
-    if (vi.numFrames <= 0) {
-        throw VSException("Filter " + name + " returned zero or negative frame count");
-    }
-
-    core->filterInstanceCreated();
-
-    // Scan the in map for clips, these are probably the real dependencies
-    // Worst case there are false positives and an extra cache gets activated
-    // NoCache is generally the equivalent strict spatial for filters
-
-    int requestPattern = !!(flags & vs3::nfNoCache) ? rpNoFrameReuse : rpGeneral;
-    int numKeys = vs_internal_vsapi.mapNumKeys(in);
-
-    bool makeLinear = (flags & vs3::nfMakeLinear);
-    bool hasVideoNodes = false;
-    for (int i = 0; i < numKeys; i++) {
-        const char *key = vs_internal_vsapi.mapGetKey(in, i);
-        if (vs_internal_vsapi.mapGetType(in, key) == ptVideoNode) {
-            int numElems = vs_internal_vsapi.mapNumElements(in, key);
-            for (int j = 0; j < numElems; j++) {
-                hasVideoNodes = true;
-                VSNode *sn = vs_internal_vsapi.mapGetNode(in, key, j, nullptr);
-                this->dependencies.push_back({sn, requestPattern});
-                sn->addConsumer(this, requestPattern);
-            }
-        }
-    }
-
-    if (makeLinear && !hasVideoNodes) {
-        this->apiMajor = 4;
-        MakeLinearWrapper *wrapper = new MakeLinearWrapper(filterGetFrame, freeFunc, this->instanceData, setLinear());
-        filterGetFrame = MakeLinearWrapper::getFrame;
-        this->freeFunc = MakeLinearWrapper::freeFilter;
-        this->instanceData = reinterpret_cast<void *>(wrapper);
-    }
-
-    updateCacheState();
-    if (cacheEnabled)
-        registerCache(true);
-
-    if (core->enableGraphInspection) {
-        functionFrame = core->functionFrame;
-    }
-}
-
-VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1), processingTime(0) {
+VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) :
+    refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), core(core), serialFrame(-1), processingTime(0) {
 
     if (!core->isValidVideoInfo(*vi))
         throw VSException("The VSVideoInfo structure passed by " + name + " is invalid.");
 
     this->vi = *vi;
-    this->v3vi = core->VideoInfoToV3(*vi);
 
     core->filterInstanceCreated();
 
@@ -980,8 +791,8 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame 
     }
 }
 
-VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(1), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), serialFrame(-1), processingTime(0) {
+VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) :
+    refcount(1), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), core(core), serialFrame(-1), processingTime(0) {
 
     if (!core->isValidAudioInfo(*ai))
         throw VSException("The VSAudioInfo structure passed by " + name + " is invalid.");
@@ -1076,33 +887,8 @@ const VSVideoInfo &VSNode::getVideoInfo() const {
     return vi;
 }
 
-const vs3::VSVideoInfo &VSNode::getVideoInfo3() const {
-    return v3vi;
-}
-
 const VSAudioInfo &VSNode::getAudioInfo() const {
     return ai;
-}
-
-void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
-    if (numOutputs < 1)
-        core->logFatal("setVideoInfo: Video filter " + name + " needs to have at least one output");
-    if (numOutputs > 1)
-        core->logMessage(mtWarning, "setVideoInfo: Video filter " + name + " has more than one output node but only the first one will be returned");
-
-    if ((!!vi->height) ^ (!!vi->width))
-        core->logFatal("setVideoInfo: Variable dimension clips must have both width and height set to 0");
-    if (vi->format && !core->isValidFormatPointer(vi->format))
-        core->logFatal("setVideoInfo: The VSVideoFormat pointer passed by " + name + " was not obtained from registerFormat() or getFormatPreset()");
-    int64_t num = vi->fpsNum;
-    int64_t den = vi->fpsDen;
-    reduceRational(&num, &den);
-    if (num != vi->fpsNum || den != vi->fpsDen)
-        core->logFatal("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. Instead, it is " + std::to_string(vi->fpsNum) + "/" + std::to_string(vi->fpsDen) + ")");
-
-    this->v3vi = *vi;
-    this->v3vi.flags = vs3::nfNoCache | vs3::nfIsCache;
-    this->vi = core->VideoInfoFromV3(this->v3vi);
 }
 
 const char *VSNode::getCreationFunctionName(int level) const {
@@ -1237,7 +1023,7 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     vs::MemoryUse::CallTracking savedTracking = vs::MemoryUse::begin_call_tracking();
 
     core->currentProcessingNode = this;
-    const VSFrame *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi3);
+    const VSFrame *r = filterGetFrame(n, activationReason, instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi);
     core->currentProcessingNode = nullptr;
 
     vs::MemoryUse::CallPeaks callPeaks = vs::MemoryUse::end_call_tracking(savedTracking);
@@ -1296,37 +1082,6 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     }
 
     return nullptr;
-}
-
-const VSFrame *VS_CC MakeLinearWrapper::getFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    MakeLinearWrapper *node = reinterpret_cast<MakeLinearWrapper *>(instanceData);
-
-    if (activationReason == arInitial) {
-        const vs3::VSAPI3 *vsapi3 = reinterpret_cast<const vs3::VSAPI3 *>(getVSAPIInternal(3));
-        if (node->lastFrame < n && node->lastFrame > n - node->threshold) {
-            for (int i = node->lastFrame + 1; i < n; i++) {
-                const VSFrame *frame = node->getFrameFunc(i, activationReason, &node->instanceData, frameData, frameCtx, core, vsapi3);
-                // exit if an error was set (or later trigger a fatal error if we accidentally wrapped a filter that requests frames)
-                if (!frame)
-                    return nullptr;
-                vsapi->cacheFrame(frame, i, frameCtx);
-                vsapi->freeFrame(frame);
-            }
-        }
-
-        const VSFrame *frame = node->getFrameFunc(n, activationReason, &node->instanceData, frameData, frameCtx, core, vsapi3);
-        node->lastFrame = n;
-        return frame;
-    }
-
-    return nullptr;
-}
-
-void VS_CC MakeLinearWrapper::freeFilter(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    MakeLinearWrapper *node = reinterpret_cast<MakeLinearWrapper *>(instanceData);
-    if (node->freeFunc)
-        node->freeFunc(node->instanceData, core, getVSAPIInternal(3));
-    delete node;
 }
 
 void VSNode::cacheFrame(const VSFrame *frame, int n) {
@@ -1505,24 +1260,6 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
     }
 }
 
-const vs3::VSVideoFormat *VSCore::getV3VideoFormat(int id) {
-    std::lock_guard<std::mutex> lock(videoFormatLock);
-
-    auto f = videoFormats.find(id);
-    if (f != videoFormats.end())
-        return &f->second;
-
-    return nullptr;
-}
-
-const vs3::VSVideoFormat *VSCore::getVideoFormat3(int id) {
-    if ((id & 0xFF000000) == 0 && (id & 0x00FFFFFF)) {
-        return getV3VideoFormat(id);
-    } else {
-        return queryVideoFormat3(ColorFamilyToV3((id >> 28) & 0xF), static_cast<VSSampleType>((id >> 24) & 0xF), (id >> 16) & 0xFF, (id >> 8) & 0xFF, (id >> 0) & 0xFF);
-    }
-}
-
 bool VSCore::queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {
     f = {};
     if (colorFamily == cfUndefined)
@@ -1547,113 +1284,13 @@ bool VSCore::queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSam
 }
 
 bool VSCore::getVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept {
-    // is a V3 id?
-    if ((id & 0xFF000000) == 0 && (id & 0x00FFFFFF)) {
-        return VideoFormatFromV3(f, getV3VideoFormat(id));
-    } else {
-        return queryVideoFormat(f, static_cast<VSColorFamily>((id >> 28) & 0xF), static_cast<VSSampleType>((id >> 24) & 0xF), (id >> 16) & 0xFF, (id >> 8) & 0xFF, (id >> 0) & 0xFF);
-    }
+    return queryVideoFormat(f, static_cast<VSColorFamily>((id >> 28) & 0xF), static_cast<VSSampleType>((id >> 24) & 0xF), (id >> 16) & 0xFF, (id >> 8) & 0xFF, (id >> 0) & 0xFF);
 }
 
 uint32_t VSCore::queryVideoFormatID(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) const noexcept {
     if (!isValidVideoFormat(colorFamily, sampleType, bitsPerSample, subSamplingW, subSamplingH) || colorFamily == cfUndefined)
         return 0;
     return ((colorFamily & 0xF) << 28) | ((sampleType & 0xF) << 24) | ((bitsPerSample & 0xFF) << 16) | ((subSamplingW & 0xFF) << 8) | ((subSamplingH & 0xFF) << 0);
-}
-
-const vs3::VSVideoFormat *VSCore::queryVideoFormat3(vs3::VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name, int id) noexcept {
-    if (subSamplingH < 0 || subSamplingW < 0 || subSamplingH > 4 || subSamplingW > 4)
-        return nullptr;
-
-    if (sampleType < 0 || sampleType > 1)
-        return nullptr;
-
-    if (colorFamily == vs3::cmRGB && (subSamplingH != 0 || subSamplingW != 0))
-        return nullptr;
-
-    if (sampleType == stFloat && (bitsPerSample != 16 && bitsPerSample != 32))
-        return nullptr;
-
-    if (bitsPerSample < 8 || bitsPerSample > 32)
-        return nullptr;
-
-    if (colorFamily == vs3::cmCompat && !name)
-        return nullptr;
-
-    std::lock_guard<std::mutex> lock(videoFormatLock);
-
-    for (const auto &iter : videoFormats) {
-        const vs3::VSVideoFormat &f = iter.second;
-
-        if (f.colorFamily == colorFamily && f.sampleType == sampleType
-                && f.subSamplingW == subSamplingW && f.subSamplingH == subSamplingH && f.bitsPerSample == bitsPerSample)
-            return &f;
-    }
-
-    vs3::VSVideoFormat f{};
-
-    if (name) {
-        strcpy(f.name, name);
-    } else {
-        char suffix[16];
-        if (sampleType == stFloat)
-            strcpy(suffix, (bitsPerSample == 32) ? "S" : "H");
-        else
-            snprintf(suffix, sizeof(suffix), "%d", (colorFamily == vs3::cmRGB ? 3:1) * bitsPerSample);
-
-        const char *yuvName = nullptr;
-
-        switch (colorFamily) {
-        case vs3::cmGray:
-            snprintf(f.name, sizeof(f.name), "Gray%s", suffix);
-            break;
-        case vs3::cmRGB:
-            snprintf(f.name, sizeof(f.name), "RGB%s", suffix);
-            break;
-        case vs3::cmYUV:
-            if (subSamplingW == 1 && subSamplingH == 1)
-                yuvName = "420";
-            else if (subSamplingW == 1 && subSamplingH == 0)
-                yuvName = "422";
-            else if (subSamplingW == 0 && subSamplingH == 0)
-                yuvName = "444";
-            else if (subSamplingW == 2 && subSamplingH == 2)
-                yuvName = "410";
-            else if (subSamplingW == 2 && subSamplingH == 0)
-                yuvName = "411";
-            else if (subSamplingW == 0 && subSamplingH == 1)
-                yuvName = "440";
-            if (yuvName)
-                snprintf(f.name, sizeof(f.name), "YUV%sP%s", yuvName, suffix);
-            else
-                snprintf(f.name, sizeof(f.name), "YUVssw%dssh%dP%s", subSamplingW, subSamplingH, suffix);
-            break;
-        case vs3::cmYCoCg:
-            snprintf(f.name, sizeof(f.name), "YCoCgssw%dssh%dP%s", subSamplingW, subSamplingH, suffix);
-            break;
-        default:;
-        }
-    }
-
-    if (id != 0)
-        f.id = id;
-    else
-        f.id = colorFamily + videoFormatIdOffset++;
-
-    f.colorFamily = colorFamily;
-    f.sampleType = sampleType;
-    f.bitsPerSample = bitsPerSample;
-    f.bytesPerSample = 1;
-
-    while (f.bytesPerSample * 8 < bitsPerSample)
-        f.bytesPerSample *= 2;
-
-    f.subSamplingW = subSamplingW;
-    f.subSamplingH = subSamplingH;
-    f.numPlanes = (colorFamily == vs3::cmGray || colorFamily == vs3::cmCompat) ? 1 : 3;
-
-    videoFormats.insert(std::make_pair(f.id, f));
-    return &videoFormats[f.id];
 }
 
 bool VSCore::queryAudioFormat(VSAudioFormat &f, VSSampleType sampleType, int bitsPerSample, uint64_t channelLayout) noexcept {
@@ -1674,16 +1311,6 @@ bool VSCore::queryAudioFormat(VSAudioFormat &f, VSSampleType sampleType, int bit
     f.channelLayout = channelLayout;
 
     return true;
-}
-
-bool VSCore::isValidFormatPointer(const void *f) {
-    std::lock_guard<std::mutex> lock(videoFormatLock);
-
-    for (const auto &iter : videoFormats) {
-        if (&iter.second == f)
-            return true;
-    }
-    return false;
 }
 
 VSLogHandle *VSCore::addLogHandler(VSLogHandler handler, VSLogHandlerFree freeFunc, void *userData) {
@@ -1717,22 +1344,6 @@ void VSCore::logMessage(VSMessageType type, const char *msg) {
         iter->handler(type, msg, iter->userData);
     if (messageHandlers.empty() && storedMessages.size() < maxStoredLogMessages)
         storedMessages.push_back(std::make_pair(type, msg));
-
-    switch (type) {
-        case mtDebug:
-            vsLog3(vs3::mtDebug, "%s", msg);
-            break;
-        case mtInformation:
-        case mtWarning:
-            vsLog3(vs3::mtWarning, "%s", msg);
-            break;
-        case mtCritical:
-            vsLog3(vs3::mtCritical, "%s", msg);
-            break;
-        case mtFatal:
-            vsLog3(vs3::mtFatal, "%s", msg);
-            break;
-    }
 
     if (type == mtFatal) {
         fprintf(stderr, "VapourSynth encountered a fatal error: %s\n", msg);
@@ -2012,74 +1623,6 @@ bool VSCore::isValidAudioInfo(const VSAudioInfo &ai) noexcept {
     return true;
 }
 
-/////////////////////////////////////////////////
-// V3 compatibility helpers
-
-VSColorFamily VSCore::ColorFamilyFromV3(int colorFamily) noexcept {
-    switch (colorFamily) {
-        case vs3::cmGray:
-            return cfGray;
-        case vs3::cmYUV:
-        case vs3::cmYCoCg:
-            return cfYUV;
-        case vs3::cmRGB:
-            return cfRGB;
-        default:
-            assert(false);
-            return cfGray;
-    }
-}
-
-vs3::VSColorFamily VSCore::ColorFamilyToV3(int colorFamily) noexcept {
-    switch (colorFamily) {
-        case cfGray:
-            return vs3::cmGray;
-        case cfYUV:
-            return vs3::cmYUV;
-        case cfRGB:
-            return vs3::cmRGB;
-        default:
-            assert(false);
-            return vs3::cmGray;
-    }
-}
-
-const vs3::VSVideoFormat *VSCore::VideoFormatToV3(const VSVideoFormat &format) noexcept {
-    if (format.colorFamily == cfUndefined)
-        return nullptr;
-    else
-        return queryVideoFormat3(ColorFamilyToV3(format.colorFamily), static_cast<VSSampleType>(format.sampleType), format.bitsPerSample, format.subSamplingW, format.subSamplingH);
-}
-
-bool VSCore::VideoFormatFromV3(VSVideoFormat &out, const vs3::VSVideoFormat *format) noexcept {
-    if (!format || format->id == vs3::pfCompatBGR32 || format->id == vs3::pfCompatYUY2)
-        return queryVideoFormat(out, cfUndefined, stInteger, 0, 0, 0);
-    else
-        return queryVideoFormat(out, ColorFamilyFromV3(format->colorFamily), static_cast<VSSampleType>(format->sampleType), format->bitsPerSample, format->subSamplingW, format->subSamplingH);
-}
-
-vs3::VSVideoInfo VSCore::VideoInfoToV3(const VSVideoInfo &vi) noexcept {
-    vs3::VSVideoInfo v3 = {};
-    v3.format = VideoFormatToV3(vi.format);
-    v3.fpsDen = vi.fpsDen;
-    v3.fpsNum = vi.fpsNum;
-    v3.numFrames = vi.numFrames;
-    v3.width = vi.width;
-    v3.height = vi.height;
-    v3.flags = vs3::nfNoCache | vs3::nfIsCache;
-    return v3;
-}
-
-VSVideoInfo VSCore::VideoInfoFromV3(const vs3::VSVideoInfo &vi) noexcept {
-    VSVideoInfo v = {};
-    VideoFormatFromV3(v.format, vi.format);
-    v.fpsDen = vi.fpsDen;
-    v.fpsNum = vi.fpsNum;
-    v.numFrames = vi.numFrames;
-    v.width = vi.width;
-    v.height = vi.height;
-    return v;
-}
 
 /////////////////////////////////////////////////
 
@@ -2190,56 +1733,6 @@ void VS_CC loadPluginInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("LoadAllPlugins", "path:data;", "", &loadAllPlugins, nullptr, plugin);
 }
 
-void VSCore::registerFormats() {
-    // Register known formats with informational names
-    queryVideoFormat3(vs3::cmGray, stInteger,  8, 0, 0, "Gray8", vs3::pfGray8);
-    queryVideoFormat3(vs3::cmGray, stInteger, 16, 0, 0, "Gray16", vs3::pfGray16);
-
-    queryVideoFormat3(vs3::cmGray, stFloat,   16, 0, 0, "GrayH", vs3::pfGrayH);
-    queryVideoFormat3(vs3::cmGray, stFloat,   32, 0, 0, "GrayS", vs3::pfGrayS);
-
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 1, 1, "YUV420P8", vs3::pfYUV420P8);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 1, 0, "YUV422P8", vs3::pfYUV422P8);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 0, 0, "YUV444P8", vs3::pfYUV444P8);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 2, 2, "YUV410P8", vs3::pfYUV410P8);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 2, 0, "YUV411P8", vs3::pfYUV411P8);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 0, 1, "YUV440P8", vs3::pfYUV440P8);
-
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 9, 1, 1, "YUV420P9", vs3::pfYUV420P9);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 9, 1, 0, "YUV422P9", vs3::pfYUV422P9);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 9, 0, 0, "YUV444P9", vs3::pfYUV444P9);
-
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 10, 1, 1, "YUV420P10", vs3::pfYUV420P10);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 10, 1, 0, "YUV422P10", vs3::pfYUV422P10);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 10, 0, 0, "YUV444P10", vs3::pfYUV444P10);
-
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 12, 1, 1, "YUV420P12", vs3::pfYUV420P12);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 12, 1, 0, "YUV422P12", vs3::pfYUV422P12);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 12, 0, 0, "YUV444P12", vs3::pfYUV444P12);
-
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 14, 1, 1, "YUV420P14", vs3::pfYUV420P14);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 14, 1, 0, "YUV422P14", vs3::pfYUV422P14);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 14, 0, 0, "YUV444P14", vs3::pfYUV444P14);
-
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 16, 1, 1, "YUV420P16", vs3::pfYUV420P16);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 16, 1, 0, "YUV422P16", vs3::pfYUV422P16);
-    queryVideoFormat3(vs3::cmYUV,  stInteger, 16, 0, 0, "YUV444P16", vs3::pfYUV444P16);
-
-    queryVideoFormat3(vs3::cmYUV,  stFloat,   16, 0, 0, "YUV444PH", vs3::pfYUV444PH);
-    queryVideoFormat3(vs3::cmYUV,  stFloat,   32, 0, 0, "YUV444PS", vs3::pfYUV444PS);
-
-    queryVideoFormat3(vs3::cmRGB,  stInteger, 8, 0, 0, "RGB24", vs3::pfRGB24);
-    queryVideoFormat3(vs3::cmRGB,  stInteger, 9, 0, 0, "RGB27", vs3::pfRGB27);
-    queryVideoFormat3(vs3::cmRGB,  stInteger, 10, 0, 0, "RGB30", vs3::pfRGB30);
-    queryVideoFormat3(vs3::cmRGB,  stInteger, 16, 0, 0, "RGB48", vs3::pfRGB48);
-
-    queryVideoFormat3(vs3::cmRGB,  stFloat,   16, 0, 0, "RGBH", vs3::pfRGBH);
-    queryVideoFormat3(vs3::cmRGB,  stFloat,   32, 0, 0, "RGBS", vs3::pfRGBS);
-
-    queryVideoFormat3(vs3::cmCompat, stInteger, 32, 0, 0, "CompatBGR32", vs3::pfCompatBGR32);
-    queryVideoFormat3(vs3::cmCompat, stInteger, 16, 1, 0, "CompatYUY2", vs3::pfCompatYUY2);
-}
-
 bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
     std::filesystem::path manifestPath = path;
     manifestPath /= "manifest.vs";
@@ -2342,7 +1835,6 @@ void VSCore::filterInstanceDestroyed() noexcept {
 struct VSCoreShittyFreeList {
     VSFilterFree freeFunc;
     void *instanceData;
-    int apiMajor;
     VSCoreShittyFreeList *next;
 };
 
@@ -2355,7 +1847,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
         freedNodeProcessingTime += node->processingTime;
 
     if (node->freeFunc) {
-        nodeFreeList = new VSCoreShittyFreeList({ node->freeFunc, node->instanceData, node->apiMajor, nodeFreeList });
+        nodeFreeList = new VSCoreShittyFreeList({ node->freeFunc, node->instanceData, nodeFreeList });
     } else {
         filterInstanceDestroyed();
     }
@@ -2364,7 +1856,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
         while (nodeFreeList) {
             VSCoreShittyFreeList *current = nodeFreeList;
             nodeFreeList = current->next;
-            current->freeFunc(current->instanceData, this, getVSAPIInternal(current->apiMajor));
+            current->freeFunc(current->instanceData, this, &vs_internal_vsapi);
             delete current;
             filterInstanceDestroyed();
         }
@@ -2452,8 +1944,6 @@ VSCore::VSCore(int flags) :
     disableLibraryUnloading = !!(creationFlags & ccfDisableLibraryUnloading);
     bool disableAutoLoading = !!(creationFlags & ccfDisableAutoLoading);
     threadPool = new VSThreadPool(this);
-
-    registerFormats();
 
     auto libraryPath = getLibraryPath();
 
@@ -2550,17 +2040,6 @@ VSCore::~VSCore() {
     memory->on_core_freed();
 }
 
-VSMap *VSCore::getPlugins3() {
-    VSMap *m = new VSMap;
-    std::lock_guard<std::recursive_mutex> lock(pluginLock);
-    int num = 0;
-    for (const auto &iter : plugins) {
-        std::string b = iter.second->getNamespace() + ";" + iter.second->getID() + ";" + iter.second->getName();
-        vs_internal_vsapi.mapSetData(m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, maReplace);
-    }
-    return m;
-}
-
 VSPlugin *VSCore::getPluginByID(const std::string &identifier) {
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     auto p = plugins.find(identifier);
@@ -2615,44 +2094,35 @@ void VSCore::loadPlugin(const std::filesystem::path &filename, bool loadCPUOptim
     p.release();
 }
 
-void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
+void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData) {
     try {
-        VSNode *node = new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
+        VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, this);
         vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }
 }
 
-void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor) {
+VSNode *VSCore::createVideoFilter(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData) {
     try {
-        VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, apiMajor, this);
-        vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
-    } catch (VSException &e) {
-        vs_internal_vsapi.mapSetError(out, e.what());
-    }
-}
-
-VSNode *VSCore::createVideoFilter(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor) {
-    try {
-        return new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, apiMajor, this);
+        return new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, this);
     } catch (VSException &) {
         return nullptr;
     }
 }
 
-void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor) {
+void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData) {
     try {
-        VSNode *node = new VSNode(name, ai, getFrame, free, filterMode, dependencies, numDeps, instanceData, apiMajor, this);
+        VSNode *node = new VSNode(name, ai, getFrame, free, filterMode, dependencies, numDeps, instanceData, this);
         vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }
 }
 
-VSNode *VSCore::createAudioFilter(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, int apiMajor) {
+VSNode *VSCore::createAudioFilter(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData) {
     try {
-        return new VSNode(name, ai, getFrame, free, filterMode, dependencies, numDeps, instanceData, apiMajor, this);
+        return new VSNode(name, ai, getFrame, free, filterMode, dependencies, numDeps, instanceData, this);
     } catch (VSException &) {
         return nullptr;
     }
@@ -2668,11 +2138,6 @@ int VSCore::getCpuLevel() const {
 
 int VSCore::setCpuLevel(int cpu) {
     return cpuLevel.exchange(cpu);
-}
-
-static void VS_CC configPlugin3(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) VS_NOEXCEPT {
-    assert(identifier && defaultNamespace && name && plugin);
-    plugin->configPlugin(identifier, defaultNamespace, name, -1, apiVersion, readOnly ? 0 : pcModifiable);
 }
 
 VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, bool loadCPUOptimized, std::string separator, VSCore *core)
@@ -2726,19 +2191,14 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
     if (!pluginInit)
         pluginInit = reinterpret_cast<VSInitPlugin>(GetProcAddress(libHandle, "_VapourSynthPluginInit2@8"));
 
-    vs3::VSInitPlugin pluginInit3 = nullptr;
-    if (!pluginInit)
-        pluginInit3 = reinterpret_cast<vs3::VSInitPlugin>(GetProcAddress(libHandle, "VapourSynthPluginInit"));
-
-    if (!pluginInit3)
-        pluginInit3 = reinterpret_cast<vs3::VSInitPlugin>(GetProcAddress(libHandle, "_VapourSynthPluginInit@12"));
-
-    if (pluginInit3)
-        core->logMessage(mtWarning, "Plugin " + relFilename.u8string() + " is using API3 which is deprecated and will be removed shortly.");
-
-    if (!pluginInit && !pluginInit3) {
+    if (!pluginInit) {
+        /* API 3 is gone, but its entry point is still probed so that a plugin using it gets an
+           error saying so rather than being silently skipped as not a plugin at all. */
+        bool isAPI3 = GetProcAddress(libHandle, "VapourSynthPluginInit") || GetProcAddress(libHandle, "_VapourSynthPluginInit@12");
         if (!core->disableLibraryUnloading)
             FreeLibrary(libHandle);
+        if (isAPI3)
+            throw VSException("Plugin " + relFilename.u8string() + " uses API 3, which is no longer supported.");
         throw VSNoEntryPointException("No entry point found in " + relFilename.u8string());
     }
 #else
@@ -2753,22 +2213,18 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
     }
 
     VSInitPlugin pluginInit = reinterpret_cast<VSInitPlugin>(dlsym(libHandle, "VapourSynthPluginInit2"));
-    vs3::VSInitPlugin pluginInit3 = nullptr;
-    if (!pluginInit3)
-        pluginInit3 = reinterpret_cast<vs3::VSInitPlugin>(dlsym(libHandle, "VapourSynthPluginInit"));
 
-    if (!pluginInit && !pluginInit3) {
+    if (!pluginInit) {
+        /* See the comment on the Windows side: probed only to name the reason. */
+        bool isAPI3 = dlsym(libHandle, "VapourSynthPluginInit") != nullptr;
         if (!core->disableLibraryUnloading)
             dlclose(libHandle);
+        if (isAPI3)
+            throw VSException("Plugin " + relFilename.u8string() + " uses API 3, which is no longer supported.");
         throw VSException("No entry point found in " + relFilename.u8string());
     }
-
-
 #endif
-    if (pluginInit)
-        pluginInit(this, &vs_internal_vspapi);
-    else
-        pluginInit3(configPlugin3, vs_internal_vsapi3.registerFunction, this);
+    pluginInit(this, &vs_internal_vspapi);
 
 #ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
@@ -2778,7 +2234,7 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
     if (readOnlySet)
         readOnly = true;
 
-    bool supported = (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_MINOR) || (apiMajor == VAPOURSYNTH3_API_MAJOR && apiMinor <= VAPOURSYNTH3_API_MINOR);
+    bool supported = (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_MINOR);
 
     if (!supported) {
 #ifdef VS_TARGET_OS_WINDOWS
@@ -2886,15 +2342,6 @@ VSPluginFunction *VSPlugin::getFunctionByName(const std::string name) {
     if (it != funcs.end())
         return &it->second;
     return nullptr;
-}
-
-void VSPlugin::getFunctions3(VSMap *out) const {
-    for (const auto &f : funcs) {
-        if (f.second.isV3Compatible()) {
-            std::string b = f.first + ";" + f.second.getV3ArgString();
-            vs_internal_vsapi.mapSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, maReplace);
-        }
-    }
 }
 
 VSNode::VSCache::CacheAction VSNode::VSCache::recommendSize() {
