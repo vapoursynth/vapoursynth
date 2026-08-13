@@ -21,8 +21,6 @@
 #ifndef VSVULKAN_H
 #define VSVULKAN_H
 
-/* The function list, dispatch struct and version requirement are shared with plugins and live
-   in the public header; everything below is the machinery that fills and owns them. */
 #include "VSVulkan4.h"
 
 #include <atomic>
