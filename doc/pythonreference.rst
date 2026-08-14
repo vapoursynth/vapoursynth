@@ -568,8 +568,7 @@ Classes and Functions
 
       This works on a GPU resident frame: the copy shares the planes and only
       the properties become independently writable, which is what property
-      editing in *std.ModifyFrame* needs. Pixel access on the copy stays
-      guarded.
+      editing in *std.ModifyFrame* needs. Pixel access on the copy is not allowed.
 
    .. py:method:: close()
 

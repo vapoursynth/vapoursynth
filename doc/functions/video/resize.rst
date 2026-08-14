@@ -18,20 +18,15 @@ Resize
    varying size and format input clips and turn them into constant format
    clips.
 
-   The resizers accept GPU resident clips and stay on the device, producing a
-   GPU resident result. Scaling, depth and subsampling changes, Bob, ordered and
-   random dither and the usual colour conversions are all implemented there, but
-   the compute path does not cover quite everything the scalar path does. What
-   it lacks it refuses with a message naming the reason — variable size or
-   format input, *cpu_type*, error diffusion dither, integer samples wider than
-   16 bits, colour families other than Gray, YUV and RGB, and individual
-   kernels, matrices, transfers and primaries it does not implement.
-
-   A refusal is an error, not a silent download, because a hidden fallback would
-   turn one resident clip into two transfers per frame and say so only in a log
-   line. Insert *std.GPUDownload* to resize those on the CPU, where every
-   feature remains available; a CPU clip never reaches any of this and is
-   unaffected. See :doc:`../../gpufilters`.
+   The GPU paths covers everything commonly used but lacks support for a few
+   less common or GPU unfriendly features. Like all other GPU filters
+   the input has to be constant format and size, in addition to this the dither
+   mode can't be error diffusion due to it being an ill-suited algorithm to run
+   on GPUs. Also a few extremely uncommon conversion paths may lack coverage.
+   Setting *cpu_type* is also an error due to it being irrelevant.
+   
+   Note that these conditions are all errors and won't implicitly use the CPU
+   path version instead.
 
    If you do not know which resizer to choose, then try Bicubic. It usually
    makes a good neutral default.
