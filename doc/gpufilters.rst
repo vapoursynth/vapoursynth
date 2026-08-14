@@ -91,58 +91,6 @@ and process it on the CPU, which handles variable clips as it always has. This
 applies to resize as well: the scalar resizers turn varying input into constant
 output, but on a resident clip that conversion is not available.
 
-For the same reason a decline is an **error, not a fallback**. The resize
-filters implement a large but not complete part of what their scalar path does,
-and where they fall short — *cpu_type*, error diffusion dither, integer samples
-wider than 16 bits, colour families outside Gray/YUV/RGB, and individual
-kernels, matrices, transfers and primaries — a GPU clip gets
-``Resize: <reason>, which the GPU path does not implement; insert GPUDownload to
-resize on the CPU``. Downloading silently would turn one resident clip into two
-transfers per frame, discoverable only by reading a log line; making it say so
-costs one explicit GPUDownload and puts it where the script author wants it. A
-CPU clip never reaches any of this and is unaffected.
-
-One deliberate difference from the scalar path is worth knowing about.
-std.MaskedMerge_ and std.PreMultiply_ have to resample a grayscale mask or
-alpha to chroma resolution when the clip has subsampled chroma, shifted to the
-siting the frame's ``_ChromaLocation`` names. The scalar path does it by
-calling resize.Bilinear_, which for integer formats carries the filter in Q14
-fixed point and rounds through a 16-bit intermediate between its horizontal
-and vertical passes; the compute path does it in one fused pass in float,
-which is nearer the exact answer and does not materialize the intermediate at
-all. So on integer formats the two agree to within 1 LSB rather than exactly.
-Everything else about both filters is bit identical, including a mask in the
-clip's own format, which needs no resampling at all.
-
-.. _std.MaskedMerge: functions/video/maskedmerge.html
-.. _std.PreMultiply: functions/video/premultiply.html
-.. _resize.Bilinear: functions/video/resize.html
-
-Three narrower cases do not reach bit exactness either, all of them rounding
-rather than a different result:
-
-* **Float box blur.** std.BoxBlur_ on float formats accumulates the window and
-  multiplies by 1/(2r+1), where the scalar path carries a running sum along
-  the row. Neither order is the more correct one, they simply round
-  differently, and the gap grows with the radius — a few tens of ulp at the
-  radii a blur is normally used at.
-* **Levels.** The scalar path bakes the transfer curve into a lookup table at
-  create time; the compute path evaluates it per pixel, so the two differ by
-  whatever ``pow`` gets wrong in its last ulp. Visible as an occasional 1 LSB
-  on 16-bit integer formats, where a table entry can sit exactly on a rounding
-  boundary.
-* **Sobel and Prewitt on 16-bit integer formats.** Both paths form
-  ``gx*gx + gy*gy`` in float32, and for 16-bit input that sum needs more
-  mantissa than float32 has, so it is already rounded before the square root
-  ever runs. A handful of samples per frame land on the wrong side of the
-  half-way point as a result — a few in ten thousand, differing by 1. Which
-  samples they are depends on the driver, and neither path is reliably the
-  correct one: measured against exact arithmetic the compute path is right
-  more often than the scalar path, not less.
-
-Everywhere else, integer results are bit identical, which includes every
-filter not named above.
-
 Device selection
 ################
 
@@ -234,7 +182,7 @@ reading them in order shows exactly what each layer takes over:
 |                           |           | translation unit so that stays true, which makes              |
 |                           |           | src/core/boxblurfilter.cpp readable as a plugin would be.     |
 +---------------------------+-----------+---------------------------------------------------------------+
-| gpu_planestats_example.c  | reduce    | Scratch buffers that are not frame shaped, in both lifetime   |
+| PlaneStats                | reduce    | Scratch buffers that are not frame shaped, in both lifetime   |
 |                           |           | idioms: handed to the context with gpuExecUsesBuffer, or      |
 |                           |           | kept for host readback. A compute→compute barrier between     |
 |                           |           | dependent dispatches, and the one legitimate host wait —      |

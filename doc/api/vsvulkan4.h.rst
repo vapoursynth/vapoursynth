@@ -173,7 +173,7 @@ handed to the plugin ready to call.
 
 For a guided introduction with complete example filters see
 :doc:`../gpufilters`. The examples in the sdk dir (gpu_invert_example.c,
-gpu_invert_raw_example.c, gpu_invert_driver_example.cpp, gpu_planestats_example.c
+gpu_invert_raw_example.c, gpu_invert_driver_example.cpp
 and, for the foreign API side, gpu_cuda_invert_example.cu) exercise everything
 described here.
 
