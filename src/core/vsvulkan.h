@@ -23,6 +23,16 @@
 
 #include "VSVulkan4.h"
 
+/* The core requires Vulkan headers 1.4.359+ so the cooperative matrix maintenance1 support is
+   never silently compiled out: the public availability contract is "enabled whenever the device
+   offers it", and a core that cannot name the extension would break that promise undetectably.
+   Only the CORE build requires this -- VSVulkan4.h deliberately names no maintenance1 symbol, so
+   plugins keep building against any 1.4 era headers. If fetching current headers is a burden,
+   vendor the Vulkan-Headers repository; it is header only and made for it. */
+#if VK_HEADER_VERSION < 359
+#error "Building the VapourSynth core requires Vulkan headers 1.4.359 or newer (VK_EXT_cooperative_matrix_maintenance1)"
+#endif
+
 #include <atomic>
 #include <map>
 #include <memory>
@@ -82,8 +92,10 @@ private:
    the mandatory features a compute plugin can consume, as SPIR-V capabilities or through the
    exposed API, and omits internal conveniences and graphics-pipeline state.
 
-   shaderFloat16 and shaderInt64 are the OPTIONAL entries, both being optional in every core
-   version, so a kernel wanting either asks the physical device rather than the 1.4 gate.
+   The OPTIONAL entries -- shaderFloat16, shaderInt64, shaderFloat64 and the two int64 atomic
+   features -- are optional in every core version, so a kernel wanting one asks the physical
+   device rather than the 1.4 gate; per the documented policy, what the device reports is what
+   got enabled.
 
    hostImageCopy is deliberately absent: it exists to avoid a staging allocation, not to move
    bulk linear data, and measured 17-26x slower than the path in use on two Metal drivers
@@ -124,8 +136,17 @@ private:
     /* 64 bit integer arithmetic is universal on desktop devices and lets ported CUDA/HIP
        kernels keep size_t shaped arguments; optional like shaderFloat16, so a plugin that
        needs it checks the physical device. Lives in the plain features block, exposed
-       through the 1.1 features2 chain like the rest of this table. */ \
+       through the 1.1 features2 chain like the rest of this table. shaderFloat64 likewise:
+       niche for video work but free to pass through, and the float64 atomic bits below are
+       unusable without the Float64 capability it grants. */ \
     FT(10, shaderInt64,        VS_VK_OPTIONAL) \
+    FT(10, shaderFloat64,      VS_VK_OPTIONAL) \
+    /* The int64 atomic pair, promoted into the 1.2 block from VK_KHR_shader_atomic_int64 and
+       optional in every core version. Enabled when reported purely for plugins targeting
+       hardware they know; nothing in the tree uses 64 bit atomics, Apple hardware never
+       supports them and Intel only sometimes, so portable kernels keep avoiding them. */ \
+    FT(12, shaderBufferInt64Atomics, VS_VK_OPTIONAL) \
+    FT(12, shaderSharedInt64Atomics, VS_VK_OPTIONAL) \
     /* Mandatory in 1.3. subgroupSizeControl/computeFullSubgroups because kernels built
        around a fixed subgroup size (one subgroup per work item is a common GPU filter
        shape) must pin it at pipeline creation or wave size variance silently breaks them. */ \

@@ -744,8 +744,9 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
        device offers; drivers specialize on disabled features and there is no reason to pay for
        paths nothing uses. Optional features are enabled when the device has them, which is what
        the earlier suitability check deliberately did not insist on. Device extensions follow
-       the same philosophy: none are ever load-bearing, and the only one enabled at all is the
-       platform's opaque handle export extension when memory export is possible. */
+       the same philosophy: none are ever load-bearing. The ones enabled at all are the
+       platform's opaque handle export pair when export is possible, and the cooperative matrix
+       pair below when the device offers it. */
     VSVulkanFeatureChain queried;
     vk.vkGetPhysicalDeviceFeatures2(physicalDeviceHandle, &queried.f2);
     VSVulkanFeatureChain enabled;
@@ -755,6 +756,113 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
 #undef VS_VK_ENABLE_FEATURE
     shaderFloat16Flag = queried.f12.shaderFloat16 != 0;
 
+    /* The cooperative matrix extensions, enabled whenever present with exactly the feature bits
+       the device reports. That policy is a PUBLIC PROMISE, not a convenience: the API documents
+       that the physical device's own queries are authoritative for what is live, which is only
+       true while enable-whatever-is-reported holds unconditionally -- it is also why building
+       the core requires headers new enough to know maintenance1 (the #error in vsvulkan.h).
+       Their feature structs are extension structs rather than version blocks, so they are
+       queried in a second features2 call instead of through the list above, and the enable
+       structs must outlive vkCreateDevice, which is why they sit at function scope. */
+    VkPhysicalDeviceCooperativeMatrixFeaturesKHR coopMatEnable = {};
+    coopMatEnable.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_KHR;
+    VkPhysicalDeviceCooperativeMatrixMaintenance1FeaturesEXT coopMatM1Enable = {};
+    coopMatM1Enable.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_MAINTENANCE_1_FEATURES_EXT;
+    bool coopMatEnabled = false;
+    bool coopMatM1Enabled = false;
+    if (deviceExtensionAvailable(vk, physicalDeviceHandle, VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME)) {
+        VkPhysicalDeviceCooperativeMatrixFeaturesKHR coopMatQuery = {};
+        coopMatQuery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_KHR;
+        VkPhysicalDeviceCooperativeMatrixMaintenance1FeaturesEXT coopMatM1Query = {};
+        coopMatM1Query.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_MAINTENANCE_1_FEATURES_EXT;
+        const bool coopMatM1Available = deviceExtensionAvailable(vk, physicalDeviceHandle,
+            VK_EXT_COOPERATIVE_MATRIX_MAINTENANCE_1_EXTENSION_NAME);
+        if (coopMatM1Available)
+            coopMatQuery.pNext = &coopMatM1Query;
+        VkPhysicalDeviceFeatures2 coopMatFeatures = {};
+        coopMatFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        coopMatFeatures.pNext = &coopMatQuery;
+        vk.vkGetPhysicalDeviceFeatures2(physicalDeviceHandle, &coopMatFeatures);
+        if (coopMatQuery.cooperativeMatrix) {
+            /* Only the base feature bit; cooperativeMatrixRobustBufferAccess stays off like
+               every other robustness feature in this device. */
+            coopMatEnable.cooperativeMatrix = VK_TRUE;
+            coopMatEnable.pNext = enabled.f14.pNext;
+            enabled.f14.pNext = &coopMatEnable;
+            coopMatEnabled = true;
+            /* Nested because the extension requires the base one. Exactly the reported bits are
+               enabled -- the promise above -- so a consumer asking the physical device which
+               bits exist has its answer: reported means enabled. */
+            coopMatM1Enable.cooperativeMatrixProperties2 = coopMatM1Query.cooperativeMatrixProperties2;
+            coopMatM1Enable.cooperativeMatrixReductions = coopMatM1Query.cooperativeMatrixReductions;
+            coopMatM1Enable.cooperativeMatrixConversions = coopMatM1Query.cooperativeMatrixConversions;
+            coopMatM1Enable.cooperativeMatrixPerElementOperations = coopMatM1Query.cooperativeMatrixPerElementOperations;
+            coopMatM1Enable.cooperativeMatrixGetCoordinate = coopMatM1Query.cooperativeMatrixGetCoordinate;
+            coopMatM1Enabled = coopMatM1Available &&
+                (coopMatM1Enable.cooperativeMatrixProperties2 || coopMatM1Enable.cooperativeMatrixReductions ||
+                 coopMatM1Enable.cooperativeMatrixConversions || coopMatM1Enable.cooperativeMatrixPerElementOperations ||
+                 coopMatM1Enable.cooperativeMatrixGetCoordinate);
+            if (coopMatM1Enabled) {
+                coopMatM1Enable.pNext = coopMatEnable.pNext;
+                coopMatEnable.pNext = &coopMatM1Enable;
+            }
+        }
+    }
+
+    /* The float atomic pair, same policy and same shape as the cooperative matrix pair above:
+       pure SPIR-V capability unlocks with no cost to code that never uses them, enabled with
+       exactly the reported bits so the physical device's feature query stays authoritative.
+       float2 requires the base extension, hence the nesting. Both predate every header this
+       project can build with, so unlike maintenance1 there is no version concern anywhere. */
+    VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatEnable = {};
+    atomicFloatEnable.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
+    VkPhysicalDeviceShaderAtomicFloat2FeaturesEXT atomicFloat2Enable = {};
+    atomicFloat2Enable.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_2_FEATURES_EXT;
+    bool atomicFloatEnabled = false;
+    bool atomicFloat2Enabled = false;
+    if (deviceExtensionAvailable(vk, physicalDeviceHandle, VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME)) {
+        VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatQuery = {};
+        atomicFloatQuery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
+        VkPhysicalDeviceShaderAtomicFloat2FeaturesEXT atomicFloat2Query = {};
+        atomicFloat2Query.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_2_FEATURES_EXT;
+        const bool atomicFloat2Available = deviceExtensionAvailable(vk, physicalDeviceHandle,
+            VK_EXT_SHADER_ATOMIC_FLOAT_2_EXTENSION_NAME);
+        if (atomicFloat2Available)
+            atomicFloatQuery.pNext = &atomicFloat2Query;
+        VkPhysicalDeviceFeatures2 atomicFloatFeatures = {};
+        atomicFloatFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        atomicFloatFeatures.pNext = &atomicFloatQuery;
+        vk.vkGetPhysicalDeviceFeatures2(physicalDeviceHandle, &atomicFloatFeatures);
+
+        atomicFloatEnable = atomicFloatQuery;
+        atomicFloatEnable.pNext = nullptr;
+        atomicFloatEnabled =
+            atomicFloatEnable.shaderBufferFloat32Atomics || atomicFloatEnable.shaderBufferFloat32AtomicAdd ||
+            atomicFloatEnable.shaderBufferFloat64Atomics || atomicFloatEnable.shaderBufferFloat64AtomicAdd ||
+            atomicFloatEnable.shaderSharedFloat32Atomics || atomicFloatEnable.shaderSharedFloat32AtomicAdd ||
+            atomicFloatEnable.shaderSharedFloat64Atomics || atomicFloatEnable.shaderSharedFloat64AtomicAdd ||
+            atomicFloatEnable.shaderImageFloat32Atomics || atomicFloatEnable.shaderImageFloat32AtomicAdd ||
+            atomicFloatEnable.sparseImageFloat32Atomics || atomicFloatEnable.sparseImageFloat32AtomicAdd;
+        if (atomicFloatEnabled) {
+            atomicFloatEnable.pNext = enabled.f14.pNext;
+            enabled.f14.pNext = &atomicFloatEnable;
+
+            atomicFloat2Enable = atomicFloat2Query;
+            atomicFloat2Enable.pNext = nullptr;
+            atomicFloat2Enabled = atomicFloat2Available &&
+                (atomicFloat2Enable.shaderBufferFloat16Atomics || atomicFloat2Enable.shaderBufferFloat16AtomicAdd ||
+                 atomicFloat2Enable.shaderBufferFloat16AtomicMinMax || atomicFloat2Enable.shaderBufferFloat32AtomicMinMax ||
+                 atomicFloat2Enable.shaderBufferFloat64AtomicMinMax || atomicFloat2Enable.shaderSharedFloat16Atomics ||
+                 atomicFloat2Enable.shaderSharedFloat16AtomicAdd || atomicFloat2Enable.shaderSharedFloat16AtomicMinMax ||
+                 atomicFloat2Enable.shaderSharedFloat32AtomicMinMax || atomicFloat2Enable.shaderSharedFloat64AtomicMinMax ||
+                 atomicFloat2Enable.shaderImageFloat32AtomicMinMax || atomicFloat2Enable.sparseImageFloat32AtomicMinMax);
+            if (atomicFloat2Enabled) {
+                atomicFloat2Enable.pNext = atomicFloatEnable.pNext;
+                atomicFloatEnable.pNext = &atomicFloat2Enable;
+            }
+        }
+    }
+
     /* The one extension that is not a choice: a device advertising VK_KHR_portability_subset
        is invalid to create without it enabled, so a portability implementation is refused at
        vkCreateDevice otherwise. Spelled out rather than taken from the header macro, which
@@ -763,12 +871,23 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     const char *portabilitySubsetName = "VK_KHR_portability_subset";
     const bool portabilitySubset = deviceExtensionAvailable(vk, physicalDeviceHandle, portabilitySubsetName);
 
-    const char *enabledExtensions[3];
+    /* Sized for every optional extension that can be pushed below, not for how many usually
+       coexist: undersizing this the day another push is added would be a stack overwrite, not
+       an error. */
+    const char *enabledExtensions[7];
     uint32_t enabledExtensionCount = 0;
     if (exportType)
         enabledExtensions[enabledExtensionCount++] = exportExtensionName;
     if (semaphoreExportType)
         enabledExtensions[enabledExtensionCount++] = semExportExtensionName;
+    if (coopMatEnabled)
+        enabledExtensions[enabledExtensionCount++] = VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME;
+    if (coopMatM1Enabled)
+        enabledExtensions[enabledExtensionCount++] = VK_EXT_COOPERATIVE_MATRIX_MAINTENANCE_1_EXTENSION_NAME;
+    if (atomicFloatEnabled)
+        enabledExtensions[enabledExtensionCount++] = VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME;
+    if (atomicFloat2Enabled)
+        enabledExtensions[enabledExtensionCount++] = VK_EXT_SHADER_ATOMIC_FLOAT_2_EXTENSION_NAME;
     if (portabilitySubset)
         enabledExtensions[enabledExtensionCount++] = portabilitySubsetName;
 

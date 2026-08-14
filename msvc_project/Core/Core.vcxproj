@@ -42,15 +42,22 @@
   <PropertyGroup>
     <!-- Headers only; the loader is dlopened at runtime so nothing links against the SDK. -->
     <VULKAN_SDK Condition="'$(VULKAN_SDK)' == ''">C:\VulkanSDK\1.4.357.0</VULKAN_SDK>
+    <!-- Newest Vulkan headers, searched ahead of the SDK so extensions the installed SDK predates
+         (VK_EXT_cooperative_matrix_maintenance1 needs 1.4.359) are visible; libraries still come
+         from the SDK. A machine without this checkout falls through to the SDK headers, and if
+         those predate 1.4.359 the build stops at a clear #error in vsvulkan.h: fetch the
+         Vulkan-Headers repository (or vendor it) rather than building a core that silently
+         breaks the always-enabled promise the API documents. -->
+    <VULKAN_HEADERS Condition="'$(VULKAN_HEADERS)' == ''">C:\Libraries\Vulkan-Headers</VULKAN_HEADERS>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>../../include;../../zimg/src/zimg/api;$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../zimg/src/zimg/api;$(VULKAN_HEADERS)\include;$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
     <TargetName>Lib$(ProjectName)</TargetName>
     <OutDir>..\..\..\vapoursynth-portable\Lib\site-packages\vapoursynth</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../include;../../zimg/src/zimg/api;$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../zimg/src/zimg/api;$(VULKAN_HEADERS)\include;$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
     <TargetName>Lib$(ProjectName)</TargetName>
     <OutDir>..\..\..\vapoursynth-portable\Lib\site-packages\vapoursynth</OutDir>
