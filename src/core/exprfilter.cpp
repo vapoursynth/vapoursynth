@@ -407,6 +407,10 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     try {
         int cpulevel = vs_get_cpulevel(core);
+        /* Set by compile_jit only when the OS refused executable memory, which is the one
+           reason for a missing proc that is worth telling the user about; an unsupported CPU
+           level or the software half float path are expected and stay quiet. */
+        bool execMemDenied = false;
 
         d->numInputs = vsapi->mapNumElements(in, "clips");
         if (d->numInputs > 26)
@@ -494,8 +498,17 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             }
 
             if (cpulevel > VS_CPU_LEVEL_NONE && !planeUsesHalf)
-                std::tie(d->proc[i], d->procSize[i]) = expr::compile_jit(d->bytecode[i].data(), d->bytecode[i].size(), d->numInputs, cpulevel, &d->procPixels[i]);
+                std::tie(d->proc[i], d->procSize[i]) = expr::compile_jit(d->bytecode[i].data(), d->bytecode[i].size(), d->numInputs, cpulevel, &d->procPixels[i], &execMemDenied);
         }
+
+        /* The interpreter covers everything the JIT does, so being refused executable memory
+           costs speed and nothing else -- but silently running an order of magnitude slower is
+           worse than saying so, and the cause is one the user can actually fix. Warned once per
+           filter rather than per plane, since all three planes fail the same way. */
+        if (execMemDenied)
+            vsapi->logMessage(mtWarning, "Expr: could not allocate executable memory for the compiled "
+                "expression, falling back to the much slower interpreter. On Linux this is typically an "
+                "SELinux policy denying execmem; see the boolean of that name.", core);
 #ifdef VS_TARGET_OS_WINDOWS
         FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
 #endif

@@ -1712,7 +1712,6 @@ namespace detail
 #if defined(JITASM_WIN)
 				void* pbuff = ::VirtualAlloc(NULL, codesize, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 				if (!pbuff) {
-					JITASM_ASSERT(0);
 					return false;
 				}
 				MEMORY_BASIC_INFORMATION info;
@@ -1722,8 +1721,11 @@ namespace detail
 				int pagesize = getpagesize();
 				size_t buffsize = (codesize + pagesize - 1) / pagesize * pagesize;
 				void* pbuff = mmap(NULL, buffsize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
-				if (!pbuff) {
-					JITASM_ASSERT(0);
+				// mmap reports failure as MAP_FAILED ((void*)-1), never NULL. Testing for NULL
+				// let a denied mapping through as a valid pointer, and the caller then wrote
+				// machine code to (void*)-1 -- which is how an SELinux policy refusing execmem
+				// turned into a segfault instead of a diagnosable failure.
+				if (pbuff == MAP_FAILED) {
 					return false;
 				}
 				buffsize_ = buffsize;
@@ -1872,6 +1874,9 @@ struct Frontend
 	typedef std::vector<Instr> InstrList;
 	InstrList				instrs_;
 	bool					assembled_;
+	// Set when Assemble could not obtain an executable buffer, so a caller seeing a NULL
+	// GetCode can tell "the OS refused the memory" from "there was nothing to assemble".
+	bool					alloc_failed_;
 	bool avx_epilog_; // PF AVS+: avoid AVX transition penalties
 	// Runtime opt-in to the upper 16 vector registers (YMM/XMM 16-31). These require EVEX encoding,
 	// so the caller MUST only enable this when the target CPU has AVX-512VL. Default off keeps the
@@ -1891,7 +1896,7 @@ struct Frontend
 	LabelList	labels_;
 
 
-	Frontend() : assembled_(false), allow_extended_vector_regs_(false) {}
+	Frontend() : assembled_(false), alloc_failed_(false), allow_extended_vector_regs_(false) {}
 	virtual ~Frontend() {}
 
 	virtual void InternalMain() = 0;
@@ -2051,8 +2056,13 @@ struct Frontend
 		}
 		size_t codesize = pre.GetSize();
 
-		// Write machine code to the buffer
-		codebuff_.Reset(codesize);
+		// Write machine code to the buffer. A failed allocation leaves the buffer empty and
+		// assembled_ false, so GetCode returns NULL and the caller falls back; writing anyway
+		// would dereference whatever Reset failed to obtain.
+		if (!codebuff_.Reset(codesize)) {
+			alloc_failed_ = true;
+			return;
+		}
 		Backend backend(codebuff_.GetPointer(), codebuff_.GetBufferSize());
 		for (InstrList::const_iterator it = instrs_.begin(); it != instrs_.end(); ++it) {
 			backend.Assemble(*it);
@@ -2072,6 +2082,9 @@ struct Frontend
 		}
 		return codebuff_.GetPointer();
 	}
+
+	/// True when the last Assemble failed to allocate an executable buffer.
+	bool AllocationFailed() const {return alloc_failed_;}
 
 	/// Get total size of machine code
 	size_t GetCodeSize() const

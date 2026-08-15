@@ -66,7 +66,11 @@ public:
 
     void addInstruction(const ExprInstruction &insn);
 
-    virtual std::pair<ProcessLineProc, size_t> getCode() = 0;
+    /* Returns a null proc when no code could be produced. That is not always a problem --
+       an unsupported CPU level simply has no compiler -- so execMemDenied distinguishes the
+       one case a user can act on: the OS refused to hand out executable memory, which on
+       Linux is usually an SELinux policy denying execmem. Left untouched otherwise. */
+    virtual std::pair<ProcessLineProc, size_t> getCode(bool *execMemDenied = nullptr) = 0;
 
     // Number of pixels the generated proc consumes per loop iteration. The caller
     // uses this for the pointer advance (ptroffsets) and iteration count. XMM/YMM
@@ -80,7 +84,7 @@ std::unique_ptr<ExprCompiler> make_ymm_compiler(int numInputs);
 std::unique_ptr<ExprCompiler> make_zmm_compiler(int numInputs);
 #endif
 
-std::pair<ExprCompiler::ProcessLineProc, size_t> compile_jit(const ExprInstruction *bytecode, size_t numInsns, int numInputs, int cpulevel, int *pixelsPerIterationOut = nullptr);
+std::pair<ExprCompiler::ProcessLineProc, size_t> compile_jit(const ExprInstruction *bytecode, size_t numInsns, int numInputs, int cpulevel, int *pixelsPerIterationOut = nullptr, bool *execMemDeniedOut = nullptr);
 
 } // namespace expr
 

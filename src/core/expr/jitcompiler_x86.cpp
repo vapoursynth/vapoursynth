@@ -976,18 +976,37 @@ public:
 
     int pixelsPerIteration() const override { return 8; }
 
-    std::pair<ProcessLineProc, size_t> getCode() override
+    std::pair<ProcessLineProc, size_t> getCode(bool *execMemDenied) override
     {
         size_t size;
         if (jit::GetCode() && (size = GetCodeSize())) {
 #ifdef VS_TARGET_OS_WINDOWS
             void *ptr = VirtualAlloc(nullptr, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+            if (!ptr) {
+                if (execMemDenied)
+                    *execMemDenied = true;
+                return { nullptr, 0 };
+            }
 #else
-            void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+            // Refusing to hand out executable memory is a routine outcome rather than an
+            // exceptional one -- an SELinux policy denying execmem does it on an otherwise
+            // healthy system -- and mmap reports it as MAP_FAILED, never NULL. Returning no
+            // proc drops Expr onto its interpreter, which costs speed and nothing else;
+            // copying into the failed mapping segfaults.
+            void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, -1, 0);
+            if (ptr == MAP_FAILED) {
+                if (execMemDenied)
+                    *execMemDenied = true;
+                return { nullptr, 0 };
+            }
 #endif
             memcpy(ptr, jit::GetCode(), size);
             return { reinterpret_cast<ProcessLineProc>(ptr), size };
         }
+        // The other way to get here: jitasm could not allocate its own code buffer,
+        // which is the same refusal one step earlier.
+        if (execMemDenied && jit::AllocationFailed())
+            *execMemDenied = true;
         return { nullptr, 0 };
     }
 #undef VEX2IMM
@@ -1660,18 +1679,37 @@ public:
 
     int pixelsPerIteration() const override { return 8; }
 
-    std::pair<ProcessLineProc, size_t> getCode() override
+    std::pair<ProcessLineProc, size_t> getCode(bool *execMemDenied) override
     {
         size_t size;
         if (jit::GetCode(true) && (size = GetCodeSize())) {
 #ifdef VS_TARGET_OS_WINDOWS
             void *ptr = VirtualAlloc(nullptr, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+            if (!ptr) {
+                if (execMemDenied)
+                    *execMemDenied = true;
+                return { nullptr, 0 };
+            }
 #else
-            void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+            // Refusing to hand out executable memory is a routine outcome rather than an
+            // exceptional one -- an SELinux policy denying execmem does it on an otherwise
+            // healthy system -- and mmap reports it as MAP_FAILED, never NULL. Returning no
+            // proc drops Expr onto its interpreter, which costs speed and nothing else;
+            // copying into the failed mapping segfaults.
+            void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, -1, 0);
+            if (ptr == MAP_FAILED) {
+                if (execMemDenied)
+                    *execMemDenied = true;
+                return { nullptr, 0 };
+            }
 #endif
             memcpy(ptr, jit::GetCode(true), size);
             return { reinterpret_cast<ProcessLineProc>(ptr), size };
         }
+        // The other way to get here: jitasm could not allocate its own code buffer,
+        // which is the same refusal one step earlier.
+        if (execMemDenied && jit::AllocationFailed())
+            *execMemDenied = true;
         return { nullptr, 0 };
     }
 #undef EMIT
@@ -2318,18 +2356,37 @@ public:
 
     int pixelsPerIteration() const override { return 16; }
 
-    std::pair<ProcessLineProc, size_t> getCode() override
+    std::pair<ProcessLineProc, size_t> getCode(bool *execMemDenied) override
     {
         size_t size;
         if (jit::GetCode(true) && (size = GetCodeSize())) {
 #ifdef VS_TARGET_OS_WINDOWS
             void *ptr = VirtualAlloc(nullptr, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+            if (!ptr) {
+                if (execMemDenied)
+                    *execMemDenied = true;
+                return { nullptr, 0 };
+            }
 #else
-            void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+            // Refusing to hand out executable memory is a routine outcome rather than an
+            // exceptional one -- an SELinux policy denying execmem does it on an otherwise
+            // healthy system -- and mmap reports it as MAP_FAILED, never NULL. Returning no
+            // proc drops Expr onto its interpreter, which costs speed and nothing else;
+            // copying into the failed mapping segfaults.
+            void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, -1, 0);
+            if (ptr == MAP_FAILED) {
+                if (execMemDenied)
+                    *execMemDenied = true;
+                return { nullptr, 0 };
+            }
 #endif
             memcpy(ptr, jit::GetCode(true), size);
             return { reinterpret_cast<ProcessLineProc>(ptr), size };
         }
+        // The other way to get here: jitasm could not allocate its own code buffer,
+        // which is the same refusal one step earlier.
+        if (execMemDenied && jit::AllocationFailed())
+            *execMemDenied = true;
         return { nullptr, 0 };
     }
 #undef EMIT
