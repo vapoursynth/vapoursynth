@@ -23,16 +23,6 @@
 
 #include "VSVulkan4.h"
 
-/* The core requires Vulkan headers 1.4.359+ so the cooperative matrix maintenance1 support is
-   never silently compiled out: the public availability contract is "enabled whenever the device
-   offers it", and a core that cannot name the extension would break that promise undetectably.
-   Only the CORE build requires this -- VSVulkan4.h deliberately names no maintenance1 symbol, so
-   plugins keep building against any 1.4 era headers. If fetching current headers is a burden,
-   vendor the Vulkan-Headers repository; it is header only and made for it. */
-#if VK_HEADER_VERSION < 359
-#error "Building the VapourSynth core requires Vulkan headers 1.4.359 or newer (VK_EXT_cooperative_matrix_maintenance1)"
-#endif
-
 #include <atomic>
 #include <map>
 #include <memory>

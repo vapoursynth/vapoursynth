@@ -242,16 +242,6 @@ endif
 # directory on Windows — and the pinned header only subproject fills in otherwise, so no build
 # host has to install anything for a declaration-only dependency.
 #
-# 1.4.359 is the floor, not just presence: the core promises that the cooperative matrix
-# extensions are enabled whenever the device offers them, which a build against headers that
-# cannot name maintenance1 would silently break (vsvulkan.h carries a matching #error). Old
-# system headers therefore fail this check the same way missing ones do, and the pinned
-# subproject takes over — an outdated distro SDK costs nothing but the fallback.
-vulkan_check = '''#include <vulkan/vulkan_core.h>
-#if VK_HEADER_VERSION < 359
-#error "Vulkan headers older than 1.4.359"
-#endif
-'''
 vulkan_headers = dependency('vulkan', required: false)
 if vulkan_headers.found()
     vulkan_headers = vulkan_headers.partial_dependency(compile_args: true, includes: true)
@@ -265,10 +255,10 @@ else
     endif
     vulkan_headers = declare_dependency(include_directories: vulkan_inc)
 endif
-if not cxx.compiles(vulkan_check, dependencies: vulkan_headers, name: 'vulkan headers 1.4.359+')
+if not cxx.has_header('vulkan/vulkan_core.h', dependencies: vulkan_headers)
     vulkan_headers = subproject('vulkan-headers').get_variable('vulkan_headers_dep')
-    if not cxx.compiles(vulkan_check, dependencies: vulkan_headers, name: 'bundled vulkan headers 1.4.359+')
-        error('Vulkan headers 1.4.359+ not found and the bundled fallback did not provide them. Install a current vulkan-headers package or set VULKAN_SDK on Windows; no Vulkan runtime or driver is needed at build or load time.')
+    if not cxx.has_header('vulkan/vulkan_core.h', dependencies: vulkan_headers)
+        error('Vulkan headers not found and the bundled fallback did not provide them. Install the vulkan-headers package or set VULKAN_SDK on Windows; no Vulkan runtime or driver is needed at build or load time.')
     endif
 endif
 

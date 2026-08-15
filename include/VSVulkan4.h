@@ -278,27 +278,15 @@ typedef struct VSVulkanCoreHandles {
  *     shaderFloat64 (Features), shaderBufferInt64Atomics and shaderSharedInt64Atomics
  *     (Vulkan12Features) -- query the physical device to find out whether you got them
  *
- * The capability extensions enabled beyond the handle export pair follow one deliberately
- * simple policy: whenever the device offers them, they are enabled, with exactly the feature
- * bits the device reports. The cooperative matrix pair (VK_KHR_cooperative_matrix plus its
- * maintenance1) is how a compute shader reaches the matrix units and the conversions,
- * reductions, per element operations and coordinate queries inside the matrix types; the float
- * atomic pair (VK_EXT_shader_atomic_float plus float2) unlocks float atomics on buffers, shared
- * memory and images, including the fp16 and min/max forms. That policy is the availability
- * contract, the same one the optional features above have: Vulkan cannot ask a created device
- * what was enabled, so it is the guarantee of enable-whatever-is-reported that makes the
- * physical device's own queries authoritative. Check extension presence with
- * vkEnumerateDeviceExtensionProperties and the feature structs with
- * vkGetPhysicalDeviceFeatures2 -- what they report is what is live -- and take the shapes and
- * types to target from vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR. Resolve extension
- * entry points like that one yourself through the handles' getInstanceProcAddr; the function
- * table below stays core 1.4 plus debug utils by design.
- *
- * The guarantee is unconditional because building the CORE requires Vulkan headers 1.4.359 or
- * newer, old enough SDKs being unable to even name maintenance1 (there is a clear #error, and
- * the headers can be vendored where fetching them is a burden). This header makes no such
- * demand: it names no maintenance1 symbol, so plugins build against any 1.4 era headers, and
- * only a plugin that itself uses maintenance1 needs 1.4.359+ for the types. */
+ * One extension pair is enabled beyond the handle export pair, under the same policy the
+ * optional features above follow: whenever the device offers VK_EXT_shader_atomic_float and its
+ * float2 companion they are enabled, with exactly the feature bits the device reports. That
+ * guarantee is the availability contract -- Vulkan cannot ask a created device what was enabled,
+ * so enable-whatever-is-reported is what makes the physical device's own queries authoritative.
+ * Check presence with vkEnumerateDeviceExtensionProperties and the bits with
+ * vkGetPhysicalDeviceFeatures2; what they report is what is live. Resolve any extension entry
+ * points you need yourself through the handles' getInstanceProcAddr -- the function table below
+ * stays core 1.4 plus debug utils by design. */
 
 /* One GPU resident plane: a linear pitched storage buffer laid out exactly like the equivalent
  * CPU plane, so getStride and the frame dimension functions apply unchanged. */
