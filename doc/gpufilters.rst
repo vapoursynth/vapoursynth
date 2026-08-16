@@ -182,12 +182,14 @@ reading them in order shows exactly what each layer takes over:
 |                           |           | translation unit so that stays true, which makes              |
 |                           |           | src/core/boxblurfilter.cpp readable as a plugin would be.     |
 +---------------------------+-----------+---------------------------------------------------------------+
-| PlaneStats                | reduce    | Scratch buffers that are not frame shaped, in both lifetime   |
-|                           |           | idioms: handed to the context with gpuExecUsesBuffer, or      |
-|                           |           | kept for host readback. A compute→compute barrier between     |
-|                           |           | dependent dispatches, and the one legitimate host wait —      |
-|                           |           | gpuExecPoolWaitIdle before reading results that leave as      |
-|                           |           | frame properties.                                             |
+| PlaneStats GPU path       | reduce    | A filter that produces no pixels at all: every plane is left  |
+|                           |           | unprocessed and the result leaves as frame properties.        |
+|                           |           | Declares readbackBytes for host visible output and a          |
+|                           |           | finishReadback callback that turns the mapped records into    |
+|                           |           | properties, so the driver owns the host wait that reading     |
+|                           |           | them requires. Also specialization constants — subgroup size  |
+|                           |           | pinned with requiredSubgroupSize — in                         |
+|                           |           | src/core/simplefilters.cpp.                                   |
 +---------------------------+-----------+---------------------------------------------------------------+
 | gpu_cuda_invert_example.cu| foreign   | The complete CUDA interop pattern: UUID device matching,      |
 |                           | API       | cached memory imports, device side producer pair waits with   |
@@ -198,13 +200,14 @@ reading them in order shows exactly what each layer takes over:
 |                           |           | Reference code — it has not run on NVIDIA hardware yet.       |
 +---------------------------+-----------+---------------------------------------------------------------+
 
-Shaders reach the pipeline two ways, and the examples show one each: the
-invert filter and BoxBlur's GPU path ship readable GLSL and compile it at
-creation through compileGPUShader (cached per core, so many instances parse
-once), while PlaneStatsGPU commits ``glslc -O`` output as a header and needs
-no compiler at all. Both hand the same words to the same maintenance5
-pipeline creation — pick by taste, or by whether you want an optimizer pass,
-which the runtime path deliberately omits since drivers optimize anyway.
+Shaders reach the pipeline two ways. Every example here takes the first: ship
+readable GLSL and compile it at creation through compileGPUShader, which
+caches per core by source text, so many instances of the same kernel parse
+once. The alternative is to commit SPIR-V a build step produced — ``glslc -O``
+output as a header, say — and hand that to Program::spirv instead, needing no
+compiler at runtime. Both reach the same maintenance5 pipeline creation, so
+pick by taste, or by whether you want the optimizer pass the runtime path
+deliberately omits since drivers optimize anyway.
 
 Specialize by putting a preamble in front of the kernel body, which is what
 BoxBlur does to get its four sample types out of one source::
@@ -413,8 +416,11 @@ destroy the pipelining the whole design exists to provide. The exception is
 results that must be CPU visible before your getframe returns, i.e. frame
 properties: a reduction writing its result into a mapped buffer must wait for
 its own submission before returning — gpuExecPoolWaitIdle is the sanctioned
-form — and in exchange publishes nothing, since it produced no plane.
-gpu_planestats_example.c is exactly this trade.
+form — and in exchange publishes nothing, since it produced no plane. The
+PlaneStats GPU path is exactly this trade, and shows the easier way to take
+it: declare readbackBytes and a finishReadback callback and the driver
+performs the wait for you, leaving only the arithmetic that turns the mapped
+records into frame properties.
 
 Scratch memory
 --------------

@@ -1,7 +1,7 @@
 /*
 * GPU filter example: bitwise invert of 8-16 bit integer clips, computed by CUDA on frames
 * that live in the core's Vulkan memory. Where gpu_invert_example.c shows a Vulkan compute
-* filter and gpu_planestats_example.c the reduce pattern, this one shows the third species:
+* filter written against the core's own API, this one shows the other species:
 * a filter whose kernels belong to another API entirely, borrowing the frames zero copy.
 *
 *   - the Vulkan device is matched to a CUDA device by UUID

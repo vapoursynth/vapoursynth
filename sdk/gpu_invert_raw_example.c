@@ -57,8 +57,8 @@ typedef pthread_mutex_t InstanceLock;
 /* The kernel ships as readable source and the core compiles it at filter creation through
    compileGPUShader -- the runtime compilation path, no SPIR-V blob and no build time shader
    toolchain. The accepted dialect is pinned by the core: #version 460 compute, Vulkan 1.4
-   client, SPIR-V 1.6 target. gpu_planestats_example keeps the committed blob pattern; both
-   feed the identical pipeline creation. Bindings match the push descriptor writes below:
+   client, SPIR-V 1.6 target. Committing a SPIR-V blob built ahead of time and handing that
+   over instead is equally valid and feeds the identical pipeline creation. Bindings match the push descriptor writes below:
    binding 0 is the source, binding 1 the destination. */
 static const char invertGlsl[] =
     "#version 460\n"

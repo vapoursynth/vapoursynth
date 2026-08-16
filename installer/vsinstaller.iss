@@ -87,11 +87,7 @@ Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversi
 Source: ..\sdk\vsscript_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\sdk\gpu_invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\sdk\gpu_invert_raw_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: ..\sdk\gpu_planestats_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: ..\sdk\gpu_planestats_pass1.comp; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: ..\sdk\gpu_planestats_pass2.comp; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: ..\sdk\gpu_planestats_spv.h; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: ..\sdk\regenerate_example_shaders.ps1; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\sdk\gpu_invert_driver_example.cpp; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\sdk\gpu_cuda_invert_example.cu; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 
 [Icons]

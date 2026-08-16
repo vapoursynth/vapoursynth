@@ -36,9 +36,6 @@
     <ClCompile Include="..\..\sdk\gpu_invert_raw_example.c">
       <Filter>sdk</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\sdk\gpu_planestats_example.c">
-      <Filter>sdk</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\sdk\invert_example.c">
       <Filter>sdk</Filter>
     </ClCompile>
