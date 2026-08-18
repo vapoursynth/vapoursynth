@@ -211,6 +211,7 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
     VkResult res = dev->vk.vkEndCommandBuffer(context.cmd);
     if (res != VK_SUCCESS) {
         errorMessage = "vkEndCommandBuffer failed (VkResult " + std::to_string(res) + ")";
+        releaseRetained(context);
         releaseClaim(context);
         return false;
     }
@@ -283,6 +284,14 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
                 *signaledValue = nextValue;
         }
     }
+
+    /* A failed submission executes nothing, so nothing this recording pinned is in flight.
+       Released here rather than left to a sweep: a context whose first submission failed
+       keeps pendingValue at 0, which sweepCompleted skips, so its retentions and their
+       share of the device's in-flight budget would stay pinned until the pool dies -- and
+       the admission gate would sleep against phantom bytes nothing can ever release. */
+    if (res != VK_SUCCESS)
+        releaseRetained(context);
 
     releaseClaim(context);
     /* Every submission also reaps what the pool's other contexts finished in the meantime,
