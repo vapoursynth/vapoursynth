@@ -1353,7 +1353,12 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
            destination types differ and each is declared separately. */
         sf.srcFormat = &d->vi->format;
         sf.bodyInt = "    STORE(uint(int(SRC0(x, y)) - int(SRC1(x, y)) + int(pc.u[0])));";
-        const uint32_t half = 1u << d->vi->format.bitsPerSample;
+        /* Float neither widens nor biases, so the body is MakeDiff's float body; the scalar
+           path routes float through vs_makediff_float/half for the same reason. */
+        sf.bodyFloat = "    STORE(float(SRC0(x, y)) - float(SRC1(x, y)));";
+        /* Shifted in 64 bits because a 32 bit float clip reaches here too and would otherwise
+           shift a uint32 by its own width; the value is unused on the float path. */
+        const uint32_t half = static_cast<uint32_t>(1ull << d->vi->format.bitsPerSample);
         sf.fillParams = [half](int, const uint32_t *, float *, uint32_t *u) { u[0] = half; };
         createGPUFromDecl2(d, sf, out, core, vsapi, &d->outvi);
         return;
@@ -1606,8 +1611,11 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
         sf.srcFormats[1] = &vsapi->getVideoInfo(d->node2)->format;
         sf.bodyInt = "    int tmp = int(SRC0(x, y)) + int(SRC1(x, y)) - int(pc.u[0]);\n"
                      "    STORE(uint(clamp(tmp, 0, int(pc.u[1]))));";
-        const uint32_t half = 1u << d->vi->format.bitsPerSample;
-        const uint32_t maxval = (1u << d->vi->format.bitsPerSample) - 1;
+        /* Float neither widens, biases nor clamps, so the body is MergeDiff's float body. */
+        sf.bodyFloat = "    STORE(float(SRC0(x, y)) + float(SRC1(x, y)));";
+        /* 64 bit shift for the same reason as MakeFullDiff; both are unused on the float path. */
+        const uint32_t half = static_cast<uint32_t>(1ull << d->vi->format.bitsPerSample);
+        const uint32_t maxval = static_cast<uint32_t>((1ull << d->vi->format.bitsPerSample) - 1);
         sf.fillParams = [half, maxval](int, const uint32_t *, float *, uint32_t *u) { u[0] = half; u[1] = maxval; };
         createGPUFromDecl2(d, sf, out, core, vsapi);
         return;
