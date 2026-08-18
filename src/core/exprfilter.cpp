@@ -530,7 +530,16 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         allGPU = allGPU && gpu;
         anyGPU = anyGPU || gpu;
     }
+    /* Nothing else frees these: ~ExprData only unmaps the JIT code, and exprFree runs only
+       for a filter that was actually created, so every path that gives up here has to
+       return the input references itself. */
+    auto freeNodes = [&]() {
+        for (int i = 0; i < MAX_EXPR_INPUTS; i++)
+            vsapi->freeNode(d->node[i]);
+    };
+
     if (anyGPU && !allGPU) {
+        freeNodes();
         vsapi->mapSetError(out, "Expr: clips are mismatched in residency; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match");
         return;
     }
@@ -558,6 +567,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             }
         }
         if (!ok) {
+            freeNodes();
             vsapi->mapSetError(out, "Expr: the expression uses an operation with no GPU kernel");
             return;
         }
