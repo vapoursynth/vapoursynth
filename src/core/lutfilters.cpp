@@ -591,7 +591,10 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std:
         vsgpu::SimpleFilter sf;
         sf.name = "Lut2";
         sf.numInputs = 2;
-        sf.srcFormat = &d->vi[0]->format;
+        /* clipa and clipb may differ in depth and container width, so each input is
+           declared with its own sample type rather than sharing clipa's. */
+        sf.srcFormats[0] = &d->vi[0]->format;
+        sf.srcFormats[1] = &d->vi[1]->format;
         const std::string body =
             "    uint idx = (uint(SRC1(x, y)) << pc.u[0]) | uint(SRC0(x, y));\n"
             "    STORE(lut0[idx]);";
