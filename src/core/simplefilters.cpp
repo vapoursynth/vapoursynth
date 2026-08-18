@@ -2709,7 +2709,12 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
         program.specEntries.push_back({ 1, offsetof(SpecData, hasSecond), sizeof(uint32_t) });
         program.specEntries.push_back({ 2, offsetof(SpecData, isFloat), sizeof(uint32_t) });
         program.requiredSubgroupSize = canPin ? sgSize : 0;
-        program.requireFullSubgroups = true;
+        /* Full subgroups are deliberately not requested: that flag makes the workgroup's X
+           dimension have to be a multiple of the subgroup size, and this kernel's X is 16
+           against a subgroup of 32 on nearly every device. It would buy nothing anyway --
+           256 invocations divide evenly by any subgroup size, so the subgroup count is
+           256 / SGSIZE and none of them is partial either way, and every lane reaches the
+           subgroup ops active, out of range ones carrying the identity. */
         desc.programs.push_back(std::move(program));
 
         vsgpu::Pass pass;
