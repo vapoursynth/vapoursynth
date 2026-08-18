@@ -306,8 +306,15 @@ static VSNode *downloadIfGPUResident(VSScript *handle, VSNode *node) {
     VSMap *result = vsapi->invoke(vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core), "GPUDownload", args);
     vsapi->freeMap(args);
     VSNode *wrapped = nullptr;
-    if (!vsapi->mapGetError(result))
+    /* The caller's node has already been consumed into the arguments, so a failure here
+       cannot be handed back: the callers report it as a missing output node or a bare
+       nonzero, neither of which says why. Log what GPUDownload actually complained about
+       while the map that holds the string is still alive. */
+    const char *invokeError = vsapi->mapGetError(result);
+    if (!invokeError)
         wrapped = vsapi->mapGetNode(result, "clip", 0, nullptr);
+    else
+        vsapi->logMessage(mtCritical, (std::string("Failed to automatically insert GPUDownload for a GPU resident script output: ") + invokeError).c_str(), core);
     vsapi->freeMap(result);
     if (wrapped)
         vsapi->logMessage(mtInformation, "GPUDownload automatically inserted for a GPU resident script output; pass sgfAllowGPUResident to consume it directly", core);
