@@ -162,6 +162,7 @@ uint8_t *MemoryUse::allocate_from_system(size_t size)
         return nullptr;
 
     uint8_t *user_ptr = init_block(raw_ptr, size);
+    live_acquire(size);
     m_allocated += size;
     track_allocated(size);
     return user_ptr;
@@ -180,6 +181,7 @@ uint8_t *MemoryUse::allocate_from_freelist(size_t size)
 
         m_freelist.erase(iter);
         m_freelist_size -= block_size;
+        live_acquire(block_size);
         m_allocated += block_size;
         track_allocated(block_size);
 
@@ -289,11 +291,10 @@ void MemoryUse::deallocate(uint8_t *buf)
         deallocate_to_system(raw_ptr, size);
     }
 
-    // self delete when the last buffer is returned after the core is gone, plain reads are
-    // enough since references that outlive freeCore may only be released one at a time; the
-    // GPU pool gates too since the allocator reports its block teardown through account_gpu
-    if (m_core_freed && !m_allocated && !m_gpu_allocated)
-        delete this;
+    // self delete when the last thing keeping this object reachable is returned after the
+    // core is gone; live_release decides that atomically because the GPU pool drains on its
+    // own threads and a pair of separate emptiness tests would let both pools delete
+    live_release(size);
 }
 
 size_t MemoryUse::set_limit(size_t bytes)
@@ -307,10 +308,9 @@ void MemoryUse::on_core_freed()
 {
     m_core_freed = true;
 
-    // Only the core can create new allocations and references that outlive the core may
-    // only be released one at a time, so plain reads are enough here as well.
-    if (!m_allocated && !m_gpu_allocated)
-        delete this;
+    // The core's own unit, taken at construction. Deletes here only when nothing else is
+    // outstanding; otherwise the last buffer or GPU block still to be returned does it.
+    live_release(1);
 }
 
 } // namespace vs

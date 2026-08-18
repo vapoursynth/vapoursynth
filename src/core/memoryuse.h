@@ -59,7 +59,28 @@ class MemoryUse {
     std::atomic_size_t m_combined_limit{ 0 };
     std::atomic_size_t m_total_ram{ 0 };
 
+    /* Teardown breadcrumb only; the "core is still here" guard it used to provide is now
+       the unit m_live starts with, which no self delete can get past until on_core_freed
+       gives it back. */
     std::atomic_bool m_core_freed{ false };
+
+    /* One counter for everything that keeps this object reachable: a unit per outstanding
+       byte in either pool, plus one unit held by the core itself and released in
+       on_core_freed. Testing the pool counters separately cannot decide who tears the
+       object down now that the host pool and the GPU pool drain on independent threads --
+       each can read the other as already empty and both delete. Whoever decrements this to
+       zero made the last access to the object and is the only one that deletes it. */
+    std::atomic<uint64_t> m_live{ 1 };
+
+    void live_acquire(uint64_t units) {
+        m_live.fetch_add(units, std::memory_order_relaxed);
+    }
+
+    /* Must be the caller's final access to the object. */
+    void live_release(uint64_t units) {
+        if (units && m_live.fetch_sub(units, std::memory_order_acq_rel) == units)
+            delete this;
+    }
 
     static thread_local int64_t s_call_delta;
     static thread_local int64_t s_call_peak;
@@ -125,12 +146,14 @@ public:
     }
 
     void account_gpu(int64_t delta) {
+        if (delta > 0)
+            live_acquire(static_cast<uint64_t>(delta));
         m_gpu_allocated.fetch_add(static_cast<size_t>(delta), std::memory_order_relaxed);
         s_gpu_call_delta += delta;
         if (s_gpu_call_delta > s_gpu_call_peak)
             s_gpu_call_peak = s_gpu_call_delta;
-        if (delta < 0 && m_core_freed && !m_allocated && !m_gpu_allocated)
-            delete this;
+        if (delta < 0)
+            live_release(static_cast<uint64_t>(-delta));
     }
 
     size_t set_gpu_limit(size_t bytes) {
