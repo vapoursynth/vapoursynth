@@ -874,8 +874,12 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
             throw std::runtime_error("dimensions must be at least 4x4");
 
         if (vsapi->getNodeResidency(node) == nrGPU) {
-            VSNode *gpuNode = createGPUBoxBlur(node, process, hradius, hpasses, vradius, vpasses, core, vsapi);
-            node = nullptr; /* consumed on success */
+            /* Cleared before the call, not after: createFilter takes the node on failure as
+               well, and the failure arrives here as a throw the catch below would otherwise
+               answer with a second freeNode. */
+            VSNode *gpuInput = node;
+            node = nullptr; /* consumed on success and failure alike */
+            VSNode *gpuNode = createGPUBoxBlur(gpuInput, process, hradius, hpasses, vradius, vpasses, core, vsapi);
             vsapi->mapConsumeNode(out, "clip", gpuNode, maAppend);
             return;
         }
