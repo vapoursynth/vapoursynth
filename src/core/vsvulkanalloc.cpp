@@ -346,6 +346,7 @@ bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize siz
     buffer.poolBlock = block;
     buffer.poolOffset = region.offset;
     buffer.poolSize = region.size;
+    buffer.poolBindOffset = offset;
     if (block->mapped)
         buffer.mapped = static_cast<uint8_t *>(block->mapped) + offset;
 

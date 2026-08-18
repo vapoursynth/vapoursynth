@@ -275,6 +275,10 @@ struct VSVulkanBuffer {
     VSVulkanAllocator::Block *poolBlock = nullptr;
     VkDeviceSize poolOffset = 0;
     VkDeviceSize poolSize = 0;
+    /* Where the buffer is actually bound inside the block, which is poolOffset unless the
+       resource wanted an alignment coarser than a region. Anything naming the buffer's
+       bytes in its allocation -- the memory export path -- must use this, not poolOffset. */
+    VkDeviceSize poolBindOffset = 0;
 };
 
 /* The public handle from VSVULKANAPI::createGPUBuffer: a pooled buffer plus the device
