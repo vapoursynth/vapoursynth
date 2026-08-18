@@ -1527,8 +1527,10 @@ static bool blankClipFillGPU(VSFrame *frame, const VSVideoInfo &vi, const uint32
             pattern *= 0x01010101u;
         else if (vi.format.bytesPerSample == 2)
             pattern *= 0x00010001u;
-        /* vkCmdFillBuffer works in whole dwords, so a plane whose size is not a multiple of
-           four keeps its tail; one extra sample write covers it. */
+        /* vkCmdFillBuffer works in whole dwords, and nothing is lost to the rounding: a
+           plane is its stride times its height and strides round up to VSFrame::alignment,
+           32 or 64, so the size is always a multiple of four. The mask keeps a layout that
+           stopped being true from writing past the buffer rather than covering a tail. */
         const VkDeviceSize whole = info.bufferSize & ~VkDeviceSize{ 3 };
         if (whole)
             vk->vkCmdFillBuffer(cmd, info.buffer, 0, whole, pattern);
