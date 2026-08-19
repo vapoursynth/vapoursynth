@@ -54,6 +54,7 @@ typedef std::vector<std::string> stringlist;
 struct TextGlyphPush {
     uint32_t dstStride, cellW, cellH, count;
     uint32_t scaleX, scaleY, subW, subH;
+    uint32_t width, height; /* of the plane being written; bounds the store */
     float fg, bg;
 };
 
@@ -159,6 +160,7 @@ static std::string textKernelSource(const VSVideoFormat &fmt) {
          "layout(push_constant) uniform PC {\n"
          "    uint dstStride, cellW, cellH, count;\n"
          "    uint scaleX, scaleY, subW, subH;\n"
+         "    uint width, height;\n"
          "    float fg, bg;\n"
          "} pc;\n\n";
 
@@ -191,6 +193,10 @@ static std::string textKernelSource(const VSVideoFormat &fmt) {
          "    }\n"
          "    uint px = ((w0 & 0xFFFFFFu) >> pc.subW) + cx;\n"
          "    uint py = (fd[glyph * 2u + 1u] >> pc.subH) + cy;\n"
+         /* Never fires for a layout built to fit, which is the only kind that reaches here;
+            it is what makes one that is not cost a dropped glyph instead of a write past the
+            plane, the pipelines carrying no robustness for that. */
+         "    if (px >= pc.width || py >= pc.height) return;\n"
          "    dstData[py * pc.dstStride + px] = SAMPLE_T(on ? pc.fg : pc.bg);\n"
          "}\n";
     return s;
@@ -816,6 +822,12 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
     return nullptr;
 }
 
+/* The glyph list of the frame being prepared, handed from prepareFrame -- which publishes its
+   length as the dispatch count -- to prepareFrameData, which stages it. The driver calls the
+   pair back to back on the one thread producing that frame and enters no other filter in
+   between, so a thread local is enough to keep the two halves of one frame together. */
+static thread_local std::vector<uint32_t> gpuGlyphRecords;
+
 static void createGPUText(std::unique_ptr<TextData> &d, VSMap *out, VSCore *core, const VSAPI *vsapi) {
     const std::string name = d->st.instanceName;
     auto fail = [&](const std::string &msg) {
@@ -855,7 +867,7 @@ static void createGPUText(std::unique_ptr<TextData> &d, VSMap *out, VSCore *core
     desc.nodes.push_back(d->node);
 
     desc.frameParamCount = 1;
-    desc.prepareFrame = [st, core, minW, minH](int n, const VSFrame *const *sources, int,
+    desc.prepareFrame = [st, core, minW, minH, maxGlyphs](int n, const VSFrame *const *sources, int,
         const VSAPI *vsapi, uint32_t *params, std::string &error) {
         const int w = vsapi->getFrameWidth(sources[0], 0), h = vsapi->getFrameHeight(sources[0], 0);
         if (w < minW || h < minH) {
@@ -863,16 +875,24 @@ static void createGPUText(std::unique_ptr<TextData> &d, VSMap *out, VSCore *core
                 "x" + std::to_string(minH) + " pixels.";
             return false;
         }
-        params[0] = static_cast<uint32_t>(
-            buildGlyphRecords(buildText(*st, n, sources[0], core, vsapi), w, h, st->alignment, st->scale).size() / 2);
+        /* Built once and kept for prepareFrameData rather than built again there: the text is
+           not necessarily the same twice -- CoreInfo prints the live framebuffer usage, and the
+           driver allocates this frame's buffers between the two calls, which moves it -- and a
+           count that disagrees with the records leaves the kernel dispatching over entries
+           nobody wrote. Capped at the buffer's capacity for the same reason. */
+        gpuGlyphRecords = buildGlyphRecords(buildText(*st, n, sources[0], core, vsapi), w, h,
+            st->alignment, st->scale);
+        if (gpuGlyphRecords.size() > static_cast<size_t>(maxGlyphs) * 2)
+            gpuGlyphRecords.resize(static_cast<size_t>(maxGlyphs) * 2);
+        params[0] = static_cast<uint32_t>(gpuGlyphRecords.size() / 2);
         return true;
     };
     desc.frameDataBytes = maxGlyphs * 2 * sizeof(uint32_t);
-    desc.prepareFrameData = [st, core](int n, const VSFrame *const *sources, int,
-        const VSAPI *vsapi, void *data, std::string &) {
-        const std::vector<uint32_t> records = buildGlyphRecords(buildText(*st, n, sources[0], core, vsapi),
-            vsapi->getFrameWidth(sources[0], 0), vsapi->getFrameHeight(sources[0], 0), st->alignment, st->scale);
-        std::memcpy(data, records.data(), records.size() * sizeof(uint32_t));
+    desc.prepareFrameData = [](int, const VSFrame *const *, int,
+        const VSAPI *, void *data, std::string &) {
+        if (!gpuGlyphRecords.empty())
+            std::memcpy(data, gpuGlyphRecords.data(), gpuGlyphRecords.size() * sizeof(uint32_t));
+        gpuGlyphRecords.clear();
         return true;
     };
 
@@ -926,6 +946,10 @@ static void createGPUText(std::unique_ptr<TextData> &d, VSMap *out, VSCore *core
         pc.scaleY = static_cast<uint32_t>(scale);
         pc.subW = subW;
         pc.subH = subH;
+        /* srcWidth/srcHeight are this plane's dimensions -- reshape moved width/height to the
+           glyph grid -- and Text does not change geometry, so they bound the store. */
+        pc.width = info.srcWidth;
+        pc.height = info.srcHeight;
         if (chroma) {
             pc.fg = pc.bg = isInt ? 128.0f * shift : 0.0f;
         } else {
