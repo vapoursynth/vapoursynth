@@ -720,6 +720,24 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         }
     }
 
+    /* The host reads the readback buffer below, and a completed submission does not by itself
+       put the kernel's writes in the host's reach -- the same availability operation
+       VSVulkanTransfer::downloadPlanes submits before reading a plane straight out of its
+       mapping. Recorded after every pass, so it covers whichever of them wrote the buffer. */
+    if (readbackBuffer) {
+        VkMemoryBarrier2 mb = {};
+        mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+        mb.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        mb.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+        mb.dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT;
+        mb.dstAccessMask = VK_ACCESS_2_HOST_READ_BIT;
+        VkDependencyInfo dep = {};
+        dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        dep.memoryBarrierCount = 1;
+        dep.pMemoryBarriers = &mb;
+        inst->vk->vkCmdPipelineBarrier2(cmd, &dep);
+    }
+
     uint64_t signaled = 0;
     if (inst->vkapi->gpuExecSubmit(ctx, readbackBuffer ? &signaled : nullptr, err, sizeof(err))) {
         vsapi->setFilterError((std::string("GPU filter: ") + err).c_str(), frameCtx);
