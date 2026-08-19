@@ -1399,6 +1399,13 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         static_cast<VSCore *>(userData)->gpuMemoryPanic();
     }, this);
     size_t budget = static_cast<size_t>(dev->memoryBudget());
+    /* No limit under one allocator block can ever be satisfied: the first GPU frame commits a
+       128 MB block, the pool is over its limit from that moment on, and the session spends the
+       rest of its life single threaded with every GPU cache evicted on each pressure sweep and
+       the rest flushed on the timer. The budget is a one-time sample, so a card another process
+       is holding at script load lands there exactly as an override of zero does -- which is why
+       every path below floors rather than only the unified one. */
+    constexpr size_t minGPULimit = static_cast<size_t>(256) << 20;
     /* Two thirds of the live budget, no more: the remainder has to absorb everything the limit
        does not cover -- desktop fluctuation after this one-time sample, admission overshoot,
        and above all the transient working sets of large filters, whose per-call estimates begin
@@ -1406,7 +1413,7 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
        filter's first wave lands before the pressure machinery has numbers. A fifth of headroom
        left enforcement no room on a card whose desktop already held a gigabyte; scripts wanting
        more raise it with one setMaxVRAMUse call. */
-    size_t defaultLimit = budget - budget / 3;
+    size_t defaultLimit = std::max(budget - budget / 3, minGPULimit);
 
     /* Unified memory: the budget's heap is the same RAM the host limit is drawn against, so
        the two defaults would together promise more of the machine than it has -- half again as
@@ -1427,13 +1434,15 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         /* A host limit large enough to swallow the ceiling would otherwise leave nothing at
            all, and a zero GPU limit stalls every GPU task in the thread pool's admission
            control rather than merely making the cache small. */
-        defaultLimit = std::max(defaultLimit, static_cast<size_t>(256) << 20);
+        defaultLimit = std::max(defaultLimit, minGPULimit);
         memory->set_unified(combinedCeiling);
     }
 
-    /* The override exists for testing the pressure paths */
+    /* The override exists for testing the pressure paths, and is floored like everything else:
+       anything under one block, zero included -- which is what a value below 1 truncates to --
+       exercises nothing but the permanently-over-limit state. */
     if (const char *envLimit = std::getenv("VS_VULKAN_MAX_VRAM_MB"))
-        memory->set_gpu_limit(static_cast<size_t>(std::strtoull(envLimit, nullptr, 10)) << 20);
+        memory->set_gpu_limit(std::max(static_cast<size_t>(std::strtoull(envLimit, nullptr, 10)) << 20, minGPULimit));
     else if (!memory->gpu_limit())
         memory->set_gpu_limit(defaultLimit);
     /* A quarter of the limit for queued-but-unexecuted submissions: enough depth to hide
