@@ -1126,8 +1126,11 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
     /* The sources may be in a different format than the output; SRC_T covers them and
        SAMPLE_T the destination, which are the same type unless a filter says otherwise. */
     const VSVideoFormat &srcFmt = sf.srcFormat ? *sf.srcFormat : fmt;
-    const bool isHalf = (isFloat && fmt.bytesPerSample == 2) ||
-                        (srcFmt.sampleType == stFloat && srcFmt.bytesPerSample == 2);
+    /* Every type the source below can spell counts, the per input overrides included: a
+       half declared only through srcFormats would otherwise emit float16_t buffers without
+       the extension that admits them, and the kernel would not compile. */
+    bool isHalf = (isFloat && fmt.bytesPerSample == 2) ||
+                  (srcFmt.sampleType == stFloat && srcFmt.bytesPerSample == 2);
 
     /* One place decides how a format is spelled, for the destination as much as for the
        sources: a second copy of this chain is how a four byte integer output silently came
@@ -1136,6 +1139,7 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
     s += std::string("#define SAMPLE_T ") + sampleTypeName(fmt) + "\n";
     for (int i = 0; i < sf.numInputs; i++) {
         const VSVideoFormat &f = sf.srcFormats[i] ? *sf.srcFormats[i] : srcFmt;
+        isHalf = isHalf || (f.sampleType == stFloat && f.bytesPerSample == 2);
         s += "#define SRC" + std::to_string(i) + "_T " + sampleTypeName(f) + "\n";
     }
     s += std::string("#define LUT_T ") + (sf.constantType ? sf.constantType : sampleTypeName(fmt)) + "\n";
