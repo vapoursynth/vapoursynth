@@ -493,7 +493,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         const VSVideoFormat &fmt = d->vi->format;
         const ChromaFilters cf = chromaFiltersFor(fmt.subSamplingW, fmt.subSamplingH);
         const unsigned depth = fmt.bitsPerSample;
-        const uint32_t maxval = (1u << depth) - 1u;
+        const uint32_t maxval = static_cast<uint32_t>((1ull << depth) - 1u);
         const bool isYUV = fmt.colorFamily == cfYUV;
         const bool isInt = fmt.sampleType == stInteger;
         const MaskSource ms = maskSource(1, fmt, subsampled, cf);
@@ -951,7 +951,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
         const VSVideoFormat &fmt = d->vi->format;
         const ChromaFilters cf = chromaFiltersFor(fmt.subSamplingW, fmt.subSamplingH);
         const unsigned depth = fmt.bitsPerSample;
-        const uint32_t maxval = (1u << depth) - 1u;
+        const uint32_t maxval = static_cast<uint32_t>((1ull << depth) - 1u);
         const bool isYUV = fmt.colorFamily == cfYUV;
         const bool isInt = fmt.sampleType == stInteger;
         const bool premul = d->premultiplied;
@@ -1226,7 +1226,7 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
             "    int tmp = int(SRC0(x, y)) - int(SRC1(x, y)) + int(pc.u[1]);\n"
             "    STORE(uint(clamp(tmp, 0, int(pc.u[0]))));";
         sf.bodyFloat = "    STORE(float(SRC0(x, y)) - float(SRC1(x, y)));";
-        const uint32_t maxval = (1u << d->vi->format.bitsPerSample) - 1;
+        const uint32_t maxval = static_cast<uint32_t>((1ull << d->vi->format.bitsPerSample) - 1);
         const uint32_t half = 1u << (d->vi->format.bitsPerSample - 1);
         for (int p = 0; p < 3; p++)
             sf.process[p] = d->process[p];
@@ -1486,7 +1486,7 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
             "    int tmp = int(SRC0(x, y)) + int(SRC1(x, y)) - int(pc.u[1]);\n"
             "    STORE(uint(clamp(tmp, 0, int(pc.u[0]))));";
         sf.bodyFloat = "    STORE(float(SRC0(x, y)) + float(SRC1(x, y)));";
-        const uint32_t maxval = (1u << d->vi->format.bitsPerSample) - 1;
+        const uint32_t maxval = static_cast<uint32_t>((1ull << d->vi->format.bitsPerSample) - 1);
         const uint32_t half = 1u << (d->vi->format.bitsPerSample - 1);
         for (int p = 0; p < 3; p++)
             sf.process[p] = d->process[p];

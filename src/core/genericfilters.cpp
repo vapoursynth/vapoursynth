@@ -1408,7 +1408,7 @@ static bool buildGenericGPU(int op, const GenericData *d, vsgpu::SimpleFilter &s
         return false;
     }
 
-    const uint32_t maxval = (1u << d->vi->format.bitsPerSample) - 1;
+    const uint32_t maxval = static_cast<uint32_t>((1ull << d->vi->format.bitsPerSample) - 1);
     const uint16_t th = d->th;
     const float thf = d->thf, scale = d->scale, rdiv = d->rdiv, bias = d->bias;
     const uint32_t enable = d->enable, saturate = d->saturate ? 1u : 0u;
@@ -1495,7 +1495,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         const bool mask = d->mask;
         const VSVideoFormat fmt = d->vi->format;
         sf.fillParams = [mask, fmt](int plane, const uint32_t *, float *, uint32_t *u) {
-            u[0] = (1u << fmt.bitsPerSample) - 1;
+            u[0] = static_cast<uint32_t>((1ull << fmt.bitsPerSample) - 1);
             u[1] = (!mask && fmt.colorFamily == cfYUV && plane > 0) ? 1u : 0u;
         };
         createGPUFromDecl(d, sf, out, core, vsapi);
@@ -1922,7 +1922,7 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
             "                            : pow(t * pc.f[6], pc.f[4]) * pc.f[7] + pc.f[2];\n"
             "    STORE(r);";
         const bool isInt = d->vi->format.sampleType == stInteger;
-        const uint32_t maxval = (1u << d->vi->format.bitsPerSample) - 1;
+        const uint32_t maxval = static_cast<uint32_t>((1ull << d->vi->format.bitsPerSample) - 1);
         std::array<float, 3> minIn, maxIn, minOut, maxOut, gamma;
         for (int p = 0; p < 3; p++) {
             /* Integer endpoints are rounded before use, exactly as the table build does. */

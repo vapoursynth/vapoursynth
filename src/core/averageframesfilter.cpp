@@ -659,7 +659,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
             push.dstStride = info.strideElements[0];
             push.srcStride = info.strideElements[1];
             push.rscale = 1.0f / (isFloat ? fscale : static_cast<float>(scale));
-            push.maxval = static_cast<int32_t>((1u << bits) - 1);
+            push.maxval = static_cast<int32_t>((1ull << bits) - 1);
             const bool chroma = (info.plane == 1 || info.plane == 2) && colorFamily == cfYUV;
             push.bias = chroma ? static_cast<int32_t>(1u << (bits - 1)) : 0;
             push.isFloat = isFloat;
