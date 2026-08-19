@@ -443,12 +443,13 @@ void VSVulkanDevice::teardown() {
        leaves the table filled only up to the missing function. */
     if (flushTimeline && vk.vkDestroySemaphore)
         vk.vkDestroySemaphore(deviceHandle, flushTimeline, nullptr);
-    if (execProgressSem && vk.vkDestroySemaphore)
-        vk.vkDestroySemaphore(deviceHandle, execProgressSem, nullptr);
+    VkSemaphore progressSem = execProgressSem.load(std::memory_order_relaxed);
+    if (progressSem && vk.vkDestroySemaphore)
+        vk.vkDestroySemaphore(deviceHandle, progressSem, nullptr);
     if (flushPool && vk.vkDestroyCommandPool)
         vk.vkDestroyCommandPool(deviceHandle, flushPool, nullptr);
     flushTimeline = VK_NULL_HANDLE;
-    execProgressSem = VK_NULL_HANDLE;
+    execProgressSem.store(VK_NULL_HANDLE, std::memory_order_relaxed);
     flushPool = VK_NULL_HANDLE;
     if (deviceHandle && vk.vkDeviceWaitIdle && vk.vkDestroyDevice) {
         vk.vkDeviceWaitIdle(deviceHandle);
@@ -1145,7 +1146,7 @@ void VSVulkanDevice::sweepExecPools() {
 
 bool VSVulkanDevice::ensureExecProgressSemaphore() {
     std::lock_guard<std::mutex> lock(execPoolsMutex);
-    if (execProgressSem)
+    if (execProgressSem.load(std::memory_order_relaxed))
         return true;
     VkSemaphoreTypeCreateInfo typeInfo = {};
     typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
@@ -1153,7 +1154,13 @@ bool VSVulkanDevice::ensureExecProgressSemaphore() {
     VkSemaphoreCreateInfo semaphoreInfo = {};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     semaphoreInfo.pNext = &typeInfo;
-    return vk.vkCreateSemaphore(deviceHandle, &semaphoreInfo, nullptr, &execProgressSem) == VK_SUCCESS;
+    /* Created into a local and published afterwards: the driver writes the handle through
+       the pointer it is given, which an atomic cannot hand out. */
+    VkSemaphore created = VK_NULL_HANDLE;
+    if (vk.vkCreateSemaphore(deviceHandle, &semaphoreInfo, nullptr, &created) != VK_SUCCESS)
+        return false;
+    execProgressSem.store(created, std::memory_order_release);
+    return true;
 }
 
 void VSVulkanDevice::execAdmissionGate() {
@@ -1167,10 +1174,14 @@ void VSVulkanDevice::execAdmissionGate() {
         sweepExecPools();
         if (execRetainedBytes.load(std::memory_order_relaxed) <= budget)
             return;
-        if (!execProgressSem)
+        /* Loaded once and used throughout the round: a pool created underneath us may
+           publish the handle at any point, and the wait below has to name the semaphore
+           the counter was read from. */
+        VkSemaphore progressSem = execProgressSem.load(std::memory_order_acquire);
+        if (!progressSem)
             return; /* no wakeup available: running past the budget beats spinning */
         uint64_t counter = 0;
-        if (vk.vkGetSemaphoreCounterValue(deviceHandle, execProgressSem, &counter) != VK_SUCCESS)
+        if (vk.vkGetSemaphoreCounterValue(deviceHandle, progressSem, &counter) != VK_SUCCESS)
             return;
         /* Sleep until any compute submission completes. The bound is not decorative: bytes
            can be pinned by recordings that have not submitted yet and by pools on other
@@ -1179,7 +1190,7 @@ void VSVulkanDevice::execAdmissionGate() {
         VkSemaphoreWaitInfo waitInfo = {};
         waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &execProgressSem;
+        waitInfo.pSemaphores = &progressSem;
         waitInfo.pValues = &target;
         if (vk.vkWaitSemaphores(deviceHandle, &waitInfo, 50000000ull) == VK_ERROR_DEVICE_LOST)
             return;

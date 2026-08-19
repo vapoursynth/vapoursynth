@@ -529,7 +529,7 @@ public:
     void subExecRetained(uint64_t bytes) { execRetainedBytes.fetch_sub(bytes, std::memory_order_relaxed); }
     void execAdmissionGate();
     bool ensureExecProgressSemaphore();
-    VkSemaphore execProgressSemaphore() const { return execProgressSem; }
+    VkSemaphore execProgressSemaphore() const { return execProgressSem.load(std::memory_order_acquire); }
 
     friend class VSVulkanExecPool;
 
@@ -602,8 +602,12 @@ private:
     std::atomic<uint64_t> execRetainedBudget{0};
     /* Signaled once per compute queue submission; the counter is guarded by the compute
        queue's lock exactly like every pool's own nextValue. Created lazily by the first
-       compute pool, under execPoolsMutex. */
-    VkSemaphore execProgressSem = VK_NULL_HANDLE;
+       compute pool, under execPoolsMutex -- but read by the admission gate and by every
+       submission without it, since a filter created while frames are already flowing
+       (FrameEval building a node, a second thread invoking) puts the creating thread and
+       a gated worker on the handle at once. Atomic so that pairing is defined rather than
+       a race whose benign shape is an accident of the platform's pointer loads. */
+    std::atomic<VkSemaphore> execProgressSem{ VK_NULL_HANDLE };
     uint64_t execProgressNext = 0;
 };
 
