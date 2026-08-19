@@ -1194,7 +1194,12 @@ private:
        may outlive the core the same way CPU frames do. No GPU *work* survives the core — only
        memory waiting to be returned. */
     std::mutex vulkanDeviceLock;
-    VSVulkanDevice *vulkanDev = nullptr;
+    /* Atomic because the lock guards creation only: the pressure and accounting paths --
+       notifyCaches on a pool thread, gpuMemoryPanic, refreshVulkanExecBudget from
+       setMaxVRAMUse -- read the handle without taking it, so a plain pointer would let a
+       reader see the device published by a first-use creation on another thread without
+       seeing the stores that built it. */
+    std::atomic<VSVulkanDevice *> vulkanDev{ nullptr };
     std::unique_ptr<VSVulkanTransfer> vulkanTrans;
     std::string vulkanDeviceError;
     bool vulkanDeviceTried = false;

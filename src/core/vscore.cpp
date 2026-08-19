@@ -1175,8 +1175,9 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
        footprint, which for a deep chain of heavy filters is gigabytes, so every sweep
        releases what has completed; steady state pools lose nothing they would not have
        released moments later anyway. */
-    if (vulkanDev)
-        vulkanDev->sweepExecPools();
+    VSVulkanDevice *dev = vulkanDev.load();
+    if (dev)
+        dev->sweepExecPools();
 
     if (hostNeedsMemory || gpuNeedsMemory) {
         // free the excess in a single pass by taking frames from the caches where each held byte
@@ -1228,8 +1229,8 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
         // which on unified memory is the host pool too. Worth attempting under combined
         // pressure even when the GPU pool is inside its own limit: it is the only action
         // that returns VRAM at all, and it costs a walk of the block list when it fails.
-        if ((gpuNeedsMemory || combinedPressure) && vulkanDev)
-            vulkanDev->trimAllocator();
+        if ((gpuNeedsMemory || combinedPressure) && dev)
+            dev->trimAllocator();
     } else {
         // caches only get to grow while memory usage stays comfortably under the limit of the
         // pool their frames actually live in
@@ -1242,10 +1243,10 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
            whose limit is most of its memory that is the compositor's working set. A burst
            leaves this state behind; steady use never accumulates much banked at once, so the
            quarter-limit threshold keeps the trim from fighting the recycling it exists for. */
-        if (vulkanDev && gpuLimit) {
-            VSVulkanAllocatorStats stats = vulkanDev->allocatorStats();
+        if (dev && gpuLimit) {
+            VSVulkanAllocatorStats stats = dev->allocatorStats();
             if (stats.blockBytes - stats.usedBytes > gpuLimit / 4)
-                vulkanDev->trimAllocator();
+                dev->trimAllocator();
         }
         /* Neither pool gets to grow on a share of RAM the other is already using. */
         if (memory->unified() && memory->combined_limit()) {
@@ -1464,7 +1465,7 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         limitInfo += ", unified memory so it shares system RAM with the " +
             std::to_string(memory->limit() >> 20) + " MB host limit (combined ceiling " +
             std::to_string(memory->combined_limit() >> 20) + " MB)";
-    logMessage(mtInformation, "Vulkan device: " + std::string(vulkanDev->properties().deviceName) +
+    logMessage(mtInformation, "Vulkan device: " + std::string(vulkanDev.load()->properties().deviceName) +
         ", " + limitInfo);
     return true;
 }
@@ -1874,8 +1875,8 @@ void VSCore::clearCaches(bool resetSize) {
 }
 
 void VSCore::refreshVulkanExecBudget() {
-    if (vulkanDev)
-        vulkanDev->setExecRetainedBudget(memory->gpu_limit() / 4);
+    if (VSVulkanDevice *dev = vulkanDev.load())
+        dev->setExecRetainedBudget(memory->gpu_limit() / 4);
 }
 
 void VSCore::gpuMemoryPanic() {
@@ -1890,8 +1891,8 @@ void VSCore::gpuMemoryPanic() {
                 iter->clearCache(true);
         }
     }
-    if (vulkanDev)
-        vulkanDev->trimAllocator();
+    if (VSVulkanDevice *dev = vulkanDev.load())
+        dev->trimAllocator();
 }
 
 bool VSCore::getNodeTiming() noexcept {
@@ -2012,8 +2013,8 @@ void VSCore::freeCore() {
         logMessage(mtWarning, "Core freed but " + safe_to_string(numFilterInstances.load() - 1) + " filter instance(s) still exist");
     if (memory->allocated_bytes())
         logMessage(mtWarning, "Core freed but " + safe_to_string(memory->allocated_bytes()) + " bytes still allocated in framebuffers");
-    if (vulkanDev) {
-        uint64_t gpuLive = vulkanDev->allocatorStats().usedBytes;
+    if (VSVulkanDevice *dev = vulkanDev.load()) {
+        uint64_t gpuLive = dev->allocatorStats().usedBytes;
         if (gpuLive)
             logMessage(mtWarning, "Core freed but " + safe_to_string(gpuLive) + " bytes still allocated in GPU framebuffers");
     }
@@ -2031,12 +2032,12 @@ VSCore::~VSCore() {
         delete iter.second;
     plugins.clear();
     vulkanTrans.reset();
-    if (vulkanDev) {
+    if (VSVulkanDevice *dev = vulkanDev.load()) {
         /* The device may outlive this core through surviving frames, and a late pooled
            allocation must not call back into a deleted core. The account callback stays:
            MemoryUse gates its own deletion on the GPU pool reaching zero. */
-        vulkanDev->setPressureCallback(nullptr, nullptr);
-        vulkanDev->onCoreFreed();
+        dev->setPressureCallback(nullptr, nullptr);
+        dev->onCoreFreed();
         vulkanDev = nullptr;
     }
     memory->on_core_freed();
