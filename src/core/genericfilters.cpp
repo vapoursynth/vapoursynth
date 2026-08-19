@@ -1290,7 +1290,11 @@ static std::string convolutionBody(const GenericData *d, bool isFloat, Convoluti
        between agreeing with the CPU and disagreeing along every border. */
     const char *fetch = (square && n == 9) ? "SRC0" : "MSRC0";
 
-    std::string s = "    float accum = 0.0;\n";
+    /* Integer taps accumulate exactly in int32 against integer coefficients, which is what
+       conv_scanline_h/v do. A float32 accumulator drops the low bits of the running sum once
+       it passes 2^24 -- an 11x11 matrix on a 16 bit clip gets there -- and the drift survives
+       the shared rdiv/bias/round tail as an off by one against the scalar path. */
+    std::string s = isFloat ? "    float accum = 0.0;\n" : "    int accum = 0;\n";
     for (int i = 0; i < n; i++) {
         /* Integer coefficients are the rounded values the scalar path stores as int16. */
         const float c = isFloat ? d->matrixf[i] : static_cast<float>(d->matrix[i]);
@@ -1306,10 +1310,13 @@ static std::string convolutionBody(const GenericData *d, bool isFloat, Convoluti
             dx = 0; dy = i - radius;
         }
         char buf[160];
-        snprintf(buf, sizeof(buf), "    accum += (%.9g) * float(%s(x + %d, y + %d));\n", c, fetch, dx, dy);
+        if (isFloat)
+            snprintf(buf, sizeof(buf), "    accum += (%.9g) * float(%s(x + %d, y + %d));\n", c, fetch, dx, dy);
+        else
+            snprintf(buf, sizeof(buf), "    accum += (%d) * int(%s(x + %d, y + %d));\n", d->matrix[i], fetch, dx, dy);
         s += buf;
     }
-    s += "    float tmp = accum * pc.f[2] + pc.f[3];\n"
+    s += "    float tmp = float(accum) * pc.f[2] + pc.f[3];\n"
          "    if (pc.u[3] == 0u) tmp = abs(tmp);\n";
     s += isFloat ? "    STORE(tmp);" : roundStoreInt;
     return s;
