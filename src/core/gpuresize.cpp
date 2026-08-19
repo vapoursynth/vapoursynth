@@ -3099,8 +3099,10 @@ bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
 
 } // namespace
 
-/* Builds a GPU resize node into out and returns true, or returns false with a reason
-   after touching nothing, in which case the caller runs the scalar graph. */
+/* Builds a GPU resize node into out and returns true, or returns false, in which case
+   either decline names an argument the compute path does not model and out is untouched,
+   or the path failed at something it does implement and the final message is already in
+   out. */
 bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool deinterlace,
     VSCore *core, const VSAPI *vsapi, std::string &decline) {
     VSNode *node = vsapi->mapGetNode(in, "clip", 0, nullptr);
@@ -3108,6 +3110,17 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
 
     auto give_up = [&](const std::string &reason) {
         decline = reason;
+        vsapi->freeNode(node);
+        return false;
+    };
+
+    /* Distinct from give_up: a decline says the arguments are outside what this path
+       models, which the caller phrases as such and points at GPUDownload. These are the
+       path failing at something it does implement -- a driver refusing a pipeline, VRAM
+       exhausted, a device feature a kernel needs -- and calling that unimplemented sends
+       the reader after the wrong thing, so the message is final and set here. */
+    auto hard_error = [&](const std::string &message) {
+        vsapi->mapSetError(out, ("Resize: " + message).c_str());
         vsapi->freeNode(node);
         return false;
     };
@@ -3130,10 +3143,10 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
     char err[512] = { 0 };
     d->vkapi = vsapi->getVulkanAPI();
     if (d->vkapi->getVulkanHandles(core, &d->handles, err, sizeof(err)))
-        return give_up(err);
+        return hard_error(err);
     d->vk = d->vkapi->getVulkanFunctions(core, err, sizeof(err));
     if (!d->vk)
-        return give_up(err);
+        return hard_error(err);
 
     /* Every pass shape the planner can emit: direction x which end is samples, per
        kernel class. Built up front because which of them a frame needs is per frame but
@@ -3141,11 +3154,11 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
        repeat combinations parse once. */
     std::string error;
     if (!buildPipeSet(d.get(), d->pipes, core, error))
-        return give_up(error);
+        return hard_error(error);
 
     d->pool = d->vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
     if (!d->pool)
-        return give_up(err);
+        return hard_error(err);
 
     VSFilterDependency deps[] = {{ node, rpStrictSpatial }};
     d->node = node;
@@ -3153,7 +3166,7 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
         gpuResizeGetFrame, gpuResizeFree, fmParallel, ffGPUOutput, deps, 1, d.get(), core);
     if (!built) {
         d->node = nullptr;
-        return give_up("filter creation failed");
+        return hard_error("filter creation failed");
     }
     d.release();
     vsapi->mapConsumeNode(out, "clip", built, maReplace);

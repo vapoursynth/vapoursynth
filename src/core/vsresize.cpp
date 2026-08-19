@@ -846,7 +846,12 @@ public:
 
             if (onGPU) {
                 std::string decline;
-                if (!createGPUResize(in, out, kernelName, u.op == FieldOp::DEINTERLACE, core, vsapi, decline))
+                /* Only a decline gets reworded: a failure the compute path phrased itself
+                   -- a kernel the driver would not compile, VRAM exhausted -- has already
+                   set the error, and calling that unimplemented would send the reader
+                   after an argument rather than the device. */
+                if (!createGPUResize(in, out, kernelName, u.op == FieldOp::DEINTERLACE, core, vsapi, decline) &&
+                        !vsapi->mapGetError(out))
                     vsapi->mapSetError(out, ("Resize: "s + decline +
                         ", which the GPU path does not implement; insert GPUDownload to resize on the CPU").c_str());
                 return;

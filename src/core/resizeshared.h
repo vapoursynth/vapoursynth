@@ -41,8 +41,10 @@
 #include "VSConstants4.h"
 #include "VapourSynth4.h"
 
-/* Builds a GPU resize node into out and returns true, or returns false with the decline
-   reason after touching nothing, in which case the caller runs the scalar graph. */
+/* Builds a GPU resize node into out and returns true. Returns false two ways: with the
+   decline reason set and out untouched, meaning the arguments name something the compute
+   path does not model, or with the final message already in out, meaning the path failed
+   at something it does implement. Check out for an error before phrasing the decline. */
 bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool deinterlace,
     VSCore *core, const VSAPI *vsapi, std::string &decline);
 
