@@ -595,15 +595,24 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std:
            declared with its own sample type rather than sharing clipa's. */
         sf.srcFormats[0] = &d->vi[0]->format;
         sf.srcFormats[1] = &d->vi[1]->format;
+        /* The table is only inrange entries, with no padding out to the container widths, so
+           a sample carrying more than its declared depth has to be clamped here exactly as
+           the scalar path clamps it -- otherwise the index runs off the end of the buffer. */
         const std::string body =
-            "    uint idx = (uint(SRC1(x, y)) << pc.u[0]) | uint(SRC0(x, y));\n"
+            "    uint idx = (min(uint(SRC1(x, y)), pc.u[2]) << pc.u[0]) | min(uint(SRC0(x, y)), pc.u[1]);\n"
             "    STORE(lut0[idx]);";
         sf.bodyInt = body;
         sf.bodyFloat = body;
         for (int i = 0; i < 3; i++)
             sf.process[i] = d->process[i];
         const uint32_t shiftBits = d->vi[0]->format.bitsPerSample;
-        sf.fillParams = [shiftBits](int, const uint32_t *, float *, uint32_t *u) { u[0] = shiftBits; };
+        const uint32_t maxvalx = (1u << d->vi[0]->format.bitsPerSample) - 1u;
+        const uint32_t maxvaly = (1u << d->vi[1]->format.bitsPerSample) - 1u;
+        sf.fillParams = [shiftBits, maxvalx, maxvaly](int, const uint32_t *, float *, uint32_t *u) {
+            u[0] = shiftBits;
+            u[1] = maxvalx;
+            u[2] = maxvaly;
+        };
         const uint8_t *table = reinterpret_cast<const uint8_t *>(d->lut);
         sf.constants.emplace_back(table, table + static_cast<size_t>(inrange) * sizeof(V));
 
