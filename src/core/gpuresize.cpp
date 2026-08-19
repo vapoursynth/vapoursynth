@@ -2026,6 +2026,12 @@ FramePlan planFrame(const ConversionSpec &spec, const FrameState &st) {
             ps.ax = identityAxis(spec.srcW);
             ps.outW = dstPW;
             ps.outH = dstPH;
+            /* The dispatch covers the destination chroma plane while the read lands in the
+               source luma one, and only the resampled axis is bounded by srcDim -- so on any
+               vertical upscale the row index runs past the luma buffer. A zero row stride
+               pins every output row to source row 0, which is in range whatever the two
+               heights are and costs nothing, the sample being multiplied away below. */
+            ps.srcStrideMul = 0;
             ps.scale = 0.0f;
             ps.offset = static_cast<float>(integerOffset(spec.dstFmt, true, st.fullOut));
             ps.roundEven = 1;
