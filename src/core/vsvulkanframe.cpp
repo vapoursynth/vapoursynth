@@ -379,6 +379,21 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
         offset += regions[p].size;
     }
 
+    /* The host reads the staging bytes below, and the copies completing does not by itself
+       put them in its reach; this is the same availability operation the direct path above
+       submits in place of a copy, with the transfer rather than a dispatch as its source. */
+    VkMemoryBarrier2 barrier = {};
+    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+    barrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+    barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT;
+    barrier.dstAccessMask = VK_ACCESS_2_HOST_READ_BIT;
+    VkDependencyInfo dep = {};
+    dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dep.memoryBarrierCount = 1;
+    dep.pMemoryBarriers = &barrier;
+    dev->vk.vkCmdPipelineBarrier2(ctx->commandBuffer(), &dep);
+
     VSVulkanWaitList waits;
     for (int p = 0; p < numPlanes; p++)
         waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
