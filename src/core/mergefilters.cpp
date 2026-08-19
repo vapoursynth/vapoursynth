@@ -1003,7 +1003,15 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
            one offset is applied to both. */
         const bool checkLoc = (d->process[1] || d->process[2]) &&
             (fmt.subSamplingW > 0 || fmt.subSamplingH > 0);
-        const bool checkRange = premul && isInt;
+        /* The scalar path makes the range check inside its per plane loop, so a call that
+           processes nothing never reaches it; gated on the same condition here because
+           prepareFrame runs ahead of the driver's no-work shortcut and would otherwise
+           fail a frame the CPU path hands back untouched. Bounded by numPlanes for the
+           same reason that loop is: the planes argument fills all three flags. */
+        bool anyProcessed = false;
+        for (int p = 0; p < fmt.numPlanes; p++)
+            anyProcessed = anyProcessed || d->process[p];
+        const bool checkRange = premul && isInt && anyProcessed;
 
         /* Resampling always implies checkLoc -- both want subsampling and chroma being
            processed -- so the chroma location the gather needs is already being read and
