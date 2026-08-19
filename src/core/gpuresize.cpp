@@ -2603,6 +2603,8 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
             push.dstOffset = ps.dstRowOffset * dstStrideBase;
             push.taps = ps.ax.taps;
             push.roundEven = ps.roundEven;
+            push.ditherArg = ps.ditherArg;
+            push.ditherOn = ps.ditherOn;
             push.invScale = ps.ax.invScale;
             push.shift = ps.ax.shift;
             push.kstep = ps.ax.kstep;
