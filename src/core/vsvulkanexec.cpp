@@ -124,7 +124,12 @@ void VSVulkanExecPool::sweepCompleted() {
     if (dev->vk.vkGetSemaphoreCounterValue(dev->device(), timeline->semaphore(), &counter) != VK_SUCCESS)
         return;
     for (auto &context : contexts) {
-        if (context->retained.empty() || context->claimed.load(std::memory_order_relaxed))
+        /* The claim is the only thing that may be looked at unclaimed. Skipping on an
+           empty retention list would be cheaper, but retain() pushes onto that vector
+           from the thread holding the context between acquire and submit, so reading it
+           before the claim is won is a data race; releaseRetained on an empty list is a
+           no-op anyway, so the claim costs a CAS and nothing else. */
+        if (context->claimed.load(std::memory_order_relaxed))
             continue;
         bool expected = false;
         if (!context->claimed.compare_exchange_strong(expected, true, std::memory_order_acquire))
