@@ -2447,11 +2447,14 @@ std::string reduceKernel(const VSVideoFormat &fmt) {
        2^24, so one float code path covers both sample types without losing the integer
        exactness. Each subgroup reduces its lanes in registers, leaves one partial in
        shared memory, and the first subgroup folds those after the one barrier; lanes
-       outside the plane contribute the identity. The partial arrays are sized for the
-       smallest subgroup a device could pick (256 / 8); the strided loop covers any
-       partial count without assuming it fits one subgroup. */
-    s += "shared float smn[32]; shared float smx[32];\n"
-         "shared float spart[32]; shared float sdpart[32];\n"
+       outside the plane contribute the identity. The fold walks gl_NumSubgroups slots at
+       gl_SubgroupSize stride rather than deriving both from SGSIZE: the pipeline is only
+       pinned to SGSIZE when the device lets compute be pinned at all, and an unpinned one
+       may run at any size in [minSubgroupSize, maxSubgroupSize], which would make a derived
+       count fold uninitialised slots or drop partials. The arrays are sized for the
+       workgroup, since a device is free to report a subgroup size down to 1. */
+    s += "shared float smn[256]; shared float smx[256];\n"
+         "shared float spart[256]; shared float sdpart[256];\n"
          "void main() {\n"
          "    uint x = gl_GlobalInvocationID.x, y = gl_GlobalInvocationID.y;\n"
          "    float v = 0.0, dv = 0.0, lo = 1.0 / 0.0, hi = -1.0 / 0.0;\n"
@@ -2468,10 +2471,10 @@ std::string reduceKernel(const VSVideoFormat &fmt) {
          "    }\n"
          "    barrier();\n"
          "    if (gl_SubgroupID == 0u) {\n"
-         "        const uint nsg = 256u / SGSIZE;\n"
+         "        const uint nsg = gl_NumSubgroups;\n"
          "        uint lane = gl_SubgroupInvocationID;\n"
          "        float l2 = 1.0 / 0.0, h2 = -1.0 / 0.0, v2 = 0.0, d2 = 0.0;\n"
-         "        for (uint i = lane; i < nsg; i += SGSIZE) {\n"
+         "        for (uint i = lane; i < nsg; i += gl_SubgroupSize) {\n"
          "            l2 = min(l2, smn[i]); h2 = max(h2, smx[i]);\n"
          "            v2 += spart[i]; d2 += sdpart[i];\n"
          "        }\n"
