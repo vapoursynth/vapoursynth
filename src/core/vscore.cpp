@@ -1399,13 +1399,6 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         static_cast<VSCore *>(userData)->gpuMemoryPanic();
     }, this);
     size_t budget = static_cast<size_t>(dev->memoryBudget());
-    /* No limit under one allocator block can ever be satisfied: the first GPU frame commits a
-       128 MB block, the pool is over its limit from that moment on, and the session spends the
-       rest of its life single threaded with every GPU cache evicted on each pressure sweep and
-       the rest flushed on the timer. The budget is a one-time sample, so a card another process
-       is holding at script load lands there exactly as an override of zero does -- which is why
-       every path below floors rather than only the unified one. */
-    constexpr size_t minGPULimit = static_cast<size_t>(256) << 20;
     /* Two thirds of the live budget, no more: the remainder has to absorb everything the limit
        does not cover -- desktop fluctuation after this one-time sample, admission overshoot,
        and above all the transient working sets of large filters, whose per-call estimates begin

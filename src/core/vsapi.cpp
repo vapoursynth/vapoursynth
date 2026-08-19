@@ -24,6 +24,7 @@
 #include "vsvulkanframe.h"
 #include "vsvulkanshader.h"
 #include "VSVulkan4.h"
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <cstring>
@@ -1249,7 +1250,10 @@ static int64_t VS_CC vkSetMaxVRAMUse(int64_t bytes, VSCore *core) VS_NOEXCEPT {
     assert(core);
     if (bytes <= 0)
         return static_cast<int64_t>(core->memory->gpu_limit());
-    int64_t limit = static_cast<int64_t>(core->memory->set_gpu_limit(static_cast<size_t>(bytes)));
+    /* Floored like every other path that sets the limit: anything under one allocator block
+       leaves the pool permanently over its limit, see VSCore::minGPULimit. */
+    int64_t limit = static_cast<int64_t>(core->memory->set_gpu_limit(
+        std::max(static_cast<size_t>(bytes), VSCore::minGPULimit)));
     /* The in-flight retention budget follows the limit; a no-op until the device exists,
        whose creation derives it from the same place. */
     core->refreshVulkanExecBudget();

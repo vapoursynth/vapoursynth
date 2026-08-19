@@ -1257,6 +1257,14 @@ public:
     [[noreturn]] void logFatal(const char *msg);
     [[noreturn]] void logFatal(const std::string &msg);
 
+    /* No limit under one allocator block can ever be satisfied: the first GPU frame commits a
+       128 MB block, the pool is over its limit from that moment on, and the session spends the
+       rest of its life single threaded with every GPU cache evicted on each pressure sweep and
+       the rest flushed on the timer. The budget is a one-time sample, so a card another process
+       is holding at script load lands there exactly as an override of zero does -- which is why
+       every path floors rather than only the unified one, setMaxVRAMUse included. */
+    static constexpr size_t minGPULimit = static_cast<size_t>(256) << 20;
+
     VSVulkanDevice *vulkanDevice(std::string &errorMessage);
     bool setVulkanDevice(int deviceIndex, std::string &errorMessage);
     VSVulkanTransfer *vulkanTransfer(std::string &errorMessage);
