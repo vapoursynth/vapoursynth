@@ -759,7 +759,15 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         waitInfo.pValues = &signaled;
         if (inst->vk->vkWaitSemaphores(inst->handles.device, &waitInfo, UINT64_MAX) != VK_SUCCESS) {
             vsapi->setFilterError("GPU filter: waiting for the readback failed", frameCtx);
-            inst->vkapi->destroyGPUBuffer(readbackBuffer);
+            /* The submission is queued and may still be writing this buffer -- the wait
+               failing says nothing about the GPU being done -- so its region must not go
+               back to the allocator until the pool has drained, or the next allocation
+               gets bytes a live dispatch is still writing. A drain that fails too means
+               the device is gone, and leaking one buffer beats recycling it under that
+               write. Every other per-frame buffer avoids this by riding the context,
+               which this one cannot: the host reads its mapping after the submission. */
+            if (!inst->vkapi->gpuExecPoolWaitIdle(inst->pool, err, sizeof(err)))
+                inst->vkapi->destroyGPUBuffer(readbackBuffer);
             releaseSources();
             vsapi->freeFrame(dst);
             return nullptr;
