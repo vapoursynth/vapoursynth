@@ -1194,6 +1194,20 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
         size_t gpuExcess = poolExcess(gpuNeedsMemory, memory->gpu_allocated_bytes(), memory->gpu_limit());
 
         const bool combinedPressure = memory->over_combined_limit();
+        /* The combined ceiling is a claim on the SUM, which neither per-pool target sees:
+           with limits raised so their 90% targets add up past the ceiling, both pools can
+           sit under their own marks while the sum stays over -- and then both excesses
+           above are zero, nothing is evicted, and the pressure never clears while the
+           thread pool stays throttled on it. Any evicted byte reduces the sum, so this
+           third budget is drained by evictions from either pool, with the victims picked
+           purely by value order. */
+        size_t combinedExcess = 0;
+        if (combinedPressure) {
+            const size_t ceiling = memory->combined_limit();
+            const size_t combinedTarget = ceiling - ceiling / 10;
+            const size_t combinedAllocated = memory->allocated_bytes() + memory->gpu_allocated_bytes();
+            combinedExcess = combinedAllocated > combinedTarget ? combinedAllocated - combinedTarget : 0;
+        }
 
         struct CacheEntry {
             VSNode *node;
@@ -1217,10 +1231,13 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
 
         for (const CacheEntry &entry : entries) {
             size_t &excess = entry.gpu ? gpuExcess : hostExcess;
-            if (excess == 0)
+            const size_t want = std::max(excess, combinedExcess);
+            if (want == 0)
                 continue;
-            excess -= std::min(entry.node->evictCacheBytes(excess), excess);
-            if (hostExcess == 0 && gpuExcess == 0)
+            const size_t evicted = entry.node->evictCacheBytes(want);
+            excess -= std::min(evicted, excess);
+            combinedExcess -= std::min(evicted, combinedExcess);
+            if (hostExcess == 0 && gpuExcess == 0 && combinedExcess == 0)
                 break;
         }
 
