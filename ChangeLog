@@ -1,6 +1,6 @@
 r80:
 gpu support using the vulkan 1.4 api
-the expr filter now falls back to the interpreter and pritns a warning if executable memory can't be allocated
+the expr filter now falls back to the interpreter and prints a warning if executable memory can't be allocated
 
 r79:
 implemented uncompressed mkv output support in vspipe, it's mainly intended to pass on audio, video and timestamps together into ffmpeg

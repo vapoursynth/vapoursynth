@@ -27,19 +27,6 @@
 #include <string>
 
 //////////////////////////////////////////
-// Cache compatibility filter, does nothing
-
-static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    int err;
-    bool makeLinear = !!vsapi->mapGetInt(in, "make_linear", 0, &err);
-    if (makeLinear)
-        vsapi->logMessage(mtCritical, "Explicitly instantiated a Cache with make_linear set. This is no longer possible and the original clip has been passed through instead which may cause severe issues.", core);
-    else
-        vsapi->logMessage(mtWarning, "Explicitly instantiated a Cache. This is no longer possible and the original clip has been passed through instead.", core);
-    vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(in, "clip", 0, nullptr), maAppend);
-}
-
-//////////////////////////////////////////
 // SetAudio/VideoCache
 
 static void VS_CC setCache(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -220,7 +207,6 @@ void VS_CC gpuTransferCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 // Init
 
 void internalFiltersInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->registerFunction("Cache", "clip:vnode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:vnode;", createCacheFilter, nullptr, plugin);
     vspapi->registerFunction("SetAudioCache", "clip:anode;mode:int:opt;fixedsize:int:opt;maxsize:int:opt;maxhistory:int:opt;", "", setCache, 0, plugin);
     vspapi->registerFunction("SetVideoCache", "clip:vnode:all;mode:int:opt;fixedsize:int:opt;maxsize:int:opt;maxhistory:int:opt;", "", setCache, 0, plugin);
     vspapi->registerFunction("SetMaxCPU", "cpu:data;", "cpu:data;", setMaxCpu, 0, plugin);

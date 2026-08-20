@@ -529,7 +529,6 @@ struct VSAPI {
     void (VS_CC *setCoreNodeTiming)(VSCore *core, int enable) VS_NOEXCEPT; /* non-zero enables filter timing, note that disabling simply stops the counters from incrementing */
     int64_t (VS_CC *getNodeProcessingTime)(VSNode *node, int reset) VS_NOEXCEPT; /* time spent processing frames in nanoseconds, reset sets the counter to 0 again */
     int64_t (VS_CC *getFreedNodeProcessingTime)(VSCore *core, int reset) VS_NOEXCEPT; /* time spent processing frames in nanoseconds in all destroyed nodes, reset sets the counter to 0 again */
-
 #endif
 
     /* Added in API 4.2 */
