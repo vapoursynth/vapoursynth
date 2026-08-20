@@ -1192,7 +1192,11 @@ void VSVulkanDevice::execAdmissionGate() {
         waitInfo.semaphoreCount = 1;
         waitInfo.pSemaphores = &progressSem;
         waitInfo.pValues = &target;
-        if (vk.vkWaitSemaphores(deviceHandle, &waitInfo, 50000000ull) == VK_ERROR_DEVICE_LOST)
+        /* Any error, not just device loss: a failing wait returns immediately, so looping
+           on it would busy-spin with no pacing left. Same policy as the counter read above:
+           running past the budget beats spinning. */
+        VkResult waitRes = vk.vkWaitSemaphores(deviceHandle, &waitInfo, 50000000ull);
+        if (waitRes != VK_SUCCESS && waitRes != VK_TIMEOUT)
             return;
     }
 }
