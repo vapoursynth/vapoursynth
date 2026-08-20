@@ -678,10 +678,15 @@ int64_t setMaxVRAMUse(int64_t bytes, VSCore \*core)
 
    Sets the VRAM limit cache pressure works against, mirroring
    setMaxCacheSize for the host pool. Values of zero or less leave the limit
-   unchanged. Returns the limit in effect. The default is two thirds of the
-   live driver budget at device creation, the rest being headroom for filter
-   working sets and for the system; on a unified memory device it is clamped
-   further, since that VRAM and the host's memory are the same RAM.
+   unchanged, and positive values are raised to a 256 MB floor: the allocator
+   commits whole 128 MB blocks, so any limit below one block is over-limit
+   from the first GPU frame on and the session spends its life in permanent
+   cache pressure. Returns the limit in effect. The default is two thirds of
+   the live driver budget at device creation, the rest being headroom for
+   filter working sets and for the system, and never below the same floor,
+   which matters when another process already holds most of the card at
+   startup; on a unified memory device it is clamped further, since that VRAM
+   and the host's memory are the same RAM.
 
 ----------
 

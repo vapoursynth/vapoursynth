@@ -286,7 +286,9 @@ Classes and Functions
       whatever the desktop needs after the budget was sampled. It is derived
       when the Vulkan device is created, so reading this before any GPU filter
       exists returns 0; setting it beforehand is respected and suppresses the
-      default.
+      default. Values below 256 MB are raised to that floor, the size of two
+      allocator blocks: a smaller limit is exceeded by the first GPU frame and
+      wedges the session into permanent cache pressure.
 
       On a device with *unified_memory* the budget is a share of system RAM
       rather than separate hardware, and the default is deliberately

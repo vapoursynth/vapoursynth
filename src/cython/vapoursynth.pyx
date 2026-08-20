@@ -1378,9 +1378,17 @@ cdef class FrameProps(object):
         cdef int t = self.funcs.mapGetType(m, b)
         if t == ptInt:
             if numelem > 0:
-                intArray = self.funcs.mapGetIntArray(m, b, NULL)
-                for i in range(numelem):
-                    ol.append(intToRangeFilter(intArray[i], name))
+                if name == '_ColorRange':
+                    # mapGetIntArray's _ColorRange compatibility path can only serve the
+                    # flipped value from static 0/1 storage, which clamps out-of-range
+                    # values that are defined to pass through unchanged; the scalar getter
+                    # flips by value and preserves them.
+                    for i in range(numelem):
+                        ol.append(intToRangeFilter(self.funcs.mapGetInt(m, b, i, NULL), name))
+                else:
+                    intArray = self.funcs.mapGetIntArray(m, b, NULL)
+                    for i in range(numelem):
+                        ol.append(intToRangeFilter(intArray[i], name))
         elif t == ptFloat:
             if numelem > 0:
                 floatArray = self.funcs.mapGetFloatArray(m, b, NULL)

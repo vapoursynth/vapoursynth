@@ -241,5 +241,41 @@ class ChromaLocationMaskTest(unittest.TestCase):
                 )
 
 
+
+try:
+    from gputestsupport import GPUTestMixin, HAVE_GPU
+except ImportError:
+    from test.gputestsupport import GPUTestMixin, HAVE_GPU
+
+
+@unittest.skipUnless(HAVE_GPU, "no usable Vulkan device")
+class ChromaLocationMaskTestGPU(GPUTestMixin, ChromaLocationMaskTest):
+    """MaskedMerge/PreMultiply on the GPU against the same CPU-built references.
+
+    Only the filter under test moves: the reference graphs are built through resize and
+    bound-style calls, which the wrapper leaves on the CPU on purpose, so the GPU mask
+    resample keeps being validated against zimg rather than against itself.
+
+    The interlaced cases are expected failures, and that is a statement about the core,
+    not the tests: the GPU mask resample picks from progressive-only coefficient tables
+    and ignores _FieldBased, where the scalar path hands the mask to per-chromaloc resize
+    nodes and resize sites interlaced chroma per field. Progressive output is byte
+    identical between the two paths; interlaced is not. When the kernel learns fields
+    these flip to unexpected successes and demand the decorators be removed.
+    """
+
+    @unittest.expectedFailure
+    def test_maskedmerge_interlaced_differs_from_progressive(self):
+        super().test_maskedmerge_interlaced_differs_from_progressive()
+
+    @unittest.expectedFailure
+    def test_maskedmerge_interlaced_matches_chromaloc_reference(self):
+        super().test_maskedmerge_interlaced_matches_chromaloc_reference()
+
+    @unittest.expectedFailure
+    def test_premultiply_interlaced_matches_reference(self):
+        super().test_premultiply_interlaced_matches_reference()
+
+
 if __name__ == "__main__":
     unittest.main()

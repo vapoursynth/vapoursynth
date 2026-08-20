@@ -38,5 +38,17 @@ class FilterTestSequence(unittest.TestCase):
         self.assertEqual(get_pixel_value(newclipb, 1), get_pixel_value(clipa, 1))
 
 
+
+try:
+    from gputestsupport import GPUTestMixin, HAVE_GPU
+except ImportError:
+    from test.gputestsupport import GPUTestMixin, HAVE_GPU
+
+
+@unittest.skipUnless(HAVE_GPU, "no usable Vulkan device")
+class FilterTestSequenceGPU(GPUTestMixin, FilterTestSequence):
+    """The same tests with every std call routed through its GPU path."""
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -393,5 +393,46 @@ class CoreTestSequence(unittest.TestCase):
         self.helper_sincos("cos", lambda x: math.cos(x))
 
 
+
+try:
+    from gputestsupport import GPUTestMixin, HAVE_GPU
+except ImportError:
+    from test.gputestsupport import GPUTestMixin, HAVE_GPU
+
+
+@unittest.skipUnless(HAVE_GPU, "no usable Vulkan device")
+class CoreTestSequenceGPU(GPUTestMixin, CoreTestSequence):
+    """The same expressions through the GLSL backend, same expected values.
+
+    The one override: sin/cos keep the CPU test's inputs but a looser bound. The GPU
+    kernel reduces the argument in float32 before the native sin/cos, so at |x| ~ 1000
+    the reduced argument alone carries ~|x| * 2^-23 of error; the CPU JIT reduces in
+    higher precision and meets 1e-6 there. The bound scales with the input magnitude
+    and stays well below anything an 8-16 bit store could observe.
+    """
+
+    def helper_sincos(self, op="sin", f=lambda x: math.sin(x)):
+        clip = self.core.std.BlankClip(format=vs.GRAYS, color=10, width=1025, height=1024, length=2)
+
+        def init_frame(n, f):
+            fout = f.copy()
+            arr = fout[0]
+            M, N = arr.shape
+            for i in range(M):
+                for j in range(N):
+                    arr[i, j] = (n != 0 or -1) * (i * N + j) * 1e-3
+            return fout
+
+        clip = self.core.std.ModifyFrame(clip, clip, init_frame)
+        clip2 = self.core.std.Expr(clip, "x %s" % op)
+        for n in range(clip2.num_frames):
+            f1, f2 = map(lambda c: c.get_frame(n), [clip, clip2])
+            arr1, arr2 = f1[0], f2[0]
+            for i in range(clip.height):
+                for j in range(clip.width):
+                    x = arr1[i, j]
+                    self.assertTrue(abs(arr2[i, j] - f(x)) < max(1e-6, abs(x) * 2.5e-7))
+
+
 if __name__ == "__main__":
     unittest.main()

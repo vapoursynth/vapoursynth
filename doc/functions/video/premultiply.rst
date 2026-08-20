@@ -19,3 +19,7 @@ PreMultiply
    aware: each frame's ``_ChromaLocation`` property (guessing 0, *left*, when
    absent) determines the sub-pixel shift needed to keep *alpha* aligned with
    the luma plane.
+   The resampling also follows ``_FieldBased``, siting the chroma per field
+   for interlaced frames -- except on the GPU path, which currently always
+   sites progressively, so interlaced GPU output differs slightly from the
+   CPU path there. Progressive output is identical between the two.

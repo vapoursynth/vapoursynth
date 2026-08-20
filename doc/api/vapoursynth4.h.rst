@@ -1398,6 +1398,10 @@ struct VSAPI
       Creates a new video frame from the planes of existing frames, optionally copying
       the properties attached to another frame. It is a fatal error to pass invalid arguments to this function.
 
+      Works with GPU resident frames as well, but not with a mixture: returns
+      NULL when the non-NULL *planeSrc* entries do not all have the same
+      residency, since a frame cannot borrow planes living in two memories.
+
       *format*
          The desired colorspace format. Must not be NULL.
 
