@@ -439,6 +439,11 @@ VSVulkanDevice::~VSVulkanDevice() {
 }
 
 void VSVulkanDevice::teardown() {
+    /* The wait comes first: a flush whose host wait failed (device loss on another queue,
+       say) returns with flushCmd still pending and a signal outstanding on flushTimeline,
+       and destroying either while in flight is invalid however dead the device is. */
+    if (deviceHandle && vk.vkDeviceWaitIdle)
+        vk.vkDeviceWaitIdle(deviceHandle);
     /* Null checks on the entry points as well as the handles: a failure partway through loading
        leaves the table filled only up to the missing function. */
     if (flushTimeline && vk.vkDestroySemaphore)
@@ -451,10 +456,8 @@ void VSVulkanDevice::teardown() {
     flushTimeline = VK_NULL_HANDLE;
     execProgressSem.store(VK_NULL_HANDLE, std::memory_order_relaxed);
     flushPool = VK_NULL_HANDLE;
-    if (deviceHandle && vk.vkDeviceWaitIdle && vk.vkDestroyDevice) {
-        vk.vkDeviceWaitIdle(deviceHandle);
+    if (deviceHandle && vk.vkDestroyDevice)
         vk.vkDestroyDevice(deviceHandle, nullptr);
-    }
     if (messenger && vk.vkDestroyDebugUtilsMessengerEXT)
         vk.vkDestroyDebugUtilsMessengerEXT(instanceHandle, messenger, nullptr);
     if (instanceHandle && vk.vkDestroyInstance)
