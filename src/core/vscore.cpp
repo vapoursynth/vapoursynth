@@ -1409,6 +1409,16 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
        more raise it with one setMaxVRAMUse call. */
     size_t defaultLimit = std::max(budget - budget / 3, minGPULimit);
 
+    /* The last thing that can fail, brought up before any state outside this function is
+       touched: the unified flag and the GPU limit below are observable through MemoryUse
+       whether or not the device ever publishes, so committing them ahead of a failed
+       transfer bringup would leave a GPU-less core throttling its host pool against a
+       combined ceiling forever. Transfer init needs only the device -- slot buffers are
+       created lazily and the exec pool consults no limits. */
+    auto trans = std::make_unique<VSVulkanTransfer>();
+    if (!trans->init(*dev, 4, vulkanDeviceError))
+        return false;
+
     /* Unified memory: the budget's heap is the same RAM the host limit is drawn against, so
        the two defaults would together promise more of the machine than it has -- half again as
        much on a device reporting all of RAM as device local. The GPU share yields, GPU
@@ -1444,9 +1454,6 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
        frames that have reuse value. setMaxVRAMUse keeps it in step. */
     dev->setExecRetainedBudget(memory->gpu_limit() / 4);
 
-    auto trans = std::make_unique<VSVulkanTransfer>();
-    if (!trans->init(*dev, 4, vulkanDeviceError))
-        return false;
     /* Makes the transfer machinery take its staging paths even where a direct one is
        available, which is otherwise decided by the memory the driver handed back and so
        cannot be varied on a given machine. The point is to be able to measure the two
