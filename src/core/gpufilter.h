@@ -1018,6 +1018,20 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
         copyInfo.regionCount = 1;
         copyInfo.pRegions = &region;
         inst->vk->vkCmdCopyBuffer2(inst->vkapi->gpuExecCommandBuffer(ctx), &copyInfo);
+        /* The device side dependency for every later dispatch that reads the constants: the
+           waitIdle below only orders the host, and a host wait is not a memory dependency,
+           so without this the transfer write is never made visible to shader reads. */
+        VkMemoryBarrier2 mb = {};
+        mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+        mb.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+        mb.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        mb.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        mb.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+        VkDependencyInfo dep = {};
+        dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        dep.memoryBarrierCount = 1;
+        dep.pMemoryBarriers = &mb;
+        inst->vk->vkCmdPipelineBarrier2(inst->vkapi->gpuExecCommandBuffer(ctx), &dep);
         if (inst->vkapi->gpuExecSubmit(ctx, nullptr, err, sizeof(err)))
             return fail(err);
     }
