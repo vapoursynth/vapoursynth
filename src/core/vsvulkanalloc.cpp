@@ -262,8 +262,12 @@ bool VSVulkanDevice::allocatePooled(const VkMemoryRequirements &req, VkMemoryPro
     if (!allocator.allocate(*this, typeIndex, request, carveAlignment, exportable, region.block,
             region.offset, region.size, errorMessage)) {
         sweepExecPools();
-        if (pressureFn)
-            pressureFn(pressureUserData);
+        /* userData before the function, mirroring the retraction's opposite order, so
+           observing a function guarantees the userData loaded with it is the matching one. */
+        void *pressureCtx = pressureUserData.load();
+        VSVulkanPressureFn pressure = pressureFn.load();
+        if (pressure)
+            pressure(pressureCtx);
         errorMessage.clear();
         if (!allocator.allocate(*this, typeIndex, request, carveAlignment, exportable, region.block,
                 region.offset, region.size, errorMessage))

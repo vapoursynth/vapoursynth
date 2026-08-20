@@ -538,8 +538,16 @@ public:
        by the core before teardown, since the device may outlive it. */
     typedef void (*VSVulkanPressureFn)(void *userData);
     void setPressureCallback(VSVulkanPressureFn callback, void *userData) {
-        pressureFn = callback;
-        pressureUserData = userData;
+        /* The same discipline as the log pair, for the same retraction: install stores the
+           function last and clearing stores it first, so a reader that observed a function
+           always loads the userData that belongs to it. */
+        if (callback) {
+            pressureUserData.store(userData);
+            pressureFn.store(callback);
+        } else {
+            pressureFn.store(nullptr);
+            pressureUserData.store(nullptr);
+        }
     }
 
     /* How much device local memory this process can reasonably use right now. Uses the
@@ -592,8 +600,8 @@ private:
     std::atomic<void *> logUserData{nullptr};
     VSVulkanAccountFn accountFn = nullptr;
     void *accountUserData = nullptr;
-    VSVulkanPressureFn pressureFn = nullptr;
-    void *pressureUserData = nullptr;
+    std::atomic<VSVulkanPressureFn> pressureFn{nullptr};
+    std::atomic<void *> pressureUserData{nullptr};
     /* Held for the whole of a sweep, which is what makes unregistration in the pool
        destructor a safe rendezvous: after unregister returns no sweep can see the pool. */
     std::mutex execPoolsMutex;
