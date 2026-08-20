@@ -290,10 +290,13 @@ struct Instance {
     ~Instance() {
         if (!vk)
             return;
-        /* The pool drains the device before it returns, so anything a submission was
-           still reading is safe to destroy only after this point. */
-        if (pool)
-            vkapi->freeGPUExecPool(pool);
+        /* Drain first so nothing a submission still uses is destroyed under it; the pool is
+           freed last because its device reference is the only thing here guaranteed to keep
+           vk and handles.device alive through the destruction below. */
+        if (pool) {
+            char err[512] = { 0 };
+            vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err));
+        }
         for (VSGPUBuffer *b : constantBuffers)
             vkapi->destroyGPUBuffer(b);
         for (size_t i = 0; i < pipelines.size(); i++) {
@@ -304,6 +307,8 @@ struct Instance {
             if (setLayouts[i])
                 vk->vkDestroyDescriptorSetLayout(handles.device, setLayouts[i], nullptr);
         }
+        if (pool)
+            vkapi->freeGPUExecPool(pool);
     }
 };
 
