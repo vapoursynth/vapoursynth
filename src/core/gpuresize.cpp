@@ -2223,11 +2223,16 @@ struct GPUResizeData {
 
     ~GPUResizeData() {
         if (vk) {
-            /* The pool drains the device before returning, so pipelines a submission
-               was still using are safe to destroy only after this point. */
+            /* Drain first so pipelines a submission was still using are safe to destroy;
+               the pool is freed last because its device reference is the only thing here
+               keeping vk and handles.device alive through the destruction below. */
+            if (pool) {
+                char err[512] = { 0 };
+                vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err));
+            }
+            destroyPipeSet(pipes);
             if (pool)
                 vkapi->freeGPUExecPool(pool);
-            destroyPipeSet(pipes);
         }
     }
 };
