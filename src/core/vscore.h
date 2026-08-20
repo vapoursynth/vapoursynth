@@ -474,13 +474,15 @@ public:
         return gpuResident;
     }
 
-    /* Internal access for GPU filters; null on CPU frames or bad plane numbers. */
+    /* Internal access for GPU filters; null on CPU frames or bad plane numbers.
+       numPlanes is the channel count for audio frames and can exceed the array size,
+       and only data[0] is allocated there, so both bounds and the entry are checked. */
     VSVulkanPlane *getGPUPlane(int plane) {
-        return (plane >= 0 && plane < numPlanes) ? data[plane]->gpu : nullptr;
+        return (plane >= 0 && plane < numPlanes && plane < 3 && data[plane]) ? data[plane]->gpu : nullptr;
     }
 
     const VSVulkanPlane *getGPUPlane(int plane) const {
-        return (plane >= 0 && plane < numPlanes) ? data[plane]->gpu : nullptr;
+        return (plane >= 0 && plane < numPlanes && plane < 3 && data[plane]) ? data[plane]->gpu : nullptr;
     }
 
     /* The device the planes live on, for the export path; null on CPU frames. */
