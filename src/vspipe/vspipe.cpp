@@ -378,10 +378,41 @@ static void outputFrame(const VSFrame *frame, VSPipeOutputData *data) {
     }
 }
 
+/* Timecodes, in milliseconds. Nine decimals is picosecond resolution: six already resolve
+   finer than Matroska stores, its timestamp scale bottoming out at one nanosecond, and the
+   counts these come from are exact integers per timebase so nothing meaningful is lost by
+   stopping there. Twenty decimals -- what this printed before -- was both useless and fatal:
+   the digits past ten are the decimal expansion of the binary double rather than any
+   measurement, and mkvmerge parses the fractional part into an int64, which twenty digits
+   overflow, so it rejected the file outright. */
 static std::string doubleToString(double v) {
-    char buffer[100];
-    auto res = std::to_chars(buffer, buffer + sizeof(buffer), v, std::chars_format::fixed, 20);
+    /* Sized so to_chars cannot run out of room: at worst a sign, the 309 digits DBL_MAX needs
+       ahead of the point, the point, and the nine after it. The result is checked regardless,
+       because a failed to_chars leaves ptr at the end of the buffer, and copying that out would
+       put a stretch of uninitialised stack into the timecodes file. */
+    char buffer[1 + 309 + 1 + 9];
+    auto res = std::to_chars(buffer, buffer + sizeof(buffer), v, std::chars_format::fixed, 9);
+    if (res.ec != std::errc{})
+        return {};
     return std::string(buffer, res.ptr - buffer);
+}
+
+/* The mkv path times everything in whole nanoseconds, and a nanosecond is a millionth of a
+   millisecond, so the quotient and the six digit remainder spell the value out in milliseconds
+   with nothing rounded at all -- where handing it to a double first would reintroduce the very
+   artifact digits doubleToString exists to cut away. Trailing zeros go, and the point along with
+   them when the time lands on a whole millisecond. */
+static std::string nanosecondsToTimecodeString(int64_t ns) {
+    const char *sign = (ns < 0) ? "-" : "";
+    const uint64_t mag = (ns < 0) ? ~static_cast<uint64_t>(ns) + 1 : static_cast<uint64_t>(ns);
+    std::string result = sign + std::to_string(mag / 1000000);
+    std::string frac = std::to_string(mag % 1000000);
+    frac.insert(0, 6 - frac.size(), '0');
+    while (!frac.empty() && frac.back() == '0')
+        frac.pop_back();
+    if (!frac.empty())
+        result += "." + frac;
+    return result;
 }
 
 static void VS_CC frameDoneCallback(void *userData, const VSFrame *f, int n, VSNode *rnode, const char *errorMsg) {
@@ -1118,7 +1149,7 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
 
             /* Written from the same timestamp that went into the container, so the timecodes file
                describes the mkv exactly rather than being derived a second way. */
-            if (timecodesFile && fprintf(timecodesFile, "%s\n", doubleToString(stream.pendingTimeNs / 1000000.0).c_str()) < 0) {
+            if (timecodesFile && fprintf(timecodesFile, "%s\n", nanosecondsToTimecodeString(stream.pendingTimeNs).c_str()) < 0) {
                 fprintf(stderr, "Error: failed to write timecode for frame %d, errno: %d\n", stream.frameIndex, errno);
                 failed = true;
                 break;
