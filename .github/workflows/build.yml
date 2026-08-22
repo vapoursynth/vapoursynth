@@ -46,22 +46,8 @@ jobs:
     - uses: astral-sh/setup-uv@v10.0.1
 
     - uses: pypa/cibuildwheel@v4.2.0
-      env:
-        CIBW_BUILD: cp314-win_amd64 cp312-*
-        CIBW_SKIP: cp312-win*
-        CIBW_BUILD_FRONTEND: uv
-        CIBW_CONFIG_SETTINGS_WINDOWS: setup-args=--debug setup-args=--vsenv
-        CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=13.3
-        CIBW_ENVIRONMENT_WINDOWS: CC=clang-cl CXX=clang-cl AR=llvm-lib
-        CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
       with:
         output-dir: dist
-
-    - name: Fix tag
-      if: ${{ runner.os == 'Windows' }}
-      run: |
-        cd dist
-        Get-ChildItem *.whl | ForEach-Object { uvx wheel tags --remove --python-tag cp312 $_.Name }
 
     - uses: actions/upload-artifact@v7
       with:
