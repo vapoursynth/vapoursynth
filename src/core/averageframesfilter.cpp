@@ -250,13 +250,6 @@ struct AveragePush {
 };
 
 const char averageGlsl[] =
-    "#extension GL_EXT_shader_8bit_storage : require\n"
-    "#extension GL_EXT_shader_16bit_storage : require\n"
-    "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-    "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
-    "#ifdef FLOAT_SAMPLES\n"
-    "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
-    "#endif\n"
     "\n"
     "layout(local_size_x = 16, local_size_y = 16) in;\n"
     "layout(std430, set = 0, binding = 0) writeonly buffer Dst { SAMPLE_T dstData[]; };\n"
@@ -301,13 +294,10 @@ std::string averageSource(const VSVideoFormat &fmt, int numInputs) {
         accumI += "    accum += (int(s" + k + "[idx]) - pc.bias) * int(pc.weights[" + k + "]);\n";
     }
 
-    std::string preamble = "#version 460\n";
-    if (fmt.sampleType == stInteger)
-        preamble += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
-    else if (fmt.bytesPerSample == 4)
-        preamble += "#define SAMPLE_T float\n#define FLOAT_SAMPLES\n";
-    else
-        preamble += "#define SAMPLE_T float16_t\n#define FLOAT_SAMPLES\n";
+    std::string preamble = "#version 460\n" + vsgpu::glslTypePreamble(vsgpu::glslUsesFloat16(fmt));
+    preamble += std::string("#define SAMPLE_T ") + vsgpu::glslElementType(fmt) + "\n";
+    if (fmt.sampleType == stFloat)
+        preamble += "#define FLOAT_SAMPLES\n";
 
     std::string s = preamble + averageGlsl;
     auto replace = [&s](const char *token, const std::string &with) {

@@ -583,26 +583,19 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             }
         }
 
-        std::string src = "#version 460\n";
         const VSVideoFormat &of = d->vi.format;
-        if (of.sampleType == stInteger)
-            src += of.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
-        else
-            src += of.bytesPerSample == 4 ? "#define SAMPLE_T float\n" : "#define SAMPLE_T float16_t\n";
-        src += "#extension GL_EXT_shader_8bit_storage : require\n"
-               "#extension GL_EXT_shader_16bit_storage : require\n"
-               "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-               "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
-               "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
-               "\nlayout(local_size_x = 16, local_size_y = 16) in;\n";
+        bool anyHalf = vsgpu::glslUsesFloat16(of);
+        for (int i = 0; i < d->numInputs; i++)
+            anyHalf = anyHalf || vsgpu::glslUsesFloat16(vsapi->getVideoInfo(d->node[i])->format);
+        std::string src = "#version 460\n" + vsgpu::glslTypePreamble(anyHalf);
+        src += std::string("#define SAMPLE_T ") + vsgpu::glslElementType(of) + "\n";
+        src += "\nlayout(local_size_x = 16, local_size_y = 16) in;\n";
 
         /* Each input keeps its own sample type: Expr accepts clips of differing formats and
            the load opcode already records which width it wants. */
         for (int i = 0; i < d->numInputs; i++) {
             const VSVideoFormat &f = vsapi->getVideoInfo(d->node[i])->format;
-            const char *t = f.sampleType == stInteger
-                ? (f.bytesPerSample == 1 ? "uint8_t" : "uint16_t")
-                : (f.bytesPerSample == 4 ? "float" : "float16_t");
+            const char *t = vsgpu::glslElementType(f);
             src += "layout(std430, set = 0, binding = " + std::to_string(i) + ") readonly buffer Src" +
                    std::to_string(i) + " { " + t + " s" + std::to_string(i) + "[]; };\n";
         }

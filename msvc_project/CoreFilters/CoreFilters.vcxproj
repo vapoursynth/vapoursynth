@@ -162,6 +162,7 @@
     <ClInclude Include="..\..\src\core\filtershared.h" />
     <ClInclude Include="..\..\src\core\float16_helper.h" />
     <ClInclude Include="..\..\src\core\gpufilter.h" />
+    <ClInclude Include="..\..\src\core\vsgpuglsl.h" />
     <ClInclude Include="..\..\src\core\internalfilters.h" />
     <ClInclude Include="..\..\src\core\kernel\cpulevel.h" />
     <ClInclude Include="..\..\src\core\kernel\generic.h" />

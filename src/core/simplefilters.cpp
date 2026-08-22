@@ -1292,10 +1292,6 @@ typedef VariableNodeData<StackDataExtra> StackData;
    layer stops at three, and each pass is shaped by its own input rather than by the output --
    so it declares a FilterDesc directly, which is exactly the escape hatch that exists for it. */
 static const char stackGlsl[] =
-    "#extension GL_EXT_shader_8bit_storage : require\n"
-    "#extension GL_EXT_shader_16bit_storage : require\n"
-    "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-    "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
     "\n"
     "layout(local_size_x = 16, local_size_y = 16) in;\n"
     "layout(std430, set = 0, binding = 0) readonly buffer Src { SAMPLE_T srcData[]; };\n"
@@ -1322,7 +1318,7 @@ static VSNode *createGPUStack(std::vector<VSNode *> &nodes, bool vertical, const
 
     /* Stacking moves samples without looking at them, so the kernel only needs a type of the
        right width -- uint for 32 bit rather than a float that would need another extension. */
-    std::string preamble = "#version 460\n";
+    std::string preamble = "#version 460\n" + vsgpu::glslTypePreamble(false);
     if (vi->format.bytesPerSample == 1)
         preamble += "#define SAMPLE_T uint8_t\n";
     else if (vi->format.bytesPerSample == 2)
@@ -2409,18 +2405,9 @@ struct ReduceRecord {
 };
 
 std::string reduceKernel(const VSVideoFormat &fmt) {
-    const bool isFloat = fmt.sampleType == stFloat;
-    std::string s = "#version 460\n";
-    if (!isFloat)
-        s += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
-    else
-        s += fmt.bytesPerSample == 4 ? "#define SAMPLE_T float\n" : "#define SAMPLE_T float16_t\n";
-    s += "#extension GL_EXT_shader_8bit_storage : require\n"
-         "#extension GL_EXT_shader_16bit_storage : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
-         "#extension GL_KHR_shader_subgroup_basic : require\n"
+    std::string s = "#version 460\n" + vsgpu::glslTypePreamble(vsgpu::glslUsesFloat16(fmt));
+    s += std::string("#define SAMPLE_T ") + vsgpu::glslElementType(fmt) + "\n";
+    s += "#extension GL_KHR_shader_subgroup_basic : require\n"
          "#extension GL_KHR_shader_subgroup_arithmetic : require\n"
          /* Baked per instance: the pipeline pins the subgroup size to SGSIZE, so the
             per-subgroup bookkeeping is exact, and the second-clip and float branches fold

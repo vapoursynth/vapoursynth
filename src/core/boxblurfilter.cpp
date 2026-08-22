@@ -573,13 +573,6 @@ struct BlurPush {
 /* One box blur pass over one plane, horizontal or vertical by push constant. Integer
    variants match the CPU filter's math exactly. */
 const char boxBlurGlsl[] =
-    "#extension GL_EXT_shader_8bit_storage : require\n"
-    "#extension GL_EXT_shader_16bit_storage : require\n"
-    "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-    "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
-    "#ifdef FLOAT_SAMPLES\n"
-    "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
-    "#endif\n"
     "\n"
     "layout(local_size_x = 16, local_size_y = 16) in;\n"
     "\n"
@@ -629,13 +622,6 @@ const char boxBlurGlsl[] =
 /* The large radius variant: one thread per blurred line running the CPU filter's sliding sum,
    so a pass costs ~2 loads per pixel instead of 2r+1 and is flat in the radius. */
 const char boxBlurLineGlsl[] =
-    "#extension GL_EXT_shader_8bit_storage : require\n"
-    "#extension GL_EXT_shader_16bit_storage : require\n"
-    "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-    "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
-    "#ifdef FLOAT_SAMPLES\n"
-    "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
-    "#endif\n"
     "\n"
     "layout(local_size_x = 64, local_size_y = 1) in;\n"
     "\n"
@@ -714,14 +700,10 @@ VSNode *createGPUBoxBlur(VSNode *node, const bool process[3], int hradius, int h
     VSCore *core, const VSAPI *vsapi) {
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-    std::string preamble = "#version 460\n";
-    if (vi->format.sampleType == stInteger) {
-        preamble += vi->format.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
-    } else if (vi->format.bytesPerSample == 4) {
-        preamble += "#define SAMPLE_T float\n#define FLOAT_SAMPLES\n";
-    } else {
-        preamble += "#define SAMPLE_T float16_t\n#define FLOAT_SAMPLES\n";
-    }
+    std::string preamble = "#version 460\n" + vsgpu::glslTypePreamble(vsgpu::glslUsesFloat16(vi->format));
+    preamble += std::string("#define SAMPLE_T ") + vsgpu::glslElementType(vi->format) + "\n";
+    if (vi->format.sampleType == stFloat)
+        preamble += "#define FLOAT_SAMPLES\n";
 
     vsgpu::FilterDesc desc;
     desc.vi = *vi;

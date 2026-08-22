@@ -129,21 +129,8 @@ static void scrawl_character_half(unsigned char c, uint8_t *image, ptrdiff_t str
 }
 
 static std::string textSamplePreamble(const VSVideoFormat &fmt) {
-    std::string s = "#version 460\n";
-    if (fmt.sampleType == stInteger)
-        s += fmt.bytesPerSample == 1 ? "#define SAMPLE_T uint8_t\n" : "#define SAMPLE_T uint16_t\n";
-    else if (fmt.bytesPerSample == 4)
-        s += "#define SAMPLE_T float\n";
-    else
-        s += "#define SAMPLE_T float16_t\n#define HALF_SAMPLES\n";
-
-    s += "#extension GL_EXT_shader_8bit_storage : require\n"
-         "#extension GL_EXT_shader_16bit_storage : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n"
-         "#ifdef HALF_SAMPLES\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n"
-         "#endif\n";
+    std::string s = "#version 460\n" + vsgpu::glslTypePreamble(vsgpu::glslUsesFloat16(fmt));
+    s += std::string("#define SAMPLE_T ") + vsgpu::glslElementType(fmt) + "\n";
     return s;
 }
 

@@ -150,6 +150,7 @@
     <ClInclude Include="..\..\include\VSHelper4.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
     <ClInclude Include="..\..\src\core\resizeshared.h" />
+    <ClInclude Include="..\..\src\core\vsgpuglsl.h" />
     <ClInclude Include="..\..\src\core\zimg\colorspace.h" />
     <ClInclude Include="..\..\src\core\zimg\colorspace_param.h" />
     <ClInclude Include="..\..\src\core\zimg\except.h" />

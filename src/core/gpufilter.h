@@ -39,6 +39,7 @@
 
 #include "VapourSynth4.h"
 #include "VSVulkan4.h"
+#include "vsgpuglsl.h"
 
 #include <algorithm>
 #include <cstring>
@@ -1138,14 +1139,10 @@ struct SimpleFilter {
 
 namespace detail {
 
+/* The spelling itself lives in vsgpuglsl.h now, shared with every kernel in the tree;
+   this name stays for the out of tree filters already calling it. */
 inline const char *sampleTypeName(const VSVideoFormat &f) {
-    if (f.sampleType == stFloat)
-        return f.bytesPerSample == 2 ? "float16_t" : "float";
-    /* Four byte integers are not a sample format anyone stores video in, but MakeFullDiff
-       produces one: 16 bit input widens to 17, which no longer fits two bytes. */
-    if (f.bytesPerSample == 4)
-        return "uint";
-    return f.bytesPerSample == 1 ? "uint8_t" : "uint16_t";
+    return glslElementType(f);
 }
 
 inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt) {
@@ -1156,27 +1153,19 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
     /* Every type the source below can spell counts, the per input overrides included: a
        half declared only through srcFormats would otherwise emit float16_t buffers without
        the extension that admits them, and the kernel would not compile. */
-    bool isHalf = (isFloat && fmt.bytesPerSample == 2) ||
-                  (srcFmt.sampleType == stFloat && srcFmt.bytesPerSample == 2);
+    bool isHalf = glslUsesFloat16(fmt) || glslUsesFloat16(srcFmt);
 
-    /* One place decides how a format is spelled, for the destination as much as for the
-       sources: a second copy of this chain is how a four byte integer output silently came
-       out declared as uint16_t. */
-    std::string s = "#version 460\n";
-    s += std::string("#define SAMPLE_T ") + sampleTypeName(fmt) + "\n";
+    /* The spelling of every format, destination and sources alike, comes from the shared
+       helper so it cannot fork per filter. */
+    std::string defs = std::string("#define SAMPLE_T ") + glslElementType(fmt) + "\n";
     for (int i = 0; i < sf.numInputs; i++) {
         const VSVideoFormat &f = sf.srcFormats[i] ? *sf.srcFormats[i] : srcFmt;
-        isHalf = isHalf || (f.sampleType == stFloat && f.bytesPerSample == 2);
-        s += "#define SRC" + std::to_string(i) + "_T " + sampleTypeName(f) + "\n";
+        isHalf = isHalf || glslUsesFloat16(f);
+        defs += "#define SRC" + std::to_string(i) + "_T " + glslElementType(f) + "\n";
     }
-    s += std::string("#define LUT_T ") + (sf.constantType ? sf.constantType : sampleTypeName(fmt)) + "\n";
+    defs += std::string("#define LUT_T ") + (sf.constantType ? sf.constantType : glslElementType(fmt)) + "\n";
 
-    s += "#extension GL_EXT_shader_8bit_storage : require\n"
-         "#extension GL_EXT_shader_16bit_storage : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n";
-    if (isHalf)
-        s += "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n";
+    std::string s = "#version 460\n" + glslTypePreamble(isHalf) + defs;
 
     s += "\nlayout(local_size_x = " + std::to_string(simpleLocalSize) +
          ", local_size_y = " + std::to_string(simpleLocalSize) + ") in;\n\n"

@@ -58,6 +58,7 @@
 #include "VSConstants4.h"
 #include "VSVulkan4.h"
 #include "resizeshared.h"
+#include "vsgpuglsl.h"
 #include "zimg/blue.h"
 #include "zimg/colorspace.h"
 #include "zimg/colorspace_param.h"
@@ -332,21 +333,10 @@ struct ResizePush {
 
 constexpr uint32_t resizeLocalSize = 16;
 
-const char *sampleTypeName(const VSVideoFormat &f) {
-    if (f.sampleType == stFloat)
-        return f.bytesPerSample == 2 ? "float16_t" : "float";
-    return f.bytesPerSample == 1 ? "uint8_t" : "uint16_t";
-}
-
 std::string resizeShaderSource(const KernelSpec &k, bool vertical, const char *srcType,
     const char *dstType, int intBits, int ditherMode) {
     std::string s = "#version 460\n";
-    s += "#extension GL_EXT_shader_8bit_storage : require\n"
-         "#extension GL_EXT_shader_16bit_storage : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n";
-    if (!strcmp(srcType, "float16_t") || !strcmp(dstType, "float16_t"))
-        s += "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n";
+    s += vsgpu::glslTypePreamble(!strcmp(srcType, "float16_t") || !strcmp(dstType, "float16_t"));
     s += std::string("#define SRC_T ") + srcType + "\n";
     s += std::string("#define DST_T ") + dstType + "\n";
     s += std::string("#define VERT ") + (vertical ? "1" : "0") + "\n";
@@ -886,15 +876,10 @@ const char colourMain[] =
 std::string colourShaderSource(const char *srcT[3], const char *dstT[3], const bool dstInt[3],
     int outPlanes, int dstIntBits, int ditherMode) {
     std::string s = "#version 460\n";
-    s += "#extension GL_EXT_shader_8bit_storage : require\n"
-         "#extension GL_EXT_shader_16bit_storage : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-         "#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require\n";
     bool anyHalf = false;
     for (int i = 0; i < 3; i++)
         anyHalf = anyHalf || !strcmp(srcT[i], "float16_t") || (i < outPlanes && !strcmp(dstT[i], "float16_t"));
-    if (anyHalf)
-        s += "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require\n";
+    s += vsgpu::glslTypePreamble(anyHalf);
     for (int i = 0; i < 3; i++)
         s += "#define SRC" + std::to_string(i) + "_T " + srcT[i] + "\n";
     for (int i = 0; i < outPlanes; i++) {
@@ -2384,8 +2369,8 @@ bool buildPipeSet(GPUResizeData *d, PipeSet &ps, VSCore *core, std::string &erro
                 for (int dstSample = 0; dstSample < 2; dstSample++) {
                     const bool intOut = dstSample && spec.dstFmt.sampleType == stInteger;
                     const std::string glsl = resizeShaderSource(k, vert != 0,
-                        srcSample ? sampleTypeName(spec.srcFmt) : "float",
-                        dstSample ? sampleTypeName(spec.dstFmt) : "float",
+                        srcSample ? vsgpu::glslElementType(spec.srcFmt) : "float",
+                        dstSample ? vsgpu::glslElementType(spec.dstFmt) : "float",
                         intOut ? spec.dstFmt.bitsPerSample : 0, ditherMode);
                     if (!buildPipeline(d, glsl, intOut && ditherMode > 0 ? 3 : 2,
                             sizeof(ResizePush),
@@ -2401,12 +2386,12 @@ bool buildPipeSet(GPUResizeData *d, PipeSet &ps, VSCore *core, std::string &erro
         for (int i = 0; i < 3; i++) {
             const bool direct = spec.colour.inZero[i] ||
                 (!spec.colour.needIn[i] && i < spec.srcFmt.numPlanes);
-            srcT[i] = direct ? sampleTypeName(spec.srcFmt) : "float";
+            srcT[i] = direct ? vsgpu::glslElementType(spec.srcFmt) : "float";
         }
         const int outPlanes = spec.dstFmt.colorFamily == cfGray ? 1 : 3;
         for (int i = 0; i < outPlanes; i++) {
             const bool direct = !spec.colour.needOut[i];
-            dstT[i] = direct ? sampleTypeName(spec.dstFmt) : "float";
+            dstT[i] = direct ? vsgpu::glslElementType(spec.dstFmt) : "float";
             dstInt[i] = direct && spec.dstFmt.sampleType == stInteger;
         }
         const std::string glsl = colourShaderSource(srcT, dstT, dstInt, outPlanes,
