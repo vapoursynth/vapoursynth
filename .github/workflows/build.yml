@@ -55,12 +55,15 @@ jobs:
         path: dist
 
     - name: Install and run tests
+      env:
+        UV_NO_SYNC: 1
       run: |
-        pip install vapoursynth --no-index --find-links dist
-        vapoursynth config
-        vapoursynth register-install
-        vspipe --version
-        python -m unittest discover -s test -p "*test.py"
+        uv venv --python 3.12
+        uv pip install vapoursynth --no-index --find-links dist
+        uv run vapoursynth config
+        uv run vapoursynth register-install
+        uv run vspipe --version
+        uv run python -m unittest discover -s test -p "*test.py"
 
     # The Windows wheel just built is the same one the installer and portable
     # packages ship, so package them here instead of recompiling the wheel in a
