@@ -43,9 +43,9 @@ jobs:
     steps:
     - uses: actions/checkout@v7
 
-    - uses: astral-sh/setup-uv@v8.2.0
+    - uses: astral-sh/setup-uv@v10.0.1
 
-    - uses: pypa/cibuildwheel@v4.1.0
+    - uses: pypa/cibuildwheel@v4.2.0
       env:
         CIBW_BUILD: cp314-win_amd64 cp312-*
         CIBW_SKIP: cp312-win*
@@ -124,7 +124,7 @@ jobs:
 
     - name: Publish installer to release
       if: ${{ runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/R') }}
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         files: installer/Compiled/*
 
