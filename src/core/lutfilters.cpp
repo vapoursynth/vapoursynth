@@ -581,11 +581,11 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std:
     }
 #endif
 
-    const bool gpu1 = vsapi->getNodeResidency(d->node1) == nrGPU;
-    if (gpu1 != (vsapi->getNodeResidency(d->node2) == nrGPU))
-        RETERROR("Lut2: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+    const ClipResidencyResult residency = residencyOfClips(d->node1, d->node2, vsapi);
+    if (residency.kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("Lut2", residency.mixedAt).c_str());
 
-    if (gpu1) {
+    if (residency.kind == ClipResidency::AllGPU) {
         /* Indexed by both samples at once, y in the high bits, exactly how the table was
            laid out on the host. */
         vsgpu::SimpleFilter sf;

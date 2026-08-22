@@ -524,12 +524,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     for (int i = 0; i < d->numInputs; i++)
         deps.push_back({d->node[i], (d->vi.numFrames <= vsapi->getVideoInfo(d->node[i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
 
-    bool allGPU = true, anyGPU = false;
-    for (int i = 0; i < d->numInputs; i++) {
-        const bool gpu = vsapi->getNodeResidency(d->node[i]) == nrGPU;
-        allGPU = allGPU && gpu;
-        anyGPU = anyGPU || gpu;
-    }
+    const ClipResidencyResult residency = residencyOfClips(d->node, d->numInputs, vsapi);
     /* Nothing else frees these: ~ExprData only unmaps the JIT code, and exprFree runs only
        for a filter that was actually created, so every path that gives up here has to
        return the input references itself. */
@@ -538,13 +533,13 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             vsapi->freeNode(d->node[i]);
     };
 
-    if (anyGPU && !allGPU) {
+    if (residency.kind == ClipResidency::Mixed) {
         freeNodes();
-        vsapi->mapSetError(out, "Expr: clips are mismatched in residency; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match");
+        vsapi->mapSetError(out, residencyMismatchError("Expr", residency.mixedAt).c_str());
         return;
     }
 
-    if (allGPU) {
+    if (residency.kind == ClipResidency::AllGPU) {
         /* One glsl source for the whole filter, with the plane bodies as branches on a
            specialization constant and one program per distinct body: the text is parsed
            once however many bodies there are, and each pipeline folds the other bodies

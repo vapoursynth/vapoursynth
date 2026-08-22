@@ -1185,8 +1185,6 @@ private:
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
-    int videoFormatIdOffset = 1000;
-    VSCoreInfo coreInfo; // API3 compatibility
     std::set<VSNode *> caches;
     std::mutex cacheLock;
 
@@ -1297,7 +1295,6 @@ public:
     VSPlugin *getPluginByNamespace(const std::string &ns);
     VSPlugin *getNextPlugin(VSPlugin *plugin);
 
-    const VSCoreInfo &getCoreInfo3();
     void getCoreInfo(VSCoreInfo &info) const;
     void getCoreInfo2(VSCoreInfo2 &info) const;
 

@@ -44,6 +44,35 @@ static inline int residencyFlags(VSNode *node, const VSAPI *vsapi) {
     return (vsapi->getNodeResidency(node) == nrGPU) ? ffGPUOutput : 0;
 }
 
+enum class ClipResidency { AllCPU, AllGPU, Mixed };
+
+struct ClipResidencyResult {
+    ClipResidency kind;
+    int mixedAt; /* Mixed only: the first clip that disagrees with clip 0 */
+};
+
+/* The one residency rule for every filter taking several clips -- all of them on the CPU
+   or all of them on the GPU -- checked in one place so the policy and its message cannot
+   drift apart between filters. */
+static inline ClipResidencyResult residencyOfClips(VSNode *const *nodes, int numNodes, const VSAPI *vsapi) {
+    const bool gpu = vsapi->getNodeResidency(nodes[0]) == nrGPU;
+    for (int i = 1; i < numNodes; i++)
+        if ((vsapi->getNodeResidency(nodes[i]) == nrGPU) != gpu)
+            return { ClipResidency::Mixed, i };
+    return { gpu ? ClipResidency::AllGPU : ClipResidency::AllCPU, 0 };
+}
+
+/* For the filters that keep their two inputs as plain members rather than a vector. */
+static inline ClipResidencyResult residencyOfClips(VSNode *a, VSNode *b, const VSAPI *vsapi) {
+    VSNode *nodes[2] = { a, b };
+    return residencyOfClips(nodes, 2, vsapi);
+}
+
+static inline std::string residencyMismatchError(const char *filterName, int mixedAt) {
+    return std::string(filterName) + ": clips are mismatched in residency starting at clip #" +
+        std::to_string(mixedAt) + "; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match";
+}
+
 // get the triplet representing black for any colorspace (works for union with float too since it's always 0)
 static inline void setBlack(uint32_t color[3], const VSVideoFormat *format) {
     for (int i = 0; i < 3; i++)

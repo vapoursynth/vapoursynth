@@ -72,25 +72,6 @@ void createGPUFromDecl2(std::unique_ptr<T> &d, vsgpu::SimpleFilter &sf, VSMap *o
         vsapi->mapSetError(out, (std::string(sf.name) + ": " + error).c_str());
 }
 
-enum class Residency { AllCPU, AllGPU, Mixed };
-
-Residency residencyOf(const std::vector<VSNode *> &nodes, int count, const VSAPI *vsapi) {
-    int onGPU = 0;
-    for (int i = 0; i < count; i++)
-        onGPU += vsapi->getNodeResidency(nodes[i]) == nrGPU;
-    if (onGPU == 0)
-        return Residency::AllCPU;
-    return onGPU == count ? Residency::AllGPU : Residency::Mixed;
-}
-
-/* The two node filters keep their inputs as plain members rather than a vector. */
-Residency residencyOf(VSNode *a, VSNode *b, const VSAPI *vsapi) {
-    const int onGPU = (vsapi->getNodeResidency(a) == nrGPU) + (vsapi->getNodeResidency(b) == nrGPU);
-    if (onGPU == 0)
-        return Residency::AllCPU;
-    return onGPU == 2 ? Residency::AllGPU : Residency::Mixed;
-}
-
 const char *premulPrelude =
     "int vsPremul(uint x, uint a, uint offset, uint maxval) {\n"
     "    int diff = int(x) - int(offset);\n"
@@ -485,11 +466,11 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     bool subsampled = (d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0);
     d->chroma_dispatch = subsampled;
 
-    Residency residency = residencyOf(d->nodes, 2, vsapi);
-    if (residency == Residency::Mixed)
-        RETERROR("PreMultiply: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+    const ClipResidencyResult residency = residencyOfClips(d->nodes.data(), 2, vsapi);
+    if (residency.kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("PreMultiply", residency.mixedAt).c_str());
 
-    if (residency == Residency::AllGPU) {
+    if (residency.kind == ClipResidency::AllGPU) {
         const VSVideoFormat &fmt = d->vi->format;
         const ChromaFilters cf = chromaFiltersFor(fmt.subSamplingW, fmt.subSamplingH);
         const unsigned depth = fmt.bitsPerSample;
@@ -721,11 +702,11 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     if (nweight > d->vi->format.numPlanes)
         RETERROR("Merge: more weights given than the number of planes to merge");
 
-    Residency residency = residencyOf(d->node1, d->node2, vsapi);
-    if (residency == Residency::Mixed)
-        RETERROR("Merge: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+    const ClipResidencyResult residency = residencyOfClips(d->node1, d->node2, vsapi);
+    if (residency.kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("Merge", residency.mixedAt).c_str());
 
-    if (residency == Residency::AllGPU) {
+    if (residency.kind == ClipResidency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "Merge";
         sf.numInputs = 2;
@@ -943,11 +924,11 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
                               && (d->process[1] || d->process[2]);
     d->chroma_dispatch = need_chroma_resize;
 
-    Residency maskedResidency = residencyOf(d->nodes, 3, vsapi);
-    if (maskedResidency == Residency::Mixed)
-        RETERROR("MaskedMerge: clips are mismatched in residency; all must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match");
+    const ClipResidencyResult maskedResidency = residencyOfClips(d->nodes.data(), 3, vsapi);
+    if (maskedResidency.kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("MaskedMerge", maskedResidency.mixedAt).c_str());
 
-    if (maskedResidency == Residency::AllGPU) {
+    if (maskedResidency.kind == ClipResidency::AllGPU) {
         const VSVideoFormat &fmt = d->vi->format;
         const ChromaFilters cf = chromaFiltersFor(fmt.subSamplingW, fmt.subSamplingH);
         const unsigned depth = fmt.bitsPerSample;
@@ -1222,11 +1203,11 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    Residency residency = residencyOf(d->node1, d->node2, vsapi);
-    if (residency == Residency::Mixed)
-        RETERROR("MakeDiff: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+    const ClipResidencyResult residency = residencyOfClips(d->node1, d->node2, vsapi);
+    if (residency.kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("MakeDiff", residency.mixedAt).c_str());
 
-    if (residency == Residency::AllGPU) {
+    if (residency.kind == ClipResidency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MakeDiff";
         sf.numInputs = 2;
@@ -1349,11 +1330,11 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    Residency residency = residencyOf(d->node1, d->node2, vsapi);
-    if (residency == Residency::Mixed)
-        RETERROR("MakeFullDiff: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+    const ClipResidencyResult residency = residencyOfClips(d->node1, d->node2, vsapi);
+    if (residency.kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("MakeFullDiff", residency.mixedAt).c_str());
 
-    if (residency == Residency::AllGPU) {
+    if (residency.kind == ClipResidency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MakeFullDiff";
         sf.numInputs = 2;
@@ -1482,11 +1463,11 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    Residency residency = residencyOf(d->node1, d->node2, vsapi);
-    if (residency == Residency::Mixed)
-        RETERROR("MergeDiff: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+    const ClipResidencyResult residency = residencyOfClips(d->node1, d->node2, vsapi);
+    if (residency.kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("MergeDiff", residency.mixedAt).c_str());
 
-    if (residency == Residency::AllGPU) {
+    if (residency.kind == ClipResidency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MergeDiff";
         sf.numInputs = 2;
@@ -1605,11 +1586,11 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    Residency residency = residencyOf(d->node1, d->node2, vsapi);
-    if (residency == Residency::Mixed)
-        RETERROR("MergeFullDiff: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+    const ClipResidencyResult residency = residencyOfClips(d->node1, d->node2, vsapi);
+    if (residency.kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("MergeFullDiff", residency.mixedAt).c_str());
 
-    if (residency == Residency::AllGPU) {
+    if (residency.kind == ClipResidency::AllGPU) {
         vsgpu::SimpleFilter sf;
         sf.name = "MergeFullDiff";
         sf.numInputs = 2;

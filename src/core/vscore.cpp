@@ -1653,11 +1653,6 @@ bool VSCore::isValidAudioInfo(const VSAudioInfo &ai) noexcept {
 
 /////////////////////////////////////////////////
 
-const VSCoreInfo &VSCore::getCoreInfo3() {
-    getCoreInfo(coreInfo);
-    return coreInfo;
-}
-
 void VSCore::getCoreInfo(VSCoreInfo &info) const {
     info.versionString = VAPOURSYNTH_VERSION_STRING;
     info.core = VAPOURSYNTH_CORE_VERSION;
@@ -1957,7 +1952,6 @@ VSCore::VSCore(int flags) :
     numFilterInstances(1),
     creationFlags(flags & (ccfEnableGraphInspection | ccfDisableAutoLoading | ccfDisableLibraryUnloading | ccfEnableFrameRefDebug)),
     freedNodeProcessingTime(0),
-    videoFormatIdOffset(1000),
     cpuLevel(INT_MAX),
     memory(new vs::MemoryUse()),
     enableGraphInspection(creationFlags & ccfEnableGraphInspection),

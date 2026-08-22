@@ -3181,25 +3181,38 @@ cdef class Core(object):
         Unusable devices are listed with the reason and may still be selected, which fails with it."""
         self.ensure_valid()
         cdef const VSVULKANAPI *vk = self.funcs.getVulkanAPI()
-        cdef VSVulkanDeviceListEntry entries[16]
         cdef char err[512]
-        cdef int count = vk.enumerateVulkanDevices(entries, 16, err, 512)
+        # Sized by a first call so the device count can never truncate the list; the
+        # docstring's index promise only holds if every device is present.
+        cdef int count = vk.enumerateVulkanDevices(NULL, 0, err, 512)
         if count < 0:
             raise Error(err.decode('utf-8'))
+        if count == 0:
+            return []
+        cdef VSVulkanDeviceListEntry *entries = <VSVulkanDeviceListEntry *> malloc(count * sizeof(VSVulkanDeviceListEntry))
+        if entries == NULL:
+            raise MemoryError()
+        cdef int fetched
         type_names = {0: 'other', 1: 'integrated', 2: 'discrete', 3: 'virtual', 4: 'cpu'}
         result = []
-        for i in range(min(count, 16)):
-            result.append({
-                'index': i,
-                'name': (<bytes>(<char *>entries[i].deviceName)).decode('utf-8'),
-                'api_version': (entries[i].apiVersion >> 22, (entries[i].apiVersion >> 12) & 0x3ff, entries[i].apiVersion & 0xfff),
-                'type': type_names.get(entries[i].deviceType, 'other'),
-                'device_memory': entries[i].deviceMemory,
-                'usable': bool(entries[i].usable),
-                'reason': (<bytes>(<char *>entries[i].unusableReason)).decode('utf-8'),
-                'uuid': bytes(entries[i].deviceUUID[:16]).hex(),
-            })
-        return result
+        try:
+            fetched = vk.enumerateVulkanDevices(entries, count, err, 512)
+            if fetched < 0:
+                raise Error(err.decode('utf-8'))
+            for i in range(min(count, fetched)):
+                result.append({
+                    'index': i,
+                    'name': (<bytes>(<char *>entries[i].deviceName)).decode('utf-8'),
+                    'api_version': (entries[i].apiVersion >> 22, (entries[i].apiVersion >> 12) & 0x3ff, entries[i].apiVersion & 0xfff),
+                    'type': type_names.get(entries[i].deviceType, 'other'),
+                    'device_memory': entries[i].deviceMemory,
+                    'usable': bool(entries[i].usable),
+                    'reason': (<bytes>(<char *>entries[i].unusableReason)).decode('utf-8'),
+                    'uuid': bytes(entries[i].deviceUUID[:16]).hex(),
+                })
+            return result
+        finally:
+            free(entries)
 
     @property
     def vulkan_device_info(self):

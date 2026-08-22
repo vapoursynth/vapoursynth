@@ -555,16 +555,11 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         for (int i = 0; i < numNodes; i++)
             deps.push_back({d->nodes[i], (vsapi->getVideoInfo(d->nodes[i])->numFrames >= d->vi.numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
     }
-    bool allGPU = true, anyGPU = false;
-    for (int i = 0; i < numNodes; i++) {
-        const bool gpu = vsapi->getNodeResidency(d->nodes[i]) == nrGPU;
-        allGPU = allGPU && gpu;
-        anyGPU = anyGPU || gpu;
-    }
-    if (anyGPU && !allGPU)
-        RETERROR("AverageFrames: clips are mismatched in residency; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match");
+    const ClipResidencyResult residency = residencyOfClips(d->nodes.data(), numNodes, vsapi);
+    if (residency.kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("AverageFrames", residency.mixedAt).c_str());
 
-    if (allGPU) {
+    if (residency.kind == ClipResidency::AllGPU) {
         const int taps = static_cast<int>(d->weights.size());
         const bool single = numNodes == 1;
 

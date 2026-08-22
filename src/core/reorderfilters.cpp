@@ -31,14 +31,6 @@ using namespace vsh;
 //////////////////////////////////////////
 // Shared
 
-static int findMixedResidency(VSNode **nodes, int num, const VSAPI *vsapi) {
-    int residency = vsapi->getNodeResidency(nodes[0]);
-    for (int i = 1; i < num; i++)
-        if (vsapi->getNodeResidency(nodes[i]) != residency)
-            return i;
-    return 0;
-}
-
 struct MismatchInfo {
     bool match;
     bool differentDimensions;
@@ -242,8 +234,9 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         for (int i = 0; i < d->numclips; i++)
             d->nodes[i] = vsapi->mapGetNode(in, "clips", i, 0);
 
-        if (int badClip = findMixedResidency(d->nodes.data(), d->numclips, vsapi))
-            RETERROR(("Interleave: clips are mismatched in residency starting at clip #" + std::to_string(badClip) + "; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match").c_str());
+        const ClipResidencyResult residency = residencyOfClips(d->nodes.data(), d->numclips, vsapi);
+        if (residency.kind == ClipResidency::Mixed)
+            RETERROR(residencyMismatchError("Interleave", residency.mixedAt).c_str());
 
         MismatchInfo mminfo = findCommonVi(d->nodes.data(), d->numclips, &d->vi, vsapi);
         if (!mminfo.match && !mismatch)
@@ -524,8 +517,9 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         for (int i = 0; i < d->numclips; i++)
             d->nodes[i] = vsapi->mapGetNode(in, "clips", i, 0);
 
-        if (int badClip = findMixedResidency(d->nodes.data(), d->numclips, vsapi))
-            RETERROR(("Splice: clips are mismatched in residency starting at clip #" + std::to_string(badClip) + "; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match").c_str());
+        const ClipResidencyResult residency = residencyOfClips(d->nodes.data(), d->numclips, vsapi);
+        if (residency.kind == ClipResidency::Mixed)
+            RETERROR(residencyMismatchError("Splice", residency.mixedAt).c_str());
 
         MismatchInfo mminfo = findCommonVi(d->nodes.data(), d->numclips, &vi, vsapi);
         if (!mminfo.match && !mismatch && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d->nodes[0])))

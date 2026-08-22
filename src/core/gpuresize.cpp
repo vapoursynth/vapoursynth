@@ -1093,6 +1093,10 @@ struct FrameState {
        input side follows the frame's own properties. */
     ColourConstants consts = {};
     int64_t colourMatrixTag = -1, colourTransferTag = -1, colourPrimariesTag = -1;
+    /* The frame resolved every colour leg to the same value in as out, so the colour
+       pass is skipped and the plane chains run the plain path; the tags above still
+       carry the resolved values. */
+    bool colourIdentity = false;
 };
 
 float rec709OetfHost(double x) {
@@ -1238,6 +1242,49 @@ bool resolveColourFrame(const ConversionSpec &spec, const VSMap *props, const VS
         }
         return true;
     };
+
+    /* zimg's API layer clears both colorspaces outright when the resolved source and
+       destination agree -- its "basic no-op case", which deliberately accepts even
+       unenumerated values -- so the scalar path runs no colour conversion for them,
+       however emphatically the arguments restate what the frame already is. Decided
+       here per frame on the raw values, before any implementability check, because the
+       clearing too happens before zimg translates the enums: FCC to FCC has to no-op,
+       not error. The input side of the comparison follows the frame's own tags, so the
+       answer is the frame's rather than the spec's, and a variable-tagged clip can
+       convert on one frame and pass through on the next exactly as it does in zimg. */
+    {
+        int64_t rawInMat = -1;
+        if (cc.inMatActive) {
+            switch (cc.inKind) {
+            case ColourConfig::MatCL2020: rawInMat = VSC_MATRIX_BT2020_CL; break;
+            case ColourConfig::MatCLPrim: rawInMat = VSC_MATRIX_CHROMATICITY_DERIVED_CL; break;
+            case ColourConfig::MatNclPrim: rawInMat = VSC_MATRIX_CHROMATICITY_DERIVED_NCL; break;
+            case ColourConfig::MatICtCp: rawInMat = VSC_MATRIX_ICTCP; break;
+            default: rawInMat = readProp("_Matrix", VSC_MATRIX_UNSPECIFIED, cc.inMatrixFallback); break;
+            }
+        }
+        const int64_t rawOutMat = !cc.outMatActive ? -1
+            : cc.outKind == ColourConfig::MatFrameSame ? rawInMat : cc.outMatrixValue;
+        const bool matSame = !(cc.inMatActive && cc.outMatActive) || rawInMat == rawOutMat;
+        const bool transferSame = !cc.doTransfer ||
+            readProp("_Transfer", VSC_TRANSFER_UNSPECIFIED,
+                cc.transferInFallback >= 0 ? cc.transferInFallback : VSC_TRANSFER_UNSPECIFIED) == cc.outTransferValue;
+        const bool primariesSame = !cc.doGamut ||
+            readProp("_Primaries", VSC_PRIMARIES_UNSPECIFIED,
+                cc.primInFallback >= 0 ? cc.primInFallback : VSC_PRIMARIES_UNSPECIFIED) == cc.outPrimValue;
+        if (spec.srcFmt.colorFamily == spec.dstFmt.colorFamily && matSame && transferSame && primariesSame) {
+            st->colourIdentity = true;
+            /* The same tags the conversion would have decided, from the same values; the
+               scalar path writes the destination format's colorspace into the props
+               whether or not a conversion ran. The numbering flags stay false: the
+               cleared state numbers YCgCo like anything else. */
+            st->colourMatrixTag = spec.dstFmt.colorFamily == cfRGB ? VSC_MATRIX_RGB
+                : cc.outMatActive ? rawOutMat : -1;
+            st->colourTransferTag = cc.doTransfer ? cc.outTransferValue : -1;
+            st->colourPrimariesTag = cc.doGamut ? cc.outPrimValue : -1;
+            return true;
+        }
+    }
 
     try {
         /* --- the input matrix, out of YUV or ICtCp */
@@ -1630,10 +1677,14 @@ bool resolveFrameState(const ConversionSpec &spec, const VSMap *props, const VSA
     st->fullOut = spec.rangeOut >= 0 ? spec.rangeOut == VSC_RANGE_FULL
         : spec.sameFamily ? fullIn : spec.dstFmt.colorFamily == cfRGB;
 
-    /* YCgCo puts chroma over the same span as luma, the one matrix that changes what a
-       sample value means without a conversion. */
-    const int64_t m = vsapi->mapGetInt(props, "_Matrix", 0, &err);
-    st->ycgco = !err && m == VSC_MATRIX_YCGCO;
+    /* Not resolved from _Matrix or matrix_in here, deliberately: zimg's API layer clears
+       the whole colorspace when source and destination agree -- the "basic no-op case" --
+       so on its scalar path a conversion that never touches the matrix numbers YCgCo
+       chroma over 224 like any other matrix, and the 219 luma span applies only where a
+       colour conversion actually runs (resolveColourFrame makes that same decision for
+       the colour path below). Reading the frame's tag here looked like the obvious thing
+       and quietly diverged from the CPU output. */
+    st->ycgco = false;
 
     /* Where the output's chroma sits: stated, carried between two subsampled YUV
        formats, or the destination format's own default. */
@@ -1876,7 +1927,7 @@ FramePlan planFrame(const ConversionSpec &spec, const FrameState &st) {
     const bool interlaced = st.parity == Parity::Interlaced;
     const ColourConfig &cc = spec.colour;
 
-    if (cc.active) {
+    if (cc.active && !st.colourIdentity) {
         fp.colourActive = true;
         fp.workW = cc.workW;
         fp.workH = cc.workH;
@@ -2205,6 +2256,11 @@ struct GPUResizeData {
     VSVulkanCoreHandles handles = {};
     VSGPUExecPool *pool = nullptr;
 
+    /* The dither table lives in device local memory for the instance's whole life,
+       uploaded once at create; null when the instance does not dither. */
+    VSGPUBuffer *ditherBuffer = nullptr;
+    VSVulkanBufferInfo ditherInfo = {};
+
     PipeSet pipes;
 
     void destroyPipeSet(PipeSet &ps) {
@@ -2230,6 +2286,8 @@ struct GPUResizeData {
                 char err[512] = { 0 };
                 vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err));
             }
+            if (ditherBuffer)
+                vkapi->destroyGPUBuffer(ditherBuffer);
             destroyPipeSet(pipes);
             if (pool)
                 vkapi->freeGPUExecPool(pool);
@@ -2450,7 +2508,6 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
             d->vkapi->gpuExecUsesBuffer(ctx, buffer);
         return buffer != nullptr;
     };
-    VSVulkanBufferInfo ditherBuf = {};
     if (fp.scratchBytes && !allocBuffer(fp.scratchBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, &scratch))
         return abandon(std::string("Resize: ") + err);
     if (fp.colourActive) {
@@ -2465,21 +2522,14 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &constsBuf))
             return abandon(std::string("Resize: ") + err);
     }
-    if (!pset.ditherTable.empty() && !allocBuffer(pset.ditherTable.size() * sizeof(float),
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &ditherBuf))
-        return abandon(std::string("Resize: ") + err);
-
     VkCommandBuffer cmd = d->vkapi->gpuExecCommandBuffer(ctx);
     bool firstDispatch = true;
 
-    if (fp.colourActive || ditherBuf.buffer) {
-        /* Constants and the dither table ride inline in the command buffer; small
-           enough by far, and it keeps them device local without a staging round trip. */
-        if (fp.colourActive)
-            d->vk->vkCmdUpdateBuffer(cmd, constsBuf.buffer, 0, sizeof(ColourConstants), &fp.consts);
-        if (ditherBuf.buffer)
-            d->vk->vkCmdUpdateBuffer(cmd, ditherBuf.buffer, 0,
-                pset.ditherTable.size() * sizeof(float), pset.ditherTable.data());
+    if (fp.colourActive) {
+        /* The colour constants ride inline in the command buffer; small enough by far,
+           and it keeps them device local without a staging round trip. The dither table
+           is not here with them: it never changes, so it was uploaded once at create. */
+        d->vk->vkCmdUpdateBuffer(cmd, constsBuf.buffer, 0, sizeof(ColourConstants), &fp.consts);
         VkMemoryBarrier2 mb = {};
         mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
         mb.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
@@ -2630,9 +2680,9 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
                 pset.pipes[cls][ps.vertical ? 1 : 0][srcSample ? 1 : 0][dstSample ? 1 : 0];
             /* Sample-writing pipelines carry the dither table binding when the instance
                dithers at all; the count has to match the layout exactly. */
-            const bool withDither = dstSample && ditherBuf.buffer &&
+            const bool withDither = dstSample && d->ditherInfo.buffer &&
                 spec.dstFmt.sampleType == stInteger;
-            const VkBuffer bufs[3] = { srcBuf, dstBuf, ditherBuf.buffer };
+            const VkBuffer bufs[3] = { srcBuf, dstBuf, d->ditherInfo.buffer };
             dispatchOne(pipe, bufs, withDither ? 3 : 2, &push, sizeof(push), ps.outW, ps.outH);
         }
     };
@@ -2658,8 +2708,8 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
             return abandon("Resize: a frame plane is not GPU resident");
         int count = 3 + fp.colourOutPlanes;
         bufs[count++] = constsBuf.buffer;
-        if (ditherBuf.buffer)
-            bufs[count++] = ditherBuf.buffer;
+        if (d->ditherInfo.buffer)
+            bufs[count++] = d->ditherInfo.buffer;
         dispatchOne(pset.colourPipe, bufs, count, &cpush, sizeof(cpush), fp.workW, fp.workH);
     }
 
@@ -3164,6 +3214,65 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
     d->pool = d->vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
     if (!d->pool)
         return hard_error(err);
+
+    /* The dither table never changes after create, so it is staged and copied into device
+       local memory once here -- the same shape the gpufilter driver gives its constant
+       buffers -- rather than riding vkCmdUpdateBuffer plus a barrier on every frame. The
+       staging buffer is handed to the context, which destroys it when the copy retires;
+       the device local one belongs to the instance and outlives every submission, which
+       the pool guarantees by draining before it is freed. */
+    if (!d->pipes.ditherTable.empty()) {
+        const VkDeviceSize ditherBytes = d->pipes.ditherTable.size() * sizeof(float);
+        d->ditherBuffer = d->vkapi->createGPUBuffer(core, ditherBytes,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, &d->ditherInfo, err, sizeof(err));
+        if (!d->ditherBuffer)
+            return hard_error(err);
+        VSVulkanBufferInfo stagingInfo = {};
+        VSGPUBuffer *staging = d->vkapi->createGPUBuffer(core, ditherBytes,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 0,
+            &stagingInfo, err, sizeof(err));
+        if (!staging)
+            return hard_error(err);
+        std::memcpy(stagingInfo.mapped, d->pipes.ditherTable.data(), ditherBytes);
+        VSGPUExecContext *uploadCtx = d->vkapi->gpuExecAcquire(d->pool, err, sizeof(err));
+        if (!uploadCtx) {
+            d->vkapi->destroyGPUBuffer(staging);
+            return hard_error(err);
+        }
+        d->vkapi->gpuExecUsesBuffer(uploadCtx, staging);
+        VkBufferCopy2 region = {};
+        region.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
+        region.size = ditherBytes;
+        VkCopyBufferInfo2 copyInfo = {};
+        copyInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
+        copyInfo.srcBuffer = stagingInfo.buffer;
+        copyInfo.dstBuffer = d->ditherInfo.buffer;
+        copyInfo.regionCount = 1;
+        copyInfo.pRegions = &region;
+        d->vk->vkCmdCopyBuffer2(d->vkapi->gpuExecCommandBuffer(uploadCtx), &copyInfo);
+        /* The device side dependency for every later dispatch that reads the table: the
+           waitIdle below only orders the host, and a host wait is not a memory dependency,
+           so without this the transfer write is never made visible to shader reads. */
+        VkMemoryBarrier2 mb = {};
+        mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+        mb.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+        mb.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        mb.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        mb.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+        VkDependencyInfo depInfo = {};
+        depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        depInfo.memoryBarrierCount = 1;
+        depInfo.pMemoryBarriers = &mb;
+        d->vk->vkCmdPipelineBarrier2(d->vkapi->gpuExecCommandBuffer(uploadCtx), &depInfo);
+        if (d->vkapi->gpuExecSubmit(uploadCtx, nullptr, err, sizeof(err)))
+            return hard_error(err);
+        /* The first frame must not race the upload, and there is no producer pair on a
+           buffer to wait on, so this one submission is waited for on the host. */
+        if (d->vkapi->gpuExecPoolWaitIdle(d->pool, err, sizeof(err)))
+            return hard_error(err);
+    }
 
     VSFilterDependency deps[] = {{ node, rpStrictSpatial }};
     d->node = node;

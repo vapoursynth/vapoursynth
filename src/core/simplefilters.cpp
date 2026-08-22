@@ -675,10 +675,9 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     if (err)
         d->nodes[3] = vsapi->addNodeRef(d->nodes[0]);
 
-    for (int i = 1; i < outplanes; i++) {
-        if (vsapi->getNodeResidency(d->nodes[i]) != vsapi->getNodeResidency(d->nodes[0]))
-            RETERROR("ShufflePlanes: plane source clips are mismatched in residency; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match");
-    }
+    const ClipResidencyResult planeResidency = residencyOfClips(d->nodes.data(), outplanes, vsapi);
+    if (planeResidency.kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("ShufflePlanes", planeResidency.mixedAt).c_str());
 
     for (int i = 0; i < outplanes; i++) {
         if (d->plane[i] < 0 || (vsapi->getVideoInfo(d->nodes[i])->format.colorFamily != cfUndefined && d->plane[i] >= vsapi->getVideoInfo(d->nodes[i])->format.numPlanes))
@@ -1463,16 +1462,11 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             deps.push_back({d->nodes[i], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly});
 
         const char *stackName = d->vertical ? "StackVertical" : "StackHorizontal";
-        bool allGPU = true, anyGPU = false;
-        for (int i = 0; i < numclips; i++) {
-            const bool gpu = vsapi->getNodeResidency(d->nodes[i]) == nrGPU;
-            allGPU = allGPU && gpu;
-            anyGPU = anyGPU || gpu;
-        }
-        if (anyGPU && !allGPU)
-            RETERROR((std::string(stackName) + ": clips are mismatched in residency; all clips must be CPU or all GPU, insert GPUUpload or GPUDownload to make them match").c_str());
+        const ClipResidencyResult residency = residencyOfClips(d->nodes.data(), numclips, vsapi);
+        if (residency.kind == ClipResidency::Mixed)
+            RETERROR(residencyMismatchError(stackName, residency.mixedAt).c_str());
 
-        if (allGPU) {
+        if (residency.kind == ClipResidency::AllGPU) {
             /* One pass per input, each dispatched over its own plane and writing into its
                own slice of the output. The passes never read what another wrote, so they
                are declared independent and the driver leaves out the barriers between
@@ -2637,8 +2631,8 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     d->cpulevel = vs_get_cpulevel(core);
 
     const bool gpu = vsapi->getNodeResidency(d->node1) == nrGPU;
-    if (d->node2 && (vsapi->getNodeResidency(d->node2) == nrGPU) != gpu)
-        RETERROR("PlaneStats: clips are mismatched in residency; both must be CPU or both GPU, insert GPUUpload or GPUDownload to make them match");
+    if (d->node2 && residencyOfClips(d->node1, d->node2, vsapi).kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("PlaneStats", 1).c_str());
 
     if (gpu) {
         /* Subgroup geometry: the reduction pins the subgroup size so the kernel's partial
