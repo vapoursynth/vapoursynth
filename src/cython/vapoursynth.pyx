@@ -353,7 +353,7 @@ cdef class StandaloneEnvironmentPolicy:
 # Internal holder of the current policy.
 cdef object _policy = None
 
-cdef const VSAPI *_vsapi = NULL
+cdef const VSAPI *_vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
 
 
 cdef void _set_logger(EnvironmentData env, VSLogHandler handler, VSLogHandlerFree free, void *userData):
@@ -4162,10 +4162,7 @@ cdef public api VSCore *vpy4_getCore(VSScript *se) nogil:
 cdef public api const VSAPI *vpy4_getVSAPI(int version) nogil:
     return getVapourSynthAPI(version)
 
-cdef const VSAPI *getVSAPIInternal() nogil:
-    global _vsapi
-    if _vsapi == NULL:
-        _vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
+cdef inline const VSAPI *getVSAPIInternal() nogil:
     return _vsapi
 
 cdef public api int vpy4_getVariable(VSScript *se, const char *name, VSMap *dst) nogil:
