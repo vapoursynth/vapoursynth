@@ -483,9 +483,6 @@ cdef class EnvironmentPolicyAPI:
 
     cdef cython.pymutex _lock
     cdef object _known_environments
-    # Sadly, weakref has no WeakSet.
-    # So we use a counter to fake a WeakSet.
-    cdef int _known_environments_counter
 
     def __init__(self):
         raise RuntimeError("Cannot directly instantiate this class.")
@@ -519,9 +516,7 @@ cdef class EnvironmentPolicyAPI:
         env.alive = True
 
         with self._lock:
-            counter = self._known_environments_counter
-            self._known_environments_counter += 1
-            self._known_environments[counter] = env
+            self._known_environments.add(env)
 
         return env
 
@@ -623,7 +618,9 @@ cdef class EnvironmentPolicyAPI:
 
     def unregister_policy(self):
         self.ensure_policy_matches()
-        for environment in self._known_environments.values():
+        with self._lock:
+            environments = list(self._known_environments)
+        for environment in environments:
             self.destroy_environment(environment)
         clear_policy(delay=False)
 
