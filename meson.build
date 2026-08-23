@@ -153,9 +153,10 @@ int main() {
     endif
 endif
 
+threads_dep = dependency('threads')
 deps = [
     dl_dep,
-    dependency('threads'),
+    threads_dep,
     dependency('zimg', version: '>=3.0.5'),
 ]
 
@@ -266,7 +267,7 @@ py.install_sources(
 libvsscript = library('vsscript',
     files('src/vsscript/vsscript.cpp'),
     cpp_args: ['-DPy_NO_LINK_LIB', '-DVS_CORE_EXPORTS'] + (is_freethreaded ? ['-DPy_GIL_DISABLED=1'] : []),
-    dependencies: [dl_dep, py_dep],
+    dependencies: [dl_dep, py_dep, threads_dep],
     gnu_symbol_visibility: 'hidden',
     include_directories: incdir,
     install: true,

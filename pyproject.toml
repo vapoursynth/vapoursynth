@@ -60,6 +60,13 @@ exclude = [
 build-frontend = "uv"
 build = ["cp314-win_amd64", "cp312-*", "cp315t-*"]
 skip = ["cp312-win*", "*-win32"]
+test-sources = ["test"]
+test-command = [
+    "vapoursynth config",
+    "vapoursynth register-install",
+    "vspipe --version",
+    'python -m unittest discover -s test -p "*test.py"',
+]
 
 [tool.cibuildwheel.windows]
 config-settings = { setup-args = ["--debug", "--vsenv"] }
@@ -68,6 +75,9 @@ repair-wheel-command = [
     "uvx wheel tags --remove --python-tag cp312 {wheel}",
     'move /y "{wheel}\..\*.whl" "{dest_dir}"',
 ]
+
+[tool.cibuildwheel.linux]
+test-command = 'python -m unittest discover -s test -p "*test.py"'
 
 [tool.cibuildwheel.macos]
 environment = { MACOSX_DEPLOYMENT_TARGET = "13.3" }
