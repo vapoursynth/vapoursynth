@@ -736,7 +736,8 @@ void unlockVulkanQueue(VSCore \*core, int queue)
 VSFrame \*newGPUVideoFrame(const VSVideoFormat \*format, int width, int height, const VSFrame \*propSrc, VSCore \*core)
 
    Creates a GPU resident frame; identical semantics to newVideoFrame
-   otherwise. The planes are freshly allocated with NULL producer pairs, so
+   otherwise, except that NULL is returned when no Vulkan device is
+   available. The planes are freshly allocated with NULL producer pairs, so
    publish yours with setGPUPlaneProducer_ once the writing submission is
    made. To share planes from source frames use newVideoFrame2, which
    propagates GPU residency (and the producer pairs) from the shared planes.

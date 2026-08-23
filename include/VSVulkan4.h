@@ -484,7 +484,8 @@ struct VSVULKANAPI {
 
     /* ---- GPU resident frames ---- */
 
-    /* GPU resident frames for filter output; identical semantics to newVideoFrame otherwise. Note that newVideoFrame2 also supports GPU resident frames */
+    /* GPU resident frames for filter output; identical semantics to newVideoFrame otherwise, except that
+       NULL is returned when no Vulkan device is available. Note that newVideoFrame2 also supports GPU resident frames */
     VSFrame *(VS_CC *newGPUVideoFrame)(const VSVideoFormat *format, int width, int height, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *getGPUPlane)(const VSFrame *frame, int plane, VSVulkanPlaneInfo *info) VS_NOEXCEPT; /* nonzero when the frame is not GPU resident or the plane does not exist */
     void (VS_CC *setGPUPlaneProducer)(VSFrame *frame, int plane, VSGPUTimeline *timeline, uint64_t value) VS_NOEXCEPT; /* the plane takes its own reference; NULL publishes the plane as host ready */

@@ -214,10 +214,9 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
         setAllocationInfo();
 }
 
-VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core, bool gpuFrame) noexcept
+VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core, [[maybe_unused]] bool gpuFrame) noexcept
     : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     assert(gpuFrame);
-    (void)gpuFrame;
     gpuResident = true;
     frameRefDebug = core->enableFrameRefDebug;
     if (frameRefDebug) {

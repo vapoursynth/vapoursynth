@@ -405,6 +405,8 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     const bool jitHasF16C = false;
 #endif
 
+    ClipResidencyResult residency = { ClipResidency::AllCPU, 0 };
+
     try {
         int cpulevel = vs_get_cpulevel(core);
         /* Set by compile_jit only when the OS refused executable memory, which is the one
@@ -419,6 +421,8 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         for (int i = 0; i < d->numInputs; i++) {
             d->node[i] = vsapi->mapGetNode(in, "clips", i, &err);
         }
+
+        residency = residencyOfClips(d->node, d->numInputs, vsapi);
 
         const VSVideoInfo *vi[MAX_EXPR_INPUTS] = {};
         for (int i = 0; i < d->numInputs; i++)
@@ -483,6 +487,12 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
             d->bytecode[i] = compile(expr[i], vi, d->numInputs, d->vi);
 
+            /* A GPU graph builds its kernel from this bytecode and never calls the procs,
+               so the JIT -- with its executable memory allocation and the execmem warning
+               below -- is skipped outright rather than compiled and thrown away. */
+            if (residency.kind == ClipResidency::AllGPU)
+                continue;
+
             // The JIT converts half via F16C; when that's missing, leave proc[i] null for
             // any plane that loads or stores half so exprGetFrame runs the interpreter for
             // it (which does the conversion in software) instead of emitting an illegal
@@ -524,7 +534,6 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     for (int i = 0; i < d->numInputs; i++)
         deps.push_back({d->node[i], (d->vi.numFrames <= vsapi->getVideoInfo(d->node[i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
 
-    const ClipResidencyResult residency = residencyOfClips(d->node, d->numInputs, vsapi);
     /* Nothing else frees these: ~ExprData only unmaps the JIT code, and exprFree runs only
        for a filter that was actually created, so every path that gives up here has to
        return the input references itself. */

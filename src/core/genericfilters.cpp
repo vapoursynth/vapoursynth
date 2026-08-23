@@ -1921,7 +1921,11 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         sf.bodyInt =
             "    float v = float(min(uint(SRC0(x, y)), pc.u[0]));\n"
             "    float t = max(min(v, pc.f[1]) - pc.f[0], 0.0) / (pc.f[1] - pc.f[0]);\n"
-            "    float r = pow(t, pc.f[4]) * (pc.f[3] - pc.f[2]) + pc.f[2];\n"
+            /* GLSL pow is allowed a few ulp even at exponent 1.0, where the std::pow the
+               CPU table is built with is exact, so the default gamma rides the same u[1]
+               bypass the float body uses instead of trusting the driver at a rounding
+               boundary. */
+            "    float r = (pc.u[1] != 0u ? t : pow(t, pc.f[4])) * (pc.f[3] - pc.f[2]) + pc.f[2];\n"
             "    STORE(uint(clamp(r, 0.0, float(pc.u[0])) + 0.5));";
         sf.bodyFloat =
             "    float t = max(min(float(SRC0(x, y)), pc.f[1]) - pc.f[0], 0.0);\n"

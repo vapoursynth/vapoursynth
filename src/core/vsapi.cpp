@@ -1280,6 +1280,9 @@ static void VS_CC vkUnlockVulkanQueue(VSCore *core, int queue) VS_NOEXCEPT {
 
 static VSFrame *VS_CC vkNewGPUVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
+    std::string err;
+    if (!core->vulkanDevice(err))
+        return nullptr;
     return new VSFrame(*format, width, height, propSrc, core, true);
 }
 

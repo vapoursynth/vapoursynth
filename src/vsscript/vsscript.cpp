@@ -414,9 +414,8 @@ static void VS_CC evalSetWorkingDir(VSScript *handle, int setCWD) VS_NOEXCEPT {
     handle->setCWD = setCWD;
 }
 
-static int VS_CC getAvailableOutputNodesEx(VSScript *handle, int size, int *dst, int flags) VS_NOEXCEPT {
+static int VS_CC getAvailableOutputNodesEx(VSScript *handle, int size, int *dst, [[maybe_unused]] int flags) VS_NOEXCEPT {
     assert(size <= 0 || dst);
-    (void)flags;
     std::lock_guard<std::mutex> lock(vsscriptlock);
     int count = vpy4_getAvailableOutputNodes(handle, size, dst);
     if (size > 0)
