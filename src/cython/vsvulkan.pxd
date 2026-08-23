@@ -32,8 +32,6 @@ from vapoursynth cimport VSCore
 cdef extern from "include/VSVulkan4.h" nogil:
     ctypedef struct VSVulkanCoreInfo:
         char deviceName[256]
-        uint32_t apiVersion
-        int deviceType
         int64_t deviceMemory
         int64_t budget
         int64_t allocated

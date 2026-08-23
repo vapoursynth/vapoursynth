@@ -286,12 +286,15 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
         stride[2] = 0;
     }
 
+    bool residencySet = false;
     for (int i = 0; i < numPlanes; i++) {
         if (planeSrc[i]) {
-            if (i == 0 || !planeSrc[0])
+            if (!residencySet) {
                 gpuResident = planeSrc[i]->gpuResident;
-            else if (planeSrc[i]->gpuResident != gpuResident)
+                residencySet = true;
+            } else if (planeSrc[i]->gpuResident != gpuResident) {
                 core->logFatal("Error in frame creation: mixing GPU and CPU resident source planes in one frame");
+            }
         }
     }
 
@@ -301,8 +304,6 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
                 core->logFatal("Error in frame creation: plane " + std::to_string(plane[i]) + " does not exist in the source frame");
             if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
                 core->logFatal("Error in frame creation: dimensions of plane " + std::to_string(plane[i]) + " do not match. Source: " + std::to_string(planeSrc[i]->getWidth(plane[i])) + "x" + std::to_string(planeSrc[i]->getHeight(plane[i])) + "; destination: " + std::to_string(getWidth(i)) + "x" + std::to_string(getHeight(i)));
-            if (planeSrc[i]->gpuResident != gpuResident)
-                core->logFatal("Error in frame creation: mixing GPU and CPU resident source planes in one frame");
             data[i] = planeSrc[i]->data[plane[i]];
             data[i]->add_ref();
         } else if (gpuResident) {
