@@ -24,6 +24,7 @@
 #include <cmath>
 #include <cfloat>
 #include <cstddef>
+#include <cstdio>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -239,15 +240,19 @@ typedef VariableNodeData<AverageFrameDataExtra> AverageFrameData;
    parameter block neither fits. One pass, one binding per input plus the output. */
 namespace {
 
-constexpr int avgMaxWeights = 31;
-
 struct AveragePush {
     uint32_t width, height;
     uint32_t srcStride, dstStride; /* every input shares clip 0's plane geometry */
     float rscale;
-    int32_t maxval, bias, isFloat;
-    float weights[avgMaxWeights];
+    int32_t maxval, bias;
+    /* Scenechange state: taps outside [fromTap, toTap] fold their weight mass into the
+       centre tap, whose per-frame weight rides here; every other weight is baked into
+       the kernel text as a literal. rscale stays a create constant because the fold
+       preserves the weight sum. */
+    int32_t fromTap, toTap;
+    float centerWeight;
 };
+static_assert(sizeof(AveragePush) <= 128, "must fit Vulkan's guaranteed 128 byte push constant minimum");
 
 const char averageGlsl[] =
     "\n"
@@ -256,8 +261,9 @@ const char averageGlsl[] =
     "layout(push_constant) uniform PC {\n"
     "    uint width, height, srcStride, dstStride;\n"
     "    float rscale;\n"
-    "    int maxval, bias, isFloat;\n"
-    "    float weights[31];\n"
+    "    int maxval, bias;\n"
+    "    int fromTap, toTap;\n"
+    "    float centerWeight;\n"
     "} pc;\n"
     "SRC_DECLS\n"
     "\n"
@@ -281,17 +287,37 @@ const char averageGlsl[] =
     "#endif\n"
     "}\n";
 
-/* The input count is fixed at create, so the bindings and the accumulate loop are emitted
-   rather than looped over -- it keeps the weights as literals in the addressing and lets the
-   compiler unroll something it can see the extent of. */
-std::string averageSource(const VSVideoFormat &fmt, int numInputs) {
+/* The input count and the weights are fixed at create, so the bindings and the accumulate
+   loop are emitted with the weights baked in as literals, exactly as the convolution kernel
+   bakes its matrix. Scenechange only ever narrows the window and grows the centre tap, so
+   the per-frame state is the pushed [fromTap, toTap] pair -- a uniform branch, evaluated
+   once per wave, that also skips the loads of truncated taps -- plus the centre's pushed
+   weight. Base-zero taps can never become nonzero and are not emitted at all. */
+std::string averageSource(const VSVideoFormat &fmt, int numInputs,
+    const std::vector<int> &weights, const std::vector<float> &fweights) {
+    const bool isFloat = fmt.sampleType == stFloat;
+    const int center = numInputs / 2;
     std::string decls, accumF, accumI;
     for (int i = 0; i < numInputs; i++) {
         const std::string k = std::to_string(i);
         decls += "layout(std430, set = 0, binding = " + std::to_string(i + 1) +
                  ") readonly buffer Src" + k + " { SAMPLE_T s" + k + "[]; };\n";
-        accumF += "    accum += float(s" + k + "[idx]) * pc.weights[" + k + "];\n";
-        accumI += "    accum += (int(s" + k + "[idx]) - pc.bias) * int(pc.weights[" + k + "]);\n";
+        if (i == center) {
+            accumF += "    accum += float(s" + k + "[idx]) * pc.centerWeight;\n";
+            accumI += "    accum += (int(s" + k + "[idx]) - pc.bias) * int(pc.centerWeight);\n";
+            continue;
+        }
+        if (isFloat ? fweights[i] == 0.0f : weights[i] == 0)
+            continue;
+        const std::string guard = "    if (" + k + " >= pc.fromTap && " + k + " <= pc.toTap)\n    ";
+        if (isFloat) {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%.9g", fweights[i]);
+            accumF += guard + "    accum += float(s" + k + "[idx]) * (" + buf + ");\n";
+        } else {
+            accumI += guard + "    accum += (int(s" + k + "[idx]) - pc.bias) * (" +
+                      std::to_string(weights[i]) + ");\n";
+        }
     }
 
     std::string preamble = "#version 460\n" + vsgpu::glslTypePreamble(vsgpu::glslUsesFloat16(fmt));
@@ -571,7 +597,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         }
 
         vsgpu::Program program;
-        program.glsl = averageSource(d->vi.format, taps);
+        program.glsl = averageSource(d->vi.format, taps, d->weights, d->fweights);
         program.storageBufferCount = taps + 1;
         program.pushConstantBytes = sizeof(AveragePush);
         desc.programs.push_back(std::move(program));
@@ -582,20 +608,20 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
             pass.bindings.push_back(single ? vsgpu::Operand::source(0, i) : vsgpu::Operand::source(i));
         desc.passes.push_back(std::move(pass));
 
-        /* Scenechange folds the weights of frames across the cut into the centre tap, so the
-           effective weights are only known once the frames are in hand. */
-        const std::vector<int> baseWeights = d->weights;
-        const std::vector<float> baseFWeights = d->fweights;
+        /* Scenechange truncates the tap window and folds the dropped weight mass into the
+           centre tap, so the per-frame state is the [fromTap, toTap] window plus the
+           centre's effective weight; every other weight is a literal in the kernel. The
+           fold accumulates in the scalar path's order so the float sum rounds identically. */
         const bool useSceneChange = d->useSceneChange;
         const bool isFloat = d->vi.format.sampleType == stFloat;
-        desc.frameParamCount = avgMaxWeights;
-        desc.prepareFrame = [baseWeights, baseFWeights, useSceneChange, isFloat, taps](
-                int, const VSFrame *const *sources, int, const VSAPI *vsapi,
-                uint32_t *params, std::string &) {
-            std::vector<int> weights(baseWeights);
-            std::vector<float> fweights(baseFWeights);
-            if (useSceneChange) {
-                int fromFrame = 0, toFrame = taps;
+        desc.frameParamCount = useSceneChange ? 3 : 0;
+        if (useSceneChange) {
+            const std::vector<int> baseWeights = d->weights;
+            const std::vector<float> baseFWeights = d->fweights;
+            desc.prepareFrame = [baseWeights, baseFWeights, isFloat, taps](
+                    int, const VSFrame *const *sources, int, const VSAPI *vsapi,
+                    uint32_t *params, std::string &) {
+                int fromFrame = 0, toFrame = taps - 1;
                 for (int i = taps / 2; i > 0; i--) {
                     int err;
                     if (vsapi->mapGetInt(vsapi->getFramePropertiesRO(sources[i]), "_SceneChangePrev", 0, &err)) {
@@ -610,32 +636,36 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
                         break;
                     }
                 }
+                float center;
                 if (isFloat) {
                     float acc = 0;
-                    for (int i = toFrame + 1; i < taps; i++) { acc += fweights[i]; fweights[i] = 0; }
-                    for (int i = 0; i < fromFrame; i++) { acc += fweights[i]; fweights[i] = 0; }
-                    fweights[taps / 2] += acc;
+                    for (int i = toFrame + 1; i < taps; i++)
+                        acc += baseFWeights[i];
+                    for (int i = 0; i < fromFrame; i++)
+                        acc += baseFWeights[i];
+                    center = baseFWeights[taps / 2] + acc;
                 } else {
                     int acc = 0;
-                    for (int i = toFrame + 1; i < taps; i++) { acc += weights[i]; weights[i] = 0; }
-                    for (int i = 0; i < fromFrame; i++) { acc += weights[i]; weights[i] = 0; }
-                    weights[taps / 2] += acc;
+                    for (int i = toFrame + 1; i < taps; i++)
+                        acc += baseWeights[i];
+                    for (int i = 0; i < fromFrame; i++)
+                        acc += baseWeights[i];
+                    /* Small enough to survive the float trip exactly: |sum| <= 31 * 1023. */
+                    center = static_cast<float>(baseWeights[taps / 2] + acc);
                 }
-            }
-            /* Carried as float bits either way; an integer weight is small enough to survive
-               the trip exactly, which keeps one parameter block for both sample types. */
-            for (int i = 0; i < taps; i++) {
-                const float w = isFloat ? fweights[i] : static_cast<float>(weights[i]);
-                std::memcpy(&params[i], &w, sizeof(w));
-            }
-            return true;
-        };
+                params[0] = static_cast<uint32_t>(fromFrame);
+                params[1] = static_cast<uint32_t>(toFrame);
+                std::memcpy(&params[2], &center, sizeof(center));
+                return true;
+            };
+        }
 
         const uint32_t bits = d->vi.format.bitsPerSample;
         const uint32_t colorFamily = d->vi.format.colorFamily;
         const float fscale = d->fscale;
         const unsigned scale = d->scale;
-        desc.fillPush = [taps, isFloat, bits, colorFamily, fscale, scale](
+        const float centerBase = isFloat ? d->fweights[taps / 2] : static_cast<float>(d->weights[taps / 2]);
+        desc.fillPush = [taps, isFloat, bits, colorFamily, fscale, scale, useSceneChange, centerBase](
                 const vsgpu::PassInfo &info, void *pushData) {
             AveragePush push = {};
             push.width = info.width;
@@ -647,9 +677,15 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
             push.maxval = static_cast<int32_t>((1ull << bits) - 1);
             const bool chroma = (info.plane == 1 || info.plane == 2) && colorFamily == cfYUV;
             push.bias = chroma ? static_cast<int32_t>(1u << (bits - 1)) : 0;
-            push.isFloat = isFloat;
-            for (int i = 0; i < taps && i < avgMaxWeights; i++)
-                std::memcpy(&push.weights[i], &info.frameParams[i], sizeof(float));
+            if (useSceneChange) {
+                push.fromTap = static_cast<int32_t>(info.frameParams[0]);
+                push.toTap = static_cast<int32_t>(info.frameParams[1]);
+                std::memcpy(&push.centerWeight, &info.frameParams[2], sizeof(float));
+            } else {
+                push.fromTap = 0;
+                push.toTap = taps - 1;
+                push.centerWeight = centerBase;
+            }
             std::memcpy(pushData, &push, sizeof(push));
         };
 

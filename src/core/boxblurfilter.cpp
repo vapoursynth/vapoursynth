@@ -569,6 +569,7 @@ struct BlurPush {
     uint32_t vertical;
     float invDiv;      /* float variants only */
 };
+static_assert(sizeof(BlurPush) <= 128, "must fit Vulkan's guaranteed 128 byte push constant minimum");
 
 /* One box blur pass over one plane, horizontal or vertical by push constant. Integer
    variants match the CPU filter's math exactly. */

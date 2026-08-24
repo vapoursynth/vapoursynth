@@ -330,6 +330,7 @@ struct ResizePush {
     float invScaleLo, shiftLo;
     float scale, offset;            /* the store affine; identity mid-chain */
 };
+static_assert(sizeof(ResizePush) <= 128, "must fit Vulkan's guaranteed 128 byte push constant minimum");
 
 constexpr uint32_t resizeLocalSize = 16;
 
@@ -750,6 +751,7 @@ struct ColourPush {
     uint32_t inStride[3];
     uint32_t outStride[3];
 };
+static_assert(sizeof(ColourPush) <= 128, "must fit Vulkan's guaranteed 128 byte push constant minimum");
 
 const char colourMain[] =
     "void main() {\n"

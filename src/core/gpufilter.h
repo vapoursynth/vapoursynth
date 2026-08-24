@@ -1070,7 +1070,11 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
    layout -- drop to FilterDesc directly; the two compose, since this only builds one. */
 
 constexpr int simpleMaxInputs = 3;
-constexpr int simpleFloatParams = 32; /* enough for a 5x5 convolution matrix */
+/* Sized to the largest consumers left -- Levels uses eight floats, MaskedMerge seven
+   uints -- because the whole block has to stay inside Vulkan's guaranteed 128 byte push
+   constant minimum. Convolution, which this once reserved a 5x5 matrix for, bakes its
+   coefficients into the kernel text instead. */
+constexpr int simpleFloatParams = 8;
 constexpr int simpleUintParams = 8;
 /* Emitted into the kernel and handed to Program, so the declared workgroup and the dispatch
    arithmetic always come from the same number. */
@@ -1084,6 +1088,7 @@ struct SimplePush {
     float f[simpleFloatParams];
     uint32_t u[simpleUintParams];
 };
+static_assert(sizeof(SimplePush) <= 128, "must fit Vulkan's guaranteed 128 byte push constant minimum");
 
 struct SimpleFilter {
     const char *name = nullptr;

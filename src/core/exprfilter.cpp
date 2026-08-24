@@ -640,6 +640,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             uint32_t width, height, dstStride;
             uint32_t srcStride[MAX_EXPR_INPUTS];
         };
+        static_assert(sizeof(ExprPush) <= 128, "must fit Vulkan's guaranteed 128 byte push constant minimum");
 
         vsgpu::FilterDesc desc;
         desc.vi = d->vi;

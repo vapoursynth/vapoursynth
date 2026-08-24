@@ -57,10 +57,12 @@ struct TextGlyphPush {
     uint32_t width, height; /* of the plane being written; bounds the store */
     float fg, bg;
 };
+static_assert(sizeof(TextGlyphPush) <= 128, "must fit Vulkan's guaranteed 128 byte push constant minimum");
 
 struct TextCopyPush {
     uint32_t width, height, srcStride, dstStride;
 };
+static_assert(sizeof(TextCopyPush) <= 128, "must fit Vulkan's guaranteed 128 byte push constant minimum");
 
 } // namespace
 

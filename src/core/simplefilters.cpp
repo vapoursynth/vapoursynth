@@ -1310,6 +1310,7 @@ static const char stackGlsl[] =
 struct StackPush {
     uint32_t width, height, srcStride, dstStride, dstX, dstY;
 };
+static_assert(sizeof(StackPush) <= 128, "must fit Vulkan's guaranteed 128 byte push constant minimum");
 
 /* Consumes the nodes either way, like the rest of the GPU creates here. */
 static VSNode *createGPUStack(std::vector<VSNode *> &nodes, bool vertical, const VSVideoInfo *vi,
@@ -2398,6 +2399,7 @@ struct ReducePush {
     uint32_t width, height, srcStride, src2Stride;
     uint32_t groupsX;
 };
+static_assert(sizeof(ReducePush) <= 128, "must fit Vulkan's guaranteed 128 byte push constant minimum");
 
 /* Four uints per workgroup: (min, max, sum, diffsum). */
 struct ReduceRecord {
