@@ -615,12 +615,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                "    uint width, height, dstStride;\n"
                "    uint srcStride[" + std::to_string(MAX_EXPR_INPUTS) + "];\n"
                "} pc;\n\n";
-        src += "float vsSqrt(float s) {\n"
-               "    float y = sqrt(s);\n"
-               "    if (!(y > 0.0) || isinf(y)) return y;\n"
-               "    precise float r = fma(-y, y, s);\n"
-               "    return y + r / (y + y);\n"
-               "}\n";
+        src += vsgpu::glslVsSqrt;
         src += exprHelpers;
         src += "\nvoid main() {\n"
                "    uint x = gl_GlobalInvocationID.x;\n"

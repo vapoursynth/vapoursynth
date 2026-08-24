@@ -226,11 +226,14 @@ struct FilterDesc {
     /* Optional, run before any push constants are filled: fills frameParamCount uint32s
        from the source frames themselves. Needed whenever a kernel parameter is a property
        of the frame rather than of the filter -- field order read from _Field, say, which is
-       not known until the frame arrives. Returning false fails the frame with the message.
-       The parameters live on the stack of the call, so this stays reentrant. */
+       not known until the frame arrives. scratch is this frame's handoff to
+       prepareFrameData: driver owned, empty on entry, delivered to the sibling call for
+       the same frame and to nothing else, for state that is expensive or outright wrong
+       to compute twice. Returning false fails the frame with the message. The parameters
+       and the scratch live on the stack of the call, so this stays reentrant. */
     int frameParamCount = 0;
     std::function<bool(int n, const VSFrame *const *sources, int numSources,
-        const VSAPI *vsapi, uint32_t *params, std::string &error)> prepareFrame;
+        const VSAPI *vsapi, uint32_t *params, std::vector<uint8_t> &scratch, std::string &error)> prepareFrame;
 
     /* prepareFrame's big sibling: per-frame data too large for a push constant block, staged
        to device local memory ahead of the first pass -- a frame property array feeding an
@@ -238,11 +241,12 @@ struct FilterDesc {
        have arrived, so it can read their properties, and fills frameDataBytes bytes straight
        into the staging buffer; the driver copies that into a device local buffer bound through
        Operand::frameData() and fences the copy against the first dispatch. Both buffers are
-       per frame and retire with the submission, so concurrent frames never share. Returning
-       false fails the frame with the message. */
+       per frame and retire with the submission, so concurrent frames never share. scratch
+       is whatever this frame's prepareFrame left in its handoff, empty without one.
+       Returning false fails the frame with the message. */
     uint32_t frameDataBytes = 0;
     std::function<bool(int n, const VSFrame *const *sources, int numSources,
-        const VSAPI *vsapi, void *data, std::string &error)> prepareFrameData;
+        const VSAPI *vsapi, void *data, const std::vector<uint8_t> &scratch, std::string &error)> prepareFrameData;
 
     /* A filter that computes something about frames rather than new planes -- PlaneStats
        -- declares itself a side effect: every plane is shared through untouched, and the
@@ -424,10 +428,13 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
 
     /* Local, so concurrent frames on this node never see each other's parameters. */
     std::vector<uint32_t> frameParams(static_cast<size_t>(desc.frameParamCount));
+    /* The per frame handoff between prepareFrame and prepareFrameData; lives here so the
+       pair share exactly one frame's state and nothing rides in globals. */
+    std::vector<uint8_t> frameScratch;
     if (desc.prepareFrame) {
         std::string prepareError;
         if (!desc.prepareFrame(n, sourceFrames.data(), static_cast<int>(sourceFrames.size()),
-                vsapi, frameParams.data(), prepareError)) {
+                vsapi, frameParams.data(), frameScratch, prepareError)) {
             vsapi->setFilterError(prepareError.c_str(), frameCtx);
             releaseSources();
             vsapi->freeFrame(dst);
@@ -546,7 +553,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
         inst->vkapi->gpuExecUsesBuffer(ctx, staging);
         std::string prepareError;
         if (!desc.prepareFrameData(n, sourceFrames.data(), static_cast<int>(sourceFrames.size()),
-                vsapi, frameDataStaging.mapped, prepareError))
+                vsapi, frameDataStaging.mapped, frameScratch, prepareError))
             return frameDataFail(prepareError.c_str());
     }
 
@@ -1133,9 +1140,10 @@ struct SimpleFilter {
        Match what the filter's scalar path declares. */
     int requestPattern = rpStrictSpatial;
 
-    /* Optional source frame index mapping and per frame parameters, named as in FilterDesc,
-       which these are assigned to directly: prepareFrame inspects the source frames and
-       produces frameParamCount uint32s, which reach fillParams and finishFrame. */
+    /* Optional source frame index mapping and per frame parameters, named as in FilterDesc:
+       prepareFrame inspects the source frames and produces frameParamCount uint32s, which
+       reach fillParams and finishFrame. It keeps a shorter signature than its FilterDesc
+       namesake -- the scratch handoff is a feature no SimpleFilter needs. */
     std::function<int(int n, int clip, int frameOffset)> mapFrame;
     int frameParamCount = 0;
     std::function<bool(int n, const VSFrame *const *sources, int numSources,
@@ -1215,19 +1223,9 @@ inline std::string simpleSource(const SimpleFilter &sf, const VSVideoFormat &fmt
          "    if (pos < 0) pos = -pos - 1;\n"
          "    else if (pos >= len) pos = 2 * len - 1 - pos;\n"
          "    return clamp(pos, 0, len - 1);\n"
-         "}\n"
-         /* Vulkan specifies sqrt to 3 ulp where the scalar paths this is checked against get a
-            correctly rounded SQRTSS. One Newton step recovers the difference: fma computes the
-            residual s - y*y exactly, so the correction is good to well under an ulp of y. Two
-            flops on top of a square root, and unlike an fp64 root it asks nothing of the
-            device, so it is the default. */
-         "float vsSqrt(float s) {\n"
-         "    float y = sqrt(s);\n"
-         "    if (!(y > 0.0) || isinf(y)) return y;\n"
-         "    precise float r = fma(-y, y, s);\n"
-         "    return y + r / (y + y);\n"
-         "}\n"
-         "#define MX(xx) uint(vsMirror((xx), int(pc.width)))\n"
+         "}\n";
+    s += glslVsSqrt;
+    s += "#define MX(xx) uint(vsMirror((xx), int(pc.width)))\n"
          "#define MY(yy) uint(vsMirror((yy), int(pc.height)))\n";
     /* SRCn and MSRCn bound against the plane being written, which is the same plane a
        filter that does not move pixels is reading. GSRCn bounds against the source instead,
@@ -1302,7 +1300,15 @@ inline VSNode *createSimpleFilter(const SimpleFilter &sf, VSNode * const *nodes,
 
     desc.finishFrame = sf.finishFrame;
     desc.mapFrame = sf.mapFrame;
-    desc.prepareFrame = sf.prepareFrame;
+    /* Adapted rather than assigned: the scratch handoff is a FilterDesc tier feature no
+       SimpleFilter needs, so their prepareFrame keeps the shorter signature. */
+    if (sf.prepareFrame) {
+        const auto prepare = sf.prepareFrame;
+        desc.prepareFrame = [prepare](int n, const VSFrame *const *sources, int numSources,
+            const VSAPI *vsapi, uint32_t *params, std::vector<uint8_t> &, std::string &error) {
+            return prepare(n, sources, numSources, vsapi, params, error);
+        };
+    }
     desc.frameParamCount = sf.frameParamCount;
 
     const auto fillParams = sf.fillParams;

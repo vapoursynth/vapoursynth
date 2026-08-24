@@ -811,12 +811,6 @@ static const VSFrame *VS_CC textGetFrame(int n, int activationReason, void *inst
     return nullptr;
 }
 
-/* The glyph list of the frame being prepared, handed from prepareFrame -- which publishes its
-   length as the dispatch count -- to prepareFrameData, which stages it. The driver calls the
-   pair back to back on the one thread producing that frame and enters no other filter in
-   between, so a thread local is enough to keep the two halves of one frame together. */
-static thread_local std::vector<uint32_t> gpuGlyphRecords;
-
 static void createGPUText(std::unique_ptr<TextData> &d, VSMap *out, VSCore *core, const VSAPI *vsapi) {
     const std::string name = d->st.instanceName;
     auto fail = [&](const std::string &msg) {
@@ -857,31 +851,33 @@ static void createGPUText(std::unique_ptr<TextData> &d, VSMap *out, VSCore *core
 
     desc.frameParamCount = 1;
     desc.prepareFrame = [st, core, minW, minH, maxGlyphs](int n, const VSFrame *const *sources, int,
-        const VSAPI *vsapi, uint32_t *params, std::string &error) {
+        const VSAPI *vsapi, uint32_t *params, std::vector<uint8_t> &scratch, std::string &error) {
         const int w = vsapi->getFrameWidth(sources[0], 0), h = vsapi->getFrameHeight(sources[0], 0);
         if (w < minW || h < minH) {
             error = st->instanceName + ": frame size must be at least " + std::to_string(minW) +
                 "x" + std::to_string(minH) + " pixels.";
             return false;
         }
-        /* Built once and kept for prepareFrameData rather than built again there: the text is
-           not necessarily the same twice -- CoreInfo prints the live framebuffer usage, and the
-           driver allocates this frame's buffers between the two calls, which moves it -- and a
-           count that disagrees with the records leaves the kernel dispatching over entries
-           nobody wrote. Capped at the buffer's capacity for the same reason. */
-        gpuGlyphRecords = buildGlyphRecords(buildText(*st, n, sources[0], core, vsapi), w, h,
-            st->alignment, st->scale);
-        if (gpuGlyphRecords.size() > static_cast<size_t>(maxGlyphs) * 2)
-            gpuGlyphRecords.resize(static_cast<size_t>(maxGlyphs) * 2);
-        params[0] = static_cast<uint32_t>(gpuGlyphRecords.size() / 2);
+        /* Built once and carried to prepareFrameData in the driver's per frame scratch
+           rather than built again there: the text is not necessarily the same twice --
+           CoreInfo prints the live framebuffer usage, and the driver allocates this frame's
+           buffers between the two calls, which moves it -- and a count that disagrees with
+           the records leaves the kernel dispatching over entries nobody wrote. Capped at
+           the buffer's capacity for the same reason. */
+        const std::vector<uint32_t> records = buildGlyphRecords(
+            buildText(*st, n, sources[0], core, vsapi), w, h, st->alignment, st->scale);
+        const size_t count = std::min(records.size(), static_cast<size_t>(maxGlyphs) * 2);
+        params[0] = static_cast<uint32_t>(count / 2);
+        if (count)
+            scratch.assign(reinterpret_cast<const uint8_t *>(records.data()),
+                reinterpret_cast<const uint8_t *>(records.data()) + count * sizeof(uint32_t));
         return true;
     };
     desc.frameDataBytes = maxGlyphs * 2 * sizeof(uint32_t);
     desc.prepareFrameData = [](int, const VSFrame *const *, int,
-        const VSAPI *, void *data, std::string &) {
-        if (!gpuGlyphRecords.empty())
-            std::memcpy(data, gpuGlyphRecords.data(), gpuGlyphRecords.size() * sizeof(uint32_t));
-        gpuGlyphRecords.clear();
+        const VSAPI *, void *data, const std::vector<uint8_t> &scratch, std::string &) {
+        if (!scratch.empty())
+            std::memcpy(data, scratch.data(), scratch.size());
         return true;
     };
 

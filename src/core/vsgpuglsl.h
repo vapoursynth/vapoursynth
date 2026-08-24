@@ -76,6 +76,20 @@ inline std::string glslTypePreamble(std::initializer_list<const VSVideoFormat *>
     return glslTypePreamble(half);
 }
 
+/* sqrt with one Newton correction. Vulkan specifies sqrt to 3 ulp where the scalar paths
+   the kernels are checked against get a correctly rounded SQRTSS; fma computes the
+   residual s - y*y exactly, so the correction is good to well under an ulp of y. Two
+   flops on top of a square root, and unlike an fp64 root it asks nothing of the device.
+   The sequence is a numeric contract, shared so Expr and the SimpleFilter kernels cannot
+   drift to different last bits. */
+inline constexpr char glslVsSqrt[] =
+    "float vsSqrt(float s) {\n"
+    "    float y = sqrt(s);\n"
+    "    if (!(y > 0.0) || isinf(y)) return y;\n"
+    "    precise float r = fma(-y, y, s);\n"
+    "    return y + r / (y + y);\n"
+    "}\n";
+
 } // namespace vsgpu
 
 #endif // VSGPUGLSL_H

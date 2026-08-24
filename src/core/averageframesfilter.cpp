@@ -620,7 +620,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
             const std::vector<float> baseFWeights = d->fweights;
             desc.prepareFrame = [baseWeights, baseFWeights, isFloat, taps](
                     int, const VSFrame *const *sources, int, const VSAPI *vsapi,
-                    uint32_t *params, std::string &) {
+                    uint32_t *params, std::vector<uint8_t> &, std::string &) {
                 int fromFrame = 0, toFrame = taps - 1;
                 for (int i = taps / 2; i > 0; i--) {
                     int err;
