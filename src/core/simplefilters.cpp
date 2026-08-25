@@ -226,6 +226,17 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
             u[0] = cx >> (plane ? subW : 0);
             u[1] = cy >> (plane ? subH : 0);
         };
+        const int cw = d->width, ch = d->height;
+        sf.prepareFrame = [cx, cy, cw, ch](int, const VSFrame *const *sources, int,
+                const VSAPI *vsapi, uint32_t *, std::string &error) {
+            char msg[150];
+            if (cropVerify(cx, cy, cw, ch, vsapi->getFrameWidth(sources[0], 0),
+                    vsapi->getFrameHeight(sources[0], 0), nullptr, msg, sizeof(msg))) {
+                error = msg;
+                return false;
+            }
+            return true;
+        };
         /* Cropping an odd number of lines swaps which field the first line belongs to. */
         if (cy & 1) {
             sf.finishFrame = [](int, VSFrame *dst, const VSFrame *const *, int, const uint32_t *,
@@ -295,6 +306,22 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
         sf.fillParams = [cx, cy, subW, subH](int plane, const uint32_t *, float *, uint32_t *u) {
             u[0] = cx >> (plane ? subW : 0);
             u[1] = cy >> (plane ? subH : 0);
+        };
+        /* The create-time check ran against the node's dimensions, which a variable
+           dimension clip states as zero; the scalar path re-verifies against every frame,
+           so this path has to as well or a rectangle past the edge silently clamps into
+           replicated pixels instead of the error. The format checks passed at create and
+           the format is constant, so only the dimensions are asked about again. */
+        const int cw = d->width, ch = d->height;
+        sf.prepareFrame = [cx, cy, cw, ch](int, const VSFrame *const *sources, int,
+                const VSAPI *vsapi, uint32_t *, std::string &error) {
+            char msg[150];
+            if (cropVerify(cx, cy, cw, ch, vsapi->getFrameWidth(sources[0], 0),
+                    vsapi->getFrameHeight(sources[0], 0), nullptr, msg, sizeof(msg))) {
+                error = msg;
+                return false;
+            }
+            return true;
         };
         /* Cropping an odd number of lines swaps which field the first line belongs to. */
         if (cy & 1) {

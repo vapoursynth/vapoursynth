@@ -66,6 +66,11 @@ std::shared_ptr<const std::vector<uint32_t>> vsCompileGLSLCompute(const char *so
     }
 
     glslang_program_t *program = glslang_program_create();
+    if (!program) {
+        errorMessage = "glslang program object creation failed";
+        glslang_shader_delete(shader);
+        return nullptr;
+    }
     glslang_program_add_shader(program, shader);
     if (!glslang_program_link(program, GLSLANG_MSG_SPV_RULES_BIT | GLSLANG_MSG_VULKAN_RULES_BIT)) {
         errorMessage = glslang_program_get_info_log(program);

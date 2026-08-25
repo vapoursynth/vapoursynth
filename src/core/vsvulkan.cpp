@@ -1356,10 +1356,23 @@ bool VSVulkanDevice::enumerateDevices(std::vector<VSVulkanDeviceInfo> &devices, 
     }
 
     uint32_t deviceCount = 0;
-    vkf.vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+    res = vkf.vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+    if (res != VK_SUCCESS) {
+        errorMessage = "vkEnumeratePhysicalDevices failed (VkResult " + std::to_string(res) + ")";
+        vkf.vkDestroyInstance(instance, nullptr);
+        return false;
+    }
     std::vector<VkPhysicalDevice> handles(deviceCount);
-    if (deviceCount)
-        vkf.vkEnumeratePhysicalDevices(instance, &deviceCount, handles.data());
+    if (deviceCount) {
+        res = vkf.vkEnumeratePhysicalDevices(instance, &deviceCount, handles.data());
+        /* VK_INCOMPLETE only means the list moved between the two calls; deviceCount holds
+           how many handles were actually written either way. */
+        if (res != VK_SUCCESS && res != VK_INCOMPLETE) {
+            errorMessage = "vkEnumeratePhysicalDevices failed (VkResult " + std::to_string(res) + ")";
+            vkf.vkDestroyInstance(instance, nullptr);
+            return false;
+        }
+    }
 
     for (uint32_t i = 0; i < deviceCount; i++) {
         VSVulkanDeviceInfo info;
