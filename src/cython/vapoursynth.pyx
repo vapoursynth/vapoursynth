@@ -2144,7 +2144,7 @@ cdef class RawNode(object):
             self.funcs.getFrameAsync(n, self.node, frameDoneCallback, <void *>data)
 
 
-    def frames(self, prefetch=None, backlog=None, close=False):
+    def frames(self, prefetch=None, backlog=None, close=False, collect_garbage=True):
         if prefetch is None or prefetch <= 0:
             prefetch = self.core.num_threads
 
@@ -2252,7 +2252,8 @@ cdef class RawNode(object):
 
                 fut.result().close()
 
-            gc.collect()
+            if collect_garbage:
+                gc.collect()
 
     def clear_cache(self):
         self.ensure_valid()
