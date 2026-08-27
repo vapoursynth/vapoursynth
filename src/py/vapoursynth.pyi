@@ -1042,7 +1042,11 @@ class RawNode:
     def get_frame_async(self, n: int, cb: Callable[[Union[RawFrame, None], Union[Exception, None]], None]) -> None: ...
 
     def frames(
-        self, prefetch: Union[int, None] = None, backlog: Union[int, None] = None, close: bool = False
+        self,
+        prefetch: Union[int, None] = None,
+        backlog: Union[int, None] = None,
+        close: bool = False,
+        collect_garbage: bool = True,
     ) -> Iterator[RawFrame]: ...
 
     def clear_cache(self) -> None: ...
@@ -1126,7 +1130,11 @@ class VideoNode(RawNode):
     def get_frame_async(self, n: int, cb: Callable[[Union[VideoFrame, None], Union[Exception, None]], None]) -> None: ...
 
     def frames(
-        self, prefetch: Union[int, None] = None, backlog: Union[int, None] = None, close: bool = False
+        self,
+        prefetch: Union[int, None] = None,
+        backlog: Union[int, None] = None,
+        close: bool = False,
+        collect_garbage: bool = True,
     ) -> Iterator[VideoFrame]: ...
 
 #include <plugins/bound/VideoNode>
@@ -1157,7 +1165,11 @@ class AudioNode(RawNode):
     def get_frame_async(self, n: int, cb: Callable[[Union[AudioFrame, None], Union[Exception, None]], None]) -> None: ...
 
     def frames(
-        self, prefetch: Union[int, None] = None, backlog: Union[int, None] = None, close: bool = False
+        self,
+        prefetch: Union[int, None] = None,
+        backlog: Union[int, None] = None,
+        close: bool = False,
+        collect_garbage: bool = True,
     ) -> Iterator[AudioFrame]: ...
 
 #include <plugins/bound/AudioNode>
