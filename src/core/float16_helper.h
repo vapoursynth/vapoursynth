@@ -25,13 +25,17 @@
 #include <bit>
 #include <cmath>
 
-// Use the native _Float16 type only where the compiler lowers half<->float
-// conversions to hardware: x86/x64 needs F16C (present from x86-64-v3 / AVX2
-// upward), while AArch64 has the FCVT convert instructions unconditionally.
-// Without hardware support the compiler emits __truncsfhf2 / __extendhfsf2
-// soft-float builtins, which are not linked under clang-cl + lld-link -- so
-// there we fall back to explicit bit manipulation instead.
-#if (defined(__clang__) || defined(__GNUC__)) && (defined(__F16C__) || (!defined(__x86_64__) && !defined(__i386__)))
+// Use the native _Float16 type wherever the compiler provides it, hardware lowering or
+// not: where the target lacks conversion instructions the compiler's soft float builtins
+// do the same job as the manual implementation below, and unlike it they round ties to
+// even. __FLT16_MANT_DIG__ is the compiler's own statement that the type is usable on
+// the current target, which is what the old any-non-x86 test got wrong: GCC has no
+// _Float16 at all on 32-bit ARM without -mfp16-format=ieee, or on POWER, and the type
+// being missing is a hard compile error rather than something a fallback can catch
+// later. The one environment that still has to insist on hardware (F16C) is the MSVC
+// runtime, where the soft builtins __truncsfhf2 / __extendhfsf2 live in compiler-rt
+// builtins that clang-cl + lld-link never link.
+#if (defined(__clang__) || defined(__GNUC__)) && defined(__FLT16_MANT_DIG__) && (defined(__F16C__) || !defined(_MSC_VER))
 #  define VS_HAVE_NATIVE_FLOAT16 1
 #else
 #  define VS_HAVE_NATIVE_FLOAT16 0
