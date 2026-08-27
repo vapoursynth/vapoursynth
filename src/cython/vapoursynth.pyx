@@ -23,8 +23,7 @@ from vsvulkan cimport VSVULKANAPI, VSVulkanCoreInfo, VSVulkanDeviceListEntry
 from vshelper cimport bitblt
 from vsscript_internal cimport VSScript
 from wave cimport WaveHeader, Wave64Header, CreateWave64Header, CreateWaveHeader, PackChannels16to16le, PackChannels32to24le, PackChannels32to32le
-cimport cython.parallel
-from cython cimport view, final
+cimport cython
 from libc.stdlib cimport malloc, free, realloc
 from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t, uint8_t, uint64_t, int64_t
 from cpython.buffer cimport PyBUF_READ, PyBUF_SIMPLE, PyBuffer_FillInfo, PyBuffer_Release
@@ -35,7 +34,6 @@ from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
 import enum
 import ctypes
-import threading
 import traceback
 import gc
 import sys
@@ -230,7 +228,7 @@ class VapourSynthAPIVersion(typing.NamedTuple):
 __version__ = VapourSynthVersion(VS_CURRENT_RELEASE, 0)
 __api_version__ = VapourSynthAPIVersion(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
-@final
+@cython.final
 cdef class EnvironmentData(object):
     cdef bint alive
     cdef Core core
@@ -309,7 +307,7 @@ class EnvironmentPolicy(object):
         return env.alive
 
 
-@final
+@cython.final
 cdef class StandaloneEnvironmentPolicy:
     cdef EnvironmentData _environment
     cdef object _api
@@ -392,7 +390,8 @@ cdef void __stdcall _logFree(void* userData) noexcept nogil:
     with gil:
         Py_DECREF(<object>userData)
 
-@final
+
+@cython.final
 cdef class EnvironmentPolicyAPI:
     # This must be a weak-ref to prevent a cyclic dependency that happens if the API
     # is stored within an EnvironmentPolicy-instance.
@@ -547,7 +546,7 @@ def register_policy(policy):
     cdef EnvironmentPolicyAPI _api = EnvironmentPolicyAPI.__new__(EnvironmentPolicyAPI)
     _api._target_policy = weakref.ref(_policy)
     _api._known_environments = weakref.WeakValueDictionary()
-    _api._lock = threading.Lock()
+    _api._lock = Lock()
     _policy.on_policy_registered(_api)
 
 
@@ -623,7 +622,7 @@ def unregister_on_destroy(callback):
     env.on_destroy.remove(callback)
 
 
-@final
+@cython.final
 cdef class _FastManager(object):
     cdef EnvironmentData target
     cdef EnvironmentData previous
@@ -3792,7 +3791,7 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                 vsapi.mapSetError(outm, emsg)
 
 
-@final
+@cython.final
 cdef class VSScriptEnvironmentPolicy:
     cdef dict _env_map
 
