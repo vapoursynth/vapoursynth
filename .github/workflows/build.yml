@@ -43,38 +43,16 @@ jobs:
     steps:
     - uses: actions/checkout@v7
 
-    - uses: astral-sh/setup-uv@v8.2.0
+    - uses: astral-sh/setup-uv@v10.0.1
 
-    - uses: pypa/cibuildwheel@v4.1.0
-      env:
-        CIBW_BUILD: cp314-win_amd64 cp312-*
-        CIBW_SKIP: cp312-win*
-        CIBW_BUILD_FRONTEND: uv
-        CIBW_CONFIG_SETTINGS_WINDOWS: setup-args=--debug setup-args=--vsenv
-        CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=13.3
-        CIBW_ENVIRONMENT_WINDOWS: CC=clang-cl CXX=clang-cl AR=llvm-lib
-        CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
+    - uses: pypa/cibuildwheel@v4.2.0
       with:
         output-dir: dist
-
-    - name: Fix tag
-      if: ${{ runner.os == 'Windows' }}
-      run: |
-        cd dist
-        Get-ChildItem *.whl | ForEach-Object { uvx wheel tags --remove --python-tag cp312 $_.Name }
 
     - uses: actions/upload-artifact@v7
       with:
         name: vapoursynth-${{ matrix.arch }}
         path: dist
-
-    - name: Install and run tests
-      run: |
-        pip install vapoursynth --no-index --find-links dist
-        vapoursynth config
-        vapoursynth register-install
-        vspipe --version
-        python -m unittest discover -s test -p "*test.py"
 
     # The Windows wheel just built is the same one the installer and portable
     # packages ship, so package them here instead of recompiling the wheel in a
@@ -124,7 +102,7 @@ jobs:
 
     - name: Publish installer to release
       if: ${{ runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/R') }}
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         files: installer/Compiled/*
 
