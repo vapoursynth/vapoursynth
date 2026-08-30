@@ -104,13 +104,9 @@ bld/
 .vs/
 
 # Subprojects
-libp2p/
-vsrepo/
-zimg/
-# The vendored colorspace subset is source, not the subproject checkout the line above means.
-!src/core/zimg/
-glslang-16.4.0/
-Vulkan-Headers-1.4.357/
-packagecache/
-!subprojects/packagefiles/*
-.wraplock
+subprojects/glslang-16.4.0/
+subprojects/libp2p/
+subprojects/packagecache/
+subprojects/Vulkan-Headers-1.4.357/
+subprojects/zimg/
+subprojects/.wraplock
