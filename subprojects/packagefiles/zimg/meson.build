@@ -149,7 +149,7 @@ zimg = library('zimg',
 )
 
 zimg_dep = declare_dependency(
-    include_directories: include_directories('src/zimg/api'),
+    include_directories: include_directories('src/zimg/api', is_system: true),
     link_with: zimg,
 )
 

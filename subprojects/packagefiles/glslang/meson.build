@@ -5,10 +5,9 @@
 # standalone tools. Bumping the version means updating the wrap hash and rechecking
 # this file list against the upstream CMakeLists.
 project('glslang', 'cpp',
-    version: '16.4.0',
-    license: 'BSD-3-Clause AND BSD-2-Clause AND MIT AND Apache-2.0',
     default_options: ['cpp_std=c++17', 'warning_level=0'],
-    meson_version: '>=0.63.0',
+    license: 'Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND MIT',
+    version: '16.4.0',
 )
 
 cpp = meson.get_compiler('cpp')
@@ -72,21 +71,19 @@ glslang_sources = files(
 # deliberately omitted. Recheck that on a version bump.
 if host_machine.system() == 'windows'
     glslang_sources += files('glslang/OSDependent/Windows/ossource.cpp')
-    os_deps = []
 else
     glslang_sources += files('glslang/OSDependent/Unix/ossource.cpp')
-    os_deps = [dependency('threads')]
 endif
 
 # '.' resolves to both the source root (public headers under glslang/ and SPIRV/) and
 # the build root (the generated glslang/build_info.h).
-glslang_incdir = include_directories('.')
+glslang_incdir = include_directories('.', is_system: true)
 
 glslang_lib = static_library('glslang',
     glslang_sources,
     build_info_h,
     cpp_args: glslang_args,
-    dependencies: os_deps,
+    dependencies: dependency('threads'),
     gnu_symbol_visibility: 'hidden',
     include_directories: glslang_incdir,
 )

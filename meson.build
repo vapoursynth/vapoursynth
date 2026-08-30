@@ -246,15 +246,11 @@ endif
 vulkan_headers = dependency('vulkan', required: false)
 if vulkan_headers.found()
     vulkan_headers = vulkan_headers.partial_dependency(compile_args: true, includes: true)
-else
-    vulkan_inc = []
-    if is_win
-        vulkan_sdk = run_command(py, '-c', 'import os; print(os.environ.get("VULKAN_SDK", ""))', check: true).stdout().strip()
-        if vulkan_sdk != ''
-            vulkan_inc = include_directories(vulkan_sdk / 'Include')
-        endif
+elif is_win
+    vulkan_sdk = run_command(py, '-c', 'import os; print(os.environ.get("VULKAN_SDK", ""))', check: true).stdout().strip()
+    if vulkan_sdk != ''
+        vulkan_headers = declare_dependency(include_directories: include_directories(vulkan_sdk / 'Include', is_system: true))
     endif
-    vulkan_headers = declare_dependency(include_directories: vulkan_inc)
 endif
 if not cxx.has_header('vulkan/vulkan_core.h', dependencies: vulkan_headers)
     vulkan_headers = subproject('vulkan-headers').get_variable('vulkan_headers_dep')

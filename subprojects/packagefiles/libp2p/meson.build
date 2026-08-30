@@ -47,7 +47,7 @@ libp2p = library('p2p',
 )
 
 libp2p_dep = declare_dependency(
-    include_directories: include_directories('.'),
+    include_directories: include_directories('.', is_system: true),
     link_with: libp2p,
 )
 
