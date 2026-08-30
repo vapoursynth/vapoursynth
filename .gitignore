@@ -104,9 +104,9 @@ bld/
 .vs/
 
 # Subprojects
-subprojects/glslang-16.4.0/
+subprojects/glslang/
 subprojects/libp2p/
 subprojects/packagecache/
-subprojects/Vulkan-Headers-1.4.357/
+subprojects/vulkan-headers/
 subprojects/zimg/
 subprojects/.wraplock

@@ -1,9 +1,5 @@
-[wrap-file]
-directory = glslang-16.4.0
-source_url = https://github.com/KhronosGroup/glslang/archive/refs/tags/16.4.0.tar.gz
-source_filename = glslang-16.4.0.tar.gz
-source_hash = c634d6237eb0cc04d5ddf5dc9955daa175d82b0f8797acab45b49965e9f6df13
+[wrap-git]
+url = https://github.com/KhronosGroup/glslang.git
+revision = vulkan-sdk-1.4.357.0
+depth = 1
 patch_directory = glslang
-
-[provide]
-glslang = glslang_dep
