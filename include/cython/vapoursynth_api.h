@@ -7,7 +7,11 @@
 #define MS_WIN64
 #endif
 
+#include "pyconfig.h"
+
+#ifndef Py_GIL_DISABLED
 #define Py_LIMITED_API 0x030C0000
+#endif
 
 #include "Python.h"
 #include "vapoursynth.h"

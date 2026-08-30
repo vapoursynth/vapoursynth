@@ -46,7 +46,7 @@ import functools
 import typing
 import warnings
 import keyword
-from threading import local as ThreadLocal, Lock, RLock
+from threading import local as ThreadLocal, Condition, Lock, get_ident
 from types import MappingProxyType
 from collections.abc import ItemsView, Iterable, KeysView, MutableMapping, ValuesView
 from concurrent.futures import Future, CancelledError as FutureCancelledError, wait as wait_futures
@@ -228,15 +228,92 @@ class VapourSynthAPIVersion(typing.NamedTuple):
 __version__ = VapourSynthVersion(VS_CURRENT_RELEASE, 0)
 __api_version__ = VapourSynthAPIVersion(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
+
+cdef object _SYNCHRONIZED_SENTINEL
+try:
+    _SYNCHRONIZED_SENTINEL = sentinel("_SYNCHRONIZED_SENTINEL")
+except NameError:
+    _SYNCHRONIZED_SENTINEL = object()
+
+
+@cython.final
+@cython.internal
+cdef class SynchronizedDict:
+    cdef dict data
+    cdef cython.pymutex lock
+
+    def __cinit__(self):
+        self.data = {}
+
+    def __getitem__(self, object key):
+        with self.lock:
+            return self.data[key]
+
+    def __setitem__(self, object key, object value):
+        with self.lock:
+            self.data[key] = value
+
+    def __delitem__(self, object key):
+        with self.lock:
+            del self.data[key]
+
+    def __contains__(self, object key):
+        with self.lock:
+            return key in self.data
+
+    def __len__(self):
+        with self.lock:
+            return len(self.data)
+
+    def __iter__(self):
+        with self.lock:
+            return iter(list(self.data))
+
+    def __repr__(self):
+        with self.lock:
+            return repr(self.data)
+
+    def get(self, object key, object default=None):
+        with self.lock:
+            return self.data.get(key, default)
+
+    def pop(self, object key, object default=_SYNCHRONIZED_SENTINEL):
+        with self.lock:
+            if default is _SYNCHRONIZED_SENTINEL:
+                return self.data.pop(key)
+            return self.data.pop(key, default)
+
+    def clear(self):
+        with self.lock:
+            self.data.clear()
+
+    def keys(self):
+        with self.lock:
+            return list(self.data.keys())
+
+    def values(self):
+        with self.lock:
+            return list(self.data.values())
+
+    def items(self):
+        with self.lock:
+            return list(self.data.items())
+
+    def copy(self):
+        with self.lock:
+            return dict(self.data)
+
+
 @cython.final
 cdef class EnvironmentData(object):
     cdef bint alive
+    cdef bint destroying
     cdef Core core
     cdef object on_destroy
-    cdef dict outputs
-    cdef dict active_exceptions
+    cdef SynchronizedDict outputs
+    cdef SynchronizedDict active_exceptions
     cdef int next_exc_id
-    cdef object exc_lock
+    cdef cython.pymutex lock
 
     cdef int coreCreationFlags
     cdef VSLogHandle* log
@@ -263,24 +340,28 @@ cdef class EnvironmentData(object):
         _unset_logger(self)
 
     cdef int store_exception(self, object e):
-        if self.active_exceptions is None:
+        cdef SynchronizedDict exc = self.active_exceptions
+
+        if exc is None:
             return 0
 
-        with self.exc_lock:
+        with exc.lock:
             self.next_exc_id += 1
-            self.active_exceptions[self.next_exc_id] = e
+            exc.data[self.next_exc_id] = e
 
-            if len(self.active_exceptions) > 1000:
-                self.active_exceptions.pop(next(iter(self.active_exceptions)), None)
+            if len(exc.data) > 1000:
+                exc.data.pop(next(iter(exc.data)), None)
 
             return self.next_exc_id
 
     cdef object retrieve_exception(self, str msg_str):
-        if self.active_exceptions is not None and msg_str.startswith("[VS_PY_EXC_ID:"):
+        cdef SynchronizedDict exc = self.active_exceptions
+
+        if exc is not None and msg_str.startswith("[VS_PY_EXC_ID:"):
             try:
                 parts = msg_str.split("]\n", 1)
                 exc_id = int(parts[0][len("[VS_PY_EXC_ID:"):])
-                return self.active_exceptions.pop(exc_id, None)
+                return exc.pop(exc_id, None)
             except (ValueError, KeyError, IndexError):
                 pass
         return None
@@ -352,8 +433,11 @@ cdef class StandaloneEnvironmentPolicy:
 
 # Internal holder of the current policy.
 cdef object _policy = None
+cdef bint _policy_ready = False
+cdef object _policy_cond = Condition(Lock())
+cdef object _registering_thread = None
 
-cdef const VSAPI *_vsapi = NULL
+cdef const VSAPI *_vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
 
 
 cdef void _set_logger(EnvironmentData env, VSLogHandler handler, VSLogHandlerFree free, void *userData):
@@ -397,11 +481,8 @@ cdef class EnvironmentPolicyAPI:
     # is stored within an EnvironmentPolicy-instance.
     cdef object _target_policy
 
-    cdef object _lock
+    cdef cython.pymutex _lock
     cdef object _known_environments
-    # Sadly, weakref has no WeakSet.
-    # So we use a counter to fake a WeakSet.
-    cdef int _known_environments_counter
 
     def __init__(self):
         raise RuntimeError("Cannot directly instantiate this class.")
@@ -422,22 +503,20 @@ cdef class EnvironmentPolicyAPI:
         cdef EnvironmentData env = EnvironmentData.__new__(EnvironmentData)
         env.core = None
         env.log = NULL
-        env.outputs = {}
-        env.active_exceptions = {}
+        env.outputs = SynchronizedDict()
+        env.active_exceptions = SynchronizedDict()
         env.next_exc_id = 0
-        env.exc_lock = Lock()
         env.coreCreationFlags = flags
         env.on_destroy = []
         env.env_locals = weakref.WeakKeyDictionary()
         env.known_nodes = weakref.WeakSet()
         env.known_frames = weakref.WeakSet()
         env.active_futures = weakref.WeakSet()
+        env.destroying = False
         env.alive = True
 
         with self._lock:
-            counter = self._known_environments_counter
-            self._known_environments_counter += 1
-            self._known_environments[counter] = env
+            self._known_environments.add(env)
 
         return env
 
@@ -455,29 +534,39 @@ cdef class EnvironmentPolicyAPI:
 
     def destroy_environment(self, EnvironmentData env):
         self.ensure_policy_matches()
-        if not env.alive:
-            return
 
-        futs = env.active_futures
-        env.active_futures = None
-        wait_futures(futs)
+        with env.lock:
+            if not env.alive or env.destroying:
+                return
+            env.destroying = True
 
-        callbacks = env.on_destroy
-        env.on_destroy = None
+            futs = env.active_futures
+            env.active_futures = None
 
-        with use_environment(env).use():
-            for callback in callbacks:
-                try:
-                    callback()
-                except Exception as e:
-                    formatted = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
-                    if env.core is not None:
-                        env.core.log_message(MessageType.MESSAGE_TYPE_CRITICAL, formatted)
-                    else:
-                        sys.stderr.write(formatted)
+            callbacks = env.on_destroy
+            env.on_destroy = None
+
+        if futs is not None:
+            wait_futures(futs)
+
+        if callbacks is not None:
+            with use_environment(env).use():
+                for callback in callbacks:
+                    try:
+                        callback()
+                    except Exception as e:
+                        formatted = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+                        if env.core is not None:
+                            env.core.log_message(MessageType.MESSAGE_TYPE_CRITICAL, formatted)
+                        else:
+                            sys.stderr.write(formatted)
 
         # Invalidate all remaining nodes and frames from this environment
-        for node in list(env.known_nodes):
+        with env.lock:
+            nodes = list(env.known_nodes or [])
+            frames = list(env.known_frames or [])
+
+        for node in nodes:
             if not isinstance(node, RawNode):
                 continue
             rn = <RawNode>node
@@ -487,7 +576,7 @@ cdef class EnvironmentPolicyAPI:
                 rn.node = NULL
                 rn.core = None
 
-        for frame in list(env.known_frames):
+        for frame in frames:
             if not isinstance(frame, RawFrame):
                 continue
             rf = <RawFrame>frame
@@ -507,22 +596,31 @@ cdef class EnvironmentPolicyAPI:
                         c.funcs.freeCore(c.core)
                 c.core = NULL
 
-        env.core = None
-        env.log = NULL
-        env.outputs = {}
-        env.env_locals.clear()
-        env.env_locals = None
-        env.active_exceptions = None
-        env.exc_lock = None
-        env.known_nodes.clear()
-        env.known_nodes = None
-        env.known_frames.clear()
-        env.known_frames = None
-        env.alive = False
+        with env.lock:
+            env.alive = False
+            if env.outputs is not None:
+                env.outputs.clear()
+                env.outputs = None
+            env.core = None
+            env.log = NULL
+            if env.env_locals is not None:
+                env.env_locals.clear()
+                env.env_locals = None
+            if env.active_exceptions is not None:
+                env.active_exceptions.clear()
+                env.active_exceptions = None
+            if env.known_nodes is not None:
+                env.known_nodes.clear()
+                env.known_nodes = None
+            if env.known_frames is not None:
+                env.known_frames.clear()
+                env.known_frames = None
 
     def unregister_policy(self):
         self.ensure_policy_matches()
-        for environment in self._known_environments.values():
+        with self._lock:
+            environments = list(self._known_environments)
+        for environment in environments:
             self.destroy_environment(environment)
         clear_policy(delay=False)
 
@@ -536,62 +634,98 @@ cdef class EnvironmentPolicyAPI:
             return f"<EnvironmentPolicyAPI bound to {target!r}>"
 
 
-def register_policy(policy):
-    global _policy
-    if _policy is not None:
-        raise RuntimeError("There is already a policy registered.")
-    _policy = policy
+cdef bint _register_policy(object policy, bint raise_if_registered=True):
+    global _policy, _policy_ready, _registering_thread
 
-    # Expose Additional API-calls to the newly registered Environment-policy.
-    cdef EnvironmentPolicyAPI _api = EnvironmentPolicyAPI.__new__(EnvironmentPolicyAPI)
-    _api._target_policy = weakref.ref(_policy)
-    _api._known_environments = weakref.WeakValueDictionary()
-    _api._lock = Lock()
-    _policy.on_policy_registered(_api)
+    with _policy_cond:
+        _policy_cond.wait_for(lambda: _policy is None or _policy_ready or _registering_thread == get_ident())
+
+        if _policy is not None:
+            if raise_if_registered:
+                raise RuntimeError("There is already a policy registered.")
+            return False
+
+        _policy = policy
+        _policy_ready = False
+        _registering_thread = get_ident()
+
+    cdef EnvironmentPolicyAPI api = EnvironmentPolicyAPI.__new__(EnvironmentPolicyAPI)
+
+    try:
+        api._target_policy = weakref.ref(_policy)
+        api._known_environments = weakref.WeakSet()
+        _policy.on_policy_registered(api)
+        with _policy_cond:
+            _policy_ready = True
+            _registering_thread = None
+            _policy_cond.notify_all()
+        return True
+    except BaseException:
+        with _policy_cond:
+            _policy = None
+            _policy_ready = False
+            _registering_thread = None
+            _policy_cond.notify_all()
+        raise
+
+
+def register_policy(object policy):
+    _register_policy(policy, raise_if_registered=True)
 
 
 def _try_enable_introspection(version=None):
-    global _policy
-    if _policy is not None:
-        return False
-
     if version != 0:
         return False
 
     cdef StandaloneEnvironmentPolicy standalone_policy = StandaloneEnvironmentPolicy.__new__(StandaloneEnvironmentPolicy)
-    standalone_policy._flags = ccfEnableGraphInspection;
-    register_policy(standalone_policy)
-
-    return True
+    standalone_policy._flags = ccfEnableGraphInspection
+    return _register_policy(standalone_policy, raise_if_registered=False)
 
 
 ## DO NOT EXPOSE THIS FUNCTION TO PYTHON-LAND!
 cdef get_policy():
-    global _policy
     cdef StandaloneEnvironmentPolicy standalone_policy
 
-    if _policy is None:
+    while True:
+        if _policy_ready:
+            return _policy
+
+        with _policy_cond:
+            _policy_cond.wait_for(lambda: _policy_ready or _policy is None or _registering_thread == get_ident())
+
+            if _policy_ready or _registering_thread == get_ident():
+                return _policy
+
         standalone_policy = StandaloneEnvironmentPolicy.__new__(StandaloneEnvironmentPolicy)
         standalone_policy._flags = 0
-        register_policy(standalone_policy)
 
-    return _policy
+        _register_policy(standalone_policy, raise_if_registered=False)
+
 
 def has_policy():
-    return _policy is not None
+    return _policy is not None and _policy_ready
 
-cdef clear_policy(delay=False):
-    global _policy
-    old_policy = _policy
 
-    if not delay:
-        _policy = None
+cdef object clear_policy(delay=False):
+    global _policy, _policy_ready
+
+    cdef object old_policy
+
+    with _policy_cond:
+        old_policy = _policy
+        if not delay:
+            _policy = None
+            _policy_ready = False
+            _policy_cond.notify_all()
 
     if old_policy is not None:
         old_policy.on_policy_cleared()
 
     if delay:
-        _policy = None
+        with _policy_cond:
+            _policy = None
+            _policy_ready = False
+            _policy_cond.notify_all()
 
     return old_policy
 
@@ -607,19 +741,23 @@ def register_on_destroy(callback):
     cdef EnvironmentData env = get_policy().get_current_environment()
     if env is None:
         raise RuntimeError("No environment is currently activated.")
-    if env.on_destroy is None:
-        raise ValueError("The environment is already being destroyed.")
 
-    env.on_destroy.append(callback)
+    with env.lock:
+        if env.on_destroy is None:
+            raise ValueError("The environment is already being destroyed.")
+        env.on_destroy.append(callback)
+
 
 def unregister_on_destroy(callback):
     cdef EnvironmentData env = get_policy().get_current_environment()
     if env is None:
         raise RuntimeError("No environment is currently activated.")
-    if env.on_destroy is None:
-        raise ValueError("The environment is already being destroyed.")
 
-    env.on_destroy.remove(callback)
+    with env.lock:
+        if env.on_destroy is None:
+            raise ValueError("The environment is already being destroyed.")
+
+        env.on_destroy.remove(callback)
 
 
 @cython.final
@@ -900,29 +1038,29 @@ class Error(Exception):
     def __repr__(self):
         return repr(self.value)
 
-cdef _get_output_dict(funcname="this function"):
+
+cdef SynchronizedDict _get_output_dict(funcname="this function"):
     cdef EnvironmentData env = _env_current()
     if env is None:
-        raise Error('Internal environment id not set. %s called from a filter callback?'%funcname)
+        raise Error(f'Internal environment id not set. {funcname} called from a filter callback?')
     return env.outputs
 
+
 def clear_output(int index = 0):
-    cdef dict outputs = _get_output_dict("clear_output")
-    try:
-        del outputs[index]
-    except KeyError:
-        pass
+    _get_output_dict("clear_output").pop(index, None)
+
 
 def clear_outputs():
-    cdef dict outputs = _get_output_dict("clear_outputs")
-    outputs.clear()
+    _get_output_dict("clear_outputs").clear()
+
 
 def get_outputs():
-    cdef dict outputs = _get_output_dict("get_outputs")
-    return MappingProxyType(outputs)
+    return MappingProxyType(_get_output_dict("get_outputs"))
+
 
 def get_output(int index = 0):
     return _get_output_dict("get_output")[index]
+
 
 cdef class FuncData(object):
     cdef object func
@@ -1015,8 +1153,10 @@ cdef class CallbackData(object):
         # just the future returning form
         self.fut = Future()
         self.fut.set_running_or_notify_cancel()
-        if env is not None and env.active_futures is not None:
-            env.active_futures.add(self.fut)
+        if env is not None:
+            with env.lock:
+                if env.active_futures is not None:
+                    env.active_futures.add(self.fut)
 
 
 cdef createCallbackData(const VSAPI* funcs, RawNode node, object cb):
@@ -1815,8 +1955,10 @@ cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs,
     instance.format = createVideoFormat(funcs.getVideoFrameFormat(constf), funcs, core)
     instance.width = funcs.getFrameWidth(constf, 0)
     instance.height = funcs.getFrameHeight(constf, 0)
-    if env is not None and env.known_frames is not None:
-        env.known_frames.add(instance)
+    if env is not None:
+        with env.lock:
+            if env.known_frames is not None:
+                env.known_frames.add(instance)
     return instance
 
 
@@ -1832,8 +1974,10 @@ cdef VideoFrame createVideoFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     instance.format = createVideoFormat(funcs.getVideoFrameFormat(f), funcs, core)
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
-    if env is not None and env.known_frames is not None:
-        env.known_frames.add(instance)
+    if env is not None:
+        with env.lock:
+            if env.known_frames is not None:
+                env.known_frames.add(instance)
     return instance
 
 
@@ -2023,8 +2167,10 @@ cdef AudioFrame createConstAudioFrame(const VSFrame *constf, const VSAPI *funcs,
     instance.bytes_per_sample = format.bytesPerSample
     instance.channel_layout = format.channelLayout
     instance.num_channels = format.numChannels
-    if env is not None and env.known_frames is not None:
-        env.known_frames.add(instance)
+    if env is not None:
+        with env.lock:
+            if env.known_frames is not None:
+                env.known_frames.add(instance)
     return instance
 
 
@@ -2043,8 +2189,10 @@ cdef AudioFrame createAudioFrame(VSFrame *f, const VSAPI *funcs, VSCore *core):
     instance.bytes_per_sample = format.bytesPerSample
     instance.channel_layout = format.channelLayout
     instance.num_channels = format.numChannels
-    if env is not None and env.known_frames is not None:
-        env.known_frames.add(instance)
+    if env is not None:
+        with env.lock:
+            if env.known_frames is not None:
+                env.known_frames.add(instance)
     return instance
 
 
@@ -2174,11 +2322,9 @@ cdef class RawNode(object):
     def frames(self, prefetch=None, backlog=None, close=False, collect_garbage=True):
         if prefetch is None or prefetch <= 0:
             prefetch = self.core.num_threads
-
         if backlog is None or backlog < 0:
             backlog = prefetch * 3
-        elif backlog < prefetch:
-            backlog = prefetch
+        backlog = max(backlog, prefetch)
 
         def _get_enum_fut():
             get_frame_async = self.get_frame_async
@@ -2195,89 +2341,114 @@ cdef class RawNode(object):
 
         finished = False
         running = 0
-        lock = RLock()
+        refilling = False
+        cond = Condition()
         reorder = {}
-        curr_frames = 0
 
         def _request_next():
-            nonlocal finished, running, curr_frames
+            nonlocal finished, running
 
+            # Must be called with lock held.
             if finished:
                 return
+            try:
+                idx, fut = enum_fut()
+            except StopIteration:
+                finished = True
+                return
+            except BaseException:
+                finished = True
+                cond.notify_all()
+                raise
 
-            with lock:
-                try:
-                    idx, fut = enum_fut()
-                except StopIteration:
-                    finished = True
-                    return
+            reorder[idx] = fut
+            running += 1
 
-                reorder[idx] = fut
-                running += 1
-                curr_frames += 1
-
-                fut.add_done_callback(_finished)
+            fut.add_done_callback(_finished)
 
         def _finished(f):
             nonlocal finished, running
 
-            with lock:
+            with cond:
                 running -= 1
 
                 if finished:
+                    cond.notify_all()
                     return
 
-                if f.exception() is not None:
+                if f.cancelled() or f.exception() is not None:
                     finished = True
+                    cond.notify_all()
                     return
 
-                _refill()
+                if not refilling:
+                    _refill()
+                cond.notify_all()
 
         def _refill():
-            if finished:
+            # Must be called with lock held.
+            nonlocal refilling
+            if finished or refilling:
                 return
 
-            with lock:
+            refilling = True
+            try:
                 # Two rules: 1. Don't exceed the concurrency barrier.
                 #            2. Don't exceed unused-frames-backlog
-                while (not finished) and (running < prefetch) and curr_frames < backlog:
+                while (not finished) and (running < prefetch) and len(reorder) < backlog:
                     _request_next()
-        _refill()
+            finally:
+                refilling = False
+
+        with cond:
+            _refill()
+
+        def has_next_or_done():
+            return sidx in reorder or (finished and not reorder)
 
         sidx = 0
 
         try:
-            while (not finished) or (curr_frames > 0) or running > 0:
-                if sidx not in reorder:
-                    # Spin. Reorder being empty should never happen.
-                    continue
+            while True:
+                with cond:
+                    cond.wait_for(has_next_or_done)
 
-                # Get next requested frame
-                fut = reorder[sidx]
+                    if finished and not reorder:
+                        break
+
+                    # Get next requested frame
+                    fut = reorder.get(sidx, None)
+
+                if fut is None:
+                    continue
 
                 result = fut.result()
 
-                del reorder[sidx]
-
-                curr_frames -= 1
-                _refill()
+                with cond:
+                    reorder.pop(sidx, None)
+                    _refill()
+                    cond.notify_all()
 
                 sidx += 1
 
                 try:
                     yield result
-
                 finally:
                     if close:
                         result.close()
         finally:
-            finished = True
+            with cond:
+                finished = True
+                remaining = list(reorder.values())
+                reorder.clear()
+                cond.notify_all()
 
-            for fut in reorder.copy().values():
-                if fut.exception() is not None:
+            for fut in remaining:
+                if fut.cancelled() or fut.exception() is not None:
                     continue
 
-                fut.result().close()
+                with contextlib.suppress(BaseException):
+                    fut.result().close()
 
             if collect_garbage:
                 gc.collect()
@@ -2430,8 +2601,10 @@ cdef class VideoNode(RawNode):
         # tracked so environment teardown can wait for blocking requests as well
         fut = Future()
         fut.set_running_or_notify_cancel()
-        if env is not None and env.active_futures is not None:
-            env.active_futures.add(fut)
+        if env is not None:
+            with env.lock:
+                if env.active_futures is not None:
+                    env.active_futures.add(fut)
         try:
             with nogil:
                 f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
@@ -2716,8 +2889,10 @@ cdef VideoNode createVideoNode(VSNode *node, const VSAPI *funcs, Core core):
     else:
         instance.fps = Fraction(0, 1)
 
-    if env is not None and env.known_nodes is not None:
-        env.known_nodes.add(instance)
+    if env is not None:
+        with env.lock:
+            if env.known_nodes is not None:
+                env.known_nodes.add(instance)
 
     return instance
 
@@ -2764,8 +2939,10 @@ cdef class AudioNode(RawNode):
         # tracked so environment teardown can wait for blocking requests as well
         fut = Future()
         fut.set_running_or_notify_cancel()
-        if env is not None and env.active_futures is not None:
-            env.active_futures.add(fut)
+        if env is not None:
+            with env.lock:
+                if env.active_futures is not None:
+                    env.active_futures.add(fut)
         try:
             with nogil:
                 f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
@@ -2893,6 +3070,7 @@ cdef class AudioNode(RawNode):
             fileobj.flush()
 
     def set_output(self, int index = 0):
+        self.ensure_valid()
         _get_output_dict("set_output")[index] = self
 
     @property
@@ -3018,8 +3196,10 @@ cdef AudioNode createAudioNode(VSNode *node, const VSAPI *funcs, Core core):
     instance.channel_layout = instance.ai.format.channelLayout
     instance.num_channels = instance.ai.format.numChannels
 
-    if env is not None and env.known_nodes is not None:
-        env.known_nodes.add(instance)
+    if env is not None:
+        with env.lock:
+            if env.known_nodes is not None:
+                env.known_nodes.add(instance)
 
     return instance
 
@@ -3406,9 +3586,15 @@ cdef Core _get_core(threads = None):
     return vsscript_get_core_internal(env)
 
 cdef Core vsscript_get_core_internal(EnvironmentData env):
-    if env.core is None:
-        env.core = createCore(env)
-    return env.core
+    cdef Core core = env.core
+    if core is None:
+        with env.lock:
+            if not env.alive or env.destroying:
+                raise Error('Cannot access or create core on a destroyed environment.')
+            if env.core is None:
+                env.core = createCore(env)
+            core = env.core
+    return core
 
 cdef class _CoreProxy(object):
 
@@ -3729,11 +3915,17 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
             return
 
         s = warnings.formatwarning(message, category, filename, lineno, line)
-        core = vsscript_get_core_internal(env)
-        core.log_message(mtWarning, s)
+        try:
+            core = vsscript_get_core_internal(env)
+            if core is not None:
+                core.log_message(mtWarning, s)
+                return
+        except:
+            pass
+        if _warnings_showwarning is not None:
+            _warnings_showwarning(message, category, filename, lineno, file, line)
 
 class PythonVSScriptLoggingBridge(logging.Handler):
-
     def __init__(self, parent, level=logging.NOTSET):
         super().__init__(level)
         self._parent = parent
@@ -3743,7 +3935,13 @@ class PythonVSScriptLoggingBridge(logging.Handler):
         if env is None:
             self.parent.handle(record)
             return
-        core = vsscript_get_core_internal(env)
+        try:
+            core = vsscript_get_core_internal(env)
+        except Exception:
+            core = None
+        if core is None:
+            self.parent.handle(record)
+            return
 
         message = self.format(record)
 
@@ -3793,10 +3991,9 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
 
 @cython.final
 cdef class VSScriptEnvironmentPolicy:
-    cdef dict _env_map
+    cdef SynchronizedDict _env_map
 
     cdef object _stack
-    cdef object _lock
     cdef EnvironmentPolicyAPI _api
 
     cdef object __weakref__
@@ -3809,7 +4006,7 @@ cdef class VSScriptEnvironmentPolicy:
 
         self._stack = ThreadLocal()
         self._api = policy_api
-        self._env_map = {}
+        self._env_map = SynchronizedDict()
 
         # Redirect warnings to the parent application.
         _warnings_showwarning = warnings.showwarning
@@ -3825,7 +4022,9 @@ cdef class VSScriptEnvironmentPolicy:
     def on_policy_cleared(self):
         global _warnings_showwarning
 
-        self._env_map = None
+        if self._env_map is not None:
+            self._env_map.clear()
+            self._env_map = None
         self._stack = None
 
         # Reset the warnings from the parent application
@@ -3843,15 +4042,21 @@ cdef class VSScriptEnvironmentPolicy:
         sys.stdout = sys.__stdout__
 
     cdef EnvironmentData get_environment(self, id):
+        if self._env_map is None:
+            return None
         return self._env_map.get(id, None)
 
     def get_current_environment(self):
+        if self._stack is None:
+            return None
         return getattr(self._stack, "stack", None)
 
     def set_environment(self, environment):
         if not self.is_alive(environment):
             environment = None
 
+        if self._stack is None:
+            return None
         previous = getattr(self._stack, "stack", None)
         self._stack.stack = environment
         return previous
@@ -3863,14 +4068,17 @@ cdef class VSScriptEnvironmentPolicy:
             env.core = createCore2(se.core)
             se.core = NULL # unset the core to indicate it's been used
 
-        self._env_map[script_id] = env
+        if self._env_map is not None:
+            self._env_map[script_id] = env
         return env
 
     cdef has_environment(self, int script_id):
-        return script_id in self._env_map
+        return self._env_map is not None and script_id in self._env_map
 
     cdef _free_environment(self, int script_id):
-        env = self._env_map.pop(script_id, None)
+        cdef EnvironmentData env = None
+        if self._env_map is not None:
+            env = self._env_map.pop(script_id, None)
         if env is not None:
             sys.stdout.flush()
             sys.stderr.flush()
@@ -3888,19 +4096,11 @@ cdef VSScriptEnvironmentPolicy _get_vsscript_policy():
     return <VSScriptEnvironmentPolicy>_policy
 
 
-cdef object _vsscript_use_environment(int id):
-    return use_environment(_get_vsscript_policy().get_environment(id))
-
-
 cdef object _vsscript_use_or_create_environment2(int id, VSScript *se):
     cdef VSScriptEnvironmentPolicy policy = _get_vsscript_policy()
     if not policy.has_environment(id):
         policy._make_environment(id, se)
     return use_environment(policy.get_environment(id))
-
-
-cdef object _vsscript_use_or_create_environment(int id):
-    return _vsscript_use_or_create_environment2(id, NULL)
 
 
 @contextlib.contextmanager
@@ -3955,7 +4155,7 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename):
         with _vsscript_use_or_create_environment2(se.id, se).use():
             exec(code, pyenvdict, pyenvdict)
 
-    except SystemExit, e:
+    except SystemExit as e:
         try:
             se.exitCode = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
         except OverflowError:
@@ -3965,7 +4165,7 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename):
         Py_INCREF(errstr)
         se.errstr = <void *>errstr
         return 3
-    except BaseException, e:
+    except BaseException as e:
         errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
         errstr = errstr.encode('utf-8')
         Py_INCREF(errstr)
@@ -4089,7 +4289,10 @@ cdef public api VSNode *vpy4_getOutput(VSScript *se, int index) nogil:
         pyenvdict = <dict>se.pyenvdict
         node = None
         try:
-            node = _get_vsscript_policy().get_environment(se.id).outputs[index]
+            env = _get_vsscript_policy().get_environment(se.id)
+            if env is None:
+                return NULL
+            node = env.outputs.get(index, None)
         except:
             return NULL
 
@@ -4106,7 +4309,10 @@ cdef public api VSNode *vpy4_getAlphaOutput(VSScript *se, int index) nogil:
         pyenvdict = <dict>se.pyenvdict
         node = None
         try:
-            node = _get_vsscript_policy().get_environment(se.id).outputs[index]
+            env = _get_vsscript_policy().get_environment(se.id)
+            if env is None:
+                return NULL
+            node = env.outputs.get(index, None)
         except:
             return NULL
 
@@ -4121,7 +4327,10 @@ cdef public api int vpy4_getAltOutputMode(VSScript *se, int index) nogil:
         pyenvdict = <dict>se.pyenvdict
         output = None
         try:
-            output = _get_vsscript_policy().get_environment(se.id).outputs[index]
+            env = _get_vsscript_policy().get_environment(se.id)
+            if env is None:
+                return 0
+            output = env.outputs.get(index, None)
         except:
             return 0
 
@@ -4133,26 +4342,32 @@ cdef public api int vpy4_getAvailableOutputNodes(VSScript *se, int size, int *ds
     cdef int dstidx = 0
     with gil:
         pyenvdict = <dict>se.pyenvdict
-        nodes = None
+        keys = None
         try:
-            nodes = _get_vsscript_policy().get_environment(se.id).outputs
+            env = _get_vsscript_policy().get_environment(se.id)
+            if env is None:
+                return 0
+            keys = env.outputs.keys()
         except:
             return 0
 
-        if size > 0:
-            for key in nodes:
+        if size > 0 and keys is not None:
+            for key in keys:
                 dst[dstidx] = key
                 dstidx = dstidx + 1
                 if size - dstidx <= 0:
                     break
 
-        return len(nodes)
+        return len(keys) if keys is not None else 0
 
 cdef public api VSCore *vpy4_getCore(VSScript *se) nogil:
     with gil:
         try:
-            core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-            if core is not None:
+            env = _get_vsscript_policy().get_environment(se.id)
+            if env is None:
+                return NULL
+            core = vsscript_get_core_internal(env)
+            if core is not None and (<Core>core).core != NULL:
                 return (<Core>core).core
             else:
                 return NULL
@@ -4162,34 +4377,35 @@ cdef public api VSCore *vpy4_getCore(VSScript *se) nogil:
 cdef public api const VSAPI *vpy4_getVSAPI(int version) nogil:
     return getVapourSynthAPI(version)
 
-cdef const VSAPI *getVSAPIInternal() nogil:
-    global _vsapi
-    if _vsapi == NULL:
-        _vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
+cdef inline const VSAPI *getVSAPIInternal() nogil:
     return _vsapi
 
 cdef public api int vpy4_getVariable(VSScript *se, const char *name, VSMap *dst) nogil:
     with gil:
-        with _vsscript_use_environment(se.id).use():
-            pyenvdict = <dict>se.pyenvdict
-            try:
+        try:
+            env = _get_vsscript_policy().get_environment(se.id)
+            with use_environment(env).use():
+                pyenvdict = <dict>se.pyenvdict
                 dname = name.decode('utf-8')
-                read_var = { dname:pyenvdict[dname]}
-                core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-                dictToMap(read_var, dst, core.core, core.funcs)
+                read_var = { dname: pyenvdict[dname] }
+                core = vsscript_get_core_internal(env)
+                if core is None or (<Core>core).core == NULL:
+                    return 1
+                dictToMap(read_var, dst, (<Core>core).core, (<Core>core).funcs)
                 return 0
-            except:
-                return 1
+        except:
+            return 1
 
 cdef public api int vpy4_setVariables(VSScript *se, const VSMap *vars) nogil:
     with gil:
-        with _vsscript_use_environment(se.id).use():
-            pyenvdict = <dict>se.pyenvdict
-            try:
+        try:
+            env = _get_vsscript_policy().get_environment(se.id)
+            with use_environment(env).use():
+                pyenvdict = <dict>se.pyenvdict
                 pyenvdict.update(mapToDict(vars, False))
                 return 0
-            except:
-                return 1
+        except:
+            return 1
 
 cdef public api int vpy4_initVSScript() nogil:
     with gil:

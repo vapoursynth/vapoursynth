@@ -1,5 +1,5 @@
 [build-system]
-requires = ["Cython>=3.1.0", "meson-python"]
+requires = ["Cython>=3.3.0", "meson-python"]
 build-backend = "mesonpy"
 
 [project]
@@ -9,9 +9,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "LGPL-2.1-or-later"
 license-files = ["COPYING.LESSER"]
-authors = [
-    {name = "Fredrik Mellbin", email = "fredrik.mellbin@gmail.com"},
-]
+authors = [{ name = "Fredrik Mellbin", email = "fredrik.mellbin@gmail.com" }]
 keywords = ["frameserver", "video", "audio"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -60,7 +58,7 @@ exclude = [
 
 [tool.cibuildwheel]
 build-frontend = "uv"
-build = ["cp314-win_amd64", "cp312-*"]
+build = ["cp314-win_amd64", "cp312-*", "cp315t-*"]
 skip = ["cp312-win*", "*-win32"]
 test-sources = ["test"]
 test-command = [
@@ -83,6 +81,15 @@ test-command = 'python -m unittest discover -s test -p "*test.py"'
 
 [tool.cibuildwheel.macos]
 environment = { MACOSX_DEPLOYMENT_TARGET = "13.3" }
+
+[[tool.cibuildwheel.overrides]]
+select = "cp3??t-*"
+config-settings = { setup-args = ["-Dpython.allow_limited_api=false"] }
+
+[[tool.cibuildwheel.overrides]]
+select = "cp3??t-win*"
+config-settings = { setup-args = ["--debug", "--vsenv", "-Dpython.allow_limited_api=false"] }
+repair-wheel-command = ""
 
 [tool.ruff]
 extend-exclude = ["vapoursynth.pyi"]

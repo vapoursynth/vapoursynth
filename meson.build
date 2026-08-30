@@ -296,12 +296,16 @@ vapoursynth_dep = declare_dependency(
     link_with: libvapoursynth,
 )
 
+is_freethreaded = py.get_variable('Py_GIL_DISABLED', 0) == 1 or py.get_variable('ABIFLAGS', '').contains('t')
+py_limited_api = is_freethreaded ? '' : '3.12'
+
 py.extension_module('vapoursynth',
     files('src/common/wave.cpp', 'src/cython/vapoursynth.pyx'),
+    cython_args: ['-X', 'freethreading_compatible=True'],
     dependencies: [py_dep, vapoursynth_dep, vulkan_headers],
     install: true,
     install_rpath: '$ORIGIN',
-    limited_api: '3.12',
+    limited_api: py_limited_api,
     override_options: 'cython_language=cpp',
     subdir: 'vapoursynth',
 )
@@ -320,7 +324,7 @@ py.install_sources(
 
 libvsscript = library('vsscript',
     files('src/vsscript/vsscript.cpp'),
-    cpp_args: ['-DPy_NO_LINK_LIB', '-DVS_CORE_EXPORTS'],
+    cpp_args: ['-DPy_NO_LINK_LIB', '-DVS_CORE_EXPORTS'] + (is_freethreaded ? ['-DPy_GIL_DISABLED=1'] : []),
     dependencies: [dl_dep, py_dep, threads_dep],
     gnu_symbol_visibility: 'hidden',
     include_directories: incdir,
