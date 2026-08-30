@@ -1,5 +1,6 @@
 r80:
 gpu support using the vulkan 1.4 api
+freethreading python support (Ichunjo)
 fixed compilation errors on some systems where the _Float16 type isn't available
 fixed timecode file output having excessively many decimals which makes mkvmerge unable to use it
 the expr filter now falls back to the interpreter and prints a warning if executable memory can't be allocated

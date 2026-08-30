@@ -435,6 +435,10 @@ cdef class StandaloneEnvironmentPolicy:
 cdef object _policy = None
 cdef bint _policy_ready = False
 cdef object _policy_cond = Condition(Lock())
+# Leaf lock making the lockless fast reads of _policy and _policy_ready atomic
+# against the writers, so a reference is only ever acquired while the slot still
+# holds one. Always taken bare or inside _policy_cond, never around it.
+cdef cython.pymutex _policy_mutex
 cdef object _registering_thread = None
 
 cdef const VSAPI *_vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
@@ -645,26 +649,37 @@ cdef bint _register_policy(object policy, bint raise_if_registered=True):
                 raise RuntimeError("There is already a policy registered.")
             return False
 
-        _policy = policy
-        _policy_ready = False
+        with _policy_mutex:
+            _policy = policy
+            _policy_ready = False
         _registering_thread = get_ident()
 
-    cdef EnvironmentPolicyAPI api = EnvironmentPolicyAPI.__new__(EnvironmentPolicyAPI)
+    cdef EnvironmentPolicyAPI api
 
     try:
+        api = EnvironmentPolicyAPI.__new__(EnvironmentPolicyAPI)
         api._target_policy = weakref.ref(_policy)
         api._known_environments = weakref.WeakSet()
         _policy.on_policy_registered(api)
         with _policy_cond:
-            _policy_ready = True
-            _registering_thread = None
+            # The callback may have unregistered this policy again, or a new one may
+            # already have taken its place, so only publish state that still belongs
+            # to this registration.
+            if _policy is policy:
+                with _policy_mutex:
+                    _policy_ready = True
+            if _registering_thread == get_ident():
+                _registering_thread = None
             _policy_cond.notify_all()
         return True
     except BaseException:
         with _policy_cond:
-            _policy = None
-            _policy_ready = False
-            _registering_thread = None
+            if _policy is policy:
+                with _policy_mutex:
+                    _policy = None
+                    _policy_ready = False
+            if _registering_thread == get_ident():
+                _registering_thread = None
             _policy_cond.notify_all()
         raise
 
@@ -687,8 +702,14 @@ cdef get_policy():
     cdef StandaloneEnvironmentPolicy standalone_policy
 
     while True:
-        if _policy_ready:
-            return _policy
+        # Snapshot both fields under the leaf mutex: the reference is then acquired
+        # while the slot still owns one, and a concurrent clear_policy() can only
+        # send us to the locked path below, never hand back None or a freed policy.
+        with _policy_mutex:
+            policy = _policy
+            ready = _policy_ready
+        if ready and policy is not None:
+            return policy
 
         with _policy_cond:
             _policy_cond.wait_for(lambda: _policy_ready or _policy is None or _registering_thread == get_ident())
@@ -714,8 +735,9 @@ cdef object clear_policy(delay=False):
     with _policy_cond:
         old_policy = _policy
         if not delay:
-            _policy = None
-            _policy_ready = False
+            with _policy_mutex:
+                _policy = None
+                _policy_ready = False
             _policy_cond.notify_all()
 
     if old_policy is not None:
@@ -723,8 +745,9 @@ cdef object clear_policy(delay=False):
 
     if delay:
         with _policy_cond:
-            _policy = None
-            _policy_ready = False
+            with _policy_mutex:
+                _policy = None
+                _policy_ready = False
             _policy_cond.notify_all()
 
     return old_policy
@@ -1055,7 +1078,10 @@ def clear_outputs():
 
 
 def get_outputs():
-    return MappingProxyType(_get_output_dict("get_outputs"))
+    # Proxy the inner dict itself so keys()/values()/items() stay live dict views and
+    # comparisons keep dict semantics; the proxy is read-only, and bare dict reads
+    # need no lock on free-threaded builds.
+    return MappingProxyType(_get_output_dict("get_outputs").data)
 
 
 def get_output(int index = 0):
@@ -1155,8 +1181,9 @@ cdef class CallbackData(object):
         self.fut.set_running_or_notify_cancel()
         if env is not None:
             with env.lock:
-                if env.active_futures is not None:
-                    env.active_futures.add(self.fut)
+                if env.active_futures is None:
+                    raise Error('The environment is being destroyed, no new frame requests can be started.')
+                env.active_futures.add(self.fut)
 
 
 cdef createCallbackData(const VSAPI* funcs, RawNode node, object cb):
@@ -2603,8 +2630,9 @@ cdef class VideoNode(RawNode):
         fut.set_running_or_notify_cancel()
         if env is not None:
             with env.lock:
-                if env.active_futures is not None:
-                    env.active_futures.add(fut)
+                if env.active_futures is None:
+                    raise Error('The environment is being destroyed, no new frame requests can be started.')
+                env.active_futures.add(fut)
         try:
             with nogil:
                 f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
@@ -2941,8 +2969,9 @@ cdef class AudioNode(RawNode):
         fut.set_running_or_notify_cancel()
         if env is not None:
             with env.lock:
-                if env.active_futures is not None:
-                    env.active_futures.add(fut)
+                if env.active_futures is None:
+                    raise Error('The environment is being destroyed, no new frame requests can be started.')
+                env.active_futures.add(fut)
         try:
             with nogil:
                 f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
