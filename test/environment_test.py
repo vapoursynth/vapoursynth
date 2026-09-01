@@ -427,6 +427,105 @@ class EnvironmentTest(unittest.TestCase):
 
             self.assertIsNone(wrapped.env())
 
+    @subprocess_runner
+    def test_environment_refuses_requests_during_destruction(self):
+        lock = Lock()
+
+        def modify_func(n, f):
+            with lock:
+                return f
+
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                core = vs.core.core
+                clip = core.std.BlankClip(width=16, height=16, length=2)
+                clip = core.std.ModifyFrame(clip, clip, modify_func)
+                lock.acquire()
+                fut = clip.get_frame_async(0)
+
+            thread = threading.Thread(target=lambda: pol._api.destroy_environment(env))
+            thread.start()
+            thread.join(0.25)
+
+            # destroy_environment is blocked waiting for the first request, and every
+            # request made after it claimed the environment must be refused, keyed on
+            # the environment owning the node even though none is current here
+            self.assertIsNotNone(wrapped.env())
+            with self.assertRaisesRegex(vs.Error, "being destroyed"):
+                clip.get_frame(1)
+            self.assertIsInstance(clip.get_frame_async(1).exception(), vs.Error)
+
+            lock.release()
+            thread.join()
+
+            self.assertIsInstance(fut.result(), vs.VideoFrame)
+
+    @subprocess_runner
+    def test_policy_unregistering_itself_during_registration(self):
+        class SelfUnregisteringPolicy(StubPolicy):
+            def on_policy_registered(self, special_api):
+                super().on_policy_registered(special_api)
+                special_api.unregister_policy()
+
+        vs.register_policy(SelfUnregisteringPolicy())
+
+        # the registration must end in the plain "no policy" state, from which the
+        # standalone policy is still created on demand
+        self.assertFalse(vs.has_policy())
+        self.assertIsInstance(vs.core.num_threads, int)
+        self.assertTrue(vs.has_policy())
+
+    @subprocess_runner
+    def test_failed_registration_leaves_no_policy(self):
+        class ExplodingPolicy(StubPolicy):
+            def on_policy_registered(self, special_api):
+                super().on_policy_registered(special_api)
+                raise RuntimeError("registration failed")
+
+        class UnregisteringExplodingPolicy(StubPolicy):
+            def on_policy_registered(self, special_api):
+                super().on_policy_registered(special_api)
+                special_api.unregister_policy()
+                raise RuntimeError("registration failed")
+
+        for policy_class in (ExplodingPolicy, UnregisteringExplodingPolicy):
+            with self.assertRaisesRegex(RuntimeError, "registration failed"):
+                vs.register_policy(policy_class())
+
+            self.assertFalse(vs.has_policy())
+
+            with _with_policy():
+                self.assertTrue(vs.has_policy())
+            self.assertFalse(vs.has_policy())
+
+    @subprocess_runner
+    def test_get_outputs_keeps_dict_semantics(self):
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                clip = vs.core.std.BlankClip(width=16, height=16, length=1)
+                outputs = vs.get_outputs()
+                keys = outputs.keys()
+
+                self.assertEqual(outputs, {})
+                clip.set_output(3)
+
+                # live views and dict equality, what a read-only view of a dict gives
+                self.assertIn(3, keys)
+                self.assertEqual(outputs, {3: vs.VideoOutputTuple(clip, None, 0)})
+                self.assertIs(vs.get_output(3).clip, clip)
+                with self.assertRaises(TypeError):
+                    outputs[3] = clip
+
+                vs.clear_output(3)
+                self.assertNotIn(3, keys)
+                self.assertEqual(vs.get_outputs(), {})
+
 
 if __name__ == "__main__":
     unittest.main()

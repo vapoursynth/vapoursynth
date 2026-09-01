@@ -441,6 +441,13 @@ cdef object _policy_cond = Condition(Lock())
 cdef cython.pymutex _policy_mutex
 cdef object _registering_thread = None
 
+
+cdef object _policy_snapshot():
+    # The one safe way to read the slot without holding _policy_cond: under the leaf
+    # mutex the reference is acquired while the slot still owns one.
+    with _policy_mutex:
+        return _policy
+
 cdef const VSAPI *_vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
 
 
@@ -492,7 +499,7 @@ cdef class EnvironmentPolicyAPI:
         raise RuntimeError("Cannot directly instantiate this class.")
 
     cdef ensure_policy_matches(self):
-        if _policy is not self._target_policy():
+        if _policy_snapshot() is not self._target_policy():
             raise ValueError("The currently activated policy does not match the bound policy. Was the environment unregistered?")
 
     def wrap_environment(self, environment_data):
@@ -632,7 +639,7 @@ cdef class EnvironmentPolicyAPI:
         target = self._target_policy()
         if target is None:
             return f"<EnvironmentPolicyAPI bound to <garbage collected> (unregistered)>"
-        elif _policy is not target:
+        elif _policy_snapshot() is not target:
             return f"<EnvironmentPolicyAPI bound to {target!r} (unregistered)>"
         else:
             return f"<EnvironmentPolicyAPI bound to {target!r}>"
@@ -658,9 +665,9 @@ cdef bint _register_policy(object policy, bint raise_if_registered=True):
 
     try:
         api = EnvironmentPolicyAPI.__new__(EnvironmentPolicyAPI)
-        api._target_policy = weakref.ref(_policy)
+        api._target_policy = weakref.ref(policy)
         api._known_environments = weakref.WeakSet()
-        _policy.on_policy_registered(api)
+        policy.on_policy_registered(api)
         with _policy_cond:
             # The callback may have unregistered this policy again, or a new one may
             # already have taken its place, so only publish state that still belongs
@@ -724,7 +731,7 @@ cdef get_policy():
 
 
 def has_policy():
-    return _policy is not None and _policy_ready
+    return _policy_snapshot() is not None and _policy_ready
 
 
 cdef object clear_policy(delay=False):
@@ -745,9 +752,12 @@ cdef object clear_policy(delay=False):
 
     if delay:
         with _policy_cond:
-            with _policy_mutex:
-                _policy = None
-                _policy_ready = False
+            # only retract the policy that was just cleared, another one may have been
+            # registered while on_policy_cleared ran
+            if _policy is old_policy:
+                with _policy_mutex:
+                    _policy = None
+                    _policy_ready = False
             _policy_cond.notify_all()
 
     return old_policy
@@ -787,18 +797,24 @@ def unregister_on_destroy(callback):
 cdef class _FastManager(object):
     cdef EnvironmentData target
     cdef EnvironmentData previous
+    # resolved once on entry and reused on exit: every lookup takes the global policy
+    # mutex and this runs for every delivered frame, so one per use() instead of three
+    cdef object policy
 
     def __init__(self):
         raise RuntimeError("Cannot directly instantiate this class.")
 
     def __enter__(self):
-        self.previous = get_policy().get_current_environment()
+        policy = get_policy()
+        self.policy = policy
+        self.previous = policy.get_current_environment()
         if self.target is not None:
-            get_policy().set_environment(self.target)
+            policy.set_environment(self.target)
             self.target = None
 
     def __exit__(self, *_):
-        policy = get_policy()
+        policy = self.policy if self.policy is not None else get_policy()
+        self.policy = None
         if policy.is_alive(self.previous):
             policy.set_environment(self.previous)
         else:
@@ -825,7 +841,7 @@ cdef class Environment(object):
 
     @classmethod
     def is_single(self):
-        return not has_policy() or isinstance(_policy, StandaloneEnvironmentPolicy)
+        return not has_policy() or isinstance(_policy_snapshot(), StandaloneEnvironmentPolicy)
 
     @property
     def env_id(self):
@@ -1066,7 +1082,10 @@ cdef SynchronizedDict _get_output_dict(funcname="this function"):
     cdef EnvironmentData env = _env_current()
     if env is None:
         raise Error(f'Internal environment id not set. {funcname} called from a filter callback?')
-    return env.outputs
+    cdef SynchronizedDict outputs = env.outputs
+    if outputs is None:
+        raise Error(f'{funcname} called on an environment that has already been destroyed.')
+    return outputs
 
 
 def clear_output(int index = 0):
@@ -1159,6 +1178,28 @@ cdef Func createFuncRef(VSFunction *ref, const VSAPI *funcs):
     return instance
 
 
+cdef object _admit_frame_request(RawNode node):
+    # Registers a frame request for environment teardown to wait on, and refuses it once
+    # teardown has claimed the environment. Keyed on the environment that owns the node,
+    # since that is the one whose destruction invalidates it, whether or not it is the
+    # current one here; nodes created outside any environment fall back to the current
+    # one, which is all that is known about them.
+    cdef EnvironmentData env = None
+    if node.owner_env is not None:
+        env = node.owner_env()
+    if env is None:
+        env = _env_current()
+
+    fut = Future()
+    fut.set_running_or_notify_cancel()
+    if env is not None:
+        with env.lock:
+            if env.active_futures is None:
+                raise Error('The environment is being destroyed, no new frame requests can be started.')
+            env.active_futures.add(fut)
+    return fut
+
+
 cdef class CallbackData(object):
     cdef const VSAPI *funcs
     cdef object callback
@@ -1177,13 +1218,7 @@ cdef class CallbackData(object):
         self.env = env
         # tracked so environment teardown can wait for every outstanding request and not
         # just the future returning form
-        self.fut = Future()
-        self.fut.set_running_or_notify_cancel()
-        if env is not None:
-            with env.lock:
-                if env.active_futures is None:
-                    raise Error('The environment is being destroyed, no new frame requests can be started.')
-                env.active_futures.add(self.fut)
+        self.fut = _admit_frame_request(self.node)
 
 
 cdef createCallbackData(const VSAPI* funcs, RawNode node, object cb):
@@ -2309,6 +2344,9 @@ cdef class RawNode(object):
     cdef VSNode *node
     cdef const VSAPI *funcs
     cdef Core core
+    # weak reference to the environment the node was created in, the one whose teardown
+    # invalidates it; None for nodes created outside any environment
+    cdef object owner_env
 
     cdef object __weakref__
 
@@ -2369,11 +2407,12 @@ cdef class RawNode(object):
         finished = False
         running = 0
         refilling = False
+        error = None
         cond = Condition()
         reorder = {}
 
         def _request_next():
-            nonlocal finished, running
+            nonlocal finished, running, error
 
             # Must be called with lock held.
             if finished:
@@ -2383,10 +2422,13 @@ cdef class RawNode(object):
             except StopIteration:
                 finished = True
                 return
-            except BaseException:
+            except BaseException as e:
+                # surfaced by the consumer, after the frames requested before it; raised
+                # here it would only be logged when this runs from a done callback
+                error = e
                 finished = True
                 cond.notify_all()
-                raise
+                return
 
             reorder[idx] = fut
             running += 1
@@ -2441,6 +2483,8 @@ cdef class RawNode(object):
                     cond.wait_for(has_next_or_done)
 
                     if finished and not reorder:
+                        if error is not None:
+                            raise error
                         break
 
                     # Get next requested frame
@@ -2625,29 +2669,24 @@ cdef class VideoNode(RawNode):
         self.ensure_valid_frame_number(n)
         cdef EnvironmentData env = _env_current()
 
-        # tracked so environment teardown can wait for blocking requests as well
-        fut = Future()
-        fut.set_running_or_notify_cancel()
-        if env is not None:
-            with env.lock:
-                if env.active_futures is None:
-                    raise Error('The environment is being destroyed, no new frame requests can be started.')
-                env.active_futures.add(fut)
+        fut = _admit_frame_request(self)
         try:
             with nogil:
                 f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
-        finally:
-            fut.set_result(None)
 
-        if f == NULL:
-            if (errorMsg[0]):
-                msg_str = ep.decode('utf-8')
-                py_exc = env.retrieve_exception(msg_str) if env is not None else None
-                raise py_exc or Error(msg_str)
+            if f == NULL:
+                if (errorMsg[0]):
+                    msg_str = ep.decode('utf-8')
+                    py_exc = env.retrieve_exception(msg_str) if env is not None else None
+                    raise py_exc or Error(msg_str)
+                else:
+                    raise Error('Internal error - no error given')
             else:
-                raise Error('Internal error - no error given')
-        else:
-            return createConstVideoFrame(f, self.funcs, self.core.core)
+                return createConstVideoFrame(f, self.funcs, self.core.core)
+        finally:
+            # resolved only once the wrapper exists: teardown waits on this future before
+            # it invalidates the node and frees the core the wrapper is built from
+            fut.set_result(None)
 
     @property
     def gpu_resident(self):
@@ -2918,6 +2957,7 @@ cdef VideoNode createVideoNode(VSNode *node, const VSAPI *funcs, Core core):
         instance.fps = Fraction(0, 1)
 
     if env is not None:
+        instance.owner_env = weakref.ref(env)
         with env.lock:
             if env.known_nodes is not None:
                 env.known_nodes.add(instance)
@@ -2964,29 +3004,24 @@ cdef class AudioNode(RawNode):
         self.ensure_valid_frame_number(n)
         cdef EnvironmentData env = _env_current()
 
-        # tracked so environment teardown can wait for blocking requests as well
-        fut = Future()
-        fut.set_running_or_notify_cancel()
-        if env is not None:
-            with env.lock:
-                if env.active_futures is None:
-                    raise Error('The environment is being destroyed, no new frame requests can be started.')
-                env.active_futures.add(fut)
+        fut = _admit_frame_request(self)
         try:
             with nogil:
                 f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
-        finally:
-            fut.set_result(None)
 
-        if f == NULL:
-            if (errorMsg[0]):
-                msg_str = ep.decode('utf-8')
-                py_exc = env.retrieve_exception(msg_str) if env is not None else None
-                raise py_exc or Error(msg_str)
+            if f == NULL:
+                if (errorMsg[0]):
+                    msg_str = ep.decode('utf-8')
+                    py_exc = env.retrieve_exception(msg_str) if env is not None else None
+                    raise py_exc or Error(msg_str)
+                else:
+                    raise Error('Internal error - no error given')
             else:
-                raise Error('Internal error - no error given')
-        else:
-            return createConstAudioFrame(f, self.funcs, self.core.core)
+                return createConstAudioFrame(f, self.funcs, self.core.core)
+        finally:
+            # resolved only once the wrapper exists: teardown waits on this future before
+            # it invalidates the node and frees the core the wrapper is built from
+            fut.set_result(None)
 
     def output(self, object fileobj not None, bint wav = False, bint w64 = False, object progress_update = None, int prefetch = 0, int backlog = -1):
         self.ensure_valid()
@@ -3226,6 +3261,7 @@ cdef AudioNode createAudioNode(VSNode *node, const VSAPI *funcs, Core core):
     instance.num_channels = instance.ai.format.numChannels
 
     if env is not None:
+        instance.owner_env = weakref.ref(env)
         with env.lock:
             if env.known_nodes is not None:
                 env.known_nodes.add(instance)
@@ -4120,9 +4156,10 @@ cdef class VSScriptEnvironmentPolicy:
 
 
 cdef VSScriptEnvironmentPolicy _get_vsscript_policy():
-    if not isinstance(_policy, VSScriptEnvironmentPolicy):
+    cdef object policy = _policy_snapshot()
+    if not isinstance(policy, VSScriptEnvironmentPolicy):
         raise RuntimeError("This is not a VSScript-Policy.")
-    return <VSScriptEnvironmentPolicy>_policy
+    return <VSScriptEnvironmentPolicy>policy
 
 
 cdef object _vsscript_use_or_create_environment2(int id, VSScript *se):
