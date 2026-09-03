@@ -2391,18 +2391,9 @@ cdef class RawNode(object):
             backlog = prefetch * 3
         backlog = max(backlog, prefetch)
 
-        def _get_enum_fut():
-            get_frame_async = self.get_frame_async
-
-            for n in range(self.num_frames):
-                handle = HandleFuture()
-                get_frame_async(n, handle)
-
-                yield n, handle.fut
-
-            return None
-
-        enum_fut = _get_enum_fut().__next__
+        cdef int next_frame_idx = 0
+        cdef int total_frames = self.num_frames
+        get_frame_async = self.get_frame_async
 
         finished = False
         running = 0
@@ -2412,16 +2403,21 @@ cdef class RawNode(object):
         reorder = {}
 
         def _request_next():
-            nonlocal finished, running, error
+            nonlocal finished, running, error, next_frame_idx
 
             # Must be called with lock held.
             if finished:
                 return
-            try:
-                idx, fut = enum_fut()
-            except StopIteration:
+            if next_frame_idx >= total_frames:
                 finished = True
                 return
+
+            cdef int idx = next_frame_idx
+            next_frame_idx += 1
+
+            handle = HandleFuture()
+            try:
+                get_frame_async(idx, handle)
             except BaseException as e:
                 # surfaced by the consumer, after the frames requested before it; raised
                 # here it would only be logged when this runs from a done callback
@@ -2430,6 +2426,7 @@ cdef class RawNode(object):
                 cond.notify_all()
                 return
 
+            fut = handle.fut
             reorder[idx] = fut
             running += 1
 
@@ -2788,31 +2785,13 @@ cdef class VideoNode(RawNode):
             raise Error("Failed to allocate memory for output buffer")
 
         try:
-            for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
-                if y4m:
-                    write(b"FRAME\n")
-
-                constf = (<VideoFrame>frame).constf
-                fi = lib.getVideoFrameFormat(constf)
-                for p in range(fi.numPlanes):
-                    stride = lib.getStride(constf, p)
-                    readPtr = lib.getReadPtr(constf, p)
-                    rowSize = <size_t>lib.getFrameWidth(constf, p) * fi.bytesPerSample
-                    height = lib.getFrameHeight(constf, p)
-
-                    if stride == <ptrdiff_t>rowSize:
-                        write(PyMemoryView_FromMemory(<char *>readPtr, rowSize * height, PyBUF_READ))
-                    else:
-                        with nogil:
-                            bitblt(buffer, rowSize, readPtr, stride, rowSize, height)
-                        write(PyMemoryView_FromMemory(<char *>buffer, rowSize * height, PyBUF_READ))
-
-                alpha = frame.props.get("_Alpha")
-                if alpha is not None:
+            frame_gen = self.frames(prefetch, backlog, close=True)
+            try:
+                for idx, frame in enumerate(frame_gen):
                     if y4m:
-                        raise ValueError("Can only apply y4m headers to clips without alpha")
+                        write(b"FRAME\n")
 
-                    constf = (<VideoFrame>alpha).constf
+                    constf = (<VideoFrame>frame).constf
                     fi = lib.getVideoFrameFormat(constf)
                     for p in range(fi.numPlanes):
                         stride = lib.getStride(constf, p)
@@ -2827,10 +2806,32 @@ cdef class VideoNode(RawNode):
                                 bitblt(buffer, rowSize, readPtr, stride, rowSize, height)
                             write(PyMemoryView_FromMemory(<char *>buffer, rowSize * height, PyBUF_READ))
 
-                    alpha.close()
+                    alpha = frame.props.get("_Alpha")
+                    if alpha is not None:
+                        if y4m:
+                            raise ValueError("Can only apply y4m headers to clips without alpha")
 
-                if progress_update is not None:
-                    progress_update(idx + 1, total)
+                        constf = (<VideoFrame>alpha).constf
+                        fi = lib.getVideoFrameFormat(constf)
+                        for p in range(fi.numPlanes):
+                            stride = lib.getStride(constf, p)
+                            readPtr = lib.getReadPtr(constf, p)
+                            rowSize = <size_t>lib.getFrameWidth(constf, p) * fi.bytesPerSample
+                            height = lib.getFrameHeight(constf, p)
+
+                            if stride == <ptrdiff_t>rowSize:
+                                write(PyMemoryView_FromMemory(<char *>readPtr, rowSize * height, PyBUF_READ))
+                            else:
+                                with nogil:
+                                    bitblt(buffer, rowSize, readPtr, stride, rowSize, height)
+                                write(PyMemoryView_FromMemory(<char *>buffer, rowSize * height, PyBUF_READ))
+
+                        alpha.close()
+
+                    if progress_update is not None:
+                        progress_update(idx + 1, total)
+            finally:
+                frame_gen.close()
         finally:
             free(buffer)
 
@@ -3102,30 +3103,34 @@ cdef class AudioNode(RawNode):
                     raise Error("Failed to create WAV header")
                 write((<char *>&whdr)[:sizeof(WaveHeader)])
 
-            for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
-                af = <AudioFrame>frame
-                num_samples_in_frame = af.funcs.getFrameLength(af.constf)
-                required_size = <size_t>num_samples_in_frame * self.num_channels * bytes_per_output_sample
+            frame_gen = self.frames(prefetch, backlog, close=True)
+            try:
+                for idx, frame in enumerate(frame_gen):
+                    af = <AudioFrame>frame
+                    num_samples_in_frame = af.funcs.getFrameLength(af.constf)
+                    required_size = <size_t>num_samples_in_frame * self.num_channels * bytes_per_output_sample
 
-                if required_size > buffer_size:
-                    new_buffer = <uint8_t *>realloc(interleave_buffer, required_size)
+                    if required_size > buffer_size:
+                        new_buffer = <uint8_t *>realloc(interleave_buffer, required_size)
 
-                    if not new_buffer:
-                        raise Error("Failed to reallocate interleave buffer")
+                        if not new_buffer:
+                            raise Error("Failed to reallocate interleave buffer")
 
-                    interleave_buffer = new_buffer
-                    buffer_size = required_size
+                        interleave_buffer = new_buffer
+                        buffer_size = required_size
 
-                with nogil:
-                    for c in range(self.num_channels):
-                        src_ptrs[c] = af.funcs.getReadPtr(af.constf, c)
+                    with nogil:
+                        for c in range(self.num_channels):
+                            src_ptrs[c] = af.funcs.getReadPtr(af.constf, c)
 
-                    pack_func(src_ptrs, interleave_buffer, num_samples_in_frame, self.num_channels)
+                        pack_func(src_ptrs, interleave_buffer, num_samples_in_frame, self.num_channels)
 
-                write((<char *>interleave_buffer)[:required_size])
+                    write((<char *>interleave_buffer)[:required_size])
 
-                if progress_update is not None:
-                    progress_update(idx + 1, self.num_frames)
+                    if progress_update is not None:
+                        progress_update(idx + 1, self.num_frames)
+            finally:
+                frame_gen.close()
         finally:
             free(src_ptrs)
             free(interleave_buffer)
