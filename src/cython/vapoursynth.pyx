@@ -382,10 +382,9 @@ class EnvironmentPolicy(object):
         raise NotImplementedError
 
     def is_alive(self, environment):
-        if environment is None:
+        if not isinstance(environment, EnvironmentData):
             return False
-        cdef EnvironmentData env = <EnvironmentData>environment
-        return env.alive
+        return (<EnvironmentData>environment).alive
 
 
 @cython.final
@@ -891,6 +890,8 @@ cdef class Environment(object):
         return ctx
 
     def __eq__(self, other):
+        if not isinstance(other, Environment):
+            return NotImplemented
         return other.env_id == self.env_id
 
     def __repr__(self):
@@ -904,6 +905,10 @@ cdef class Local:
     cdef object __weakref__
 
     def __getattr__(self, key):
+        # protocol probes (copy, pickle, hasattr on dunders) expect AttributeError and
+        # never denote stored values
+        if key.startswith('__') and key.endswith('__'):
+            raise AttributeError(key)
         cdef EnvironmentData env = get_policy().get_current_environment()
         if env is None:
             raise RuntimeError("No environment is currently activated.")
@@ -1157,13 +1162,18 @@ cdef class Func(object):
         cdef VSMap *inm
         cdef const VSAPI *vsapi
         cdef const char *error
+        cdef const VSAPI *funcs = self.funcs
+        cdef VSFunction *ref = self.ref
         vsapi = getVSAPIInternal()
-        outm = self.funcs.createMap()
-        inm = self.funcs.createMap()
+        outm = funcs.createMap()
+        inm = funcs.createMap()
         try:
             dictToMap(kwargs, inm, NULL, vsapi)
-            self.funcs.callFunction(self.ref, inm, outm)
-            error = self.funcs.mapGetError(outm)
+            # released so a long running C side function does not stall every python
+            # thread; a python backed one reacquires the gil itself
+            with nogil:
+                funcs.callFunction(ref, inm, outm)
+            error = funcs.mapGetError(outm)
             if error:
                 msg_str = error.decode('utf-8')
                 env = _env_current()
@@ -1330,7 +1340,7 @@ cdef int64_t rangeToIntFilter(object value, str key):
             value = Range.RANGE_FULL
     return int(value)
 
-cdef object mapToDict(const VSMap *map, bint flatten):
+cdef object mapToDict(const VSMap *map, bint flatten, Core core = None):
     cdef const VSAPI *funcs = getVSAPIInternal()
     cdef int numKeys = funcs.mapNumKeys(map)
     retdict = {}
@@ -1338,7 +1348,6 @@ cdef object mapToDict(const VSMap *map, bint flatten):
     cdef int proptype
 
     cdef int numElements
-    cdef Core core
 
     for x in range(numKeys):
         retkey = funcs.mapGetKey(map, x)
@@ -1356,12 +1365,16 @@ cdef object mapToDict(const VSMap *map, bint flatten):
                 if funcs.mapGetDataTypeHint(map, retkey, y, NULL) == dtUtf8:
                     newval = newval.decode('utf-8')
             elif proptype == ptVideoNode or proptype == ptAudioNode:
-                # resolved before the reference is taken: without a current environment
-                # this raises, and a reference taken first would never be released
-                core = _get_core()
+                # the wrapper belongs to the core the node lives in, the caller's when it
+                # is known; resolved before the reference is taken, since without a
+                # current environment the lookup raises and a reference taken first
+                # would never be released
+                if core is None:
+                    core = _get_core()
                 newval = createNode(funcs.mapGetNode(map, retkey, y, NULL), funcs, core)
             elif proptype == ptVideoFrame or proptype == ptAudioFrame:
-                core = _get_core()
+                if core is None:
+                    core = _get_core()
                 newval = createConstFrame(funcs.mapGetFrame(map, retkey, y, NULL), funcs, core.core)
             elif proptype == ptFunction:
                 newval = createFuncRef(funcs.mapGetFunction(map, retkey, y, NULL), funcs)
@@ -1412,9 +1425,11 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
                 if funcs.mapSetData(inm, ckey, v, <int>len(v), dtBinary, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, RawNode):
+                (<RawNode>v).ensure_valid()
                 if funcs.mapSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, RawFrame):
+                (<RawFrame>v)._ensure_open()
                 if funcs.mapSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, Func):
@@ -1447,9 +1462,11 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
 
         for v in val:
             if (atypes[key][:5] == 'vnode' and isinstance(v, VideoNode)) or (atypes[key][:5] == 'anode' and isinstance(v, AudioNode)):
+                (<RawNode>v).ensure_valid()
                 if funcs.mapSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif ((atypes[key][:6] == 'vframe') and isinstance(v, VideoFrame)) or (atypes[key][:6] == 'aframe' and isinstance(v, AudioFrame)):
+                (<RawFrame>v)._ensure_open()
                 if funcs.mapSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'func' and isinstance(v, Func):
@@ -1688,9 +1705,11 @@ cdef class FrameProps(object):
         try:
             for v in val:
                 if isinstance(v, RawNode):
+                    (<RawNode>v).ensure_valid()
                     if funcs.mapSetNode(m, b, (<RawNode>v).node, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, RawFrame):
+                    (<RawFrame>v)._ensure_open()
                     if funcs.mapSetFrame(m, b, (<RawFrame>v).constf, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, Func):
@@ -1707,7 +1726,8 @@ cdef class FrameProps(object):
                     if funcs.mapSetFloat(m, b, float(v), 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, str):
-                    if funcs.mapSetData(m, b, v.encode('utf-8'), -1, dtUtf8, 1) != 0:
+                    s = v.encode('utf-8')
+                    if funcs.mapSetData(m, b, s, <int>len(s), dtUtf8, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, (bytes, bytearray)):
                     if funcs.mapSetData(m, b, v, <int>len(v), dtBinary, 1) != 0:
@@ -1727,12 +1747,12 @@ cdef class FrameProps(object):
         self.funcs.mapDeleteKey(m, b)
 
     def __iter__(self):
+        # the keys are snapshotted: a caller may close the frame while iterating, and
+        # the property map dies with it
         self.frame._ensure_open()
         cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.frame.constf)
         cdef int numkeys = self.funcs.mapNumKeys(m)
-
-        for i in range(numkeys):
-            yield self.funcs.mapGetKey(m, i).decode('utf-8')
+        return iter([self.funcs.mapGetKey(m, i).decode('utf-8') for i in range(numkeys)])
 
     def __len__(self):
         self.frame._ensure_open()
@@ -1927,8 +1947,8 @@ cdef class RawFrame(object):
         return bool(self.funcs.getFrameResidency(self.constf) == nrGPU)
 
     cdef _ensure_cpu(self):
-        # Reading a GPU frame through the CPU accessors is a fatal error in the core by
-        # design; from python it must be an exception instead.
+        # The core's CPU accessors return NULL for a GPU frame; from python that has to
+        # be an exception instead.
         if self.funcs.getFrameResidency(self.constf) == nrGPU:
             raise Error('The frame is GPU resident and its pixel data cannot be accessed directly, pass the clip through std.GPUDownload first')
 
@@ -2455,24 +2475,16 @@ cdef class RawNode(object):
 
 
     def frames(self, prefetch=None, backlog=None, close=False, collect_garbage=True):
+        self.ensure_valid()
         if prefetch is None or prefetch <= 0:
             prefetch = self.core.num_threads
         if backlog is None or backlog < 0:
             backlog = prefetch * 3
         backlog = max(backlog, prefetch)
 
-        def _get_enum_fut():
-            get_frame_async = self.get_frame_async
-
-            for n in range(self.num_frames):
-                handle = HandleFuture()
-                get_frame_async(n, handle)
-
-                yield n, handle.fut
-
-            return None
-
-        enum_fut = _get_enum_fut().__next__
+        cdef int next_frame_idx = 0
+        cdef int total_frames = self.num_frames
+        get_frame_async = self.get_frame_async
 
         finished = False
         running = 0
@@ -2482,16 +2494,21 @@ cdef class RawNode(object):
         reorder = {}
 
         def _request_next():
-            nonlocal finished, running, error
+            nonlocal finished, running, error, next_frame_idx
 
             # Must be called with lock held.
             if finished:
                 return
-            try:
-                idx, fut = enum_fut()
-            except StopIteration:
+            if next_frame_idx >= total_frames:
                 finished = True
                 return
+
+            cdef int idx = next_frame_idx
+            next_frame_idx += 1
+
+            handle = HandleFuture()
+            try:
+                get_frame_async(idx, handle)
             except BaseException as e:
                 # surfaced by the consumer, after the frames requested before it; raised
                 # here it would only be logged when this runs from a done callback
@@ -2500,6 +2517,7 @@ cdef class RawNode(object):
                 cond.notify_all()
                 return
 
+            fut = handle.fut
             reorder[idx] = fut
             running += 1
 
@@ -2600,6 +2618,9 @@ cdef class RawNode(object):
 
     # Inspect API
     cdef bint _inspectable(self):
+        # an invalidated node has no core to ask and falls back to identity semantics
+        if self.node == NULL or self.core is None:
+            return False
         if self.funcs.getAPIVersion() != VAPOURSYNTH_API_VERSION:
             return False
         return bool(self.core.flags & ccfEnableGraphInspection)
@@ -2722,6 +2743,8 @@ cdef class VideoNode(RawNode):
         raise Error('Class cannot be instantiated directly')
 
     def __getattr__(self, name):
+        if name.startswith('__') and name.endswith('__'):
+            raise AttributeError(name)
         if self.node == NULL:
             raise AttributeError(f'Use of invalidated {self.__class__.__name__} (the environment has been destroyed).')
         try:
@@ -2838,8 +2861,12 @@ cdef class VideoNode(RawNode):
         if not buffer:
             raise Error("Failed to allocate memory for output buffer")
 
+        # closed explicitly: an exception from the writer or the progress callback must
+        # release the prefetched frames right away, not whenever the suspended generator
+        # happens to be finalized
+        frame_gen = self.frames(prefetch, backlog, close=True)
         try:
-            for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
+            for idx, frame in enumerate(frame_gen):
                 if y4m:
                     write(b"FRAME\n")
 
@@ -2869,6 +2896,8 @@ cdef class VideoNode(RawNode):
                         raise ValueError("Can only apply y4m headers to clips without alpha")
                     if not isinstance(alpha, VideoFrame):
                         raise ValueError(f'The _Alpha property of frame {idx} must hold a single video frame')
+                    if alpha.gpu_resident:
+                        raise ValueError(f'The _Alpha frame of frame {idx} is GPU resident, pass the alpha clip through std.GPUDownload before attaching it')
                     if alpha.width != frame.width or alpha.height != frame.height or alpha.format.bits_per_sample != frame.format.bits_per_sample:
                         raise ValueError(f'The _Alpha frame of frame {idx} must have the same dimensions and bit depth as the frame')
 
@@ -2892,6 +2921,7 @@ cdef class VideoNode(RawNode):
                 if progress_update is not None:
                     progress_update(idx + 1, total)
         finally:
+            frame_gen.close()
             free(buffer)
 
         if hasattr(fileobj, "flush"):
@@ -2965,6 +2995,8 @@ cdef class VideoNode(RawNode):
             raise TypeError("index must be int or slice")
 
     def __dir__(self):
+        if self.node == NULL:
+            return super(VideoNode, self).__dir__()
         plugins = []
         for plugin in self.core.plugins():
             if (<Plugin>plugin).is_video_injectable():
@@ -3039,6 +3071,8 @@ cdef class AudioNode(RawNode):
         raise Error('Class cannot be instantiated directly')
 
     def __getattr__(self, name):
+        if name.startswith('__') and name.endswith('__'):
+            raise AttributeError(name)
         if self.node == NULL:
             raise AttributeError(f'Use of invalidated {self.__class__.__name__} (the environment has been destroyed).')
         try:
@@ -3108,6 +3142,8 @@ cdef class AudioNode(RawNode):
 
         write = fileobj.write
 
+        # closed explicitly for the same reason as in VideoNode.output
+        frame_gen = self.frames(prefetch, backlog, close=True)
         try:
             if progress_update is not None:
                 progress_update(0, self.num_frames)
@@ -3135,7 +3171,7 @@ cdef class AudioNode(RawNode):
                     raise Error("Failed to create WAV header")
                 write((<char *>&whdr)[:sizeof(WaveHeader)])
 
-            for idx, frame in enumerate(self.frames(prefetch, backlog, close=True)):
+            for idx, frame in enumerate(frame_gen):
                 af = <AudioFrame>frame
                 num_samples_in_frame = af.funcs.getFrameLength(af.constf)
                 required_size = <size_t>num_samples_in_frame * self.num_channels * bytes_per_output_sample
@@ -3160,6 +3196,7 @@ cdef class AudioNode(RawNode):
                 if progress_update is not None:
                     progress_update(idx + 1, self.num_frames)
         finally:
+            frame_gen.close()
             free(src_ptrs)
             free(interleave_buffer)
 
@@ -3241,6 +3278,8 @@ cdef class AudioNode(RawNode):
             raise TypeError("index must be int or slice")
 
     def __dir__(self):
+        if self.node == NULL:
+            return super(AudioNode, self).__dir__()
         plugins = []
         for plugin in self.core.plugins():
             if (<Plugin>plugin).is_audio_injectable():
@@ -3519,6 +3558,10 @@ cdef class Core(object):
         return self.creationFlags
 
     def __getattr__(self, name):
+        # protocol probes (object.__dir__ asks for __dict__) expect AttributeError, on
+        # an invalidated core as well
+        if name.startswith('__') and name.endswith('__'):
+            raise AttributeError(name)
         self.ensure_valid()
         cdef VSPlugin *plugin
         tname = name.encode('utf-8')
@@ -3531,12 +3574,15 @@ cdef class Core(object):
             raise AttributeError('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace or forget to install a plugin?')
 
     def plugins(self):
+        # snapshotted: a generator walking the core's list would keep reading it after a
+        # teardown during iteration
         self.ensure_valid()
         cdef VSPlugin *plugin = self.funcs.getNextPlugin(NULL, self.core)
+        result = []
         while plugin:
-            tmp = createPlugin(plugin, self.funcs, self)
+            result.append(createPlugin(plugin, self.funcs, self))
             plugin = self.funcs.getNextPlugin(plugin, self.core)
-            yield tmp
+        return iter(result)
 
     def query_video_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w = 0, int subsampling_h = 0):
         self.ensure_valid()
@@ -3558,6 +3604,13 @@ cdef class Core(object):
         cdef VSVideoFormat fmt
         if not self.funcs.getVideoFormatByID(&fmt, format, self.core):
             raise Error('Invalid format id specified')
+        # zero or negative sizes are a fatal error in the core, and sizes not aligned to
+        # the subsampling are silently truncated into a frame no node may carry; both
+        # are refused before the core sees them
+        if width <= 0 or height <= 0:
+            raise ValueError('Frame dimensions must be positive')
+        if width % (1 << fmt.subSamplingW) or height % (1 << fmt.subSamplingH):
+            raise ValueError('Frame dimensions must be a multiple of the subsampling factor')
 
         cdef VSFrame* ref = self.funcs.newVideoFrame(&fmt, width, height, NULL, self.core)
         return createVideoFrame(ref, self.funcs, self.core)
@@ -3623,12 +3676,16 @@ cdef class Core(object):
         return self.core_version.release_major
 
     def __dir__(self):
+        if self.core == NULL:
+            return super(Core, self).__dir__()
         plugins = []
         for plugin in self.plugins():
             plugins.append(plugin.namespace)
         return super(Core, self).__dir__() + plugins
 
     def __repr__(self):
+        if self.core == NULL:
+            return '<vapoursynth.Core (invalidated)>'
         return _construct_repr(
             self, core_version=self.core_version, api_version=self.api_version,
             num_threads=self.num_threads, max_cache_size=self.max_cache_size,
@@ -3636,7 +3693,8 @@ cdef class Core(object):
         )
 
     def __str__(self):
-        self.ensure_valid()
+        if self.core == NULL:
+            return 'Core (invalidated)\n'
         cdef VSCoreInfo2 v
         self.funcs.getCoreInfo2(self.core, &v)
 
@@ -3691,7 +3749,7 @@ cdef Core createCore2(VSCore *core):
         instance.log_message(mtWarning, f'Version mismatch: The VapourSynth Python module version is R{__version__.release_major:d} but the VapourSynth core library is R{instance.core_version.release_major:d}. This usually indicates a broken install.')
     return instance
 
-cdef Core _get_core(threads = None):
+cdef Core _get_core():
     env = _env_current()
     if env is None:
         raise Error('No environment is currently activated. Please activate an environment. (Hint: get_current_environment().use() allows you to temporary select an environment of your choice.)')
@@ -3735,13 +3793,20 @@ cdef class _CoreProxy(object):
         return self.core_version.release_major
 
     def __dir__(self):
-        d = dir(self.core)
+        # completion must work without an environment too, __repr__ already does
+        try:
+            d = dir(self.core)
+        except Error:
+            d = super(_CoreProxy, self).__dir__()
         if 'core' not in d:
             d += ['core']
 
         return d
 
     def __getattr__(self, name):
+        # protocol probes expect AttributeError, not a complaint about environments
+        if name.startswith('__') and name.endswith('__'):
+            raise AttributeError(name)
         return getattr(self.core, name)
 
     def __setattr__(self, name, value):
@@ -3787,6 +3852,8 @@ cdef class Plugin(object):
         raise Error('Class cannot be instantiated directly')
 
     def __getattr__(self, name):
+        if name.startswith('__') and name.endswith('__'):
+            raise AttributeError(name)
         self.core.ensure_valid()
         tname = name.encode('utf-8')
         cdef const char *cname = tname
@@ -3798,12 +3865,14 @@ cdef class Plugin(object):
             raise AttributeError('There is no function named ' + name)
 
     def functions(self):
+        # snapshotted for the same reason as Core.plugins
         self.core.ensure_valid()
         cdef VSPluginFunction *func = self.funcs.getNextPluginFunction(NULL, self.plugin)
+        result = []
         while func:
-            tmp = createFunction(func, self, self.funcs)
+            result.append(createFunction(func, self, self.funcs))
             func = self.funcs.getNextPluginFunction(func, self.plugin)
-            yield tmp
+        return iter(result)
 
     @property
     def version(self):
@@ -3825,6 +3894,8 @@ cdef class Plugin(object):
             return None
 
     def __dir__(self):
+        if self.core.core == NULL:
+            return []
         attrs = []
         if isinstance(self.injected_arg, VideoNode):
             for func in self.functions():
@@ -3852,6 +3923,8 @@ cdef class Plugin(object):
         return False
 
     def __repr__(self):
+        if self.core.core == NULL:
+            return '<vapoursynth.Plugin (invalidated)>'
         return _construct_repr(
             self, version=self.version,
             bound=(Core if self.injected_arg is None else type(self.injected_arg)).__name__
@@ -3900,6 +3973,10 @@ cdef class Function(object):
         cdef VSMap *outm
         cdef char *cname
         self.plugin.core.ensure_valid()
+        # the result wrappers are tracked by the current environment, so there has to
+        # be one; checked before anything is created that could be left behind
+        if _env_current() is None:
+            raise Error('No environment is currently activated. Please activate an environment. (Hint: get_current_environment().use() allows you to temporary select an environment of your choice.)')
         arglist = list(args)
         if self.plugin.injected_arg is not None:
             arglist.insert(0, self.plugin.injected_arg)
@@ -3986,7 +4063,7 @@ cdef class Function(object):
             raise py_exc or Error(msg_str)
 
         try:
-            return mapToDict(outm, True)
+            return mapToDict(outm, True, self.plugin.core)
         finally:
             self.funcs.freeMap(outm)
 
@@ -4237,6 +4314,10 @@ def __chdir(filename, flags):
 
     try:
         os.chdir(newpath)
+    except OSError as e:
+        raise RuntimeError(f"Could not switch the working directory to the script's directory {newpath}: {e}") from e
+
+    try:
         yield
     finally:
         os.chdir(origpath)
@@ -4304,10 +4385,11 @@ cdef public api int vpy4_createScript(VSScript *se) nogil:
             _get_vsscript_policy()._make_environment(<int>se.id, se)
 
         except:
-            errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
-            errstr = errstr.encode('utf-8')
-            Py_INCREF(errstr)
-            se.errstr = <void *>errstr
+            # the host deletes the handle without freeing it when creation fails and has
+            # no way to read an error string from it, so release the dict and report
+            # the failure to stderr instead of parking it on the handle
+            traceback.print_exc()
+            _vpy_replace_pyenvdict(se, None)
             return 1
         return 0
 
@@ -4316,7 +4398,6 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
         try:
             if not se.pyenvdict:
                 _vpy_replace_pyenvdict(se, {})
-            pyenvdict = <dict>se.pyenvdict
 
             if buffer == NULL:
                 raise RuntimeError("NULL buffer passed.")
@@ -4332,7 +4413,7 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
                 return _vpy_evaluate(se, buffer, fn)
 
         except BaseException as e:
-            errstr = 'File reading exception:\n' + str(e)
+            errstr = 'Script evaluation exception:\n' + str(e)
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
@@ -4345,7 +4426,9 @@ cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename) 
                 raise RuntimeError("NULL scriptFilename passed.")
 
             with open(scriptFilename.decode('utf-8'), 'rb') as f:
-                script = f.read(1024*1024*16)
+                script = f.read(1024 * 1024 * 16 + 1)
+            if len(script) > 1024 * 1024 * 16:
+                raise RuntimeError("The script is larger than 16 MiB, refusing to evaluate a truncated copy of it")
             return vpy4_evaluateBuffer(se, script, scriptFilename)
         except BaseException as e:
             errstr = 'File reading exception:\n' + str(e)
@@ -4361,16 +4444,6 @@ cdef public api void vpy4_freeScript(VSScript *se) noexcept nogil:
             for key in pyenvdict:
                 pyenvdict[key] = None
             pyenvdict.clear()
-            try:
-                # Environment is lazily created at the time of exec'ing a script,
-                # if the process errors out before that (e.g. fails compiling),
-                # the environment might be None.
-                env = _get_vsscript_policy().get_environment(se.id)
-                if env is not None:
-                    env.outputs.clear()
-                    env.core = None
-            except:
-                pass
 
             se.pyenvdict = NULL
             Py_DECREF(pyenvdict)
@@ -4398,7 +4471,6 @@ cdef public api const char *vpy4_getError(VSScript *se) nogil:
 
 cdef public api VSNode *vpy4_getOutput(VSScript *se, int index) nogil:
     with gil:
-        pyenvdict = <dict>se.pyenvdict
         node = None
         try:
             env = _get_vsscript_policy().get_environment(se.id)
@@ -4418,7 +4490,6 @@ cdef public api VSNode *vpy4_getOutput(VSScript *se, int index) nogil:
 
 cdef public api VSNode *vpy4_getAlphaOutput(VSScript *se, int index) nogil:
     with gil:
-        pyenvdict = <dict>se.pyenvdict
         node = None
         try:
             env = _get_vsscript_policy().get_environment(se.id)
@@ -4436,7 +4507,6 @@ cdef public api VSNode *vpy4_getAlphaOutput(VSScript *se, int index) nogil:
 
 cdef public api int vpy4_getAltOutputMode(VSScript *se, int index) nogil:
     with gil:
-        pyenvdict = <dict>se.pyenvdict
         output = None
         try:
             env = _get_vsscript_policy().get_environment(se.id)
@@ -4453,7 +4523,6 @@ cdef public api int vpy4_getAltOutputMode(VSScript *se, int index) nogil:
 cdef public api int vpy4_getAvailableOutputNodes(VSScript *se, int size, int *dst) nogil:
     cdef int dstidx = 0
     with gil:
-        pyenvdict = <dict>se.pyenvdict
         keys = None
         try:
             env = _get_vsscript_policy().get_environment(se.id)

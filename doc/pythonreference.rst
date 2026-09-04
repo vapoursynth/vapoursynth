@@ -338,6 +338,8 @@ Classes and Functions
       Creates a new frame with uninitialized planes with the given dimensions and format.
       This function is safe to call within a frame callback.
 
+      Raises *ValueError* for zero or negative dimensions and for dimensions that aren't a multiple of the format's subsampling factor.
+
    .. py:method:: add_log_handler(handler_func)
 
       Installs a custom handler for the various error messages VapourSynth emits.
@@ -470,6 +472,9 @@ Classes and Functions
       The current progress can be reported by passing a callback function of the form *func(current_frame, total_frames)* to *progress_update*.
       The *prefetch* argument is only for debugging purposes and should never need to be changed.
       The *backlog* argument is only for debugging purposes and should never need to be changed.
+
+      Every frame has to have the dimensions and format the clip declares, and a frame carrying an *_Alpha* property has to carry a single CPU resident frame of the same dimensions and bit depth in it.
+      Anything else raises an exception at that frame, and the frames prefetched so far are released with it.
 
    .. py:method:: frames([prefetch=None, backlog=None, close=False, collect_garbage=True])
 
@@ -1028,6 +1033,9 @@ Classes and Functions
 
       Either EnvironmentPolicy.is_alive must be overridden or this method be used to mark the environment as destroyed.
 
+      Destruction first waits for the frame requests the environment still has outstanding, and refuses any started while it waits with an *Error*.
+      Afterwards every node, frame, core, plugin and function object that belonged to the environment is invalidated: methods that reach the core raise *Error*, attribute lookups on nodes raise *AttributeError*, comparisons fall back to identity, and representations show the object as invalidated.
+
       Added: R52
 
    .. py:method:: unregister_policy()
@@ -1044,7 +1052,7 @@ Classes and Functions
 
    .. py:method:: get_core_ptr(environment)
 
-      Returns a ctypes.c_void_p pointing to the `Core*`-object that powers the environment.
+      Returns a ctypes.c_void_p pointing to the `Core*`-object that powers the environment. The core is created if the environment doesn't have one yet.
 
       Access to this function is provisional and might be removed if it is abused too much.
 

@@ -95,6 +95,12 @@ class EnvironmentTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 vs.get_current_environment()
 
+            # comparisons and dunder probes answer per protocol, no environment needed
+            self.assertNotEqual(wrapped, None)
+            self.assertFalse(hasattr(vs.Local(), "__deepcopy__"))
+            self.assertFalse(hasattr(vs.core, "__deepcopy__"))
+            self.assertIn("core", dir(vs.core))
+
             with wrapped.use():
                 self.assertEqual(vs.get_current_environment(), wrapped)
 
@@ -339,6 +345,9 @@ class EnvironmentTest(unittest.TestCase):
                 hold_strong_refs.append(clip)
                 hold_strong_refs.append(frame)
                 blank_clip = core.std.BlankClip
+                std_plugin = core.std
+                plugin_iter = core.plugins()
+                func_iter = std_plugin.functions()
 
                 # Track weak references to verify garbage collection later
                 core_ref = weakref.ref(core)
@@ -361,12 +370,41 @@ class EnvironmentTest(unittest.TestCase):
             with self.assertRaisesRegex(AttributeError, "Use of invalidated VideoNode"):
                 clip.std
 
+            # comparisons and hashing fall back to identity instead of raising
+            self.assertEqual(hash(clip), hash(clip))
+            self.assertIn(clip, [clip])
+            self.assertNotEqual(clip, frame)
+
             # every accessor that reaches the core must refuse the same way, never crash
-            for access in (lambda: str(core), lambda: list(core.plugins()), lambda: core.core_version,
+            for access in (lambda: list(core.plugins()), lambda: core.core_version,
                            lambda: clip.node_name, lambda: clip.timings, lambda: clip.dependencies,
+                           lambda: next(clip.frames()),
                            lambda: blank_clip(width=16, height=16, length=1)):
                 with self.assertRaises(vs.Error):
                     access()
+
+            # representations and completion degrade instead of raising
+            self.assertIn("invalidated", repr(core))
+            self.assertIn("invalidated", str(core))
+            self.assertIn("invalidated", repr(std_plugin))
+            self.assertEqual(dir(std_plugin), [])
+            self.assertIsInstance(dir(core), list)
+            self.assertIsInstance(dir(clip), list)
+
+            # listings taken before the teardown were snapshotted and still iterate
+            self.assertTrue(list(plugin_iter))
+            self.assertTrue(list(func_iter))
+
+            # invalidated objects handed to a live core are refused by the argument
+            # conversion instead of reaching the core as NULL
+            env2 = pol._api.create_environment()
+            with pol._api.wrap_environment(env2).use():
+                with self.assertRaisesRegex(vs.Error, "Use of invalidated VideoNode"):
+                    vs.core.std.Crop(clip, left=1)
+                writable = vs.core.std.BlankClip(width=16, height=16, length=1).get_frame(0).copy()
+                with self.assertRaisesRegex(RuntimeError, "already been released"):
+                    writable.props["_Alpha"] = frame
+            pol._api.destroy_environment(env2)
 
             with self.assertRaises(vs.Error) as ctx2:
                 core.num_threads
@@ -640,6 +678,91 @@ class EnvironmentTest(unittest.TestCase):
                 out = io.BytesIO()
                 vs.core.std.ClipToProp(clip, alpha).output(out)
                 self.assertEqual(len(out.getvalue()), 16 * 16 * 2)
+
+    @subprocess_runner
+    def test_frame_props_keep_embedded_nul(self):
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            with pol._api.wrap_environment(env).use():
+                frame = vs.core.std.BlankClip(width=16, height=16, length=1).get_frame(0).copy()
+                frame.props["text"] = "a\0b"
+                self.assertEqual(frame.props["text"], "a\0b")
+            pol._api.destroy_environment(env)
+
+    @subprocess_runner
+    def test_create_video_frame_validates_dimensions(self):
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            with pol._api.wrap_environment(env).use():
+                # zero or negative sizes abort the process in the core and unaligned
+                # ones yield frames no node may carry, so both are refused up front
+                for width, height in ((0, 16), (16, -1), (15, 16), (16, 15)):
+                    with self.assertRaises(ValueError):
+                        vs.core.create_video_frame(vs.YUV420P8, width, height)
+                frame = vs.core.create_video_frame(vs.YUV420P8, 16, 16)
+                self.assertEqual((frame.width, frame.height), (16, 16))
+            pol._api.destroy_environment(env)
+
+    @subprocess_runner
+    def test_frame_props_iteration_survives_close(self):
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            with pol._api.wrap_environment(env).use():
+                frame = vs.core.std.BlankClip(width=16, height=16, length=1).get_frame(0).copy()
+                frame.props["a"] = 1
+                frame.props["b"] = 2
+                expected = sorted(frame.props)
+                keys = iter(frame.props)
+                frame.close()
+                self.assertEqual(sorted(keys), expected)
+                self.assertLessEqual({"a", "b"}, set(expected))
+            pol._api.destroy_environment(env)
+
+    @subprocess_runner
+    def test_output_releases_frames_on_error(self):
+        messages = []
+
+        def progress(done, total):
+            if done == 2:
+                raise RuntimeError("stop")
+
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                core = vs.core.core
+                core.add_log_handler(lambda level, msg: messages.append(msg))
+                clip = core.std.BlankClip(width=16, height=16, length=16)
+                with self.assertRaisesRegex(RuntimeError, "stop"):
+                    clip.output(io.BytesIO(), progress_update=progress, prefetch=2)
+
+            # the frames the interrupted output still had in flight were released with
+            # its generator, so nothing is left allocated when the core goes away
+            pol._api.destroy_environment(env)
+
+        self.assertFalse([m for m in messages if "still allocated" in m or "filter instance" in m], messages)
+
+    @subprocess_runner
+    def test_functions_invoke_on_their_own_core(self):
+        with _with_policy() as pol:
+            env_a = pol._api.create_environment()
+            env_b = pol._api.create_environment()
+            with pol._api.wrap_environment(env_a).use():
+                blank_a = vs.core.std.BlankClip
+
+            with pol._api.wrap_environment(env_b).use():
+                # a function captured in A invoked while B is current still runs on A's
+                # core and hands back a node that can be used right away
+                clip = blank_a(width=16, height=16, length=1)
+                self.assertEqual((clip.width, clip.height), (16, 16))
+                clip.get_frame(0)
+
+            with self.assertRaisesRegex(vs.Error, "No environment is currently activated"):
+                blank_a(width=16, height=16, length=1)
+
+            pol._api.destroy_environment(env_a)
+            pol._api.destroy_environment(env_b)
 
     @subprocess_runner
     def test_get_outputs_keeps_dict_semantics(self):
