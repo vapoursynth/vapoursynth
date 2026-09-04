@@ -240,7 +240,7 @@ except NameError:
 @cython.internal
 cdef class SynchronizedDict:
     cdef dict data
-    cdef cython.pymutex lock
+    cdef cython.pythread_type_lock lock
 
     def __cinit__(self):
         self.data = {}
@@ -313,7 +313,7 @@ cdef class EnvironmentData(object):
     cdef SynchronizedDict outputs
     cdef SynchronizedDict active_exceptions
     cdef int next_exc_id
-    cdef cython.pymutex lock
+    cdef cython.pythread_type_lock lock
 
     cdef int coreCreationFlags
     cdef VSLogHandle* log
@@ -437,7 +437,7 @@ cdef object _policy_cond = Condition(Lock())
 # Leaf lock making the lockless fast reads of _policy and _policy_ready atomic
 # against the writers, so a reference is only ever acquired while the slot still
 # holds one. Always taken bare or inside _policy_cond, never around it.
-cdef cython.pymutex _policy_mutex
+cdef cython.pythread_type_lock _policy_mutex
 cdef object _registering_thread = None
 
 
@@ -491,7 +491,7 @@ cdef class EnvironmentPolicyAPI:
     # is stored within an EnvironmentPolicy-instance.
     cdef object _target_policy
 
-    cdef cython.pymutex _lock
+    cdef cython.pythread_type_lock _lock
     cdef object _known_environments
 
     def __init__(self):
