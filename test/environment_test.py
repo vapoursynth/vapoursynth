@@ -1,5 +1,6 @@
 import contextlib
 import gc
+import io
 import multiprocessing
 import threading
 import unittest
@@ -337,6 +338,7 @@ class EnvironmentTest(unittest.TestCase):
                 hold_strong_refs.append(core)
                 hold_strong_refs.append(clip)
                 hold_strong_refs.append(frame)
+                blank_clip = core.std.BlankClip
 
                 # Track weak references to verify garbage collection later
                 core_ref = weakref.ref(core)
@@ -358,6 +360,13 @@ class EnvironmentTest(unittest.TestCase):
 
             with self.assertRaisesRegex(AttributeError, "Use of invalidated VideoNode"):
                 clip.std
+
+            # every accessor that reaches the core must refuse the same way, never crash
+            for access in (lambda: str(core), lambda: list(core.plugins()), lambda: core.core_version,
+                           lambda: clip.node_name, lambda: clip.timings, lambda: clip.dependencies,
+                           lambda: blank_clip(width=16, height=16, length=1)):
+                with self.assertRaises(vs.Error):
+                    access()
 
             with self.assertRaises(vs.Error) as ctx2:
                 core.num_threads
@@ -509,6 +518,128 @@ class EnvironmentTest(unittest.TestCase):
             with _with_policy():
                 self.assertTrue(vs.has_policy())
             self.assertFalse(vs.has_policy())
+
+    @subprocess_runner
+    def test_requests_without_current_environment_complete_and_track(self):
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                clip = vs.core.std.BlankClip(width=16, height=16, length=2)
+
+            # no environment is current here: the request is keyed on the node's own
+            # environment, the callback simply runs without switching, and the frames
+            # still belong to that environment's teardown
+            fut = clip.get_frame_async(0)
+            self.assertIsInstance(fut.result(timeout=10), vs.VideoFrame)
+            frame = clip.get_frame(1)
+            self.assertFalse(frame.closed)
+
+            pol._api.destroy_environment(env)
+            self.assertTrue(frame.closed)
+            with self.assertRaises(RuntimeError):
+                frame.copy()
+
+    @subprocess_runner
+    def test_current_environment_waits_for_foreign_requests(self):
+        lock = Lock()
+
+        def modify_func(n, f):
+            with lock:
+                return f
+
+        with _with_policy() as pol:
+            env_a = pol._api.create_environment()
+            env_b = pol._api.create_environment()
+            wrapped_a = pol._api.wrap_environment(env_a)
+            wrapped_b = pol._api.wrap_environment(env_b)
+
+            with wrapped_a.use():
+                core = vs.core.core
+                clip = core.std.BlankClip(width=16, height=16, length=2)
+                clip = core.std.ModifyFrame(clip, clip, modify_func)
+
+            lock.acquire()
+            with wrapped_b.use():
+                fut = clip.get_frame_async(0)
+
+            # the request was made from B on a node owned by A, so destroying B has to
+            # wait for it just like destroying A would
+            thread = threading.Thread(target=lambda: pol._api.destroy_environment(env_b))
+            thread.start()
+            thread.join(0.25)
+            self.assertIsNotNone(wrapped_b.env())
+            self.assertTrue(thread.is_alive())
+
+            lock.release()
+            thread.join()
+
+            self.assertIsInstance(fut.result(), vs.VideoFrame)
+            pol._api.destroy_environment(env_a)
+
+    @subprocess_runner
+    def test_failed_registration_destroys_created_environments(self):
+        destroyed = [False]
+
+        def on_destroy():
+            destroyed[0] = True
+
+        class CreatingExplodingPolicy(StubPolicy):
+            def on_policy_registered(self, special_api):
+                super().on_policy_registered(special_api)
+                env = special_api.create_environment()
+                with special_api.wrap_environment(env).use():
+                    vs.register_on_destroy(on_destroy)
+                raise RuntimeError("registration failed")
+
+        with self.assertRaisesRegex(RuntimeError, "registration failed"):
+            vs.register_policy(CreatingExplodingPolicy())
+
+        self.assertTrue(destroyed[0])
+        self.assertFalse(vs.has_policy())
+
+    @subprocess_runner
+    def test_invoking_without_environment_does_not_leak(self):
+        messages = []
+
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                core = vs.core.core
+                core.add_log_handler(lambda level, msg: messages.append(msg))
+
+            # invoking with no current environment cannot hand back a node and fails,
+            # but the filter instance it created must still be released with the map
+            with self.assertRaisesRegex(vs.Error, "No environment is currently activated"):
+                core.std.BlankClip(width=16, height=16, length=1)
+
+            pol._api.destroy_environment(env)
+
+        self.assertFalse([m for m in messages if "filter instance" in m], messages)
+
+    @subprocess_runner
+    def test_output_rejects_mismatched_alpha(self):
+        with _with_policy() as pol:
+            env = pol._api.create_environment()
+            wrapped = pol._api.wrap_environment(env)
+
+            with wrapped.use():
+                clip = vs.core.std.BlankClip(width=16, height=16, length=1, format=vs.GRAY8)
+                alpha = vs.core.std.BlankClip(width=16, height=16, length=1, format=vs.GRAY16)
+                with self.assertRaisesRegex(ValueError, "same dimensions and bit depth"):
+                    vs.core.std.ClipToProp(clip, alpha).output(io.BytesIO())
+
+                alpha = vs.core.std.BlankClip(width=32, height=16, length=1, format=vs.GRAY8)
+                with self.assertRaisesRegex(ValueError, "same dimensions and bit depth"):
+                    vs.core.std.ClipToProp(clip, alpha).output(io.BytesIO())
+
+                alpha = vs.core.std.BlankClip(width=16, height=16, length=1, format=vs.GRAY8)
+                out = io.BytesIO()
+                vs.core.std.ClipToProp(clip, alpha).output(out)
+                self.assertEqual(len(out.getvalue()), 16 * 16 * 2)
 
     @subprocess_runner
     def test_get_outputs_keeps_dict_semantics(self):

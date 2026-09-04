@@ -688,6 +688,14 @@ cdef bint _register_policy(object policy, bint raise_if_registered=True):
             _policy_cond.notify_all()
         return True
     except BaseException:
+        # environments the policy created before failing would be orphaned once the
+        # slot is cleared, since every api call then fails ensure_policy_matches
+        if api is not None and api._known_environments is not None:
+            with api._lock:
+                environments = list(api._known_environments)
+            for environment in environments:
+                with contextlib.suppress(Exception):
+                    api.destroy_environment(environment)
         with _policy_cond:
             if _policy is policy:
                 with _policy_mutex:
@@ -1186,25 +1194,37 @@ cdef Func createFuncRef(VSFunction *ref, const VSAPI *funcs):
     return instance
 
 
-cdef object _admit_frame_request(RawNode node):
-    # Registers a frame request for environment teardown to wait on, and refuses it once
-    # teardown has claimed the environment. Keyed on the environment that owns the node,
-    # since that is the one whose destruction invalidates it, whether or not it is the
-    # current one here; nodes created outside any environment fall back to the current
-    # one, which is all that is known about them.
+cdef EnvironmentData _node_env(RawNode node, EnvironmentData current):
+    # The environment a node's frames and tunnelled exceptions belong to: the one it was
+    # created in, whose teardown invalidates it, or the current one for nodes created
+    # outside any environment, which is all that is known about them.
     cdef EnvironmentData env = None
     if node.owner_env is not None:
         env = node.owner_env()
-    if env is None:
-        env = _env_current()
+    return env if env is not None else current
+
+
+cdef object _admit_frame_request(EnvironmentData env, EnvironmentData current):
+    # Registers a frame request for environment teardown to wait on, and refuses it once
+    # teardown has claimed an environment. Both the node's environment and, when it is a
+    # different one, the caller's current environment track it: the first is the one
+    # whose destruction invalidates the node, the second the one the callback runs in.
+    cdef EnvironmentData e
+    envs = [env]
+    if current is not None and current is not env:
+        envs.append(current)
 
     fut = Future()
     fut.set_running_or_notify_cancel()
-    if env is not None:
-        with env.lock:
-            if env.active_futures is None:
+    for e in envs:
+        if e is None:
+            continue
+        with e.lock:
+            if e.active_futures is None:
+                # the other environment may already track it and must not wait forever
+                fut.set_result(None)
                 raise Error('The environment is being destroyed, no new frame requests can be started.')
-            env.active_futures.add(fut)
+            e.active_futures.add(fut)
     return fut
 
 
@@ -1214,23 +1234,30 @@ cdef class CallbackData(object):
 
     cdef RawNode node
 
+    # the node's environment, where the frame is registered and tunnelled exceptions
+    # are looked up
     cdef EnvironmentData env
+    # the caller's environment at request time, where the callback runs; None when
+    # the request was made outside any environment
+    cdef EnvironmentData caller_env
 
     cdef object fut
 
-    def __init__(self, object node, EnvironmentData env, object callback):
+    def __init__(self, object node, EnvironmentData env, EnvironmentData caller_env, object callback):
         # Keeps the node alive during the call.
         self.node = node
 
         self.callback = callback
         self.env = env
+        self.caller_env = caller_env
         # tracked so environment teardown can wait for every outstanding request and not
         # just the future returning form
-        self.fut = _admit_frame_request(self.node)
+        self.fut = _admit_frame_request(env, caller_env)
 
 
 cdef createCallbackData(const VSAPI* funcs, RawNode node, object cb):
-    cbd = CallbackData(node, _env_current(), cb)
+    cdef EnvironmentData current = _env_current()
+    cbd = CallbackData(node, _node_env(node, current), current, cb)
     cbd.funcs = funcs
     return cbd
 
@@ -1270,10 +1297,14 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNod
                 py_exc = d.env.retrieve_exception(error_str) if d.env is not None else None
                 error = py_exc or Error(error_str)
             else:
-                result = createConstFrame(f, d.funcs, d.node.core.core)
+                result = createConstFrame(f, d.funcs, d.node.core.core, d.env)
 
             try:
-                with use_environment(d.env).use():
+                if d.caller_env is not None:
+                    with use_environment(d.caller_env).use():
+                        d.callback(result, error)
+                else:
+                    # requested outside any environment, so there is none to switch to
                     d.callback(result, error)
             except:
                 traceback.print_exc()
@@ -1307,6 +1338,7 @@ cdef object mapToDict(const VSMap *map, bint flatten):
     cdef int proptype
 
     cdef int numElements
+    cdef Core core
 
     for x in range(numKeys):
         retkey = funcs.mapGetKey(map, x)
@@ -1324,9 +1356,13 @@ cdef object mapToDict(const VSMap *map, bint flatten):
                 if funcs.mapGetDataTypeHint(map, retkey, y, NULL) == dtUtf8:
                     newval = newval.decode('utf-8')
             elif proptype == ptVideoNode or proptype == ptAudioNode:
-                newval = createNode(funcs.mapGetNode(map, retkey, y, NULL), funcs, _get_core())
+                # resolved before the reference is taken: without a current environment
+                # this raises, and a reference taken first would never be released
+                core = _get_core()
+                newval = createNode(funcs.mapGetNode(map, retkey, y, NULL), funcs, core)
             elif proptype == ptVideoFrame or proptype == ptAudioFrame:
-                newval = createConstFrame(funcs.mapGetFrame(map, retkey, y, NULL), funcs, _get_core().core)
+                core = _get_core()
+                newval = createConstFrame(funcs.mapGetFrame(map, retkey, y, NULL), funcs, core.core)
             elif proptype == ptFunction:
                 newval = createFuncRef(funcs.mapGetFunction(map, retkey, y, NULL), funcs)
 
@@ -1611,8 +1647,9 @@ cdef class FrameProps(object):
                     aval = aval.decode('utf-8')
                 ol.append(aval)
         elif t == ptVideoNode or t == ptAudioNode:
+            core = _get_core()
             for i in range(numelem):
-                ol.append(createNode(self.funcs.mapGetNode(m, b, i, NULL), self.funcs, _get_core()))
+                ol.append(createNode(self.funcs.mapGetNode(m, b, i, NULL), self.funcs, core))
         elif t == ptVideoFrame or t == ptAudioFrame:
             for i in range(numelem):
                 ol.append(createConstFrame(self.funcs.mapGetFrame(m, b, i, NULL), self.funcs, self.core))
@@ -2013,10 +2050,10 @@ cdef class VideoFrame(RawFrame):
         )
 
 
-cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
-    cdef:
-        VideoFrame instance = VideoFrame.__new__(VideoFrame)
-        EnvironmentData env = _env_current()
+cdef VideoFrame createConstVideoFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core, EnvironmentData env = None):
+    cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
+    if env is None:
+        env = _env_current()
     instance.constf = constf
     instance.f = NULL
     instance.funcs = funcs
@@ -2222,11 +2259,12 @@ cdef class AudioFrame(RawFrame):
         )
 
 
-cdef AudioFrame createConstAudioFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core):
+cdef AudioFrame createConstAudioFrame(const VSFrame *constf, const VSAPI *funcs, VSCore *core, EnvironmentData env = None):
     cdef:
         AudioFrame instance = AudioFrame.__new__(AudioFrame)
         const VSAudioFormat *format = funcs.getAudioFrameFormat(constf)
-        EnvironmentData env = _env_current()
+    if env is None:
+        env = _env_current()
     instance.constf = constf
     instance.f = NULL
     instance.funcs = funcs
@@ -2369,9 +2407,10 @@ cdef class RawNode(object):
         cdef char *ep = errorMsg
         cdef const VSFrame *f
         self.ensure_valid_frame_number(n)
-        cdef EnvironmentData env = _env_current()
+        cdef EnvironmentData current = _env_current()
+        cdef EnvironmentData env = _node_env(self, current)
 
-        fut = _admit_frame_request(self)
+        fut = _admit_frame_request(env, current)
         try:
             with nogil:
                 f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
@@ -2384,7 +2423,7 @@ cdef class RawNode(object):
                 else:
                     raise Error('Internal error - no error given')
             else:
-                return createConstFrame(f, self.funcs, self.core.core)
+                return createConstFrame(f, self.funcs, self.core.core, env)
         finally:
             # resolved only once the wrapper exists: teardown waits on this future before
             # it invalidates the node and frees the core the wrapper is built from
@@ -2572,24 +2611,29 @@ cdef class RawNode(object):
 
     @property
     def node_name(self):
+        self.ensure_valid()
         return self.funcs.getNodeName(self.node).decode("utf-8")
 
     @property
     def timings(self):
+        self.ensure_valid()
         return self.funcs.getNodeProcessingTime(self.node, False)
 
     @timings.setter
     def timings(self, bint value):
+        self.ensure_valid()
         if value != 0:
             raise ValueError("You can only set timings to 0, to reset its counter!")
         self.funcs.getNodeProcessingTime(self.node, True)
 
     @property
     def mode(self):
+        self.ensure_valid()
         return FilterMode(self.funcs.getNodeFilterMode(self.node))
 
     @property
     def dependencies(self):
+        self.ensure_valid()
         return tuple(
             createNode(self.funcs.addNodeRef(self.funcs.getNodeDependency(self.node, idx).source), self.funcs, self.core)
             for idx in range(self.funcs.getNumNodeDependencies(self.node))
@@ -2799,6 +2843,11 @@ cdef class VideoNode(RawNode):
                 if y4m:
                     write(b"FRAME\n")
 
+                # the packing buffer is sized from the clip's declared format, so every
+                # frame written through it has to match, the alpha included
+                if frame.width != self.width or frame.height != self.height or frame.format.id != self.format.id:
+                    raise Error(f'Frame {idx} does not have the dimensions and format the clip declares')
+
                 constf = (<VideoFrame>frame).constf
                 fi = lib.getVideoFrameFormat(constf)
                 for p in range(fi.numPlanes):
@@ -2818,6 +2867,10 @@ cdef class VideoNode(RawNode):
                 if alpha is not None:
                     if y4m:
                         raise ValueError("Can only apply y4m headers to clips without alpha")
+                    if not isinstance(alpha, VideoFrame):
+                        raise ValueError(f'The _Alpha property of frame {idx} must hold a single video frame')
+                    if alpha.width != frame.width or alpha.height != frame.height or alpha.format.bits_per_sample != frame.format.bits_per_sample:
+                        raise ValueError(f'The _Alpha frame of frame {idx} must have the same dimensions and bit depth as the frame')
 
                     constf = (<VideoFrame>alpha).constf
                     fi = lib.getVideoFrameFormat(constf)
@@ -3280,18 +3333,22 @@ cdef class CoreTimings(object):
 
     @property
     def enabled(self):
+        self.core.ensure_valid()
         return bool(self.core.funcs.getCoreNodeTiming(self.core.core))
 
     @enabled.setter
     def enabled(self, bint enabled):
+        self.core.ensure_valid()
         self.core.funcs.setCoreNodeTiming(self.core.core, enabled)
 
     @property
     def freed_nodes(self):
+        self.core.ensure_valid()
         return self.core.funcs.getFreedNodeProcessingTime(self.core.core, False)
 
     @freed_nodes.setter
     def freed_nodes(self, bint value):
+        self.core.ensure_valid()
         if value != 0:
             raise ValueError("You can only set freed_nodes to 0, to reset its counter!")
         self.core.funcs.getFreedNodeProcessingTime(self.core.core, True)
@@ -3474,6 +3531,7 @@ cdef class Core(object):
             raise AttributeError('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace or forget to install a plugin?')
 
     def plugins(self):
+        self.ensure_valid()
         cdef VSPlugin *plugin = self.funcs.getNextPlugin(NULL, self.core)
         while plugin:
             tmp = createPlugin(plugin, self.funcs, self)
@@ -3481,12 +3539,14 @@ cdef class Core(object):
             yield tmp
 
     def query_video_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w = 0, int subsampling_h = 0):
+        self.ensure_valid()
         cdef VSVideoFormat fmt
         if not self.funcs.queryVideoFormat(&fmt, color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core):
             raise Error('Invalid format specified')
         return createVideoFormat(&fmt, self.funcs, self.core)
 
     def get_video_format(self, uint32_t id):
+        self.ensure_valid()
         cdef VSVideoFormat fmt
         if not self.funcs.getVideoFormatByID(&fmt, id, self.core):
             raise Error('Invalid format id specified')
@@ -3494,6 +3554,7 @@ cdef class Core(object):
             return createVideoFormat(&fmt, self.funcs, self.core)
 
     def create_video_frame(self, int format, int width, int height):
+        self.ensure_valid()
         cdef VSVideoFormat fmt
         if not self.funcs.getVideoFormatByID(&fmt, format, self.core):
             raise Error('Invalid format id specified')
@@ -3502,6 +3563,7 @@ cdef class Core(object):
         return createVideoFrame(ref, self.funcs, self.core)
 
     def log_message(self, int message_type, str message):
+        self.ensure_valid()
         # released gil, the log api dispatches to handlers that acquire the gil so calling in
         # while holding it can deadlock against a thread mid message delivery
         cdef bytes message_bytes = message.encode('utf-8')
@@ -3510,6 +3572,7 @@ cdef class Core(object):
             self.funcs.logMessage(message_type, message_cstr, self.core)
 
     def add_log_handler(self, handler_func):
+        self.ensure_valid()
         handler_func(mtDebug, 'New message handler installed from python')
         cdef LogHandle lh = createLogHandle(handler_func)
         Py_INCREF(lh)
@@ -3521,6 +3584,7 @@ cdef class Core(object):
         return lh
 
     def remove_log_handler(self, LogHandle handle):
+        self.ensure_valid()
         cdef VSLogHandle *h = handle.handle
         cdef bint result
         with nogil:
@@ -3528,10 +3592,12 @@ cdef class Core(object):
         return result
 
     def clear_cache(self):
+        self.ensure_valid()
         self.funcs.clearCoreCaches(self.core)
 
     @property
     def core_version(self):
+        self.ensure_valid()
         cdef VSCoreInfo2 v
         self.funcs.getCoreInfo2(self.core, &v)
 
@@ -3539,6 +3605,7 @@ cdef class Core(object):
 
     @property
     def api_version(self):
+        self.ensure_valid()
         cdef VSCoreInfo2 v
         self.funcs.getCoreInfo2(self.core, &v)
 
@@ -3569,6 +3636,7 @@ cdef class Core(object):
         )
 
     def __str__(self):
+        self.ensure_valid()
         cdef VSCoreInfo2 v
         self.funcs.getCoreInfo2(self.core, &v)
 
@@ -3591,11 +3659,11 @@ cdef object createNode(VSNode *node, const VSAPI *funcs, Core core):
     else:
         return createAudioNode(node, funcs, core)
 
-cdef object createConstFrame(const VSFrame *f, const VSAPI *funcs, VSCore *core):
+cdef object createConstFrame(const VSFrame *f, const VSAPI *funcs, VSCore *core, EnvironmentData env = None):
     if funcs.getFrameType(f) == mtVideo:
-        return createConstVideoFrame(f, funcs, core)
+        return createConstVideoFrame(f, funcs, core, env)
     else:
-        return createConstAudioFrame(f, funcs, core)
+        return createConstAudioFrame(f, funcs, core, env)
 
 cdef Core createCore(EnvironmentData env):
     cdef Core instance = Core.__new__(Core)
@@ -3719,6 +3787,7 @@ cdef class Plugin(object):
         raise Error('Class cannot be instantiated directly')
 
     def __getattr__(self, name):
+        self.core.ensure_valid()
         tname = name.encode('utf-8')
         cdef const char *cname = tname
         cdef VSPluginFunction *func = self.funcs.getPluginFunctionByName(cname, self.plugin)
@@ -3729,6 +3798,7 @@ cdef class Plugin(object):
             raise AttributeError('There is no function named ' + name)
 
     def functions(self):
+        self.core.ensure_valid()
         cdef VSPluginFunction *func = self.funcs.getNextPluginFunction(NULL, self.plugin)
         while func:
             tmp = createFunction(func, self, self.funcs)
@@ -3737,6 +3807,7 @@ cdef class Plugin(object):
 
     @property
     def version(self):
+        self.core.ensure_valid()
         ver = <int>self.funcs.getPluginVersion(self.plugin)
 
         ver_major = (ver >> 16)
@@ -3746,6 +3817,7 @@ cdef class Plugin(object):
 
     @property
     def plugin_path(self):
+        self.core.ensure_valid()
         cdef const char *ppath = self.funcs.getPluginPath(self.plugin)
         if ppath:
             return ppath.decode('utf-8')
@@ -3827,6 +3899,7 @@ cdef class Function(object):
         cdef VSMap *inm
         cdef VSMap *outm
         cdef char *cname
+        self.plugin.core.ensure_valid()
         arglist = list(args)
         if self.plugin.injected_arg is not None:
             arglist.insert(0, self.plugin.injected_arg)
@@ -3912,9 +3985,10 @@ cdef class Function(object):
             py_exc = env.retrieve_exception(msg_str) if env is not None else None
             raise py_exc or Error(msg_str)
 
-        retdict = mapToDict(outm, True)
-        self.funcs.freeMap(outm)
-        return retdict
+        try:
+            return mapToDict(outm, True)
+        finally:
+            self.funcs.freeMap(outm)
 
     def __repr__(self):
         sig = self.__signature__
