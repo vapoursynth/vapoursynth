@@ -77,7 +77,13 @@ class EnvironmentTest(unittest.TestCase):
     def test_environment_can_retrieve_core_ptr(self):
         with _with_policy() as pol:
             env = pol._api.create_environment()
-            self.assertIsNotNone(pol._api.get_core_ptr(env))
+            # the core is created on demand by this call, and the pointer must be the
+            # live core's, stable across calls and usable right away
+            ptr = pol._api.get_core_ptr(env)
+            self.assertNotEqual(ptr.value, 0)
+            self.assertEqual(ptr.value, pol._api.get_core_ptr(env).value)
+            with pol._api.wrap_environment(env).use():
+                vs.core.std.BlankClip(width=16, height=16, length=1).get_frame(0)
 
     @subprocess_runner
     def test_environment_use_unsets_environment_on_exit(self):
@@ -349,6 +355,9 @@ class EnvironmentTest(unittest.TestCase):
             with self.assertRaises(vs.Error) as ctx1:
                 clip.get_frame(0)
             self.assertIn("Use of invalidated VideoNode", str(ctx1.exception))
+
+            with self.assertRaisesRegex(AttributeError, "Use of invalidated VideoNode"):
+                clip.std
 
             with self.assertRaises(vs.Error) as ctx2:
                 core.num_threads

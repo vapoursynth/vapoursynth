@@ -532,8 +532,14 @@ cdef class EnvironmentPolicyAPI:
         return env
 
     def set_logger(self, env, logger):
+        # the core takes over this reference and returns it through _logFree, so it
+        # only stands once the handler is actually installed
         Py_INCREF(logger)
-        _set_logger(env, _logCb, _logFree, <void *>logger)
+        try:
+            _set_logger(env, _logCb, _logFree, <void *>logger)
+        except BaseException:
+            Py_DECREF(logger)
+            raise
 
     def get_vapoursynth_api(self, int version):
         self.ensure_policy_matches()
@@ -541,7 +547,9 @@ cdef class EnvironmentPolicyAPI:
 
     def get_core_ptr(self, EnvironmentData environment_data):
         self.ensure_policy_matches()
-        return ctypes.c_void_p(<uintptr_t>environment_data.core.core)
+        # the core is created on first use, which may well be this call
+        cdef Core core = vsscript_get_core_internal(environment_data)
+        return ctypes.c_void_p(<uintptr_t>core.core)
 
     def destroy_environment(self, EnvironmentData env):
         self.ensure_policy_matches()
@@ -2357,7 +2365,30 @@ cdef class RawNode(object):
         raise NotImplementedError("Needs to be implemented by subclass.")
 
     def get_frame(self, int n):
-        raise NotImplementedError
+        cdef char errorMsg[4096]
+        cdef char *ep = errorMsg
+        cdef const VSFrame *f
+        self.ensure_valid_frame_number(n)
+        cdef EnvironmentData env = _env_current()
+
+        fut = _admit_frame_request(self)
+        try:
+            with nogil:
+                f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
+
+            if f == NULL:
+                if (errorMsg[0]):
+                    msg_str = ep.decode('utf-8')
+                    py_exc = env.retrieve_exception(msg_str) if env is not None else None
+                    raise py_exc or Error(msg_str)
+                else:
+                    raise Error('Internal error - no error given')
+            else:
+                return createConstFrame(f, self.funcs, self.core.core)
+        finally:
+            # resolved only once the wrapper exists: teardown waits on this future before
+            # it invalidates the node and frees the core the wrapper is built from
+            fut.set_result(None)
 
     def set_output(self, int index = 0):
         raise NotImplementedError
@@ -2647,6 +2678,8 @@ cdef class VideoNode(RawNode):
         raise Error('Class cannot be instantiated directly')
 
     def __getattr__(self, name):
+        if self.node == NULL:
+            raise AttributeError(f'Use of invalidated {self.__class__.__name__} (the environment has been destroyed).')
         try:
             obj = self.core.__getattr__(name)
             if isinstance(obj, Plugin):
@@ -2661,32 +2694,6 @@ cdef class VideoNode(RawNode):
             raise ValueError('Requesting negative frame numbers not allowed')
         if (self.num_frames > 0) and (n >= self.num_frames):
             raise ValueError('Requesting frame number is beyond the last frame')
-
-    def get_frame(self, int n):
-        cdef char errorMsg[4096]
-        cdef char *ep = errorMsg
-        cdef const VSFrame *f
-        self.ensure_valid_frame_number(n)
-        cdef EnvironmentData env = _env_current()
-
-        fut = _admit_frame_request(self)
-        try:
-            with nogil:
-                f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
-
-            if f == NULL:
-                if (errorMsg[0]):
-                    msg_str = ep.decode('utf-8')
-                    py_exc = env.retrieve_exception(msg_str) if env is not None else None
-                    raise py_exc or Error(msg_str)
-                else:
-                    raise Error('Internal error - no error given')
-            else:
-                return createConstVideoFrame(f, self.funcs, self.core.core)
-        finally:
-            # resolved only once the wrapper exists: teardown waits on this future before
-            # it invalidates the node and frees the core the wrapper is built from
-            fut.set_result(None)
 
     @property
     def gpu_resident(self):
@@ -2979,16 +2986,15 @@ cdef class AudioNode(RawNode):
         raise Error('Class cannot be instantiated directly')
 
     def __getattr__(self, name):
-        err = False
+        if self.node == NULL:
+            raise AttributeError(f'Use of invalidated {self.__class__.__name__} (the environment has been destroyed).')
         try:
             obj = self.core.__getattr__(name)
             if isinstance(obj, Plugin):
                 (<Plugin>obj).injected_arg = self
             return obj
         except AttributeError:
-            err = True
-        if err:
-            raise AttributeError(f'There is no attribute or namespace named {name}. Did you mistype a plugin namespace or forget to install a plugin?')
+            raise AttributeError(f'There is no attribute or namespace named {name}. Did you mistype a plugin namespace or forget to install a plugin?') from None
 
     cdef ensure_valid_frame_number(self, int n):
         self.ensure_valid()
@@ -2996,32 +3002,6 @@ cdef class AudioNode(RawNode):
             raise ValueError('Requesting negative frame numbers not allowed')
         if (self.num_frames > 0) and (n >= self.num_frames):
             raise ValueError('Requesting frame number is beyond the last frame')
-
-    def get_frame(self, int n):
-        cdef char errorMsg[4096]
-        cdef char *ep = errorMsg
-        cdef const VSFrame *f
-        self.ensure_valid_frame_number(n)
-        cdef EnvironmentData env = _env_current()
-
-        fut = _admit_frame_request(self)
-        try:
-            with nogil:
-                f = self.funcs.getFrame(n, self.node, errorMsg, 4096)
-
-            if f == NULL:
-                if (errorMsg[0]):
-                    msg_str = ep.decode('utf-8')
-                    py_exc = env.retrieve_exception(msg_str) if env is not None else None
-                    raise py_exc or Error(msg_str)
-                else:
-                    raise Error('Internal error - no error given')
-            else:
-                return createConstAudioFrame(f, self.funcs, self.core.core)
-        finally:
-            # resolved only once the wrapper exists: teardown waits on this future before
-            # it invalidates the node and frees the core the wrapper is built from
-            fut.set_result(None)
 
     def output(self, object fileobj not None, bint wav = False, bint w64 = False, object progress_update = None, int prefetch = 0, int backlog = -1):
         self.ensure_valid()
@@ -3976,7 +3956,8 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
     else:
         env = _env_current()
         if env is None:
-            _warnings_showwarning(message, category, filename, lineno, file, line)
+            if _warnings_showwarning is not None:
+                _warnings_showwarning(message, category, filename, lineno, file, line)
             return
 
         s = warnings.formatwarning(message, category, filename, lineno, line)
@@ -3998,14 +3979,14 @@ class PythonVSScriptLoggingBridge(logging.Handler):
     def emit(self, record):
         env = _env_current()
         if env is None:
-            self.parent.handle(record)
+            self._parent.handle(record)
             return
         try:
             core = vsscript_get_core_internal(env)
         except Exception:
             core = None
         if core is None:
-            self.parent.handle(record)
+            self._parent.handle(record)
             return
 
         message = self.format(record)
@@ -4145,8 +4126,11 @@ cdef class VSScriptEnvironmentPolicy:
         if self._env_map is not None:
             env = self._env_map.pop(script_id, None)
         if env is not None:
-            sys.stdout.flush()
-            sys.stderr.flush()
+            # a script may have closed or replaced the standard streams; that must not
+            # keep its environment from being destroyed
+            for stream in (sys.stdout, sys.stderr):
+                with contextlib.suppress(Exception):
+                    stream.flush()
             self._api.destroy_environment(env)
 
     def is_alive(self, EnvironmentData environment):
@@ -4237,12 +4221,6 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename):
         Py_INCREF(errstr)
         se.errstr = <void *>errstr
         return 2
-    except:
-        errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
-        errstr = errstr.encode('utf-8')
-        Py_INCREF(errstr)
-        se.errstr = <void *>errstr
-        return 1
 
 
 cdef public api int vpy4_createScript(VSScript *se) nogil:
@@ -4279,7 +4257,7 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
             else:
                 return _vpy_evaluate(se, buffer, fn)
 
-        except BaseException, e:
+        except BaseException as e:
             errstr = 'File reading exception:\n' + str(e)
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
@@ -4295,18 +4273,12 @@ cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename) 
             with open(scriptFilename.decode('utf-8'), 'rb') as f:
                 script = f.read(1024*1024*16)
             return vpy4_evaluateBuffer(se, script, scriptFilename)
-        except BaseException, e:
+        except BaseException as e:
             errstr = 'File reading exception:\n' + str(e)
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 2
-        except:
-            errstr = 'Unspecified file reading exception'
-            errstr = errstr.encode('utf-8')
-            Py_INCREF(errstr)
-            se.errstr = <void *>errstr
-            return 1
 
 cdef public api void vpy4_freeScript(VSScript *se) noexcept nogil:
     with gil:
