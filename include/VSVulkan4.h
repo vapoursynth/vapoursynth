@@ -345,8 +345,8 @@ typedef struct VSGPUMemoryReservation VSGPUMemoryReservation;
 
 /* A frame plane's backing memory exported as an opaque handle, so CUDA or another Vulkan
  * device in the process can wrap the allocation and read or write the plane zero copy. The
- * plane lives at offset within an allocation of memorySize bytes; import the whole allocation
- * once and address planes by offset.
+ * plane lives at offset within an allocation of memorySize bytes from memory type
+ * memoryTypeIndex; import the whole allocation once and address planes by offset.
  *
  * memoryId is stable for the allocation's lifetime and never reused, while every export call
  * returns a NEW handle — so key cached imports by memoryId, never by handle value, and close
@@ -361,6 +361,14 @@ typedef struct VSGPUMemoryReservation VSGPUMemoryReservation;
 typedef struct VSVulkanExportedMemory {
     uint64_t memoryId;
     VkDeviceSize memorySize;
+    /* The memory type the allocation was made from. An opaque handle carries no memory type
+     * information of its own: Vulkan forbids asking which types it accepts, and requires it
+     * to be imported with exactly the exporting allocation's memoryTypeIndex and
+     * allocationSize. A Vulkan importer therefore passes this and memorySize to
+     * vkAllocateMemory unchanged, which is well defined because type numbering is per
+     * physical device and sharing is only defined with a core on the same one. CUDA
+     * importers have no use for it. */
+    uint32_t memoryTypeIndex;
     VkDeviceSize offset;
     VkDeviceSize size;   /* the plane's bytes, stride * height */
     int handleType;      /* the VkExternalMemoryHandleTypeFlagBits of the handle */

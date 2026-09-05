@@ -521,14 +521,24 @@ struct VSVulkanExportedMemory
 A frame plane's backing memory exported as an opaque handle by
 exportGPUPlane_, so CUDA and other Vulkan devices in the same process can
 wrap the underlying allocation and read or write the plane zero copy. The
-plane lives at *offset* within an allocation of *memorySize* bytes;
-importers import the whole allocation once and address planes by offset.
+plane lives at *offset* within an allocation of *memorySize* bytes from
+memory type *memoryTypeIndex*; importers import the whole allocation once
+and address planes by offset.
 
    * uint64_t memoryId — stable identity of the underlying allocation, never
      reused by this device; cache imports keyed by it, never by handle value,
      since every export call returns a new handle
 
    * VkDeviceSize memorySize
+
+   * uint32_t memoryTypeIndex — the memory type the allocation was made
+     from. An opaque handle carries no memory type information of its own:
+     Vulkan forbids asking which types it accepts, and requires it to be
+     imported with exactly the exporting allocation's memoryTypeIndex and
+     allocationSize, so a Vulkan importer passes this and *memorySize* to
+     vkAllocateMemory unchanged. Only meaningful on the same physical
+     device, which sharing already requires; CUDA importers have no use
+     for it
 
    * VkDeviceSize offset
 

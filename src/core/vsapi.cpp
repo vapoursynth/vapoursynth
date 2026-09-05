@@ -1432,6 +1432,7 @@ static int VS_CC vkExportGPUPlane(const VSFrame *frame, int plane, VSVulkanExpor
     }
     out->memoryId = block->exportId;
     out->memorySize = block->size;
+    out->memoryTypeIndex = block->typeIndex;
     out->offset = gpuPlane->buffer.poolBindOffset;
     out->size = gpuPlane->buffer.size;
     out->handleType = static_cast<int>(dev->exportHandleType());

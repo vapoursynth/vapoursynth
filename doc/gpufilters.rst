@@ -483,7 +483,11 @@ The pattern, per frame:
 #. Export each plane you touch. Cache imports keyed by *memoryId* — one
    ``cudaImportExternalMemory`` per 128 MB allocation, then per-plane
    pointers are just base + offset. Close surplus handles per the ownership
-   rules on VSVulkanExportedMemory.
+   rules on VSVulkanExportedMemory. A Vulkan importer allocates *memorySize*
+   bytes from *memoryTypeIndex* with the import info chained — never from a
+   type it picked itself, since an opaque handle must be imported with the
+   exporting allocation's type and the memory property queries are invalid
+   for opaque handle types.
 #. Allocate the output with newGPUVideoFrame and wrap its planes the same
    way — foreign kernels write directly into what downstream Vulkan filters
    will read.
