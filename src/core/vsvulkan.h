@@ -24,11 +24,13 @@
 #include "VSVulkan4.h"
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 /* Owns whatever the entry points were reached through, and the entry points themselves. A device
@@ -513,12 +515,22 @@ public:
     /* Exec pools register so the memory pressure paths can reclaim their completed but
        unswept retentions — the scratch and source frames of submissions that finished but
        whose context was never acquired again. See VSVulkanExecPool::sweepCompleted.
-       Unregistering also waits until no sweep still holds releases detached from the pool,
-       so once it returns every release callback the pool ever registered has run;
-       waitExecReleases is that wait alone, for gpuExecPoolWaitIdle's promise of the same. */
+
+       Every batch of releases run on a pool's behalf -- by the device sweep, by the pool's
+       own sweep from submit or waitAll, or by acquire reaping a context's last submission --
+       is registered here for as long as it runs, with the thread running it. Unregistering
+       waits until no other thread still holds such a batch for the pool, so once it returns
+       every release callback the pool registered has run; waitExecReleases is that wait
+       alone, for gpuExecPoolWaitIdle's promise of the same. waitForeignExecReleases waits
+       for other threads' batches of every pool, which is what an allocation that failed at
+       the driver needs before concluding the device is really full. The running thread's
+       own batches never count, so nothing here waits on itself. */
     void registerExecPool(VSVulkanExecPool *pool);
     void unregisterExecPool(VSVulkanExecPool *pool);
+    void beginExecReleases(VSVulkanExecPool *pool);
+    void endExecReleases(VSVulkanExecPool *pool);
     void waitExecReleases(VSVulkanExecPool *pool);
+    bool waitForeignExecReleases();
     void sweepExecPools();
 
     /* The in-flight retention budget. Per pool contextCount caps multiply across a graph's
@@ -606,12 +618,19 @@ private:
     std::atomic<void *> pressureUserData{nullptr};
     /* Held for the walk of a sweep, so after unregistration no sweep can see the pool. The
        release callbacks a sweep collects run after it is dropped, since they may register
-       or sweep themselves; each pool counts the sweeps still holding its releases under
-       this mutex, and the condition variable is how unregistration and waitAll wait for
-       that count to reach zero. */
+       or sweep themselves. The batches of releases in flight, one entry per batch with the
+       thread running it, live under the same mutex, and the condition variable is how the
+       waits above learn that one finished. */
     std::mutex execPoolsMutex;
     std::condition_variable execReleaseCv;
     std::vector<VSVulkanExecPool *> execPools;
+    struct ExecReleaseBatch {
+        VSVulkanExecPool *pool;
+        std::thread::id thread;
+    };
+    std::vector<ExecReleaseBatch> execReleasesInFlight;
+    /* Lock held. A null pool means any pool. */
+    bool execReleasesPending(const VSVulkanExecPool *pool) const;
     std::atomic<uint64_t> execRetainedBytes{0};
     std::atomic<uint64_t> execRetainedBudget{0};
     /* Signaled once per compute queue submission; the counter is guarded by the compute

@@ -176,8 +176,10 @@ public:
     /* The two halves of sweepCompleted, for a caller that must not run release callbacks
        where it stands: detachCompleted settles the completed retentions' bytes and moves
        them into out, runReleases invokes them. The device's registry sweep detaches under
-       its lock and releases after dropping it, since a release callback may create or
-       destroy a pool, or acquire from another one, all of which come back to that lock. */
+       its lock and releases after dropping it, since a release callback may create a pool
+       or acquire from another one, both of which come back to that lock. Whoever runs a
+       batch registers it with the device for the duration, so the waits that promise
+       "everything is released" can see it. */
     void detachCompleted(std::vector<VSVulkanExecRetained> &out);
     static void runReleases(std::vector<VSVulkanExecRetained> &detached);
 
@@ -190,8 +192,6 @@ public:
     /* The public exec pool handle wraps one of these plus the device reference that keeps
        the allocator reachable for a late free, mirroring VSGPUBuffer. */
     friend struct VSGPUExecPool;
-    /* The device's sweep keeps the in-flight count below. */
-    friend class VSVulkanDevice;
 
 private:
     void releaseClaim(VSVulkanExecContext &context);
@@ -210,11 +210,6 @@ private:
     std::atomic<uint32_t> cursor{0};
     std::mutex claimMutex;
     std::condition_variable claimCv;
-    /* How many device sweeps have detached releases from this pool and not run them yet.
-       Guarded by the device's execPoolsMutex; unregistration and waitAll wait for zero,
-       which is what makes "everything is released when freeGPUExecPool or waitIdle
-       returns" true although the callbacks run on the sweeping thread. */
-    int releasesInFlight = 0;
 };
 
 /* The public VSGPUExecPool from VSVULKANAPI: an exec pool plus the device reference, so a

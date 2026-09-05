@@ -262,6 +262,19 @@ bool VSVulkanDevice::allocatePooled(const VkMemoryRequirements &req, VkMemoryPro
     if (!allocator.allocate(*this, typeIndex, request, carveAlignment, exportable, region.block,
             region.offset, region.size, errorMessage)) {
         sweepExecPools();
+        /* The sweep may have found nothing because another thread's sweep already holds
+           everything reclaimable and is still running its releases; those regions are back
+           the moment it finishes, so it is waited for and the allocation retried before any
+           escalation. Without this a frame could fail -- fatally, in frame creation -- with
+           the memory it needed microseconds from the free list. */
+        waitForeignExecReleases();
+        errorMessage.clear();
+        if (allocator.allocate(*this, typeIndex, request, carveAlignment, exportable, region.block,
+                region.offset, region.size, errorMessage)) {
+            region.usableOffset = (region.offset + req.alignment - 1) & ~(req.alignment - 1);
+            assert(region.usableOffset + req.size <= region.offset + region.size);
+            return true;
+        }
         /* userData before the function, mirroring the retraction's opposite order, so
            observing a function guarantees the userData loaded with it is the matching one. */
         void *pressureCtx = pressureUserData.load();

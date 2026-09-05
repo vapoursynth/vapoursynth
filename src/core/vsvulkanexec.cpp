@@ -61,10 +61,15 @@ void VSVulkanExecPool::settleRetained(VSVulkanExecContext &context) {
 void VSVulkanExecPool::releaseRetained(VSVulkanExecContext &context) {
     settleRetained(context);
     /* Moved out first, so a release that reaches back into the pool never meets a list in
-       the middle of being walked. */
+       the middle of being walked; registered with the device while it runs, so a waitAll
+       on another thread waits for these releases exactly as it does for a device sweep's. */
     std::vector<VSVulkanExecRetained> retained = std::move(context.retained);
     context.retained.clear();
+    if (retained.empty())
+        return;
+    dev->beginExecReleases(this);
     runReleases(retained);
+    dev->endExecReleases(this);
 }
 
 void VSVulkanExecPool::abandon(VSVulkanExecContext &context) {
@@ -132,7 +137,11 @@ bool VSVulkanExecPool::init(VSVulkanDevice &device, VSVulkanQueue &queue, uint32
 void VSVulkanExecPool::sweepCompleted() {
     std::vector<VSVulkanExecRetained> detached;
     detachCompleted(detached);
+    if (detached.empty())
+        return;
+    dev->beginExecReleases(this);
     runReleases(detached);
+    dev->endExecReleases(this);
 }
 
 void VSVulkanExecPool::detachCompleted(std::vector<VSVulkanExecRetained> &out) {
@@ -367,10 +376,10 @@ bool VSVulkanExecPool::waitAll(std::string &errorMessage) {
         return false;
     /* Waited is not yet released: without this the setup upload a filter waits for at
        create would park its staging buffer until the pool's first frame submit, and an
-       idle pool would keep everything its last submissions read until a pressure sweep. A
-       device sweep may have got to some of it first and still be running those releases on
-       its own thread, so that is waited for too before the promise that everything is
-       released holds. */
+       idle pool would keep everything its last submissions read until a pressure sweep.
+       Another thread may have got to some of it first -- a device sweep, another waitAll,
+       an acquire or submit reaping what it found -- and still be running those releases,
+       so that is waited for too before the promise that everything is released holds. */
     sweepCompleted();
     dev->waitExecReleases(this);
     return true;

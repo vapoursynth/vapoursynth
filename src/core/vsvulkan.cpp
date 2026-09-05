@@ -1135,38 +1135,75 @@ void VSVulkanDevice::registerExecPool(VSVulkanExecPool *pool) {
     execPools.push_back(pool);
 }
 
+bool VSVulkanDevice::execReleasesPending(const VSVulkanExecPool *pool) const {
+    const std::thread::id me = std::this_thread::get_id();
+    for (const ExecReleaseBatch &batch : execReleasesInFlight) {
+        if ((!pool || batch.pool == pool) && batch.thread != me)
+            return true;
+    }
+    return false;
+}
+
 void VSVulkanDevice::unregisterExecPool(VSVulkanExecPool *pool) {
     std::unique_lock<std::mutex> lock(execPoolsMutex);
     execPools.erase(std::remove(execPools.begin(), execPools.end(), pool), execPools.end());
     /* Off the list, no sweep can detach anything more; what one already detached is still
        being released on its thread, and the pool's owner is about to free the objects those
        releases hand back to, so this returns only when that thread is done with them. The
-       count is written and the wake-up sent under this mutex, so the sweeping thread is
+       entry is removed and the wake-up sent under this mutex, so the releasing thread is
        finished with the pool before the caller can destroy it. */
-    execReleaseCv.wait(lock, [pool]() { return pool->releasesInFlight == 0; });
+    execReleaseCv.wait(lock, [this, pool]() { return !execReleasesPending(pool); });
+}
+
+void VSVulkanDevice::beginExecReleases(VSVulkanExecPool *pool) {
+    std::lock_guard<std::mutex> lock(execPoolsMutex);
+    execReleasesInFlight.push_back({ pool, std::this_thread::get_id() });
+}
+
+void VSVulkanDevice::endExecReleases(VSVulkanExecPool *pool) {
+    std::lock_guard<std::mutex> lock(execPoolsMutex);
+    const std::thread::id me = std::this_thread::get_id();
+    for (auto it = execReleasesInFlight.end(); it != execReleasesInFlight.begin();) {
+        --it;
+        if (it->pool == pool && it->thread == me) {
+            execReleasesInFlight.erase(it);
+            break;
+        }
+    }
+    execReleaseCv.notify_all();
 }
 
 void VSVulkanDevice::waitExecReleases(VSVulkanExecPool *pool) {
     std::unique_lock<std::mutex> lock(execPoolsMutex);
-    execReleaseCv.wait(lock, [pool]() { return pool->releasesInFlight == 0; });
+    execReleaseCv.wait(lock, [this, pool]() { return !execReleasesPending(pool); });
+}
+
+bool VSVulkanDevice::waitForeignExecReleases() {
+    /* Bounded: two release callbacks that both allocate at the limit would otherwise wait on
+       each other. A release is normally a free that takes microseconds, so the bound is
+       never reached outside that case, and reaching it just lets the caller proceed to the
+       failure it would have reported anyway. */
+    std::unique_lock<std::mutex> lock(execPoolsMutex);
+    return execReleaseCv.wait_for(lock, std::chrono::seconds(1), [this]() { return !execReleasesPending(nullptr); });
 }
 
 void VSVulkanDevice::sweepExecPools() {
     /* The registry lock covers the walk only. The releases are collected under it and run
        once it is dropped: a release callback may create a pool, or acquire from another one
        whose admission gate sweeps in turn, and both come back to this lock. Every pool that
-       handed something over is counted as in flight until its releases have run, which is
-       what its unregistration waits for; a callback must therefore never free or wait on a
-       pool, since either would wait on the very sweep running it. */
+       handed something over is registered as a batch in flight until its releases have run,
+       which is what its unregistration waits for; a callback must therefore never free or
+       wait on a pool, since either would wait on the very sweep running it. */
     std::vector<VSVulkanExecRetained> detached;
     std::vector<VSVulkanExecPool *> inFlight;
     {
         std::lock_guard<std::mutex> lock(execPoolsMutex);
+        const std::thread::id me = std::this_thread::get_id();
         for (VSVulkanExecPool *pool : execPools) {
             const size_t before = detached.size();
             pool->detachCompleted(detached);
             if (detached.size() != before) {
-                pool->releasesInFlight++;
+                execReleasesInFlight.push_back({ pool, me });
                 inFlight.push_back(pool);
             }
         }
@@ -1174,15 +1211,8 @@ void VSVulkanDevice::sweepExecPools() {
     if (inFlight.empty())
         return;
     VSVulkanExecPool::runReleases(detached);
-    {
-        /* Notified under the mutex: a waiter woken by this must not find the pool gone
-           before the count was written, and this thread must be done with the pool before
-           the waiter can free it. */
-        std::lock_guard<std::mutex> lock(execPoolsMutex);
-        for (VSVulkanExecPool *pool : inFlight)
-            pool->releasesInFlight--;
-        execReleaseCv.notify_all();
-    }
+    for (VSVulkanExecPool *pool : inFlight)
+        endExecReleases(pool);
 }
 
 bool VSVulkanDevice::ensureExecProgressSemaphore() {
