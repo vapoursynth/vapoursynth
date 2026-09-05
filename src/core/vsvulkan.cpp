@@ -758,7 +758,6 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     enabled.f##ver.member = (req == VS_VK_REQUIRED) ? VK_TRUE : queried.f##ver.member;
     VS_VK_FEATURE_LIST(VS_VK_ENABLE_FEATURE)
 #undef VS_VK_ENABLE_FEATURE
-    shaderFloat16Flag = queried.f12.shaderFloat16 != 0;
 
     /* The float atomic pair, enabled whenever present with exactly the feature bits the device
        reports: pure SPIR-V capability unlocks with no cost to code that never uses them, and

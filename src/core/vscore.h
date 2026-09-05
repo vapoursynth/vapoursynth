@@ -496,9 +496,6 @@ public:
     const VSMap &getConstProperties() const {
         return properties;
     }
-    void setProperties(const VSMap &properties) {
-        this->properties = properties;
-    }
     const VSVideoFormat *getVideoFormat() const {
         assert(contentType == mtVideo);
         return &format.vf;
@@ -1012,10 +1009,6 @@ public:
 
     size_t getNumDependencies() const {
         return dependencies.size();
-    }
-
-    bool isRightCore(const VSCore *core2) const {
-        return core == core2;
     }
 
     void getFrame(const PVSFrameContext &ct);

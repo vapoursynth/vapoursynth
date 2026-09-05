@@ -77,29 +77,6 @@ inline void setPlaneProducer(VSVulkanPlane &plane, VSVulkanTimeline *timeline, u
     plane.readyValue = value;
 }
 
-/* A GPU resident video frame. Reader tracking is left for the filter runtime, where exec
-   contexts will hold frame references until their submissions complete; until then a frame
-   must not be rewritten while consumers may still be reading it. */
-struct VSVulkanFrame {
-    VSVideoFormat format = {};
-    int numPlanes = 0;
-    VSVulkanPlane planes[3];
-
-    void reset() {
-        format = {};
-        numPlanes = 0;
-        for (VSVulkanPlane &plane : planes)
-            plane.reset();
-    }
-};
-
-/* Appends every plane's producer pair; host ready planes contribute nothing and same timeline
-   pairs collapse, so the common all-planes-one-producer frame adds a single wait. */
-inline void addFrameWaits(VSVulkanWaitList &list, const VSVulkanFrame &frame) {
-    for (int p = 0; p < frame.numPlanes; p++)
-        list.add(frame.planes[p].readyTimeline, frame.planes[p].readyValue);
-}
-
 /* One linear pitched device local plane with the stride the caller decided on, which is how
    VSFrame keeps its GPU strides identical to its CPU ones. */
 bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int bytesPerSample,
@@ -116,13 +93,6 @@ inline bool waitPlaneHost(VSVulkanDevice &device, const VSVulkanPlane &plane) {
     waitInfo.pSemaphores = &semaphore;
     waitInfo.pValues = &plane.readyValue;
     return device.vk.vkWaitSemaphores(device.device(), &waitInfo, UINT64_MAX) == VK_SUCCESS;
-}
-
-/* The common case after one submission wrote every plane. Partially produced frames set their
-   plane pairs individually instead. */
-inline void setFrameProduced(VSVulkanFrame &frame, VSVulkanTimeline *timeline, uint64_t value) {
-    for (int p = 0; p < frame.numPlanes; p++)
-        setPlaneProducer(frame.planes[p], timeline, value);
 }
 
 /* Moves frames across the PCIe bus. Uploads memcpy straight into the plane buffer when it
@@ -146,19 +116,12 @@ public:
 
     bool init(VSVulkanDevice &device, uint32_t slots, std::string &errorMessage);
 
-    bool createFrame(VSVulkanFrame &frame, const VSVideoFormat &format, int width, int height, std::string &errorMessage);
-    /* The frame must not be in flight; wait on its producer or waitIdle() first. */
-    void destroyFrame(VSVulkanFrame &frame);
-
-    /* The pointer forms work directly on planes owned elsewhere, which is what lets VSPlaneData
-       hold the planes while the transfer machinery stays out of the core headers; the frame
-       forms are thin wrappers over them. */
+    /* Planes rather than frames: they are owned elsewhere, which is what lets VSPlaneData hold
+       them while the transfer machinery stays out of the core headers. */
     bool uploadPlanes(VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
         const uint8_t *const srcPlanes[], const ptrdiff_t srcStrides[], std::string &errorMessage);
     bool downloadPlanes(const VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
         uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[], std::string &errorMessage);
-    bool upload(VSVulkanFrame &frame, const uint8_t *const srcPlanes[3], const ptrdiff_t srcStrides[3], std::string &errorMessage);
-    bool download(const VSVulkanFrame &frame, uint8_t *const dstPlanes[3], const ptrdiff_t dstStrides[3], std::string &errorMessage);
 
     bool waitIdle(std::string &errorMessage) { return execPool.waitAll(errorMessage); }
 

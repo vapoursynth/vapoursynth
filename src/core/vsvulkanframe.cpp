@@ -95,41 +95,6 @@ bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int
     return true;
 }
 
-bool VSVulkanTransfer::createFrame(VSVulkanFrame &frame, const VSVideoFormat &format, int width, int height, std::string &errorMessage) {
-    frame.reset();
-
-    if (format.numPlanes < 1 || format.numPlanes > 3 || format.bytesPerSample < 1 || format.bytesPerSample > 4 ||
-        width <= 0 || height <= 0) {
-        errorMessage = "Invalid format or dimensions for a GPU frame";
-        return false;
-    }
-    if ((width % (1 << format.subSamplingW)) || (height % (1 << format.subSamplingH))) {
-        errorMessage = "Frame dimensions not a multiple of the subsampling";
-        return false;
-    }
-
-    frame.format = format;
-    frame.numPlanes = format.numPlanes;
-
-    for (int p = 0; p < format.numPlanes; p++) {
-        uint32_t pw = static_cast<uint32_t>(p ? width >> format.subSamplingW : width);
-        uint32_t ph = static_cast<uint32_t>(p ? height >> format.subSamplingH : height);
-        /* The same 64 byte row alignment CPU planes get, so strides usually match end to end. */
-        ptrdiff_t stride = (static_cast<ptrdiff_t>(pw) * format.bytesPerSample + 63) & ~static_cast<ptrdiff_t>(63);
-        if (!createGPUPlane(*dev, pw, ph, format.bytesPerSample, stride, frame.planes[p], errorMessage)) {
-            destroyFrame(frame);
-            return false;
-        }
-    }
-    return true;
-}
-
-void VSVulkanTransfer::destroyFrame(VSVulkanFrame &frame) {
-    for (int p = 0; p < frame.numPlanes; p++)
-        dev->destroyBuffer(frame.planes[p].buffer);
-    frame.reset();
-}
-
 bool VSVulkanTransfer::waitPlanesHost(VSVulkanPlane *const planes[], int numPlanes, std::string &errorMessage) {
     VSVulkanWaitList list;
     for (int p = 0; p < numPlanes; p++)
@@ -290,11 +255,6 @@ bool VSVulkanTransfer::uploadPlanes(VSVulkanPlane *const planes[], int numPlanes
     return ok;
 }
 
-bool VSVulkanTransfer::upload(VSVulkanFrame &frame, const uint8_t *const srcPlanes[3], const ptrdiff_t srcStrides[3], std::string &errorMessage) {
-    VSVulkanPlane *planes[3] = { &frame.planes[0], &frame.planes[1], &frame.planes[2] };
-    return uploadPlanes(planes, frame.numPlanes, frame.format.bytesPerSample, srcPlanes, srcStrides, errorMessage);
-}
-
 bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
     uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[], std::string &errorMessage) {
     /* Read straight out of the plane when its memory is host CACHED, mirroring how the upload
@@ -418,9 +378,4 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
 
     releaseSlot(readback, *slot);
     return true;
-}
-
-bool VSVulkanTransfer::download(const VSVulkanFrame &frame, uint8_t *const dstPlanes[3], const ptrdiff_t dstStrides[3], std::string &errorMessage) {
-    const VSVulkanPlane *planes[3] = { &frame.planes[0], &frame.planes[1], &frame.planes[2] };
-    return downloadPlanes(planes, frame.numPlanes, frame.format.bytesPerSample, dstPlanes, dstStrides, errorMessage);
 }

@@ -416,9 +416,6 @@ public:
     VSVulkanQueue &transferQueue() { return *transferPtr; }
     bool hasDedicatedTransferQueue() const { return transferPtr != &computeQ; }
 
-    /* Whether kernels may declare float16_t, needed for half precision plane formats. */
-    bool shaderFloat16Supported() const { return shaderFloat16Flag; }
-
     /* Whether the device's memory is the host's memory. Integrated and software devices
        carve their heaps out of system RAM, so a VRAM limit and the host memory limit are
        two claims on the same bytes and cannot be sized independently. Taken from the device
@@ -583,7 +580,6 @@ private:
     VSVulkanQueue transferQ;
     VSVulkanQueue *transferPtr = &computeQ;
     VSVulkanAllocator allocator;
-    bool shaderFloat16Flag = false;
     bool unifiedMemoryFlag = false;
     bool memoryBudgetFlag = false;
     VkExternalMemoryHandleTypeFlagBits exportType = static_cast<VkExternalMemoryHandleTypeFlagBits>(0);

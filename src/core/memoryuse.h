@@ -137,14 +137,6 @@ public:
         return m_unified && m_combined_limit && (m_allocated + m_gpu_allocated) > m_combined_limit;
     }
 
-    bool is_under_limit() const {
-        if (m_allocated >= (m_limit >> 1))
-            return false;
-        if (!m_unified || !m_combined_limit)
-            return true;
-        return (m_allocated + m_gpu_allocated) < (m_combined_limit >> 1);
-    }
-
     void account_gpu(int64_t delta) {
         if (delta > 0)
             live_acquire(static_cast<uint64_t>(delta));
