@@ -24,6 +24,7 @@
 #include "VSVulkan4.h"
 
 #include <atomic>
+#include <condition_variable>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -514,9 +515,13 @@ public:
 
     /* Exec pools register so the memory pressure paths can reclaim their completed but
        unswept retentions — the scratch and source frames of submissions that finished but
-       whose context was never acquired again. See VSVulkanExecPool::sweepCompleted. */
+       whose context was never acquired again. See VSVulkanExecPool::sweepCompleted.
+       Unregistering also waits until no sweep still holds releases detached from the pool,
+       so once it returns every release callback the pool ever registered has run;
+       waitExecReleases is that wait alone, for gpuExecPoolWaitIdle's promise of the same. */
     void registerExecPool(VSVulkanExecPool *pool);
     void unregisterExecPool(VSVulkanExecPool *pool);
+    void waitExecReleases(VSVulkanExecPool *pool);
     void sweepExecPools();
 
     /* The in-flight retention budget. Per pool contextCount caps multiply across a graph's
@@ -603,11 +608,13 @@ private:
     void *accountUserData = nullptr;
     std::atomic<VSVulkanPressureFn> pressureFn{nullptr};
     std::atomic<void *> pressureUserData{nullptr};
-    /* Held for the walk of a sweep, which is what makes unregistration in the pool
-       destructor a safe rendezvous: after unregister returns no sweep can see the pool. The
-       release callbacks a sweep collects run after it is dropped, since they may register,
-       unregister or sweep themselves. */
+    /* Held for the walk of a sweep, so after unregistration no sweep can see the pool. The
+       release callbacks a sweep collects run after it is dropped, since they may register
+       or sweep themselves; each pool counts the sweeps still holding its releases under
+       this mutex, and the condition variable is how unregistration and waitAll wait for
+       that count to reach zero. */
     std::mutex execPoolsMutex;
+    std::condition_variable execReleaseCv;
     std::vector<VSVulkanExecPool *> execPools;
     std::atomic<uint64_t> execRetainedBytes{0};
     std::atomic<uint64_t> execRetainedBudget{0};

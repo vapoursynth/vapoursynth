@@ -1167,17 +1167,20 @@ int64_t VSNode::expectedTransientAllocation() const {
 
 void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
     uint64_t completedExtFrames = threadPool->getCompletedExternalFrames();
-    std::lock_guard<std::mutex> lock(cacheLock);
 
     /* Exec pool retentions whose submissions have completed are pure dead weight — the
        sources and scratch of work that already finished, normally dropped at the context's
        next acquire. A pool gone idle never acquires again and parks its whole in-flight
        footprint, which for a deep chain of heavy filters is gigabytes, so every sweep
        releases what has completed; steady state pools lose nothing they would not have
-       released moments later anyway. */
+       released moments later anyway. Before the cache lock, not under it: the sweep runs
+       release callbacks, which may allocate, acquire and free frames, and a freed frame can
+       drop the last reference to a node, whose destructor takes this very lock. */
     VSVulkanDevice *dev = vulkanDev.load();
     if (dev)
         dev->sweepExecPools();
+
+    std::lock_guard<std::mutex> lock(cacheLock);
 
     if (hostNeedsMemory || gpuNeedsMemory) {
         // free the excess in a single pass by taking frames from the caches where each held byte

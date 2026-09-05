@@ -6,8 +6,9 @@
 *
 *   - the Vulkan device is matched to a CUDA device by UUID
 *   - frame planes are wrapped via exportGPUPlane: one cudaImportExternalMemory and one
-*     mapping per 128 MB allocation, cached by memoryId, per-plane pointers by offset — the
-*     kernels then read and write the exact VRAM the Vulkan buffers occupy
+*     mapping per 128 MB allocation, cached by memoryId with the least recently used entry
+*     evicted when the cache is full, per-plane pointers by offset — the kernels then read
+*     and write the exact VRAM the Vulkan buffers occupy
 *   - synchronization is device side when possible: input producer pairs are imported with
 *     cudaImportExternalSemaphore (cached by VkSemaphore value, which the producer pair
 *     contract keeps stable for this instance's lifetime) and waited IN THE STREAM; the
@@ -81,9 +82,13 @@ typedef struct {
     int semCapable; /* device side sync available and usable */
 
     /* Memory imports cached per underlying allocation, each with the one mapping of its
-       whole range that every plane pointer is derived from. */
-    struct { uint64_t memoryId; cudaExternalMemory_t mem; void *base; } imports[MAX_IMPORTS];
+       whole range that every plane pointer is derived from. An import pins the block it
+       wraps for as long as it exists, and the core recycles blocks over a long run, so the
+       cache evicts its least recently used entry when full rather than refusing or holding
+       freed VRAM hostage; lastUse is the mapPlane call that last returned it. */
+    struct { uint64_t memoryId; cudaExternalMemory_t mem; void *base; uint64_t lastUse; } imports[MAX_IMPORTS];
     int importCount;
+    uint64_t mapCalls;
 
     /* Semaphore imports cached per producer timeline. */
     struct { VkSemaphore sem; cudaExternalSemaphore_t cudaSem; } semImports[MAX_SEM_IMPORTS];
@@ -116,16 +121,27 @@ typedef struct {
 #define UNLOCK(d) pthread_mutex_unlock(&(d)->lock)
 #endif
 
-/* NT handles are never consumed by an import, so every export call's handle is closed; on
-   the fd side a successful import takes the descriptor over and leaves -1 behind, so only a
-   cache hit's surplus descriptor, or a failed import's, is still ours to close. */
-static void closeExportHandle(const VSVulkanExportedMemory *exp) {
+/* Closes the handle an export call produced. NT handles are never consumed by an import,
+   so every one is closed; on the fd side a successful import takes the descriptor over, so
+   the caller sets it to -1 first and only a cache hit's surplus descriptor, or a failed
+   import's, is still ours to close. Shared by the memory and the semaphore imports. */
+static void closeExportedHandle(intptr_t handle) {
 #ifdef _WIN32
-    CloseHandle((HANDLE)exp->handle);
+    CloseHandle((HANDLE)handle);
 #else
-    if (exp->handle >= 0)
-        close((int)exp->handle);
+    if (handle >= 0)
+        close((int)handle);
 #endif
+}
+
+/* Drops one import: the mapping first, since it is a device allocation of its own that
+   destroying the external memory under it does not free. The caller has made sure no
+   queued kernel still reads through it. */
+static void dropImport(CudaInvertData *d, int i) {
+    cudaFree(d->imports[i].base);
+    cudaDestroyExternalMemory(d->imports[i].mem);
+    d->imports[i] = d->imports[d->importCount - 1];
+    d->importCount--;
 }
 
 /* Returns the device pointer for a plane, importing and mapping its backing allocation on
@@ -141,8 +157,10 @@ static void *mapPlane(CudaInvertData *d, const VSFrame *frame, int plane, char *
     if (d->vkapi->exportGPUPlane(frame, plane, &exp, err, errSize))
         return NULL;
 
+    d->mapCalls++;
     for (i = 0; i < d->importCount; i++) {
         if (d->imports[i].memoryId == exp.memoryId) {
+            d->imports[i].lastUse = d->mapCalls;
             base = d->imports[i].base;
             break;
         }
@@ -151,11 +169,19 @@ static void *mapPlane(CudaInvertData *d, const VSFrame *frame, int plane, char *
         cudaExternalMemory_t mem = NULL;
         cudaExternalMemoryHandleDesc hd;
         cudaExternalMemoryBufferDesc bd;
-        /* Checked before importing, so a full cache never leaks an imported object. */
         if (d->importCount >= MAX_IMPORTS) {
-            snprintf(err, errSize, "InvertCUDA: more than %d distinct allocations to import", MAX_IMPORTS);
-            closeExportHandle(&exp);
-            return NULL;
+            /* The least recently used entry goes; the stream is drained first, since a
+               kernel launched for an earlier plane may still read through the mapping
+               being dropped. Rare: it takes the core cycling through more than
+               MAX_IMPORTS blocks, and this frame's own planes are the most recent by
+               construction, so they are never the victim. */
+            int victim = 0;
+            for (i = 1; i < d->importCount; i++) {
+                if (d->imports[i].lastUse < d->imports[victim].lastUse)
+                    victim = i;
+            }
+            cudaStreamSynchronize(d->stream);
+            dropImport(d, victim);
         }
         memset(&hd, 0, sizeof(hd));
 #ifdef _WIN32
@@ -168,7 +194,7 @@ static void *mapPlane(CudaInvertData *d, const VSFrame *frame, int plane, char *
         hd.size = exp.memorySize;
         if (cudaImportExternalMemory(&mem, &hd) != cudaSuccess) {
             snprintf(err, errSize, "cudaImportExternalMemory failed");
-            closeExportHandle(&exp);
+            closeExportedHandle(exp.handle);
             return NULL;
         }
 #ifndef _WIN32
@@ -180,15 +206,16 @@ static void *mapPlane(CudaInvertData *d, const VSFrame *frame, int plane, char *
         if (cudaExternalMemoryGetMappedBuffer(&base, mem, &bd) != cudaSuccess) {
             snprintf(err, errSize, "cudaExternalMemoryGetMappedBuffer failed");
             cudaDestroyExternalMemory(mem);
-            closeExportHandle(&exp);
+            closeExportedHandle(exp.handle);
             return NULL;
         }
         d->imports[d->importCount].memoryId = exp.memoryId;
         d->imports[d->importCount].mem = mem;
         d->imports[d->importCount].base = base;
+        d->imports[d->importCount].lastUse = d->mapCalls;
         d->importCount++;
     }
-    closeExportHandle(&exp);
+    closeExportedHandle(exp.handle);
     return (unsigned char *)base + exp.offset;
 }
 
@@ -219,14 +246,13 @@ static cudaExternalSemaphore_t mapSemaphore(CudaInvertData *d, VSCore *core, VkS
 #endif
     cudaExternalSemaphore_t cudaSem = NULL;
     if (cudaImportExternalSemaphore(&cudaSem, &sd) != cudaSuccess) {
-#ifdef _WIN32
-        CloseHandle((HANDLE)sexp.handle);
-#endif
+        closeExportedHandle(sexp.handle);
         return NULL;
     }
-#ifdef _WIN32
-    CloseHandle((HANDLE)sexp.handle);
+#ifndef _WIN32
+    sexp.handle = -1; /* fd ownership moved to CUDA on success */
 #endif
+    closeExportedHandle(sexp.handle);
     d->semImports[d->semImportCount].sem = sem;
     d->semImports[d->semImportCount].cudaSem = cudaSem;
     d->semImportCount++;
@@ -305,6 +331,10 @@ static const VSFrame *VS_CC cudaInvertGetFrame(int n, int activationReason, void
         const uint32_t *sptr = (const uint32_t *)mapPlane(d, src, p, err, sizeof(err));
         uint32_t *dptr = (uint32_t *)mapPlane(d, dst, p, err, sizeof(err));
         if (!sptr || !dptr) {
+            /* Kernels launched for the earlier planes, and the semaphore waits queued
+               ahead of them, may still be running and reading src or writing dst, so the
+               stream is drained before either frame can go back to the allocator. */
+            cudaStreamSynchronize(d->stream);
             UNLOCK(d);
             vsapi->setFilterError(err, frameCtx);
             vsapi->freeFrame(src);
@@ -364,13 +394,10 @@ static void VS_CC cudaInvertFree(void *instanceData, VSCore *core, const VSAPI *
         cudaDestroyExternalSemaphore(d->semImports[i].cudaSem);
     if (d->cudaTimeline)
         cudaDestroyExternalSemaphore(d->cudaTimeline);
-    for (i = 0; i < d->importCount; i++) {
-        /* The mapping first: it is a device allocation of its own, and destroying the
-           external memory under it does not free it. The stream is synchronized and the
-           timeline waited above, so no kernel still reads through it. */
-        cudaFree(d->imports[i].base);
-        cudaDestroyExternalMemory(d->imports[i].mem);
-    }
+    /* The stream is synchronized and the timeline waited above, so nothing still reads
+       through the mappings. */
+    while (d->importCount > 0)
+        dropImport(d, d->importCount - 1);
     if (d->stream)
         cudaStreamDestroy(d->stream);
     /* Just this filter's reference; outputs still naming it keep the semaphore alive. */
@@ -450,11 +477,15 @@ static void VS_CC cudaInvertCreate(const VSMap *in, VSMap *out, void *userData, 
             sd.type = cudaExternalSemaphoreHandleTypeTimelineSemaphoreFd;
             sd.handle.fd = (int)sexp.handle;
 #endif
-            if (cudaImportExternalSemaphore(&d->cudaTimeline, &sd) == cudaSuccess)
+            if (cudaImportExternalSemaphore(&d->cudaTimeline, &sd) == cudaSuccess) {
                 d->semCapable = 1;
-#ifdef _WIN32
-            CloseHandle((HANDLE)sexp.handle);
+#ifndef _WIN32
+                sexp.handle = -1; /* fd ownership moved to CUDA on success */
 #endif
+            } else {
+                d->cudaTimeline = NULL;
+            }
+            closeExportedHandle(sexp.handle);
         }
     }
 

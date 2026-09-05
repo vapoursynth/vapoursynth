@@ -24,7 +24,8 @@ VSVulkanExecPool::~VSVulkanExecPool() {
     if (!dev)
         return;
     /* Off the device's sweep list before anything is torn down; unregistration blocks while
-       a sweep is walking the pools, so after it returns no sweep can be touching this one. */
+       a sweep is walking the pools or still running releases it detached from this one, so
+       after it returns no sweep can be touching this pool and every release has run. */
     dev->unregisterExecPool(this);
     std::string ignored;
     waitAll(ignored);
@@ -366,8 +367,12 @@ bool VSVulkanExecPool::waitAll(std::string &errorMessage) {
         return false;
     /* Waited is not yet released: without this the setup upload a filter waits for at
        create would park its staging buffer until the pool's first frame submit, and an
-       idle pool would keep everything its last submissions read until a pressure sweep. */
+       idle pool would keep everything its last submissions read until a pressure sweep. A
+       device sweep may have got to some of it first and still be running those releases on
+       its own thread, so that is waited for too before the promise that everything is
+       released holds. */
     sweepCompleted();
+    dev->waitExecReleases(this);
     return true;
 }
 

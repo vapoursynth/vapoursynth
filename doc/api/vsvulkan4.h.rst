@@ -1004,8 +1004,9 @@ VSGPUExecPool_ \*createGPUExecPool(VSCore \*core, int queue, char \*errorMessage
    for it. A pool anything is dispatched into belongs on *vqCompute*.
 
    The core sizes the pool's context ring itself, from its worker thread
-   count — how many recordings can even be concurrent is core knowledge, not
-   filter knowledge — and how much memory queued submissions may pin is
+   count (two to eight contexts) — how many recordings can even be concurrent
+   is core knowledge, not filter knowledge — and how much memory queued
+   submissions may pin is
    bounded separately: acquiring waits out the ring's oldest submission, and
    may additionally wait on the core's device-wide in-flight budget, which
    caps the total bytes submitted-but-unfinished work retains across all
@@ -1049,9 +1050,11 @@ int gpuExecPoolWaitIdle(VSGPUExecPool_ \*pool, char \*errorMessage, int errorMes
    the device instead — but one shot setup work, such as uploading weights or
    tables a filter will read for the rest of its life, has to know the copy
    landed before recording anything that reads it. Also releases everything
-   those submissions were keeping alive, running their release callbacks on
-   the calling thread; recordings other threads hold at the time are not
-   submissions yet and are left alone.
+   those submissions were keeping alive, and returns only once every release
+   callback of the pool has run — on this thread, or on the thread of a
+   concurrent core sweep that reached it first, which is waited for;
+   recordings other threads hold at the time are not submissions yet and are
+   left alone.
 
 ----------
 
@@ -1081,6 +1084,12 @@ VSGPUExecContext_ \*gpuExecAcquire(VSGPUExecPool_ \*pool, char \*errorMessage, i
    device loss. Every acquire must end in exactly one gpuExecSubmit_ or
    gpuExecAbandon_. May block briefly while the ring's oldest submission
    finishes or the in-flight retention budget frees up.
+
+   Hold at most one context of a pool per thread: the ring has only two to
+   eight contexts, so a nested acquire on the same pool waits for a slot
+   that, once every worker nests, nobody ever releases. Holding contexts of
+   different pools at once is fine, and the in-flight budget counts submitted
+   work only, so a recording never gates the thread holding it.
 
 ----------
 
@@ -1167,8 +1176,13 @@ void gpuExecRetain(VSGPUExecContext_ \*context, VSGPUReleaseFunc_ release, void 
    The callback runs on whichever thread reaps the submission — another
    filter's submit, or a core memory pressure sweep — so it must be safe to
    call from any thread. No core lock is held while it runs, so it may take
-   its own, create or destroy pools, and acquire from another pool; it must
-   not acquire a context from the pool that is reaping it.
+   its own, allocate, create pools and acquire from other pools. It must not
+   free or wait on any exec pool — freeGPUExecPool_ and gpuExecPoolWaitIdle_
+   wait for in-flight releases, so either would wait on itself — and must
+   not acquire from the pool that is reaping it. The reaping thread may be
+   one inside your own getFrame (a gated acquire or a failed allocation
+   sweeps), so do not hold a lock across those calls that the callback also
+   takes.
 
 ----------
 

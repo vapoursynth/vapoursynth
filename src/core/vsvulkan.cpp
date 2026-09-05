@@ -1137,24 +1137,53 @@ void VSVulkanDevice::registerExecPool(VSVulkanExecPool *pool) {
 }
 
 void VSVulkanDevice::unregisterExecPool(VSVulkanExecPool *pool) {
-    std::lock_guard<std::mutex> lock(execPoolsMutex);
+    std::unique_lock<std::mutex> lock(execPoolsMutex);
     execPools.erase(std::remove(execPools.begin(), execPools.end(), pool), execPools.end());
+    /* Off the list, no sweep can detach anything more; what one already detached is still
+       being released on its thread, and the pool's owner is about to free the objects those
+       releases hand back to, so this returns only when that thread is done with them. The
+       count is written and the wake-up sent under this mutex, so the sweeping thread is
+       finished with the pool before the caller can destroy it. */
+    execReleaseCv.wait(lock, [pool]() { return pool->releasesInFlight == 0; });
+}
+
+void VSVulkanDevice::waitExecReleases(VSVulkanExecPool *pool) {
+    std::unique_lock<std::mutex> lock(execPoolsMutex);
+    execReleaseCv.wait(lock, [pool]() { return pool->releasesInFlight == 0; });
 }
 
 void VSVulkanDevice::sweepExecPools() {
     /* The registry lock covers the walk only. The releases are collected under it and run
-       once it is dropped: a release callback may create or destroy a pool, or acquire from
-       another one whose admission gate sweeps in turn, and every one of those comes back to
-       this lock. Nothing touches a pool after the unlock -- what it handed over belongs to
-       the retained objects, not to it -- so a pool whose destructor gets the lock the moment
-       it is dropped is fine. */
+       once it is dropped: a release callback may create a pool, or acquire from another one
+       whose admission gate sweeps in turn, and both come back to this lock. Every pool that
+       handed something over is counted as in flight until its releases have run, which is
+       what its unregistration waits for; a callback must therefore never free or wait on a
+       pool, since either would wait on the very sweep running it. */
     std::vector<VSVulkanExecRetained> detached;
+    std::vector<VSVulkanExecPool *> inFlight;
     {
         std::lock_guard<std::mutex> lock(execPoolsMutex);
-        for (VSVulkanExecPool *pool : execPools)
+        for (VSVulkanExecPool *pool : execPools) {
+            const size_t before = detached.size();
             pool->detachCompleted(detached);
+            if (detached.size() != before) {
+                pool->releasesInFlight++;
+                inFlight.push_back(pool);
+            }
+        }
     }
+    if (inFlight.empty())
+        return;
     VSVulkanExecPool::runReleases(detached);
+    {
+        /* Notified under the mutex: a waiter woken by this must not find the pool gone
+           before the count was written, and this thread must be done with the pool before
+           the waiter can free it. */
+        std::lock_guard<std::mutex> lock(execPoolsMutex);
+        for (VSVulkanExecPool *pool : inFlight)
+            pool->releasesInFlight--;
+        execReleaseCv.notify_all();
+    }
 }
 
 bool VSVulkanDevice::ensureExecProgressSemaphore() {
