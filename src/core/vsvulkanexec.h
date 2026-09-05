@@ -77,6 +77,11 @@ private:
     std::vector<VSVulkanWait> waits;
 };
 
+struct VSVulkanExecRetained {
+    VSGPUReleaseFunc release;
+    void *object;
+};
+
 /* One recording and submission slot: a command pool holding a single primary command buffer,
    plus the timeline value its last submission signals. A context belongs to exactly one thread
    from acquire() until submit(); after that the claim is gone but the GPU may still be working,
@@ -93,21 +98,18 @@ public:
     VkCommandBuffer commandBuffer() const { return cmd; }
 
 private:
-    struct Retained {
-        /* VS_CC so this is the same type VSVULKANAPI::gpuExecRetain takes, which lets a
-           filter's own callback be stored directly instead of through a trampoline. */
-        VSGPUReleaseFunc release;
-        void *object;
-    };
-
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkCommandBuffer cmd = VK_NULL_HANDLE;
     uint64_t pendingValue = 0;
     std::atomic<bool> claimed{false};
-    std::vector<Retained> retained;
-    /* What the retained objects pin, mirrored into the device's in-flight total so the
-       admission gate can meter queued submissions by bytes. */
+    std::vector<VSVulkanExecRetained> retained;
+    /* What the retained objects pin, added to the device's in-flight total when the
+       recording is submitted rather than as each object is retained: a recording pins its
+       memory either way, but only submitted work completes without help from the thread
+       holding it, and the admission gate waits on that total -- counting a recording in
+       progress would let a thread block on bytes only it can ever release. */
     VkDeviceSize retainedBytes = 0;
+    bool retainedCounted = false;
 };
 
 /* A fixed set of exec contexts shared by however many threads a filter instance is called on.
@@ -150,7 +152,7 @@ public:
        only an untouched one waits for a sweep.
 
        bytes is what the object pins in device memory, counted against the device's in-flight
-       retention budget until release; pass 0 for objects that should not gate. */
+       retention budget from submit until release; pass 0 for objects that should not gate. */
     void retain(VSVulkanExecContext &context, VSGPUReleaseFunc release, void *object, VkDeviceSize bytes = 0);
 
     /* Gives up on a recording instead of submitting it. Everything retained is released at
@@ -158,7 +160,9 @@ public:
        next acquire. */
     void abandon(VSVulkanExecContext &context);
 
-    /* Host waits, always outside every lock. */
+    /* Host waits, always outside every lock. waitAll also reaps what the waited submissions
+       retained, which is the public gpuExecPoolWaitIdle contract; recordings other threads
+       hold at the time are not submissions yet and are left alone. */
     bool waitValue(uint64_t value, std::string &errorMessage);
     bool waitAll(std::string &errorMessage);
 
@@ -169,6 +173,13 @@ public:
        this across all registered pools from the memory pressure paths. Safe from any thread:
        a context is only touched once its claim is won, so live recordings are skipped. */
     void sweepCompleted();
+    /* The two halves of sweepCompleted, for a caller that must not run release callbacks
+       where it stands: detachCompleted settles the completed retentions' bytes and moves
+       them into out, runReleases invokes them. The device's registry sweep detaches under
+       its lock and releases after dropping it, since a release callback may create or
+       destroy a pool, or acquire from another one, all of which come back to that lock. */
+    void detachCompleted(std::vector<VSVulkanExecRetained> &out);
+    static void runReleases(std::vector<VSVulkanExecRetained> &detached);
 
     /* The pool's timeline, handed to frames as their producer sync. The pool holds one
        reference; frames published from it hold their own, so the semaphore survives the pool
@@ -182,6 +193,7 @@ public:
 
 private:
     void releaseClaim(VSVulkanExecContext &context);
+    void settleRetained(VSVulkanExecContext &context);
     void releaseRetained(VSVulkanExecContext &context);
 
     VSVulkanDevice *dev = nullptr;

@@ -5,9 +5,9 @@
 * a filter whose kernels belong to another API entirely, borrowing the frames zero copy.
 *
 *   - the Vulkan device is matched to a CUDA device by UUID
-*   - frame planes are wrapped via exportGPUPlane: one cudaImportExternalMemory per 128 MB
-*     allocation, cached by memoryId, per-plane pointers by offset — the kernels then read
-*     and write the exact VRAM the Vulkan buffers occupy
+*   - frame planes are wrapped via exportGPUPlane: one cudaImportExternalMemory and one
+*     mapping per 128 MB allocation, cached by memoryId, per-plane pointers by offset — the
+*     kernels then read and write the exact VRAM the Vulkan buffers occupy
 *   - synchronization is device side when possible: input producer pairs are imported with
 *     cudaImportExternalSemaphore (cached by VkSemaphore value, which the producer pair
 *     contract keeps stable for this instance's lifetime) and waited IN THE STREAM; the
@@ -80,8 +80,9 @@ typedef struct {
     cudaStream_t stream;
     int semCapable; /* device side sync available and usable */
 
-    /* Memory imports cached per underlying allocation. */
-    struct { uint64_t memoryId; cudaExternalMemory_t mem; } imports[MAX_IMPORTS];
+    /* Memory imports cached per underlying allocation, each with the one mapping of its
+       whole range that every plane pointer is derived from. */
+    struct { uint64_t memoryId; cudaExternalMemory_t mem; void *base; } imports[MAX_IMPORTS];
     int importCount;
 
     /* Semaphore imports cached per producer timeline. */
@@ -115,23 +116,47 @@ typedef struct {
 #define UNLOCK(d) pthread_mutex_unlock(&(d)->lock)
 #endif
 
-/* Returns the device pointer for a plane, importing its backing allocation on first sight.
-   Must be called with the instance lock held. */
+/* NT handles are never consumed by an import, so every export call's handle is closed; on
+   the fd side a successful import takes the descriptor over and leaves -1 behind, so only a
+   cache hit's surplus descriptor, or a failed import's, is still ours to close. */
+static void closeExportHandle(const VSVulkanExportedMemory *exp) {
+#ifdef _WIN32
+    CloseHandle((HANDLE)exp->handle);
+#else
+    if (exp->handle >= 0)
+        close((int)exp->handle);
+#endif
+}
+
+/* Returns the device pointer for a plane, importing and mapping its backing allocation on
+   first sight. The mapping covers the whole allocation and is taken exactly once: every
+   cudaExternalMemoryGetMappedBuffer call is a device allocation of its own that has to be
+   given back with cudaFree, so mapping per plane access would leak one per plane per frame.
+   Plane pointers are that one mapping plus the export's offset. Must be called with the
+   instance lock held. */
 static void *mapPlane(CudaInvertData *d, const VSFrame *frame, int plane, char *err, int errSize) {
     VSVulkanExportedMemory exp;
+    void *base = NULL;
     int i;
     if (d->vkapi->exportGPUPlane(frame, plane, &exp, err, errSize))
         return NULL;
 
-    cudaExternalMemory_t mem = NULL;
     for (i = 0; i < d->importCount; i++) {
         if (d->imports[i].memoryId == exp.memoryId) {
-            mem = d->imports[i].mem;
+            base = d->imports[i].base;
             break;
         }
     }
-    if (!mem) {
+    if (!base) {
+        cudaExternalMemory_t mem = NULL;
         cudaExternalMemoryHandleDesc hd;
+        cudaExternalMemoryBufferDesc bd;
+        /* Checked before importing, so a full cache never leaks an imported object. */
+        if (d->importCount >= MAX_IMPORTS) {
+            snprintf(err, errSize, "InvertCUDA: more than %d distinct allocations to import", MAX_IMPORTS);
+            closeExportHandle(&exp);
+            return NULL;
+        }
         memset(&hd, 0, sizeof(hd));
 #ifdef _WIN32
         hd.type = cudaExternalMemoryHandleTypeOpaqueWin32;
@@ -141,38 +166,30 @@ static void *mapPlane(CudaInvertData *d, const VSFrame *frame, int plane, char *
         hd.handle.fd = (int)exp.handle;
 #endif
         hd.size = exp.memorySize;
-        if (cudaImportExternalMemory(&mem, &hd) != cudaSuccess || d->importCount >= MAX_IMPORTS) {
+        if (cudaImportExternalMemory(&mem, &hd) != cudaSuccess) {
             snprintf(err, errSize, "cudaImportExternalMemory failed");
-#ifdef _WIN32
-            CloseHandle((HANDLE)exp.handle);
+            closeExportHandle(&exp);
+            return NULL;
+        }
+#ifndef _WIN32
+        exp.handle = -1; /* fd ownership moved to CUDA on success */
 #endif
+        memset(&bd, 0, sizeof(bd));
+        bd.offset = 0;
+        bd.size = exp.memorySize;
+        if (cudaExternalMemoryGetMappedBuffer(&base, mem, &bd) != cudaSuccess) {
+            snprintf(err, errSize, "cudaExternalMemoryGetMappedBuffer failed");
+            cudaDestroyExternalMemory(mem);
+            closeExportHandle(&exp);
             return NULL;
         }
         d->imports[d->importCount].memoryId = exp.memoryId;
         d->imports[d->importCount].mem = mem;
+        d->imports[d->importCount].base = base;
         d->importCount++;
-#ifndef _WIN32
-        exp.handle = -1; /* fd ownership moved to CUDA on success */
-#endif
     }
-#ifdef _WIN32
-    /* NT handles are never consumed; every export call made one, so every call closes it. */
-    CloseHandle((HANDLE)exp.handle);
-#else
-    if (exp.handle >= 0)
-        close((int)exp.handle); /* surplus fd from a cache hit */
-#endif
-
-    void *ptr = NULL;
-    cudaExternalMemoryBufferDesc bd;
-    memset(&bd, 0, sizeof(bd));
-    bd.offset = exp.offset;
-    bd.size = exp.size;
-    if (cudaExternalMemoryGetMappedBuffer(&ptr, mem, &bd) != cudaSuccess) {
-        snprintf(err, errSize, "cudaExternalMemoryGetMappedBuffer failed");
-        return NULL;
-    }
-    return ptr;
+    closeExportHandle(&exp);
+    return (unsigned char *)base + exp.offset;
 }
 
 /* Imports a producer pair's timeline, cached; returns NULL when it cannot be exported,
@@ -347,8 +364,13 @@ static void VS_CC cudaInvertFree(void *instanceData, VSCore *core, const VSAPI *
         cudaDestroyExternalSemaphore(d->semImports[i].cudaSem);
     if (d->cudaTimeline)
         cudaDestroyExternalSemaphore(d->cudaTimeline);
-    for (i = 0; i < d->importCount; i++)
+    for (i = 0; i < d->importCount; i++) {
+        /* The mapping first: it is a device allocation of its own, and destroying the
+           external memory under it does not free it. The stream is synchronized and the
+           timeline waited above, so no kernel still reads through it. */
+        cudaFree(d->imports[i].base);
         cudaDestroyExternalMemory(d->imports[i].mem);
+    }
     if (d->stream)
         cudaStreamDestroy(d->stream);
     /* Just this filter's reference; outputs still naming it keep the semaphore alive. */

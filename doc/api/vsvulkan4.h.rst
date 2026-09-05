@@ -1008,9 +1008,11 @@ VSGPUExecPool_ \*createGPUExecPool(VSCore \*core, int queue, char \*errorMessage
    filter knowledge — and how much memory queued submissions may pin is
    bounded separately: acquiring waits out the ring's oldest submission, and
    may additionally wait on the core's device-wide in-flight budget, which
-   caps the total bytes queued submissions retain across all pools. Filters
-   notice nothing but an occasional slower acquire when a graph runs far
-   ahead of the GPU. The pool's timeline is created exportable when the
+   caps the total bytes submitted-but-unfinished work retains across all
+   pools. Only submitted work counts, so a recording a thread already holds
+   never gates that thread. Filters notice nothing but an occasional slower
+   acquire when a graph runs far ahead of the GPU. The pool's timeline is
+   created exportable when the
    device can, so consumers in other APIs can wait the producer pairs it
    publishes.
 
@@ -1047,7 +1049,9 @@ int gpuExecPoolWaitIdle(VSGPUExecPool_ \*pool, char \*errorMessage, int errorMes
    the device instead — but one shot setup work, such as uploading weights or
    tables a filter will read for the rest of its life, has to know the copy
    landed before recording anything that reads it. Also releases everything
-   those submissions were keeping alive.
+   those submissions were keeping alive, running their release callbacks on
+   the calling thread; recordings other threads hold at the time are not
+   submissions yet and are left alone.
 
 ----------
 
@@ -1156,14 +1160,15 @@ void gpuExecRetain(VSGPUExecContext_ \*context, VSGPUReleaseFunc_ release, void 
    along the same way.
 
    *bytes* is what the object pins in device memory, counted against the
-   in-flight retention budget until release; pass 0 for host side
-   bookkeeping, and do not count bytes the typed calls already counted for
-   the same object.
+   in-flight retention budget from submit until release; pass 0 for host
+   side bookkeeping, and do not count bytes the typed calls already counted
+   for the same object.
 
    The callback runs on whichever thread reaps the submission — another
    filter's submit, or a core memory pressure sweep — so it must be safe to
-   call from any thread. No pool lock is held while it runs, so it may take
-   its own; it must not acquire a context from the pool that is reaping it.
+   call from any thread. No core lock is held while it runs, so it may take
+   its own, create or destroy pools, and acquire from another pool; it must
+   not acquire a context from the pool that is reaping it.
 
 ----------
 

@@ -1142,9 +1142,19 @@ void VSVulkanDevice::unregisterExecPool(VSVulkanExecPool *pool) {
 }
 
 void VSVulkanDevice::sweepExecPools() {
-    std::lock_guard<std::mutex> lock(execPoolsMutex);
-    for (VSVulkanExecPool *pool : execPools)
-        pool->sweepCompleted();
+    /* The registry lock covers the walk only. The releases are collected under it and run
+       once it is dropped: a release callback may create or destroy a pool, or acquire from
+       another one whose admission gate sweeps in turn, and every one of those comes back to
+       this lock. Nothing touches a pool after the unlock -- what it handed over belongs to
+       the retained objects, not to it -- so a pool whose destructor gets the lock the moment
+       it is dropped is fine. */
+    std::vector<VSVulkanExecRetained> detached;
+    {
+        std::lock_guard<std::mutex> lock(execPoolsMutex);
+        for (VSVulkanExecPool *pool : execPools)
+            pool->detachCompleted(detached);
+    }
+    VSVulkanExecPool::runReleases(detached);
 }
 
 bool VSVulkanDevice::ensureExecProgressSemaphore() {
@@ -1171,24 +1181,27 @@ void VSVulkanDevice::execAdmissionGate() {
     if (!budget || execRetainedBytes.load(std::memory_order_relaxed) <= budget)
         return;
     for (;;) {
-        /* First reap everything already completed — a gated thread must collect for itself,
-           since the case where every worker stands here is exactly the one where nobody
-           else is left to sweep. */
+        /* The progress counter is sampled before the sweep, so a completion landing between
+           the two is either reaped by the sweep or still ahead of the wait target below, and
+           the wait then returns at once. Sampled after, it would already include that
+           completion while the sweep had missed its bytes, and the wait would sleep out its
+           whole timeout on an idle device. Loaded once and used throughout the round: a pool
+           created underneath us may publish the handle at any point, and the wait has to
+           name the semaphore the counter was read from. */
+        VkSemaphore progressSem = execProgressSem.load(std::memory_order_acquire);
+        uint64_t counter = 0;
+        const bool canWait = progressSem &&
+            vk.vkGetSemaphoreCounterValue(deviceHandle, progressSem, &counter) == VK_SUCCESS;
+        /* Reap everything already completed — a gated thread must collect for itself, since
+           the case where every worker stands here is exactly the one where nobody else is
+           left to sweep. */
         sweepExecPools();
         if (execRetainedBytes.load(std::memory_order_relaxed) <= budget)
             return;
-        /* Loaded once and used throughout the round: a pool created underneath us may
-           publish the handle at any point, and the wait below has to name the semaphore
-           the counter was read from. */
-        VkSemaphore progressSem = execProgressSem.load(std::memory_order_acquire);
-        if (!progressSem)
+        if (!canWait)
             return; /* no wakeup available: running past the budget beats spinning */
-        uint64_t counter = 0;
-        if (vk.vkGetSemaphoreCounterValue(deviceHandle, progressSem, &counter) != VK_SUCCESS)
-            return;
         /* Sleep until any compute submission completes. The bound is not decorative: bytes
-           can be pinned by recordings that have not submitted yet and by pools on other
-           queues, neither of which will ever signal this semaphore. */
+           can be pinned by pools on other queues, which never signal this semaphore. */
         const uint64_t target = counter + 1;
         VkSemaphoreWaitInfo waitInfo = {};
         waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;

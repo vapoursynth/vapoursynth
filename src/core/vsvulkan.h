@@ -522,8 +522,9 @@ public:
     /* The in-flight retention budget. Per pool contextCount caps multiply across a graph's
        nodes while the GPU executes one submission at a time, so nothing else bounds how much
        queued work pins. acquire() blocks while the total exceeds the budget, sweeping and
-       sleeping on the progress timeline every compute submission signals. Zero disables the
-       gate; the core sets a quarter of the VRAM limit. */
+       sleeping on the progress timeline every compute submission signals. The total counts
+       submitted work only, so it always drains without the gated thread's help. Zero
+       disables the gate; the core sets a quarter of the VRAM limit. */
     void setExecRetainedBudget(uint64_t bytes) { execRetainedBudget.store(bytes, std::memory_order_relaxed); }
     void addExecRetained(uint64_t bytes) { execRetainedBytes.fetch_add(bytes, std::memory_order_relaxed); }
     void subExecRetained(uint64_t bytes) { execRetainedBytes.fetch_sub(bytes, std::memory_order_relaxed); }
@@ -602,8 +603,10 @@ private:
     void *accountUserData = nullptr;
     std::atomic<VSVulkanPressureFn> pressureFn{nullptr};
     std::atomic<void *> pressureUserData{nullptr};
-    /* Held for the whole of a sweep, which is what makes unregistration in the pool
-       destructor a safe rendezvous: after unregister returns no sweep can see the pool. */
+    /* Held for the walk of a sweep, which is what makes unregistration in the pool
+       destructor a safe rendezvous: after unregister returns no sweep can see the pool. The
+       release callbacks a sweep collects run after it is dropped, since they may register,
+       unregister or sweep themselves. */
     std::mutex execPoolsMutex;
     std::vector<VSVulkanExecPool *> execPools;
     std::atomic<uint64_t> execRetainedBytes{0};

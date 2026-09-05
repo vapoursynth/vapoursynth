@@ -462,7 +462,7 @@ underneath all retire together, and one registration of a struct holding the
 three frees them in the right order (views, image, then freeGPUMemory) where a
 call per object could not express the ordering. The *bytes* argument is what the
 object pins in device memory, counted against the in-flight retention budget
-until release; pass 0 for host side bookkeeping. Retentions are released on the
+from submit until release; pass 0 for host side bookkeeping. Retentions are released on the
 schedule described above — the pool's next submit, the context's next acquire,
 a pressure sweep or pool destruction — so the guarantee is that nothing is
 recycled early, not that it comes back at a particular moment.

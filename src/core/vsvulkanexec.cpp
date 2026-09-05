@@ -41,20 +41,29 @@ VSVulkanExecPool::~VSVulkanExecPool() {
 
 void VSVulkanExecPool::retain(VSVulkanExecContext &context, VSGPUReleaseFunc release, void *object, VkDeviceSize bytes) {
     context.retained.push_back({ release, object });
-    if (bytes) {
-        context.retainedBytes += bytes;
-        dev->addExecRetained(bytes);
-    }
+    context.retainedBytes += bytes;
+}
+
+/* The bytes leave the device total before any release runs, not after: a release callback
+   may acquire from another pool, and that pool's admission gate would otherwise wait on the
+   very bytes the callback is about to free -- with nothing else left to release, forever.
+   The price is a thread admitted a moment before a region is back on the free list, which
+   the allocator's failure path covers by sweeping and retrying. Only a submitted recording's
+   bytes ever reached the total, so an abandoned or failed one has nothing to give back. */
+void VSVulkanExecPool::settleRetained(VSVulkanExecContext &context) {
+    if (context.retainedCounted)
+        dev->subExecRetained(context.retainedBytes);
+    context.retainedBytes = 0;
+    context.retainedCounted = false;
 }
 
 void VSVulkanExecPool::releaseRetained(VSVulkanExecContext &context) {
-    for (const auto &r : context.retained)
-        r.release(r.object);
+    settleRetained(context);
+    /* Moved out first, so a release that reaches back into the pool never meets a list in
+       the middle of being walked. */
+    std::vector<VSVulkanExecRetained> retained = std::move(context.retained);
     context.retained.clear();
-    if (context.retainedBytes) {
-        dev->subExecRetained(context.retainedBytes);
-        context.retainedBytes = 0;
-    }
+    runReleases(retained);
 }
 
 void VSVulkanExecPool::abandon(VSVulkanExecContext &context) {
@@ -120,6 +129,12 @@ bool VSVulkanExecPool::init(VSVulkanDevice &device, VSVulkanQueue &queue, uint32
 }
 
 void VSVulkanExecPool::sweepCompleted() {
+    std::vector<VSVulkanExecRetained> detached;
+    detachCompleted(detached);
+    runReleases(detached);
+}
+
+void VSVulkanExecPool::detachCompleted(std::vector<VSVulkanExecRetained> &out) {
     uint64_t counter = 0;
     if (dev->vk.vkGetSemaphoreCounterValue(dev->device(), timeline->semaphore(), &counter) != VK_SUCCESS)
         return;
@@ -127,8 +142,8 @@ void VSVulkanExecPool::sweepCompleted() {
         /* The claim is the only thing that may be looked at unclaimed. Skipping on an
            empty retention list would be cheaper, but retain() pushes onto that vector
            from the thread holding the context between acquire and submit, so reading it
-           before the claim is won is a data race; releaseRetained on an empty list is a
-           no-op anyway, so the claim costs a CAS and nothing else. */
+           before the claim is won is a data race; moving an empty list is a no-op anyway,
+           so the claim costs a CAS and nothing else. */
         if (context->claimed.load(std::memory_order_relaxed))
             continue;
         bool expected = false;
@@ -137,18 +152,27 @@ void VSVulkanExecPool::sweepCompleted() {
         /* Everything retained belongs to the context's last submission, so one value check
            covers the lot; an unsubmitted context can hold nothing here since abandon and
            acquire both clear before the claim drops. */
-        if (context->pendingValue && context->pendingValue <= counter)
-            releaseRetained(*context);
+        if (context->pendingValue && context->pendingValue <= counter) {
+            settleRetained(*context);
+            out.insert(out.end(), context->retained.begin(), context->retained.end());
+            context->retained.clear();
+        }
         releaseClaim(*context);
     }
 }
 
+void VSVulkanExecPool::runReleases(std::vector<VSVulkanExecRetained> &detached) {
+    for (const auto &r : detached)
+        r.release(r.object);
+    detached.clear();
+}
+
 VSVulkanExecContext *VSVulkanExecPool::acquire(std::string &errorMessage) {
     /* Admission: before this thread claims anything, the device may hold it back while the
-       bytes pinned by queued submissions exceed the in-flight budget. Blocking here rather
-       than in submit means a gated thread owns no context and no recording, and the queue
-       always drains without its help — every device side wait in it names a producer that
-       was already submitted when its consumer recorded. */
+       bytes pinned by submitted work exceed the in-flight budget. Only submitted work
+       counts, so a recording this thread already holds -- on this pool or another -- never
+       gates it, and the queue drains without its help either way: every device side wait
+       in it names a producer that was already submitted when its consumer recorded. */
     dev->execAdmissionGate();
 
     VSVulkanExecContext *context = nullptr;
@@ -290,13 +314,17 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
         }
     }
 
-    /* A failed submission executes nothing, so nothing this recording pinned is in flight.
-       Released here rather than left to a sweep: a context whose first submission failed
-       keeps pendingValue at 0, which sweepCompleted skips, so its retentions and their
-       share of the device's in-flight budget would stay pinned until the pool dies -- and
-       the admission gate would sleep against phantom bytes nothing can ever release. */
-    if (res != VK_SUCCESS)
+    /* The retention enters the in-flight total now that it is really in flight; the claim
+       is still held, so no sweep can release it before it is counted. A failed submission
+       executes nothing, so nothing this recording pinned is in flight: released here rather
+       than left to a sweep, since a context whose first submission failed keeps pendingValue
+       at 0, which the sweeps skip, and its retentions would stay parked until the pool dies. */
+    if (res == VK_SUCCESS) {
+        dev->addExecRetained(context.retainedBytes);
+        context.retainedCounted = true;
+    } else {
         releaseRetained(context);
+    }
 
     releaseClaim(context);
     /* Every submission also reaps what the pool's other contexts finished in the meantime,
@@ -332,7 +360,15 @@ bool VSVulkanExecPool::waitAll(std::string &errorMessage) {
         std::lock_guard<VSVulkanQueue> queueLock(*q);
         value = nextValue;
     }
-    return value == 0 || waitValue(value, errorMessage);
+    if (value == 0)
+        return true;
+    if (!waitValue(value, errorMessage))
+        return false;
+    /* Waited is not yet released: without this the setup upload a filter waits for at
+       create would park its staging buffer until the pool's first frame submit, and an
+       idle pool would keep everything its last submissions read until a pressure sweep. */
+    sweepCompleted();
+    return true;
 }
 
 void VSVulkanExecPool::releaseClaim(VSVulkanExecContext &context) {

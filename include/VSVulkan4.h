@@ -615,9 +615,10 @@ struct VSVULKANAPI {
        concurrent is core knowledge, not filter knowledge, and how much memory queued
        submissions may pin is bounded separately: acquiring waits out the ring's oldest
        submission, and may additionally wait on the core's device-wide in-flight budget,
-       which caps the total bytes queued submissions retain (a quarter of the VRAM limit)
-       across all pools. Filters notice nothing but an occasional slower acquire when a
-       graph runs far ahead of the GPU. The pool's timeline is created exportable when the
+       which caps the total bytes submitted-but-unfinished work retains (a quarter of the
+       VRAM limit) across all pools. Only submitted work counts, so a recording a thread
+       already holds never gates that thread. Filters notice nothing but an occasional
+       slower acquire when a graph runs far ahead of the GPU. The pool's timeline is created exportable when the
        device can, so consumers in other APIs can wait the producer pairs it publishes.
        Destroy it in the filter's free callback; freeGPUExecPool drains the GPU first, so
        everything it still holds is released safely.
@@ -637,7 +638,9 @@ struct VSVULKANAPI {
        need this per frame — producer pairs make consumers wait on the device instead — but
        one shot setup work, such as uploading weights or tables a filter will read for the
        rest of its life, has to know the copy landed before recording anything that reads
-       it. Also releases everything those submissions were keeping alive. */
+       it. Also releases everything those submissions were keeping alive, running their
+       release callbacks on the calling thread; recordings other threads hold at the time
+       are not submissions yet and are left alone. */
     int (VS_CC *gpuExecPoolWaitIdle)(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 
     /* The pool's timeline as the counted object setGPUPlaneProducer takes, for publishing
@@ -653,7 +656,11 @@ struct VSVULKANAPI {
     /* ---- Recording contexts ---- */
 
     /* Claims a context and begins recording; returns NULL with the error set on device
-       loss. Every acquire must end in exactly one submit or abandon. */
+       loss. Every acquire must end in exactly one submit or abandon. Acquires may nest,
+       within one pool or across pools: the in-flight budget counts submitted work only, so
+       a recording never gates the thread holding it. What a nested acquire on the same pool
+       can still wait for is a free slot in the ring, which is sized to the core's worker
+       count. */
     VSGPUExecContext *(VS_CC *gpuExecAcquire)(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
     /* The command buffer being recorded: put anything Vulkan allows into it. */
     VkCommandBuffer (VS_CC *gpuExecCommandBuffer)(VSGPUExecContext *context) VS_NOEXCEPT;
@@ -694,12 +701,12 @@ struct VSVULKANAPI {
        object could not express the ordering.
 
        bytes is what the object pins in device memory, counted against the in-flight retention
-       budget until release; pass 0 for host side bookkeeping, and do not double count bytes a
-       typed call already counted for the same object.
+       budget from submit until release; pass 0 for host side bookkeeping, and do not double
+       count bytes a typed call already counted for the same object.
 
        The callback runs on whichever thread reaps the submission, so it must be threadsafe.
-       No pool lock is held, so it may take its own, but it must not acquire a context from the
-       pool that is reaping it. */
+       No core lock is held, so it may take its own, create or destroy pools, and acquire from
+       another pool; it must not acquire a context from the pool that is reaping it. */
     void (VS_CC *gpuExecRetain)(VSGPUExecContext *context, VSGPUReleaseFunc release,
         void *object, VkDeviceSize bytes) VS_NOEXCEPT;
 
