@@ -297,21 +297,35 @@ struct Instance {
             return;
         /* Drain first so nothing a submission still uses is destroyed under it; the pool is
            freed last because its device reference is the only thing here guaranteed to keep
-           vk and handles.device alive through the destruction below. */
+           vk and handles.device alive through the destruction below.
+
+           A drain that fails establishes nothing: the recording is still queued and may still be
+           bound to the pipelines and reading the constants below, so none of it is destroyed in
+           that case. Leaking is the same trade the readback path here makes when its own drain
+           fails, and the one the core's pool destructor makes with its command pools. It is
+           over-conservative in exactly one case -- a device reset, where nothing is executing
+           and all of it could go -- which the public API gives a filter no way to recognise;
+           that case ends in a restart anyway. A pool that never existed drained
+           trivially. */
+        bool drained = true;
         if (pool) {
             char err[512] = { 0 };
-            vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err));
+            drained = vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err)) == 0;
         }
-        for (VSGPUBuffer *b : constantBuffers)
-            vkapi->destroyGPUBuffer(b);
-        for (size_t i = 0; i < pipelines.size(); i++) {
-            if (pipelines[i])
-                vk->vkDestroyPipeline(handles.device, pipelines[i], nullptr);
-            if (pipeLayouts[i])
-                vk->vkDestroyPipelineLayout(handles.device, pipeLayouts[i], nullptr);
-            if (setLayouts[i])
-                vk->vkDestroyDescriptorSetLayout(handles.device, setLayouts[i], nullptr);
+        if (drained) {
+            for (VSGPUBuffer *b : constantBuffers)
+                vkapi->destroyGPUBuffer(b);
+            for (size_t i = 0; i < pipelines.size(); i++) {
+                if (pipelines[i])
+                    vk->vkDestroyPipeline(handles.device, pipelines[i], nullptr);
+                if (pipeLayouts[i])
+                    vk->vkDestroyPipelineLayout(handles.device, pipeLayouts[i], nullptr);
+                if (setLayouts[i])
+                    vk->vkDestroyDescriptorSetLayout(handles.device, setLayouts[i], nullptr);
+            }
         }
+        /* Always, whatever the drain said: the pool's own destructor makes the same decision
+           for the things it owns, and skipping it would leak the pool itself on top. */
         if (pool)
             vkapi->freeGPUExecPool(pool);
     }

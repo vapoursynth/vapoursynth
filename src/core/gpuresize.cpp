@@ -2261,14 +2261,19 @@ struct GPUResizeData {
         if (vk) {
             /* Drain first so pipelines a submission was still using are safe to destroy;
                the pool is freed last because its device reference is the only thing here
-               keeping vk and handles.device alive through the destruction below. */
+               keeping vk and handles.device alive through the destruction below. A failed
+               drain establishes nothing, so the pipelines and the dither buffer stay --
+               see the same reasoning on gpufilter.h's Instance destructor. */
+            bool drained = true;
             if (pool) {
                 char err[512] = { 0 };
-                vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err));
+                drained = vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err)) == 0;
             }
-            if (ditherBuffer)
-                vkapi->destroyGPUBuffer(ditherBuffer);
-            destroyPipeSet(pipes);
+            if (drained) {
+                if (ditherBuffer)
+                    vkapi->destroyGPUBuffer(ditherBuffer);
+                destroyPipeSet(pipes);
+            }
             if (pool)
                 vkapi->freeGPUExecPool(pool);
         }
