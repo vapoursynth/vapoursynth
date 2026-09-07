@@ -431,6 +431,18 @@ public:
            seen the context nulled yet, so the pair it calls with is always consistent. */
         logFn.store(nullptr);
         logUserData.store(nullptr);
+        /* Consistent is not the same as alive, which is what this waits for. Retracting stops
+           readers that have not started; one that already loaded the pair holds a pointer to
+           the core and calls through it whenever it next runs, which may be after this core is
+           gone. Sequential consistency puts all of these in one order, so a reader that counts
+           itself in after the store above loads a null function and calls nothing, while one
+           that counted itself in before is seen here and waited for -- and no call can still be
+           in flight when this returns. The wait is bounded by the log handler, which for the
+           Python one takes the GIL, so a binding must not hold the GIL across freeCore;
+           vapoursynth.pyx does not. Only the debug messenger reaches emitLog concurrently, and
+           it exists only under VS_VULKAN_VALIDATION, so this drains nothing in a normal run. */
+        while (logReaders.load())
+            std::this_thread::yield();
         release();
     }
 
@@ -729,6 +741,9 @@ private:
     bool luidValid = false;
     std::atomic<VSVulkanLogFn> logFn{nullptr};
     std::atomic<void *> logUserData{nullptr};
+    /* Readers currently inside emitLog, so onCoreFreed can wait out the ones that captured the
+       pair before it retracted. Mutable because emitLog is const. */
+    mutable std::atomic<int> logReaders{0};
     VSVulkanAccountFn accountFn = nullptr;
     VSVulkanAccountFn hostAccountFn = nullptr;
     VSVulkanAccountFn callAccountFn = nullptr;

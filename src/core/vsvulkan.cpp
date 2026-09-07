@@ -471,12 +471,16 @@ void VSVulkanDevice::teardown() {
 }
 
 void VSVulkanDevice::emitLog(int severity, const std::string &message) const {
+    /* Counted across the whole call, before the pair is even read, so onCoreFreed can drain
+       readers holding a core pointer it has already retracted; see logReaders there. */
+    logReaders.fetch_add(1);
     /* userData before the function, mirroring the writers' opposite order, so seeing a
        function guarantees the userData loaded with it is the matching one. */
     void *userData = logUserData.load();
     VSVulkanLogFn fn = logFn.load();
     if (fn)
         fn(severity, message.c_str(), userData);
+    logReaders.fetch_sub(1);
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VSVulkanDevice::debugMessengerTrampoline(
