@@ -285,7 +285,6 @@ struct Instance {
     VSGPUExecPool *pool = nullptr;
     /* The pool's timeline, kept raw for the per submission readback waits; the pool owns
        it and outlives every use here. */
-    VkSemaphore poolTimelineSem = VK_NULL_HANDLE;
     std::vector<VkDescriptorSetLayout> setLayouts;
     std::vector<VkPipelineLayout> pipeLayouts;
     std::vector<VkPipeline> pipelines;
@@ -781,15 +780,12 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
     }
 
     if (readbackBuffer) {
-        /* Wait for exactly this frame's submission on the pool timeline -- concurrent
-           frames keep their own submissions flowing -- then let the filter finish the
-           reduction on the host and write its properties. */
-        VkSemaphoreWaitInfo waitInfo = {};
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &inst->poolTimelineSem;
-        waitInfo.pValues = &signaled;
-        if (inst->vk->vkWaitSemaphores(inst->handles.device, &waitInfo, UINT64_MAX) != VK_SUCCESS) {
+        /* Wait for exactly this frame's submission -- concurrent frames keep their own
+           submissions flowing -- then let the filter finish the reduction on the host and
+           write its properties. Through the API rather than vkWaitSemaphores directly, so a
+           reset that force-signalled the timeline is reported instead of being read as a
+           completed dispatch, and an allocation failure inside the wait is retried. */
+        if (inst->vkapi->gpuExecWaitValue(inst->pool, signaled, err, sizeof(err))) {
             vsapi->setFilterError("GPU filter: waiting for the readback failed", frameCtx);
             /* The submission is queued and may still be writing this buffer -- the wait
                failing says nothing about the GPU being done -- so its region must not go
@@ -800,29 +796,6 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                which this one cannot: the host reads its mapping after the submission. */
             if (!inst->vkapi->gpuExecPoolWaitIdle(inst->pool, err, sizeof(err)))
                 inst->vkapi->destroyGPUBuffer(readbackBuffer);
-            releaseSources();
-            vsapi->freeFrame(dst);
-            return nullptr;
-        }
-        /* A wait returning is not proof the dispatch ran, which is why the core routes every
-           wait of its own through one checked helper -- and this one, waiting a single value
-           by hand to keep concurrent frames flowing, has to make the same check itself. A GPU
-           reset releases every waiter by force-signalling the timelines past anything they
-           could be waiting for, so the wait above is satisfied at once while the mapping below
-           still holds whatever was in it, and finishReadback would turn that into frame
-           properties nothing marks as wrong. Ask what value actually satisfied the wait: only
-           a reset puts a pool timeline at the maximum, reaching it by submitting being 2^64
-           frames away. Destroying the buffer is safe in every branch here -- the wait
-           returned, so absent a reset the dispatch is complete, and a reset has abandoned
-           it. */
-        uint64_t reached = 0;
-        const VkResult counterRes = inst->vk->vkGetSemaphoreCounterValue(inst->handles.device,
-            inst->poolTimelineSem, &reached);
-        if (counterRes != VK_SUCCESS || reached == UINT64_MAX) {
-            vsapi->setFilterError(counterRes != VK_SUCCESS
-                ? "GPU filter: could not confirm the readback completed"
-                : "GPU filter: the GPU device was reset before the readback completed", frameCtx);
-            inst->vkapi->destroyGPUBuffer(readbackBuffer);
             releaseSources();
             vsapi->freeFrame(dst);
             return nullptr;
@@ -1029,7 +1002,6 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
     inst->pool = inst->vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
     if (!inst->pool)
         return fail(err);
-    inst->poolTimelineSem = inst->vkapi->getGPUTimelineSemaphore(inst->vkapi->gpuExecPoolTimeline(inst->pool));
 
     /* Constants are staged and copied once, here, so every frame afterwards reads device
        local memory. The staging buffer is handed to the context, which destroys it when the

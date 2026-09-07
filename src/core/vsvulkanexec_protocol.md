@@ -93,7 +93,9 @@ It is also unmistakable, since a pool would need 2^64 submissions to reach it. `
 and the admission gate therefore test for `VSVulkanDevice::resetTimelineValue` and set the
 device's one-way `deviceLost` flag, and `waitTimelines` -- the single wait policy every host
 wait goes through (I30) -- tests the counter that actually satisfied a successful wait, so the
-call that discovers the reset is never also the one that reports work complete. From then on `acquire`, `submit`, `waitValue`, `waitAll` and `flushDeviceWrites` fail
+call that discovers the reset is never also the one that reports work complete. Filters reach
+that same policy through `gpuExecWaitValue`, which exists so that waiting on one submission does
+not mean hand-rolling `vkWaitSemaphores` and re-deriving the check. From then on `acquire`, `submit`, `waitValue`, `waitAll` and `flushDeviceWrites` fail
 with `deviceLostMessage`, which travels the ordinary filter error path; the sweeps stop reaping
 and the gate returns at once rather than spinning on a progress counter whose `counter + 1`
 wraps to zero. What a pool still retains is released by its destructor, which is safe because

@@ -1812,6 +1812,18 @@ static int VS_CC vkGPUExecPoolWaitIdle(VSGPUExecPool *pool, char *errorMessage, 
     return 0;
 }
 
+static int VS_CC vkGPUExecWaitValue(VSGPUExecPool *pool, uint64_t value, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(pool);
+    std::string err;
+    /* Straight to the pool's own wait, which is the core's single wait policy: the reset check
+       and the retry come with it rather than being anything the caller has to remember. */
+    if (!pool->pool.waitValue(value, err)) {
+        copyVulkanError(err, errorMessage, errorMessageSize);
+        return 1;
+    }
+    return 0;
+}
+
 static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int maxEntries, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     std::vector<VSVulkanDeviceInfo> devices;
     std::string err;
@@ -1870,6 +1882,7 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     .createGPUExecPool = &vkCreateGPUExecPool,
     .freeGPUExecPool = &vkFreeGPUExecPool,
     .gpuExecPoolWaitIdle = &vkGPUExecPoolWaitIdle,
+    .gpuExecWaitValue = &vkGPUExecWaitValue,
     .gpuExecPoolTimeline = &vkGPUExecPoolTimeline,
 
     .gpuExecAcquire = &vkGPUExecAcquire,

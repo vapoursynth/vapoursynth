@@ -20,6 +20,11 @@
 
 /* The GPU side of the API, obtained through VSAPI::getVulkanAPI. It has no version of its own and
  * grows with the core API instead, so there is nothing to negotiate and the call cannot fail. It
+ * is also organised for reading rather than for offsets: a new entry point goes with the ones it
+ * belongs to, which moves every pointer after it, so everything built against this header is
+ * rebuilt when it changes -- the same lockstep the core API already asks for. Nothing warns about
+ * getting that wrong, because nothing can: a plugin left over from an older header still links and
+ * still runs, and simply calls the neighbouring function. It
  * is deliberately a raw exposure: the core hands out its Vulkan handles and per plane buffers, and
  * a GPU filter brings its own pipelines, command buffers and synchronization on top of them. The
  * contract in short:
@@ -701,6 +706,22 @@ struct VSVULKANAPI {
        instance, the two rules leave no moment at which this call can race an acquire. */
     int (VS_CC *gpuExecPoolWaitIdle)(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 
+    /* Waits for one value on the pool's timeline -- the signaledValue gpuExecSubmit handed
+       back -- instead of for the whole pool, so the frames running beside this one keep their
+       submissions flowing. This is how a filter waits on the host; do not wait on the timeline
+       yourself with vkWaitSemaphores, because a bare wait cannot tell you the one thing that
+       matters afterwards. A GPU reset releases every waiter by force-signalling the timelines
+       past anything they could be waiting for, so a raw wait returns success immediately while
+       the memory the dispatch was going to write still holds whatever it held before -- and a
+       frame built from it looks perfectly fine. This checks the value that actually satisfied
+       the wait, and retries an allocation failure inside the wait rather than reporting one as
+       completion.
+
+       Returns 0 once the submission really has completed. On nonzero -- a reset, or a wait
+       that could not be established -- nothing the submission names may be recycled: it is
+       still queued, and only a successful gpuExecPoolWaitIdle later says otherwise. */
+    int (VS_CC *gpuExecWaitValue)(VSGPUExecPool *pool, uint64_t value, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+
     /* The pool's timeline as the counted object setGPUPlaneProducer takes, for publishing
        producer pairs by hand on frames the pool does not know about -- the out of order
        producer case, where the submission that wrote a plane was submitted calls ago and
@@ -802,12 +823,13 @@ struct VSVULKANAPI {
        is fatal. Returns nonzero with the error set on failure.
 
        signaledValue, when non-NULL, receives the value this submission signals on the
-       pool's timeline. Waiting for it — vkWaitSemaphores on
-       getGPUTimelineSemaphore(gpuExecPoolTimeline(pool)) — waits for exactly this
-       submission, which is what a filter reading results back on the host wants:
-       gpuExecPoolWaitIdle also works but waits the pool's newest submission, so
-       concurrent frames serialize on each other's work. Filters that only produce
-       planes never need either; the producer pairs carry the synchronization. */
+       pool's timeline. Pass it to gpuExecWaitValue to wait for exactly this submission,
+       which is what a filter reading results back on the host wants: gpuExecPoolWaitIdle
+       also works but waits the pool's newest submission, so concurrent frames serialize on
+       each other's work. Do not wait on the timeline with vkWaitSemaphores yourself -- a
+       bare wait cannot distinguish a completed dispatch from a reset that force-signalled
+       the timeline, and reports the second as the first. Filters that only produce planes
+       never need any of it; the producer pairs carry the synchronization. */
     int (VS_CC *gpuExecSubmit)(VSGPUExecContext *context, uint64_t *signaledValue, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
     /* Gives up a recording without submitting: everything retained is released at once. */
     void (VS_CC *gpuExecAbandon)(VSGPUExecContext *context) VS_NOEXCEPT;

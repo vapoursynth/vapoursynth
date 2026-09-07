@@ -121,6 +121,8 @@ Functions_
 
    gpuExecPoolWaitIdle_
 
+   gpuExecWaitValue_
+
    gpuExecPoolTimeline_
 
    **Recording contexts**
@@ -1130,6 +1132,31 @@ int gpuExecPoolWaitIdle(VSGPUExecPool_ \*pool, char \*errorMessage, int errorMes
 
 ----------
 
+.. _gpuExecWaitValue:
+
+int gpuExecWaitValue(VSGPUExecPool_ \*pool, uint64_t value, char \*errorMessage, int errorMessageSize)
+
+   Waits for one value on the pool's timeline — the *signaledValue*
+   gpuExecSubmit_ handed back — instead of for the whole pool, so the frames
+   running beside this one keep their submissions flowing. This is how a
+   filter waits on the host.
+
+   Do not wait on the timeline yourself with ``vkWaitSemaphores``: a bare wait
+   cannot tell you the one thing that matters afterwards. A GPU reset releases
+   every waiter by force-signalling the timelines past anything they could be
+   waiting for, so a raw wait returns success immediately while the memory the
+   dispatch was going to write still holds whatever it held before — and a
+   frame built from it looks perfectly fine. This checks the value that
+   actually satisfied the wait, and retries an allocation failure inside the
+   wait rather than reporting one as completion.
+
+   Returns 0 once the submission really has completed. On nonzero — a reset,
+   or a wait that could not be established — nothing the submission names may
+   be recycled: it is still queued, and only a successful
+   gpuExecPoolWaitIdle_ later says otherwise.
+
+----------
+
 .. _gpuExecPoolTimeline:
 
 VSGPUTimeline_ \*gpuExecPoolTimeline(VSGPUExecPool_ \*pool)
@@ -1299,12 +1326,14 @@ int gpuExecSubmit(VSGPUExecContext_ \*context, uint64_t \*signaledValue, char \*
    and the handle is dead from then on: using it again is fatal.
 
    *signaledValue*, when non-NULL, receives the value this submission signals
-   on the pool's timeline. Waiting for it — vkWaitSemaphores on
-   ``getGPUTimelineSemaphore(gpuExecPoolTimeline(pool))`` — waits for exactly
+   on the pool's timeline. Pass it to gpuExecWaitValue_ to wait for exactly
    this submission, which is what a filter reading results back on the host
    wants: gpuExecPoolWaitIdle_ also works but waits the pool's newest
-   submission, so concurrent frames serialize on each other's work. Filters
-   that only produce planes never need either; the producer pairs carry the
+   submission, so concurrent frames serialize on each other's work. Do not
+   wait on the timeline with ``vkWaitSemaphores`` yourself — a bare wait
+   cannot distinguish a completed dispatch from a reset that force-signalled
+   the timeline, and reports the second as the first. Filters that only
+   produce planes never need any of it; the producer pairs carry the
    synchronization.
 
 ----------
