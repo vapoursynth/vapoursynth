@@ -39,9 +39,12 @@ VSVulkanExecPool::~VSVulkanExecPool() {
        device reset nothing is executing and all of it may go, while an allocation failure
        inside the wait establishes nothing -- running a release callback there hands a region
        back to the allocator under a live read, and destroying a command pool with a pending
-       buffer is invalid usage. In that case retire nothing and leave both to the device's own
-       destruction, which the pool's reference keeps reachable; the bytes are still settled, or
-       an admission gate that outlives this pool would wait forever on work nobody will reap. */
+       buffer is invalid usage. In that case retire nothing: the retention callbacks never run
+       and the command pools are never destroyed, which leaks both outright rather than
+       deferring them -- nothing downstream picks them up, and that is the point, since the
+       submission they belong to may still be reading and writing. The bytes are still settled,
+       or an admission gate that outlives this pool would wait forever on work nobody will
+       reap. */
     std::string ignored;
     const bool completed = waitAll(ignored) || dev->deviceLost();
     for (auto &context : contexts) {
@@ -54,8 +57,14 @@ VSVulkanExecPool::~VSVulkanExecPool() {
             dev->vk.vkDestroyCommandPool(dev->device(), context->commandPool, nullptr);
     }
     /* Just the pool's own reference. Frames this pool produced hold theirs, so the semaphore
-       outlives the pool exactly when something still needs to wait on it. */
-    if (timeline)
+       outlives the pool exactly when something still needs to wait on it -- but only a frame
+       does that, and a submission signalling this timeline need not have produced one: a
+       scratch or readback only recording leaves nothing else holding a reference, so releasing
+       here would destroy the semaphore out from under its own pending signal operation. On the
+       give-up path it is leaked with everything else, which also keeps the device alive, a
+       timeline holding a device reference -- exactly what that pending submission still
+       needs. */
+    if (timeline && completed)
         timeline->release();
 }
 

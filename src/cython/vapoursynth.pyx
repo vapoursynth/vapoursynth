@@ -615,6 +615,8 @@ cdef class EnvironmentPolicyAPI:
 
     cdef _finish_destroy(self, EnvironmentData env):
         # Invalidate all remaining nodes and frames from this environment
+        cdef const VSFrame *doomed
+        cdef const VSAPI *doomed_funcs
         with env.lock:
             nodes = list(env.known_nodes or [])
             frames = list(env.known_frames or [])
@@ -634,9 +636,16 @@ cdef class EnvironmentPolicyAPI:
                 continue
             rf = <RawFrame>frame
             if rf.constf:
-                if rf.funcs:
-                    rf.funcs.freeFrame(rf.constf)
+                # Detached before the GIL goes, or close() on another thread would see a
+                # handle this one has already freed. Released for the free itself because
+                # that runs GPU plane destruction, which takes the allocator's mutex: see
+                # RawFrame.close.
+                doomed = rf.constf
+                doomed_funcs = rf.funcs
                 rf.constf = NULL
+                if doomed_funcs:
+                    with nogil:
+                        doomed_funcs.freeFrame(doomed)
 
         _unset_logger(env)
 
@@ -1334,8 +1343,14 @@ cdef class FramePtr(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        if self.funcs:
-            self.funcs.freeFrame(self.f)
+        cdef const VSFrame *f = self.f
+        cdef const VSAPI *funcs = self.funcs
+        if funcs:
+            # See RawFrame.close: the free reaches the GPU allocator, which must never be
+            # entered holding the GIL. Nothing else can reach this object at dealloc, so no
+            # detaching is needed.
+            with nogil:
+                funcs.freeFrame(f)
 
 cdef FramePtr createFramePtr(const VSFrame *f, const VSAPI *funcs):
     cdef FramePtr instance = FramePtr.__new__(FramePtr)
@@ -1359,6 +1374,8 @@ cdef void _leave_frame_callback(EnvironmentData env, object ident) except *:
 
 
 cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNode *node, const char *errormsg) noexcept nogil:
+    cdef const VSFrame *doomed = NULL
+    cdef const VSAPI *doomed_funcs = NULL
     with gil:
         result = error = None
         d = <CallbackData>data
@@ -1377,7 +1394,14 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNod
         try:
             if d.node.node == NULL or d.node.core is None:
                 if f != NULL:
-                    d.funcs.freeFrame(f)
+                    # Handed to the tail of this function, which runs without the GIL:
+                    # freeing a frame reaches the GPU allocator and must not hold it, see
+                    # RawFrame.close. Deferred rather than nested because Cython will not put
+                    # `with nogil` inside the `with gil` of a nogil function -- and it is the
+                    # better shape regardless, the frame outliving the callback below instead
+                    # of being freed under it.
+                    doomed = f
+                    doomed_funcs = d.funcs
                 error = Error("Use of invalidated VideoNode (the environment has been destroyed).")
             elif f == NULL:
                 error_str = 'Internal error - no error message.'
@@ -1404,6 +1428,9 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNod
             if caller_env is not None and caller_env is not env:
                 _leave_frame_callback(caller_env, ident)
             Py_DECREF(d)
+
+    if doomed_funcs:
+        doomed_funcs.freeFrame(doomed)
 
 cdef object intToRangeFilter(int64_t value, str key):
     isrange = (key == '_Range')
@@ -1998,8 +2025,12 @@ cdef class RawFrame(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        if self.funcs:
-            self.funcs.freeFrame(self.constf)
+        cdef const VSFrame *f = self.constf
+        cdef const VSAPI *funcs = self.funcs
+        if funcs:
+            # See close(); nothing else can reach the object at dealloc.
+            with nogil:
+                funcs.freeFrame(f)
 
     def copy(self):
         raise NotImplementedError
@@ -2013,12 +2044,26 @@ cdef class RawFrame(object):
             raise RuntimeError("The Frame has already been released.")
 
     def close(self):
+        # The handle is detached before anything else, so a second close -- or the environment
+        # teardown walking the same frame -- finds it already gone rather than freeing it
+        # twice. That mattered less while the GIL covered the whole method; it does not now.
+        cdef const VSFrame *f
+        cdef const VSAPI *funcs
         if self.closed:
             return
 
-        if self.funcs:
-            self.funcs.freeFrame(self.constf)
+        f = self.constf
+        funcs = self.funcs
         self.constf = NULL
+        if funcs:
+            # Freeing a GPU resident frame destroys its planes, which returns their regions
+            # through the allocator's mutex. A Vulkan diagnostic raised while that mutex is
+            # held travels to the core's log handlers, and the Python one takes the GIL -- so
+            # holding the GIL across this free is the other half of a cycle. The core cannot
+            # close it from its side: the allocator's mutex has to cover the driver call it
+            # guards. Every freeFrame in this file releases the GIL for that reason.
+            with nogil:
+                funcs.freeFrame(f)
 
     def __getitem__(self, index):
         raise NotImplementedError

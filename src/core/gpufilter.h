@@ -785,6 +785,29 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             vsapi->freeFrame(dst);
             return nullptr;
         }
+        /* A wait returning is not proof the dispatch ran, which is why the core routes every
+           wait of its own through one checked helper -- and this one, waiting a single value
+           by hand to keep concurrent frames flowing, has to make the same check itself. A GPU
+           reset releases every waiter by force-signalling the timelines past anything they
+           could be waiting for, so the wait above is satisfied at once while the mapping below
+           still holds whatever was in it, and finishReadback would turn that into frame
+           properties nothing marks as wrong. Ask what value actually satisfied the wait: only
+           a reset puts a pool timeline at the maximum, reaching it by submitting being 2^64
+           frames away. Destroying the buffer is safe in every branch here -- the wait
+           returned, so absent a reset the dispatch is complete, and a reset has abandoned
+           it. */
+        uint64_t reached = 0;
+        const VkResult counterRes = inst->vk->vkGetSemaphoreCounterValue(inst->handles.device,
+            inst->poolTimelineSem, &reached);
+        if (counterRes != VK_SUCCESS || reached == UINT64_MAX) {
+            vsapi->setFilterError(counterRes != VK_SUCCESS
+                ? "GPU filter: could not confirm the readback completed"
+                : "GPU filter: the GPU device was reset before the readback completed", frameCtx);
+            inst->vkapi->destroyGPUBuffer(readbackBuffer);
+            releaseSources();
+            vsapi->freeFrame(dst);
+            return nullptr;
+        }
         desc.finishReadback(n, dst, readbackInfo.mapped, frameParamData, core, vsapi);
         inst->vkapi->destroyGPUBuffer(readbackBuffer);
     }

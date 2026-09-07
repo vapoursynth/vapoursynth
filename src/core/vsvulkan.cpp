@@ -964,28 +964,41 @@ bool VSVulkanDevice::waitTimelines(const VkSemaphore *semaphores, const uint64_t
     waitInfo.pValues = values;
     for (int attempt = 0; attempt < 16; attempt++) {
         VkResult res = vk.vkWaitSemaphores(deviceHandle, &waitInfo, UINT64_MAX);
+        if (res == VK_ERROR_DEVICE_LOST) {
+            markDeviceLost();
+            return false;
+        }
         if (res == VK_SUCCESS) {
             /* Returning is not proof the work ran. A reset force-signals every timeline past
                everything, so any wait on one is satisfied at once by a value no submission
                produced -- which is how a wait could report a frame complete that the GPU
                abandoned. Ask what value actually satisfied it: one counter query per
                semaphore, nothing against the ~0.2 ms a submission costs, at the one point
-               where "the GPU finished" becomes a fact the caller acts on. */
+               where "the GPU finished" becomes a fact the caller acts on.
+
+               Each of the query's three outcomes means something different, and folding them
+               into one condition lost the most important: a query answering DEVICE_LOST is the
+               loss reported outright, and treating that as "not the sentinel, carry on" made
+               this return established completion on a device that had just said it was gone.
+               An allocation failure in the query establishes nothing either way, so it retries
+               with the wait rather than being read as a pass. */
+            bool verified = true;
             for (uint32_t i = 0; i < count; i++) {
                 uint64_t reached = 0;
-                if (vk.vkGetSemaphoreCounterValue(deviceHandle, semaphores[i], &reached) == VK_SUCCESS &&
-                        reached >= resetTimelineValue) {
+                const VkResult counterRes = vk.vkGetSemaphoreCounterValue(deviceHandle, semaphores[i], &reached);
+                if (counterRes == VK_ERROR_DEVICE_LOST || (counterRes == VK_SUCCESS && reached >= resetTimelineValue)) {
                     markDeviceLost();
                     return false;
                 }
+                if (counterRes != VK_SUCCESS) {
+                    verified = false;
+                    break;
+                }
             }
-            return true;
+            if (verified)
+                return true;
         }
-        if (res == VK_ERROR_DEVICE_LOST) {
-            markDeviceLost();
-            return false;
-        }
-        /* Out of host or device memory, the only other results this call has. Give the
+        /* Out of host or device memory, the only other result either call has. Give the
            allocator a moment rather than spinning on it. */
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
