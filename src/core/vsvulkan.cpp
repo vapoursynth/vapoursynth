@@ -1137,6 +1137,12 @@ bool VSVulkanDevice::flushDeviceWrites(const VkSemaphore *waitSemaphores, const 
         res = vk.vkQueueSubmit2(computeQ.queue, 1, &submit, VK_NULL_HANDLE);
     }
     if (res != VK_SUCCESS) {
+        /* The same record the exec pool's submit keeps: on a driver that does report the loss
+           this is where the flush hears it, and without it the rest of the core would carry on
+           submitting -- and the next flush would reset a command buffer whose state after a
+           lost submit is undefined. */
+        if (res == VK_ERROR_DEVICE_LOST)
+            markDeviceLost();
         errorMessage = "vkQueueSubmit2 failed for the flush (VkResult " + std::to_string(res) + ")";
         return false;
     }

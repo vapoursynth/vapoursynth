@@ -162,17 +162,21 @@ const VSFrame *VS_CC gpuDownloadGetFrame(int n, int activationReason, void *inst
             dstStrides[p] = dst->getStride(p);
         }
 
-        /* The reference this function holds goes with the call: the copy reads src's planes,
-           and the transfer is what knows when that copy is done. Nothing below may free it --
-           on failure least of all, since a failed wait leaves the copy queued and freeing the
-           frame there hands its buffers back under a live read. */
+        /* A reference of its own for the submission that reads src's planes, because the
+           transfer is what knows when that copy is done -- and a second one, the one this
+           function already holds, kept across the call because downloadPlanes copies out of
+           those planes after submitting and gpuExecSubmit can release the retention from its
+           own trailing sweep before it returns. */
+        const VSFrame *retained = vsapi->addFrameRef(src);
         if (!transfer->downloadPlanes(planes, fmt->numPlanes, fmt->bytesPerSample, dstPlanes, dstStrides,
-                &gpuDownloadReleaseSource, const_cast<VSFrame *>(src), err)) {
+                &gpuDownloadReleaseSource, const_cast<VSFrame *>(retained), err)) {
             vsapi->setFilterError(("GPUDownload: " + err).c_str(), frameCtx);
+            vsapi->freeFrame(src);
             dst->release();
             return nullptr;
         }
 
+        vsapi->freeFrame(src);
         return dst;
     }
 

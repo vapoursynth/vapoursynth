@@ -324,9 +324,14 @@ struct Instance {
                     vk->vkDestroyDescriptorSetLayout(handles.device, setLayouts[i], nullptr);
             }
         }
-        /* Always, whatever the drain said: the pool's own destructor makes the same decision
-           for the things it owns, and skipping it would leak the pool itself on top. */
-        if (pool)
+        /* Only when the drain established completion. What was left above holds no device
+           reference of its own, and the pool's is the only thing keeping handles.device alive,
+           so freeing it here would let vkDestroyDevice run with those pipelines still live --
+           including after a reset, where the pool's own destructor takes the completed branch
+           and releases its timeline. Leaking the pool with them keeps the device up for as long
+           as they exist, which is what the core's pool destructor achieves by leaking its
+           timeline on the same path. */
+        if (pool && drained)
             vkapi->freeGPUExecPool(pool);
     }
 };

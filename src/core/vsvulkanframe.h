@@ -136,7 +136,12 @@ public:
        wait is not that guarantee, since a wait that fails leaves the copy queued, and a plane
        is destroyed after waiting for its own producer alone, which for a host produced plane
        is nothing at all. Still a void pointer rather than a frame, so the transfer stays out
-       of the core headers; pass a null release to retain nothing. */
+       of the core headers; pass a null release to retain nothing.
+
+       source must be a reference of its own, NOT the caller's only one: the copy out of the
+       planes happens after the submit, and gpuExecSubmit sweeps its own pool on the way out,
+       so the retention can be released -- and the frame destroyed -- before submit has even
+       returned. The caller keeps its reference across the call and frees it afterwards. */
     bool downloadPlanes(const VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
         uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[],
         VSGPUReleaseFunc releaseSource, void *source, std::string &errorMessage);

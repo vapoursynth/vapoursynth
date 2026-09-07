@@ -54,9 +54,6 @@ class FilterTestSequenceGPU(GPUTestMixin, FilterTestSequence):
     """The same tests with every std call routed through its GPU path."""
 
 
-# Run in a fresh interpreter with VS_VULKAN_FORCE_STAGING set: the staging rings only exist on
-# the staging paths, which that switch selects everywhere, and it is read when the device is
-# created. Prints grown, shrunk, released, recreated and the unified memory flag.
 # Run in a fresh interpreter, because the deadlock it looks for only exists while the Vulkan
 # device is still being created. A worker builds the first GPU filter, which takes
 # vulkanDeviceLock and logs under it through a handler that needs the GIL; the main thread then
@@ -85,12 +82,22 @@ worker.start()
 started.wait()
 time.sleep(0.02)               # let the worker get inside device creation
 name = core.vulkan_device_info["name"]
-core.set_vulkan_device        # the other entry point that takes the same lock
+try:
+    # The other entry point that takes vulkanDeviceLock. It refuses once the device exists,
+    # which is the likely outcome here and does not matter: the refusal happens *inside* the
+    # lock, so the call still has to acquire it, which is the whole point of the probe. A bare
+    # attribute reference -- what this line used to be -- acquired nothing.
+    core.set_vulkan_device(0)
+except vs.Error:
+    pass
 built.wait(30)
 print("PROBE_OK", built.is_set(), len(name) > 0)
 '''
 
 
+# Run in a fresh interpreter with VS_VULKAN_FORCE_STAGING set: the staging rings only exist on
+# the staging paths, which that switch selects everywhere, and it is read when the device is
+# created. Prints grown, shrunk, released, recreated and the unified memory flag.
 STAGING_PROBE = '''
 import time
 import vapoursynth as vs

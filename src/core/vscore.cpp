@@ -133,12 +133,22 @@ VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem
 
 VSPlaneData::~VSPlaneData() {
     if (gpu) {
-        if (waitPlaneHost(*gpuDevice, *gpu) || gpuDevice->deviceLost())
+        /* Only once the producer is known finished: an allocation failure inside the wait
+           establishes nothing, and a region recycled under a live read is the one outcome
+           worth leaking a buffer to avoid. The accounting is left alone with the buffer, so
+           the totals keep describing what is really still held. */
+        const bool finished = waitPlaneHost(*gpuDevice, *gpu) || gpuDevice->deviceLost();
+        if (finished)
             gpuDevice->destroyBuffer(gpu->buffer);
         delete gpu; /* releases the plane's timeline reference */
         /* Buffer before device: returning the region keeps MemoryUse alive until this point,
-           so the accounting always lands in live memory. */
-        gpuDevice->release();
+           so the accounting always lands in live memory. The reference goes only with the
+           buffer, though: one left behind above holds no reference of its own, and releasing
+           here could destroy the device under it. Leaking it keeps the device up for as long
+           as that buffer exists, the trade the exec pool's give-up path makes with its
+           timeline. */
+        if (finished)
+            gpuDevice->release();
     } else {
         mem->deallocate(data);
     }

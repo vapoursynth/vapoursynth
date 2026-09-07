@@ -615,6 +615,8 @@ cdef class EnvironmentPolicyAPI:
 
     cdef _finish_destroy(self, EnvironmentData env):
         # Invalidate all remaining nodes and frames from this environment
+        cdef VSNode *doomed_node
+        cdef const VSAPI *doomed_node_funcs
         cdef const VSFrame *doomed
         cdef const VSAPI *doomed_funcs
         with env.lock:
@@ -626,10 +628,15 @@ cdef class EnvironmentPolicyAPI:
                 continue
             rn = <RawNode>node
             if rn.node:
-                if rn.funcs:
-                    rn.funcs.freeNode(rn.node)
+                # Detached first, then freed without the GIL, for the reasons on
+                # RawNode.__dealloc__ below.
+                doomed_node = rn.node
+                doomed_node_funcs = rn.funcs
                 rn.node = NULL
                 rn.core = None
+                if doomed_node_funcs:
+                    with nogil:
+                        doomed_node_funcs.freeNode(doomed_node)
 
         for frame in frames:
             if not isinstance(frame, RawFrame):
@@ -1373,64 +1380,63 @@ cdef void _leave_frame_callback(EnvironmentData env, object ident) except *:
             env.callback_depth.pop(ident, None)
 
 
-cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNode *node, const char *errormsg) noexcept nogil:
-    cdef const VSFrame *doomed = NULL
-    cdef const VSAPI *doomed_funcs = NULL
-    with gil:
-        result = error = None
-        d = <CallbackData>data
-        env = d.env
-        caller_env = d.caller_env
-        # Both environments that admitted the request hold d.fut in their active_futures and
-        # would wait on it: the node's, and the caller's the callback runs in when that is a
-        # different one. Each has to know it is inside this callback for destroy_environment
-        # to defer instead of waiting for the very callback it was called from.
-        ident = get_ident()
-        if env is not None:
-            _enter_frame_callback(env, ident)
-        if caller_env is not None and caller_env is not env:
-            _enter_frame_callback(caller_env, ident)
+# The body is a separate gil-holding function purely so `with nogil` is usable inside it:
+# Cython refuses that within the `with gil` of a nogil function, and the alternative --
+# deferring the free to the nogil tail of the callback -- is skipped whenever anything in
+# here raises, since the callback is noexcept and jumps straight to its exit.
+cdef void frameDoneImpl(void *data, const VSFrame *f, int n, VSNode *node, const char *errormsg):
+    result = error = None
+    d = <CallbackData>data
+    env = d.env
+    caller_env = d.caller_env
+    # Both environments that admitted the request hold d.fut in their active_futures and
+    # would wait on it: the node's, and the caller's the callback runs in when that is a
+    # different one. Each has to know it is inside this callback for destroy_environment
+    # to defer instead of waiting for the very callback it was called from.
+    ident = get_ident()
+    if env is not None:
+        _enter_frame_callback(env, ident)
+    if caller_env is not None and caller_env is not env:
+        _enter_frame_callback(caller_env, ident)
+
+    try:
+        if d.node.node == NULL or d.node.core is None:
+            if f != NULL:
+                # Freeing a frame reaches the GPU allocator, which must not be entered
+                # holding the GIL: see RawFrame.close. Inline rather than deferred to the end
+                # of the call, where anything raising in the finally would skip it.
+                with nogil:
+                    d.funcs.freeFrame(f)
+            error = Error("Use of invalidated VideoNode (the environment has been destroyed).")
+        elif f == NULL:
+            error_str = 'Internal error - no error message.'
+            if errormsg != NULL:
+                error_str = errormsg.decode('utf-8')
+            py_exc = d.env.retrieve_exception(error_str) if d.env is not None else None
+            error = py_exc or Error(error_str)
+        else:
+            result = createConstFrame(f, d.funcs, d.node.core.core, d.env)
 
         try:
-            if d.node.node == NULL or d.node.core is None:
-                if f != NULL:
-                    # Handed to the tail of this function, which runs without the GIL:
-                    # freeing a frame reaches the GPU allocator and must not hold it, see
-                    # RawFrame.close. Deferred rather than nested because Cython will not put
-                    # `with nogil` inside the `with gil` of a nogil function -- and it is the
-                    # better shape regardless, the frame outliving the callback below instead
-                    # of being freed under it.
-                    doomed = f
-                    doomed_funcs = d.funcs
-                error = Error("Use of invalidated VideoNode (the environment has been destroyed).")
-            elif f == NULL:
-                error_str = 'Internal error - no error message.'
-                if errormsg != NULL:
-                    error_str = errormsg.decode('utf-8')
-                py_exc = d.env.retrieve_exception(error_str) if d.env is not None else None
-                error = py_exc or Error(error_str)
-            else:
-                result = createConstFrame(f, d.funcs, d.node.core.core, d.env)
-
-            try:
-                if d.caller_env is not None:
-                    with use_environment(d.caller_env).use():
-                        d.callback(result, error)
-                else:
-                    # requested outside any environment, so there is none to switch to
+            if d.caller_env is not None:
+                with use_environment(d.caller_env).use():
                     d.callback(result, error)
-            except:
-                traceback.print_exc()
-        finally:
-            d.fut.set_result(None)
-            if env is not None:
-                _leave_frame_callback(env, ident)
-            if caller_env is not None and caller_env is not env:
-                _leave_frame_callback(caller_env, ident)
-            Py_DECREF(d)
+            else:
+                # requested outside any environment, so there is none to switch to
+                d.callback(result, error)
+        except:
+            traceback.print_exc()
+    finally:
+        d.fut.set_result(None)
+        if env is not None:
+            _leave_frame_callback(env, ident)
+        if caller_env is not None and caller_env is not env:
+            _leave_frame_callback(caller_env, ident)
+        Py_DECREF(d)
 
-    if doomed_funcs:
-        doomed_funcs.freeFrame(doomed)
+cdef void __stdcall frameDoneCallback(void *data, const VSFrame *f, int n, VSNode *node, const char *errormsg) noexcept nogil:
+    with gil:
+        frameDoneImpl(data, f, n, node, errormsg)
 
 cdef object intToRangeFilter(int64_t value, str key):
     isrange = (key == '_Range')
@@ -2871,9 +2877,16 @@ cdef class RawNode(object):
             return hash(int(<uintptr_t>self.node))
 
     def __dealloc__(self):
-        if self.funcs != NULL and self.node != NULL:
-            self.funcs.freeNode(self.node)
-            self.node = NULL
+        # Freeing a node is a heavier version of freeing a frame: it clears the node's cache,
+        # so it reaches the GPU allocator's mutex the same way, and it runs the filter's free
+        # callback, which for a GPU filter drains the exec pool -- an unbounded host wait on
+        # the GPU. Neither belongs under the GIL; see RawFrame.close for the cycle.
+        cdef VSNode *n = self.node
+        cdef const VSAPI *funcs = self.funcs
+        self.node = NULL
+        if funcs != NULL and n != NULL:
+            with nogil:
+                funcs.freeNode(n)
 
 
 cdef class VideoNode(RawNode):

@@ -2274,7 +2274,9 @@ struct GPUResizeData {
                     vkapi->destroyGPUBuffer(ditherBuffer);
                 destroyPipeSet(pipes);
             }
-            if (pool)
+            /* With them, and for the same reason: the pool's device reference is what keeps
+               anything left above valid. See gpufilter.h's Instance destructor. */
+            if (pool && drained)
                 vkapi->freeGPUExecPool(pool);
         }
     }
