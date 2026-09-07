@@ -23,7 +23,8 @@ what each would rule out.
 | `VSGPUExecContext` | its ring slot, for the life of the pool; usable by the caller from `gpuExecAcquire` to the `gpuExecSubmit`/`gpuExecAbandon` that ends it | the slot, the deduplicated wait list, the planes to publish |
 
 A public pool's ring has `clamp(workerThreads, 2, 8)` contexts, fixed at creation. The transfer's
-pool has one context per staging slot and never retains anything.
+pool has one context per staging slot, and retains exactly one thing: a download's source frame,
+for as long as the copy reading its planes is in flight (I31).
 
 ## 2. Locks and their order
 
@@ -291,6 +292,7 @@ rung 1 waits.
 | I18 | `waitAll` (idle wait and destruction) only from a thread holding no context of the pool. | `failIfHoldingContext` in `waitAll` |
 | I19 | A pool is never destroyed while any thread holds one of its contexts. | `failIfAnyContextHeld` in the destructor, after unregistration, when a claim can only mean a thread still using the pool |
 | I20 | The pool's timeline advances only through the pool's own submissions: its counter never exceeds what the pool handed to the queue, except at `resetTimelineValue`, which means a GPU reset (I29). | the check in `detachCompleted`, counter read first and `queuedCeiling` after it; the ceiling is stored before the submission that signals it, so it is never behind the counter and the check never fires on a correct program |
+| I31 | A submission's inputs are kept alive by the submission, not by whoever waits for it: every recording that reads a frame retains it. | `gpuExecReadsFrame` for filters, and `downloadPlanes` for the transfer, which takes ownership of its source frame and releases it from the retention. Relying on the caller's own host wait instead was wrong twice over -- a failed wait leaves the copy queued, and a plane's destructor waits for its own producer alone, which is nothing at all for a host produced plane |
 | I30 | Nothing is retired on a wait that did not establish completion. A retention is released, a command pool or buffer destroyed and the shared flush command buffer reset only after the wait succeeded, or after a reset, when nothing is executing. | `VSVulkanDevice::waitTimelines` is the single wait policy: it retries an allocation failure, recognises a reset, and returns true only on established completion. `~VSVulkanExecPool`, `~VSVulkanTransfer` and `~VSPlaneData` retire conditionally on it and otherwise leave their objects to the device's own destruction; `flushDeviceWrites` tracks `flushPending` and settles it before reusing the buffer |
 | I29 | A GPU reset is recognised, reported and survivable: no wait claims work completed that did not, no call spins, every retention is still released exactly once, and the core destructs. | `UINT64_MAX` on any pool or progress timeline sets the device's `deviceLost` flag, after which `acquire`, `submit`, `waitValue`, `waitAll` and `flushDeviceWrites` fail with `deviceLostMessage`, the sweeps stop reaping and the gate returns; retentions go back in `~VSVulkanExecPool` |
 | I21 | Every metered byte belongs to a submission whose completion signals the progress timeline. | `retain` adds bytes only on a pool with `signalsProgress` |

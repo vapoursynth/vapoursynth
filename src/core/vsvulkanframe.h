@@ -130,8 +130,16 @@ public:
        them while the transfer machinery stays out of the core headers. */
     bool uploadPlanes(VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
         const uint8_t *const srcPlanes[], const ptrdiff_t srcStrides[], std::string &errorMessage);
+    /* The download's submission reads the planes, so unlike the upload it needs them to
+       outlive the call: ownership of source passes in here, and releaseSource runs once the
+       submission that named them has completed -- or at once if none was made. Its own host
+       wait is not that guarantee, since a wait that fails leaves the copy queued, and a plane
+       is destroyed after waiting for its own producer alone, which for a host produced plane
+       is nothing at all. Still a void pointer rather than a frame, so the transfer stays out
+       of the core headers; pass a null release to retain nothing. */
     bool downloadPlanes(const VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
-        uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[], std::string &errorMessage);
+        uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[],
+        VSGPUReleaseFunc releaseSource, void *source, std::string &errorMessage);
 
     bool waitIdle(std::string &errorMessage) { return execPool.waitAll(errorMessage); }
 

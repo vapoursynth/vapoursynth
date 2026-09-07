@@ -314,7 +314,16 @@ bool VSVulkanTransfer::uploadPlanes(VSVulkanPlane *const planes[], int numPlanes
 }
 
 bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int numPlanes, int bytesPerSample,
-    uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[], std::string &errorMessage) {
+    uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[],
+    VSGPUReleaseFunc releaseSource, void *source, std::string &errorMessage) {
+    /* Ownership of source is taken here; see the declaration. Once it has been retained on a
+       context the pool answers for it on every path -- a failed submit releases it at once, a
+       successful one at the next sweep -- so only the returns ahead of that retain have to let
+       it go, which is what this is for. */
+    auto releaseUnused = [&]() {
+        if (releaseSource)
+            releaseSource(source);
+    };
     /* Read straight out of the plane when its memory is host CACHED, mirroring how the upload
        side gates on host coherent. Cached is the condition that matters: reads then run at
        memcpy speed, measuring 5.8x faster on two Metal drivers than a DMA into host cached
@@ -336,8 +345,10 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
            submission count identical to the staging path while dropping the DMA copy of every
            plane and the staging buffer with it. */
         VSVulkanExecContext *ctx = execPool.acquire(errorMessage);
-        if (!ctx)
+        if (!ctx) {
+            releaseUnused();
             return false;
+        }
 
         VkMemoryBarrier2 barrier = {};
         barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
@@ -350,6 +361,13 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
         dep.memoryBarrierCount = 1;
         dep.pMemoryBarriers = &barrier;
         dev->vk.vkCmdPipelineBarrier2(ctx->commandBuffer(), &dep);
+
+        /* Retained before the submit, so the batch that waits these planes' producers cannot
+           outlive the frame holding them however this call ends. Zero bytes: the frame's memory
+           is already in the pool total, and metering it again would gate admission on it
+           twice. */
+        if (releaseSource)
+            execPool.retain(*ctx, releaseSource, source, 0);
 
         VSVulkanWaitList waits;
         for (int p = 0; p < numPlanes; p++)
@@ -372,12 +390,15 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
         total += static_cast<VkDeviceSize>(planes[p]->stride) * planes[p]->height;
 
     Slot *slot = acquireSlot(readback, total, errorMessage);
-    if (!slot)
+    if (!slot) {
+        releaseUnused();
         return false;
+    }
 
     VSVulkanExecContext *ctx = execPool.acquire(errorMessage);
     if (!ctx) {
         releaseSlot(readback, *slot);
+        releaseUnused();
         return false;
     }
 
@@ -411,6 +432,11 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
     dep.memoryBarrierCount = 1;
     dep.pMemoryBarriers = &barrier;
     dev->vk.vkCmdPipelineBarrier2(ctx->commandBuffer(), &dep);
+
+    /* As on the direct path: the copy reads these planes, so the frame holding them is
+       retained on the submission rather than on this call returning. */
+    if (releaseSource)
+        execPool.retain(*ctx, releaseSource, source, 0);
 
     VSVulkanWaitList waits;
     for (int p = 0; p < numPlanes; p++)

@@ -122,6 +122,12 @@ const VSFrame *VS_CC gpuUploadGetFrame(int n, int activationReason, void *instan
     return nullptr;
 }
 
+/* Handed to the transfer together with the source reference; the pool runs it once the
+   submission reading that frame's planes has completed. Mirrors the API's own freeFrame. */
+static void VS_CC gpuDownloadReleaseSource(void *object) {
+    static_cast<VSFrame *>(object)->release();
+}
+
 const VSFrame *VS_CC gpuDownloadGetFrame(int n, int activationReason, void *instanceData, void **, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     GPUTransferData *d = static_cast<GPUTransferData *>(instanceData);
 
@@ -156,14 +162,17 @@ const VSFrame *VS_CC gpuDownloadGetFrame(int n, int activationReason, void *inst
             dstStrides[p] = dst->getStride(p);
         }
 
-        if (!transfer->downloadPlanes(planes, fmt->numPlanes, fmt->bytesPerSample, dstPlanes, dstStrides, err)) {
+        /* The reference this function holds goes with the call: the copy reads src's planes,
+           and the transfer is what knows when that copy is done. Nothing below may free it --
+           on failure least of all, since a failed wait leaves the copy queued and freeing the
+           frame there hands its buffers back under a live read. */
+        if (!transfer->downloadPlanes(planes, fmt->numPlanes, fmt->bytesPerSample, dstPlanes, dstStrides,
+                &gpuDownloadReleaseSource, const_cast<VSFrame *>(src), err)) {
             vsapi->setFilterError(("GPUDownload: " + err).c_str(), frameCtx);
-            vsapi->freeFrame(src);
             dst->release();
             return nullptr;
         }
 
-        vsapi->freeFrame(src);
         return dst;
     }
 
