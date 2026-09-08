@@ -152,13 +152,19 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
         d->nextSlot = (d->nextSlot + 1) % CMD_SLOTS;
         d->vk->vkGetSemaphoreCounterValue(d->h.device, d->timelineSem, &completed);
         if (d->slotValue[slot] > completed) {
-            VkSemaphoreWaitInfo waitInfo;
-            memset(&waitInfo, 0, sizeof(waitInfo));
-            waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-            waitInfo.semaphoreCount = 1;
-            waitInfo.pSemaphores = &d->timelineSem;
-            waitInfo.pValues = &d->slotValue[slot];
-            d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
+            /* Through gpuTimelineWaitValue and never vkWaitSemaphores, for the reason the
+               header gives: a GPU reset force-signals this timeline past everything, so a bare
+               wait would report the command buffer's previous life as finished and let it be
+               re-recorded while the device may still be holding it. A reset is a fine answer
+               here -- nothing is executing after one, so the slot really is free. */
+            char waitErr[512] = { 0 };
+            if (!vsGPUDrainSafeToDestroy(d->vkapi->gpuTimelineWaitValue(d->timeline, d->slotValue[slot], waitErr, sizeof(waitErr)))) {
+                LOCK_RELEASE(&d->lock);
+                vsapi->setFilterError(waitErr, frameCtx);
+                vsapi->freeFrame(src);
+                vsapi->freeFrame(dst);
+                return NULL;
+            }
         }
         cmd = d->cmd[slot];
 
@@ -263,15 +269,13 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
             d->retained[d->retainedCount].value = value;
             d->retainedCount++;
         } else {
-            /* Ring full: fall back to a blocking wait so correctness never depends on luck. */
-            VkSemaphoreWaitInfo waitInfo;
-            memset(&waitInfo, 0, sizeof(waitInfo));
-            waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-            waitInfo.semaphoreCount = 1;
-            waitInfo.pSemaphores = &d->timelineSem;
-            waitInfo.pValues = &value;
-            d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
-            vsapi->freeFrame(src);
+            /* Ring full: fall back to a blocking wait so correctness never depends on luck.
+               The reference is dropped only once the wait says the GPU is done with it, which
+               after a reset it is; a wait that could not be established leaves the dispatch
+               possibly still reading the frame, so the reference is kept and leaks instead. */
+            char waitErr[512] = { 0 };
+            if (vsGPUDrainSafeToDestroy(d->vkapi->gpuTimelineWaitValue(d->timeline, value, waitErr, sizeof(waitErr))))
+                vsapi->freeFrame(src);
         }
         LOCK_RELEASE(&d->lock);
 
@@ -283,27 +287,32 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
 
 static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *)instanceData;
-    if (d->timelineSem && d->nextValue) {
-        VkSemaphoreWaitInfo waitInfo;
-        memset(&waitInfo, 0, sizeof(waitInfo));
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &d->timelineSem;
-        waitInfo.pValues = &d->nextValue;
-        d->vk->vkWaitSemaphores(d->h.device, &waitInfo, UINT64_MAX);
+    /* Everything below is destroyed on the strength of this wait, which is why it goes through
+       the API: a bare vkWaitSemaphores cannot tell a completed dispatch from a reset that
+       force-signalled the timeline, and would hand back objects the device might still hold.
+       A reset is as good as drained for this decision, nothing being executable after one. A
+       wait that could not be established is not, so the pipeline, the command pool and this
+       filter's timeline reference are all left behind together -- keeping the timeline is what
+       keeps the semaphore, and the device under it, valid for as long as the rest survives. */
+    int settled = 1;
+    if (d->timeline && d->nextValue) {
+        char waitErr[512] = { 0 };
+        settled = vsGPUDrainSafeToDestroy(d->vkapi->gpuTimelineWaitValue(d->timeline, d->nextValue, waitErr, sizeof(waitErr)));
     }
     sweepRetained(d, vsapi);
-    if (d->cmdPool)
-        d->vk->vkDestroyCommandPool(d->h.device, d->cmdPool, NULL);
-    if (d->pipeline)
-        d->vk->vkDestroyPipeline(d->h.device, d->pipeline, NULL);
-    if (d->pipeLayout)
-        d->vk->vkDestroyPipelineLayout(d->h.device, d->pipeLayout, NULL);
-    if (d->setLayout)
-        d->vk->vkDestroyDescriptorSetLayout(d->h.device, d->setLayout, NULL);
-    /* Just this filter's reference; frames still naming it keep the semaphore alive. */
-    if (d->timeline)
-        d->vkapi->freeGPUTimeline(d->timeline);
+    if (settled) {
+        if (d->cmdPool)
+            d->vk->vkDestroyCommandPool(d->h.device, d->cmdPool, NULL);
+        if (d->pipeline)
+            d->vk->vkDestroyPipeline(d->h.device, d->pipeline, NULL);
+        if (d->pipeLayout)
+            d->vk->vkDestroyPipelineLayout(d->h.device, d->pipeLayout, NULL);
+        if (d->setLayout)
+            d->vk->vkDestroyDescriptorSetLayout(d->h.device, d->setLayout, NULL);
+        /* Just this filter's reference; frames still naming it keep the semaphore alive. */
+        if (d->timeline)
+            d->vkapi->freeGPUTimeline(d->timeline);
+    }
     LOCK_FREE(&d->lock);
     vsapi->freeNode(d->node);
     free(d);

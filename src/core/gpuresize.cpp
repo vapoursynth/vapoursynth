@@ -2267,7 +2267,9 @@ struct GPUResizeData {
             bool drained = true;
             if (pool) {
                 char err[512] = { 0 };
-                drained = vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err)) == 0;
+                /* A reset counts as drained; see gpufilter.h's Instance destructor for why
+                   treating it otherwise leaks the device. */
+                drained = vsGPUDrainSafeToDestroy(vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err)));
             }
             if (drained) {
                 if (ditherBuffer)

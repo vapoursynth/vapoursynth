@@ -473,14 +473,13 @@ void VSVulkanDevice::teardown() {
 void VSVulkanDevice::emitLog(int severity, const std::string &message) const {
     /* Counted across the whole call, before the pair is even read, so onCoreFreed can drain
        readers holding a core pointer it has already retracted; see logReaders there. */
-    logReaders.fetch_add(1);
+    CallbackReader reader(logReaders);
     /* userData before the function, mirroring the writers' opposite order, so seeing a
        function guarantees the userData loaded with it is the matching one. */
     void *userData = logUserData.load();
     VSVulkanLogFn fn = logFn.load();
     if (fn)
         fn(severity, message.c_str(), userData);
-    logReaders.fetch_sub(1);
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VSVulkanDevice::debugMessengerTrampoline(
@@ -973,12 +972,19 @@ bool VSVulkanDevice::waitTimelines(const VkSemaphore *semaphores, const uint64_t
             return false;
         }
         if (res == VK_SUCCESS) {
-            /* Returning is not proof the work ran. A reset force-signals every timeline past
-               everything, so any wait on one is satisfied at once by a value no submission
+            /* Returning is not proof the work ran. A reset can force-signal every timeline
+               past everything, so a wait on one is satisfied at once by a value no submission
                produced -- which is how a wait could report a frame complete that the GPU
                abandoned. Ask what value actually satisfied it: one counter query per
                semaphore, nothing against the ~0.2 ms a submission costs, at the one point
                where "the GPU finished" becomes a fact the caller acts on.
+
+               This catches the reset behaviours that are observable at all. One is not: a
+               driver that answers a reset by signalling exactly the values the abandoned
+               submissions were going to signal passes every check here, and this then does
+               report work complete that never ran. Measured on Linux/RADV, recorded in
+               section 2a of vsvulkanexec_protocol.md, and left as it is because no Vulkan
+               call separates that case from a real completion.
 
                Each of the query's three outcomes means something different, and folding them
                into one condition lost the most important: a query answering DEVICE_LOST is the
@@ -999,8 +1005,22 @@ bool VSVulkanDevice::waitTimelines(const VkSemaphore *semaphores, const uint64_t
                     break;
                 }
             }
-            if (verified)
+            if (verified) {
+                /* One last look at the flag, because another thread may have latched the loss
+                   while this one sat in the wait above. The checks in this function all speak
+                   for the calling thread alone: a wait entered before the reset asks its own
+                   counter, gets an ordinary value, and would report completion for work the
+                   reset abandoned -- while a sibling worker that submitted a moment later has
+                   already been told the device is gone. With several workers in flight that is
+                   the ordinary shape of a reset, not an edge case, and every one of those
+                   frames would otherwise be handed out as good. Erring towards failure costs
+                   nothing real: once the flag is set the core is finished either way, and a
+                   frame that genuinely completed just before the reset is not worth the risk of
+                   passing off one that did not. */
+                if (deviceLost())
+                    return false;
                 return true;
+            }
         }
         /* Out of host or device memory, the only other result either call has. Give the
            allocator a moment rather than spinning on it. */

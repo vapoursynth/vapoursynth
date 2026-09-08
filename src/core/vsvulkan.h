@@ -441,8 +441,7 @@ public:
            Python one takes the GIL, so a binding must not hold the GIL across freeCore;
            vapoursynth.pyx does not. Only the debug messenger reaches emitLog concurrently, and
            it exists only under VS_VULKAN_VALIDATION, so this drains nothing in a normal run. */
-        while (logReaders.load())
-            std::this_thread::yield();
+        drainCallbacks(logReaders);
         release();
     }
 
@@ -664,6 +663,12 @@ public:
         } else {
             pressureFn.store(nullptr);
             pressureUserData.store(nullptr);
+            /* And the same drain, for the same reason, which matters more here than it does
+               there: this pair is read from the allocation ladder, on any thread that allocates
+               GPU memory, where the log pair is only reachable through the debug messenger. A
+               reader that took the pair before the stores above is holding a pointer to the
+               core that is about to be destroyed. */
+            drainCallbacks(pressureReaders);
         }
     }
 
@@ -698,6 +703,22 @@ public:
 
 private:
     enum class State { Unused, Ready, Failed };
+
+    struct CallbackReader {
+        explicit CallbackReader(std::atomic<int> &counter) : counter(counter) { counter.fetch_add(1); }
+        ~CallbackReader() { counter.fetch_sub(1); }
+        CallbackReader(const CallbackReader &) = delete;
+        CallbackReader &operator=(const CallbackReader &) = delete;
+        std::atomic<int> &counter;
+    };
+
+    /* Waits out the readers a retraction did not stop. Sleeps rather than yields: the common
+       case never enters the loop at all, and the uncommon one is bounded by somebody else's
+       callback, which is no reason to spin a core against it. */
+    static void drainCallbacks(const std::atomic<int> &counter) {
+        while (counter.load())
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 
     void teardown();
     void emitLog(int severity, const std::string &message) const;
@@ -741,9 +762,15 @@ private:
     bool luidValid = false;
     std::atomic<VSVulkanLogFn> logFn{nullptr};
     std::atomic<void *> logUserData{nullptr};
-    /* Readers currently inside emitLog, so onCoreFreed can wait out the ones that captured the
-       pair before it retracted. Mutable because emitLog is const. */
+    /* Readers currently inside a callback out to the core, so the retraction of each pair can
+       wait out the ones that captured it first. Mutable because emitLog is const.
+
+       Scoped rather than counted by hand: the count has to come back even if the callback
+       throws -- vulkanLogBridge builds a std::string and then walks handlers a plugin wrote,
+       either of which can -- because the drain below spins on it, so a count left behind is not
+       a leak but a hang, which is worse than the race the counting exists to close. */
     mutable std::atomic<int> logReaders{0};
+    mutable std::atomic<int> pressureReaders{0};
     VSVulkanAccountFn accountFn = nullptr;
     VSVulkanAccountFn hostAccountFn = nullptr;
     VSVulkanAccountFn callAccountFn = nullptr;
@@ -802,6 +829,9 @@ public:
     static VSVulkanTimeline *create(VSVulkanDevice &device, std::string &errorMessage, bool poolOwned = false);
 
     VkSemaphore semaphore() const { return sem; }
+    /* The device this timeline belongs to, for the public host wait: a timeline holds a
+       counted reference to it, so this is valid for as long as the timeline is. */
+    VSVulkanDevice &device() const { return *dev; }
 
     /* For a pool's timeline, the newest value the pool submitted, recorded under its queue
        lock; a producer pair naming the timeline may not exceed it (invariant I23). A timeline

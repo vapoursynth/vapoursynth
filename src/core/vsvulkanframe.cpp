@@ -53,9 +53,12 @@ VSVulkanTransfer::~VSVulkanTransfer() {
     if (!dev)
         return;
     /* The slot buffers are the source and destination of copies that may still be running;
-       the same rule as the exec pool's destructor applies, and for the same reason. Leaving
-       them costs the rings' staging until the device goes, which beats recycling memory a
-       copy is reading. */
+       the same rule as the exec pool's destructor applies, and for the same reason. What
+       leaving them costs is no longer only the rings' staging: since downloadPlanes started
+       retaining its source, a download still in flight holds a whole frame on a context here,
+       and the member pool's destructor gives up on the same failure a moment later, so those
+       frames -- their GPU planes and their device references with them -- are stranded too.
+       Still better than recycling memory a copy is reading. */
     std::string ignored;
     if (!execPool.waitAll(ignored) && !dev->deviceLost())
         return;
@@ -324,6 +327,18 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
         if (releaseSource)
             releaseSource(source);
     };
+    /* What retaining the source pins, for the admission gate. The gate's total is not the
+       allocator's -- execRetainedBytes counts only what queued work holds, and nothing else
+       adds these frames to it -- so passing 0 here was not avoiding a double count, it was a
+       ring's worth of whole frames crossing the gate unmetered. Only on hardware where it
+       matters most, too: the transfer pool meters at all exactly when its queue is the compute
+       queue, which is every device without a dedicated transfer family, which is every unified
+       device. The public gpuExecReadsFrame meters the same object at its full size. */
+    VkDeviceSize sourceBytes = 0;
+    if (releaseSource) {
+        for (int p = 0; p < numPlanes; p++)
+            sourceBytes += planes[p]->buffer.poolSize;
+    }
     /* Read straight out of the plane when its memory is host CACHED, mirroring how the upload
        side gates on host coherent. Cached is the condition that matters: reads then run at
        memcpy speed, measuring 5.8x faster on two Metal drivers than a DMA into host cached
@@ -363,11 +378,10 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
         dev->vk.vkCmdPipelineBarrier2(ctx->commandBuffer(), &dep);
 
         /* Retained before the submit, so the batch that waits these planes' producers cannot
-           outlive the frame holding them however this call ends. Zero bytes: the frame's memory
-           is already in the pool total, and metering it again would gate admission on it
-           twice. */
+           outlive the frame holding them however this call ends, and metered like anything else
+           queued work pins; see sourceBytes. */
         if (releaseSource)
-            execPool.retain(*ctx, releaseSource, source, 0);
+            execPool.retain(*ctx, releaseSource, source, sourceBytes);
 
         VSVulkanWaitList waits;
         for (int p = 0; p < numPlanes; p++)
@@ -434,9 +448,9 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
     dev->vk.vkCmdPipelineBarrier2(ctx->commandBuffer(), &dep);
 
     /* As on the direct path: the copy reads these planes, so the frame holding them is
-       retained on the submission rather than on this call returning. */
+       retained on the submission rather than on this call returning, and metered with it. */
     if (releaseSource)
-        execPool.retain(*ctx, releaseSource, source, 0);
+        execPool.retain(*ctx, releaseSource, source, sourceBytes);
 
     VSVulkanWaitList waits;
     for (int p = 0; p < numPlanes; p++)

@@ -1807,21 +1807,72 @@ static int VS_CC vkGPUExecPoolWaitIdle(VSGPUExecPool *pool, char *errorMessage, 
     std::string err;
     if (!pool->pool.waitAll(err)) {
         copyVulkanError(err, errorMessage, errorMessageSize);
-        return 1;
+        /* Which failure it was, since that is the whole of what a caller can do differently
+           about it: after a reset nothing is executing, so what the pool was keeping alive for
+           the GPU may go. */
+        return pool->device->deviceLost() ? gdDeviceLost : gdIncomplete;
     }
-    return 0;
+    return gdDrained;
 }
 
 static int VS_CC vkGPUExecWaitValue(VSGPUExecPool *pool, uint64_t value, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     assert(pool);
+    /* Every other entry point that can wait on a pool refuses from inside a release callback,
+       and this one has to as well: waitValue itself cannot check, since acquire calls it from
+       within its own release batch. Without it a callback waiting on a value only a blocked
+       thread can submit hangs silently instead of naming the caller. */
+    pool->device->failIfRunningReleases("gpuExecWaitValue");
+    /* The wait below is unbounded, so a value nothing will ever signal is not an error the
+       caller gets told about -- it is the calling thread gone for good, with no diagnostic and
+       nothing to point at. A stale value, one from another pool, an uninitialised variable:
+       all of them land here. The ceiling is published before each submit and never lowered, so
+       every value a caller can legitimately hold is at or below it and this cannot fire on a
+       correct program. It does not catch everything -- a failed submit leaves the ceiling one
+       high, so that one burned value still waits forever -- but it turns the whole open-ended
+       class of wild values into a named failure, which is what the other handle checks here
+       do. */
+    if (value > pool->pool.submittedCeiling())
+        vulkanFatal("gpuExecWaitValue called with a value past everything the pool has submitted, which nothing will ever signal");
     std::string err;
     /* Straight to the pool's own wait, which is the core's single wait policy: the reset check
        and the retry come with it rather than being anything the caller has to remember. */
     if (!pool->pool.waitValue(value, err)) {
         copyVulkanError(err, errorMessage, errorMessageSize);
-        return 1;
+        /* Which failure it was, exactly as the pool drain reports it: after a reset nothing is
+           executing, so what the submission named may go. */
+        return pool->device->deviceLost() ? gdDeviceLost : gdIncomplete;
     }
-    return 0;
+    return gdDrained;
+}
+
+/* The same wait for a filter that records and submits on a timeline of its own, which the
+   pool wait cannot serve and which otherwise had nothing but vkWaitSemaphores -- the call the
+   header tells filters not to make, since a reset force-signals their timeline too. */
+static int VS_CC vkGPUTimelineWaitValue(VSGPUTimeline *timeline, uint64_t value,
+    char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(timeline);
+    VSVulkanTimeline *inner = reinterpret_cast<VSVulkanTimeline *>(timeline);
+    VSVulkanDevice &dev = inner->device();
+    dev.failIfRunningReleases("gpuTimelineWaitValue");
+    /* Bounded only where the core knows the bound. A pool's timeline is signalled by its
+       submits alone, so a value past the newest is one nothing will ever signal; a timeline
+       the filter signals itself has no such bound, since the thread that submits the value may
+       not be this one. */
+    if (inner->isPoolOwned() && value > inner->lastSubmitted())
+        vulkanFatal("gpuTimelineWaitValue called with a value past everything the pool submitted on this timeline");
+    if (dev.deviceLost()) {
+        copyVulkanError(VSVulkanDevice::deviceLostMessage(), errorMessage, errorMessageSize);
+        return gdDeviceLost;
+    }
+    VkSemaphore semaphore = inner->semaphore();
+    if (!dev.waitTimelines(&semaphore, &value, 1)) {
+        const bool lost = dev.deviceLost();
+        copyVulkanError(lost ? std::string(VSVulkanDevice::deviceLostMessage())
+            : std::string("waiting for a GPU submission failed and could not be retried"),
+            errorMessage, errorMessageSize);
+        return lost ? gdDeviceLost : gdIncomplete;
+    }
+    return gdDrained;
 }
 
 static int VS_CC vkEnumerateVulkanDevices(VSVulkanDeviceListEntry *entries, int maxEntries, char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
@@ -1866,6 +1917,7 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
     .freeGPUTimeline = &vkFreeGPUTimeline,
     .addGPUTimelineRef = &vkAddGPUTimelineRef,
     .getGPUTimelineSemaphore = &vkGetGPUTimelineSemaphore,
+    .gpuTimelineWaitValue = &vkGPUTimelineWaitValue,
 
     .createGPUBuffer = &vkCreateGPUBuffer,
     .destroyGPUBuffer = &vkDestroyGPUBuffer,

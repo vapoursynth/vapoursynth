@@ -207,6 +207,11 @@ public:
        waiting on it. False when the driver refuses the query, which callers treat as "not
        done". */
     bool completedValue(uint64_t &value) const;
+    /* The highest value this pool ever handed to the queue, read without the queue lock. No
+       value a caller can legitimately wait for exceeds it, since it is published before the
+       submit that signals it, which makes it the bound the public wait rejects wild values
+       against; see queuedCeiling for why it is not nextValue. */
+    uint64_t submittedCeiling() const { return queuedCeiling.load(std::memory_order_acquire); }
 
     /* Releases every retained object whose submission has completed, without waiting. Called
        from submit, so an active pool reaps itself with about one submission of lag; an idle

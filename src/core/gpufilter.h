@@ -283,8 +283,6 @@ struct Instance {
     const VSVulkanFunctions *vk = nullptr;
     VSVulkanCoreHandles handles = {};
     VSGPUExecPool *pool = nullptr;
-    /* The pool's timeline, kept raw for the per submission readback waits; the pool owns
-       it and outlives every use here. */
     std::vector<VkDescriptorSetLayout> setLayouts;
     std::vector<VkPipelineLayout> pipeLayouts;
     std::vector<VkPipeline> pipelines;
@@ -309,7 +307,12 @@ struct Instance {
         bool drained = true;
         if (pool) {
             char err[512] = { 0 };
-            drained = vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err)) == 0;
+            /* A reset counts as drained, and has to: nothing is executing after one, so all of
+               this is safe to destroy -- while treating it as undrained would strand the pool,
+               everything it retained, and the device itself, whose only reference here is the
+               pool's. That is a leak nothing ever collects, once per filter instance, for the
+               rest of the process. */
+            drained = vsGPUDrainSafeToDestroy(vkapi->gpuExecPoolWaitIdle(pool, err, sizeof(err)));
         }
         if (drained) {
             for (VSGPUBuffer *b : constantBuffers)
@@ -785,8 +788,12 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
            write its properties. Through the API rather than vkWaitSemaphores directly, so a
            reset that force-signalled the timeline is reported instead of being read as a
            completed dispatch, and an allocation failure inside the wait is retried. */
-        if (inst->vkapi->gpuExecWaitValue(inst->pool, signaled, err, sizeof(err))) {
-            vsapi->setFilterError("GPU filter: waiting for the readback failed", frameCtx);
+        const int waited = inst->vkapi->gpuExecWaitValue(inst->pool, signaled, err, sizeof(err));
+        if (waited != gdDrained) {
+            /* err, not a fixed string: the whole reason this goes through the API is that it
+               can tell a reset from a wait that gave up, and saying so is the half the script
+               actually sees. */
+            vsapi->setFilterError((std::string("GPU filter: the readback did not complete: ") + err).c_str(), frameCtx);
             /* The submission is queued and may still be writing this buffer -- the wait
                failing says nothing about the GPU being done -- so its region must not go
                back to the allocator until the pool has drained, or the next allocation
@@ -794,7 +801,8 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                the device is gone, and leaking one buffer beats recycling it under that
                write. Every other per-frame buffer avoids this by riding the context,
                which this one cannot: the host reads its mapping after the submission. */
-            if (!inst->vkapi->gpuExecPoolWaitIdle(inst->pool, err, sizeof(err)))
+            if (vsGPUDrainSafeToDestroy(waited) ||
+                    vsGPUDrainSafeToDestroy(inst->vkapi->gpuExecPoolWaitIdle(inst->pool, err, sizeof(err))))
                 inst->vkapi->destroyGPUBuffer(readbackBuffer);
             releaseSources();
             vsapi->freeFrame(dst);

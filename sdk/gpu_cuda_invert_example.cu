@@ -387,14 +387,14 @@ static void VS_CC cudaInvertFree(void *instanceData, VSCore *core, const VSAPI *
     int i;
     cudaSetDevice(d->cudaDevice);
     cudaStreamSynchronize(d->stream);
-    if (d->timelineSem && d->nextValue) {
-        VkSemaphoreWaitInfo wi;
-        memset(&wi, 0, sizeof(wi));
-        wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        wi.semaphoreCount = 1;
-        wi.pSemaphores = &d->timelineSem;
-        wi.pValues = &d->nextValue;
-        d->vk->vkWaitSemaphores(d->h.device, &wi, UINT64_MAX);
+    /* Through the API rather than vkWaitSemaphores: a GPU reset force-signals this timeline
+       past everything, and a bare wait would report the last signal as arrived whether it did
+       or not. What makes the teardown below safe is the stream synchronize above -- the CUDA
+       side is what reads through the mappings here -- so the result is not gated on, but the
+       wait may as well be the honest one. */
+    if (d->timeline && d->nextValue) {
+        char waitErr[512] = { 0 };
+        d->vkapi->gpuTimelineWaitValue(d->timeline, d->nextValue, waitErr, sizeof(waitErr));
     }
     sweepRetained(d, vsapi);
     for (i = 0; i < d->semImportCount; i++)

@@ -138,17 +138,21 @@ VSPlaneData::~VSPlaneData() {
            worth leaking a buffer to avoid. The accounting is left alone with the buffer, so
            the totals keep describing what is really still held. */
         const bool finished = waitPlaneHost(*gpuDevice, *gpu) || gpuDevice->deviceLost();
-        if (finished)
+        if (finished) {
+            /* Buffer before device: returning the region keeps MemoryUse alive until this
+               point, so the accounting always lands in live memory. */
             gpuDevice->destroyBuffer(gpu->buffer);
-        delete gpu; /* releases the plane's timeline reference */
-        /* Buffer before device: returning the region keeps MemoryUse alive until this point,
-           so the accounting always lands in live memory. The reference goes only with the
-           buffer, though: one left behind above holds no reference of its own, and releasing
-           here could destroy the device under it. Leaking it keeps the device up for as long
-           as that buffer exists, the trade the exec pool's give-up path makes with its
-           timeline. */
-        if (finished)
+            delete gpu; /* releases the plane's timeline reference */
             gpuDevice->release();
+        }
+        /* Otherwise none of the three goes. The buffer stays because a submission may still be
+           reading it. The plane stays with it, because deleting it releases the producer
+           timeline, and the plane can hold that timeline's last reference -- one a filter
+           created and published with setGPUPlaneProducer, then dropped -- so the semaphore
+           would be destroyed while the very submission keeping the buffer alive is still going
+           to signal it. And the device reference stays with both, so nothing left here outlives
+           the device it belongs to. All three are the trade the exec pool's give-up path makes
+           with its own timeline. */
     } else {
         mem->deallocate(data);
     }
@@ -2075,6 +2079,17 @@ void VSCore::freeCore() {
         logFatal("Double free of core");
     coreFreed = true;
     threadPool->waitForDone();
+    if (VSVulkanDevice *dev = vulkanDev.load()) {
+        /* What queued work pinned goes back only when somebody sweeps, and the last submission
+           of a graph has nobody behind it to do the sweeping: a download's source frame sits on
+           the transfer pool's context from the moment its copy completes until that pool is
+           acquired from, submitted on, swept or destroyed. Nothing between here and the count
+           below did any of those, so every graph ending in GPUDownload reported its last source
+           frame as leaked and held that VRAM until the core was destructed. Sweeping runs
+           release callbacks, which is why it is here rather than under any lock; the thread
+           pool is already done, so nothing can add to what this finds. */
+        dev->sweepExecPools();
+    }
     if (vulkanTrans)
         vulkanTrans->releaseIdle(std::chrono::steady_clock::duration::zero());
     if (numFilterInstances > 1)

@@ -244,6 +244,43 @@ typedef enum VSVulkanQueueType {
     vqTransfer = 1 /* the same underlying queue as vqCompute when no dedicated transfer queue exists */
 } VSVulkanQueueType;
 
+/* What a host wait established. Returned by all three of them -- gpuExecPoolWaitIdle,
+ * gpuExecWaitValue and gpuTimelineWaitValue -- because the question a caller asks after a wait
+ * is the same one every time. Anything other than gdDrained is a failure for a caller that only
+ * wants to know whether it can carry on, so `if (gpuExecWaitValue(...))` keeps meaning what it
+ * always did. The distinction matters to one kind of caller: anything deciding whether resources
+ * a submission might still be using are safe to destroy. A reset did not keep the promise the
+ * wait makes, but it did abandon every submission, so for that decision it is as good as
+ * drained, and treating it as an ordinary failure instead strands everything the pool held, the
+ * pool, and the device with them.
+ *
+ * The half of gdDrained about release callbacks belongs to gpuExecPoolWaitIdle, the only one of
+ * the three that promises anything about them; from the other two it means the submission
+ * completed.
+ *
+ * gdDrained is as strong as the driver allows, which is not absolute. Behind it the core checks
+ * the counter that actually satisfied the wait, which catches a reset that force-signals
+ * timelines past everything, and it acts on any call that reports device loss outright. A
+ * driver that answers a reset by signalling exactly the values the abandoned submissions were
+ * going to signal produces neither, and no Vulkan query separates that from real completion:
+ * the specification permits a wait to succeed after a loss, requires no report of the loss, and
+ * has no reset status query. That behaviour has been measured, and on such a stack a reset
+ * yields stale output under a gdDrained. A filter that must be certain of a result has to check
+ * the result itself; there is nothing further the core can ask on its behalf. */
+typedef enum VSGPUDrainResult {
+    gdDrained = 0,     /* the wait established completion, and for a pool drain every release callback has run */
+    gdIncomplete = 1,  /* the wait could not be established; submissions may still be running */
+    gdDeviceLost = 2   /* the device was reset or lost, so nothing is executing any more */
+} VSGPUDrainResult;
+
+/* Whether a wait left it safe to destroy what a submission might still have been using. Say it
+ * this way rather than `result != gdIncomplete`: written as the positive condition, a value
+ * added to VSGPUDrainResult later is unsafe by default, where the negative form would silently
+ * enrol it on the safe side and start destroying pipelines and buffers under a live dispatch. */
+static inline int vsGPUDrainSafeToDestroy(int drainResult) {
+    return drainResult == gdDrained || drainResult == gdDeviceLost;
+}
+
 /* Everything needed to run your own Vulkan work on the core's device. */
 typedef struct VSVulkanCoreHandles {
     VkInstance instance;
@@ -546,6 +583,26 @@ struct VSVULKANAPI {
        Valid for as long as you hold a reference. */
     VkSemaphore (VS_CC *getGPUTimelineSemaphore)(VSGPUTimeline *timeline) VS_NOEXCEPT;
 
+    /* Waits on the host for a value of this timeline, which is how a filter recording and
+       submitting for itself waits: vkWaitSemaphores on the raw handle is not, for the reason
+       gpuExecWaitValue gives at length. A GPU reset force-signals every timeline past anything
+       a waiter could be waiting for, this one included, so a bare wait returns success at once
+       while the memory the dispatch was going to write still holds whatever it held before.
+       This asks what value actually satisfied the wait, and retries an allocation failure
+       inside the wait rather than reporting one as completion.
+
+       Returns a VSGPUDrainResult. gdDrained means the submission really did complete, with
+       the limit VSGPUDrainResult states;
+       gdDeviceLost means the device was reset, so nothing is executing and everything the
+       submission named may be destroyed; gdIncomplete leaves it queued and untouchable. See
+       vsGPUDrainSafeToDestroy. Waiting for a value an exec pool's timeline has not submitted is
+       fatal -- nothing would ever signal it -- while a timeline you signal yourself has no
+       bound the core could check, since another thread may be about to submit the value.
+
+       Not for waiting out a whole exec pool: gpuExecPoolWaitIdle does that and also promises
+       the release callbacks have run. */
+    int (VS_CC *gpuTimelineWaitValue)(VSGPUTimeline *timeline, uint64_t value, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
+
     /* ---- Memory from the core's pool ---- */
 
     /* Scratch memory through the same sub allocator frame planes use, so it is counted
@@ -703,7 +760,11 @@ struct VSVULKANAPI {
        cover -- an acquirer is briefly invisible to the reaping this promise is built on, so the
        wait may return just before that context's callbacks run. The GPU is idle either way;
        what can be early is only the host side release. Together with one pool per filter
-       instance, the two rules leave no moment at which this call can race an acquire. */
+       instance, the two rules leave no moment at which this call can race an acquire.
+
+       Returns a VSGPUDrainResult, and the error is set for both failures: gdDeviceLost is
+       still a failure of the promise above, it is simply the failure after which nothing is
+       running any more. */
     int (VS_CC *gpuExecPoolWaitIdle)(VSGPUExecPool *pool, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 
     /* Waits for one value on the pool's timeline -- the signaledValue gpuExecSubmit handed
@@ -717,9 +778,22 @@ struct VSVULKANAPI {
        the wait, and retries an allocation failure inside the wait rather than reporting one as
        completion.
 
-       Returns 0 once the submission really has completed. On nonzero -- a reset, or a wait
-       that could not be established -- nothing the submission names may be recycled: it is
-       still queued, and only a successful gpuExecPoolWaitIdle later says otherwise. */
+       Returns a VSGPUDrainResult. gdDrained means the submission really has completed, as
+       far as any Vulkan query can establish it; VSGPUDrainResult states the one reset
+       behaviour that defeats that and what a filter can do about it.
+       gdIncomplete leaves it queued: nothing it names may be recycled, and only a later
+       gpuExecPoolWaitIdle says otherwise. gdDeviceLost means the device was reset, so nothing
+       is executing any more and everything the submission named is safe to destroy -- see
+       vsGPUDrainSafeToDestroy, and do not fold the two failures together, which is how a reset
+       comes to strand a filter's buffers and its pool for the life of the process.
+
+       The value must be one this pool submitted: gpuExecSubmit's signaledValue, or anything
+       below it. A value past everything the pool has ever queued is fatal rather than an
+       unbounded wait on a signal that is never coming. A value the pool did allocate but whose
+       submission failed is past checking and does hang, which is the one case worth being
+       careful with by hand.
+
+       For a timeline of your own rather than a pool's, gpuTimelineWaitValue. */
     int (VS_CC *gpuExecWaitValue)(VSGPUExecPool *pool, uint64_t value, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 
     /* The pool's timeline as the counted object setGPUPlaneProducer takes, for publishing
@@ -828,8 +902,10 @@ struct VSVULKANAPI {
        also works but waits the pool's newest submission, so concurrent frames serialize on
        each other's work. Do not wait on the timeline with vkWaitSemaphores yourself -- a
        bare wait cannot distinguish a completed dispatch from a reset that force-signalled
-       the timeline, and reports the second as the first. Filters that only produce planes
-       never need any of it; the producer pairs carry the synchronization. */
+       the timeline, and reports the second as the first. That holds for a timeline of your
+       own as much as for a pool's, which is what gpuTimelineWaitValue is for. Filters that
+       only produce planes never need any of it; the producer pairs carry the
+       synchronization. */
     int (VS_CC *gpuExecSubmit)(VSGPUExecContext *context, uint64_t *signaledValue, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
     /* Gives up a recording without submitting: everything retained is released at once. */
     void (VS_CC *gpuExecAbandon)(VSGPUExecContext *context) VS_NOEXCEPT;

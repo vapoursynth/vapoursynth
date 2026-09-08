@@ -123,7 +123,10 @@ const VSFrame *VS_CC gpuUploadGetFrame(int n, int activationReason, void *instan
 }
 
 /* Handed to the transfer together with the source reference; the pool runs it once the
-   submission reading that frame's planes has completed. Mirrors the API's own freeFrame. */
+   submission reading that frame's planes has completed. Mirrors the API's own freeFrame, and
+   is the twin of releaseRetainedFrame in vsapi.cpp, which does the same job for the public
+   gpuExecReadsFrame -- they are separate only because that one is file static; a change to
+   what releasing a retained frame means belongs in both. */
 static void VS_CC gpuDownloadReleaseSource(void *object) {
     static_cast<VSFrame *>(object)->release();
 }

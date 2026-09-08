@@ -286,6 +286,9 @@ bool VSVulkanDevice::allocatePooled(const VkMemoryRequirements &req, VkMemoryPro
             waitForeignExecReleases();
             sweepExecPools();
         } else if (rung == 1) {
+            /* Counted for the whole call, so the retraction in the core's destructor can
+               wait out a reader that already took the pair; see pressureReaders. */
+            CallbackReader reader(pressureReaders);
             /* userData before the function, mirroring the retraction's opposite order, so
                observing a function guarantees the userData loaded with it is the matching one. */
             void *pressureCtx = pressureUserData.load();
