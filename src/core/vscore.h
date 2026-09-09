@@ -1224,7 +1224,7 @@ private:
     std::string vulkanDeviceError;
     bool vulkanDeviceTried = false;
 
-    bool createVulkanDeviceLocked(int deviceIndex);
+    bool createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine);
 
     // Shader cache
     std::mutex shaderCacheLock;

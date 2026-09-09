@@ -38,6 +38,7 @@
 #include "internalfilters.h"
 #include "resizeshared.h"
 #include "version.h"
+#include "vscore.h" /* VSFrame::alignment, which decides what zimg may be promised */
 
 using namespace vsh;
 
@@ -575,6 +576,17 @@ class vszimg {
 
             lookup_enum_str_opt(in, "dither_type", g_dither_type_table, &m_params.dither_type, vsapi);
             lookup_enum_str_opt(in, "cpu_type", g_cpu_type_table, &m_params.cpu_type, vsapi);
+
+            /* AUTO_64B does not select an ISA, it tells zimg it may assume 64-byte aligned
+               strides. VSFrame::alignment only reaches 64 on AVX-512 hardware; below that
+               frames are 32-byte aligned and the promise is false, so zimg's own
+               check_alignment fires on any stride that is an odd multiple of 32. Release
+               builds compile that assertion out, which is why the mismatch went unseen.
+               Promise only what the frames actually provide; the ISA is still auto-detected
+               either way. An explicit auto64 is clamped for the same reason -- it is a claim
+               about our frames, not a request the caller can make true. */
+            if (m_params.cpu_type == ZIMG_CPU_AUTO_64B && VSFrame::alignment < 64)
+                m_params.cpu_type = ZIMG_CPU_AUTO;
 
             m_src_left = propGetScalarDef<double>(in, "src_left", NAN, vsapi);
             m_src_top = propGetScalarDef<double>(in, "src_top", NAN, vsapi);

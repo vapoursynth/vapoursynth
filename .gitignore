@@ -110,3 +110,6 @@ subprojects/packagecache/
 subprojects/vulkan-headers/
 subprojects/zimg/
 subprojects/.wraplock
+
+# built probe binaries from linux_tests/build_probes.sh
+linux_tests/bin/

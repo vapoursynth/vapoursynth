@@ -40,8 +40,9 @@ for as long as the copy reading its planes is in flight (I31).
 | `VSNode::cacheMutex` | one node's cache and consumer list |
 | `VSCore::logMutex` | the message handler list, held across the dispatch to each handler; recursive, and the only lock here that runs code the core did not write |
 
-Order, outermost first: `vulkanDeviceLock` before `execPoolsMutex` and `logMutex` (bringing the
-device up registers the transfer pool and logs the device line); `execPoolsMutex` before
+Order, outermost first: `vulkanDeviceLock` before `execPoolsMutex` (bringing the device up
+registers the transfer pool; the device line is logged only after the lock is released -- see the
+note at the end of this section); `execPoolsMutex` before
 `claimMutex` (a device sweep releases claims while walking the registry); `cacheLock` before
 `cacheMutex` (eviction) and both before the allocator mutex (`trimAllocator` under the first, an
 evicted GPU frame returning its regions under the second); `flushMutex` before the queue lock,
@@ -70,6 +71,19 @@ orders, and nothing was held across a filter's `getFrame`, a release callback, a
 callback or a plugin function's invoke. An edge added here should be rechecked the same way; the
 instrumentation is a scoped object recording the thread's held set after each lock acquisition,
 plus one check at each of those four boundaries, and is cheap to rebuild.
+
+It has since been rebuilt and kept, in `src/core/lockorder.{h,cpp}`, off unless
+`VS_LOCK_ORDER_CHECK` is defined and compiling to nothing when it is not. Re-measured 2026-09-08
+on Linux over both suites with and without forced staging and over the five non-destructive
+probes: **exactly the seven edges above, no pair in both orders, and nothing held at any of the
+four boundaries**, across 67 process reports. One of the seven has since been retired on purpose:
+`vulkanDeviceLock` before `logMutex` existed because bring-up logged the device line under the
+lock, and L16 in `linux_tests.md` showed that deadlocks a log handler that re-enters the core on the
+same thread. The line is logged after the guard now, the expected list has six edges, and the gate
+is what notices if the seventh ever comes back. It is worth keeping alongside ThreadSanitizer rather
+than instead of it -- TSan reports a pair only once it has seen it taken in both orders, so it
+needs the bad interleaving to occur, while this records every edge the first time it happens and
+so catches a newly added one whether or not anything ever inverts it.
 
 `vulkanDeviceLock` before `logMutex` costs nothing inside the core and is written down for what
 it means outside it: `logMessage` dispatches to handlers, and the Python handler takes the GIL,
@@ -164,12 +178,62 @@ That is **deliberately not implemented**. Reopen it if a driver turns up that re
 some third way the core could act on, if a cheaper check appears, or if this is ever seen in a
 real filter graph rather than a probe.
 
-One thing bounding the damage is untested: whether the *next* submission on that logical device
-reports device loss. The core already calls markDeviceLost on a submit returning it, so if RADV
-reports it there, one frame is wrong and the rest of the graph errors out; if it never reports
-it, every frame after the reset is silently wrong. The reproduction acquired a context on the
-reset device and abandoned it without dispatching, so this is open. It costs one more case in
-the same probe to settle, and it changes only how much is lost, not whether the first frame is.
+That question is now settled, and the answer bounds the damage. Measured on Linux, RADV
+Mesa 26.0.8 on an AMD Renoir integrated GPU, kernel 7.0.0-31-generic (Ubuntu 26.04.1), with the
+same long finite arithmetic shader through a real exec pool. The kernel log records compute ring
+`comp_1.2.1` being reset, escalating to `GPU reset begin!. Source: 1` and ending
+`GPU reset(1) succeeded!` / `device wedged, but recovered through reset`.
+
+The silent half reproduced exactly: the submission was accepted signalling value 1, the host wait
+returned established completion after 3818 ms, the sweep released the retention exactly once, and
+the checked output word still held the untouched input seed. What is new is the call after it on
+the same core. The next `gpuExecSubmit` returned `VK_ERROR_DEVICE_LOST` out of `vkQueueSubmit2`,
+RADV logging *"The CS has been cancelled because the context is lost. This context is innocent."*;
+the core latched the loss on that result, so the `gpuExecPoolWaitIdle` behind it reported
+`gdDeviceLost` and the next `gpuExecAcquire` returned NULL instead of a context.
+
+So on this stack the blast radius is the work in flight at the reset. Those frames are silently
+wrong and this does not change that -- but every frame after them is a visible error rather than
+more stale bytes, and a graph fails loudly instead of continuing to produce garbage.
+
+It also reconciles the two measurements rather than contradicting the earlier one: **the submit is
+the call that reports, and an acquire on its own does not.** The Raphael reproduction acquired a
+context on the reset device and abandoned it without dispatching, which is why nothing there
+returned `VK_ERROR_DEVICE_LOST`; the acquire that returns NULL here does so only after the submit
+ahead of it latched the loss. Both drivers stay silent through the wait, the counter query and a
+bare acquire.
+
+What is still unknown is whether a stack exists that stays silent on the next submit too, which
+would make this materially worse there. Raw log: `~/vs-reset-logs/reset_next_submit-1000000000-*.log`.
+
+**Measured 2026-09-09 (L19 rerun and L21, RADV RENOIR, Mesa 26.0.8): such a stack exists, and it
+is this one under a condition the contract forbids.** With four workers parked in the admission
+gate behind a hanging submission (L19), the reset force-completed the hang, the sweep released its
+retentions inside the gate, the bytes left the total, and every worker woke through the gate's
+ordinary exit with a context, 2057 ms in and with the loss not yet latched -- correct, since
+nothing had reported it. The submit after that returned `VK_ERROR_DEVICE_LOST` (*"This context is
+guilty of a hard recovery"*), the acquire after it NULL, `gpuExecPoolWaitIdle` `gdDeviceLost`: the
+same as above. L21 then held the gate shut through the reset with a submission the reset could not
+complete, a consumer queued behind the hang that waits on the GPU for a producer value nothing
+signals -- the L9 hazard, out of contract. On that queue the submit after the reset was
+*accepted*, and RADV printed its cancellation only when a host signal of the missing value let the
+work through: the driver holds submissions behind a wait-before-signal in userspace (Mesa's submit
+thread), so `vkQueueSubmit2` had nothing to report until they reached the kernel, and the loss
+arrived as `VK_ERROR_DEVICE_LOST` from the gate's own 50 ms wait, ten seconds later, when the
+valve opened. Until then the workers were parked with nothing to report the reset to them. That
+state needs a value nobody has signalled, which in-contract use never queues (every device-side
+wait names a producer already submitted when its consumer recorded), so it is reachable only
+through a producer bug and is bounded by that bug's fix.
+
+Two things the measurement corrected. The gate's wait treated every error alike and returned
+without latching, so the loss it was the first to hear went unrecorded and the woken threads
+claimed contexts; it now latches on `VK_ERROR_DEVICE_LOST` before returning, which is what I29
+promised of any wait. And `acquire` tested the flag only before the gate, so a thread that left
+the gate on the loss -- its own wait, or another thread's latch while it slept -- claimed a slot on
+a device the core had written off and failed one call later at submit; it tests the flag again
+after the gate and fails there, as this section says it does. L21 measured four contexts handed
+out that way before the change and four refusals within 50 ms of the latch after it, every
+retention released exactly once, both pools draining `gdDeviceLost`, clean teardown.
 
 What is at risk is integrity and nothing else. Work a reset killed really is not running, so
 releasing its retentions and recycling its memory stay correct: the reproduction saw exactly one
@@ -298,7 +362,10 @@ target. Only submitted work is counted, so a thread's own recordings never gate 
 pools signal the progress timeline on every submission; a pool on a dedicated transfer queue
 does not, and its retentions are not metered. The timeout remains for the one event that
 reduces the total without a signal: a completed context an acquirer claimed first settles its
-bytes on the host. A host-signalled wake-up (P10) would retire it.
+bytes on the host. A host-signalled wake-up (P10) would retire it. A wait of its own that
+returns `VK_ERROR_DEVICE_LOST` latches the loss before the gate returns, and `acquire` tests the
+flag again after the gate, so a thread that leaves it on the loss is refused rather than handed a
+context (L21).
 
 ## 7. Allocation ladder
 
@@ -358,7 +425,7 @@ rung 1 waits.
 | I12 | A destroyed pool has no registered batch on any thread, no claimed context and empty lists, and is off the registry before anything is torn down. | destructor order |
 | I13 | The transfer pool never retains, so it never registers batches and never contributes bytes. | `VSVulkanTransfer` uses no retention |
 | I14 | A retained GPU frame outlives its submission; its bytes are its whole size. | `vkGPUExecReadsFrame` |
-| I15 | A release callback only frees: no acquire, GPU allocation, pool creation, pool free or pool wait from a thread running a batch. | `failIfRunningReleases` in `acquire`, `allocatePooled`, `registerExecPool`, `unregisterExecPool`, `waitAll` |
+| I15 | A release callback only frees: no acquire, GPU allocation, pool creation, pool free, pool wait or timeline wait from a thread running a batch. | `failIfRunningReleases` in `acquire`, `allocatePooled`, `registerExecPool`, `unregisterExecPool`, `waitAll`, and also `gpuExecWaitValue` and `gpuTimelineWaitValue` -- the latter is not a pool wait, so the guarded set is seven entry points rather than the five this row used to name. All seven measured refusing, with the expected fatal message, by `linux_tests/release_reentry.c` |
 | I16 | One context per pool per thread. | the owner thread recorded on the claim; `failIfHoldingContext` in `acquire` |
 | I26 | A thread waiting for a context holds no context of another pool, so two full rings can never wait on each other. | `failIfHoldingForeignContext` on `acquire`'s slow path, walking the pool registry under `execPoolsMutex` |
 | I27 | A producer is published only on a plane its frame owns outright, so a GPU write never reaches a frame that shares the plane. | `failIfPlaneShared` in `gpuExecWritesPlane` and `setGPUPlaneProducer`, testing `VSPlaneData::unique()` |
@@ -367,7 +434,7 @@ rung 1 waits.
 | I18 | `waitAll` (idle wait and destruction) only from a thread holding no context of the pool. | `failIfHoldingContext` in `waitAll` |
 | I19 | A pool is never destroyed while any thread holds one of its contexts. | `failIfAnyContextHeld` in the destructor, after unregistration, when a claim can only mean a thread still using the pool |
 | I20 | The pool's timeline advances only through the pool's own submissions: its counter never exceeds what the pool handed to the queue, except at `resetTimelineValue`, which means a GPU reset (I29). | the check in `detachCompleted`, counter read first and `queuedCeiling` after it; the ceiling is stored before the submission that signals it, so it is never behind the counter and the check never fires on a correct program. A reset signalling the exact pending values leaves the counter at or below the ceiling, so this passes and section 2a's gap is what applies |
-| I31 | A submission's inputs are kept alive by the submission, not by whoever waits for it: every recording that reads a frame retains it. | `gpuExecReadsFrame` for filters, and `downloadPlanes` for the transfer, which takes ownership of its source frame and releases it from the retention. Relying on the caller's own host wait instead was wrong twice over -- a failed wait leaves the copy queued, and a plane's destructor waits for its own producer alone, which is nothing at all for a host produced plane |
+| I31 | A submission's inputs and outputs are kept alive by the submission, not by whoever waits for it: every recording that reads a frame retains it, and every declared write holds its frame until the producer pair is published. | `gpuExecReadsFrame` for filters, and `downloadPlanes` for the transfer, which takes ownership of its source frame and releases it from the retention. `gpuExecWritesPlane` takes a reference too, dropped in submit after `setPlaneProducer` (and on a failed submit or abandon): it used to keep a raw pointer, and submit dereferenced it after the caller could have freed the frame -- a use-after-free found by `linux_tests/api_fuzz` on its first run. Relying on the caller's own host wait instead was wrong twice over -- a failed wait leaves the copy queued, and a plane's destructor waits for its own producer alone, which is nothing at all for a host produced plane |
 | I30 | Nothing is retired on a wait that did not establish completion. A retention is released, a command pool or buffer destroyed and the shared flush command buffer reset only after the wait succeeded, or after a reset, when nothing is executing. | `VSVulkanDevice::waitTimelines` is the single wait policy: it retries an allocation failure, recognises a reset, and returns true only on established completion. `~VSVulkanExecPool`, `~VSVulkanTransfer` and `~VSPlaneData` retire conditionally on it and otherwise leave their objects to the device's own destruction; `flushDeviceWrites` tracks `flushPending` and settles it before reusing the buffer |
 | I29 | A GPU reset is survivable: no call spins, every retention is still released exactly once, and the core destructs. One the driver makes observable is additionally recognised and reported, so no wait claims work completed that did not; one it does not is accepted as completion, which section 2a records with the driver it was measured on. | `VK_ERROR_DEVICE_LOST` from any wait, submit or counter query, or `UINT64_MAX` on any pool or progress timeline, sets the device's one-way `deviceLost` flag, after which `acquire`, `submit`, `waitValue`, `waitAll` and `flushDeviceWrites` fail with `deviceLostMessage`, the sweeps stop reaping and the gate returns. The survivable half does not depend on recognising anything: retentions go back in `~VSVulkanExecPool` either way |
 | I21 | Every metered byte belongs to a submission whose completion signals the progress timeline. | `retain` adds bytes only on a pool with `signalsProgress` |

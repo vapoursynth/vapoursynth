@@ -31,6 +31,7 @@
 #endif
 
 #include "vsvulkan.h"
+#include "lockorder.h"
 #include "vsvulkanexec.h"
 
 /* The opaque handle export path; the win32 structs live outside vulkan_core.h. */
@@ -1032,6 +1033,7 @@ bool VSVulkanDevice::waitTimelines(const VkSemaphore *semaphores, const uint64_t
 bool VSVulkanDevice::flushDeviceWrites(const VkSemaphore *waitSemaphores, const uint64_t *waitValues, uint32_t waitCount,
     std::string &errorMessage) {
     std::lock_guard<std::mutex> lock(flushMutex);
+    VS_LOCK_HELD(vsLockFlush);
     if (deviceLost()) {
         errorMessage = deviceLostMessage();
         return false;
@@ -1154,6 +1156,7 @@ bool VSVulkanDevice::flushDeviceWrites(const VkSemaphore *waitSemaphores, const 
     VkResult res;
     {
         std::lock_guard<VSVulkanQueue> queueLock(computeQ);
+        VS_LOCK_HELD(vsLockQueue);
         res = vk.vkQueueSubmit2(computeQ.queue, 1, &submit, VK_NULL_HANDLE);
     }
     if (res != VK_SUCCESS) {
@@ -1238,6 +1241,7 @@ VkDeviceSize VSVulkanDevice::memoryBudget() const {
 
 void VSVulkanDevice::registerExecPool(VSVulkanExecPool *pool) {
     std::lock_guard<std::mutex> lock(execPoolsMutex);
+    VS_LOCK_HELD(vsLockExecPools);
     failIfRunningReleasesLocked("createGPUExecPool");
     execPools.push_back(pool);
 }
@@ -1268,6 +1272,7 @@ void VSVulkanDevice::failIfRunningReleasesLocked(const char *what) const {
 
 void VSVulkanDevice::failIfHoldingForeignContext(const VSVulkanExecPool *self, const char *what) {
     std::lock_guard<std::mutex> lock(execPoolsMutex);
+    VS_LOCK_HELD(vsLockExecPools);
     for (const VSVulkanExecPool *pool : execPools) {
         if (pool == self || !pool->holdsContextOwnedByThisThread())
             continue;
@@ -1279,11 +1284,13 @@ void VSVulkanDevice::failIfHoldingForeignContext(const VSVulkanExecPool *self, c
 
 void VSVulkanDevice::failIfRunningReleases(const char *what) {
     std::lock_guard<std::mutex> lock(execPoolsMutex);
+    VS_LOCK_HELD(vsLockExecPools);
     failIfRunningReleasesLocked(what);
 }
 
 void VSVulkanDevice::unregisterExecPool(VSVulkanExecPool *pool) {
     std::unique_lock<std::mutex> lock(execPoolsMutex);
+    VS_LOCK_HELD(vsLockExecPools);
     failIfRunningReleasesLocked("freeGPUExecPool");
     execPools.erase(std::remove(execPools.begin(), execPools.end(), pool), execPools.end());
     /* Off the list, no sweep can detach anything more; what one already detached is still
@@ -1296,6 +1303,7 @@ void VSVulkanDevice::unregisterExecPool(VSVulkanExecPool *pool) {
 
 bool VSVulkanDevice::detachExecReleases(VSVulkanExecPool *pool, std::vector<VSVulkanExecRetained> &out) {
     std::lock_guard<std::mutex> lock(execPoolsMutex);
+    VS_LOCK_HELD(vsLockExecPools);
     const size_t before = out.size();
     pool->detachCompleted(out);
     if (out.size() == before)
@@ -1306,6 +1314,7 @@ bool VSVulkanDevice::detachExecReleases(VSVulkanExecPool *pool, std::vector<VSVu
 
 void VSVulkanDevice::beginExecReleases(VSVulkanExecPool *pool) {
     std::lock_guard<std::mutex> lock(execPoolsMutex);
+    VS_LOCK_HELD(vsLockExecPools);
     execReleasesInFlight.push_back({ pool, std::this_thread::get_id(), nextExecReleaseBatch++ });
 }
 
@@ -1324,12 +1333,14 @@ void VSVulkanDevice::endExecReleases(VSVulkanExecPool *pool) {
        the entry was removed, and this thread must be done with the pool before the waiter
        can free it. */
     std::lock_guard<std::mutex> lock(execPoolsMutex);
+    VS_LOCK_HELD(vsLockExecPools);
     endExecReleasesLocked(pool, std::this_thread::get_id());
     execReleaseCv.notify_all();
 }
 
 void VSVulkanDevice::waitExecReleases(VSVulkanExecPool *pool) {
     std::unique_lock<std::mutex> lock(execPoolsMutex);
+    VS_LOCK_HELD(vsLockExecPools);
     execReleaseCv.wait(lock, [this, pool]() { return !execReleasesPending(pool, UINT64_MAX); });
 }
 
@@ -1341,6 +1352,7 @@ void VSVulkanDevice::waitForeignExecReleases() {
        the acquirer's GPU wait, which completes on its own. A release that never returns is a
        broken plugin, and hangs freeGPUExecPool exactly the same way. */
     std::unique_lock<std::mutex> lock(execPoolsMutex);
+    VS_LOCK_HELD(vsLockExecPools);
     const uint64_t before = nextExecReleaseBatch;
     execReleaseCv.wait(lock, [this, before]() { return !execReleasesPending(nullptr, before); });
 }
@@ -1356,6 +1368,7 @@ void VSVulkanDevice::sweepExecPools() {
     std::vector<VSVulkanExecPool *> inFlight;
     {
         std::lock_guard<std::mutex> lock(execPoolsMutex);
+        VS_LOCK_HELD(vsLockExecPools);
         const std::thread::id me = std::this_thread::get_id();
         for (VSVulkanExecPool *pool : execPools) {
             const size_t before = detached.size();
@@ -1374,6 +1387,7 @@ void VSVulkanDevice::sweepExecPools() {
            reason endExecReleases does it: a waiter woken here finds its pool's entry gone
            and this thread finished with the pool. */
         std::lock_guard<std::mutex> lock(execPoolsMutex);
+        VS_LOCK_HELD(vsLockExecPools);
         const std::thread::id me = std::this_thread::get_id();
         for (VSVulkanExecPool *pool : inFlight)
             endExecReleasesLocked(pool, me);
@@ -1383,6 +1397,7 @@ void VSVulkanDevice::sweepExecPools() {
 
 bool VSVulkanDevice::ensureExecProgressSemaphore() {
     std::lock_guard<std::mutex> lock(execPoolsMutex);
+    VS_LOCK_HELD(vsLockExecPools);
     if (execProgressSem.load(std::memory_order_relaxed))
         return true;
     VkSemaphoreTypeCreateInfo typeInfo = {};
@@ -1455,6 +1470,12 @@ void VSVulkanDevice::execAdmissionGate() {
            on it would busy-spin with no pacing left. Same policy as the counter read above:
            running past the budget beats spinning. */
         VkResult waitRes = vk.vkWaitSemaphores(deviceHandle, &waitInfo, 50000000ull);
+        /* Device loss is latched where it is heard (I29), and this wait can be the first to
+           hear it: L21 parked every worker here behind a submission the reset could not
+           complete while the driver had deferred the submit that would otherwise have
+           reported, so the loss reached the core through this wait and nothing else. */
+        if (waitRes == VK_ERROR_DEVICE_LOST)
+            markDeviceLost();
         if (waitRes != VK_SUCCESS && waitRes != VK_TIMEOUT)
             return;
     }

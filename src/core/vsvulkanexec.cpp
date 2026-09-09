@@ -19,6 +19,7 @@
 */
 
 #include "vsvulkanexec.h"
+#include "lockorder.h"
 
 VSVulkanExecPool::~VSVulkanExecPool() {
     if (!dev)
@@ -296,8 +297,10 @@ void VSVulkanExecPool::detachCompleted(std::vector<VSVulkanExecRetained> &out) {
 }
 
 void VSVulkanExecPool::runReleases(std::vector<VSVulkanExecRetained> &detached) {
-    for (const auto &r : detached)
+    for (const auto &r : detached) {
+        VS_LOCK_BOUNDARY("a release callback");
         r.release(r.object);
+    }
     detached.clear();
 }
 
@@ -323,6 +326,15 @@ VSVulkanExecContext *VSVulkanExecPool::acquire(std::string &errorMessage) {
        gates it, and the queue drains without its help either way: every device side wait
        in it names a producer that was already submitted when its consumer recorded. */
     dev->execAdmissionGate();
+    /* And after it. The gate is where a parked thread hears the loss -- its own wait, or a
+       latch by another thread while it slept -- and it leaves on that rather than claiming a
+       slot on a device the core has written off. Without this the thread claimed and its
+       submit failed instead: the same outcome one call later, but acquire is the call the
+       protocol says fails, and L21 measured four contexts handed out this way. */
+    if (dev->deviceLost()) {
+        errorMessage = VSVulkanDevice::deviceLostMessage();
+        return nullptr;
+    }
 
     VSVulkanExecContext *context = nullptr;
     const size_t count = contexts.size();
@@ -349,6 +361,7 @@ VSVulkanExecContext *VSVulkanExecPool::acquire(std::string &errorMessage) {
     if (!context) {
         dev->failIfHoldingForeignContext(this, "gpuExecAcquire");
         std::unique_lock<std::mutex> lock(claimMutex);
+        VS_LOCK_HELD(vsLockClaim);
         claimCv.wait(lock, [&]() {
             for (auto &candidate : contexts) {
                 bool expected = false;
@@ -487,6 +500,7 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
            burned progress value is fine, gaps are legal on timelines and the gate only ever
            waits for counter + 1. */
         std::lock_guard<VSVulkanQueue> queueLock(*q);
+        VS_LOCK_HELD(vsLockQueue);
         signalInfos[0].value = nextValue + 1;
         if (signalsProgress)
             signalInfos[1].value = dev->execProgressNext + 1;
@@ -574,6 +588,7 @@ bool VSVulkanExecPool::waitAll(std::string &errorMessage) {
     uint64_t value;
     {
         std::lock_guard<VSVulkanQueue> queueLock(*q);
+        VS_LOCK_HELD(vsLockQueue);
         value = nextValue;
     }
     if (value == 0)
@@ -604,5 +619,6 @@ void VSVulkanExecPool::releaseClaim(VSVulkanExecContext &context) {
        it the release could land between a waiter's failed scan and its wait, and the notify
        would hit nobody. */
     { std::lock_guard<std::mutex> lock(claimMutex); }
+    VS_LOCK_HELD(vsLockClaim);
     claimCv.notify_one();
 }

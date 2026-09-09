@@ -143,7 +143,7 @@ while time.monotonic() < deadline:
     time.sleep(0.05)
 transfer(256, 128, 1)  # the slots come back on demand
 recreated = used() - base
-print(grown, shrunk, "none" if released is None else released, recreated, int(core.vulkan_device_info["unified_memory"]))
+print("STAGING_RESULT", grown, shrunk, "none" if released is None else released, recreated, int(core.vulkan_device_info["unified_memory"]))
 '''
 
 
@@ -236,7 +236,13 @@ class KernelRegressionTests(unittest.TestCase):
         env = dict(os.environ, VS_VULKAN_FORCE_STAGING="1")
         result = subprocess.run([sys.executable, "-c", STAGING_PROBE], env=env, capture_output=True, text=True, timeout=180)
         self.assertEqual(result.returncode, 0, result.stderr)
-        grown, shrunk, released, recreated, unified = result.stdout.split()
+        # Pick the probe's own line out instead of splitting the whole stream: the core logs to
+        # stdout in some configurations -- VS_VULKAN_VALIDATION=1 adds a banner per core -- and a
+        # positional split then fails for reasons that are not the test's, exactly as the test
+        # above says.
+        line = next((l for l in result.stdout.splitlines() if l.startswith("STAGING_RESULT")), None)
+        self.assertIsNotNone(line, result.stdout + result.stderr)
+        grown, shrunk, released, recreated, unified = line.split()[1:]
         MiB = 1 << 20
         # one 8 MiB frame each way creates one 8 MiB slot per ring next to the 1 MiB one
         self.assertGreaterEqual(int(grown), 16 * MiB, result.stdout)

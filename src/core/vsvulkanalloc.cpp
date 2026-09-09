@@ -19,6 +19,7 @@
 */
 
 #include "vsvulkan.h"
+#include "lockorder.h"
 
 #include <cassert>
 
@@ -49,6 +50,7 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
     const uint64_t bucketType = typeIndex | (exportable ? (1ull << 32) : 0);
 
     std::lock_guard<std::mutex> lock(mutex);
+    VS_LOCK_HELD(vsLockAllocator);
 
     auto bucket = freeLists.find({ bucketType, roundedSize });
     if (bucket != freeLists.end() && !bucket->second.empty()) {
@@ -161,6 +163,7 @@ bool VSVulkanAllocator::allocate(VSVulkanDevice &dev, uint32_t typeIndex, VkDevi
 
 void VSVulkanAllocator::free(VSVulkanDevice &dev, Block *block, VkDeviceSize offset, VkDeviceSize roundedSize) {
     std::lock_guard<std::mutex> lock(mutex);
+    VS_LOCK_HELD(vsLockAllocator);
     freeLists[{ block->typeIndex | (block->exportable ? (1ull << 32) : 0), roundedSize }].push_back({ block, offset });
     freeRegions++;
     usedBytes -= roundedSize;
@@ -170,6 +173,7 @@ void VSVulkanAllocator::free(VSVulkanDevice &dev, Block *block, VkDeviceSize off
 
 VkDeviceSize VSVulkanAllocator::trim(VSVulkanDevice &dev) {
     std::lock_guard<std::mutex> lock(mutex);
+    VS_LOCK_HELD(vsLockAllocator);
     return trimLocked(dev);
 }
 
@@ -202,6 +206,7 @@ VkDeviceSize VSVulkanAllocator::trimLocked(VSVulkanDevice &dev) {
 
 void VSVulkanAllocator::destroy(VSVulkanDevice &dev) {
     std::lock_guard<std::mutex> lock(mutex);
+    VS_LOCK_HELD(vsLockAllocator);
     for (auto &block : blocks) {
         if (block->memory) {
             dev.vk.vkFreeMemory(dev.device(), block->memory, nullptr); /* implicitly unmaps */
@@ -216,6 +221,7 @@ void VSVulkanAllocator::destroy(VSVulkanDevice &dev) {
 
 VSVulkanAllocatorStats VSVulkanAllocator::stats() const {
     std::lock_guard<std::mutex> lock(mutex);
+    VS_LOCK_HELD(vsLockAllocator);
     VSVulkanAllocatorStats out;
     out.blockCount = blocks.size();
     for (const auto &block : blocks)

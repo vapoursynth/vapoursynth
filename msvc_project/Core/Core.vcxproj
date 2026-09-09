@@ -128,6 +128,7 @@
     <ClCompile Include="..\..\src\core\cpufeatures.cpp" />
     <ClCompile Include="..\..\src\core\gpuresize.cpp" />
     <ClCompile Include="..\..\src\core\internalfilters.cpp" />
+    <ClCompile Include="..\..\src\core\lockorder.cpp" />
     <ClCompile Include="..\..\src\core\zimg\blue.cpp" />
     <ClCompile Include="..\..\src\core\zimg\colorspace_param.cpp" />
     <ClCompile Include="..\..\src\core\zimg\matrix3.cpp" />
@@ -157,6 +158,7 @@
     <ClInclude Include="..\..\src\core\zimg\matrix3.h" />
     <ClInclude Include="..\..\src\core\intrusive_ptr.h" />
     <ClInclude Include="..\..\src\core\kernel\cpulevel.h" />
+    <ClInclude Include="..\..\src\core\lockorder.h" />
     <ClInclude Include="..\..\src\core\memoryuse.h" />
     <ClInclude Include="..\..\src\core\ter-116n.h" />
     <ClInclude Include="..\..\src\core\version.h" />

@@ -847,7 +847,9 @@ struct VSVULKANAPI {
        declared on a shared plane would land in the other frame as well. That is fatal here
        rather than silent. Copy a frame only to inherit properties you then keep; to write,
        take newGPUVideoFrame or newVideoFrame2 with the old frame as the property source.
-       Sharing a plane this filter does not write stays fine, the check being per plane. */
+       Sharing a plane this filter does not write stays fine, the check being per plane.
+       Takes its own reference to the frame, as gpuExecReadsFrame does, so the caller still
+       releases its own reference normally; it is dropped once the pair is published. */
     void (VS_CC *gpuExecWritesPlane)(VSGPUExecContext *context, VSFrame *frame, int plane) VS_NOEXCEPT;
     /* Hands a scratch buffer to the context, which destroys it once the submission
        completes. Ownership transfers; do not destroy it yourself. */

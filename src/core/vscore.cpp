@@ -19,6 +19,7 @@
 */
 
 #include "vscore.h"
+#include "lockorder.h"
 #include "VSHelper4.h"
 #include "version.h"
 #include "cpufeatures.h"
@@ -676,6 +677,7 @@ std::string VSPluginFunction::checkValues(const std::vector<FilterArgument> &far
 }
 
 VSMap *VSPluginFunction::invoke(const VSMap &args) {
+    VS_LOCK_BOUNDARY("a plugin function's invoke");
     VSMap *v = new VSMap;
 
     try {
@@ -853,6 +855,7 @@ VSNode::~VSNode() {
 
 void VSNode::registerCache(bool add) {
     std::lock_guard<std::mutex> lock(core->cacheLock);
+    VS_LOCK_HELD(vsLockCacheSet);
     if (add) {
         core->caches.insert(this);
     } else {
@@ -873,6 +876,7 @@ void VSNode::updateCacheState() {
 void VSNode::addConsumer(VSNode *consumer, int strictSpatial) {
     {
         std::lock_guard<std::mutex> lock(cacheMutex);
+        VS_LOCK_HELD(vsLockNodeCache);
         consumers.push_back({consumer, strictSpatial});
 
         updateCacheState();
@@ -883,6 +887,7 @@ void VSNode::addConsumer(VSNode *consumer, int strictSpatial) {
 void VSNode::removeConsumer(VSNode *consumer, int strictSpatial) {
     {
         std::lock_guard<std::mutex> lock(cacheMutex);
+        VS_LOCK_HELD(vsLockNodeCache);
         for (auto iter = consumers.begin(); iter != consumers.end(); ++iter) {
             if (iter->source == consumer && iter->requestPattern == strictSpatial) {
                 consumers.erase(iter);
@@ -971,6 +976,7 @@ int VSNode::setLinear() {
     {
         size_t threadCount = core->threadPool->threadCount();
         std::lock_guard<std::mutex> lock(cacheMutex);
+        VS_LOCK_HELD(vsLockNodeCache);
         cacheLinear = true;
         cacheOverride = true;
         cacheEnabled = true;
@@ -985,6 +991,7 @@ int VSNode::setLinear() {
 void VSNode::setCacheMode(int mode) {
     {
         std::lock_guard<std::mutex> lock(cacheMutex);
+        VS_LOCK_HELD(vsLockNodeCache);
 
         if (cacheLinear || mode < -1 || mode > 1) {
             // simply disregard cache mode changes for linear filters
@@ -1015,6 +1022,7 @@ void VSNode::setCacheMode(int mode) {
 
 void VSNode::setCacheOptions(int fixedSize, int maxSize, int maxHistorySize) {
     std::lock_guard<std::mutex> lock(cacheMutex);
+    VS_LOCK_HELD(vsLockNodeCache);
     if (fixedSize >= 0)
         cache.setFixedSize(!!fixedSize);
     if (maxSize >= 0)
@@ -1025,6 +1033,7 @@ void VSNode::setCacheOptions(int fixedSize, int maxSize, int maxHistorySize) {
 
 PVSFrame VSNode::getCachedFrameInternal(int n) {
     std::lock_guard<std::mutex> lock(cacheMutex);
+    VS_LOCK_HELD(vsLockNodeCache);
     if (cacheEnabled)
         return cache.object(n);
     else
@@ -1040,6 +1049,7 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     vs::MemoryUse::CallTracking savedTracking = vs::MemoryUse::begin_call_tracking();
 
     core->currentProcessingNode = this;
+    VS_LOCK_BOUNDARY("a filter's getFrame");
     const VSFrame *r = filterGetFrame(n, activationReason, instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi);
     core->currentProcessingNode = nullptr;
 
@@ -1090,6 +1100,7 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
 
         if (cacheEnabled) {
             std::lock_guard<std::mutex> lock(cacheMutex);
+            VS_LOCK_HELD(vsLockNodeCache);
             int lastFrame = (nodeType == mtVideo ? vi.numFrames : ai.numFrames) - 1;
             if (cacheEnabled && (!cacheLastOnly || n == lastFrame))
                 cache.insert(n, ref);
@@ -1103,12 +1114,14 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
 
 void VSNode::cacheFrame(const VSFrame *frame, int n) {
     std::lock_guard<std::mutex> lock(cacheMutex);
+    VS_LOCK_HELD(vsLockNodeCache);
     assert(cacheLinear);
     cache.insert(n, {const_cast<VSFrame *>(frame), true});
 }
 
 void VSNode::clearCache(bool resetSize) {
     std::lock_guard<std::mutex> lock(cacheMutex);
+    VS_LOCK_HELD(vsLockNodeCache);
     cache.clear();
     if (resetSize && !cacheLinear && !cache.getFixedSize())
         cache.setMaxFrames(cache.reSeedSize());
@@ -1116,16 +1129,19 @@ void VSNode::clearCache(bool resetSize) {
 
 void VSNode::notifyCache(bool memoryComfortable, uint64_t completedExtFrames) {
     std::lock_guard<std::mutex> lock(cacheMutex);
+    VS_LOCK_HELD(vsLockNodeCache);
     cache.adjustSize(memoryComfortable, completedExtFrames);
 }
 
 VSNode::CachePressureInfo VSNode::getCachePressureInfo() {
     std::lock_guard<std::mutex> lock(cacheMutex);
+    VS_LOCK_HELD(vsLockNodeCache);
     return { cache.bytesHeld(), cache.recentValue(), cache.getFixedSize() };
 }
 
 size_t VSNode::evictCacheBytes(size_t maxBytes) {
     std::lock_guard<std::mutex> lock(cacheMutex);
+    VS_LOCK_HELD(vsLockNodeCache);
     return cache.dropLRUFrames(maxBytes);
 }
 
@@ -1206,6 +1222,7 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
     }
 
     std::lock_guard<std::mutex> lock(cacheLock);
+    VS_LOCK_HELD(vsLockCacheSet);
 
     if (hostNeedsMemory || gpuNeedsMemory) {
         // free the excess in a single pass by taking frames from the caches where each held byte
@@ -1361,6 +1378,7 @@ bool VSCore::queryAudioFormat(VSAudioFormat &f, VSSampleType sampleType, int bit
 
 VSLogHandle *VSCore::addLogHandler(VSLogHandler handler, VSLogHandlerFree freeFunc, void *userData) {
     std::lock_guard<std::recursive_mutex> lock(logMutex);
+    VS_LOCK_HELD(vsLockLog);
     VSLogHandle *handle = *(messageHandlers.insert(new VSLogHandle{ handler, freeFunc, userData }).first);
 
     for (const auto &iter : storedMessages)
@@ -1373,6 +1391,7 @@ VSLogHandle *VSCore::addLogHandler(VSLogHandler handler, VSLogHandlerFree freeFu
 
 bool VSCore::removeLogHandler(VSLogHandle *rec) {
     std::lock_guard<std::recursive_mutex> lock(logMutex);
+    VS_LOCK_HELD(vsLockLog);
     auto f = messageHandlers.find(rec);
     if (f != messageHandlers.end()) {
         delete rec;
@@ -1386,6 +1405,7 @@ bool VSCore::removeLogHandler(VSLogHandle *rec) {
 void VSCore::logMessage(VSMessageType type, const char *msg) {
     assert(msg);
     std::lock_guard<std::recursive_mutex> lock(logMutex);
+    VS_LOCK_HELD(vsLockLog);
     for (auto iter : messageHandlers)
         iter->handler(type, msg, iter->userData);
     if (messageHandlers.empty() && storedMessages.size() < maxStoredLogMessages)
@@ -1422,7 +1442,7 @@ static void vulkanLogBridge(int severity, const char *message, void *userData) {
     core->logMessage(type, message);
 }
 
-bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
+bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine) {
     vulkanDeviceTried = true;
     auto dev = std::make_unique<VSVulkanDevice>();
     dev->setLogCallback(vulkanLogBridge, this);
@@ -1526,8 +1546,12 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex) {
         limitInfo += ", unified memory so it shares system RAM with the " +
             std::to_string(memory->limit() >> 20) + " MB host limit (combined ceiling " +
             std::to_string(memory->combined_limit() >> 20) + " MB)";
-    logMessage(mtInformation, "Vulkan device: " + std::string(vulkanDev.load()->properties().deviceName) +
-        ", " + limitInfo);
+    /* Handed back rather than logged here. The callers hold vulkanDeviceLock across this whole
+       function, and a log message reaches a handler synchronously on this thread -- a handler
+       that touches the core, vulkan_device_info from Python say, re-enters vulkanDevice() and
+       takes the same non-recursive mutex again (L16 in linux_tests.md). They log it once the
+       guard is gone. */
+    deviceLine = "Vulkan device: " + std::string(vulkanDev.load()->properties().deviceName) + ", " + limitInfo;
     return true;
 }
 
@@ -1555,28 +1579,45 @@ VSNode *VSCore::wrapGPUBoundary(VSNode *node, bool toGPU, std::string &errorMess
 }
 
 VSVulkanDevice *VSCore::vulkanDevice(std::string &errorMessage) {
-    std::lock_guard<std::mutex> lock(vulkanDeviceLock);
-    if (!vulkanDeviceTried && !createVulkanDeviceLocked(-1))
-        logMessage(mtWarning, "Vulkan device creation failed: " + vulkanDeviceError);
-    if (!vulkanDev) {
-        errorMessage = vulkanDeviceError;
-        return nullptr;
+    std::string deviceLine, failure;
+    VSVulkanDevice *dev = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(vulkanDeviceLock);
+        VS_LOCK_HELD(vsLockVulkanDevice);
+        if (!vulkanDeviceTried && !createVulkanDeviceLocked(-1, deviceLine))
+            failure = "Vulkan device creation failed: " + vulkanDeviceError;
+        dev = vulkanDev;
+        if (!dev)
+            errorMessage = vulkanDeviceError;
     }
-    return vulkanDev;
+    /* Both logged outside the lock. logMutex runs code the core did not write, and section 2 of
+       vsvulkanexec_protocol.md says no core lock is ever held across that; this was the one
+       place one was, and a handler that re-entered here deadlocked on the mutex above (L16). */
+    if (!failure.empty())
+        logMessage(mtWarning, failure);
+    if (!deviceLine.empty())
+        logMessage(mtInformation, deviceLine);
+    return dev;
 }
 
 bool VSCore::setVulkanDevice(int deviceIndex, std::string &errorMessage) {
-    std::lock_guard<std::mutex> lock(vulkanDeviceLock);
-    if (vulkanDeviceTried) {
-        errorMessage = vulkanDev ? "setVulkanDevice must be called before the Vulkan device is first used"
-            : "Vulkan device creation already failed: " + vulkanDeviceError;
-        return false;
+    std::string deviceLine;
+    bool created = false;
+    {
+        std::lock_guard<std::mutex> lock(vulkanDeviceLock);
+        VS_LOCK_HELD(vsLockVulkanDevice);
+        if (vulkanDeviceTried) {
+            errorMessage = vulkanDev ? "setVulkanDevice must be called before the Vulkan device is first used"
+                : "Vulkan device creation already failed: " + vulkanDeviceError;
+            return false;
+        }
+        created = createVulkanDeviceLocked(deviceIndex, deviceLine);
+        if (!created)
+            errorMessage = vulkanDeviceError;
     }
-    if (!createVulkanDeviceLocked(deviceIndex)) {
-        errorMessage = vulkanDeviceError;
-        return false;
-    }
-    return true;
+    if (!deviceLine.empty())
+        logMessage(mtInformation, deviceLine); /* outside the lock, for the reason vulkanDevice gives */
+    return created;
 }
 
 bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {
@@ -1917,6 +1958,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
             VSCoreShittyFreeList *current = nodeFreeList;
             nodeFreeList = current->next;
             VSCore *owner = current->core;
+            VS_LOCK_BOUNDARY("a filter's free callback");
             current->freeFunc(current->instanceData, owner, &vs_internal_vsapi);
             delete current;
             owner->filterInstanceDestroyed();
@@ -1928,6 +1970,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
 
 void VSCore::clearCaches(bool resetSize) {
     std::lock_guard<std::mutex> lock(cacheLock);
+    VS_LOCK_HELD(vsLockCacheSet);
     for (const auto &iter : caches)
         iter->clearCache(resetSize);
 }
@@ -1953,6 +1996,7 @@ void VSCore::gpuMemoryPanic() {
        sweep has already run by the time this is called. */
     {
         std::lock_guard<std::mutex> lock(cacheLock);
+        VS_LOCK_HELD(vsLockCacheSet);
         for (const auto &iter : caches) {
             if (iter->isGPUOutput())
                 iter->clearCache(true);

@@ -1647,6 +1647,12 @@ static void VS_CC vkGPUExecWritesPlane(VSGPUExecContext *context, VSFrame *frame
     assert(frame);
     checkExecHandle(context, "gpuExecWritesPlane");
     failIfPlaneShared(frame, plane, "gpuExecWritesPlane");
+    /* The context's own reference, as gpuExecReadsFrame takes. Submit dereferences every
+       declared write AFTER the submission to publish the producer pair, so a caller that dropped
+       its frame between declaring and submitting -- an error path, typically -- handed submit a
+       dangling pointer: a use-after-free in getGPUPlane, a segfault without a sanitizer.
+       Found by api_fuzz (L22). Released once the pair is published, or on abandon. */
+    frame->add_ref();
     context->publish.push_back({ frame, plane });
 }
 
@@ -1747,6 +1753,8 @@ static int VS_CC vkGPUExecSubmit(VSGPUExecContext *context, uint64_t *signaledVa
     uint64_t value = 0;
     if (!context->owner->pool.submit(*context->context, err, &value, waits.data(), waits.size())) {
         copyVulkanError(err, errorMessage, errorMessageSize);
+        for (const auto &target : publish)
+            target.frame->release(); /* nothing was published; drop what gpuExecWritesPlane took */
         return 1;
     }
     if (signaledValue)
@@ -1755,6 +1763,9 @@ static int VS_CC vkGPUExecSubmit(VSGPUExecContext *context, uint64_t *signaledVa
         VSVulkanPlane *plane = target.frame->getGPUPlane(target.plane);
         if (plane)
             setPlaneProducer(*plane, context->owner->pool.timelineObject(), value);
+        /* The reference gpuExecWritesPlane took. If it was the last one the frame goes now and
+           its plane waits out the pair just published, which is this very submission. */
+        target.frame->release();
     }
     return 0;
 }
@@ -1763,6 +1774,8 @@ static void VS_CC vkGPUExecAbandon(VSGPUExecContext *context) VS_NOEXCEPT {
     if (!context)
         return;
     checkExecHandle(context, "gpuExecAbandon");
+    for (const auto &target : context->publish)
+        target.frame->release(); /* what gpuExecWritesPlane took; nothing gets published */
     context->reset();
     context->owner->pool.abandon(*context->context);
 }

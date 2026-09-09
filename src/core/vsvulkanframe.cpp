@@ -19,6 +19,7 @@
 */
 
 #include "vsvulkanframe.h"
+#include "lockorder.h"
 
 #include <algorithm>
 #include <cstring>
@@ -143,6 +144,7 @@ VSVulkanTransfer::Slot *VSVulkanTransfer::acquireSlot(SlotRing &ring, VkDeviceSi
     }
     if (!slot) {
         std::unique_lock<std::mutex> lock(ring.claimMutex);
+        VS_LOCK_HELD(vsLockClaim);
         ring.claimCv.wait(lock, [&]() {
             for (auto &candidate : ring.slots) {
                 bool expected = false;
@@ -185,6 +187,7 @@ VSVulkanTransfer::Slot *VSVulkanTransfer::acquireSlot(SlotRing &ring, VkDeviceSi
 void VSVulkanTransfer::releaseSlot(SlotRing &ring, Slot &slot) {
     slot.claimed.store(false, std::memory_order_release);
     { std::lock_guard<std::mutex> lock(ring.claimMutex); }
+    VS_LOCK_HELD(vsLockClaim);
     ring.claimCv.notify_one();
 }
 
