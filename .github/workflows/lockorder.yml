@@ -1,0 +1,42 @@
+# Occasional gate on the lock graph in section 2 of src/core/vsvulkanexec_protocol.md.
+#
+# Deliberately not part of the build workflow: it needs its own instrumented build, and the
+# question it answers -- has anyone added an edge to the lock graph -- changes on the timescale of
+# months, not of pushes. Weekly, plus on demand.
+#
+# A GitHub runner has no GPU, so this reaches only the cache and allocator edges. The GPU half of
+# the graph (vulkanDeviceLock, execPoolsMutex, claimMutex, flushMutex, queueLock) needs a machine
+# with a Vulkan device; run linux_tests/check_lock_order.sh there. The gate reports which expected
+# edges a run did not reach, so a green here is honestly labelled as partial.
+name: Lock order
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'
+
+jobs:
+  lock-order:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-dev pkg-config libzimg-dev libvulkan-dev ninja-build
+        python3 -m pip install --upgrade meson cython
+
+    - name: Build with VS_LOCK_ORDER_CHECK
+      run: |
+        meson setup build-lockorder --prefix="$PWD/inst-lockorder" \
+            --buildtype=debugoptimized --force-fallback-for=zimg \
+            -Dcpp_args=-DVS_LOCK_ORDER_CHECK -Dc_args=-DVS_LOCK_ORDER_CHECK
+        ninja -C build-lockorder install
+
+    - name: Build the probes
+      run: ./linux_tests/build_probes.sh "$PWD/inst-lockorder" || true
+
+    - name: Check the lock graph
+      run: ./linux_tests/check_lock_order.sh "$PWD/inst-lockorder" python3
