@@ -52,7 +52,8 @@ namespace vsgpu {
 
 /* Bindings per pass. Sized for the widest thing in the tree: AverageFrames takes up to 31
    input clips plus the output. The program list itself is unbounded; a program only costs
-   its pipeline. */
+   its pipeline. This bounds the arrays; how many the device binds in one pass is its own
+   number, which createFilter checks every program against. */
 constexpr int maxBindings = 32;
 
 /* What a pass binds at one descriptor slot. Never a VkBuffer: the driver resolves these to
@@ -277,6 +278,31 @@ struct FilterDesc {
 
 namespace detail {
 
+/* Every operand is bound as a whole buffer, so its size is its descriptor's range, and the
+   device caps the range. The message for a binding past the cap; exact is false when the size
+   is a lower bound rather than the number the buffer will have. */
+inline std::string pastStorageRange(const std::string &what, VkDeviceSize bytes, VkDeviceSize limit, bool exact) {
+    return what + (exact ? " is " : " is at least ") + std::to_string(bytes) +
+        " bytes, but this device binds at most " + std::to_string(limit) + " bytes as one storage buffer";
+}
+
+inline std::string operandName(const Operand &op, int plane) {
+    switch (op.kind) {
+    case Operand::SourcePlane:
+        return "clip " + std::to_string(op.clip) + " plane " + std::to_string(op.plane >= 0 ? op.plane : plane);
+    case Operand::OutputPlane:
+        return "output plane " + std::to_string(plane);
+    case Operand::Scratch:
+        return "scratch buffer " + std::to_string(op.slot);
+    case Operand::Constant:
+        return "constant buffer " + std::to_string(op.slot);
+    case Operand::Readback:
+        return "the readback buffer";
+    default:
+        return "the frame data buffer";
+    }
+}
+
 struct Instance {
     FilterDesc desc;
     const VSVULKANAPI *vkapi = nullptr;
@@ -288,6 +314,9 @@ struct Instance {
     std::vector<VkPipeline> pipelines;
     std::vector<VSGPUBuffer *> constantBuffers;
     std::vector<VSVulkanBufferInfo> constantInfo;
+    /* The device's cap on a storage descriptor's range, which for a whole-buffer binding is
+       the buffer's size. Queried at create, applied to every binding. */
+    VkDeviceSize maxStorageBufferRange = 0;
 
     ~Instance() {
         if (!vk)
@@ -654,6 +683,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
             for (size_t b = 0; b < pass.bindings.size(); b++) {
                 const Operand &op = pass.bindings[b];
                 VkBuffer buffer = VK_NULL_HANDLE;
+                VkDeviceSize bytes = 0;
                 uint32_t strideElems = dstStrideElems;
                 if (op.kind == Operand::SourcePlane) {
                     const VSFrame *srcFrame = fetch(op.clip, op.frameOffset);
@@ -670,6 +700,7 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                         break;
                     }
                     buffer = planeInfo.buffer;
+                    bytes = planeInfo.bufferSize;
                     /* Each source is measured in its own sample size, not the output's:
                        Expr accepts clips whose format differs from what it writes, and
                        dividing an 8 bit source's stride by a 16 bit output would halve it. */
@@ -677,18 +708,31 @@ inline const VSFrame *VS_CC driverGetFrame(int n, int activationReason, void *in
                     strideElems = static_cast<uint32_t>(vsapi->getStride(srcFrame, srcPlane) / srcFmt->bytesPerSample);
                 } else if (op.kind == Operand::OutputPlane) {
                     buffer = dstPlane.buffer;
+                    bytes = dstPlane.bufferSize;
                 } else if (op.kind == Operand::Constant) {
                     buffer = inst->constantInfo[op.slot].buffer;
+                    bytes = inst->constantInfo[op.slot].size;
                     info.addresses[b] = inst->constantInfo[op.slot].address;
                 } else if (op.kind == Operand::Readback) {
                     buffer = readbackInfo.buffer;
+                    bytes = readbackInfo.size;
                     info.addresses[b] = readbackInfo.address;
                 } else if (op.kind == Operand::FrameData) {
                     buffer = frameDataInfo.buffer;
+                    bytes = frameDataInfo.size;
                     info.addresses[b] = frameDataInfo.address;
                 } else {
                     buffer = scratch[op.slot].buffer;
+                    bytes = scratch[op.slot].size;
                     info.addresses[b] = scratch[op.slot].address;
+                }
+                /* Bound whole, so the size is the range and the range is what the device caps.
+                   The sizes a filter declares were refused at create; a plane's was only bounded
+                   from below there, the row padding being the core's, and a variable source's
+                   not at all, so this is the exact check. */
+                if (bytes > inst->maxStorageBufferRange) {
+                    bindError = "GPU filter: " + pastStorageRange(operandName(op, p), bytes, inst->maxStorageBufferRange, true);
+                    break;
                 }
                 info.strideElements[b] = strideElems;
                 bufferInfo[b].buffer = buffer;
@@ -917,6 +961,78 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
     inst->vk = inst->vkapi->getVulkanFunctions(core, err, sizeof(err));
     if (!inst->vk)
         return fail(err);
+
+    /* Every operand is bound as a whole buffer, so its size is its descriptor's range, and
+       every pass pushes one storage buffer per binding into one set. The device caps both,
+       and a descriptor past a cap is not an error anything reports: it is undefined behaviour
+       that surfaces as garbage or a device loss somewhere else entirely. maxBindings only
+       sizes the arrays; the device's own numbers are applied here, once, so a filter this
+       device cannot run is refused at creation with the reason. Neither cap is theoretical:
+       the specification guarantees a range of only 128 MB, which one 8K float plane exceeds,
+       and Vulkan on Metal reports 31 storage buffers per stage without argument buffers, one
+       short of AverageFrames at its widest. */
+    VkPhysicalDevicePushDescriptorProperties pushProps = {};
+    pushProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES;
+    VkPhysicalDeviceProperties2 props = {};
+    props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    props.pNext = &pushProps;
+    inst->vk->vkGetPhysicalDeviceProperties2(inst->handles.physicalDevice, &props);
+    const VkPhysicalDeviceLimits &limits = props.properties.limits;
+    /* One set of storage buffers in one compute stage, so all three counts cap the same
+       number. */
+    const uint32_t maxStorageBuffers = std::min({ limits.maxPerStageDescriptorStorageBuffers,
+        limits.maxDescriptorSetStorageBuffers, pushProps.maxPushDescriptors });
+    for (size_t idx = 0; idx < desc.programs.size(); idx++) {
+        if (static_cast<uint32_t>(desc.programs[idx].storageBufferCount) > maxStorageBuffers)
+            return fail("program " + std::to_string(idx) + " declares " +
+                std::to_string(desc.programs[idx].storageBufferCount) + " storage buffers, but this device binds at most " +
+                std::to_string(maxStorageBuffers) + " in one pass");
+    }
+    /* The sizes the filter declares are exact. A plane's is known here only from below, the
+       row padding being the core's, so planes are bounded here and checked exactly where they
+       are bound; a variable source has no size until its frame arrives. Only what a pass
+       actually binds is looked at, since a plane that is shared through is never bound. */
+    const VkDeviceSize maxRange = inst->maxStorageBufferRange = limits.maxStorageBufferRange;
+    for (int i = 0; i < desc.scratchCount && i < static_cast<int>(desc.scratchDefs.size()); i++)
+        if (desc.scratchDefs[i].bytes > maxRange)
+            return fail(detail::pastStorageRange("scratch buffer " + std::to_string(i), desc.scratchDefs[i].bytes, maxRange, true));
+    for (size_t i = 0; i < desc.constants.size(); i++)
+        if (desc.constants[i].size() > maxRange)
+            return fail(detail::pastStorageRange("constant buffer " + std::to_string(i), desc.constants[i].size(), maxRange, true));
+    if (desc.readbackBytes > maxRange)
+        return fail(detail::pastStorageRange("the readback buffer", desc.readbackBytes, maxRange, true));
+    if (desc.frameDataBytes > maxRange)
+        return fail(detail::pastStorageRange("the frame data buffer", desc.frameDataBytes, maxRange, true));
+    auto planeBytesAtLeast = [](const VSVideoInfo &vi, int plane) -> VkDeviceSize {
+        const int w = plane ? vi.width >> vi.format.subSamplingW : vi.width;
+        const int h = plane ? vi.height >> vi.format.subSamplingH : vi.height;
+        return static_cast<VkDeviceSize>(w) * static_cast<VkDeviceSize>(vi.format.bytesPerSample) * static_cast<VkDeviceSize>(h);
+    };
+    for (int p = 0; p < (desc.sideEffect ? 1 : desc.vi.format.numPlanes); p++) {
+        if (!desc.sideEffect && !desc.process[p])
+            continue;
+        for (const Pass &pass : desc.passes) {
+            if (!pass.planes[p])
+                continue;
+            for (const Operand &op : pass.bindings) {
+                VkDeviceSize bytes = 0;
+                if (op.kind == Operand::OutputPlane) {
+                    bytes = planeBytesAtLeast(desc.vi, p);
+                } else if (op.kind == Operand::SourcePlane) {
+                    const VSVideoInfo *svi = vsapi->getVideoInfo(desc.nodes[op.clip]);
+                    const int srcPlane = op.plane >= 0 ? op.plane : p;
+                    if (svi->format.colorFamily == cfUndefined || svi->width <= 0 || svi->height <= 0 ||
+                            srcPlane >= svi->format.numPlanes)
+                        continue;
+                    bytes = planeBytesAtLeast(*svi, srcPlane);
+                } else {
+                    continue;
+                }
+                if (bytes > maxRange)
+                    return fail(detail::pastStorageRange(detail::operandName(op, p), bytes, maxRange, false));
+            }
+        }
+    }
 
     inst->setLayouts.resize(desc.programs.size(), VK_NULL_HANDLE);
     inst->pipeLayouts.resize(desc.programs.size(), VK_NULL_HANDLE);
