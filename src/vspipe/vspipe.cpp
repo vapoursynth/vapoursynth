@@ -1,4 +1,4 @@
-﻿/*
+/*
 * Copyright (c) 2013-2026 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
@@ -825,12 +825,6 @@ struct MuxStream {
        completion belongs to is carried by the request, not deduced from its node: a gray clip
        may be its own alpha, and then the two nodes are the same pointer. */
     VSNode *alphaNode = nullptr;
-    struct Request {
-        MuxStream *stream;
-        bool alpha;
-    };
-    Request mainRequest{this, false};
-    Request alphaRequest{this, true};
     std::map<int, const VSFrame *> arrivedAlpha;
     const VSFrame *pendingAlphaFrame = nullptr;
 
@@ -855,8 +849,13 @@ struct MuxStream {
     }
 };
 
+struct MuxRequest {
+    MuxStream *stream;
+    bool alpha;
+};
+
 void VS_CC muxFrameDoneCallback(void *userData, const VSFrame *f, int n, VSNode *rnode, const char *errorMsg) {
-    const MuxStream::Request *request = static_cast<MuxStream::Request *>(userData);
+    const std::unique_ptr<MuxRequest> request(static_cast<MuxRequest *>(userData));
     MuxStream *stream = request->stream;
     MuxContext *ctx = stream->ctx;
 
@@ -1093,8 +1092,7 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
     /* The stream list is empty when setting the tracks up failed, and the loop below never runs in
        that case, but the division still has to be kept away from zero. */
     const int perStream = streams.empty() ? 1 : std::max(1, budget / static_cast<int>(streams.size()));
-    std::vector<std::pair<MuxStream *, int>> toRequest;
-    std::vector<std::pair<MuxStream *, int>> toRequestAlpha;
+    std::vector<std::pair<MuxRequest, int>> toRequest;
 
     auto startTime = std::chrono::steady_clock::now();
     auto lastReportTime = startTime;
@@ -1102,7 +1100,6 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
     while (!failed) {
         int nextStream = -1;
         toRequest.clear();
-        toRequestAlpha.clear();
 
         {
             std::unique_lock<std::mutex> lock(ctx.mutex);
@@ -1153,11 +1150,11 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
                 /* Top up what is in flight, nearest required frame first. */
                 for (auto &stream : streams) {
                     while (stream.held() < perStream && stream.requestCursor < stream.frameCount()) {
-                        toRequest.emplace_back(&stream, stream.requestCursor);
+                        toRequest.emplace_back(MuxRequest{ &stream, false }, stream.requestCursor);
                         stream.inFlight++;
                         if (stream.alphaNode) {
                             /* Queued as a pair so the two halves never drift apart. */
-                            toRequestAlpha.emplace_back(&stream, stream.requestCursor);
+                            toRequest.emplace_back(MuxRequest{ &stream, true }, stream.requestCursor);
                             stream.inFlight++;
                         }
                         stream.requestCursor++;
@@ -1185,9 +1182,7 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
         /* Issued with the lock released, since the callback takes it and can run before the call
            requesting the frame has even returned. */
         for (const auto &request : toRequest)
-            vsapi->getFrameAsync(request.second, request.first->node, muxFrameDoneCallback, &request.first->mainRequest);
-        for (const auto &request : toRequestAlpha)
-            vsapi->getFrameAsync(request.second, request.first->alphaNode, muxFrameDoneCallback, &request.first->alphaRequest);
+            vsapi->getFrameAsync(request.second, request.first.alpha ? request.first.stream->alphaNode : request.first.stream->node, muxFrameDoneCallback, new MuxRequest(request.first));
         if (!toRequest.empty())
             continue;
 
