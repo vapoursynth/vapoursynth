@@ -28,6 +28,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <deque>
 #include <mutex>
 #include <condition_variable>
 #include <algorithm>
@@ -831,6 +832,12 @@ struct MuxStream {
     };
     Request mainRequest{this, false};
     Request alphaRequest{this, true};
+    /* The requests point back at this object, so it has to stay where it was constructed: the
+       stream list is a deque, which never relocates what it holds, and a stream cannot be copied
+       or moved, so the compiler refuses the one thing that would leave the requests behind. */
+    MuxStream() = default;
+    MuxStream(const MuxStream &) = delete;
+    MuxStream &operator=(const MuxStream &) = delete;
     std::map<int, const VSFrame *> arrivedAlpha;
     const VSFrame *pendingAlphaFrame = nullptr;
 
@@ -961,7 +968,8 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
         vssapi->getAvailableOutputNodes(se, numOutputs, outputIndices.data());
     }
 
-    std::vector<MuxStream> streams;
+    /* A deque rather than a vector: the streams hand out pointers to themselves and must not move. */
+    std::deque<MuxStream> streams;
     std::vector<MatroskaTrackInfo> trackInfos;
     size_t maxBufferSize = 0;
     bool failed = false;
@@ -974,10 +982,12 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
             break;
         }
 
-        MuxStream stream;
+        /* Built in place, and listed from the start: the cleanup at the end frees every listed
+           stream's nodes, so one that fails setup is simply left there half filled in. */
+        MuxStream &stream = streams.emplace_back();
         stream.node = node;
         stream.outputIndex = outputIndex;
-        stream.trackIndex = static_cast<int>(streams.size());
+        stream.trackIndex = static_cast<int>(streams.size()) - 1;
         stream.isVideo = vsapi->getNodeType(node) == mtVideo;
 
         /* An attached alpha clip is carried as a fourth plane of the same track, when the format
@@ -992,8 +1002,6 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
             stream.vi = vsapi->getVideoInfo(node);
             if (!isConstantVideoFormat(stream.vi)) {
                 fprintf(stderr, "Error: output %d has varying dimensions or format\n", outputIndex);
-                vsapi->freeNode(node);
-                vsapi->freeNode(stream.alphaNode);
                 failed = true;
                 break;
             }
@@ -1007,8 +1015,6 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
             }
             if (!MatroskaWriter::getVideoFourCC(stream.vi->format, stream.alphaNode != nullptr, info.fourCC)) {
                 fprintf(stderr, "Error: output %d uses a video format Matroska has no raw layout for\n", outputIndex);
-                vsapi->freeNode(node);
-                vsapi->freeNode(stream.alphaNode);
                 failed = true;
                 break;
             }
@@ -1025,8 +1031,6 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
             stream.ai = vsapi->getAudioInfo(node);
             if (!MatroskaWriter::isAudioFormatSupported(stream.ai->format)) {
                 fprintf(stderr, "Error: output %d uses an unsupported audio format\n", outputIndex);
-                vsapi->freeNode(node);
-                vsapi->freeNode(stream.alphaNode);
                 failed = true;
                 break;
             }
@@ -1039,7 +1043,6 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
             maxBufferSize = std::max(maxBufferSize, static_cast<size_t>(stream.ai->format.numChannels) * VS_AUDIO_FRAME_SAMPLES * stream.ai->format.bytesPerSample);
         }
 
-        streams.push_back(stream);
         trackInfos.push_back(info);
     }
 
@@ -1090,8 +1093,8 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
         vsapi->getCoreInfo(vssapi->getCore(se), &info);
         budget = info.numThreads;
     }
-    /* The stream list is empty when setting the tracks up failed, and the loop below never runs in
-       that case, but the division still has to be kept away from zero. */
+    /* The stream list can be empty when setting the tracks up failed, and the loop below never runs
+       in that case, but the division still has to be kept away from zero. */
     const int perStream = streams.empty() ? 1 : std::max(1, budget / static_cast<int>(streams.size()));
     std::vector<std::pair<MuxStream *, int>> toRequest;
     std::vector<std::pair<MuxStream *, int>> toRequestAlpha;
