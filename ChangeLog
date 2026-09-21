@@ -1,3 +1,7 @@
+r81:
+improved gpu up/download speed
+fixed access violation in matroska muxer
+
 r80:
 gpu support using the vulkan 1.4 api
 it's now no longer possible to store nodes and function types as frame properties to keep threading complexity down, nobody actually does this and there were many cases that could deadlock anyway
@@ -5,6 +9,7 @@ freethreading python support (Ichunjo)
 fixed compilation errors on some systems where the _Float16 type isn't available
 fixed timecode file output having excessively many decimals which makes mkvmerge unable to use it
 the expr filter now falls back to the interpreter and prints a warning if executable memory can't be allocated
+dropped api3 support
 
 r79:
 implemented uncompressed mkv output support in vspipe, it's mainly intended to pass on audio, video and timestamps together into ffmpeg
