@@ -241,7 +241,9 @@ typedef struct VSVulkanFunctions {
  * not correctness. */
 typedef enum VSVulkanQueueType {
     vqCompute = 0,
-    vqTransfer = 1 /* the same underlying queue as vqCompute when no dedicated transfer queue exists */
+    vqTransfer = 1 /* the same underlying queue as vqCompute when no dedicated transfer queue exists. The
+                      core's own frame downloads run on a second, unexposed queue of the transfer family
+                      where the device has one, so pools created here share only the core's uploads */
 } VSVulkanQueueType;
 
 /* What a host wait established. Returned by all three of them -- gpuExecPoolWaitIdle,

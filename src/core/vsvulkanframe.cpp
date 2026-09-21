@@ -61,7 +61,7 @@ VSVulkanTransfer::~VSVulkanTransfer() {
        frames -- their GPU planes and their device references with them -- are stranded too.
        Still better than recycling memory a copy is reading. */
     std::string ignored;
-    if (!execPool.waitAll(ignored) && !dev->deviceLost())
+    if (!waitIdle(ignored) && !dev->deviceLost())
         return;
     for (auto &slot : staging.slots)
         dev->destroyBuffer(slot->buffer);
@@ -80,8 +80,12 @@ bool VSVulkanTransfer::init(VSVulkanDevice &device, uint32_t slots, std::string 
     }
 
     dev = &device;
-    if (!execPool.init(device, device.transferQueue(), slots, errorMessage))
+    if (!uploadPool.init(device, device.transferQueue(), slots, errorMessage))
         return false;
+    if (!downloadPool.init(device, device.downloadQueue(), slots, errorMessage))
+        return false;
+    staging.pool = &uploadPool;
+    readback.pool = &downloadPool;
 
     /* Slot buffers are created lazily at first use since the frame sizes are unknown here. */
     for (uint32_t i = 0; i < slots; i++) {
@@ -159,7 +163,7 @@ VSVulkanTransfer::Slot *VSVulkanTransfer::acquireSlot(SlotRing &ring, VkDeviceSi
 
     /* The slot's previous submission must be done both before its bytes are rewritten and
        before a shrink sized buffer is replaced. */
-    if (slot->value && !execPool.waitValue(slot->value, errorMessage)) {
+    if (slot->value && !ring.pool->waitValue(slot->value, errorMessage)) {
         releaseSlot(ring, *slot);
         return nullptr;
     }
@@ -170,13 +174,20 @@ VSVulkanTransfer::Slot *VSVulkanTransfer::acquireSlot(SlotRing &ring, VkDeviceSi
     const VkDeviceSize wanted = noteDemand(ring, minSize);
     if (slot->buffer.size < minSize || slot->buffer.size > wanted) {
         dev->destroyBuffer(slot->buffer);
-        /* Cached host memory measured slightly faster than write combined even for upload
-           staging (memcpy in AND the GPU's reads), and for readback the difference is 40x,
-           so both rings prefer it. */
-        if (!dev->createBuffer(slot->buffer, wanted,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                VK_MEMORY_PROPERTY_HOST_CACHED_BIT, errorMessage)) {
+        /* Where the slot lives. Readback is cached host memory: reading write combined memory
+           back is 40x slower than cached, and reading VRAM through the BAR mapping is not a
+           path at all (0.02 GB/s). Upload staging goes into host visible VRAM on a discrete
+           card with resizable BAR, for the reason in the class comment; a small BAR window
+           never qualifies (hasResizableBar), unified memory has nothing to gain, and a VRAM
+           slot that cannot be allocated falls back to a host one for this slot. Nothing
+           downstream cares where a slot is: the copy is recorded the same way, and the
+           memcpy into it works on write combined memory as it does on cached. */
+        const bool vramStaging = &ring == &staging && !hostStaging && dev->hasResizableBar() && !dev->unifiedMemory();
+        const VkBufferUsageFlags usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        const VkMemoryPropertyFlags required = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        const bool created = vramStaging &&
+            dev->createBuffer(slot->buffer, wanted, usage, required, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, errorMessage);
+        if (!created && !dev->createBuffer(slot->buffer, wanted, usage, required, VK_MEMORY_PROPERTY_HOST_CACHED_BIT, errorMessage)) {
             releaseSlot(ring, *slot);
             return nullptr;
         }
@@ -217,7 +228,7 @@ VkDeviceSize VSVulkanTransfer::releaseIdle(std::chrono::steady_clock::duration i
            Values are monotonic, so a copy submitted during the walk is always past the
            sample. */
         uint64_t completed = 0;
-        const bool haveCounter = execPool.completedValue(completed);
+        const bool haveCounter = ring->pool->completedValue(completed);
         for (auto &slot : ring->slots) {
             bool expected = false;
             if (!slot->claimed.compare_exchange_strong(expected, true, std::memory_order_acquire))
@@ -280,7 +291,7 @@ bool VSVulkanTransfer::uploadPlanes(VSVulkanPlane *const planes[], int numPlanes
         offset += static_cast<VkDeviceSize>(planes[p]->stride) * planes[p]->height;
     }
 
-    VSVulkanExecContext *ctx = execPool.acquire(errorMessage);
+    VSVulkanExecContext *ctx = uploadPool.acquire(errorMessage);
     if (!ctx) {
         releaseSlot(staging, *slot);
         return false;
@@ -308,11 +319,11 @@ bool VSVulkanTransfer::uploadPlanes(VSVulkanPlane *const planes[], int numPlanes
     for (int p = 0; p < numPlanes; p++)
         waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
     uint64_t value = 0;
-    bool ok = execPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size());
+    bool ok = uploadPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size());
     if (ok) {
         slot->value = value;
         for (int p = 0; p < numPlanes; p++) {
-            setPlaneProducer(*planes[p], execPool.timelineObject(), value);
+            setPlaneProducer(*planes[p], uploadPool.timelineObject(), value);
         }
     }
     releaseSlot(staging, *slot);
@@ -334,7 +345,7 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
        allocator's -- execRetainedBytes counts only what queued work holds, and nothing else
        adds these frames to it -- so passing 0 here was not avoiding a double count, it was a
        ring's worth of whole frames crossing the gate unmetered. Only on hardware where it
-       matters most, too: the transfer pool meters at all exactly when its queue is the compute
+       matters most, too: the download pool meters at all exactly when its queue is the compute
        queue, which is every device without a dedicated transfer family, which is every unified
        device. The public gpuExecReadsFrame meters the same object at its full size. */
     VkDeviceSize sourceBytes = 0;
@@ -362,7 +373,7 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
            availability barrier the spec asks for instead of the plane copy. That keeps the
            submission count identical to the staging path while dropping the DMA copy of every
            plane and the staging buffer with it. */
-        VSVulkanExecContext *ctx = execPool.acquire(errorMessage);
+        VSVulkanExecContext *ctx = downloadPool.acquire(errorMessage);
         if (!ctx) {
             releaseUnused();
             return false;
@@ -384,15 +395,15 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
            outlive the frame holding them however this call ends, and metered like anything else
            queued work pins; see sourceBytes. */
         if (releaseSource)
-            execPool.retain(*ctx, releaseSource, source, sourceBytes);
+            downloadPool.retain(*ctx, releaseSource, source, sourceBytes);
 
         VSVulkanWaitList waits;
         for (int p = 0; p < numPlanes; p++)
             waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
         uint64_t value = 0;
-        if (!execPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size()))
+        if (!downloadPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size()))
             return false;
-        if (!execPool.waitValue(value, errorMessage))
+        if (!downloadPool.waitValue(value, errorMessage))
             return false;
 
         for (int p = 0; p < numPlanes; p++) {
@@ -412,7 +423,7 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
         return false;
     }
 
-    VSVulkanExecContext *ctx = execPool.acquire(errorMessage);
+    VSVulkanExecContext *ctx = downloadPool.acquire(errorMessage);
     if (!ctx) {
         releaseSlot(readback, *slot);
         releaseUnused();
@@ -453,19 +464,19 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
     /* As on the direct path: the copy reads these planes, so the frame holding them is
        retained on the submission rather than on this call returning, and metered with it. */
     if (releaseSource)
-        execPool.retain(*ctx, releaseSource, source, sourceBytes);
+        downloadPool.retain(*ctx, releaseSource, source, sourceBytes);
 
     VSVulkanWaitList waits;
     for (int p = 0; p < numPlanes; p++)
         waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
     uint64_t value = 0;
-    if (!execPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size())) {
+    if (!downloadPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size())) {
         releaseSlot(readback, *slot);
         return false;
     }
     slot->value = value;
 
-    if (!execPool.waitValue(value, errorMessage)) {
+    if (!downloadPool.waitValue(value, errorMessage)) {
         releaseSlot(readback, *slot);
         return false;
     }

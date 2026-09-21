@@ -22,9 +22,11 @@ what each would rule out.
 | release batch | the device registry | pool, running thread, sequence number |
 | `VSGPUExecContext` | its ring slot, for the life of the pool; usable by the caller from `gpuExecAcquire` to the `gpuExecSubmit`/`gpuExecAbandon` that ends it | the slot, the deduplicated wait list, the planes to publish |
 
-A public pool's ring has `clamp(workerThreads, 2, 8)` contexts, fixed at creation. The transfer's
-pool has one context per staging slot, and retains exactly one thing: a download's source frame,
-for as long as the copy reading its planes is in flight (I31).
+A public pool's ring has `clamp(workerThreads, 2, 8)` contexts, fixed at creation. The transfer
+has two pools, uploads on the transfer queue and downloads on the transfer family's second queue
+where the device has one (the same queue otherwise), each with one context per slot of its ring;
+only the download pool retains anything, a download's source frame, for as long as the copy
+reading its planes is in flight (I31).
 
 ## 2. Locks and their order
 
@@ -98,9 +100,9 @@ holding the queue lock across any call reaching the exec registry (an allocation
 creating or freeing a pool) deadlocked against a worker thread in `notifyCaches` ->
 `sweepExecPools`, which needs no second plugin to be running. The check reads the lock free
 `queuedCeiling` instead. The other half of the rule cannot be enforced from in here and is
-stated in VSVulkan4.h: submit inside the bracket and call nothing else, and never hold both
-queues' locks, which are one non-recursive lock where the device has no dedicated transfer
-family.
+stated in VSVulkan4.h: submit inside the bracket and call nothing else, and never hold two of the
+queues' locks: the two public ones are one non-recursive lock where the device has no dedicated
+transfer family, and the download queue, where it is a queue of its own, is never handed out.
 Frame property maps refuse nodes and functions (I25), so freeing a frame, which happens under
 `cacheLock` and inside release callbacks, never destroys a node or runs a function's free
 callback.
@@ -359,7 +361,7 @@ budget. Otherwise it loops: sample the progress counter, sweep the device, retur
 budget, wait for `counter + 1` with a 50 ms timeout, repeat. The counter is sampled *before* the
 sweep so a completion between the two either gets reaped or leaves the counter behind the wait
 target. Only submitted work is counted, so a thread's own recordings never gate it. Compute-queue
-pools signal the progress timeline on every submission; a pool on a dedicated transfer queue
+pools signal the progress timeline on every submission; a pool on either transfer queue
 does not, and its retentions are not metered. The timeout remains for the one event that
 reduces the total without a signal: a completed context an acquirer claimed first settles its
 bytes on the host. A host-signalled wake-up (P10) would retire it. A wait of its own that
@@ -423,7 +425,7 @@ rung 1 waits.
 | I10 | The ladder never declares the device full while a release another thread already detached is still running. | rung 1's wait and second sweep |
 | I11 | Timeline values are allocated and submitted under the queue lock, strictly increasing per pool; `pendingValue` is the context's last submitted value or zero. | `submit` |
 | I12 | A destroyed pool has no registered batch on any thread, no claimed context and empty lists, and is off the registry before anything is torn down. | destructor order |
-| I13 | The transfer pool never retains, so it never registers batches and never contributes bytes. | `VSVulkanTransfer` uses no retention |
+| I13 | The upload pool never retains, so it never registers batches and never contributes bytes; the download pool retains only its source frames (I31). | `uploadPlanes` uses no retention; `downloadPlanes` retains through `retain` |
 | I14 | A retained GPU frame outlives its submission; its bytes are its whole size. | `vkGPUExecReadsFrame` |
 | I15 | A release callback only frees: no acquire, GPU allocation, pool creation, pool free, pool wait or timeline wait from a thread running a batch. | `failIfRunningReleases` in `acquire`, `allocatePooled`, `registerExecPool`, `unregisterExecPool`, `waitAll`, and also `gpuExecWaitValue` and `gpuTimelineWaitValue` -- the latter is not a pool wait, so the guarded set is seven entry points rather than the five this row used to name. All seven measured refusing, with the expected fatal message, by `linux_tests/release_reentry.c` |
 | I16 | One context per pool per thread. | the owner thread recorded on the claim; `failIfHoldingContext` in `acquire` |

@@ -454,6 +454,12 @@ public:
        locking stays correct without the caller caring which case it is in. */
     VSVulkanQueue &transferQueue() { return *transferPtr; }
     bool hasDedicatedTransferQueue() const { return transferPtr != &computeQ; }
+    /* Where frame downloads are submitted: the transfer family's second queue when it has one,
+       so the two PCIe directions run on two DMA engines at once (measured 51 GB/s aggregate
+       against 28 on one queue), otherwise the same object as transferQueue(). Internal to the
+       core and never handed out, so a plugin's vqTransfer pools share only the upload queue. */
+    VSVulkanQueue &downloadQueue() { return *downloadPtr; }
+    bool hasSeparateDownloadQueue() const { return downloadPtr != transferPtr; }
 
     /* Whether the device's memory is the host's memory. Integrated and software devices
        carve their heaps out of system RAM, so a VRAM limit and the host memory limit are
@@ -461,6 +467,14 @@ public:
        type rather than from the heaps: a discrete card with resizable BAR also reports a
        host visible device local heap, which would make any heap based test say yes. */
     bool unifiedMemory() const { return unifiedMemoryFlag; }
+
+    /* Whether a host visible device local memory type sits on a heap that is the card, or most
+       of it, rather than a BAR window: resizable BAR in the loose sense. Without ReBAR, or with
+       it gated off per application as NVIDIA does on Windows, drivers expose the same type on
+       the classic 256 MiB window (246 MiB on NVIDIA), which holds a few small buffers and no
+       frames. findMemoryType never lets a preference land on such a window, only a requirement,
+       and the transfer stages uploads through VRAM only when this is set. */
+    bool hasResizableBar() const { return resizableBarFlag; }
 
     /* The opaque handle type pooled memory can be exported as (OPAQUE_WIN32 or OPAQUE_FD),
        or 0 when the platform extension is absent or export of our buffer shape is not
@@ -736,10 +750,17 @@ private:
     VkPhysicalDeviceMemoryProperties memProps = {};
     VSVulkanQueue computeQ;
     VSVulkanQueue transferQ;
+    VSVulkanQueue downloadQ;
     VSVulkanQueue *transferPtr = &computeQ;
+    VSVulkanQueue *downloadPtr = &computeQ;
     VSVulkanAllocator allocator;
     bool unifiedMemoryFlag = false;
     bool memoryBudgetFlag = false;
+    bool resizableBarFlag = false;
+    VkDeviceSize largestDeviceLocalHeapSize = 0;
+    /* A device local, host visible type whose heap is under half the largest device local one:
+       the BAR window of a card without resizable BAR. See hasResizableBar. */
+    bool smallBarWindow(uint32_t typeIndex) const;
     VkExternalMemoryHandleTypeFlagBits exportType = static_cast<VkExternalMemoryHandleTypeFlagBits>(0);
     VkExternalSemaphoreHandleTypeFlagBits semaphoreExportType = static_cast<VkExternalSemaphoreHandleTypeFlagBits>(0);
     /* PFN_vkGetMemoryWin32HandleKHR/PFN_vkGetMemoryFdKHR and the semaphore equivalents;

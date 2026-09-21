@@ -1534,6 +1534,11 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine) 
        of the platform rather than something to assume. */
     if (std::getenv("VS_VULKAN_FORCE_STAGING"))
         trans->setForceStaging(true);
+    /* And the other way for the staging itself: the upload ring lives in resizable BAR memory
+       where the card has it, this keeps it in host memory so the two can be compared. */
+    const bool hostStaging = std::getenv("VS_VULKAN_HOST_STAGING") != nullptr;
+    if (hostStaging)
+        trans->setHostStaging(true);
     /* The transfer first: the pressure paths reach it through a plain pointer after loading
        vulkanDev, so it has to be in place before the atomic store publishes the device. */
     vulkanTrans = std::move(trans);
@@ -1546,6 +1551,9 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine) 
         limitInfo += ", unified memory so it shares system RAM with the " +
             std::to_string(memory->limit() >> 20) + " MB host limit (combined ceiling " +
             std::to_string(memory->combined_limit() >> 20) + " MB)";
+    /* Said out loud because it decides a transfer path and cannot be seen from Python. */
+    if (vulkanDev.load()->hasResizableBar() && !memory->unified())
+        limitInfo += hostStaging ? ", resizable BAR (upload staging kept in host memory)" : ", resizable BAR (uploads staged through it)";
     /* Handed back rather than logged here. The callers hold vulkanDeviceLock across this whole
        function, and a log message reaches a handler synchronously on this thread -- a handler
        that touches the core, vulkan_device_info from Python say, re-enters vulkanDevice() and

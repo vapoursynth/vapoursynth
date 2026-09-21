@@ -223,7 +223,10 @@ to the highest value. The host never blocks in this scheme; a filter records,
 submits and returns, and the graph pipelines.
 
 **Queues.** The core exposes a compute queue and a transfer queue (the same
-queue when the device has no dedicated transfer family). ``VkQueue`` is
+queue when the device has no dedicated transfer family). Frame downloads run
+on a second queue of the transfer family when the device offers one; it is
+internal to the core and never handed out, so a plugin's transfer submissions
+only ever share a queue with the core's uploads. ``VkQueue`` is
 externally synchronized, so every submission a plugin makes must hold the
 matching lock via lockVulkanQueue_/unlockVulkanQueue_. Filters that signal
 their own timeline should allocate the value inside that same lock, so

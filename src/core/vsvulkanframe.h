@@ -108,6 +108,23 @@ inline bool waitPlaneHost(VSVulkanDevice &device, const VSVulkanPlane &plane) {
    speed. A frame's plane copies all travel in one submission, the ~0.2 ms submission floor
    dwarfing the per plane cost at common sizes.
 
+   The two directions have a pool and a queue each: uploads on the transfer queue, downloads on
+   the transfer family's second queue where the device has one, so both PCIe directions move at
+   once instead of taking turns on one DMA engine (28 GB/s aggregate on one queue, 51 on two,
+   measured on an RX 6900 XT). Without a second queue the download pool sits on the same queue
+   as the upload pool and everything behaves as before.
+
+   On a discrete card with resizable BAR the upload staging ring lives in host visible VRAM
+   rather than host memory: the CPU then writes each byte across the bus once and the DMA copy
+   runs VRAM to VRAM, instead of writing it to host memory for the DMA engine to read back out.
+   That is three passes over host DRAM per byte down to one, and host DRAM, not PCIe, is what
+   bounded the boundary (384 against 352 fps on a 1080p RGBS round trip on the same card; the
+   VRAM to VRAM copy runs at 65 GB/s on the DMA engine). Readback cannot follow, since reading
+   the BAR mapping back runs at 0.02 GB/s, and unified memory has no bus to skip, so both keep
+   cached host memory. Frame planes themselves stay where they were: every plane is exportable,
+   and exportable memory is never host visible on the drivers measured, which is why this is
+   done in the staging and not by writing planes directly.
+
    Slot buffers are created lazily and sized to the last two epochs of demand, so they shrink
    back once a burst of big frames is over; they are accounted like every other driver
    allocation, and releaseIdle() returns a ring's buffers when nothing has used it for a
@@ -146,7 +163,16 @@ public:
         uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[],
         VSGPUReleaseFunc releaseSource, void *source, std::string &errorMessage);
 
-    bool waitIdle(std::string &errorMessage) { return execPool.waitAll(errorMessage); }
+    /* Both pools, even when the first fails: the caller is about to destroy what it can, and a
+       download still in flight is a whole frame held on a context of the second. */
+    bool waitIdle(std::string &errorMessage) {
+        const bool uploads = uploadPool.waitAll(errorMessage);
+        std::string downloadError;
+        const bool downloads = downloadPool.waitAll(downloadError);
+        if (uploads && !downloads)
+            errorMessage = downloadError;
+        return uploads && downloads;
+    }
 
     /* Frees the buffers of every slot in a ring nothing has acquired for idleAfter: the
        memory pressure paths' lever on the rings, since a graph that stopped transferring --
@@ -160,8 +186,9 @@ public:
 
     /* Testing hook: pretend resizable BAR is absent so the staging path runs everywhere. */
     void setForceStaging(bool force) { forceStaging = force; }
-
-    VSVulkanExecPool &pool() { return execPool; }
+    /* Testing hook: keep the upload staging ring in host memory even where it would live in
+       resizable BAR memory, so the two can be measured against each other. */
+    void setHostStaging(bool force) { hostStaging = force; }
 
 private:
     struct Slot {
@@ -170,6 +197,8 @@ private:
         std::atomic<bool> claimed{false};
     };
     struct SlotRing {
+        /* The pool whose submissions the slots' values belong to. */
+        VSVulkanExecPool *pool = nullptr;
         std::vector<std::unique_ptr<Slot>> slots;
         std::atomic<uint32_t> cursor{0};
         std::mutex claimMutex;
@@ -195,10 +224,12 @@ private:
     bool waitPlanesHost(VSVulkanPlane *const planes[], int numPlanes, std::string &errorMessage);
 
     VSVulkanDevice *dev = nullptr;
-    VSVulkanExecPool execPool;
+    VSVulkanExecPool uploadPool;
+    VSVulkanExecPool downloadPool;
     SlotRing staging;
     SlotRing readback;
     bool forceStaging = false;
+    bool hostStaging = false;
 };
 
 #endif

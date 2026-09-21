@@ -734,19 +734,26 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         }
     }
 
-    float priority = 1.0f;
+    float priorities[2] = { 1.0f, 1.0f };
     VkDeviceQueueCreateInfo queueCreate[2] = {};
     uint32_t queueCreateCount = 0;
     queueCreate[queueCreateCount].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueCreate[queueCreateCount].queueFamilyIndex = computeFamily;
     queueCreate[queueCreateCount].queueCount = 1;
-    queueCreate[queueCreateCount].pQueuePriorities = &priority;
+    queueCreate[queueCreateCount].pQueuePriorities = priorities;
     queueCreateCount++;
+    /* Two queues of the transfer family when it has them: uploads on one, downloads on the
+       other, so the two PCIe directions run on two DMA engines at once. One engine already
+       saturates one direction, so a third queue would buy nothing: measured on an RX 6900 XT,
+       28 GB/s per direction and 28 GB/s aggregate with both directions on one queue, 51 GB/s
+       aggregate with the download on the second, and 28.7 for two uploads on two queues. */
+    uint32_t transferQueueCount = 0;
     if (transferFamily != UINT32_MAX) {
+        transferQueueCount = std::min(2u, families[transferFamily].queueFamilyProperties.queueCount);
         queueCreate[queueCreateCount].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreate[queueCreateCount].queueFamilyIndex = transferFamily;
-        queueCreate[queueCreateCount].queueCount = 1;
-        queueCreate[queueCreateCount].pQueuePriorities = &priority;
+        queueCreate[queueCreateCount].queueCount = transferQueueCount;
+        queueCreate[queueCreateCount].pQueuePriorities = priorities;
         queueCreateCount++;
     }
 
@@ -878,6 +885,14 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         transferQ.family = transferFamily;
         transferQ.index = 0;
         transferPtr = &transferQ;
+        downloadPtr = &transferQ;
+        if (transferQueueCount >= 2) {
+            queueInfo.queueIndex = 1;
+            vk.vkGetDeviceQueue2(deviceHandle, &queueInfo, &downloadQ.queue);
+            downloadQ.family = transferFamily;
+            downloadQ.index = 1;
+            downloadPtr = &downloadQ;
+        }
     }
 
     VkPhysicalDeviceIDProperties idProps = {};
@@ -897,6 +912,16 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     memProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
     vk.vkGetPhysicalDeviceMemoryProperties2(physicalDeviceHandle, &memProps2);
     memProps = memProps2.memoryProperties;
+    for (uint32_t i = 0; i < memProps.memoryHeapCount; i++) {
+        if (memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+            largestDeviceLocalHeapSize = std::max(largestDeviceLocalHeapSize, memProps.memoryHeaps[i].size);
+    }
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+        const VkMemoryPropertyFlags wanted = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        if ((memProps.memoryTypes[i].propertyFlags & wanted) == wanted && !smallBarWindow(i))
+            resizableBarFlag = true;
+    }
 
     if (exportType) {
 #ifdef VS_TARGET_OS_WINDOWS
@@ -1481,10 +1506,21 @@ void VSVulkanDevice::execAdmissionGate() {
     }
 }
 
+bool VSVulkanDevice::smallBarWindow(uint32_t typeIndex) const {
+    const VkMemoryPropertyFlags flags = memProps.memoryTypes[typeIndex].propertyFlags;
+    if (!(flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) || !(flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
+        return false;
+    return memProps.memoryHeaps[memProps.memoryTypes[typeIndex].heapIndex].size < largestDeviceLocalHeapSize / 2;
+}
+
 uint32_t VSVulkanDevice::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags required, VkMemoryPropertyFlags preferred) const {
     VkMemoryPropertyFlags both = required | preferred;
+    /* A preference never lands on a BAR window: the type is there on every discrete card, but
+       without resizable BAR its heap is 256 MiB, and pooling frames into it by preference would
+       run it dry and fail the allocation with the ladder unable to help. The second loop still
+       honours a caller that requires the combination outright. */
     for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-        if ((typeBits & (1u << i)) && (memProps.memoryTypes[i].propertyFlags & both) == both)
+        if ((typeBits & (1u << i)) && (memProps.memoryTypes[i].propertyFlags & both) == both && !smallBarWindow(i))
             return i;
     }
     for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
