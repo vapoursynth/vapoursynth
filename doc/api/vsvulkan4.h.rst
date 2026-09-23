@@ -222,11 +222,13 @@ producers — always wait per plane, deduplicating waits on the same semaphore
 to the highest value. The host never blocks in this scheme; a filter records,
 submits and returns, and the graph pipelines.
 
-**Queues.** The core exposes a compute queue and a transfer queue (the same
-queue when the device has no dedicated transfer family). Frame downloads run
-on a second queue of the transfer family when the device offers one; it is
-internal to the core and never handed out, so a plugin's transfer submissions
-only ever share a queue with the core's uploads. ``VkQueue`` is
+**Queues.** The core exposes a compute queue and a transfer queue. Without a
+dedicated transfer family, the transfer queue is the compute family's second
+queue where it has one, and the compute queue itself only where it does not.
+Frame downloads run on a second queue of the transfer family when the device
+offers one; it is internal to the core and never handed out, so a plugin's
+transfer submissions share a queue with the core's uploads, and with its
+downloads only where that second queue does not exist. ``VkQueue`` is
 externally synchronized, so every submission a plugin makes must hold the
 matching lock via lockVulkanQueue_/unlockVulkanQueue_. Filters that signal
 their own timeline should allocate the value inside that same lock, so
@@ -306,8 +308,9 @@ enum VSVulkanQueueType
      not accept compute ones, and a discrete card's DMA family typically
      reports ``VK_QUEUE_TRANSFER_BIT`` alone. Recording a dispatch against a
      pool created on this queue is therefore invalid usage wherever such a
-     family exists — and silently fine where it does not, since the two then
-     resolve to the same queue, which is what makes the mistake easy to ship.
+     family exists — and silently fine where it does not, since this queue
+     then resolves to a compute queue, which is what makes the mistake easy to
+     ship.
 
      Locking through either constant stays correct either way; it is
      createGPUExecPool_ where the choice binds. When in doubt use *vqCompute*:
@@ -370,9 +373,9 @@ struct VSVulkanCoreHandles
 Everything needed to run your own Vulkan work on the core's device: the
 instance, physical device and device handles, ``getInstanceProcAddr`` for
 resolving entry points outside the curated table, and the compute and
-transfer queue family/index pairs. The transfer values equal the compute
-values when there is no dedicated transfer queue. Valid for the core's
-lifetime.
+transfer queue family/index pairs. Without a dedicated transfer queue the
+transfer values name the compute family's second queue where it has one, and
+equal the compute values where it does not. Valid for the core's lifetime.
 
 .. _VSVulkanPlaneInfo:
 
@@ -750,9 +753,9 @@ void lockVulkanQueue(VSCore \*core, int queue)
    core's exec registry, which the core's own frame path locks before this
    queue, so holding this across one of them deadlocks against an ordinary
    cache sweep on a worker thread. And do not hold both queues' locks at
-   once: vqTransfer and vqCompute are the same non-recursive lock wherever
-   the device has no dedicated transfer family (VSVulkanQueueType_), so on
-   that hardware the second call never returns. Neither mistake can be
+   once: vqTransfer and vqCompute are the same non-recursive lock on a device
+   with neither a dedicated transfer family nor a second compute queue
+   (VSVulkanQueueType_), so on that hardware the second call never returns. Neither mistake can be
    diagnosed from inside the core, which is why they are rules here.
 
 ----------
@@ -1086,11 +1089,9 @@ VSGPUExecPool_ \*createGPUExecPool(VSCore \*core, int queue, char \*errorMessage
    gpuExecPoolWaitIdle_, whose strength comes from the pool being idle at both
    ends of an instance's life.
 
-   A pool on *vqTransfer* may only ever record copies, and does not drive the
-   core's progress timeline, so what it retains is kept alive and released as
-   usual but does not count against the in-flight budget below, which only
-   meters work whose completion can wake a gated thread. A pool anything is
-   dispatched into belongs on *vqCompute*.
+   A pool on *vqTransfer* may only ever record copies; a pool anything is
+   dispatched into belongs on *vqCompute*. Pools on either queue count what
+   they retain against the in-flight budget below.
 
    The core sizes the pool's context ring itself, from its worker thread
    count (two to eight contexts) — how many recordings can even be concurrent

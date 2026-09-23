@@ -1446,6 +1446,14 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine) 
     vulkanDeviceTried = true;
     auto dev = std::make_unique<VSVulkanDevice>();
     dev->setLogCallback(vulkanLogBridge, this);
+    /* Where there is no transfer family, transfers take the compute family's second queue. The
+       first switch keeps them on the compute queue, as before, so the two can be measured against
+       each other; the second pretends there is no transfer family, so that layout can be
+       exercised on a device that has one. Read here because the queues are fixed at creation. */
+    if (std::getenv("VS_VULKAN_SINGLE_COMPUTE_QUEUE"))
+        dev->setComputeQueueLimit(1);
+    if (std::getenv("VS_VULKAN_NO_TRANSFER_QUEUE"))
+        dev->setIgnoreTransferFamily(true);
     /* Validation is a development switch, so an environment variable rather than API surface. */
     if (!dev->create(deviceIndex, std::getenv("VS_VULKAN_VALIDATION") != nullptr, vulkanDeviceError))
         return false;
@@ -1554,6 +1562,18 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine) 
     /* Said out loud because it decides a transfer path and cannot be seen from Python. */
     if (vulkanDev.load()->hasResizableBar() && !memory->unified())
         limitInfo += hostStaging ? ", resizable BAR (upload staging kept in host memory)" : ", resizable BAR (uploads staged through it)";
+    /* Likewise where transfers go when there is no transfer family, worded from what the device
+       ended up with rather than from which switches were set, since either can change nothing. */
+    const VSVulkanDevice *created = vulkanDev.load();
+    if (!created->hasTransferFamily()) {
+        limitInfo += created->transferFamilyIgnored() ? ", transfer family ignored by request" : ", no transfer family";
+        if (created->hasSecondComputeQueue())
+            limitInfo += " so transfers use a second compute queue";
+        else if (created->computeFamilyQueueCount() >= 2)
+            limitInfo += " and transfers kept on the compute queue by request";
+        else
+            limitInfo += " so transfers share the compute queue";
+    }
     /* Handed back rather than logged here. The callers hold vulkanDeviceLock across this whole
        function, and a log message reaches a handler synchronously on this thread -- a handler
        that touches the core, vulkan_device_info from Python say, re-enters vulkanDevice() and

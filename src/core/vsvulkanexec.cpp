@@ -122,9 +122,9 @@ void VSVulkanExecPool::failIfHoldingContext(const char *what) const {
 void VSVulkanExecPool::retain(VSVulkanExecContext &context, VSGPUReleaseFunc release, void *object, VkDeviceSize bytes) {
     failUnlessOwner(context, "gpuExecRetain");
     context.retained.push_back({ release, object });
-    /* Only a pool whose submissions signal the progress timeline meters its bytes: a gated
-       thread sleeps on that timeline, and bytes only a poll could discover would turn every
-       wait for them into the poll's full interval. */
+    /* Only a pool whose submissions signal its queue's progress timeline meters its bytes: a
+       gated thread sleeps on those timelines, and bytes only a poll could discover would turn
+       every wait for them into the poll's full interval. */
     if (signalsProgress)
         context.retainedBytes += bytes;
 }
@@ -219,9 +219,9 @@ bool VSVulkanExecPool::init(VSVulkanDevice &device, VSVulkanQueue &queue, uint32
         }
     }
 
-    /* Compute queue pools drive the device's progress timeline; failing to bring it up only
-       degrades the admission gate's sleep to its timeout, so it is not an init failure. */
-    signalsProgress = (q == &device.computeQueue()) && device.ensureExecProgressSemaphore();
+    /* Every pool drives its queue's progress timeline; failing to bring it up only degrades
+       the admission gate's sleep to its timeout, so it is not an init failure. */
+    signalsProgress = device.ensureQueueProgress(queue);
 
     dev->registerExecPool(this);
     return true;
@@ -312,7 +312,7 @@ VSVulkanExecContext *VSVulkanExecPool::acquire(std::string &errorMessage) {
        name the caller and stop. */
     dev->failIfRunningReleases("gpuExecAcquire");
     failIfHoldingContext("gpuExecAcquire");
-    /* Before the gate, which a reset device would otherwise spin in: its progress counter is
+    /* Before the gate, which a reset device would otherwise spin in: its progress counters are
        force-signalled too, and counter + 1 wraps to a value already reached. */
     if (dev->deviceLost()) {
         errorMessage = VSVulkanDevice::deviceLostMessage();
@@ -474,14 +474,14 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
     VkCommandBufferSubmitInfo cmdInfo = {};
     cmdInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
     cmdInfo.commandBuffer = context.cmd;
-    /* The pool's own timeline, plus the device's progress timeline on the compute queue —
-       the admission gate sleeps on the latter, so every completion can wake it. */
+    /* The pool's own timeline, plus its queue's progress timeline — the admission gate sleeps
+       on the latter, so every completion can wake it. */
     VkSemaphoreSubmitInfo signalInfos[2] = {};
     signalInfos[0].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
     signalInfos[0].semaphore = timeline->semaphore();
     signalInfos[0].stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
     signalInfos[1].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-    signalInfos[1].semaphore = dev->execProgressSemaphore();
+    signalInfos[1].semaphore = q->progressSemaphore();
     signalInfos[1].stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
     VkSubmitInfo2 submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
@@ -503,7 +503,7 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
         VS_LOCK_HELD(vsLockQueue);
         signalInfos[0].value = nextValue + 1;
         if (signalsProgress)
-            signalInfos[1].value = dev->execProgressNext + 1;
+            signalInfos[1].value = q->nextProgressValue();
         /* Before the submit rather than with nextValue after it, so a sweep reading a counter
            that already includes this submission cannot see a ceiling behind it; see
            queuedCeiling. */
@@ -518,7 +518,7 @@ bool VSVulkanExecPool::submit(VSVulkanExecContext &context, std::string &errorMe
                it always passes the bound setPlaneProducer checks. */
             timeline->noteSubmitted(nextValue);
             if (signalsProgress)
-                dev->execProgressNext++;
+                q->progressSubmitted();
             if (signaledValue)
                 *signaledValue = nextValue;
         }

@@ -332,7 +332,7 @@ bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize siz
     bufferInfo.pNext = exportable ? &externalInfo : nullptr;
     bufferInfo.size = size;
     bufferInfo.usage = usage;
-    if (hasDedicatedTransferQueue()) {
+    if (hasTransferFamily()) {
         bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
         bufferInfo.queueFamilyIndexCount = 2;
         bufferInfo.pQueueFamilyIndices = families;

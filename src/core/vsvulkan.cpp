@@ -451,13 +451,15 @@ void VSVulkanDevice::teardown() {
        leaves the table filled only up to the missing function. */
     if (flushTimeline && vk.vkDestroySemaphore)
         vk.vkDestroySemaphore(deviceHandle, flushTimeline, nullptr);
-    VkSemaphore progressSem = execProgressSem.load(std::memory_order_relaxed);
-    if (progressSem && vk.vkDestroySemaphore)
-        vk.vkDestroySemaphore(deviceHandle, progressSem, nullptr);
+    for (VSVulkanQueue *queue : allQueues) {
+        VkSemaphore progressSem = queue->progress.load(std::memory_order_relaxed);
+        if (progressSem && vk.vkDestroySemaphore)
+            vk.vkDestroySemaphore(deviceHandle, progressSem, nullptr);
+        queue->progress.store(VK_NULL_HANDLE, std::memory_order_relaxed);
+    }
     if (flushPool && vk.vkDestroyCommandPool)
         vk.vkDestroyCommandPool(deviceHandle, flushPool, nullptr);
     flushTimeline = VK_NULL_HANDLE;
-    execProgressSem.store(VK_NULL_HANDLE, std::memory_order_relaxed);
     flushPool = VK_NULL_HANDLE;
     if (deviceHandle && vk.vkDestroyDevice)
         vk.vkDestroyDevice(deviceHandle, nullptr);
@@ -733,13 +735,23 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
             break;
         }
     }
+    if (ignoreTransferFamily && transferFamily != UINT32_MAX) {
+        transferFamilySkipped = true;
+        transferFamily = UINT32_MAX;
+    }
+    computeFamilyQueues = families[computeFamily].queueFamilyProperties.queueCount;
 
     float priorities[2] = { 1.0f, 1.0f };
     VkDeviceQueueCreateInfo queueCreate[2] = {};
     uint32_t queueCreateCount = 0;
+    /* Without a transfer family, a second compute queue where the family has one, so the core's
+       uploads and downloads stay out of the queue every filter submits to. A queue of the same
+       family, so buffers need no sharing between families. */
+    const uint32_t computeQueueCount = transferFamily == UINT32_MAX ?
+        std::min(computeQueueLimit, std::min(2u, families[computeFamily].queueFamilyProperties.queueCount)) : 1;
     queueCreate[queueCreateCount].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueCreate[queueCreateCount].queueFamilyIndex = computeFamily;
-    queueCreate[queueCreateCount].queueCount = 1;
+    queueCreate[queueCreateCount].queueCount = computeQueueCount;
     queueCreate[queueCreateCount].pQueuePriorities = priorities;
     queueCreateCount++;
     /* Two queues of the transfer family when it has them: uploads on one, downloads on the
@@ -879,6 +891,18 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     vk.vkGetDeviceQueue2(deviceHandle, &queueInfo, &computeQ.queue);
     computeQ.family = computeFamily;
     computeQ.index = 0;
+    if (computeQueueCount >= 2) {
+        /* The transfer queue, public one included: vqTransfer resolves here, and the core's
+           uploads and downloads both run here, as they share the one transfer queue of a
+           transfer family that has only one. */
+        queueInfo.queueIndex = 1;
+        vk.vkGetDeviceQueue2(deviceHandle, &queueInfo, &computeQ2.queue);
+        computeQ2.family = computeFamily;
+        computeQ2.index = 1;
+        transferPtr = &computeQ2;
+        downloadPtr = &computeQ2;
+        queueInfo.queueIndex = 0;
+    }
     if (transferFamily != UINT32_MAX) {
         queueInfo.queueFamilyIndex = transferFamily;
         vk.vkGetDeviceQueue2(deviceHandle, &queueInfo, &transferQ.queue);
@@ -1420,10 +1444,10 @@ void VSVulkanDevice::sweepExecPools() {
     }
 }
 
-bool VSVulkanDevice::ensureExecProgressSemaphore() {
+bool VSVulkanDevice::ensureQueueProgress(VSVulkanQueue &queue) {
     std::lock_guard<std::mutex> lock(execPoolsMutex);
     VS_LOCK_HELD(vsLockExecPools);
-    if (execProgressSem.load(std::memory_order_relaxed))
+    if (queue.progress.load(std::memory_order_relaxed))
         return true;
     VkSemaphoreTypeCreateInfo typeInfo = {};
     typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
@@ -1436,7 +1460,7 @@ bool VSVulkanDevice::ensureExecProgressSemaphore() {
     VkSemaphore created = VK_NULL_HANDLE;
     if (vk.vkCreateSemaphore(deviceHandle, &semaphoreInfo, nullptr, &created) != VK_SUCCESS)
         return false;
-    execProgressSem.store(created, std::memory_order_release);
+    queue.progress.store(created, std::memory_order_release);
     return true;
 }
 
@@ -1454,23 +1478,32 @@ void VSVulkanDevice::execAdmissionGate() {
            so waiting for them is waiting forever. */
         if (deviceLost())
             return;
-        /* The progress counter is sampled before the sweep, so a completion landing between
+        /* The progress counters are sampled before the sweep, so a completion landing between
            the two is either reaped by the sweep or still ahead of the wait target below, and
-           the wait then returns at once. Sampled after, it would already include that
+           the wait then returns at once. Sampled after, a counter would already include that
            completion while the sweep had missed its bytes, and the wait would sleep out its
-           whole timeout on an idle device. Loaded once and used throughout the round: a pool
-           created underneath us may publish the handle at any point, and the wait has to
-           name the semaphore the counter was read from. */
-        VkSemaphore progressSem = execProgressSem.load(std::memory_order_acquire);
-        uint64_t counter = 0;
-        const bool canWait = progressSem &&
-            vk.vkGetSemaphoreCounterValue(deviceHandle, progressSem, &counter) == VK_SUCCESS;
-        /* The progress timeline is force-signalled by a reset like every other, and the target
-           below is counter + 1, which wraps to zero and is therefore already reached: without
-           this the gate would spin at full speed sweeping pools that can never complete. */
-        if (canWait && counter >= resetTimelineValue) {
-            markDeviceLost();
-            return;
+           whole timeout on an idle device. Each handle is loaded once and used throughout the
+           round: a pool created underneath us may publish one at any point, and the wait has
+           to name the semaphore its counter was read from. */
+        VkSemaphore progressSems[queueObjectCount];
+        uint64_t targets[queueObjectCount];
+        uint32_t waitCount = 0;
+        for (VSVulkanQueue *queue : allQueues) {
+            VkSemaphore progressSem = queue->progress.load(std::memory_order_acquire);
+            uint64_t counter = 0;
+            if (!progressSem || vk.vkGetSemaphoreCounterValue(deviceHandle, progressSem, &counter) != VK_SUCCESS)
+                continue;
+            /* A progress timeline is force-signalled by a reset like every other, and the
+               target below is counter + 1, which wraps to zero and is therefore already
+               reached: without this the gate would spin at full speed sweeping pools that can
+               never complete. */
+            if (counter >= resetTimelineValue) {
+                markDeviceLost();
+                return;
+            }
+            progressSems[waitCount] = progressSem;
+            targets[waitCount] = counter + 1;
+            waitCount++;
         }
         /* Reap everything already completed — a gated thread must collect for itself, since
            the case where every worker stands here is exactly the one where nobody else is
@@ -1478,19 +1511,20 @@ void VSVulkanDevice::execAdmissionGate() {
         sweepExecPools();
         if (execRetainedBytes.load(std::memory_order_relaxed) <= budget)
             return;
-        if (!canWait)
+        if (!waitCount)
             return; /* no wakeup available: running past the budget beats spinning */
-        /* Sleep until any compute submission completes. The bound is not decorative: a
+        /* Sleep until a submission on any queue completes. The bound is not decorative: a
            completed context that an acquirer claimed first settles its bytes on the host,
-           and nothing signals this semaphore for that, so the poll is what covers it until
+           and nothing signals these semaphores for that, so the poll is what covers it until
            there is a host-signalled wake-up. Every counted byte does belong to a submission
-           whose completion signals here, since pools on other queues are not metered. */
-        const uint64_t target = counter + 1;
+           whose completion signals one of them, since a pool meters only once its queue has
+           a progress timeline. */
         VkSemaphoreWaitInfo waitInfo = {};
         waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &progressSem;
-        waitInfo.pValues = &target;
+        waitInfo.flags = VK_SEMAPHORE_WAIT_ANY_BIT;
+        waitInfo.semaphoreCount = waitCount;
+        waitInfo.pSemaphores = progressSems;
+        waitInfo.pValues = targets;
         /* Any error, not just device loss: a failing wait returns immediately, so looping
            on it would busy-spin with no pacing left. Same policy as the counter read above:
            running past the budget beats spinning. */
@@ -1539,7 +1573,7 @@ bool VSVulkanDevice::createBuffer(VSVulkanBuffer &buffer, VkDeviceSize size, VkB
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = size;
     bufferInfo.usage = usage;
-    if (hasDedicatedTransferQueue()) {
+    if (hasTransferFamily()) {
         bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
         bufferInfo.queueFamilyIndexCount = 2;
         bufferInfo.pQueueFamilyIndices = families;

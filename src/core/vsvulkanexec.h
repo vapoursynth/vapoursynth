@@ -283,9 +283,9 @@ private:
        decides no wait -- waitAll still reads nextValue under the queue lock, where a value
        that will never be signalled would hang. */
     std::atomic<uint64_t> queuedCeiling{0};
-    /* Compute queue pools additionally signal the device's progress timeline on every
-       submission, which is what the admission gate sleeps on. A pool on another queue cannot
-       wake it, so what it retains is kept alive and released as usual but never counted:
+    /* Every pool additionally signals its queue's progress timeline on every submission, which
+       is what the admission gate sleeps on. False only when that timeline could not be created,
+       and then what the pool retains is kept alive and released as usual but never counted:
        every metered byte belongs to a submission whose completion can wake the gate. */
     bool signalsProgress = false;
     std::vector<std::unique_ptr<VSVulkanExecContext>> contexts;

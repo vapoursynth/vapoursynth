@@ -236,14 +236,15 @@ typedef struct VSVulkanFunctions {
  * accept compute ones -- a discrete card's DMA family typically reports VK_QUEUE_TRANSFER_BIT
  * alone. So vqCompute takes anything, and vqTransfer must be given copies only; recording a
  * dispatch against it is invalid usage wherever a real DMA family exists, and silently fine on
- * the hardware where the two resolve to the same queue, which is what makes the mistake easy to
- * ship. When in doubt use vqCompute: the cost is losing overlap with the core's own transfers,
- * not correctness. */
+ * the hardware where vqTransfer resolves to a compute queue, which is what makes the mistake easy
+ * to ship. When in doubt use vqCompute: the cost is losing overlap with the core's own
+ * transfers, not correctness. */
 typedef enum VSVulkanQueueType {
     vqCompute = 0,
-    vqTransfer = 1 /* the same underlying queue as vqCompute when no dedicated transfer queue exists. The
-                      core's own frame downloads run on a second, unexposed queue of the transfer family
-                      where the device has one, so pools created here share only the core's uploads */
+    vqTransfer = 1 /* the transfer family's queue; without a transfer family the compute family's second
+                      queue where it has one, and only failing both the same underlying queue as
+                      vqCompute. The core's uploads always run on this queue, and its frame downloads
+                      too unless the transfer family has a second queue, which is never handed out */
 } VSVulkanQueueType;
 
 /* What a host wait established. Returned by all three of them -- gpuExecPoolWaitIdle,
@@ -291,7 +292,9 @@ typedef struct VSVulkanCoreHandles {
     PFN_vkGetInstanceProcAddr getInstanceProcAddr;
     uint32_t computeQueueFamily;
     uint32_t computeQueueIndex;
-    uint32_t transferQueueFamily; /* equal to the compute values when there is no dedicated transfer queue */
+    uint32_t transferQueueFamily; /* the compute family with index 1 when there is no dedicated transfer queue
+                                     but the compute family has two, and equal to the compute values when
+                                     it has one */
     uint32_t transferQueueIndex;
 } VSVulkanCoreHandles;
 
@@ -541,9 +544,10 @@ struct VSVULKANAPI {
        creating or freeing one all reach the core's exec registry, which the core's own frame
        path locks before this queue, so holding this across one of them deadlocks against an
        ordinary cache sweep on a worker thread. And do not hold both queues' locks at once:
-       vqTransfer and vqCompute are the same non-recursive lock wherever the device has no
-       dedicated transfer family, so on that hardware the second call never returns. Neither
-       mistake can be diagnosed from inside the core, which is why they are rules here. */
+       vqTransfer and vqCompute are the same non-recursive lock on a device with neither a
+       dedicated transfer family nor a second compute queue, so on that hardware the second call
+       never returns. Neither mistake can be diagnosed from inside the core, which is why they
+       are rules here. */
     void (VS_CC *lockVulkanQueue)(VSCore *core, int queue) VS_NOEXCEPT;
     void (VS_CC *unlockVulkanQueue)(VSCore *core, int queue) VS_NOEXCEPT;
 
@@ -706,10 +710,9 @@ struct VSVULKANAPI {
     /* ---- Exec pools ---- */
 
     /* Creates an exec pool on one of the core's queues. A pool on vqTransfer may only ever
-       record copies, per VSVulkanQueueType, and does not drive the core's progress timeline, so
-       what it retains is kept alive and released as usual but does not count against the
-       in-flight budget below, which only meters work whose completion can wake a gated
-       thread; a pool anything is dispatched into belongs on vqCompute.
+       record copies, per VSVulkanQueueType; a pool anything is dispatched into belongs on
+       vqCompute. Pools on either queue count what they retain against the in-flight budget
+       below.
 
        The core sizes the pool's context
        ring itself, from its worker thread count (two to eight contexts) — how many

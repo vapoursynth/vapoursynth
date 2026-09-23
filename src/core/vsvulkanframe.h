@@ -112,7 +112,8 @@ inline bool waitPlaneHost(VSVulkanDevice &device, const VSVulkanPlane &plane) {
    the transfer family's second queue where the device has one, so both PCIe directions move at
    once instead of taking turns on one DMA engine (28 GB/s aggregate on one queue, 51 on two,
    measured on an RX 6900 XT). Without a second queue the download pool sits on the same queue
-   as the upload pool and everything behaves as before.
+   as the upload pool and everything behaves as before. Without a transfer family both pools
+   sit on the compute family's second queue where it has one, the device's transfer queue then.
 
    On a discrete card with resizable BAR the upload staging ring lives in host visible VRAM
    rather than host memory: the CPU then writes each byte across the bus once and the DMA copy

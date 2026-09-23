@@ -356,11 +356,26 @@ public:
         mutex.unlock();
     }
 
+    /* The queue's progress timeline: every exec pool submission on the queue signals its next
+       value, and the admission gate sleeps on all of them at once. One per queue because a
+       timeline must be signalled in increasing order, and only one queue's submission order
+       gives that; two queues finishing out of order would signal a shared one backwards. Null
+       until the first pool on the queue creates it under execPoolsMutex, and read without it
+       by the gate and every submission, since a pool created while frames are flowing puts the
+       creating thread and a gated worker on the handle at once; hence atomic. The value is
+       guarded by the queue lock like every pool's nextValue: call nextProgressValue and
+       progressSubmitted with the queue locked. */
+    VkSemaphore progressSemaphore() const { return progress.load(std::memory_order_acquire); }
+    uint64_t nextProgressValue() const { return progressNext + 1; }
+    void progressSubmitted() { progressNext++; }
+
 private:
     VkQueue queue = VK_NULL_HANDLE;
     uint32_t family = 0;
     uint32_t index = 0;
     std::mutex mutex;
+    std::atomic<VkSemaphore> progress{ VK_NULL_HANDLE };
+    uint64_t progressNext = 0;
 };
 
 /* Owns one Vulkan device and everything needed to reach it: the entry points, the instance,
@@ -450,16 +465,34 @@ public:
     const VkPhysicalDeviceMemoryProperties &memoryProperties() const { return memProps; }
 
     VSVulkanQueue &computeQueue() { return computeQ; }
-    /* The same object as computeQueue() when the device has no dedicated transfer family, so
-       locking stays correct without the caller caring which case it is in. */
+    /* The transfer family's first queue; without a transfer family, the compute family's second
+       queue where it has one, so transfers stay out of the queue every filter submits to; and
+       only failing both the same object as computeQueue(), which keeps locking correct without
+       the caller caring which case it is in. Published as vqTransfer in every case. */
     VSVulkanQueue &transferQueue() { return *transferPtr; }
+    /* The transfer queue is a queue of its own rather than the compute queue itself: the
+       transfer family's, or the compute family's second. */
     bool hasDedicatedTransferQueue() const { return transferPtr != &computeQ; }
+    /* It belongs to a transfer family, which is what decides whether buffers must be shared
+       between two families; the compute family's second queue needs no sharing. */
+    bool hasTransferFamily() const { return transferPtr == &transferQ; }
+    bool hasSecondComputeQueue() const { return transferPtr == &computeQ2; }
+    /* What decided the layout, for the device line: a transfer family set aside by
+       setIgnoreTransferFamily, and how many queues the compute family offers. */
+    bool transferFamilyIgnored() const { return transferFamilySkipped; }
+    uint32_t computeFamilyQueueCount() const { return computeFamilyQueues; }
     /* Where frame downloads are submitted: the transfer family's second queue when it has one,
        so the two PCIe directions run on two DMA engines at once (measured 51 GB/s aggregate
        against 28 on one queue), otherwise the same object as transferQueue(). Internal to the
-       core and never handed out, so a plugin's vqTransfer pools share only the upload queue. */
+       core and never handed out. */
     VSVulkanQueue &downloadQueue() { return *downloadPtr; }
     bool hasSeparateDownloadQueue() const { return downloadPtr != transferPtr; }
+    /* Testing hooks, called before create(). A limit of 1 keeps transfers on the compute queue
+       where there is no transfer family, as they were before they took a second compute queue;
+       ignoring the transfer family brings about that case on any device, so it can be exercised
+       and measured where it does not occur. */
+    void setComputeQueueLimit(uint32_t limit) { computeQueueLimit = limit < 1 ? 1 : limit; }
+    void setIgnoreTransferFamily(bool ignore) { ignoreTransferFamily = ignore; }
 
     /* Whether the device's memory is the host's memory. Integrated and software devices
        carve their heaps out of system RAM, so a VRAM limit and the host memory limit are
@@ -649,17 +682,18 @@ public:
     void sweepExecPools();
 
     /* The in-flight retention budget. Per pool contextCount caps multiply across a graph's
-       nodes while the GPU executes one submission at a time, so nothing else bounds how much
-       queued work pins. acquire() blocks while the total exceeds the budget, sweeping and
-       sleeping on the progress timeline every compute submission signals. The total counts
-       submitted work only, so it always drains without the gated thread's help. Zero
-       disables the gate; the core sets a quarter of the VRAM limit. */
+       nodes while the GPU executes submissions far behind their recording, so nothing else
+       bounds how much queued work pins. acquire() blocks while the total exceeds the budget,
+       sweeping and sleeping on the queues' progress timelines until any of them advances. The
+       total counts submitted work only, so it always drains without the gated thread's help.
+       Zero disables the gate; the core sets a quarter of the VRAM limit. */
     void setExecRetainedBudget(uint64_t bytes) { execRetainedBudget.store(bytes, std::memory_order_relaxed); }
     void addExecRetained(uint64_t bytes) { execRetainedBytes.fetch_add(bytes, std::memory_order_relaxed); }
     void subExecRetained(uint64_t bytes) { execRetainedBytes.fetch_sub(bytes, std::memory_order_relaxed); }
     void execAdmissionGate();
-    bool ensureExecProgressSemaphore();
-    VkSemaphore execProgressSemaphore() const { return execProgressSem.load(std::memory_order_acquire); }
+    /* Creates the queue's progress timeline on first use; false when it cannot, in which case
+       the pools on that queue meter nothing. */
+    bool ensureQueueProgress(VSVulkanQueue &queue);
 
     friend class VSVulkanExecPool;
 
@@ -749,10 +783,19 @@ private:
     VkPhysicalDeviceProperties props = {};
     VkPhysicalDeviceMemoryProperties memProps = {};
     VSVulkanQueue computeQ;
+    VSVulkanQueue computeQ2;
     VSVulkanQueue transferQ;
     VSVulkanQueue downloadQ;
     VSVulkanQueue *transferPtr = &computeQ;
     VSVulkanQueue *downloadPtr = &computeQ;
+    /* Every queue object, used or not; one never brought up has no progress timeline and is
+       skipped by everything that walks this. */
+    static constexpr size_t queueObjectCount = 4;
+    VSVulkanQueue *const allQueues[queueObjectCount] = { &computeQ, &computeQ2, &transferQ, &downloadQ };
+    uint32_t computeQueueLimit = 2;
+    bool ignoreTransferFamily = false;
+    bool transferFamilySkipped = false;
+    uint32_t computeFamilyQueues = 0;
     VSVulkanAllocator allocator;
     bool unifiedMemoryFlag = false;
     bool memoryBudgetFlag = false;
@@ -824,15 +867,6 @@ private:
     void endExecReleasesLocked(VSVulkanExecPool *pool, std::thread::id thread);
     std::atomic<uint64_t> execRetainedBytes{0};
     std::atomic<uint64_t> execRetainedBudget{0};
-    /* Signaled once per compute queue submission; the counter is guarded by the compute
-       queue's lock exactly like every pool's own nextValue. Created lazily by the first
-       compute pool, under execPoolsMutex -- but read by the admission gate and by every
-       submission without it, since a filter created while frames are already flowing
-       (FrameEval building a node, a second thread invoking) puts the creating thread and
-       a gated worker on the handle at once. Atomic so that pairing is defined rather than
-       a race whose benign shape is an accident of the platform's pointer loads. */
-    std::atomic<VkSemaphore> execProgressSem{ VK_NULL_HANDLE };
-    uint64_t execProgressNext = 0;
 };
 
 /* The counted timeline behind VSGPUTimeline, whose contract VSVulkan4.h states: every plane

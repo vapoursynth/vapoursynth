@@ -344,10 +344,8 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
     /* What retaining the source pins, for the admission gate. The gate's total is not the
        allocator's -- execRetainedBytes counts only what queued work holds, and nothing else
        adds these frames to it -- so passing 0 here was not avoiding a double count, it was a
-       ring's worth of whole frames crossing the gate unmetered. Only on hardware where it
-       matters most, too: the download pool meters at all exactly when its queue is the compute
-       queue, which is every device without a dedicated transfer family, which is every unified
-       device. The public gpuExecReadsFrame meters the same object at its full size. */
+       ring's worth of whole frames crossing the gate unmetered. The public gpuExecReadsFrame
+       meters the same object at its full size. */
     VkDeviceSize sourceBytes = 0;
     if (releaseSource) {
         for (int p = 0; p < numPlanes; p++)

@@ -15,7 +15,7 @@ what each would rule out.
 
 | Object | Owned by | Holds |
 |---|---|---|
-| `VSVulkanDevice` | the core, and every frame or pool still holding a reference; may outlive the core | the pool registry, the release-batch registry, the retained-bytes total and budget, the progress timeline, the allocator |
+| `VSVulkanDevice` | the core, and every frame or pool still holding a reference; may outlive the core | the pool registry, the release-batch registry, the retained-bytes total and budget, the queues, each with its progress timeline, the allocator |
 | `VSVulkanExecPool` | a filter through `VSGPUExecPool`, or `VSVulkanTransfer` | a timeline (counted; frames it produced hold their own references), `contextCount` contexts, `nextValue`, its registration |
 | `VSVulkanExecContext` | its pool | a command pool with one primary buffer, the `claimed` flag, `pendingValue`, the retention list, `retainedBytes`, `retainedCounted` |
 | retention | the context it was registered on, until reaped | a release function and an object; bytes are summed on the context |
@@ -24,7 +24,10 @@ what each would rule out.
 
 A public pool's ring has `clamp(workerThreads, 2, 8)` contexts, fixed at creation. The transfer
 has two pools, uploads on the transfer queue and downloads on the transfer family's second queue
-where the device has one (the same queue otherwise), each with one context per slot of its ring;
+where the device has one (the same queue otherwise), each with one context per slot of its ring.
+Without a transfer family the transfer queue, `vqTransfer` included, is the compute family's
+second queue where it has one, so filters and transfers never share a queue unless the device
+offers a single queue for both;
 only the download pool retains anything, a download's source frame, for as long as the copy
 reading its planes is in flight (I31).
 
@@ -33,9 +36,9 @@ reading its planes is in flight (I31).
 | Lock | Guards |
 |---|---|
 | `VSCore::vulkanDeviceLock` | bringing the device up, nothing after: the device is internally synchronized and the pressure and accounting paths reach it through the atomic `vulkanDev` without taking this |
-| `VSVulkanDevice::execPoolsMutex` + `execReleaseCv` | the pool registry, the batch registry, `nextExecReleaseBatch`, creation of the progress semaphore |
+| `VSVulkanDevice::execPoolsMutex` + `execReleaseCv` | the pool registry, the batch registry, `nextExecReleaseBatch`, creation of each queue's progress semaphore |
 | `VSVulkanExecPool::claimMutex` + `claimCv` | nothing but the rendezvous between a full ring and `releaseClaim`; the claim itself is the atomic `claimed` |
-| `VSVulkanQueue` | `vkQueueSubmit2`, `nextValue`, `execProgressNext`. The only lock here a plugin can hold, through `lockVulkanQueue` |
+| `VSVulkanQueue` | `vkQueueSubmit2`, the `nextValue` of every pool on the queue, the queue's own `progressNext`. The only lock here a plugin can hold, through `lockVulkanQueue` |
 | `VSVulkanDevice::flushMutex` | the device's one flush context -- its command pool, buffer, timeline and value -- held across the flush submission and the host wait for it |
 | allocator mutex | blocks and free lists |
 | `VSCore::cacheLock` | the set of nodes with caches |
@@ -101,8 +104,9 @@ creating or freeing a pool) deadlocked against a worker thread in `notifyCaches`
 `sweepExecPools`, which needs no second plugin to be running. The check reads the lock free
 `queuedCeiling` instead. The other half of the rule cannot be enforced from in here and is
 stated in VSVulkan4.h: submit inside the bracket and call nothing else, and never hold two of the
-queues' locks: the two public ones are one non-recursive lock where the device has no dedicated
-transfer family, and the download queue, where it is a queue of its own, is never handed out.
+queues' locks: the two public ones are one non-recursive lock on a device with neither a dedicated
+transfer family nor a second compute queue, and the download queue, where it is a queue of its
+own, is never handed out.
 Frame property maps refuse nodes and functions (I25), so freeing a frame, which happens under
 `cacheLock` and inside release callbacks, never destroys a node or runs a function's free
 callback.
@@ -126,7 +130,7 @@ call that discovers the reset is never also the one that reports work complete. 
 that same policy through `gpuExecWaitValue`, which exists so that waiting on one submission does
 not mean hand-rolling `vkWaitSemaphores` and re-deriving the check. From then on `acquire`, `submit`, `waitValue`, `waitAll` and `flushDeviceWrites` fail
 with `deviceLostMessage`, which travels the ordinary filter error path; the sweeps stop reaping
-and the gate returns at once rather than spinning on a progress counter whose `counter + 1`
+and the gate returns at once rather than spinning on progress counters whose `counter + 1`
 wraps to zero. What a pool still retains is released by its destructor, which is safe because
 after a reset nothing is reading it.
 
@@ -273,8 +277,8 @@ fresh ──acquire──▶ recording ──submit ok──▶ pending ──GP
   reaches the device yet. Only the claim holder may call it.
 - **submit** (`submit`): the public wrapper first moves the wait list and the publish list out
   of the slot's handle, while the claim is still held. Then end the buffer (failure releases
-  retentions and claim); under the queue lock allocate the next timeline value and, for
-  compute-queue pools, the next progress value, submit, and record the value on the timeline
+  retentions and claim); under the queue lock allocate the next timeline value and the next
+  value of the queue's progress timeline, submit, and record the value on the timeline
   object (`noteSubmitted`). On success add `retainedBytes` to the device total and set
   `retainedCounted`, still under the claim; on failure release the retentions (uncounted).
   Drop the claim, then reap the pool's other completed contexts (`sweepCompleted`). The
@@ -357,12 +361,16 @@ that has been idle for a second from the pressure sweep, or of any age from the 
 ## 6. Admission gate
 
 `execAdmissionGate`, entered by every `acquire`, returns at once when the total is within
-budget. Otherwise it loops: sample the progress counter, sweep the device, return if within
-budget, wait for `counter + 1` with a 50 ms timeout, repeat. The counter is sampled *before* the
-sweep so a completion between the two either gets reaped or leaves the counter behind the wait
-target. Only submitted work is counted, so a thread's own recordings never gate it. Compute-queue
-pools signal the progress timeline on every submission; a pool on either transfer queue
-does not, and its retentions are not metered. The timeout remains for the one event that
+budget. Otherwise it loops: sample every queue's progress counter, sweep the device, return if
+within budget, wait with `VK_SEMAPHORE_WAIT_ANY_BIT` for any of them to reach `counter + 1`
+with a 50 ms timeout, repeat. The counters are sampled *before* the sweep so a completion
+between the two either gets reaped or leaves its counter behind the wait target. Only submitted
+work is counted, so a thread's own recordings never gate it. Every pool signals its own queue's
+progress timeline on every submission, so pools on every queue are metered, the transfer pools
+and `vqTransfer` pools included. The timelines are per queue because a timeline must be
+signalled in increasing order: values are allocated under the queue lock, which orders them only
+among submissions to that queue, and two queues completing out of order would signal a shared
+one backwards. The timeout remains for the one event that
 reduces the total without a signal: a completed context an acquirer claimed first settles its
 bytes on the host. A host-signalled wake-up (P10) would retire it. A wait of its own that
 returns `VK_ERROR_DEVICE_LOST` latches the loss before the gate returns, and `acquire` tests the
@@ -439,7 +447,7 @@ rung 1 waits.
 | I31 | A submission's inputs and outputs are kept alive by the submission, not by whoever waits for it: every recording that reads a frame retains it, and every declared write holds its frame until the producer pair is published. | `gpuExecReadsFrame` for filters, and `downloadPlanes` for the transfer, which takes ownership of its source frame and releases it from the retention. `gpuExecWritesPlane` takes a reference too, dropped in submit after `setPlaneProducer` (and on a failed submit or abandon): it used to keep a raw pointer, and submit dereferenced it after the caller could have freed the frame -- a use-after-free found by `linux_tests/api_fuzz` on its first run. Relying on the caller's own host wait instead was wrong twice over -- a failed wait leaves the copy queued, and a plane's destructor waits for its own producer alone, which is nothing at all for a host produced plane |
 | I30 | Nothing is retired on a wait that did not establish completion. A retention is released, a command pool or buffer destroyed and the shared flush command buffer reset only after the wait succeeded, or after a reset, when nothing is executing. | `VSVulkanDevice::waitTimelines` is the single wait policy: it retries an allocation failure, recognises a reset, and returns true only on established completion. `~VSVulkanExecPool`, `~VSVulkanTransfer` and `~VSPlaneData` retire conditionally on it and otherwise leave their objects to the device's own destruction; `flushDeviceWrites` tracks `flushPending` and settles it before reusing the buffer |
 | I29 | A GPU reset is survivable: no call spins, every retention is still released exactly once, and the core destructs. One the driver makes observable is additionally recognised and reported, so no wait claims work completed that did not; one it does not is accepted as completion, which section 2a records with the driver it was measured on. | `VK_ERROR_DEVICE_LOST` from any wait, submit or counter query, or `UINT64_MAX` on any pool or progress timeline, sets the device's one-way `deviceLost` flag, after which `acquire`, `submit`, `waitValue`, `waitAll` and `flushDeviceWrites` fail with `deviceLostMessage`, the sweeps stop reaping and the gate returns. The survivable half does not depend on recognising anything: retentions go back in `~VSVulkanExecPool` either way |
-| I21 | Every metered byte belongs to a submission whose completion signals the progress timeline. | `retain` adds bytes only on a pool with `signalsProgress` |
+| I21 | Every metered byte belongs to a submission whose completion signals its queue's progress timeline, one of the timelines the gate waits on. | `retain` adds bytes only on a pool with `signalsProgress`, which is set once the pool's queue has a progress timeline; `submit` signals that queue's timeline, whose value comes from the queue's own `progressNext` under the queue lock |
 | I22 | A context handle is usable exactly from its acquire to the submit or abandon that ends it. A later use is never a read of freed memory, and is fatal *except* once the same thread has reacquired the same slot, where it is undetectable. | the handle lives in the ring slot, bound once at creation; every public entry point runs `failUnlessOwner` first, whose empty-owner case names an ended recording; the wrapper moves the handle's lists out before `submit` drops the claim. The exception is inherent: `failUnlessOwner` compares the slot's owner thread, and after a reacquire by the same thread the stale handle is the same object with the same owner. Telling them apart needs an acquisition-specific token in the caller's hands, which the ABI does not have -- a field on the handle cannot help, since both pointers read it. Stated on `gpuExecAcquire` in VSVulkan4.h rather than defended |
 | I23 | A producer pair naming a pool's timeline never carries a value the pool has not submitted. | `noteSubmitted` under the queue lock at submit, before the caller can learn the value; the check in `setPlaneProducer`; timelines from `createGPUTimeline` are not pool-owned and exempt |
 | I24 | A GPU plane's buffer returns to the allocator only after its producer pair is reached, after the core is freed as before it. | `~VSPlaneData` waits unconditionally; the plane's counted timeline reference keeps the pair valid; every pool drains before `onCoreFreed`, so for a pool's timeline that wait is already satisfied by then |
@@ -475,7 +483,7 @@ others are cheap.
 |---|---|---|---|
 | P7 | Per-pool byte identity. | keep a per-pool counted sum; assert zero at pool destruction and a zero device total at device destruction, in a self-check mode beside `VS_VULKAN_VALIDATION` | accounting drift going unnoticed until the gate stalls |
 | P8 | No lock held during callbacks, and no pair of locks taken in both orders, checked rather than argued. | done once with temporary instrumentation on every lock acquisition, whose result is the order paragraph in section 2; making it standing means a scoped record on each lock plus a check in `runReleases` and at the three other plugin boundaries, under the flag `VS_VULKAN_VALIDATION` already sets | regressions of I7, and of section 2's order, by a future caller |
-| P10 | Every event that reduces the byte total wakes the gate. | a second timeline that only the host signals, once per settle; the gate waits on it and the progress timeline with `VK_SEMAPHORE_WAIT_ANY_BIT` | W6, and with it the gate's 50 ms poll, which can then go entirely |
+| P10 | Every event that reduces the byte total wakes the gate. | a timeline that only the host signals, once per settle, added to the set of progress timelines the gate already waits on with `VK_SEMAPHORE_WAIT_ANY_BIT` | W6, and with it the gate's 50 ms poll, which can then go entirely |
 | P13 | Freeing a GPU frame never waits on the GPU. | a plane whose producer is still pending hands its buffer to a device-level deferred list keyed by the pair, reaped by the existing sweeps and at teardown, instead of the wait in `~VSPlaneData` | the eviction stall under `cacheLock` on a just-produced frame, and the deadlock where that work depends on a host signal from a thread blocked on `cacheLock` |
 | P16 | ~~After device loss every wait returns an error, every retention is still released once, and destruction completes.~~ **Done for a reset the driver makes observable**: this is I29, tested by exactly the probe suggested here against a real Windows TDR. It verifies that behaviour, not the invariant: a Linux/RADV reset signalling the exact pending values is not detected at all, and section 2a records why that is left as it is. | -- | -- |
 
