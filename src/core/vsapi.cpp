@@ -1344,8 +1344,14 @@ static VSGPUBuffer *VS_CC vkCreateGPUBuffer(VSCore *core, VkDeviceSize size, VkB
         copyVulkanError(err, errorMessage, errorMessageSize);
         return nullptr;
     }
+    /* Nothing exports a VSGPUBuffer, so export buys a device local one nothing but sharing
+       blocks with frame planes, which spares a block of its own where both land in the same
+       memory type. A buffer that prefers host visibility gives that up where export would rule
+       host visibility out (exportNarrowsHostVisible), as one that requires it always does. */
+    const bool exportable = (requiredFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) &&
+        !((preferredFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) && dev->exportNarrowsHostVisible());
     auto handle = std::make_unique<VSGPUBuffer>();
-    if (!dev->createBufferPooled(handle->buffer, size, usage, requiredFlags, preferredFlags, err)) {
+    if (!dev->createBufferPooled(handle->buffer, size, usage, requiredFlags, preferredFlags, exportable, err)) {
         copyVulkanError(err, errorMessage, errorMessageSize);
         return nullptr;
     }
@@ -1432,6 +1438,15 @@ static int VS_CC vkExportGPUPlane(const VSFrame *frame, int plane, VSVulkanExpor
         copyVulkanError("Memory export is not available on this device", errorMessage, errorMessageSize);
         return 1;
     }
+    /* The rule first, so a plane refused for what it is gets the message saying how to export
+       it, whichever memory it happens to sit in: an upload's may not be exportable at all. */
+    if (!frame->planeExportable(plane)) {
+        copyVulkanError("Only a plane handed to the foreign API can be exported: a fresh plane of a new frame "
+            "only you hold, or a plane of a frame from getExportableFrameFilter. Take input frames with "
+            "getExportableFrameFilter, and an _Alpha frame as a clip of its own (std.PropToClip).",
+            errorMessage, errorMessageSize);
+        return 1;
+    }
     const VSVulkanAllocator::Block *block = gpuPlane->buffer.poolBlock;
     if (!block || !block->exportable) {
         copyVulkanError("The plane is not backed by exportable pooled memory", errorMessage, errorMessageSize);
@@ -1443,6 +1458,7 @@ static int VS_CC vkExportGPUPlane(const VSFrame *frame, int plane, VSVulkanExpor
         copyVulkanError(err, errorMessage, errorMessageSize);
         return 1;
     }
+    frame->handPlaneToForeign(plane);
     out->memoryId = block->exportId;
     out->memorySize = block->size;
     out->memoryTypeIndex = block->typeIndex;
@@ -1492,6 +1508,46 @@ static int VS_CC vkWaitGPUFrame(const VSFrame *frame, char *errorMessage, int er
         return 1;
     }
     return 0;
+}
+
+static VSFrame *VS_CC vkGetExportableFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx,
+    char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
+    assert(node && frameCtx);
+    int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
+    if (numFrames && n >= numFrames)
+        n = numFrames - 1;
+    auto key = NodeOutputKey(node, n);
+    for (size_t i = 0; i < frameCtx->availableFrames.size(); i++) {
+        auto &entry = frameCtx->availableFrames[i];
+        if (!(entry.first == key))
+            continue;
+        const VSFrame *frame = entry.second.get();
+        VSVulkanDevice *dev = frame->getGPUDevice();
+        if (frame->getFrameType() != mtVideo || !frame->isGPUResident() || !dev) {
+            copyVulkanError("getExportableFrameFilter needs a GPU resident video frame", errorMessage, errorMessageSize);
+            return nullptr;
+        }
+        if (!dev->exportHandleType()) {
+            copyVulkanError("Memory export is not available on this device", errorMessage, errorMessageSize);
+            return nullptr;
+        }
+        /* Preparing takes a context from one of the core's pools, and waiting for one while
+           holding another is the cycle I26 rules out; refused always, not only when it waits. */
+        dev->failIfHoldingForeignContext(nullptr, "getExportableFrameFilter");
+        std::string err;
+        VSFrame *prepared = frame->prepareForForeign(err);
+        if (!prepared) {
+            copyVulkanError(err, errorMessage, errorMessageSize);
+            return nullptr;
+        }
+        /* Consumed the way releaseFrameEarly drops a frame, so later calls for it find nothing;
+           also what leaves a frame prepared in place with the caller's reference alone. */
+        entry.first = NodeOutputKey(nullptr, -1);
+        entry.second.reset();
+        return prepared;
+    }
+    copyVulkanError("The frame was not requested, or getExportableFrameFilter already took it", errorMessage, errorMessageSize);
+    return nullptr;
 }
 
 static int VS_CC vkExportGPUSemaphore(VSCore *core, VkSemaphore semaphore, VSVulkanExportedSemaphore *out,
@@ -1626,9 +1682,24 @@ static VkCommandBuffer VS_CC vkGPUExecCommandBuffer(VSGPUExecContext *context) V
     return context->context->commandBuffer();
 }
 
+/* A plane handed to a foreign API is that API's until the frame is returned from getFrame, which
+   is where the core acquires it back; a recording using it before then would touch it without the
+   acquire. */
+static void failIfHandedOver(int plane, const char *what) {
+    if (plane < 0)
+        return;
+    std::string message = std::string(what) + " called on plane " + std::to_string(plane) +
+        " while a foreign API owns it: a plane handed over, as a fresh plane exported with"
+        " exportGPUPlane or with its frame taken by getExportableFrameFilter, stays the foreign"
+        " API's until the frame is returned from getFrame. A filter exports a plane or records"
+        " work on it, never both; the filter that receives the returned frame can do the latter.";
+    vulkanFatal(message.c_str());
+}
+
 static void VS_CC vkGPUExecReadsFrame(VSGPUExecContext *context, const VSFrame *frame) VS_NOEXCEPT {
     assert(frame);
     checkExecHandle(context, "gpuExecReadsFrame");
+    failIfHandedOver(frame->foreignOwnedPlane(), "gpuExecReadsFrame");
     const VSVideoFormat *fmt = frame->getVideoFormat();
     for (int p = 0; fmt && p < fmt->numPlanes; p++) {
         const VSVulkanPlane *plane = frame->getGPUPlane(p);
@@ -1647,6 +1718,8 @@ static void VS_CC vkGPUExecWritesPlane(VSGPUExecContext *context, VSFrame *frame
     assert(frame);
     checkExecHandle(context, "gpuExecWritesPlane");
     failIfPlaneShared(frame, plane, "gpuExecWritesPlane");
+    const VSVulkanPlane *gpuPlane = frame->getGPUPlane(plane);
+    failIfHandedOver(gpuPlane && gpuPlane->foreignOwned ? plane : -1, "gpuExecWritesPlane");
     /* The context's own reference, as gpuExecReadsFrame takes. Submit dereferences every
        declared write AFTER the submission to publish the producer pair, so a caller that dropped
        its frame between declaring and submitting -- an error path, typically -- handed submit a
@@ -1962,7 +2035,8 @@ const VSVULKANAPI vs_internal_vsvulkanapi = {
 
     .exportGPUPlane = &vkExportGPUPlane,
     .exportGPUSemaphore = &vkExportGPUSemaphore,
-    .waitGPUFrame = &vkWaitGPUFrame
+    .waitGPUFrame = &vkWaitGPUFrame,
+    .getExportableFrameFilter = &vkGetExportableFrameFilter
 };
 
 static const VSVULKANAPI *VS_CC getVulkanAPIImpl(void) VS_NOEXCEPT {

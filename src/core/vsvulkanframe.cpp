@@ -22,6 +22,7 @@
 #include "lockorder.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstring>
 
 namespace {
@@ -47,6 +48,32 @@ constexpr VkDeviceSize slotGranularity = 1 << 20;
    alternating between sizes never pays a reallocation per frame, short enough that a brief
    high resolution segment does not pin frame sized staging for the rest of the run. */
 constexpr uint32_t demandEpoch = 64;
+
+/* Contexts of the two hand-off pools. An acquire completes only once its foreign work does, and a
+   preparation once the input's producer does, while claiming a context waits out its previous
+   submission, so a shallow ring would hold every filter hostage to the slowest producer behind
+   it. A context is one command pool and one buffer. */
+constexpr uint32_t handoffContexts = 32;
+
+void VS_CC releaseWaitedTimeline(void *timeline) {
+    static_cast<VSVulkanTimeline *>(timeline)->release();
+}
+
+/* The release barriers of both preparations: the local index is the recording queue's family
+   whatever the sharing mode, for the reason acquireFromForeign gives, and the destination masks
+   mean nothing to a release. */
+VkBufferMemoryBarrier2 releaseBarrier(const VSVulkanPlane &plane, uint32_t family,
+    VkPipelineStageFlags2 srcStage, VkAccessFlags2 srcAccess) {
+    VkBufferMemoryBarrier2 barrier = {};
+    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+    barrier.srcStageMask = srcStage;
+    barrier.srcAccessMask = srcAccess;
+    barrier.srcQueueFamilyIndex = family;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_EXTERNAL;
+    barrier.buffer = plane.buffer.buffer;
+    barrier.size = VK_WHOLE_SIZE;
+    return barrier;
+}
 
 } // namespace
 
@@ -84,6 +111,10 @@ bool VSVulkanTransfer::init(VSVulkanDevice &device, uint32_t slots, std::string 
         return false;
     if (!downloadPool.init(device, device.downloadQueue(), slots, errorMessage))
         return false;
+    if (!handoffPool.init(device, device.handoffQueue(), handoffContexts, errorMessage))
+        return false;
+    if (!preparePool.init(device, device.computeQueue(), handoffContexts, errorMessage))
+        return false;
     staging.pool = &uploadPool;
     readback.pool = &downloadPool;
 
@@ -95,20 +126,19 @@ bool VSVulkanTransfer::init(VSVulkanDevice &device, uint32_t slots, std::string 
     return true;
 }
 
-/* Device local required, host visible preferred: on resizable BAR systems every plane lands
-   writable straight from the CPU and uploads never touch staging. Pooled, since planes are
-   exactly what the block allocator exists for. */
+/* Device local required, host visible preferred: on resizable BAR systems a plane lands
+   writable straight from the CPU and uploads never touch staging -- where being exportable
+   does not rule that out, which is why upload targets are made plain where it does. Pooled,
+   since planes are exactly what the block allocator exists for. */
 bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int bytesPerSample,
-    ptrdiff_t stride, VSVulkanPlane &plane, std::string &errorMessage) {
+    ptrdiff_t stride, bool exportable, VSVulkanPlane &plane, std::string &errorMessage) {
     plane.reset();
     plane.width = width;
     plane.height = height;
     plane.stride = stride;
     if (!device.createBufferPooled(plane.buffer, static_cast<VkDeviceSize>(stride) * height,
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, errorMessage)) {
+            VSVulkanDevice::planeBufferUsage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, exportable, errorMessage)) {
         plane.reset();
         return false;
     }
@@ -487,5 +517,125 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
     }
 
     releaseSlot(readback, *slot);
+    return true;
+}
+
+/* A hand-off republishes the pair of each plane it waits on, which drops the plane's reference to
+   the timeline it replaces, and that can be the last one: a filter's own timeline it has freed,
+   or a producer whose pool is gone. The submission holds one of its own until it completes. */
+void VSVulkanTransfer::retainWaitedTimeline(VSVulkanExecPool &pool, VSVulkanExecContext &ctx, VSVulkanTimeline *timeline) {
+    if (!timeline)
+        return;
+    timeline->addRef();
+    pool.retain(ctx, releaseWaitedTimeline, timeline);
+}
+
+bool VSVulkanTransfer::releaseToForeign(VSVulkanPlane *const planes[], size_t numPlanes, std::string &errorMessage) {
+    assert(numPlanes > 0);
+    VSVulkanExecContext *ctx = preparePool.acquire(errorMessage);
+    if (!ctx)
+        return false;
+    std::vector<VkBufferMemoryBarrier2> barriers(numPlanes);
+    VSVulkanWaitList waits;
+    for (size_t p = 0; p < numPlanes; p++) {
+        barriers[p] = releaseBarrier(*planes[p], preparePool.queue()->familyIndex(),
+            VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_WRITE_BIT);
+        waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
+        retainWaitedTimeline(preparePool, *ctx, planes[p]->readyTimeline);
+    }
+    VkDependencyInfo dep = {};
+    dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dep.bufferMemoryBarrierCount = static_cast<uint32_t>(numPlanes);
+    dep.pBufferMemoryBarriers = barriers.data();
+    dev->vk.vkCmdPipelineBarrier2(ctx->commandBuffer(), &dep);
+
+    uint64_t value = 0;
+    if (!preparePool.submit(*ctx, errorMessage, &value, waits.data(), waits.size()))
+        return false;
+    for (size_t p = 0; p < numPlanes; p++)
+        setPlaneProducer(*planes[p], preparePool.timelineObject(), value);
+    return true;
+}
+
+bool VSVulkanTransfer::copyToForeign(const VSVulkanPlane *const sources[], VSVulkanPlane *const copies[], size_t numPlanes,
+    VSGPUReleaseFunc releaseSource, void *source, VkDeviceSize sourceBytes, std::string &errorMessage) {
+    assert(numPlanes > 0);
+    VSVulkanExecContext *ctx = preparePool.acquire(errorMessage);
+    if (!ctx) {
+        releaseSource(source);
+        return false;
+    }
+    std::vector<VkBufferMemoryBarrier2> barriers(numPlanes);
+    VSVulkanWaitList waits;
+    for (size_t p = 0; p < numPlanes; p++) {
+        VkBufferCopy2 region = {};
+        region.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
+        region.size = std::min(sources[p]->buffer.size, copies[p]->buffer.size);
+        VkCopyBufferInfo2 copy = {};
+        copy.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
+        copy.srcBuffer = sources[p]->buffer.buffer;
+        copy.dstBuffer = copies[p]->buffer.buffer;
+        copy.regionCount = 1;
+        copy.pRegions = &region;
+        dev->vk.vkCmdCopyBuffer2(ctx->commandBuffer(), &copy);
+        barriers[p] = releaseBarrier(*copies[p], preparePool.queue()->familyIndex(),
+            VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
+        waits.add(sources[p]->readyTimeline, sources[p]->readyValue);
+    }
+    VkDependencyInfo dep = {};
+    dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dep.bufferMemoryBarrierCount = static_cast<uint32_t>(numPlanes);
+    dep.pBufferMemoryBarriers = barriers.data();
+    dev->vk.vkCmdPipelineBarrier2(ctx->commandBuffer(), &dep);
+    /* The copy reads the source after the caller's reference may be gone, so the submission
+       holds the frame, the way a download holds its source (I31); the frame's planes keep its
+       producers' timelines alive with it. */
+    preparePool.retain(*ctx, releaseSource, source, sourceBytes);
+
+    uint64_t value = 0;
+    if (!preparePool.submit(*ctx, errorMessage, &value, waits.data(), waits.size()))
+        return false;
+    for (size_t p = 0; p < numPlanes; p++)
+        setPlaneProducer(*copies[p], preparePool.timelineObject(), value);
+    return true;
+}
+
+bool VSVulkanTransfer::acquireFromForeign(VSVulkanPlane *const planes[], size_t numPlanes, std::string &errorMessage) {
+    assert(numPlanes > 0);
+    VSVulkanExecContext *ctx = handoffPool.acquire(errorMessage);
+    if (!ctx)
+        return false;
+
+    /* The local index is the recording queue's family whatever the sharing mode: with
+       synchronization2 any barrier naming EXTERNAL is an ownership transfer, and one of its two
+       indices must then be that family (VUID-vkCmdPipelineBarrier2-srcQueueFamilyIndex-10387),
+       which rules out the IGNORED that synchronization1 used for concurrent buffers. The
+       source masks mean nothing to an acquire; the destination scope makes what the foreign
+       side wrote visible to everything after it. */
+    std::vector<VkBufferMemoryBarrier2> barriers(numPlanes);
+    VSVulkanWaitList waits;
+    for (size_t p = 0; p < numPlanes; p++) {
+        barriers[p] = {};
+        barriers[p].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+        barriers[p].dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+        barriers[p].dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT;
+        barriers[p].srcQueueFamilyIndex = VK_QUEUE_FAMILY_EXTERNAL;
+        barriers[p].dstQueueFamilyIndex = handoffPool.queue()->familyIndex();
+        barriers[p].buffer = planes[p]->buffer.buffer;
+        barriers[p].size = VK_WHOLE_SIZE;
+        waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
+        retainWaitedTimeline(handoffPool, *ctx, planes[p]->readyTimeline);
+    }
+    VkDependencyInfo dep = {};
+    dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dep.bufferMemoryBarrierCount = static_cast<uint32_t>(numPlanes);
+    dep.pBufferMemoryBarriers = barriers.data();
+    dev->vk.vkCmdPipelineBarrier2(ctx->commandBuffer(), &dep);
+
+    uint64_t value = 0;
+    if (!handoffPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size()))
+        return false;
+    for (size_t p = 0; p < numPlanes; p++)
+        setPlaneProducer(*planes[p], handoffPool.timelineObject(), value);
     return true;
 }

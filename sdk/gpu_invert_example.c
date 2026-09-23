@@ -277,9 +277,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     shader = NULL;
 
     /* The core sizes the context ring from its worker thread count, and separately bounds
-       the memory queued submissions pin across all pools. The pool's timeline is created
-       exportable wherever the device allows, so foreign APIs can wait the producer pairs it
-       publishes. */
+       the memory queued submissions pin across all pools. */
     d->pool = d->vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
     if (!d->pool) {
         vsapi->mapSetError(out, err);

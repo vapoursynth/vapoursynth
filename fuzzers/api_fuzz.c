@@ -37,7 +37,14 @@
    on from any thread through gpuExecWaitValue and the pool timeline; setMaxVRAMUse moves the
    limit and the gate budget under load; the queue lock is taken as the leaf bracket it is
    documented as; buffers are destroyed only after their submission completed; a second core
-   is brought up and torn down beside the first; and retentions of 24 MB trip the gate. */
+   is brought up and torn down beside the first; and retentions of 24 MB trip the gate.
+
+   Fourth round follows the hand-off rule: a fresh plane exported by the frame's sole holder is
+   handed to the foreign API until the frame is returned from getFrame, and declaring it in a
+   recording before then is fatal. So a thread's own frame it exported is never declared, copied
+   or published again, and a filter node here does the whole hand-off -- export, publish or not,
+   an _Alpha frame in the properties, or a kept reference that makes the frame go out without
+   the acquire -- with the threads requesting its frames and declaring them like any other. */
 #include "VapourSynth4.h"
 #include "VSVulkan4.h"
 
@@ -63,7 +70,10 @@ static VSVideoFormat fmt;
 static unsigned long long deadline;
 static volatile LONG stopAll = 0;
 
-struct Frame { VSFrame *f; int shared; int written; };
+/* handed: exported while it might have had no contents and no other holder, so possibly handed
+   to the foreign API: from then on it is only exported, waited, inspected or freed. returned:
+   came back from the hand-off node, so it has contents and every export of it is a read. */
+struct Frame { VSFrame *f; int shared; int written; int handed; int returned; };
 
 struct Worker {
     int idx;
@@ -109,6 +119,20 @@ static void ringEnter(void) { probe_mutex_lock(&ringLock); }
 static void ringLeave(void) { probe_mutex_unlock(&ringLock); }
 static volatile LONG newest[SHARED_POOLS];
 static volatile LONG ringPublished = 0, ringUsed = 0, dispatches = 0, secondCores = 0;
+
+/* Fourth round state: the node whose getFrame hands its planes over, the timeline its foreign
+   pairs are published on (value 0, reached from the start), and the frame it keeps a reference
+   to, under ringLock. */
+static VSNode *handoffNode;
+static VSGPUTimeline *handoffTl;
+static const VSFrame *handoffKept;
+static volatile LONG handoffReturned = 0;
+/* And two consumers taking their own hand-off source's frames with getExportableFrameFilter: the
+   first as that source's only consumer with a strict pattern, so mostly in place, the second
+   with a general one, so the source caches and every frame is copied. */
+static VSNode *prepareSource[2], *prepareNode[2];
+static volatile LONG preparedReturned = 0;
+static int canExport = 0; /* the prepared frames fail without it */
 
 /* The reset injection and what it is measured by. */
 static int hangAt = 0;
@@ -372,6 +396,69 @@ static void closeHandle(intptr_t h) {
 #endif
 }
 
+/* What a CUDA filter's getFrame does, with nobody on the foreign side: export a fresh frame's
+   plane, then publish nothing (host synchronized), publish a reached foreign pair, add an _Alpha
+   frame handed over the same way, or keep a reference so the frame goes out without the acquire. */
+static const VSFrame *VS_CC handoffGetFrame(int n, int activationReason, void *instanceData, void **frameData,
+    VSFrameContext *frameCtx, VSCore *c, const VSAPI *api) {
+    VSFrame *f;
+    VSVulkanExportedMemory em;
+    char e[256];
+    if (activationReason != arInitial)
+        return NULL;
+    f = vkapi->newGPUVideoFrame(&fmt, 64, 64, NULL, c);
+    if (!f) { api->setFilterError("newGPUVideoFrame failed", frameCtx); return NULL; }
+    if (!vkapi->exportGPUPlane(f, 0, &em, e, sizeof(e))) closeHandle(em.handle);
+    if (n % 4 == 1) {
+        vkapi->setGPUPlaneProducer(f, 0, handoffTl, 0);
+    } else if (n % 4 == 2) {
+        VSFrame *alpha = vkapi->newGPUVideoFrame(&fmt, 64, 64, NULL, c);
+        if (alpha) {
+            if (!vkapi->exportGPUPlane(alpha, 0, &em, e, sizeof(e))) closeHandle(em.handle);
+            vkapi->setGPUPlaneProducer(alpha, 0, handoffTl, 0);
+            api->mapConsumeFrame(api->getFramePropertiesRW(f), "_Alpha", alpha, maReplace);
+        }
+    } else if (n % 4 == 3) {
+        const VSFrame *old;
+        ringEnter(); old = handoffKept; handoffKept = api->addFrameRef(f); ringLeave();
+        if (old) api->freeFrame(old);
+    }
+    return f;
+}
+
+/* What a CUDA filter reading its input does: take it with getExportableFrameFilter, export it,
+   then return the prepared frame itself or a fresh one. The foreign side either waits on the
+   hand-over before touching the frame, on the host here, so the reached pair it publishes comes
+   after it, or leaves the frame alone and publishes nothing. */
+static const VSFrame *VS_CC prepareGetFrame(int n, int activationReason, void *instanceData, void **frameData,
+    VSFrameContext *frameCtx, VSCore *c, const VSAPI *api) {
+    VSNode *source = prepareSource[instanceData != NULL];
+    VSFrame *prepared, *fresh;
+    VSVulkanExportedMemory em;
+    char e[256];
+    if (activationReason == arInitial) {
+        api->requestFrameFilter(n, source, frameCtx);
+        return NULL;
+    }
+    if (activationReason != arAllFramesReady)
+        return NULL;
+    prepared = vkapi->getExportableFrameFilter(n, source, frameCtx, e, sizeof(e));
+    if (!prepared) { api->setFilterError(e, frameCtx); return NULL; }
+    if (vkapi->exportGPUPlane(prepared, 0, &em, e, sizeof(e))) { api->freeFrame(prepared); api->setFilterError(e, frameCtx); return NULL; }
+    closeHandle(em.handle);
+    if (n % 4 < 2) {
+        if (vkapi->waitGPUFrame(prepared, e, sizeof(e))) { api->freeFrame(prepared); api->setFilterError(e, frameCtx); return NULL; }
+        vkapi->setGPUPlaneProducer(prepared, 0, handoffTl, 0);
+    }
+    if (n % 2 == 0)
+        return prepared;
+    api->freeFrame(prepared);
+    fresh = vkapi->newGPUVideoFrame(&fmt, 64, 64, NULL, c);
+    if (!fresh) { api->setFilterError("newGPUVideoFrame failed", frameCtx); return NULL; }
+    if (!vkapi->exportGPUPlane(fresh, 0, &em, e, sizeof(e))) closeHandle(em.handle);
+    return fresh;
+}
+
 static void freeFrameSlot(struct Worker *w, int i) {
     vsapi->freeFrame(w->frames[i].f);
     w->frames[i] = w->frames[--w->nframes];
@@ -381,7 +468,7 @@ static DWORD WINAPI run(LPVOID p) {
     struct Worker *w = (struct Worker *)p;
     char err[512];
     while (probe_millis() < deadline && !InterlockedGet(&stopAll)) {
-        unsigned op = pick(w, 130);
+        unsigned op = pick(w, 133);
         err[0] = 0;
         if (op < 18) {                                   /* acquire on a shared pool */
             if (!w->ctx) {
@@ -398,12 +485,15 @@ static DWORD WINAPI run(LPVOID p) {
                 vkapi->gpuExecRetain(w->ctx, &countRelease, w, pick(w, 8) == 0 ? (6 << 20) : (256 << 10));
                 InterlockedIncrement(&w->retains);
             }
-        } else if (op < 38) {                            /* declare a read of one of our frames */
-            if (w->ctx && w->nframes) { note(w, "readsFrame"); vkapi->gpuExecReadsFrame(w->ctx, w->frames[pick(w, (unsigned)w->nframes)].f); }
+        } else if (op < 38) {                            /* declare a read of one of our frames, none handed over */
+            if (w->ctx && w->nframes) {
+                int i = (int)pick(w, (unsigned)w->nframes);
+                if (!w->frames[i].handed) { note(w, "readsFrame"); vkapi->gpuExecReadsFrame(w->ctx, w->frames[i].f); }
+            }
         } else if (op < 44) {                            /* declare a write: only a frame we own outright, once */
             if (w->ctx && w->nframes) {
                 int i = (int)pick(w, (unsigned)w->nframes);
-                if (!w->frames[i].shared && !w->frames[i].written) {
+                if (!w->frames[i].shared && !w->frames[i].written && !w->frames[i].handed) {
                     note(w, "writesPlane");
                     vkapi->gpuExecWritesPlane(w->ctx, w->frames[i].f, 0);
                     w->frames[i].written = 1;
@@ -449,15 +539,18 @@ static DWORD WINAPI run(LPVOID p) {
             if (k == 0 && w->nframes < FRAMES) {
                 note(w, "newFrame");
                 w->frames[w->nframes].f = vkapi->newGPUVideoFrame(&fmt, 64 << pick(w, 3), 64, NULL, core);
-                w->frames[w->nframes].shared = 0; w->frames[w->nframes].written = 0;
+                w->frames[w->nframes].shared = 0; w->frames[w->nframes].written = 0; w->frames[w->nframes].handed = 0; w->frames[w->nframes].returned = 0;
                 if (w->frames[w->nframes].f) w->nframes++;
             } else if (k == 1 && w->nframes && w->nframes < FRAMES) {
                 int i = (int)pick(w, (unsigned)w->nframes);
-                note(w, "copyFrame");
-                w->frames[w->nframes].f = vsapi->copyFrame(w->frames[i].f, core);
-                w->frames[w->nframes].shared = 1; w->frames[w->nframes].written = 1;
-                w->frames[i].shared = 1; /* both share the planes now: neither may be written */
-                if (w->frames[w->nframes].f) w->nframes++;
+                if (!w->frames[i].handed) { /* a copy would share a plane the foreign API owns */
+                    note(w, "copyFrame");
+                    w->frames[w->nframes].f = vsapi->copyFrame(w->frames[i].f, core);
+                    w->frames[w->nframes].shared = 1; w->frames[w->nframes].written = 1; w->frames[w->nframes].handed = 0;
+                    w->frames[w->nframes].returned = w->frames[i].returned;
+                    w->frames[i].shared = 1; /* both share the planes now: neither may be written */
+                    if (w->frames[w->nframes].f) w->nframes++;
+                }
             } else if (w->nframes) {
                 note(w, "freeFrame");
                 freeFrameSlot(w, (int)pick(w, (unsigned)w->nframes));
@@ -508,6 +601,11 @@ static DWORD WINAPI run(LPVOID p) {
                     VSVulkanExportedMemory em;
                     note(w, "exportPlane");
                     if (!vkapi->exportGPUPlane(w->frames[i].f, 0, &em, err, sizeof(err))) { closeHandle(em.handle); w->exports++; }
+                    /* Whether the core handed it over depends on things the thread does not track
+                       exactly -- a write it declared but abandoned leaves the plane without
+                       contents, and a copy or a ring slot it shared through can be gone -- so
+                       assume it did unless the frame certainly has contents. */
+                    if (!w->frames[i].returned) w->frames[i].handed = 1;
                 } else {
                     VSVulkanPlaneInfo pi; VSVulkanExportedSemaphore es;
                     note(w, "exportSemaphore");
@@ -538,7 +636,7 @@ static DWORD WINAPI run(LPVOID p) {
                 if (w->priv) {
                     c = vkapi->gpuExecAcquire(w->priv, err, sizeof(err));
                     if (c) {
-                        if (w->nframes) vkapi->gpuExecReadsFrame(c, w->frames[0].f);
+                        if (w->nframes && !w->frames[0].handed) vkapi->gpuExecReadsFrame(c, w->frames[0].f);
                         vkapi->gpuExecRetain(c, &countRelease, w, 128 << 10); InterlockedIncrement(&w->retains);
                         if (pick(w, 4)) vkapi->gpuExecSubmit(c, &v, err, sizeof(err)); else vkapi->gpuExecAbandon(c);
                     }
@@ -563,7 +661,7 @@ static DWORD WINAPI run(LPVOID p) {
             if (dispatchReady && w->ctx && w->nframes) {
                 int i = (int)pick(w, (unsigned)w->nframes);
                 VSVulkanPlaneInfo pi;
-                if (!w->frames[i].shared && !w->frames[i].written && !vkapi->getGPUPlane(w->frames[i].f, 0, &pi)) {
+                if (!w->frames[i].shared && !w->frames[i].written && !w->frames[i].handed && !vkapi->getGPUPlane(w->frames[i].f, 0, &pi)) {
                     note(w, "writePlaneDispatch");
                     vkapi->gpuExecWritesPlane(w->ctx, w->frames[i].f, 0);
                     recordDispatch(w->ctx, 0, pi.buffer, pi.bufferSize);
@@ -573,7 +671,7 @@ static DWORD WINAPI run(LPVOID p) {
         } else if (op < 112) {                           /* publish a written frame for the other threads; never written again */
             if (!w->ctx && w->nframes) {
                 int i = (int)pick(w, (unsigned)w->nframes);
-                if (w->frames[i].written) {
+                if (w->frames[i].written && !w->frames[i].handed) {
                     VSFrame *old, *mine = (VSFrame *)vsapi->addFrameRef(w->frames[i].f);
                     unsigned slot = pick(w, RING);
                     note(w, "shareFrame");
@@ -651,6 +749,24 @@ static DWORD WINAPI run(LPVOID p) {
                 vkapi->gpuExecRetain(w->ctx, &countRelease, w, 24 << 20);
                 InterlockedIncrement(&w->retains);
             }
+        } else if (op < 132) {                           /* a frame a hand-off node returned: declarable like any other */
+            if (!w->ctx && w->nframes < FRAMES && handoffNode) {
+                const VSFrame *f;
+                unsigned which = canExport ? pick(w, 3) : 0;
+                note(w, which ? "preparedFrame" : "handoffFrame");
+                f = vsapi->getFrame((int)pick(w, 1 << 20), which ? prepareNode[which - 1] : handoffNode, err, sizeof(err));
+                if (f) {
+                    w->frames[w->nframes].f = (VSFrame *)f;
+                    w->frames[w->nframes].shared = 1; w->frames[w->nframes].written = 1; w->frames[w->nframes].handed = 0;
+                    w->frames[w->nframes].returned = 1;
+                    w->nframes++;
+                    InterlockedIncrement(which ? &preparedReturned : &handoffReturned);
+                } else if (InterlockedGet(&hangInjected) && isLoss(err)) {
+                    sawLoss("handoffFrame");
+                } else {
+                    printf("  thread %d: hand-off frame refused: %s\n", w->idx, err); InterlockedExchange(&stopAll, 1); return 0;
+                }
+            }
         } else {                                         /* yield */
             note(w, "sleep"); Sleep(pick(w, 3));
         }
@@ -711,6 +827,29 @@ int main(int argc, char **argv) {
         shared[i] = vkapi->createGPUExecPool(core, vqCompute, err, sizeof(err));
         if (!shared[i]) { printf("createGPUExecPool failed: %s\n", err); return 3; }
     }
+    handoffTl = vkapi->createGPUTimeline(core, err, sizeof(err));
+    if (!handoffTl) { printf("createGPUTimeline failed: %s\n", err); return 3; }
+    {
+        VSVideoInfo vi;
+        memset(&vi, 0, sizeof(vi));
+        vi.format = fmt;
+        vi.fpsNum = 25;
+        vi.fpsDen = 1;
+        vi.width = 64;
+        vi.height = 64;
+        vi.numFrames = 1 << 20;
+        handoffNode = vsapi->createVideoFilterEx2("HandoffFuzz", &vi, handoffGetFrame, NULL, fmParallel, ffGPUOutput, NULL, 0, NULL, core);
+        if (!handoffNode) { printf("createVideoFilterEx2 failed\n"); return 3; }
+        for (i = 0; i < 2; i++) {
+            VSFilterDependency dep;
+            prepareSource[i] = vsapi->createVideoFilterEx2("HandoffFuzzSource", &vi, handoffGetFrame, NULL, fmParallel, ffGPUOutput, NULL, 0, NULL, core);
+            if (!prepareSource[i]) { printf("createVideoFilterEx2 failed\n"); return 3; }
+            dep.source = prepareSource[i];
+            dep.requestPattern = i ? rpGeneral : rpStrictSpatial;
+            prepareNode[i] = vsapi->createVideoFilterEx2("PrepareFuzz", &vi, prepareGetFrame, NULL, fmParallel, ffGPUOutput, &dep, 1, i ? (void *)1 : NULL, core);
+            if (!prepareNode[i]) { printf("createVideoFilterEx2 failed\n"); return 3; }
+        }
+    }
     for (i = 0; i < nthreads; i++) {
         memset(&workers[i], 0, sizeof(workers[i]));
         workers[i].idx = i;
@@ -724,7 +863,7 @@ int main(int argc, char **argv) {
         VSFrame *warm = vkapi->newGPUVideoFrame(&fmt, 64, 64, NULL, core);
         VSVulkanExportedMemory em;
         if (warm) {
-            if (!vkapi->exportGPUPlane(warm, 0, &em, err, sizeof(err))) closeHandle(em.handle);
+            if (!vkapi->exportGPUPlane(warm, 0, &em, err, sizeof(err))) { closeHandle(em.handle); canExport = 1; }
             else printf("  (export unavailable here: %s)\n", err);
             vsapi->freeFrame(warm);
         }
@@ -745,6 +884,11 @@ int main(int argc, char **argv) {
     /* Drains make every remaining release run before the counts are compared. */
     for (i = 0; i < SHARED_POOLS; i++) if (vkapi->gpuExecPoolWaitIdle(shared[i], err, sizeof(err)) == gdDeviceLost) sawLoss("drain");
     for (i = 0; i < RING; i++) if (ring[i]) { vsapi->freeFrame(ring[i]); ring[i] = NULL; }
+    for (i = 0; i < 2; i++) { vsapi->freeNode(prepareNode[i]); vsapi->freeNode(prepareSource[i]); }
+    vsapi->freeNode(handoffNode);
+    handoffNode = NULL;
+    if (handoffKept) { vsapi->freeFrame(handoffKept); handoffKept = NULL; }
+    vkapi->freeGPUTimeline(handoffTl);
     for (i = 0; i < nthreads; i++) vkapi->releaseGPUMemoryReservation(workers[i].res);
     for (i = 0; i < SHARED_POOLS; i++) vkapi->freeGPUExecPool(shared[i]);
     destroyPipelines();
@@ -767,6 +911,8 @@ int main(int argc, char **argv) {
         totalOps, totalRetains, totalReleases, totalHanded, totalExports);
     printf("  third round: %ld real dispatches, %ld frames published, %ld uses of another thread's frame, %ld second cores\n",
         (long)InterlockedGet(&dispatches), (long)InterlockedGet(&ringPublished), (long)InterlockedGet(&ringUsed), (long)InterlockedGet(&secondCores));
+    printf("  fourth round: %ld frames returned through a hand-off, %ld from filters taking their input with getExportableFrameFilter\n",
+        (long)InterlockedGet(&handoffReturned), (long)InterlockedGet(&preparedReturned));
     printf("  open fds: %d before, %d after%s\n", fdsBefore, fdsAfter,
         (fdsBefore >= 0 && fdsAfter > fdsBefore + 2) ? "   <-- LEAKED DESCRIPTORS" : "");
     if (layerAfter) printf("     (plus the validation layer's log file: %d before, %d after, the layer's per-instance descriptor, excluded)\n", layerBefore, layerAfter);

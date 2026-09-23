@@ -370,6 +370,22 @@ public:
         return iter->first.c_str();
     }
 
+    /* Calls f(frame, unshared) on every video frame the map holds, unshared saying whether this
+       map is the only way to it: storage and array both unshared. Whether anything else holds
+       the frame itself is the frame's own refcount to say. */
+    template<typename F>
+    void forEachVideoFrame(F &&f) const {
+        const bool storageUnshared = data->unique();
+        for (const auto &iter : data->data) {
+            if (iter.second->type() != ptVideoFrame)
+                continue;
+            const bool unshared = storageUnshared && iter.second->unique();
+            const VSVideoFrameArray *frames = static_cast<const VSVideoFrameArray *>(iter.second.get());
+            for (size_t i = 0; i < frames->size(); i++)
+                f(frames->at(i).get(), unshared);
+        }
+    }
+
     void setError(const std::string &errMsg) {
         clear();
         VSDataArray *arr = new VSDataArray();
@@ -455,6 +471,8 @@ private:
     static std::atomic<uint64_t> allocationSeq;
 
     void setAllocationInfo() noexcept;
+    /* takeBackForeignPlanes' walk over one frame and the frames its properties hold; see there. */
+    void collectForeignPlanes(std::vector<VSVulkanPlane *> &planes, bool reachedAlone, std::vector<const VSFrame *> &visited) const;
 public:
     static ptrdiff_t alignment;
 
@@ -465,9 +483,10 @@ public:
 #endif
 
     VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept;
-    /* The GPU resident variant: identical layout and strides, planes in VRAM. Internal only
-       until the plugin API grows a story for it. */
-    VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core, bool gpuFrame) noexcept;
+    /* The GPU resident variant: identical layout and strides, planes in VRAM. An upload target
+       is a frame GPUUpload is about to write from the host, whose planes are plain rather than
+       exportable where the device says so (VSVulkanDevice::plainUploadTargets). */
+    VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core, bool gpuFrame, bool uploadTarget = false) noexcept;
     VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) noexcept;
     VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc, VSCore *core) noexcept;
     VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *channelSrc, const int *channel, const VSFrame *propSrc, VSCore *core) noexcept;
@@ -516,6 +535,22 @@ public:
     VSVulkanDevice *getGPUDevice() const {
         return numPlanes ? data[0]->gpuDevice : nullptr;
     }
+
+    /* Handing a plane to a foreign API to write, and taking it back when the frame is returned:
+       the queue family ownership transfer Vulkan requires of external memory. See
+       handPlaneToForeign for which exports hand over. Const because exportGPUPlane takes a const
+       frame; neither changes anything another holder could observe. */
+    void handPlaneToForeign(int plane) const;
+    bool takeBackForeignPlanes(std::string &errorMessage) const;
+    /* A plane of this frame still handed to a foreign API, or -1: what the exec declarations
+       refuse to touch. */
+    int foreignOwnedPlane() const;
+    /* Whether exportGPUPlane may give the plane out: one handed to a foreign API already, or one
+       handPlaneToForeign would hand over. */
+    bool planeExportable(int plane) const;
+    /* getExportableFrameFilter's work, on a frame only the caller's frame context holds or not;
+       returns a new reference to a frame the caller owns outright, planes handed over. */
+    VSFrame *prepareForForeign(std::string &errorMessage) const;
 
     VSMap &getProperties() {
         return properties;

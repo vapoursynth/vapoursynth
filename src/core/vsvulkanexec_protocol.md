@@ -29,7 +29,15 @@ Without a transfer family the transfer queue, `vqTransfer` included, is the comp
 second queue where it has one, so filters and transfers never share a queue unless the device
 offers a single queue for both;
 only the download pool retains anything, a download's source frame, for as long as the copy
-reading its planes is in flight (I31).
+reading its planes is in flight (I31). A third transfer pool acquires back the planes foreign
+APIs wrote (I32), on the device's hand-off queue: a compute family queue of its own where the
+family has one to spare, since each acquire waits on foreign work and would hold back everything
+queued behind it, and compute queue 0 otherwise. Each submission is one barrier per plane and
+retains the timelines it waits on, since republishing a plane's pair can drop their last
+reference. Its ring has 32 contexts, deep because a context stays busy until the foreign work it
+waits on completes, and the ring is shared by every filter. A fourth, on the compute queue and
+as deep, prepares input frames for foreign APIs (`getExportableFrameFilter`): a release in place,
+retaining the timelines it waits on, or a copy followed by a release, retaining the source frame.
 
 ## 2. Locks and their order
 
@@ -409,6 +417,11 @@ rung 1 waits.
 - Never signal a pool's timeline from outside.
 - Declare a write only on a plane the frame owns outright. `copyFrame` shares planes and GPU
   planes have no copy on write, so writing a shared one would change the other frame too.
+- Only planes handed to a foreign API can be exported (I32): a fresh plane of a new frame only
+  you hold, handed over by its first export, or a frame taken with `getExportableFrameFilter`,
+  handed over with its contents. Returning either takes it back; publish the foreign side's
+  completion, or finish its work on the host, before returning, and never declare it in a
+  recording before then. Exporting any other plane fails.
 - A producer pair on a pool's timeline names a value the pool has submitted; a larger value is
   fatal at publish. Timelines from `createGPUTimeline` carry no such bound, so the same
   discipline is the filter's: publish only a value whose signal is already in flight, never one
@@ -433,12 +446,13 @@ rung 1 waits.
 | I10 | The ladder never declares the device full while a release another thread already detached is still running. | rung 1's wait and second sweep |
 | I11 | Timeline values are allocated and submitted under the queue lock, strictly increasing per pool; `pendingValue` is the context's last submitted value or zero. | `submit` |
 | I12 | A destroyed pool has no registered batch on any thread, no claimed context and empty lists, and is off the registry before anything is torn down. | destructor order |
-| I13 | The upload pool never retains, so it never registers batches and never contributes bytes; the download pool retains only its source frames (I31). | `uploadPlanes` uses no retention; `downloadPlanes` retains through `retain` |
+| I13 | The upload pool never retains, so it never registers batches and never contributes bytes; the download pool retains only its source frames (I31), the hand-off pool only the timelines its submissions wait on, at zero bytes, and the prepare pool either those timelines or, when it copies, the source frame at its full size. | `uploadPlanes` uses no retention; `downloadPlanes`, `copyToForeign` and `retainWaitedTimeline` retain through `retain` |
 | I14 | A retained GPU frame outlives its submission; its bytes are its whole size. | `vkGPUExecReadsFrame` |
 | I15 | A release callback only frees: no acquire, GPU allocation, pool creation, pool free, pool wait or timeline wait from a thread running a batch. | `failIfRunningReleases` in `acquire`, `allocatePooled`, `registerExecPool`, `unregisterExecPool`, `waitAll`, and also `gpuExecWaitValue` and `gpuTimelineWaitValue` -- the latter is not a pool wait, so the guarded set is seven entry points rather than the five this row used to name. All seven measured refusing, with the expected fatal message, by `linux_tests/release_reentry.c` |
 | I16 | One context per pool per thread. | the owner thread recorded on the claim; `failIfHoldingContext` in `acquire` |
 | I26 | A thread waiting for a context holds no context of another pool, so two full rings can never wait on each other. | `failIfHoldingForeignContext` on `acquire`'s slow path, walking the pool registry under `execPoolsMutex` |
 | I27 | A producer is published only on a plane its frame owns outright, so a GPU write never reaches a frame that shares the plane. | `failIfPlaneShared` in `gpuExecWritesPlane` and `setGPUPlaneProducer`, testing `VSPlaneData::unique()` |
+| I32 | Only a plane handed to a foreign API is exported, and every hand-over is Vulkan's external ownership transfer. A fresh plane of a frame whose sole reference the exporter holds goes over at its first export with no release, since its contents need not survive; an input frame goes over through `getExportableFrameFilter` with a release to `VK_QUEUE_FAMILY_EXTERNAL`, in place when only the caller's frame context held it and its planes sit in exportable blocks, into a copy otherwise, since releasing a plane others read would leave their contents undefined and the core tracks producers, not readers, and a plane in a plain block cannot be exported at all (`GPUUpload`'s targets, wherever export would cost them host visibility: `VSVulkanDevice::plainUploadTargets`). Either way the caller then owns the frame outright, and it comes back through an acquire after the plane's pair when the frame is returned or handed to `cacheFrame`, before anything else can see it (that pair is the release's, or one the caller published in its place, which the header requires to come after it: the core cannot order a foreign timeline against its own), one submission covering the frame and the frames its properties hold, nested ones included. No recording touches such a plane before that. A plane anything else can reach -- another holder of its frame or of a frame on the way to it, a shared plane, a property map or array shared with another frame -- goes out without the acquire, since republishing its pair could race a reader, and its flag is cleared so its receivers can use it. | `planeExportable` in `exportGPUPlane`, failing every other plane; `VSFrame::handPlaneToForeign` there (sets `foreignOwned`, and `written` so a plane is never handed over twice); `VSFrame::prepareForForeign` behind `getExportableFrameFilter`, which consumes the frame context's reference and goes in place only on exportable blocks; `VSFrame::takeBackForeignPlanes` in `getFrameInternal` and `VSNode::cacheFrame`, walking the properties through `VSMap::forEachVideoFrame` once per frame, which acquires or, when a plane is not reached alone, clears the flag; `failIfHandedOver` in `gpuExecReadsFrame` and `gpuExecWritesPlane` |
 | I28 | The queue lock is a leaf: nothing in the core takes another lock while holding it, and nothing takes it while holding another except `flushMutex`, whose flush is the submission. | `detachCompleted` reads `queuedCeiling` rather than `nextValue`; the rule for the half a plugin owns is stated on `lockVulkanQueue` in VSVulkan4.h |
 | I17 | Retain, submit and abandon only by the claim holder's thread. | `failUnlessOwner` |
 | I18 | `waitAll` (idle wait and destruction) only from a thread holding no context of the pool. | `failIfHoldingContext` in `waitAll` |

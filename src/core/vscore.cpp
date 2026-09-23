@@ -227,7 +227,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
         setAllocationInfo();
 }
 
-VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core, [[maybe_unused]] bool gpuFrame) noexcept
+VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core, [[maybe_unused]] bool gpuFrame, bool uploadTarget) noexcept
     : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr, true), core(core) {
     assert(gpuFrame);
     gpuResident = true;
@@ -258,12 +258,13 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
     VSVulkanDevice *dev = core->vulkanDevice(vulkanError);
     if (!dev)
         core->logFatal("GPU frame requested but no Vulkan device: " + vulkanError);
+    const bool exportable = !(uploadTarget && dev->plainUploadTargets());
 
     for (int i = 0; i < numPlanes; i++) {
         uint32_t pw = static_cast<uint32_t>(i ? width >> format.vf.subSamplingW : width);
         uint32_t ph = static_cast<uint32_t>(i ? height >> format.vf.subSamplingH : height);
         auto *plane = new VSVulkanPlane();
-        if (!createGPUPlane(*dev, pw, ph, format.vf.bytesPerSample, stride[i], *plane, vulkanError)) {
+        if (!createGPUPlane(*dev, pw, ph, format.vf.bytesPerSample, stride[i], exportable, *plane, vulkanError)) {
             delete plane;
             core->logFatal("Failed to allocate a GPU plane: " + vulkanError);
         }
@@ -331,7 +332,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
             if (!dev)
                 core->logFatal("GPU frame requested but no Vulkan device: " + vulkanError);
             auto *gpuPlane = new VSVulkanPlane();
-            if (!createGPUPlane(*dev, pw, ph, format.vf.bytesPerSample, stride[i], *gpuPlane, vulkanError)) {
+            if (!createGPUPlane(*dev, pw, ph, format.vf.bytesPerSample, stride[i], true, *gpuPlane, vulkanError)) {
                 delete gpuPlane;
                 core->logFatal("Failed to allocate a GPU plane: " + vulkanError);
             }
@@ -495,6 +496,143 @@ uint8_t *VSFrame::getWritePtr(int plane) {
 
         return data[0]->data + guardSpace + plane * stride[0];
     }
+}
+
+/* A foreign API may write only a plane nobody has written, of a frame whose sole reference the
+   exporter holds: a new frame it has not returned yet. That plane is the foreign API's until the
+   frame is returned, and goes over without a release, since contents nobody wrote need not
+   survive the foreign side's first access. Every other export is a read and hands nothing over:
+   releasing a plane with contents would leave them undefined for every other reader, and the
+   core tracks producers, not readers. */
+void VSFrame::handPlaneToForeign(int plane) const {
+    if (!gpuResident || plane < 0 || plane >= numPlanes || plane >= 3)
+        return;
+    VSVulkanPlane *gpu = data[plane]->gpu;
+    if (gpu && !gpu->written && refcount == 1 && data[plane]->unique()) {
+        /* Written from here on, whatever the foreign side does: a plane that goes out without
+           the acquire, or with no pair published, must not look fresh to whoever exports it
+           next and be handed over a second time. */
+        gpu->written = true;
+        gpu->foreignOwned = true;
+    }
+}
+
+void VSFrame::collectForeignPlanes(std::vector<VSVulkanPlane *> &planes, bool reachedAlone, std::vector<const VSFrame *> &visited) const {
+    /* Once per frame, since a frame can be stored in its own properties. A frame reachable along
+       two ways is held twice, so whichever way comes first reaches the same verdict. */
+    if (std::find(visited.begin(), visited.end(), this) != visited.end())
+        return;
+    visited.push_back(this);
+    const bool heldAlone = reachedAlone && refcount == 1;
+    if (gpuResident) {
+        for (int p = 0; p < numPlanes && p < 3; p++) {
+            VSVulkanPlane *gpu = data[p]->gpu;
+            if (!gpu || !gpu->foreignOwned)
+                continue;
+            /* Anything else holding the frame, sharing the plane or sharing a property map on
+               the way to it might be reading the pair the acquire would republish, so such a
+               plane goes out as it is, without the acquire: the gap the rules leave. Clearing
+               the flag keeps the declarations from calling that misuse by whoever receives it. */
+            if (heldAlone && data[p]->unique())
+                planes.push_back(gpu);
+            else
+                gpu->foreignOwned = false;
+        }
+    }
+    properties.forEachVideoFrame([&](const VSFrame *f, bool unshared) {
+        f->collectForeignPlanes(planes, heldAlone && unshared, visited);
+    });
+}
+
+/* The return side of a hand-off, on every frame a filter returns before anything else can see
+   it, and on the frames its properties hold, nested ones included: an _Alpha frame written the
+   same way. One acquire covers every plane nothing else can reach; the rest go out without it. */
+bool VSFrame::takeBackForeignPlanes(std::string &errorMessage) const {
+    if (!gpuResident)
+        return true;
+    std::vector<VSVulkanPlane *> planes;
+    std::vector<const VSFrame *> visited;
+    collectForeignPlanes(planes, true, visited);
+    if (planes.empty())
+        return true;
+    VSVulkanTransfer *transfer = core->vulkanTransfer(errorMessage);
+    if (!transfer || !transfer->acquireFromForeign(planes.data(), planes.size(), errorMessage))
+        return false;
+    for (VSVulkanPlane *gpu : planes)
+        gpu->foreignOwned = false;
+    return true;
+}
+
+int VSFrame::foreignOwnedPlane() const {
+    if (!gpuResident)
+        return -1;
+    for (int p = 0; p < numPlanes && p < 3; p++) {
+        if (data[p]->gpu && data[p]->gpu->foreignOwned)
+            return p;
+    }
+    return -1;
+}
+
+/* Everything else would put a plane the core's queues, or other frames, may read into a foreign
+   API's hands with no transfer. */
+bool VSFrame::planeExportable(int plane) const {
+    if (!gpuResident || plane < 0 || plane >= numPlanes || plane >= 3)
+        return false;
+    const VSVulkanPlane *gpu = data[plane]->gpu;
+    return gpu && (gpu->foreignOwned || (!gpu->written && refcount == 1 && data[plane]->unique()));
+}
+
+static void VS_CC releasePreparedSource(void *frame) {
+    static_cast<VSFrame *>(frame)->release();
+}
+
+/* The planes are handed over with their contents, which is the release half of the transfer
+   handPlaneToForeign skips. In place when nothing but the caller's frame context holds the frame,
+   which then becomes the caller's, and its planes are exportable at all, which an upload's may
+   not be (VSVulkanDevice::plainUploadTargets); otherwise into a copy, since releasing planes others
+   read would leave their contents undefined for them. Properties come along unprepared: an _Alpha
+   frame stays shared. */
+VSFrame *VSFrame::prepareForForeign(std::string &errorMessage) const {
+    VSVulkanTransfer *transfer = core->vulkanTransfer(errorMessage);
+    if (!transfer)
+        return nullptr;
+    bool inPlace = refcount == 1;
+    for (int p = 0; p < numPlanes; p++) {
+        const VSVulkanAllocator::Block *block = data[p]->gpu->buffer.poolBlock;
+        inPlace = inPlace && data[p]->unique() && block && block->exportable;
+    }
+
+    if (inPlace) {
+        VSVulkanPlane *planes[3] = {};
+        for (int p = 0; p < numPlanes; p++)
+            planes[p] = data[p]->gpu;
+        if (!transfer->releaseToForeign(planes, numPlanes, errorMessage))
+            return nullptr;
+        for (int p = 0; p < numPlanes; p++)
+            planes[p]->foreignOwned = true;
+        VSFrame *self = const_cast<VSFrame *>(this);
+        self->add_ref();
+        return self;
+    }
+
+    VSFrame *copy = new VSFrame(format.vf, width, height, this, core, true);
+    const VSVulkanPlane *sources[3] = {};
+    VSVulkanPlane *copies[3] = {};
+    VkDeviceSize sourceBytes = 0;
+    for (int p = 0; p < numPlanes; p++) {
+        sources[p] = data[p]->gpu;
+        copies[p] = copy->data[p]->gpu;
+        sourceBytes += data[p]->gpu->buffer.poolSize;
+    }
+    VSFrame *source = const_cast<VSFrame *>(this);
+    source->add_ref();
+    if (!transfer->copyToForeign(sources, copies, numPlanes, releasePreparedSource, source, sourceBytes, errorMessage)) {
+        copy->release();
+        return nullptr;
+    }
+    for (int p = 0; p < numPlanes; p++)
+        copies[p]->foreignOwned = true;
+    return copy;
 }
 
 #ifdef VS_FRAME_GUARD
@@ -1096,6 +1234,15 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
             core->logFatal("Guard memory corrupted in frame " + std::to_string(n) + " returned from " + name);
 #endif
 
+        /* Planes the filter handed to a foreign API come back before anything else can see the
+           frame; see VSFrame::handPlaneToForeign. */
+        std::string handBackError;
+        if (r->isGPUResident() && !r->takeBackForeignPlanes(handBackError)) {
+            const_cast<VSFrame *>(r)->release();
+            frameCtx->setError("Filter " + name + " returned a frame whose planes could not be taken back from a foreign API: " + handBackError);
+            return nullptr;
+        }
+
         PVSFrame ref(const_cast<VSFrame *>(r));
 
         if (cacheEnabled) {
@@ -1113,6 +1260,18 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
 }
 
 void VSNode::cacheFrame(const VSFrame *frame, int n) {
+    /* A frame cached ahead is handed to the core as surely as a returned one, so planes the filter
+       gave a foreign API come back the same way before the cache can hand the frame to anyone, the
+       caller's reference being the one handed over; see getFrameInternal. Before the cache lock,
+       since the acquire may wait for a context. A frame that cannot be taken back stays out of the
+       cache, to be produced again if it is requested. */
+    if (frame->isGPUResident()) {
+        std::string handBackError;
+        if (!frame->takeBackForeignPlanes(handBackError)) {
+            core->logMessage(mtWarning, "Filter " + name + " cached a frame whose planes could not be taken back from a foreign API, so it was left out of the cache: " + handBackError);
+            return;
+        }
+    }
     std::lock_guard<std::mutex> lock(cacheMutex);
     VS_LOCK_HELD(vsLockNodeCache);
     assert(cacheLinear);
@@ -1454,6 +1613,10 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine) 
         dev->setComputeQueueLimit(1);
     if (std::getenv("VS_VULKAN_NO_TRANSFER_QUEUE"))
         dev->setIgnoreTransferFamily(true);
+    /* Upload targets exportable even where that makes the upload stage, as before, so direct
+       uploads can be measured against staged ones on the driver where the two differ. */
+    if (std::getenv("VS_VULKAN_EXPORTABLE_UPLOADS"))
+        dev->setExportableUploads(true);
     /* Validation is a development switch, so an environment variable rather than API surface. */
     if (!dev->create(deviceIndex, std::getenv("VS_VULKAN_VALIDATION") != nullptr, vulkanDeviceError))
         return false;
@@ -1540,7 +1703,8 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine) 
        against each other: the direct upload has the CPU write the plane across the BAR,
        while staging hands the copy to the DMA engine, and which of those wins is a property
        of the platform rather than something to assume. */
-    if (std::getenv("VS_VULKAN_FORCE_STAGING"))
+    const bool forceStaging = std::getenv("VS_VULKAN_FORCE_STAGING") != nullptr;
+    if (forceStaging)
         trans->setForceStaging(true);
     /* And the other way for the staging itself: the upload ring lives in resizable BAR memory
        where the card has it, this keeps it in host memory so the two can be compared. */
@@ -1559,12 +1723,27 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine) 
         limitInfo += ", unified memory so it shares system RAM with the " +
             std::to_string(memory->limit() >> 20) + " MB host limit (combined ceiling " +
             std::to_string(memory->combined_limit() >> 20) + " MB)";
-    /* Said out loud because it decides a transfer path and cannot be seen from Python. */
-    if (vulkanDev.load()->hasResizableBar() && !memory->unified())
-        limitInfo += hostStaging ? ", resizable BAR (upload staging kept in host memory)" : ", resizable BAR (uploads staged through it)";
+    /* Said out loud because it decides a transfer path and cannot be seen from Python. Uploads
+       write planes directly wherever the planes can be host visible, which on a driver that
+       narrows export means upload targets that are not exportable; the staging left is BAR
+       memory on a discrete card, host memory otherwise. */
+    const VSVulkanDevice *created = vulkanDev.load();
+    if (created->hasResizableBar()) {
+        std::string uploads;
+        if (forceStaging)
+            uploads = "uploads staged by request";
+        else if (created->plainUploadTargets())
+            uploads = "uploads direct into frames foreign APIs get copies of";
+        else if (!created->exportNarrowsHostVisible())
+            uploads = "uploads direct";
+        else if (memory->unified())
+            uploads = "uploads staged";
+        else
+            uploads = hostStaging ? "upload staging kept in host memory" : "uploads staged through it";
+        limitInfo += memory->unified() ? ", " + uploads : ", resizable BAR (" + uploads + ")";
+    }
     /* Likewise where transfers go when there is no transfer family, worded from what the device
        ended up with rather than from which switches were set, since either can change nothing. */
-    const VSVulkanDevice *created = vulkanDev.load();
     if (!created->hasTransferFamily()) {
         limitInfo += created->transferFamilyIgnored() ? ", transfer family ignored by request" : ", no transfer family";
         if (created->hasSecondComputeQueue())
@@ -1574,6 +1753,8 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine) 
         else
             limitInfo += " so transfers share the compute queue";
     }
+    if (!created->hasHandoffQueue())
+        limitInfo += ", foreign API hand-offs share the compute queue";
     /* Handed back rather than logged here. The callers hold vulkanDeviceLock across this whole
        function, and a log message reaches a handler synchronously on this thread -- a handler
        that touches the core, vulkan_device_info from Python say, re-enters vulkanDevice() and

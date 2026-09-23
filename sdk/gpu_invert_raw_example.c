@@ -421,9 +421,6 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     d->vkapi->freeGPUShader(shader);
     shader = NULL;
 
-    /* The core makes it exportable wherever the device can, so CUDA and other Vulkan devices
-       consuming this filter's frames may import the producer pair and wait it device side
-       instead of falling back to waitGPUFrame. Costs nothing when nobody imports it. */
     d->timeline = d->vkapi->createGPUTimeline(core, err, sizeof(err));
     if (!d->timeline) {
         vsapi->mapSetError(out, err);

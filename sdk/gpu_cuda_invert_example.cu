@@ -9,15 +9,19 @@
 *     mapping per 128 MB allocation, cached by memoryId with the least recently used entry
 *     evicted when the cache is full, per-plane pointers by offset — the kernels then read
 *     and write the exact VRAM the Vulkan buffers occupy
+*   - only planes handed to CUDA can be exported: the output is a fresh frame, handed over by
+*     its first export and taken back by the core when it is returned, and the input is taken
+*     with getExportableFrameFilter, which hands it over with its contents (in place when this
+*     filter is its only consumer, which the rpStrictSpatial request below arranges)
 *   - synchronization is device side when possible: input producer pairs are imported with
 *     cudaImportExternalSemaphore (cached by VkSemaphore value, which the producer pair
 *     contract keeps stable for this instance's lifetime) and waited IN THE STREAM; the
 *     filter's own exportable timeline is signalled from the stream and published through
 *     setGPUPlaneProducer, so the graph pipelines across the API boundary with no host wait
-*   - when a producer's timeline cannot be exported (a third party filter that did not opt
-*     in) the filter falls back to waitGPUFrame for that frame, and when the device offers
-*     no semaphore export at all it runs fully host synchronized: waitGPUFrame before the
-*     kernels, cudaStreamSynchronize after, publishing no producer pair
+*   - an input taken with getExportableFrameFilter always carries one of the core's own
+*     timelines, exportable wherever the device offers semaphore export; where it offers
+*     none the filter runs fully host synchronized: waitGPUFrame before the kernels,
+*     cudaStreamSynchronize after, publishing no producer pair
 *   - like every asynchronous producer it retains source frames until its signalled value
 *     completes, swept non blockingly with vkGetSemaphoreCounterValue through the core's
 *     function table
@@ -233,7 +237,7 @@ static cudaExternalSemaphore_t mapSemaphore(CudaInvertData *d, VSCore *core, VkS
 
     VSVulkanExportedSemaphore sexp;
     if (d->vkapi->exportGPUSemaphore(core, sem, &sexp, err, sizeof(err)))
-        return NULL; /* third party producer without an exportable timeline */
+        return NULL;
 
     cudaExternalSemaphoreHandleDesc sd;
     memset(&sd, 0, sizeof(sd));
@@ -283,10 +287,18 @@ static const VSFrame *VS_CC cudaInvertGetFrame(int n, int activationReason, void
     if (activationReason != arAllFramesReady)
         return NULL;
 
-    const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+    /* Taken for CUDA rather than with getFrameFilter: the frame comes back handed over with its
+       contents and owned by this filter, which is what lets its planes be exported at all. As
+       this filter's input is requested rpStrictSpatial, it is usually the frame's only holder
+       and nothing is copied. Must come before any exec context is held; this filter holds none. */
+    char err[512] = { 0 };
+    const VSFrame *src = d->vkapi->getExportableFrameFilter(n, d->node, frameCtx, err, sizeof(err));
+    if (!src) {
+        vsapi->setFilterError(err, frameCtx);
+        return NULL;
+    }
     const VSVideoFormat *fmt = vsapi->getVideoFrameFormat(src);
     VSFrame *dst = d->vkapi->newGPUVideoFrame(fmt, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
-    char err[512] = { 0 };
     int p;
 
     cudaSetDevice(d->cudaDevice);

@@ -191,13 +191,14 @@ reading them in order shows exactly what each layer takes over:
 |                           |           | pinned with requiredSubgroupSize — in                         |
 |                           |           | src/core/simplefilters.cpp.                                   |
 +---------------------------+-----------+---------------------------------------------------------------+
-| gpu_cuda_invert_example.cu| foreign   | The complete CUDA interop pattern: UUID device matching,      |
-|                           | API       | cached memory imports, device side producer pair waits with   |
-|                           |           | graceful host sync fallback, and signalling its own           |
-|                           |           | exportable timeline from the stream. Its work enters a CUDA   |
-|                           |           | stream, which the exec pool cannot carry, so the raw          |
-|                           |           | obligations are discharged by hand across the API boundary.   |
-|                           |           | Reference code — it has not run on NVIDIA hardware yet.       |
+| gpu_cuda_invert_example.cu| foreign   | The complete CUDA interop pattern: UUID device matching, its  |
+|                           | API       | input taken with getExportableFrameFilter, cached memory      |
+|                           |           | imports, device side producer pair waits with host sync       |
+|                           |           | fallback, and signalling its own exportable timeline from the |
+|                           |           | stream. Its work enters a CUDA stream, which the exec pool    |
+|                           |           | cannot carry, so the raw obligations are discharged by hand   |
+|                           |           | across the API boundary. Reference code — it has not run on   |
+|                           |           | NVIDIA hardware yet.                                          |
 +---------------------------+-----------+---------------------------------------------------------------+
 
 Shaders reach the pipeline two ways. Every example here takes the first: ship
@@ -478,8 +479,24 @@ imports that allocation and reads or writes the very same VRAM. Since planes
 are linear pitched buffers with CPU strides, the wrapped pointer behaves like
 a CPU plane pointer; most existing CUDA kernels port with a pointer swap.
 
+Vulkan requires external memory to change hands explicitly, so a frame belongs
+either to the foreign API or to the core's queues, never both at once, and only
+planes handed to the foreign API can be exported: those of an input taken with
+getExportableFrameFilter, and fresh planes of a new frame. Exporting any other
+plane fails.
+
 The pattern, per frame:
 
+#. Take each input with getExportableFrameFilter instead of getFrameFilter.
+   It hands the frame over with its contents — in place when your filter is
+   the source's only consumer and requests it ``rpStrictSpatial`` or
+   ``rpNoFrameReuse``, otherwise through one GPU copy per plane — and the
+   frame is yours alone afterwards. On AMD's Windows driver, whose exportable
+   memory cannot be host visible, a frame std.GPUUpload made is always
+   copied: its planes are left unexportable so the upload can write them
+   directly. Frames in its properties are not handed over: request an
+   *_Alpha* frame as a clip of its own (std.PropToClip). Never call it while
+   holding an exec context.
 #. Export each plane you touch. Cache imports keyed by *memoryId* — one
    ``cudaImportExternalMemory`` per 128 MB allocation, then per-plane
    pointers are just base + offset. Close surplus handles per the ownership
@@ -488,9 +505,13 @@ The pattern, per frame:
    type it picked itself, since an opaque handle must be imported with the
    exporting allocation's type and the memory property queries are invalid
    for opaque handle types.
-#. Allocate the output with newGPUVideoFrame and wrap its planes the same
-   way — foreign kernels write directly into what downstream Vulkan filters
-   will read.
+#. Allocate the output with newGPUVideoFrame and export its planes before
+   anything writes them: the first export of a fresh plane of a frame only
+   you hold hands it to the foreign side, so foreign kernels write directly
+   into what downstream Vulkan filters will read. The core takes it back when
+   you return the frame, or cache it ahead with cacheFrame, so do either
+   holding no other reference. Declaring a handed-over plane in an exec
+   context is fatal.
 #. Synchronize. Two options, and the second is strongly preferred:
 
    * **Host side**: call waitGPUFrame on each input frame before launching
@@ -505,18 +526,23 @@ The pattern, per frame:
      (``cudaWaitExternalSemaphoresAsync`` with the pair's value), signal your
      own exportable timeline at the end
      (``cudaSignalExternalSemaphoresAsync``), publish that (semaphore, value)
-     with setGPUPlaneProducer, and return immediately. Nothing blocks; the
-     graph pipelines across the API boundary exactly as it does between
-     Vulkan filters. Create your timeline with createGPUTimeline, which asks
-     for export wherever ``VSVulkanCoreInfo::semaphoreExportHandleType`` says
-     the device allows it, and take on the one asynchronous obligation that
-     remains: retain source frames until your signalled value completes. The
-     timeline itself needs no arranging — the frames you published it on keep
-     it alive past your filter.
+     on the output's planes with setGPUPlaneProducer, and return
+     immediately. Nothing blocks; the graph pipelines across the API boundary
+     exactly as it does between Vulkan filters. Create your timeline with
+     createGPUTimeline, which asks for export wherever
+     ``VSVulkanCoreInfo::semaphoreExportHandleType`` says the device allows
+     it, and take on the one asynchronous obligation that remains: retain
+     source frames until your signalled value completes. The timeline itself
+     needs no arranging — the frames you published it on keep it alive past
+     your filter.
 
-   Not every producer's timeline is exportable — third party filters may not
-   opt in — so when exportGPUSemaphore fails on an input, fall back to
-   waitGPUFrame for that frame.
+   An input's pairs name one of the core's own timelines once
+   getExportableFrameFilter has handed it over, and every core timeline is
+   exportable when the capability exists, so the device side path is there
+   whenever ``semaphoreExportHandleType`` is nonzero. An input you return
+   rather than drop is taken back like the output: publish your completion on
+   it too, since a pair published there replaces the hand-over's and must
+   come after it.
 
 **Declare memory you allocate yourself.** A CUDA pool, a second Vulkan device
 or a video session allocates VRAM the core cannot see, and what it cannot see

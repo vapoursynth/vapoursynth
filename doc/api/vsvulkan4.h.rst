@@ -155,6 +155,8 @@ Functions_
 
    waitGPUFrame_
 
+   getExportableFrameFilter_
+
 
 Introduction
 ############
@@ -409,7 +411,7 @@ why a filter's timeline no longer has to outlive its consumers: release your
 reference whenever you are done signalling — the free callback is the natural
 place — and any frame still in flight keeps it alive by itself. The semaphore
 is created exportable wherever the device supports it, so a foreign API can
-wait the pairs you publish device side.
+signal the pairs you publish on it.
 
 .. _VSGPUBuffer:
 
@@ -569,6 +571,21 @@ every VapourSynth side reference — frames, and like frames the core — is
 gone. Synchronization stays host side for now: call waitGPUFrame_ before
 reading a frame through an import, and finish foreign writes
 (cudaStreamSynchronize) before returning a frame containing them.
+
+Hand-off: a foreign API writes only into new frames. Exporting a plane
+nothing has written yet, of a frame only you hold — created and not yet
+returned, copied or otherwise shared — hands it to the foreign API to write:
+the queue family ownership transfer Vulkan requires of external memory
+whatever its sharing mode. The core takes it back when you return the frame
+from getFrame or pass it to cacheFrame, with any such frame held only in its
+properties (an *_Alpha* frame), ordered after the plane's producer pair at
+that moment: publish the foreign side's completion with setGPUPlaneProducer_
+before that, or finish its work on the host. Until then the plane is the
+foreign API's alone, and declaring it in an exec context (gpuExecReadsFrame_,
+gpuExecWritesPlane_) is fatal. Keep no other reference to the frame and no
+copy of it when you return or cache it, or it goes out without being taken
+back. Input frames are handed over by taking them with
+getExportableFrameFilter_; exporting any other plane fails.
 
 .. _VSVulkanExportedSemaphore:
 
@@ -817,7 +834,8 @@ void setGPUPlaneProducer(VSFrame \*frame, int plane, VSGPUTimeline_ \*timeline, 
    your own the ordering is yours to keep, so signal, or enqueue the signal,
    and only then publish. The CUDA example does exactly this: it enqueues
    cudaSignalExternalSemaphoresAsync on its stream and publishes the value
-   afterwards.
+   afterwards. On a plane you handed to a foreign API the pair is also what
+   taking it back waits on; see VSVulkanExportedMemory_.
 
 ----------
 
@@ -1102,10 +1120,7 @@ VSGPUExecPool_ \*createGPUExecPool(VSCore \*core, int queue, char \*errorMessage
    caps the total bytes submitted-but-unfinished work retains across all
    pools. Only submitted work counts, so a recording a thread already holds
    never gates that thread. Filters notice nothing but an occasional slower
-   acquire when a graph runs far ahead of the GPU. The pool's timeline is
-   created exportable when the
-   device can, so consumers in other APIs can wait the producer pairs it
-   publishes.
+   acquire when a graph runs far ahead of the GPU.
 
    Destroy it in the filter's free callback; freeGPUExecPool_ drains the GPU
    first, so everything it still holds is released safely. A context still
@@ -1307,7 +1322,8 @@ void gpuExecReadsFrame(VSGPUExecContext_ \*context, const VSFrame \*frame)
    Declares that this submission reads the frame: its planes' producer pairs
    become device side waits, and the frame is kept alive until the submission
    completes. Takes its own reference, so the caller still releases its own
-   reference normally.
+   reference normally. Fatal on a frame with a plane handed to a foreign API;
+   see VSVulkanExportedMemory_.
 
 ----------
 
@@ -1325,7 +1341,8 @@ void gpuExecWritesPlane(VSGPUExecContext_ \*context, VSFrame \*frame, int plane)
    frame only to inherit properties you then keep; to write, take
    newGPUVideoFrame_ or newVideoFrame2 with the old frame as the property
    source. Sharing a plane this filter does not write stays fine, the check
-   being per plane.
+   being per plane. Fatal on a plane handed to a foreign API, like
+   gpuExecReadsFrame_.
 
 ----------
 
@@ -1431,7 +1448,7 @@ int exportGPUPlane(const VSFrame \*frame, int plane, VSVulkanExportedMemory_ \*o
 
    Exports the allocation backing a GPU frame plane as an opaque handle
    another API in the process can import; see VSVulkanExportedMemory_ for the
-   identity, ownership and synchronization rules. Only available when
+   identity, ownership, hand-off and synchronization rules. Only available when
    VSVulkanCoreInfo_::exportHandleType is nonzero; fails on CPU frames and
    missing planes. This is how a CUDA filter reads and writes frames in
    place: import once per *memoryId*, map, and run kernels on the same VRAM
@@ -1444,17 +1461,14 @@ int exportGPUPlane(const VSFrame \*frame, int plane, VSVulkanExportedMemory_ \*o
 int exportGPUSemaphore(VSCore \*core, VkSemaphore semaphore, VSVulkanExportedSemaphore_ \*out, char \*errorMessage, int errorMessageSize)
 
    Exports a timeline semaphore as an opaque handle another API can import.
-   Use it on the *readySemaphore* of a plane you consume — every core exec
-   pool timeline is created exportable when the capability exists — to wait
-   the producer pair on the device instead of the host, and on your own
-   timeline (createGPUTimeline_, or one made with VkExportSemaphoreCreateInfo
-   and the handle type from VSVulkanCoreInfo_::semaphoreExportHandleType) to
-   signal your producer pairs from the foreign API. Only available when
+   Use it on the *readySemaphore* of a plane taken with
+   getExportableFrameFilter_ — always one of the core's own timelines, all of
+   which are created exportable when the capability exists — to wait the
+   hand-over on the device instead of the host, and on your own timeline
+   (createGPUTimeline_, or one made with VkExportSemaphoreCreateInfo and the
+   handle type from VSVulkanCoreInfo_::semaphoreExportHandleType) to signal
+   your producer pairs from the foreign API. Only available when
    VSVulkanCoreInfo_::semaphoreExportHandleType is nonzero.
-
-   Third party filters are not obliged to create exportable timelines: when
-   the export of some other plugin's producer semaphore fails, fall back to
-   waitGPUFrame_ for that frame.
 
 ----------
 
@@ -1471,3 +1485,39 @@ int waitGPUFrame(const VSFrame \*frame, char \*errorMessage, int errorMessageSiz
    never need this, their producer pairs carry the dependency. Foreign
    consumers that import the producer pair through exportGPUSemaphore_ do not
    need it either — a device side external wait carries the dependency.
+
+----------
+
+.. _getExportableFrameFilter:
+
+VSFrame \*getExportableFrameFilter(int n, VSNode \*node, VSFrameContext \*frameCtx, char \*errorMessage, int errorMessageSize)
+
+   Takes a requested input frame for a foreign API, the way getFrameFilter
+   takes one for the core's queues. It comes back owned outright by the
+   caller, every plane handed to the foreign side with its contents and ready
+   for exportGPUPlane_, its producer pairs naming the hand-over: wait on those,
+   or call waitGPUFrame_, before the foreign side touches it. A pair published
+   afterwards with setGPUPlaneProducer_ replaces the hand-over's, so it must
+   come after it, as the completion of foreign work that waited does; publish
+   nothing for a frame the foreign side left alone. Where nothing else holds
+   the frame (this filter its only consumer, requesting it rpStrictSpatial or
+   rpNoFrameReuse, so the source keeps no cache) the planes are handed over in
+   place; otherwise the frame is copied first, one GPU copy per plane, on the
+   compute queue. A frame std.GPUUpload made is always copied where exportable
+   memory cannot be host visible (AMD's Windows driver): its planes are left
+   unexportable there, so the upload can write them directly.
+
+   The frame is the caller's as a new one is: the foreign side may modify it,
+   and returning it takes it back while freeing it needs nothing. Declaring it
+   in an exec context is fatal, as for any plane handed over. Frames in its
+   properties are not prepared: take an *_Alpha* frame as a clip of its own
+   (std.PropToClip) and request that.
+
+   Consumes one request of the frame for the current activation:
+   getFrameFilter and this function return NULL for it afterwards unless it
+   was requested again, as a temporal filter clamping at the clip's ends
+   requests one frame twice, each request giving a frame. Call getFrameFilter
+   first to keep the original as well, which makes this a copy. Fails on CPU
+   frames and on devices without export support, and returns NULL for a frame
+   that was not requested. Fatal when the calling thread holds an exec context,
+   since preparing takes one of the core's.

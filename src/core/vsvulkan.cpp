@@ -741,7 +741,7 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     }
     computeFamilyQueues = families[computeFamily].queueFamilyProperties.queueCount;
 
-    float priorities[2] = { 1.0f, 1.0f };
+    float priorities[3] = { 1.0f, 1.0f, 1.0f };
     VkDeviceQueueCreateInfo queueCreate[2] = {};
     uint32_t queueCreateCount = 0;
     /* Without a transfer family, a second compute queue where the family has one, so the core's
@@ -749,9 +749,13 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
        family, so buffers need no sharing between families. */
     const uint32_t computeQueueCount = transferFamily == UINT32_MAX ?
         std::min(computeQueueLimit, std::min(2u, families[computeFamily].queueFamilyProperties.queueCount)) : 1;
+    /* And one more of the family for acquiring back what foreign APIs wrote, where it has one to
+       spare; see handoffQueue(). */
+    const bool spareHandoffQueue = computeQueueCount < computeQueueLimit &&
+        computeQueueCount < families[computeFamily].queueFamilyProperties.queueCount;
     queueCreate[queueCreateCount].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueCreate[queueCreateCount].queueFamilyIndex = computeFamily;
-    queueCreate[queueCreateCount].queueCount = computeQueueCount;
+    queueCreate[queueCreateCount].queueCount = computeQueueCount + (spareHandoffQueue ? 1 : 0);
     queueCreate[queueCreateCount].pQueuePriorities = priorities;
     queueCreateCount++;
     /* Two queues of the transfer family when it has them: uploads on one, downloads on the
@@ -903,6 +907,14 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         downloadPtr = &computeQ2;
         queueInfo.queueIndex = 0;
     }
+    if (spareHandoffQueue) {
+        queueInfo.queueIndex = computeQueueCount;
+        vk.vkGetDeviceQueue2(deviceHandle, &queueInfo, &handoffQ.queue);
+        handoffQ.family = computeFamily;
+        handoffQ.index = computeQueueCount;
+        handoffPtr = &handoffQ;
+        queueInfo.queueIndex = 0;
+    }
     if (transferFamily != UINT32_MAX) {
         queueInfo.queueFamilyIndex = transferFamily;
         vk.vkGetDeviceQueue2(deviceHandle, &queueInfo, &transferQ.queue);
@@ -964,6 +976,49 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
 #endif
         if (!exportSemaphoreFn)
             semaphoreExportType = static_cast<VkExternalSemaphoreHandleTypeFlagBits>(0);
+    }
+
+    /* The memory types a plane may bind to, asked of a buffer made the way createBufferPooled
+       makes one, plain and exportable: whether any of them is a host visible device local type
+       an upload could write across the bus. */
+    if (exportType && resizableBarFlag) {
+        const auto allowsHostVisible = [&](bool exportable) {
+            uint32_t families[2] = { computeQ.family, transferQ.family };
+            VkExternalMemoryBufferCreateInfo externalInfo = {};
+            externalInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
+            externalInfo.handleTypes = exportType;
+            VkBufferCreateInfo bufferInfo = {};
+            bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            bufferInfo.pNext = exportable ? &externalInfo : nullptr;
+            bufferInfo.size = 1 << 20;
+            bufferInfo.usage = planeBufferUsage;
+            if (hasTransferFamily()) {
+                bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+                bufferInfo.queueFamilyIndexCount = 2;
+                bufferInfo.pQueueFamilyIndices = families;
+            } else {
+                bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            }
+            VkBuffer probe = VK_NULL_HANDLE;
+            if (vk.vkCreateBuffer(deviceHandle, &bufferInfo, nullptr, &probe) != VK_SUCCESS)
+                return false;
+            VkBufferMemoryRequirementsInfo2 reqInfo = {};
+            reqInfo.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2;
+            reqInfo.buffer = probe;
+            VkMemoryRequirements2 req = {};
+            req.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
+            vk.vkGetBufferMemoryRequirements2(deviceHandle, &reqInfo, &req);
+            vk.vkDestroyBuffer(deviceHandle, probe, nullptr);
+            const VkMemoryPropertyFlags wanted = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+                if ((req.memoryRequirements.memoryTypeBits & (1u << i)) &&
+                        (memProps.memoryTypes[i].propertyFlags & wanted) == wanted && !smallBarWindow(i))
+                    return true;
+            }
+            return false;
+        };
+        exportNarrowsFlag = allowsHostVisible(false) && !allowsHostVisible(true);
     }
 
     state = State::Ready;

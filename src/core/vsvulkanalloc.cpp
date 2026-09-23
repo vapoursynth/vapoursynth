@@ -316,14 +316,15 @@ void VSVulkanDevice::freePooled(const VSVulkanPooledRegion &region) {
 }
 
 bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize size, VkBufferUsageFlags usage,
-    VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, std::string &errorMessage) {
+    VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, bool wantExportable, std::string &errorMessage) {
     buffer = {};
 
     uint32_t families[2] = { computeQ.family, transferQ.family };
-    /* Device local pools are the exportable ones; the external info here and the export info
-       on their blocks must appear together or binding is invalid, and it restricts the
-       compatible memory types, which is why host visible pools stay out of it. */
-    const bool exportable = exportType && (requiredFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    /* The external info here and the export info on the block must appear together or binding
+       is invalid, and it restricts the compatible memory types -- on some drivers to ones that
+       are not host visible (exportNarrowsHostVisible) -- which is why a request that requires
+       host visibility never asks for it. */
+    const bool exportable = wantExportable && exportType && !(requiredFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     VkExternalMemoryBufferCreateInfo externalInfo = {};
     externalInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
     externalInfo.handleTypes = exportType;

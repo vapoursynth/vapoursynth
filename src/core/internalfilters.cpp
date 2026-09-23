@@ -97,7 +97,9 @@ const VSFrame *VS_CC gpuUploadGetFrame(int n, int activationReason, void *instan
         }
 
         const VSVideoFormat *fmt = vsapi->getVideoFrameFormat(src);
-        VSFrame *dst = new VSFrame(*fmt, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core, true);
+        /* An upload target, so host visible for the direct write even where that means it
+           cannot be exported (VSVulkanDevice::plainUploadTargets). */
+        VSFrame *dst = new VSFrame(*fmt, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core, true, true);
 
         VSVulkanPlane *planes[3] = {};
         const uint8_t *srcPlanes[3] = {};

@@ -487,9 +487,16 @@ public:
        core and never handed out. */
     VSVulkanQueue &downloadQueue() { return *downloadPtr; }
     bool hasSeparateDownloadQueue() const { return downloadPtr != transferPtr; }
-    /* Testing hooks, called before create(). A limit of 1 keeps transfers on the compute queue
-       where there is no transfer family, as they were before they took a second compute queue;
-       ignoring the transfer family brings about that case on any device, so it can be exercised
+    /* Where planes a foreign API wrote are acquired back: a compute family queue nothing else
+       submits to where the family has one to spare, since each acquire waits on foreign work and
+       a queue does not start what was submitted behind a pending wait. Otherwise the same object
+       as computeQueue(). Internal to the core and never handed out. */
+    VSVulkanQueue &handoffQueue() { return *handoffPtr; }
+    bool hasHandoffQueue() const { return handoffPtr == &handoffQ; }
+    /* Testing hooks, called before create(). The limit caps how many compute family queues the
+       core takes: 1 keeps transfers on the compute queue where there is no transfer family, as
+       they were before they took a second compute queue, and hand-offs on it everywhere.
+       Ignoring the transfer family brings about that case on any device, so it can be exercised
        and measured where it does not occur. */
     void setComputeQueueLimit(uint32_t limit) { computeQueueLimit = limit < 1 ? 1 : limit; }
     void setIgnoreTransferFamily(bool ignore) { ignoreTransferFamily = ignore; }
@@ -509,12 +516,30 @@ public:
        and the transfer stages uploads through VRAM only when this is set. */
     bool hasResizableBar() const { return resizableBarFlag; }
 
+    /* Whether exporting a plane would cost it its host visibility: a buffer shaped like a plane
+       may bind to a host visible device local type when plain, and to none once it is created
+       exportable. AMD's Windows driver does this on its discrete and integrated devices alike;
+       RADV, NVIDIA and MoltenVK do not. Probed at creation where there is such a type to lose. */
+    bool exportNarrowsHostVisible() const { return exportNarrowsFlag; }
+
+    /* Whether the frames GPUUpload writes are allocated plain, wherever export narrows host
+       visibility, so the upload writes them directly instead of staging. They lose nothing but
+       getExportableFrameFilter's in place hand-over, which copies them instead; frames filters
+       create stay exportable. The setter, called before create() like the testing hooks above
+       (VS_VULKAN_EXPORTABLE_UPLOADS), keeps upload targets exportable so the two can be
+       measured against each other. */
+    bool plainUploadTargets() const { return exportNarrowsFlag && !exportableUploads; }
+    void setExportableUploads(bool exportable) { exportableUploads = exportable; }
+
     /* The opaque handle type pooled memory can be exported as (OPAQUE_WIN32 or OPAQUE_FD),
        or 0 when the platform extension is absent or export of our buffer shape is not
-       possible. When nonzero, pooled buffers that REQUIRE device local memory (every frame
-       plane) are created exportable and land in exportable blocks; host visible pools stay
-       plain, because external memory info restricts a buffer's compatible memory types and
-       drivers may not offer exportable host visible ones at all. */
+       possible. When nonzero, pooled buffers created exportable land in exportable blocks:
+       every frame plane but the upload targets plainUploadTargets exempts, and the buffers
+       createGPUBuffer makes in device local memory, which nothing exports but which share the
+       planes' blocks that way -- all but one that prefers host visibility where export would
+       rule it out. A request that requires host visible memory never is, because external
+       memory info restricts a buffer's compatible memory types and drivers may not offer
+       exportable host visible ones at all. */
     VkExternalMemoryHandleTypeFlagBits exportHandleType() const { return exportType; }
 
     /* Wins a new handle to the memory's underlying allocation. Every call returns a fresh
@@ -577,11 +602,19 @@ public:
        The plain form gives the buffer its own vkAllocateMemory, right for the few big
        staging buffers, and accounts it by the memory type it landed in (see
        setAllocationCallback); the pooled form sub allocates from the block allocator and is
-       what every frame plane uses. destroyBuffer handles both. */
+       what every frame plane uses. Its exportable flag asks for external memory info on the
+       buffer and an exportable block under it, which may narrow the memory types it can bind
+       to (exportNarrowsHostVisible); ignored where the device cannot export and for a request
+       that requires host visible memory. destroyBuffer handles both. */
     bool createBuffer(VSVulkanBuffer &buffer, VkDeviceSize size, VkBufferUsageFlags usage,
         VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, std::string &errorMessage);
     bool createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize size, VkBufferUsageFlags usage,
-        VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, std::string &errorMessage);
+        VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, bool exportable, std::string &errorMessage);
+
+    /* What a frame plane's buffer is created for; the export probe at creation asks about
+       buffers of the same shape. */
+    static constexpr VkBufferUsageFlags planeBufferUsage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     void destroyBuffer(VSVulkanBuffer &buffer);
 
     /* A pooled region with no resource wrapped around it: what createBufferPooled uses
@@ -786,13 +819,15 @@ private:
     VSVulkanQueue computeQ2;
     VSVulkanQueue transferQ;
     VSVulkanQueue downloadQ;
+    VSVulkanQueue handoffQ;
     VSVulkanQueue *transferPtr = &computeQ;
     VSVulkanQueue *downloadPtr = &computeQ;
+    VSVulkanQueue *handoffPtr = &computeQ;
     /* Every queue object, used or not; one never brought up has no progress timeline and is
        skipped by everything that walks this. */
-    static constexpr size_t queueObjectCount = 4;
-    VSVulkanQueue *const allQueues[queueObjectCount] = { &computeQ, &computeQ2, &transferQ, &downloadQ };
-    uint32_t computeQueueLimit = 2;
+    static constexpr size_t queueObjectCount = 5;
+    VSVulkanQueue *const allQueues[queueObjectCount] = { &computeQ, &computeQ2, &transferQ, &downloadQ, &handoffQ };
+    uint32_t computeQueueLimit = 3;
     bool ignoreTransferFamily = false;
     bool transferFamilySkipped = false;
     uint32_t computeFamilyQueues = 0;
@@ -800,6 +835,8 @@ private:
     bool unifiedMemoryFlag = false;
     bool memoryBudgetFlag = false;
     bool resizableBarFlag = false;
+    bool exportNarrowsFlag = false;
+    bool exportableUploads = false;
     VkDeviceSize largestDeviceLocalHeapSize = 0;
     /* A device local, host visible type whose heap is under half the largest device local one:
        the BAR window of a card without resizable BAR. See hasResizableBar. */

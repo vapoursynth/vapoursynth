@@ -44,6 +44,14 @@ struct VSVulkanPlane {
        the pair in step. */
     VSVulkanTimeline *readyTimeline = nullptr;
     uint64_t readyValue = 0;
+    /* Set by every producer publication, whatever wrote the plane, and by handing it to a foreign
+       API: an exported plane that was never written is one a foreign API is about to write. */
+    bool written = false;
+    /* Handed to a foreign API to write by exportGPUPlane and not yet taken back, so the core's
+       queues must acquire it from VK_QUEUE_FAMILY_EXTERNAL before touching it. Set only by the
+       holder of the frame's sole reference, but cleared when a frame goes out without the
+       acquire and read by any declaration, hence atomic; see VSFrame::handPlaneToForeign. */
+    std::atomic<bool> foreignOwned{false};
 
     VSVulkanPlane() = default;
     ~VSVulkanPlane() {
@@ -61,6 +69,8 @@ struct VSVulkanPlane {
             readyTimeline->release();
         readyTimeline = nullptr;
         readyValue = 0;
+        written = false;
+        foreignOwned.store(false, std::memory_order_relaxed);
         buffer = {};
         stride = 0;
         width = 0;
@@ -85,12 +95,14 @@ inline void setPlaneProducer(VSVulkanPlane &plane, VSVulkanTimeline *timeline, u
         plane.readyTimeline->release();
     plane.readyTimeline = timeline;
     plane.readyValue = value;
+    plane.written = true;
 }
 
 /* One linear pitched device local plane with the stride the caller decided on, which is how
-   VSFrame keeps its GPU strides identical to its CPU ones. */
+   VSFrame keeps its GPU strides identical to its CPU ones. Exportable unless the caller says
+   otherwise, which only an upload target does (VSVulkanDevice::plainUploadTargets). */
 bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int bytesPerSample,
-    ptrdiff_t stride, VSVulkanPlane &plane, std::string &errorMessage);
+    ptrdiff_t stride, bool exportable, VSVulkanPlane &plane, std::string &errorMessage);
 
 /* Host wait for one plane's producer; the common case is already signaled and returns at once. */
 inline bool waitPlaneHost(VSVulkanDevice &device, const VSVulkanPlane &plane) {
@@ -114,6 +126,9 @@ inline bool waitPlaneHost(VSVulkanDevice &device, const VSVulkanPlane &plane) {
    measured on an RX 6900 XT). Without a second queue the download pool sits on the same queue
    as the upload pool and everything behaves as before. Without a transfer family both pools
    sit on the compute family's second queue where it has one, the device's transfer queue then.
+   A third pool, on the device's hand-off queue, takes back planes foreign APIs wrote; see
+   acquireFromForeign. A fourth, on the compute queue, prepares input frames for them; see
+   releaseToForeign.
 
    On a discrete card with resizable BAR the upload staging ring lives in host visible VRAM
    rather than host memory: the CPU then writes each byte across the bus once and the DMA copy
@@ -122,9 +137,10 @@ inline bool waitPlaneHost(VSVulkanDevice &device, const VSVulkanPlane &plane) {
    bounded the boundary (384 against 352 fps on a 1080p RGBS round trip on the same card; the
    VRAM to VRAM copy runs at 65 GB/s on the DMA engine). Readback cannot follow, since reading
    the BAR mapping back runs at 0.02 GB/s, and unified memory has no bus to skip, so both keep
-   cached host memory. Frame planes themselves stay where they were: every plane is exportable,
-   and exportable memory is never host visible on the drivers measured, which is why this is
-   done in the staging and not by writing planes directly.
+   cached host memory. Writing the planes directly is better still where they are host visible,
+   and upload targets are wherever that can be had: exportable where export keeps them host
+   visible, plain where it would not (VSVulkanDevice::plainUploadTargets). So with resizable
+   BAR this ring only runs when staging is forced or upload targets are kept exportable.
 
    Slot buffers are created lazily and sized to the last two epochs of demand, so they shrink
    back once a burst of big frames is over; they are accounted like every other driver
@@ -164,15 +180,42 @@ public:
         uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[],
         VSGPUReleaseFunc releaseSource, void *source, std::string &errorMessage);
 
-    /* Both pools, even when the first fails: the caller is about to destroy what it can, and a
-       download still in flight is a whole frame held on a context of the second. */
+    /* Takes planes a foreign API wrote through exported memory back onto the core's queues: the
+       acquire half of the queue family ownership transfer Vulkan requires of external memory
+       whatever its sharing mode. No release precedes it, since only planes nobody had written
+       are handed over and their contents need not survive the foreign side's first access; see
+       VSFrame::handPlaneToForeign. One barrier per plane in one submission on the hand-off
+       queue, a compute family queue every plane can be owned by, waiting on each plane's
+       producer -- the foreign side's pair when it published one -- and published on all of them.
+       The pairs keep the buffers alive; the submission retains only the timelines it waits on,
+       see retainWaitedTimeline. */
+    bool acquireFromForeign(VSVulkanPlane *const planes[], size_t numPlanes, std::string &errorMessage);
+    /* The other direction, for getExportableFrameFilter: planes with contents handed to a
+       foreign API, which is the release half. releaseToForeign releases planes in place, for a
+       frame nothing else can reach; copyToForeign copies each source plane into its fresh
+       counterpart and releases the copy, for a frame others may be reading, keeping the source
+       alive through releaseSource until the copy is done, with sourceBytes metered like any
+       retention. Both wait on the planes' producers, run as one submission on the compute
+       queue -- not the hand-off queue, whose acquires wait on foreign work -- and are published
+       as the planes' producers, which is what the foreign side waits on. */
+    bool releaseToForeign(VSVulkanPlane *const planes[], size_t numPlanes, std::string &errorMessage);
+    bool copyToForeign(const VSVulkanPlane *const sources[], VSVulkanPlane *const copies[], size_t numPlanes,
+        VSGPUReleaseFunc releaseSource, void *source, VkDeviceSize sourceBytes, std::string &errorMessage);
+
+    /* Every pool, even when one fails: the caller is about to destroy what it can, and a
+       download still in flight is a whole frame held on a context of the second. A pool whose
+       init never ran, after an earlier one failed, has nothing to wait for and no device to
+       ask. */
     bool waitIdle(std::string &errorMessage) {
-        const bool uploads = uploadPool.waitAll(errorMessage);
-        std::string downloadError;
-        const bool downloads = downloadPool.waitAll(downloadError);
-        if (uploads && !downloads)
-            errorMessage = downloadError;
-        return uploads && downloads;
+        bool idle = true;
+        for (VSVulkanExecPool *pool : { &uploadPool, &downloadPool, &handoffPool, &preparePool }) {
+            std::string poolError;
+            if (pool->queue() && !pool->waitAll(poolError) && idle) {
+                errorMessage = poolError;
+                idle = false;
+            }
+        }
+        return idle;
     }
 
     /* Frees the buffers of every slot in a ring nothing has acquired for idleAfter: the
@@ -223,10 +266,13 @@ private:
     VkDeviceSize noteDemand(SlotRing &ring, VkDeviceSize minSize);
     void releaseSlot(SlotRing &ring, Slot &slot);
     bool waitPlanesHost(VSVulkanPlane *const planes[], int numPlanes, std::string &errorMessage);
+    static void retainWaitedTimeline(VSVulkanExecPool &pool, VSVulkanExecContext &ctx, VSVulkanTimeline *timeline);
 
     VSVulkanDevice *dev = nullptr;
     VSVulkanExecPool uploadPool;
     VSVulkanExecPool downloadPool;
+    VSVulkanExecPool handoffPool;
+    VSVulkanExecPool preparePool;
     SlotRing staging;
     SlotRing readback;
     bool forceStaging = false;
