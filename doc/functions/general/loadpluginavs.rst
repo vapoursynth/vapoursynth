@@ -4,7 +4,7 @@ LoadPlugin (Avisynth Compatibility)
 .. function::   LoadPlugin(string path)
    :module: avs
 
-   Load an Avisynth 2.5 (32 bit only), 2.6 (32 and 64 bit) or Avisynth+ (32 and 64 bit) plugin.
+   Load a 64 bit Avisynth 2.6 or Avisynth+ plugin. Avisynth 2.5 plugins can't be loaded.
    If successful, the loaded plugin's functions will end up in the avs namespace. Note that
    in the case of Avisynth+ there's no way to use the formats combined with alpha or
    higher bitdepth packed RGB. Coincidentally there are no plugins that use this in a

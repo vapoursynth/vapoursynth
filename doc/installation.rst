@@ -12,9 +12,11 @@ The recommended way to install VapourSynth is through pip. There are currently b
 4. (Windows only) Update the Visual Studio 2015-2026 Redistributable if told to
 
 Optional:
+
 5. Run ``vapoursynth register-install`` to set the VSSCRIPT_PATH environment variable to allow other applications to find the library
 
 Optional on Windows:
+
 6. Run ``vapoursynth register-legacy-install`` to write installation information to the registry so applications not aware of R74 and later still work
 7. Run ``vapoursynth register-vfw`` to register the VFW module
 
@@ -39,7 +41,8 @@ Prerequisites
 -------------
 
 First download and install the prerequisites:
-   * `Python 64 bit version <http://www.python.org/>`_ -- There is support for Python 3.12 and all later versions, including 3.13 and 3.14.
+
+* `Python 64 bit version <http://www.python.org/>`_ -- There is support for Python 3.12 and all later versions, including 3.13 and 3.14.
 
 Installation
 ------------
@@ -52,11 +55,11 @@ Windows Portable
 ****************
 
 Download and run the automatic script called *Install-Portable-VapourSynth-RXX.ps1*.
-It will then automatically download and set up embedded Python, pip, VapourSynth and VSRepo in a subdirectorey called *vapoursynth-portable* by default.
+It will then automatically download and set up embedded Python, pip and VapourSynth in a subdirectory called *vapoursynth-portable* by default.
 It's possible to pass arguments to it to specify the installed Python version in addition to an option to run it in unattended mode.
 
 Note that Python by design hardcodes its current path in all exe files in the *Scripts* directory which technically makes the install not portable at all. To counteract
-this the portable install script deletes all of these and instead provides a set of bat files (vspipe.bat, vsrepo.bat, pip.bat) in the root of the portable install
+this the portable install script deletes all of these and instead provides a set of bat files (vspipe.bat, pip.bat) in the root of the portable install
 to offset this inconvenience. You can also still call just about all python modules using ``python -m <module> <arguments>`` instead.
 
 Unofficial Packages
@@ -74,8 +77,9 @@ Homebrew has VapourSynth packages maintained by other people that are generally 
 REPORT ALL PACKAGING ISSUES TO THE RESPECTIVE MAINTAINERS AND NOT ON THE VAPOURSYNTH BUG TRACKER!
 
 First download and install the prerequisites:
-   * Xcode -- Available from the AppStore
-   * `Homebrew <http://brew.sh/>`_ -- A package manager
+
+* Xcode -- Available from the AppStore
+* `Homebrew <http://brew.sh/>`_ -- A package manager
 
 Simply run these commands in a terminal and wait for them to complete::
 
@@ -102,7 +106,7 @@ Check the Github link for more information and instructions.
 Arch Linux
 **********
 
-`VapourSynth-related packages <https://www.archlinux.org/packages/?q=vapoursynth>`_ are provided by the Community repository.
+`VapourSynth-related packages <https://www.archlinux.org/packages/?q=vapoursynth>`_ are provided by the official Extra repository.
 
 Nix and NixOS
 *************
@@ -127,6 +131,7 @@ Required applications:
 
 * Needs `Visual Studio 2026 <https://visualstudio.microsoft.com/vs/>`_
 * It also needs `64bit <https://www.python.org/>`_ Python 3.14.x (the msvc project assumes that you installed python for all users.)
+* The `Vulkan SDK <https://vulkan.lunarg.com/sdk/home>`_ for the Visual Studio solution in ``msvc_project``, which finds it through the VULKAN_SDK environment variable its installer sets. ``compile_all.bat`` builds through Meson instead, which fetches what it needs itself
 * `InnoSetup <http://www.jrsoftware.org/isdl.php>`_ is needed to create the installer (default installation path assumed)
 
 Preparing things
@@ -154,11 +159,15 @@ These are the requirements:
 * Meson 1.3.0 or later
 * ninja-build
 * pkg-config
-* GCC or Clang, must be recent enough to support C++17
-* `zimg <https://github.com/sekrit-twc/zimg>`_
+* GCC or Clang, must be recent enough to support C++20
+* `zimg <https://github.com/sekrit-twc/zimg>`_ 3.0.5 or later
+* Vulkan headers (optional: a pinned copy is fetched when they are missing, and no Vulkan runtime or driver is needed to build)
 * Python 3.12 or later
-* Cython 3.1.x or later installed in your Python 3 environment
+* Cython 3.3.0 or later installed in your Python 3 environment
 * Sphinx for the documentation (optional)
+
+glslang is always built from a Meson subproject, which Meson clones from GitHub during the first build.
+Run ``meson subprojects download`` beforehand if the build has to work offline.
 
 Compilation
 -----------
@@ -190,7 +199,7 @@ available can be found at `vsdb.top <http://vsdb.top/>`_.
 Installing with VSRepo
 **********************
 
-On windows you can use the included vsrepo.py to install and upgrade plugins and scripts.
+VSRepo isn't included with VapourSynth; install it with ``pip install vsrepo``. On Windows it can then install and upgrade plugins and scripts.
 
 Simply run ``vsrepo install <namespace or identifier>`` to install them.
 
@@ -203,7 +212,7 @@ Installing Manually
 
 You can put your plugin (``.dll``) and script (``.py``) to where you think it is convenient.
 
-For plugins, you can use ``std.LoadPlugin`` function to load it. there is also a plugin autoloading mechanism to save your time, see blow.
+For plugins, you can use the ``std.LoadPlugin`` function to load them. There is also a plugin autoloading mechanism to save you time, see below.
 
 For scripts, you should add a relative path to ``python<your_python_version>._pth``, then you can import it in your script.
 

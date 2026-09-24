@@ -17,11 +17,11 @@ Macros_
    VAPOURSYNTH_API_MINOR_
 
    VAPOURSYNTH_API_VERSION_
-   
+
    VS_AUDIO_FRAME_SAMPLES_
-   
+
    VS_MAKE_VERSION_
-   
+
 
 Enums_
    VSColorFamily_
@@ -37,7 +37,7 @@ Enums_
    VSNodeResidency_
 
    VSMediaType_
-   
+
    VSAudioChannels_
 
    VSPropertyType_
@@ -51,15 +51,15 @@ Enums_
    VSMessageType_
 
    VSCoreCreationFlags_
-   
+
    VSPluginConfigFlags_
-   
+
    VSDataTypeHint_
-   
+
    VSRequestPattern_
-   
+
    VSCacheMode_
-   
+
 
 Structs_
    VSFrame_
@@ -69,13 +69,13 @@ Structs_
    VSCore_
 
    VSPlugin_
-   
+
    VSPluginFunction_
 
    VSFunction_
 
    VSMap_
-   
+
    VSLogHandle_
 
    VSFrameContext_
@@ -83,15 +83,15 @@ Structs_
    VSVideoFormat_
 
    VSVideoInfo_
-   
+
    VSAudioFormat_
-   
+
    VSAudioInfo_
 
    VSCoreInfo_
-   
+
    VSCoreInfo2_
-   
+
    VSFilterDependency_
 
    VSPLUGINAPI_
@@ -100,244 +100,278 @@ Structs_
 
       * Functions that deal with the core:
 
-          * createCore_
+        * createCore_
 
-          * freeCore_
+        * freeCore_
 
-          * setMaxCacheSize_
-          
-          * setThreadCount_
-          
-          * getCoreInfo_
-          
-          * getCoreInfo2_
-          
-          * getAPIVersion_
+        * setMaxCacheSize_
 
-          * getVulkanAPI_
+        * setThreadCount_
 
-          * getNodeResidency_
+        * clearCoreCaches_
 
-          * getFrameResidency_
+        * getCoreInfo_
 
-      * Functions that deal with logging
-          
-          * addLogHandler_
-          
-          * removeLogHandler_
+        * getCoreInfo2_
 
-          * logMessage_
+        * getAPIVersion_
+
+        * getVulkanAPI_
+
+        * getNodeResidency_
+
+        * getFrameResidency_
+
+      * Functions that deal with logging:
+
+        * addLogHandler_
+
+        * removeLogHandler_
+
+        * logMessage_
 
       * Functions that deal with frames:
 
-          * newVideoFrame_
+        * newVideoFrame_
 
-          * newVideoFrame2_
-          
-          * newAudioFrame_
+        * newVideoFrame2_
 
-          * newAudioFrame2_
-          
-          * freeFrame_
-          
-          * addFrameRef_
-          
-          * copyFrame_
+        * newAudioFrame_
 
-          * getFramePropertiesRO_
+        * newAudioFrame2_
 
-          * getFramePropertiesRW_
+        * freeFrame_
 
-          * getStride_
+        * addFrameRef_
 
-          * getReadPtr_
+        * copyFrame_
 
-          * getWritePtr_
+        * getFramePropertiesRO_
 
-          * getVideoFrameFormat_
-          
-          * getAudioFrameFormat_
-          
-          * getFrameType_
+        * getFramePropertiesRW_
 
-          * getFrameWidth_
+        * getStride_
 
-          * getFrameHeight_
+        * getReadPtr_
 
-          * getFrameLength_
+        * getWritePtr_
+
+        * getVideoFrameFormat_
+
+        * getAudioFrameFormat_
+
+        * getFrameType_
+
+        * getFrameWidth_
+
+        * getFrameHeight_
+
+        * getFrameLength_
 
       * Functions that deal with filters and nodes:
-      
-          * createVideoFilter_
 
-          * createVideoFilter2_
+        * createVideoFilter_
 
-          * createVideoFilterEx_
+        * createVideoFilter2_
 
-          * createVideoFilterEx2_
+        * createVideoFilterEx_
 
-          * createAudioFilter_
+        * createVideoFilterEx2_
 
-          * createAudioFilter2_
-          
-          * setLinearFilter_
-          
-          * setCacheMode_
-          
-          * setCacheOptions_
+        * createAudioFilter_
 
-          * freeNode_
-          
-          * addNodeRef_
-          
-          * getNodeType_
+        * createAudioFilter2_
 
-          * getVideoInfo_
+        * setLinearFilter_
 
-          * getAudioInfo_    
+        * setCacheMode_
+
+        * setCacheOptions_
+
+        * clearNodeCache_
+
+        * freeNode_
+
+        * addNodeRef_
+
+        * getNodeType_
+
+        * getVideoInfo_
+
+        * getAudioInfo_
 
       * Functions that deal with formats:
-      
-          * getVideoFormatName_
-          
-          * getAudioFormatName_
-          
-          * queryVideoFormat_
-          
-          * queryAudioFormat_
 
-          * queryVideoFormatID_
+        * getVideoFormatName_
 
-          * getVideoFormatByID_
+        * getAudioFormatName_
+
+        * queryVideoFormat_
+
+        * queryAudioFormat_
+
+        * queryVideoFormatID_
+
+        * getVideoFormatByID_
 
       * Functions that deal with maps:
 
-          * createMap_
+        * createMap_
 
-          * freeMap_
+        * freeMap_
 
-          * clearMap_
+        * clearMap_
 
-          * mapGetError_
-          
-          * mapSetError_
+        * copyMap_
 
-          * mapNumKeys_
+        * mapGetError_
 
-          * mapGetKey_
+        * mapSetError_
 
-          * mapDeleteKey_
+        * mapNumKeys_
 
-          * mapNumElements_
-          
-          * mapGetType_
-          
-          * mapSetEmpty_
+        * mapGetKey_
 
-          * mapGetInt_
-          
-          * mapGetIntSaturated_
+        * mapDeleteKey_
 
-          * mapGetIntArray_
-          
-          * mapSetInt_
+        * mapNumElements_
 
-          * mapSetIntArray_
+        * mapGetType_
 
-          * mapGetFloat_
-          
-          * mapGetFloatSaturated_
+        * mapSetEmpty_
 
-          * mapGetFloatArray_
-          
-          * mapSetFloat_
+        * mapGetInt_
 
-          * mapSetFloatArray_
+        * mapGetIntSaturated_
 
-          * mapGetData_
+        * mapGetIntArray_
 
-          * mapGetDataSize_
-          
-          * mapGetDataTypeHint_
+        * mapSetInt_
 
-          * mapSetData_
+        * mapSetIntArray_
 
-          * mapGetNode_
-          
-          * mapSetNode_
-          
-          * mapConsumeNode_
+        * mapGetFloat_
 
-          * mapGetFrame_
-          
-          * mapSetFrame_
-          
-          * mapConsumeFrame_
+        * mapGetFloatSaturated_
 
-          * mapGetFunction_
+        * mapGetFloatArray_
 
-          * mapSetFunction_
-          
-          * mapConsumeFunction_
+        * mapSetFloat_
+
+        * mapSetFloatArray_
+
+        * mapGetData_
+
+        * mapGetDataSize_
+
+        * mapGetDataTypeHint_
+
+        * mapSetData_
+
+        * mapGetNode_
+
+        * mapSetNode_
+
+        * mapConsumeNode_
+
+        * mapGetFrame_
+
+        * mapSetFrame_
+
+        * mapConsumeFrame_
+
+        * mapGetFunction_
+
+        * mapSetFunction_
+
+        * mapConsumeFunction_
 
       * Functions that deal with plugins and plugin functions:
-      
-          * registerFunction_
 
-          * getPluginByID_
+        * registerFunction_
 
-          * getPluginByNamespace_
+        * getPluginByID_
 
-          * getNextPlugin_
-          
-          * getPluginName_
-          
-          * getPluginID_
-          
-          * getPluginNamespace_
-          
-          * getNextPluginFunction_
-          
-          * getPluginFunctionByName_
-          
-          * getPluginFunctionName_
-          
-          * getPluginFunctionArguments_
-          
-          * getPluginFunctionReturnType_
+        * getPluginByNamespace_
 
-          * getPluginPath_
-          
-          * getPluginVersion_
-          
-          * invoke_
+        * getNextPlugin_
+
+        * getPluginName_
+
+        * getPluginID_
+
+        * getPluginNamespace_
+
+        * getNextPluginFunction_
+
+        * getPluginFunctionByName_
+
+        * getPluginFunctionName_
+
+        * getPluginFunctionArguments_
+
+        * getPluginFunctionReturnType_
+
+        * getPluginPath_
+
+        * getPluginVersion_
+
+        * invoke_
 
       * Functions that deal with wrapped external functions:
 
-          * createFunction_
-          
-          * freeFunction_
+        * createFunction_
 
-          * addFunctionRef_
+        * freeFunction_
 
-          * callFunction_
+        * addFunctionRef_
+
+        * callFunction_
 
       * Functions that are used to fetch frames and inside filters:
 
-          * getFrame_
+        * getFrame_
 
-          * getFrameAsync_
+        * getFrameAsync_
 
-          * getFrameFilter_
+        * getFrameFilter_
 
-          * requestFrameFilter_        
+        * requestFrameFilter_
 
-          * releaseFrameEarly_
-          
-          * cacheFrame_
-          
-          * setFilterError_
-          
+        * releaseFrameEarly_
+
+        * cacheFrame_
+
+        * setFilterError_
+
+      * Functions that inspect nodes:
+
+        * getNodeName_
+
+        * getNodeFilterMode_
+
+        * getNumNodeDependencies_
+
+        * getNodeDependency_
+
+        * getNodeCreationFunctionName_
+
+        * getNodeCreationPluginID_
+
+        * getNodeCreationPluginNS_
+
+        * getNodeCreationFunctionArguments_
+
+      * Functions that measure the time spent in filters:
+
+        * getCoreNodeTiming_
+
+        * setCoreNodeTiming_
+
+        * getNodeProcessingTime_
+
+        * getFreedNodeProcessingTime_
+
 
 Functions_
    getVapourSynthAPI_
@@ -461,7 +495,7 @@ enum VSPresetVideoFormat
    The H and S suffixes stand for half precision and single precision,
    respectively. All formats are planar. See the header for all currently
    defined video format presets.
-   
+
    * pf\*
 
 
@@ -561,9 +595,9 @@ enum VSAudioChannels
 --------------------
 
    Audio channel positions as an enum. Mirrors the FFmpeg audio channel constants in older api versions. See the header for all available values.
-   
+
    * ac\*
-   
+
 
 .. _VSPropertyType:
 
@@ -579,15 +613,15 @@ enum VSPropertyType
    * ptFloat
 
    * ptData
-   
+
    * ptFunction
 
    * ptVideoNode
-   
+
    * ptAudioNode
 
    * ptVideoFrame
-   
+
    * ptAudioFrame
 
 
@@ -600,7 +634,7 @@ enum VSMapPropertyError
    parameter.
 
    All errors are non-zero.
-   
+
    * peSuccess
 
    * peUnset
@@ -615,9 +649,9 @@ enum VSMapPropertyError
    * peIndex
 
      The requested index was out of bounds.
-     
+
    * peError
-   
+
      The map has the error state set.
 
 
@@ -661,7 +695,7 @@ enum VSMessageType
    See addLogHandler_\ ().
 
    * mtDebug
-   
+
    * mtInformation
 
    * mtWarning
@@ -679,23 +713,23 @@ enum VSCoreCreationFlags
    Options when creating a core.
 
    * ccfEnableGraphInspection
-   
+
       Required to use the graph inspection api functions. Increases memory usage due to the extra information stored.
-   
+
    * ccfDisableAutoLoading
-   
+
       Don't autoload any user plugins. Core plugins are always loaded.
-      
+
    * ccfDisableLibraryUnloading
-   
+
       Don't unload plugin libraries when the core is destroyed. Due to a small amount of memory leaking every load
       and unload (windows feature, not my fault) of a library this may help in applications with extreme amount of script reloading.
 
    * ccfEnableFrameRefDebug
-   
+
       Logs information when frames are allocated and freed and by which filter (if any). The messages are information level.
       Useful to help debug frame reference leaks.
-   
+
 .. _VSPluginConfigFlags:
 
 enum VSPluginConfigFlags
@@ -704,24 +738,24 @@ enum VSPluginConfigFlags
    Options when loading a plugin.
 
    * pcModifiable
-   
+
       Allow functions to be added to the plugin object after the plugin loading phase. Mostly useful for
       Avisynth compatibility and other foreign plugin loaders.
-   
-   
+
+
 .. _VSDataTypeHint:
 
 enum VSDataTypeHint
 -------------------
 
    Since the data type can contain both pure binary data and printable strings the type also contains a hint
-   for whether or not it is human readable. Generally the unknown type should be very rare and is almost only
-   created as an artifact of API3 compatibility.
+   for whether or not it is human readable. Generally the unknown type should be very rare: it is only stored
+   when a plugin passes it to mapSetData_ explicitly, and mapGetDataTypeHint_ returns it on error.
 
    * dtUnknown
-   
+
    * dtBinary
-   
+
    * dtUtf8
 
 
@@ -733,22 +767,22 @@ enum VSRequestPattern
    Describes the upstream frame request pattern of a filter.
 
    * rpGeneral
-   
+
       Anything goes. Note that filters that may be requesting beyond the end of a VSNode length in frames (repeating the last frame) should use *rpGeneral* and not any of the other modes.
-   
+
    * rpNoFrameReuse
-   
+
      Will only request an input frame at most once if all output frames are requested exactly one time. This includes filters such as Trim, Reverse, SelectEvery.
-   
+
    * rpStrictSpatial
-   
+
      Only requests frame N to output frame N. The main difference to *rpNoFrameReuse* is that the requested frame is always fixed and known ahead of time. Filter examples Lut, Expr (conditionally, see *rpGeneral* note) and similar.
 
    * rpFrameReuseLastOnly
-   
+
      Similar to *rpNoFrameReuse* but the last frame is cached in case it's requested multiple times.
 
-   
+
 .. _VSCacheMode:
 
 enum VSCacheMode
@@ -757,13 +791,13 @@ enum VSCacheMode
    Describes how the output of a node is cached.
 
    * cmAuto
-   
+
       Cache is enabled or disabled based on the reported request patterns and number of consumers.
-   
+
    * cmForceDisable
-   
+
       Never cache anything.
-   
+
    * cmForceEnable
 
       * Always use the cache.
@@ -784,7 +818,7 @@ struct VSFrame
 
    Each row of pixels in a frame is guaranteed to have an alignment of at least 32
    bytes. Two frames with the same width and bytes per sample are guaranteed to have the same stride.
-   
+
    Audio data is also guaranteed to be at least 32 byte aligned.
 
    Any data can be attached to a frame, using a VSMap_.
@@ -839,7 +873,7 @@ struct VSPlugin
         the plugin's namespace.
 
       - A full name, which is used by the core in a few error messages.
-      
+
       - The version of the plugin.
 
       - The VapourSynth API version the plugin requires.
@@ -858,8 +892,8 @@ struct VSPlugin
    getNextPlugin_\ ().
 
    Once loaded, a plugin only gets unloaded when the VapourSynth core is freed.
-   
-   
+
+
 .. _VSPluginFunction:
 
 struct VSPluginFunction
@@ -867,7 +901,7 @@ struct VSPluginFunction
 
    A function belonging to a Vapoursynth plugin. This object primarily exists so
    a plugin's name, argument list and return type can be queried by editors.
-   
+
    One peculiarity is that plugin functions cannot be invoked using a `VSPluginFunction`
    pointer but is instead done using invoke_\ () which takes a `VSPlugin` and
    the function name as a string.
@@ -894,11 +928,10 @@ struct VSMap
    The pairs in a VSMap are sorted by key.
 
    In VapourSynth, VSMaps have several uses:
-      - storing filters' arguments and return values
 
-      - storing user-defined functions' arguments and return values
-
-      - storing the properties attached to frames
+   - storing filters' arguments and return values
+   - storing user-defined functions' arguments and return values
+   - storing the properties attached to frames
 
    Only alphanumeric characters and the underscore may be used in keys.
 
@@ -932,11 +965,11 @@ struct VSFrameContext
 struct VSVideoFormat
 --------------------
 
-   Describes the format of a clip. 
-   
+   Describes the format of a clip.
+
    Use queryVideoFormat_\ () to fill it in with proper error checking. Manually filling out the struct is allowed but discouraged
    since illegal combinations of values will cause undefined behavior.
-   
+
    .. c:member:: int colorFamily
 
       See VSColorFamily_.
@@ -1000,16 +1033,16 @@ struct VSVideoInfo
 
    .. c:member:: int numFrames
 
-      Length of the clip.   
-      
-      
+      Length of the clip.
+
+
 .. _VSAudioFormat:
 
 struct VSAudioFormat
 --------------------
 
-   Describes the format of a clip. 
-   
+   Describes the format of a clip.
+
    Use queryAudioFormat_\ () to fill it in with proper error checking. Manually filling out the struct is allowed but discouraged
    since illegal combinations of values will cause undefined behavior.
 
@@ -1032,7 +1065,7 @@ struct VSAudioFormat
 
    .. c:member:: uint64_t channelLayout
 
-      A bitmask representing the channels present using the constants in 1 left shifted by the constants in VSAudioChannels_. 
+      A bitmask representing the channels present using the constants in 1 left shifted by the constants in VSAudioChannels_.
 
 
 .. _VSAudioInfo:
@@ -1048,16 +1081,16 @@ struct VSAudioInfo
 
    .. c:member:: int sampleRate
 
-      Sample rate.   
-      
+      Sample rate.
+
    .. c:member:: int64_t numSamples
 
-      Length of the clip in audio samples.   
+      Length of the clip in audio samples.
 
    .. c:member:: int numFrames
 
-      Length of the clip in audio frames.   
-      
+      Length of the clip in audio frames.
+
 
 .. _VSCoreInfo:
 
@@ -1112,7 +1145,7 @@ struct VSCoreInfo2
    .. c:member:: int apiVersion
 
       Version of the API.
-      
+
    .. c:member:: int creationFlags
 
       The flags that were passed when creation the core.
@@ -1144,19 +1177,19 @@ struct VSFilterDependency
    .. c:member:: int requestPattern
 
       A value from VSRequestPattern_.
-      
+
 
 .. _VSPLUGINAPI:
 
 struct VSPLUGINAPI
 ------------------
-  
+
    This struct is used to access VapourSynth's API when a plugin is initially loaded.
 
 ----------
 
    int getAPIVersion()
-   
+
       See getAPIVersion_\ () in the struct VSAPI_.
 
 ----------
@@ -1164,18 +1197,18 @@ struct VSPLUGINAPI
    .. _configPlugin:
 
    int configPlugin(const char \*identifier, const char \*pluginNamespace, const char \*name, int pluginVersion, int apiVersion, int flags, VSPlugin \*plugin)
-   
+
       Used to provide information about a plugin when loaded. Must be called exactly once from the *VapourSynthPluginInit2* entry point.
       It is recommended to use the VS_MAKE_VERSION_ macro when providing the *pluginVersion*. If you don't know the specific *apiVersion* you actually require simply
       pass VAPOURSYNTH_API_VERSION_ to match the header version you're compiling against. The *flags* consist of values from VSPluginConfigFlags_ ORed together
       but should for most plugins typically be 0.
-      
+
       Returns non-zero on success.
 
 ----------
 
    int registerFunction(const char \*name, const char \*args, const char \*returnType, VSPublicFunction argsFunc, void \*functionData, VSPlugin \*plugin)
-   
+
       See registerFunction_\ () in the struct VSAPI_.
 
 
@@ -1232,12 +1265,23 @@ struct VSAPI
 
 ----------
 
+   .. _clearCoreCaches:
+
+   void clearCoreCaches(VSCore_ \*core)
+
+      Clears the caches of all nodes belonging to the core, freeing the frames
+      they hold. When the core uses a GPU this also hands the video memory that
+      is no longer in use back to the driver, rather than only to the core's own
+      free lists. Added in API 4.1.
+
+----------
+
    .. _getCoreInfo:
 
    void getCoreInfo(VSCore_ \*core, VSCoreInfo_ \*info)
 
       Returns information about the VapourSynth core.
-      
+
 ----------
 
    .. _getCoreInfo2:
@@ -1310,7 +1354,7 @@ struct VSAPI
 
       *msg*
          The message.
-      
+
 ----------
 
    .. _addLogHandler:
@@ -1343,15 +1387,15 @@ struct VSAPI
 
          *msg*
             The message.
-            
+
       *free*
          typedef void (VS_CC \*VSLogHandlerFree)(void \*userData)
-         
+
          Called when a handler is removed.
 
       *userData*
          Pointer that gets passed to the message handler.
-                  
+
 ----------
 
    .. _removeLogHandler:
@@ -1440,13 +1484,13 @@ struct VSAPI
       transfer — assemble the planes on one side first.
 
       Example (assume *frameA*, *frameB*, *frameC* are existing frames):
-      
+
       .. code-block:: c
 
          const VSFrame * frames[3] = { frameA, frameB, frameC };
          const int planes[3] = { 1, 0, 2 };
          VSFrame * newFrame = vsapi->newVideoFrame2(f, w, h, frames, planes, frameB, core);
-         
+
       The newFrame's first plane is now a copy of *frameA*'s second plane,
       the second plane is a copy of *frameB*'s first plane,
       the third plane is a copy of *frameC*'s third plane
@@ -1476,7 +1520,7 @@ struct VSAPI
       transferred to the caller.
 
       See also newAudioFrame2_\ ().
-      
+
 ----------
 
    .. _newAudioFrame2:
@@ -1521,7 +1565,7 @@ struct VSAPI
       Decrements the reference count of a frame and deletes it when it reaches 0.
 
       It is safe to pass NULL.
-      
+
 ----------
 
    .. _addFrameRef:
@@ -1643,7 +1687,7 @@ struct VSAPI
    const VSVideoFormat_ \*getVideoFrameFormat(const VSFrame_ \*f)
 
       Retrieves the format of a video frame.
-      
+
 ----------
 
    .. _getAudioFrameFormat:
@@ -1651,7 +1695,7 @@ struct VSAPI
    const VSAudioFormat_ \*getAudioFrameFormat(const VSFrame_ \*f)
 
       Retrieves the format of an audio frame.
-      
+
 ----------
 
    .. _getFrameType:
@@ -1679,7 +1723,7 @@ struct VSAPI
       Returns the height of a *plane* of a given video frame, in pixels. The height
       depends on the plane number because of the possible chroma subsampling. Returns 0
       for audio frames.
-      
+
 ----------
 
    .. _getFrameLength:
@@ -1718,7 +1762,7 @@ struct VSAPI
       *dependencies*
          An array of nodes the filter requests frames from and the access pattern.
          Used to more efficiently configure caches.
-         
+
       *numDeps*
          Length of the *dependencies* array.
 
@@ -1791,7 +1835,7 @@ struct VSAPI
       *dependencies*
          An array of nodes the filter requests frames from and the access pattern.
          Used to more efficiently configure caches.
-         
+
       *numDeps*
          Length of the *dependencies* array.
 
@@ -1822,7 +1866,7 @@ struct VSAPI
       Returns the upper bound of how many additional frames it is
       reasonable to pass to cacheFrame_ when trying to make a request
       more linear.
-      
+
 ----------
 
    .. _setCacheMode:
@@ -1832,10 +1876,10 @@ struct VSAPI
       Determines the strategy for frame caching. Pass a VSCacheMode_ constant.
       Mostly useful for cache debugging since the auto mode should work well
       in just about all cases. Calls to this function may also be silently ignored.
-      
+
       Resets the cache to default options when called, discarding setCacheOptions_
       changes.
-      
+
 ----------
 
    .. _setCacheOptions:
@@ -1845,19 +1889,28 @@ struct VSAPI
       Call after setCacheMode_ or the changes will be discarded. Sets internal
       details of a node's associated cache. Calls to this function may also
       be silently ignored.
-      
+
       *fixedSize*
          Set to non-zero to make the cache always hold *maxSize* frames.
-         
+
       *maxSize*
          The maximum number of frames to cache. Note that this value is automatically
          adjusted using an internal algorithm unless *fixedSize* is set.
-         
+
       *maxHistorySize*
          How many frames that have been recently evicted from the cache to keep track off.
          Used to determine if growing or shrinking the cache is beneficial. Has no effect
          when *fixedSize* is set.
-      
+
+----------
+
+   .. _clearNodeCache:
+
+   void clearNodeCache(VSNode_ \*node)
+
+      Clears the node's cache, freeing the frames it holds. The cache size
+      settings are left as they are. Added in API 4.1.
+
 ----------
 
    .. _freeNode:
@@ -1867,7 +1920,7 @@ struct VSAPI
       Decreases the reference count of a node and destroys it once it reaches 0.
 
       It is safe to pass NULL.
-      
+
 ----------
 
    .. _addNodeRef:
@@ -1893,7 +1946,7 @@ struct VSAPI
       Returns a pointer to the video info associated with a node. The pointer is
       valid as long as the node lives. It is undefined behavior to pass a non-video
       node.
-      
+
 ----------
 
    .. _getAudioInfo:
@@ -1911,16 +1964,16 @@ struct VSAPI
    int getVideoFormatName(const VSVideoFormat \*format, char \*buffer)
 
       Tries to output a fairly human-readable name of a video format.
-      
+
       *format*
          The input video format.
-      
+
       *buffer*
          Destination buffer. At most 32 bytes including terminating NULL
          will be written.
-      
+
       Returns non-zero on success.
-      
+
 ----------
 
    .. _getAudioFormatName:
@@ -1928,14 +1981,14 @@ struct VSAPI
    int getAudioFormatName(const VSAudioFormat \*format, char \*buffer)
 
       Tries to output a fairly human-readable name of an audio format.
-      
+
       *format*
          The input audio format.
-      
+
       *buffer*
          Destination buffer. At most 32 bytes including terminating NULL
          will be written.
-      
+
       Returns non-zero on success.
 
 ----------
@@ -1996,7 +2049,7 @@ struct VSAPI
          A bitmask constructed from bitshifted constants in VSAudioChannels_. For example stereo is expressed as (1 << acFrontLeft) | (1 << acFrontRight).
 
       Returns non-zero on success.
-          
+
 ----------
 
    .. _queryVideoFormatID:
@@ -2029,15 +2082,15 @@ struct VSAPI
 
       Returns a valid format id if the provided arguments are valid, on error
       0 is returned.
-      
+
 ----------
-      
+
    .. _getVideoFormatByID:
 
    int getVideoFormatByID(VSVideoFormat_ \*format, uint32_t id, VSCore_ \*core)
 
       Fills out the VSVideoFormat_ struct passed to *format* based
-      
+
       *format*
          The struct to fill out.
 
@@ -2071,6 +2124,17 @@ struct VSAPI
 
       Deletes all the keys and their associated values from the map, leaving it
       empty.
+
+----------
+
+   .. _copyMap:
+
+   void copyMap(const VSMap_ \*src, VSMap_ \*dst)
+
+      Copies all the keys and their values from *src* to *dst*. A key that
+      already exists in *dst* is replaced. Nodes and functions cannot be stored
+      in frame properties, so copying a map that holds either into a frame's
+      property map is a fatal error.
 
 ----------
 
@@ -2145,7 +2209,7 @@ struct VSAPI
       of elements in the given key. If there is no such key in the
       map, the returned value is ptUnset. Note that also empty
       arrays created with mapSetEmpty_ are typed.
-      
+
 ----------
 
    .. _mapSetEmpty:
@@ -2169,7 +2233,7 @@ struct VSAPI
 
       If the map has an error set (i.e. if mapGetError_\ () returns non-NULL),
       VapourSynth will die with a fatal error.
-      
+
       *index*
          Zero-based index of the element.
 
@@ -2285,7 +2349,7 @@ struct VSAPI
    .. _mapGetFloatArray:
 
    const double \*mapGetFloatArray(const VSMap_ \*map, const char \*key, int \*error)
-   
+
       Retrieves an array of floating point numbers from a map. Use this function if there
       are a lot of numbers associated with a key, because it is faster than
       calling mapGetFloat_\ () in a loop.
@@ -2301,7 +2365,7 @@ struct VSAPI
    .. _mapSetFloat:
 
    int mapSetFloat(VSMap_ \*map, const char \*key, double d, int append)
-   
+
       Sets a float to the specified key in a map.
 
       See mapSetInt_\ () for a complete description of the arguments and general behavior.
@@ -2362,7 +2426,7 @@ struct VSAPI
       Returns the size in bytes of a property of type ptData (see
       VSPropertyType_), or 0 in case of error. The terminating NULL byte
       added by mapSetData_\ () is not counted.
-      
+
       See mapGetInt_\ () for a complete description of the arguments and general behavior.
 
 ----------
@@ -2401,7 +2465,7 @@ struct VSAPI
       *size*
          The number of bytes to copy. If this is negative, everything up to
          the first NULL byte will be copied.
-         
+
       *type*
          One of VSDataTypeHint_ to hint whether or not it is human readable data.
 
@@ -2465,7 +2529,7 @@ struct VSAPI
       be used when the frame is no longer needed.
 
       See mapGetInt_\ () for a complete description of the arguments and general behavior.
-      
+
 ----------
 
    .. _mapSetFrame:
@@ -2500,7 +2564,7 @@ struct VSAPI
       be used when the function is no longer needed.
 
       See mapGetInt_\ () for a complete description of the arguments and general behavior.
-      
+
 ----------
 
    .. _mapSetFunction:
@@ -2566,7 +2630,7 @@ struct VSAPI
 
       Returns a pointer to the next plugin in order or NULL if the final
       plugin has been reached.
-      
+
 ----------
 
    .. _getPluginName:
@@ -2631,7 +2695,7 @@ struct VSAPI
 
    const char \*getPluginFunctionArguments(VSPluginFunction_ \*func)
 
-      Returns the argument string of the function that was passed to registerFunction_.       
+      Returns the argument string of the function that was passed to registerFunction_.
 
 ----------
 
@@ -2639,7 +2703,7 @@ struct VSAPI
 
    const char \*getPluginFunctionReturnType(VSPluginFunction_ \*func)
 
-      Returns the return type string of the function that was passed to registerFunction_.       
+      Returns the return type string of the function that was passed to registerFunction_.
 
 ----------
 
@@ -2725,7 +2789,7 @@ struct VSAPI
       Decrements the reference count of a function and deletes it when it reaches 0.
 
       It is safe to pass NULL.
-      
+
 ----------
 
    .. _addFunctionRef:
@@ -2741,13 +2805,13 @@ struct VSAPI
    void callFunction(VSFunction_ \*func, const VSMap_ \*in, VSMap_ \*out)
 
       Calls a function. If the call fails *out* will have an error set.
-      
+
       *func*
          Function to be called.
 
       *in*
          Arguments passed to *func*.
-         
+
       *out*
          Returned values from *func*.
 
@@ -2763,7 +2827,7 @@ struct VSAPI
       This function is meant for external applications using the core as a
       library, or if frame requests are necessary during a filter's
       initialization.
-      
+
       Thread-safe.
 
       *n*
@@ -2775,7 +2839,7 @@ struct VSAPI
       *errorMsg*
          Pointer to a buffer of *bufSize* bytes to store a possible error
          message. Can be NULL if no error message is wanted.
-         
+
       *bufSize*
          Maximum length for the error message, in bytes (including the
          trailing '\0'). Can be 0 if no error message is wanted.
@@ -2795,9 +2859,9 @@ struct VSAPI
       Requests the generation of a frame. When the frame is ready,
       a user-provided function is called. Note that the completion
       *callback* will only be called from a single thread at a time.
-      
+
       This function is meant for applications using VapourSynth as a library.
-      
+
       Thread-safe.
 
       *n*
@@ -2899,7 +2963,7 @@ struct VSAPI
 
       *frameCtx*
          The context passed to the filter's "getframe" function.
-         
+
 ----------
 
    .. _releaseFrameEarly:
@@ -2910,14 +2974,14 @@ struct VSAPI
       request is done. In extreme cases where a filter needs to reduce 20+
       frames into a single output frame it may be beneficial to request
       these in batches and incrementally process the data instead.
-      
+
       Should rarely be needed.
 
       Only use inside a filter's "getframe" function.
-      
+
       *node*
          The node from which the frame was requested.
-         
+
       *n*
          The frame number. Invalid frame numbers (not cached or negative) will simply be ignored.
 
@@ -2987,7 +3051,7 @@ struct VSAPI
 
             "empty"
                For arrays that are allowed to be empty.
-               
+
             "any"
                Can only be placed last without a semicolon after. Indicates that all remaining arguments that don't match
                should also be passed through.
@@ -2995,16 +3059,16 @@ struct VSAPI
          The following example declares the arguments "blah", "moo", and "asdf"::
 
             blah:vnode;moo:int[]:opt;asdf:float:opt;
-            
+
          The following example declares the arguments "blah" and accepts all other arguments no matter the type::
 
             blah:vnode;any
 
       *returnType*
          Specifies works similarly to *args* but instead specifies which keys and what type will be returned. Typically this will be::
-         
-            clip:vnode; 
-            
+
+            clip:vnode;
+
          for video filters. It is important to not simply specify "any" for all filters since this information is used for better
          auto-completion in many editors.
 
@@ -3058,11 +3122,11 @@ struct VSAPI
 
       Pushes a not requested frame into the cache. This is useful for (source) filters that greatly
       benefit from completely linear access and producing all output in linear order.
- 
+
       This function may only be used in filters that were created with setLinearFilter_.
 
       Only use inside a filter's "getframe" function.
-      
+
 ----------
 
    .. _setFilterError:
@@ -3076,6 +3140,139 @@ struct VSAPI
       Such errors are not necessarily fatal, i.e. the caller can try to
       request the same frame again.
 
+----------
+
+   .. _getNodeName:
+
+   const char \*getNodeName(VSNode_ \*node)
+
+      Returns the name the node's filter was created with, the *name* passed
+      to createVideoFilter_, createAudioFilter_ or one of their variants. The
+      pointer is valid for as long as the node exists. Added in API 4.1.
+
+----------
+
+   .. _getNodeFilterMode:
+
+   int getNodeFilterMode(VSNode_ \*node)
+
+      Returns the VSFilterMode_ the node's filter was created with. Added in
+      API 4.1.
+
+----------
+
+   .. _getNumNodeDependencies:
+
+   int getNumNodeDependencies(VSNode_ \*node)
+
+      Returns the number of dependencies the node's filter was created with.
+      Added in API 4.1.
+
+----------
+
+   .. _getNodeDependency:
+
+   const VSFilterDependency_ \*getNodeDependency(VSNode_ \*node, int index)
+
+      Returns the dependency at *index* as it was passed when the node's filter
+      was created, or NULL if *index* is out of range. The pointer is valid for
+      as long as the node exists, and it holds no reference of its own to the
+      *source* node: call addNodeRef_ to keep that beyond the node's lifetime.
+      Added in API 4.1.
+
+----------
+
+   .. _getNodeCreationFunctionName:
+
+   const char \*getNodeCreationFunctionName(VSNode_ \*node, int level)
+
+      Returns the name of the function that created the node when *level*
+      is 0. Each higher level goes one step up the call chain: level 1 is the
+      function that invoked the one at level 0, and so on. Returns NULL for a
+      level that doesn't exist, and on a core created without
+      ccfEnableGraphInspection (see VSCoreCreationFlags_). The pointer is valid
+      for as long as the node exists.
+
+      This and the other three getNodeCreation functions are only declared
+      when VS_GRAPH_API is defined. They exist to retrieve internal details for
+      debugging and graph visualization, require the API version to match the
+      header's exactly, and aren't safe to call concurrently with frame
+      requests or other API functions, which makes them unsuitable for use in
+      plugins and filters. Added in API 4.2.
+
+----------
+
+   .. _getNodeCreationPluginID:
+
+   const char \*getNodeCreationPluginID(VSNode_ \*node, int level)
+
+      Returns the identifier of the plugin that the function at *level*
+      belongs to. The levels, the NULL cases and the restrictions are the same
+      as for getNodeCreationFunctionName_. Added in API 4.2.
+
+----------
+
+   .. _getNodeCreationPluginNS:
+
+   const char \*getNodeCreationPluginNS(VSNode_ \*node, int level)
+
+      Returns the namespace of the plugin that the function at *level* belongs
+      to. The levels, the NULL cases and the restrictions are the same as for
+      getNodeCreationFunctionName_. Added in API 4.2.
+
+----------
+
+   .. _getNodeCreationFunctionArguments:
+
+   const VSMap_ \*getNodeCreationFunctionArguments(VSNode_ \*node, int level)
+
+      Returns the arguments the function at *level* was invoked with. The map
+      is a copy the core keeps for as long as the node exists, so it must not
+      be modified or freed. The levels, the NULL cases and the restrictions are
+      the same as for getNodeCreationFunctionName_. Added in API 4.2.
+
+----------
+
+   .. _getCoreNodeTiming:
+
+   int getCoreNodeTiming(VSCore_ \*core)
+
+      Returns non-zero if filter timing is enabled for the core. Added in API
+      4.1.
+
+----------
+
+   .. _setCoreNodeTiming:
+
+   void setCoreNodeTiming(VSCore_ \*core, int enable)
+
+      Enables filter timing when *enable* is non-zero. While it's enabled, the
+      time spent in each filter's "getframe" function is added to its node's
+      counter, see getNodeProcessingTime_. Disabling it only stops the counters
+      from increasing; they keep their values. Timing is disabled by default.
+      Added in API 4.1.
+
+----------
+
+   .. _getNodeProcessingTime:
+
+   int64_t getNodeProcessingTime(VSNode_ \*node, int reset)
+
+      Returns the time, in nanoseconds, spent in the node's "getframe" function
+      while filter timing was enabled, summed over all threads. A non-zero
+      *reset* sets the counter back to 0 after reading it. Added in API 4.1.
+
+----------
+
+   .. _getFreedNodeProcessingTime:
+
+   int64_t getFreedNodeProcessingTime(VSCore_ \*core, int reset)
+
+      Returns the combined processing time, in nanoseconds, of the core's
+      nodes that have been freed. A node's time is added to this counter when
+      it's destroyed while filter timing is enabled. A non-zero *reset* sets
+      the counter back to 0 after reading it. Added in API 4.1.
+
 Functions
 #########
 
@@ -3088,7 +3285,7 @@ const VSAPI_\* getVapourSynthAPI(int version)
    Returns NULL if the requested API version is not supported or if the system
    does not meet the minimum requirements to run VapourSynth. It is recommended
    to pass VAPOURSYNTH_API_VERSION_.
-   
+
 
 Writing plugins
 ###############

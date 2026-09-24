@@ -22,13 +22,13 @@ Options
 *******
 
 ``-a, --arg key=value``
-    Argument to pass to the script environment, it a key with this name and value (str typed) will be set in the globals dict
+    Argument to pass to the script environment, a key with this name and value (str typed) will be set in the globals dict
 
 ``-s, --start N``
-    Set output frame range (first frame)
-  
+    Set the first frame to output, or the first sample for audio
+
 ``-e, --end N``
-    Set output frame range (last frame)
+    Set the last frame to output, or the last sample for audio (inclusive)
 
 ``-o, --outputindex N``
     Select output index
@@ -61,7 +61,7 @@ Options
     Write the output node's filter graph in dot format with time information to file after processing
 
 ``-i, --info``
-    Show video info and exit
+    Print info about every output the script sets to outfile and exit
 
 ``-g, --graph <simple/full>``
     Print output node filter graph in dot format to outfile and exit
@@ -85,7 +85,7 @@ Write to stdout:
     ``vspipe [options] script.vpy -``
 
 Write to a named pipe (Windows only):
-    ``vspipe [options] script.vpy "\\\\.\\pipe\\<pipename>"``
+    ``vspipe [options] script.vpy "\\.\pipe\<pipename>"``
 
 Request all frames but don't output them:
     ``vspipe [options] script.vpy --``

@@ -64,7 +64,7 @@ Here are a few examples.
 
 .. [#f1] Note that frame numbers, like python arrays, start counting at 0 and the end value of slicing is not inclusive
 
-.. [#f2] Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count
+.. [#f2] Note that the factor must be 1 or more. Unlike *times* in Loop, multiplying by 0 is an error rather than a way to repeat the clip up to the maximum frame count
 
 
 Filters can be chained with a dot::
@@ -118,9 +118,6 @@ If you have a string containing backslashes, you must either prefix the
 string with "r", or duplicate every single backslash. The reason is
 that the backslash is an escape character in Python.
 
-Use `os.path.normcase(path) <https://docs.python.org/3/library/os.path.html#os.path.normcase>`_
-to fix Incorrect path string.
-
 Correct example::
 
    "B:/VapourSynth/VapourSynth.dll"
@@ -132,7 +129,8 @@ Output
 
 The normal way of specifying the clip(s) to output is to call
 *clip.set_output()*. All standard VapourSynth components only use output
-index 0, except for vspipe where it's configurable but defaults to 0.
+index 0, except for vspipe, where it's configurable and defaults to 0, and
+whose mkv output writes every output unless one is selected.
 There are also other variables that can be set to control how a format is
 output. For example, setting *alt_output=1* changes the packing of the
 YUV422P10 format to one that is common in professional software (like Adobe
@@ -321,6 +319,17 @@ Classes and Functions
          you should consider using *vapoursynth.__api_version__* instead not to have to
          unnecessarily fetch the core and lock inside an environment.
 
+   .. py:attribute:: flags
+
+      The flags the core was created with, as an int holding a combination of
+      the CoreCreationFlags values such as ENABLE_GRAPH_INSPECTION.
+
+   .. py:attribute:: timings
+
+      A :class:`CoreTimings` object that turns filter timing on and off for the
+      whole core. The time measured for each node is read from the *timings*
+      attribute of the node.
+
    .. py:method:: plugins()
 
       Containing all loaded plugins.
@@ -362,6 +371,24 @@ Classes and Functions
 
       Illegal behavior detection.
 
+.. py:class:: CoreTimings
+
+   Controls filter timing for a core and is obtained from *Core.timings*.
+   While timing is enabled, the time spent in each filter's "getframe"
+   function is added up per node and can be read from the *timings* attribute
+   of the node.
+
+   .. py:attribute:: enabled
+
+      Whether filter timing is enabled. Can be set to turn it on or off. It is
+      off by default, and turning it off only stops the counters from
+      increasing.
+
+   .. py:attribute:: freed_nodes
+
+      The combined time, in nanoseconds, of the nodes that were freed while
+      timing was enabled. Set it to 0 to reset the counter.
+
 .. py:class:: Local
 
    Internally, there can be more than one core. This is usually the case in previewer-applications.
@@ -384,7 +411,8 @@ Classes and Functions
    .. py:attribute:: format
 
       A Format object describing the frame data. If the format can change
-      between frames, this value is None.
+      between frames, this is the undefined format: its ``color_family`` is
+      UNDEFINED and its ``id`` is NONE. It is never None.
 
    .. py:attribute:: width
 
@@ -485,14 +513,33 @@ Classes and Functions
       The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
       The *close* argument determines if the frame should be closed after each iteration step. It defaults to false to remain backward compatible.
-      The *collect_garbage* argument determines if gc.collect() should be called after each iteration step. It defaults to true to remain backward compatible.
+      The *collect_garbage* argument determines if gc.collect() is called when the generator finishes. It defaults to true to remain backward compatible.
 
    .. py:method:: clear_cache()
 
       Frees all memory used by this node's internal cache.
 
+   .. py:attribute:: node_name
+
+      The name the node's filter was created with, such as "Trim".
+
+   .. py:attribute:: mode
+
+      The node's filter mode, a FilterMode value (PARALLEL, PARALLEL_REQUESTS,
+      UNORDERED or FRAME_STATE).
+
+   .. py:attribute:: dependencies
+
+      A tuple of the nodes this node's filter requests frames from.
+
+   .. py:attribute:: timings
+
+      The time, in nanoseconds, spent in the node's filter while filter timing
+      was enabled on the core, see :class:`CoreTimings`. Set it to 0 to reset
+      the counter; other values are refused.
+
    .. py:method:: is_inspectable(version=None)
-   
+
       Returns a truthy value if you can use the node inspection API with a given version.
       The python inspection-api is versioned, as the underlying API is unstable at the time of writing.
       The version number will be incremented every time the python API changes.
@@ -500,17 +547,20 @@ Classes and Functions
 
       This method may never return a truthy value.
 
-      This is the only stable function in the current inspection api-implementation.
+      This is the only stable function of the inspection API, which exposes how a node was created.
+      The basic node information in *node_name*, *mode*, *dependencies* and *timings* is part of the
+      stable API and always available.
 
       .. note::
 
-         Be aware that introspection features must be enabled manually by the backing environment. Standalone Python-Scripts,
-         not running inside vspipe or other editors, have introspection enabled automatically.
+         Graph inspection has to be enabled when the core is created, and it's off by default, standalone
+         Python scripts included. The backing environment decides: vspipe enables it for its graph options,
+         and a standalone script can call *_try_enable_introspection(0)* before it first uses the core.
 
       .. warning::
 
          The graph-inspection-api is unstable. Omitting the version-argument will therefore always return
-         None.
+         False.
 
       The current version of the unstable python graph-inspection API is 0.
 
@@ -536,7 +586,7 @@ Classes and Functions
 
 .. py:class:: VideoFrame
 
-      This class represents a video frame and all metadata attached to it.
+   This class represents a video frame and all metadata attached to it.
 
    .. py:attribute:: format
 
@@ -583,7 +633,7 @@ Classes and Functions
 
    .. py:method:: close()
 
-      Forcefully releases the frame. Once freed, the you cannot call any function on the frame, nor use the associated
+      Forcefully releases the frame. Once freed, you cannot call any function on the frame, nor use the associated
       FrameProps.
 
       To make sure you don't forget to close the frame, the frame is now a context-manager that automatically calls
@@ -631,11 +681,11 @@ Classes and Functions
                   file.write(chunk)
 
       .. note::
-         Usually, the frame contents will be held in a contiguous array,
-         and this method will yield *n_planes* of data chunks each holding the entire plane.
-         Don't, however, take this for granted, as it can't be the case,
-         and you will iterate over lines of plane data instead, which are assured to be contiguous.
-         
+         Usually, the frame contents will be held in a contiguous array, and this method will
+         yield *n_planes* of data chunks each holding the entire plane. Don't, however, take this
+         for granted, as it may not be the case, and you will iterate over lines of plane data
+         instead, which are assured to be contiguous.
+
          If you want to safely read the whole plane, use frame[plane_idx] to get the plane memoryview.
 
 .. py:class:: VideoFormat
@@ -725,6 +775,22 @@ Classes and Functions
 
       Playback sample rate.
 
+   .. py:attribute:: num_samples
+
+      The number of samples in the clip.
+
+   .. py:attribute:: num_frames
+
+      The number of frames in the clip. Every frame holds 3072 samples
+      (VS_AUDIO_FRAME_SAMPLES in the C API), except the last one, which can
+      hold fewer.
+
+   .. py:attribute:: channels
+
+      The *channel_layout* as a ChannelLayout, an int that can be iterated to
+      get the AudioChannels values it contains, and that supports ``in`` and
+      ``len()``.
+
    .. py:method:: get_frame(n)
 
       Returns an AudioFrame from position *n*.
@@ -752,20 +818,40 @@ Classes and Functions
 
       Added: R74
 
-   .. py:method:: frames([prefetch=None, backlog=None, close=False])
+   .. py:method:: frames([prefetch=None, backlog=None, close=False, collect_garbage=True])
 
       Returns a generator iterator of all AudioFrames in the clip. It will render multiple frames concurrently.
 
       The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
       The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
       The *close* argument determines if the frame should be closed after each iteration step. It defaults to false to remain backward compatible.
+      The *collect_garbage* argument determines if gc.collect() is called when the generator finishes. It defaults to true to remain backward compatible.
 
    .. py:method:: clear_cache()
 
       Frees all memory used by this node's internal cache.
 
+   .. py:attribute:: node_name
+
+      The name the node's filter was created with, such as "AudioTrim".
+
+   .. py:attribute:: mode
+
+      The node's filter mode, a FilterMode value (PARALLEL, PARALLEL_REQUESTS,
+      UNORDERED or FRAME_STATE).
+
+   .. py:attribute:: dependencies
+
+      A tuple of the nodes this node's filter requests frames from.
+
+   .. py:attribute:: timings
+
+      The time, in nanoseconds, spent in the node's filter while filter timing
+      was enabled on the core, see :class:`CoreTimings`. Set it to 0 to reset
+      the counter; other values are refused.
+
    .. py:method:: is_inspectable(version=None)
-   
+
       Returns a truthy value if you can use the node inspection API with a given version.
       The python inspection-api is versioned, as the underlying API is unstable at the time of writing.
       The version number will be incremented every time the python API changes.
@@ -773,17 +859,20 @@ Classes and Functions
 
       This method may never return a truthy value.
 
-      This is the only stable function in the current inspection api-implementation.
+      This is the only stable function of the inspection API, which exposes how a node was created.
+      The basic node information in *node_name*, *mode*, *dependencies* and *timings* is part of the
+      stable API and always available.
 
       .. note::
 
-         Be aware that introspection features must be enabled manually by the backing environment. Standalone Python-Scripts,
-         not running inside vspipe or other editors, have introspection enabled automatically.
+         Graph inspection has to be enabled when the core is created, and it's off by default, standalone
+         Python scripts included. The backing environment decides: vspipe enables it for its graph options,
+         and a standalone script can call *_try_enable_introspection(0)* before it first uses the core.
 
       .. warning::
 
          The graph-inspection-api is unstable. Omitting the version-argument will therefore always return
-         None.
+         False.
 
       The current version of the unstable python graph-inspection API is 0.
 
@@ -794,7 +883,7 @@ Classes and Functions
 
 .. py:class:: AudioFrame
 
-      This class represents an audio frame and all metadata attached to it.
+   This class represents an audio frame and all metadata attached to it.
 
    .. py:attribute:: sample_type
 
@@ -816,6 +905,10 @@ Classes and Functions
 
       The number of channels the format has.
 
+   .. py:attribute:: channels
+
+      The *channel_layout* as a ChannelLayout, the same as *AudioNode.channels*.
+
    .. py:attribute:: readonly
 
       If *readonly* is True, the frame data and properties cannot be modified.
@@ -829,6 +922,16 @@ Classes and Functions
    .. py:method:: copy()
 
       Returns a writable copy of the frame.
+
+   .. py:method:: close()
+
+      Forcefully releases the frame. Once freed, you cannot call any function on the frame, nor use the associated
+      FrameProps. Like a VideoFrame, the frame is a context manager that calls this method for you when the
+      with-block ends.
+
+   .. py:attribute:: closed
+
+      Tells you if the frame has been closed. It will be False if the close()-method has not been called yet.
 
    .. py:method:: get_read_ptr(plane)
 
@@ -907,9 +1010,9 @@ Classes and Functions
         with env.use():
           # Do stuff inside this env.
 
-   .. py:function:: is_single()
+   .. py:classmethod:: is_single()
 
-      Returns True if the script is _not_ running inside a vsscript-Environment.
+      Returns True if the script is *not* running inside a vsscript-Environment.
       If it is running inside a vsscript-Environment, it returns False.
 
    .. py:attribute:: env_id
@@ -924,6 +1027,11 @@ Classes and Functions
    .. py:attribute:: alive
 
       Has the environment been destroyed by the underlying application?
+
+   .. py:attribute:: active
+
+      True if this is the environment active in the current context, False if
+      another one is, and None if the environment no longer exists.
 
    .. py:method:: copy()
 
@@ -1014,26 +1122,26 @@ Classes and Functions
 
    Added: R51
 
-   .. py:method:: wrap_environment(environment)
+   .. py:method:: wrap_environment(environment_data)
 
-      Creates a new :class:`Environment`-object bound to the passed environment-id.
+      Creates a new :class:`Environment`-object bound to the passed :class:`EnvironmentData`.
 
       .. warning::
 
-         This function does not check if the id corresponds to a live environment as the caller is expected to know which environments are active.
+         This function does not check if the environment is alive as the caller is expected to know which environments are active.
 
    .. py:method:: create_environment(flags = 0)
 
-      Returns a :class:`Environment` that is used by the wrapper for context sensitive data used by VapourSynth.
+      Returns a new :class:`EnvironmentData` that is used by the wrapper for context sensitive data used by VapourSynth.
       For example it holds the currently active core object as well as the currently registered outputs.
 
-   .. py:method:: set_logger(environment, callback)
+   .. py:method:: set_logger(env, logger)
 
       This function sets the logger for the given environment.
 
       This logger is a callback function that accepts two parameters: Level, which is an instance of vs.MessageType and a string containing the log message.
 
-   .. py:method:: destroy_environment(environment)
+   .. py:method:: destroy_environment(env)
 
       Marks an environment as destroyed. Older environment-policy implementations that don't use this function still work.
 
@@ -1057,7 +1165,7 @@ Classes and Functions
 
       Added: R62
 
-   .. py:method:: get_core_ptr(environment)
+   .. py:method:: get_core_ptr(environment_data)
 
       Returns a ctypes.c_void_p pointing to the `Core*`-object that powers the environment. The core is created if the environment doesn't have one yet.
 
@@ -1181,12 +1289,21 @@ bits for all 3 planes added together. The long list of values::
    YUV420P16
    YUV422P16
    YUV444P16
+   YUV410P16
+   YUV411P16
+   YUV440P16
    YUV420PH
    YUV420PS
    YUV422PH
    YUV422PS
    YUV444PH
    YUV444PS
+   YUV410PH
+   YUV410PS
+   YUV411PH
+   YUV411PS
+   YUV440PH
+   YUV440PS
    RGB24
    RGB27
    RGB30

@@ -1325,6 +1325,7 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
         delete avs;
     } else {
         vsapi->mapSetError(out, "Avisynth Loader: 2.5 plugins can't be loaded on x64");
+        FreeLibrary(plugin);
         return;
     }
 

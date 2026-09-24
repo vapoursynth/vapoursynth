@@ -10,7 +10,7 @@ Resize
                 Spline64(vnode:all clip[, ...])
                 Bob(vnode:all clip[, string filter="bicubic", bint tff, ...])
    :module: resize
-   
+
    In VapourSynth the resizers have several functions. In addition to scaling,
    they also do colorspace conversions. Resize converts a clip of known or
    unknown format to another clip of known or unknown format, changing only
@@ -24,7 +24,7 @@ Resize
    mode can't be error diffusion due to it being an ill-suited algorithm to run
    on GPUs. Also a few extremely uncommon conversion paths may lack coverage.
    Setting *cpu_type* is also an error due to it being irrelevant.
-   
+
    Note that these conditions are all errors and won't implicitly use the CPU
    path version instead.
 
@@ -41,7 +41,7 @@ Resize
    Note that *matrix* is not an optional argument when converting to YUV.
    Also note that if no matrix is specified in an input YUV frame's properties
    then *matrix_in* also needs to be set.
-   
+
    The function will return an error if the subsampling restrictions aren't
    followed.  
 
@@ -59,94 +59,76 @@ Resize
    video as interlaced, which can result in sub-optimal resampling quality
    unless *_FieldBased* is cleared.
 
-   *clip*:
-   
+   *clip*
       Accepts all kinds of input.
 
-   *width*, *height*:
-   
+   *width*, *height*
       Output image dimensions.
 
-   *filter*:
-
+   *filter*
       Scaling method for deinterlacing. See *resample_filter_uv* for accepted values.
 
-   *tff*:
-
+   *tff*
       Field order for deinterlacing. Used when the *_FieldBased* property is not set.
 
-   *format*:
-   
+   *format*
       Output format id.
 
-   *matrix*, *transfer*, *primaries*:
-
+   *matrix*, *transfer*, *primaries*
       Output colorspace specification. If not provided, the corresponding attributes from
       the input clip will be selected, except for the RGB color family, where the
       corresponding matrix is set by default.
 
-   *range*:
-
+   *range*
       Output pixel range. For integer formats, this allows selection of the legal code
       values. Even when set, out of range values (BTB/WTW) may be generated. If the input
       format is of a different color family, the default range is studio/limited for YUV
       and full-range for RGB.
 
-   *chromaloc*:
-   
+   *chromaloc*
       Output chroma location. For subsampled formats, specifies the chroma location. If
       the input format is 4:4:4 or RGB and the output is subsampled, the default location
       is left-aligned, as per MPEG. Possible chroma locations (ITU-T H.273 Figure 10):
       *left*, *center*, *top_left*, *top*, *bottom_left*, *bottom*
-      
-   *matrix_in*, *transfer_in*, *primaries_in*, *range_in*, *chromaloc_in*:
-   
+
+   *matrix_in*, *transfer_in*, *primaries_in*, *range_in*, *chromaloc_in*
       Input colorspace/format specification. If the corresponding frame property is set
       to a value other than unspecified, the frame property is used instead of this parameter.
       Default values are set for certain color families. See the equivalent output arguments
       for more information.
 
-   *filter_param_a*, *filter_param_b*:
-   
+   *filter_param_a*, *filter_param_b*
       Parameters for the scaler used for RGB and Y-channel. For the bicubic filter,
       filter_param_a/b represent the "b" and "c" parameters. For the lanczos filter,
       filter_param_a represents the number of taps.
 
-   *resample_filter_uv*:
-   
+   *resample_filter_uv*
       Scaling method for UV channels. It defaults to the same as for the Y-channel. The
       following values can be used with *resample_filter_uv*: *point*, *bilinear*, *bicubic*,
       *spline16*, *spline36*, *spline64*, *lanczos*.
 
-   *filter_param_a_uv*, *filter_param_b_uv*:
-
+   *filter_param_a_uv*, *filter_param_b_uv*
       Parameters for the scaler used for UV channels.
 
-   *dither_type*:
-   
+   *dither_type*
       Dithering method. Dithering is used only for conversions resulting in an integer
       format. The following dithering methods are available: *none*, *ordered*, *random*,
       *error_diffusion*.
-      
-   *cpu_type*:
-   
+
+   *cpu_type*
       Only used for testing.
-      
-   *src_left*, *src_top*, *src_width*, *src_height*:
-   
+
+   *src_left*, *src_top*, *src_width*, *src_height*
       Used to select the source region of the input to use. Can also be used to shift the image.
       Defaults to the whole image.
-      
-   *nominal_luminance*:
-   
-      Determines the physical brightness of the value 1.0. The unit is in cd/m^2.
-      
-   *approximate_gamma*:
 
+   *nominal_luminance*
+      Determines the physical brightness of the value 1.0. The unit is in cd/m^2.
+
+   *approximate_gamma*
       Use LUT to evaluate transfer functions. Defaults to True.
 
-   *chromatic_adaptation*:
-
+   *chromatic_adaptation*
       Apply chromatic adaptation (Bradford method) when converting between
       primaries with different white points, so that the source white is mapped
       to the destination white. If disabled, the absolute XYZ values are
@@ -172,7 +154,7 @@ Resize
    see ITU-T H.273.
 
       Matrix coefficients (ITU-T H.273 Table 4)::
-        
+
         rgb (0)        Identity
                        The identity matrix.
                        Typically used for GBR (often referred to as RGB);
@@ -202,7 +184,7 @@ Resize
         ictcp (14)     Rec. ITU-R BT.2100-2 ICtCp
 
       Transfer characteristics (ITU-T H.273 Table 3)::
-        
+
         709 (1)        V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
                        V = 4.500 * Lc for b > Lc >= 0
                        Rec. ITU-R BT.709-6
@@ -240,7 +222,7 @@ Resize
         std-b67 (18)   ARIB std-b67
 
       Color primaries (ITU-T H.273 Table 2)::
-      
+
         709 (1)        primary x y
                        green 0.300 0.600
                        blue 0.150 0.060
@@ -281,7 +263,7 @@ Resize
                        Also known as JEDEC P22
 
       Pixel range (ITU-T H.273 equations for matrix coefficients)::
-      
+
         limited (0) Studio (TV) legal range, 16-235 in 8 bits.
                     Y = Clip1Y( Round( ( 1 << ( BitDepthY - 8 ) ) *
                                               ( 219 * E′Y + 16 ) ) )

@@ -20,8 +20,7 @@ BlankAudio
    reason to change this setting. It has no effect when a *waveform* is
    generated since every frame is then different.
 
-   *waveform*:
-
+   *waveform*
       The signal to generate. Defaults to *none*, which fills the clip with
       silence the way it always has. The other options all produce a periodic
       signal at *frequency* with a peak level of *amplitude*, and the same
@@ -47,8 +46,7 @@ BlankAudio
       is identical no matter in which order frames are requested and the phase
       does not drift over long clips.
 
-   *amplitude*:
-
+   *amplitude*
       Peak level of the generated waveform, where 1.0 is full scale. Defaults
       to 1.0. Negative values invert the waveform.
 
@@ -60,8 +58,7 @@ BlankAudio
       No dither is applied when generating an integer format. Generate a float
       clip and convert it with AudioResample if you want dithered output.
 
-   *frequency*:
-
+   *frequency*
       Frequency of the generated waveform in Hz. Defaults to 440. A frequency of
       0 holds the waveform at its value for phase zero, and frequencies at or
       above the sample rate alias the way an actual sampled signal would.

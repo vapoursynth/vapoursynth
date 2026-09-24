@@ -25,11 +25,11 @@ Levels
    above can therefore also be written as a single call::
 
       clip = std.Levels(clip, min_in=16, max_in=[235, 240], min_out=0, max_out=255)
-   
+
    .. warning::
       The default ranges are 0-1 for floating point formats. This may have an undesired
-	  effect on YUV formats.
-	  
+      effect on YUV formats.
+
    *clip*
       Clip to process. It must have integer sample type and bit depth
       between 8 and 16, or float sample type and bit depth of 32. If

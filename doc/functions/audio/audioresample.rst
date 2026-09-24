@@ -24,12 +24,10 @@ AudioResample
    bit integer input doesn't survive those operations bit exactly even when the
    output format could represent it.
 
-   *clip*:
-
+   *clip*
       Input clip.
 
-   *samplerate*:
-
+   *samplerate*
       Output sample rate.
 
       The conversion uses a Kaiser windowed sinc filter with the passband
@@ -48,18 +46,15 @@ AudioResample
       rates convert cheaply. Rates whose ratio doesn't reduce, such as 48000 to
       96001, need an impractically large filter and are rejected with an error.
 
-   *sampletype*:
-
+   *sampletype*
       Output sample type, 0 for integer and 1 for float. When set to float and
       *bits* isn't specified the output is 32 bit float.
 
-   *bits*:
-
+   *bits*
       Output bits per sample. Integer output accepts 16 to 32 bits and float
       output only accepts 32 bits.
 
-   *channels*:
-
+   *channels*
       Output channel layout, specified as a list of channel constants the same
       way as in BlankAudio. The order the channels are listed in doesn't matter,
       a layout is a set.
@@ -95,8 +90,7 @@ AudioResample
       folding the surrounds in with a phase shift needs a filter rather than a
       matrix.
 
-   *dither_type*:
-
+   *dither_type*
       Dither applied when the destination has less precision than the source,
       which means when converting from float to integer or to a narrower integer
       format. Widening a format or converting to float is exact and never
@@ -127,8 +121,7 @@ AudioResample
       already at full scale can push samples past the last representable value
       and cause clipping.
 
-   *normalize*:
-
+   *normalize*
       Whether to scale the mix matrix down so that no output channel can clip.
       The worst case gain of an output channel is the sum of the weights feeding
       it, which for the standard 5.1 to stereo downmix is about 2.41, so
@@ -140,8 +133,7 @@ AudioResample
       for float output, which has the headroom to carry the plain BS.775
       coefficients. Only has an effect when the channel layout changes.
 
-   *overflow_error*:
-
+   *overflow_error*
       Will stop processing with an error if clipping is detected if
       *overflow_error* is set. If it's false a warning will be printed for the
       first audio block with clipping.

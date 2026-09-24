@@ -22,4 +22,4 @@ SetFieldBased
 
       clip = core.bs.VideoSource("rule6.mkv")
       clip = core.std.SetFieldBased(clip, 0)
-      clip = clip.resize.Bilinear(clip, width=320, height=240)
+      clip = core.resize.Bilinear(clip, width=320, height=240)
