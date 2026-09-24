@@ -143,7 +143,7 @@ VSPlaneData::~VSPlaneData() {
             /* Buffer before device: returning the region keeps MemoryUse alive until this
                point, so the accounting always lands in live memory. */
             gpuDevice->destroyBuffer(gpu->buffer);
-            delete gpu; /* releases the plane's timeline reference */
+            delete gpu; /* releases every timeline its pairs named */
             gpuDevice->release();
         }
         /* Otherwise none of the three goes. The buffer stays because a submission may still be
@@ -499,87 +499,125 @@ uint8_t *VSFrame::getWritePtr(int plane) {
 }
 
 /* A foreign API may write only a plane nobody has written, of a frame whose sole reference the
-   exporter holds: a new frame it has not returned yet. That plane is the foreign API's until the
-   frame is returned, and goes over without a release, since contents nobody wrote need not
-   survive the foreign side's first access. Every other export is a read and hands nothing over:
-   releasing a plane with contents would leave them undefined for every other reader, and the
-   core tracks producers, not readers. */
+   exporter holds: a new frame it has not returned yet. The first export hands such a plane over
+   until a frame containing it is returned or cached (takeBackForeignPlanes), with no release,
+   since contents nobody wrote need not survive the foreign side's first access. The holder tests
+   come first, so only a sole holder ever reads the written flag. */
 void VSFrame::handPlaneToForeign(int plane) const {
     if (!gpuResident || plane < 0 || plane >= numPlanes || plane >= 3)
         return;
     VSVulkanPlane *gpu = data[plane]->gpu;
-    if (gpu && !gpu->written && refcount == 1 && data[plane]->unique()) {
-        /* Written from here on, whatever the foreign side does: a plane that goes out without
-           the acquire, or with no pair published, must not look fresh to whoever exports it
-           next and be handed over a second time. */
+    if (gpu && refcount == 1 && data[plane]->unique() && !gpu->written) {
+        /* Written from here on, whatever the foreign side does: a plane taken back with no pair
+           published must not look fresh to whoever exports it next and be handed over twice. */
         gpu->written = true;
-        gpu->foreignOwned = true;
+        gpu->handOff.store(VSVulkanPlane::HandOff::Foreign, std::memory_order_release);
     }
 }
 
-void VSFrame::collectForeignPlanes(std::vector<VSVulkanPlane *> &planes, bool reachedAlone, std::vector<const VSFrame *> &visited) const {
-    /* Once per frame, since a frame can be stored in its own properties. A frame reachable along
-       two ways is held twice, so whichever way comes first reaches the same verdict. */
+/* takeBackForeignPlanes' walk: every plane still handed over, in this frame and in the video frames
+   its properties hold (audio frames never carry properties), nested ones included, each plane once
+   and each frame once, since a frame can be stored in its own properties. */
+void VSFrame::collectForeignPlanes(std::vector<VSVulkanPlane *> &planes, std::vector<const VSFrame *> &visited) const {
     if (std::find(visited.begin(), visited.end(), this) != visited.end())
         return;
     visited.push_back(this);
-    const bool heldAlone = reachedAlone && refcount == 1;
     if (gpuResident) {
         for (int p = 0; p < numPlanes && p < 3; p++) {
             VSVulkanPlane *gpu = data[p]->gpu;
-            if (!gpu || !gpu->foreignOwned)
-                continue;
-            /* Anything else holding the frame, sharing the plane or sharing a property map on
-               the way to it might be reading the pair the acquire would republish, so such a
-               plane goes out as it is, without the acquire: the gap the rules leave. Clearing
-               the flag keeps the declarations from calling that misuse by whoever receives it. */
-            if (heldAlone && data[p]->unique())
+            if (gpu && gpu->handedOver() && std::find(planes.begin(), planes.end(), gpu) == planes.end())
                 planes.push_back(gpu);
-            else
-                gpu->foreignOwned = false;
         }
     }
-    properties.forEachVideoFrame([&](const VSFrame *f, bool unshared) {
-        f->collectForeignPlanes(planes, heldAlone && unshared, visited);
-    });
+    properties.forEachVideoFrame([&](const VSFrame *f) { f->collectForeignPlanes(planes, visited); });
 }
 
-/* The return side of a hand-off, on every frame a filter returns before anything else can see
-   it, and on the frames its properties hold, nested ones included: an _Alpha frame written the
-   same way. One acquire covers every plane nothing else can reach; the rest go out without it. */
+/* The return side of a hand-off, when a filter returns a frame or passes it to cacheFrame, before
+   anything else can see it: every plane in it still handed to a foreign API, and in the frames its
+   properties hold, is acquired back, whoever else holds the frame or shares the plane, since the
+   pair records make republishing under them safe. Exactly one take-back acquires a plane: each
+   claims what is still Foreign under the device's hand-off lock, acquires it with nothing held and
+   settles it, then waits for any plane another take-back is acquiring, since this frame may not
+   go out before that plane's pair names the acquire. A failed acquire hands its planes back to
+   Foreign, for whoever waits on them to try in turn. */
 bool VSFrame::takeBackForeignPlanes(std::string &errorMessage) const {
-    if (!gpuResident)
+    /* Nothing is handed over on a core whose device never came up, and the common frame -- no
+       plane handed over, no frame in its properties -- is settled without allocating. A CPU frame
+       goes through too, for the GPU frames its properties may hold. */
+    VSVulkanDevice *dev = core->vulkanDeviceIfUp();
+    if (!dev || (foreignOwnedPlane() < 0 && !properties.holdsVideoFrames()))
         return true;
     std::vector<VSVulkanPlane *> planes;
     std::vector<const VSFrame *> visited;
-    collectForeignPlanes(planes, true, visited);
+    collectForeignPlanes(planes, visited);
     if (planes.empty())
         return true;
-    VSVulkanTransfer *transfer = core->vulkanTransfer(errorMessage);
-    if (!transfer || !transfer->acquireFromForeign(planes.data(), planes.size(), errorMessage))
-        return false;
-    for (VSVulkanPlane *gpu : planes)
-        gpu->foreignOwned = false;
-    return true;
+    /* Taking planes back takes one of the core's contexts, and waiting for one while holding
+       another is the cycle I26 rules out: refused every time, as getExportableFrameFilter refuses
+       it, rather than only when the hand-off ring happens to be full. */
+    dev->failIfHoldingForeignContext(nullptr, "Taking back planes handed to a foreign API, on returning or caching a frame,");
+    using HandOff = VSVulkanPlane::HandOff;
+    for (;;) {
+        std::vector<VSVulkanPlane *> claimed;
+        bool othersAcquiring = false;
+        {
+            std::lock_guard<std::mutex> lock(dev->handOffMutex());
+            VS_LOCK_HELD(vsLockHandOff);
+            for (VSVulkanPlane *gpu : planes) {
+                const HandOff state = gpu->handOff.load(std::memory_order_relaxed);
+                if (state == HandOff::Foreign) {
+                    gpu->handOff.store(HandOff::Acquiring, std::memory_order_relaxed);
+                    claimed.push_back(gpu);
+                } else if (state == HandOff::Acquiring) {
+                    othersAcquiring = true;
+                }
+            }
+        }
+        if (!claimed.empty()) {
+            VSVulkanTransfer *transfer = core->vulkanTransfer(errorMessage);
+            const bool acquired = transfer && transfer->acquireFromForeign(claimed.data(), claimed.size(), errorMessage);
+            {
+                std::lock_guard<std::mutex> lock(dev->handOffMutex());
+                VS_LOCK_HELD(vsLockHandOff);
+                for (VSVulkanPlane *gpu : claimed)
+                    gpu->handOff.store(acquired ? HandOff::Core : HandOff::Foreign, std::memory_order_release);
+            }
+            dev->handOffCv().notify_all();
+            if (!acquired)
+                return false;
+        }
+        if (!othersAcquiring)
+            return true;
+        /* Then look again: an acquire that failed left its planes Foreign for this one to claim. */
+        std::unique_lock<std::mutex> lock(dev->handOffMutex());
+        VS_LOCK_HELD(vsLockHandOff);
+        dev->handOffCv().wait(lock, [&] {
+            return std::none_of(planes.begin(), planes.end(), [](const VSVulkanPlane *gpu) {
+                return gpu->handOff.load(std::memory_order_relaxed) == HandOff::Acquiring;
+            });
+        });
+    }
 }
 
 int VSFrame::foreignOwnedPlane() const {
     if (!gpuResident)
         return -1;
     for (int p = 0; p < numPlanes && p < 3; p++) {
-        if (data[p]->gpu && data[p]->gpu->foreignOwned)
+        if (data[p]->gpu && data[p]->gpu->handedOver())
             return p;
     }
     return -1;
 }
 
 /* Everything else would put a plane the core's queues, or other frames, may read into a foreign
-   API's hands with no transfer. */
+   API's hands with no transfer. The holder tests come before the written flag, as in
+   handPlaneToForeign. */
 bool VSFrame::planeExportable(int plane) const {
     if (!gpuResident || plane < 0 || plane >= numPlanes || plane >= 3)
         return false;
     const VSVulkanPlane *gpu = data[plane]->gpu;
-    return gpu && (gpu->foreignOwned || (!gpu->written && refcount == 1 && data[plane]->unique()));
+    return gpu && (gpu->handOff.load(std::memory_order_acquire) == VSVulkanPlane::HandOff::Foreign ||
+        (refcount == 1 && data[plane]->unique() && !gpu->written));
 }
 
 static void VS_CC releasePreparedSource(void *frame) {
@@ -609,7 +647,7 @@ VSFrame *VSFrame::prepareForForeign(std::string &errorMessage) const {
         if (!transfer->releaseToForeign(planes, numPlanes, errorMessage))
             return nullptr;
         for (int p = 0; p < numPlanes; p++)
-            planes[p]->foreignOwned = true;
+            planes[p]->handOff.store(VSVulkanPlane::HandOff::Foreign, std::memory_order_release);
         VSFrame *self = const_cast<VSFrame *>(this);
         self->add_ref();
         return self;
@@ -631,7 +669,7 @@ VSFrame *VSFrame::prepareForForeign(std::string &errorMessage) const {
         return nullptr;
     }
     for (int p = 0; p < numPlanes; p++)
-        copies[p]->foreignOwned = true;
+        copies[p]->handOff.store(VSVulkanPlane::HandOff::Foreign, std::memory_order_release);
     return copy;
 }
 
@@ -1234,10 +1272,11 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
             core->logFatal("Guard memory corrupted in frame " + std::to_string(n) + " returned from " + name);
 #endif
 
-        /* Planes the filter handed to a foreign API come back before anything else can see the
-           frame; see VSFrame::handPlaneToForeign. */
+        /* Planes handed to a foreign API come back before anything else can see the frame,
+           including those of GPU frames in a CPU frame's properties; see
+           VSFrame::takeBackForeignPlanes. */
         std::string handBackError;
-        if (r->isGPUResident() && !r->takeBackForeignPlanes(handBackError)) {
+        if (!r->takeBackForeignPlanes(handBackError)) {
             const_cast<VSFrame *>(r)->release();
             frameCtx->setError("Filter " + name + " returned a frame whose planes could not be taken back from a foreign API: " + handBackError);
             return nullptr;
@@ -1260,17 +1299,14 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
 }
 
 void VSNode::cacheFrame(const VSFrame *frame, int n) {
-    /* A frame cached ahead is handed to the core as surely as a returned one, so planes the filter
-       gave a foreign API come back the same way before the cache can hand the frame to anyone, the
-       caller's reference being the one handed over; see getFrameInternal. Before the cache lock,
-       since the acquire may wait for a context. A frame that cannot be taken back stays out of the
-       cache, to be produced again if it is requested. */
-    if (frame->isGPUResident()) {
-        std::string handBackError;
-        if (!frame->takeBackForeignPlanes(handBackError)) {
-            core->logMessage(mtWarning, "Filter " + name + " cached a frame whose planes could not be taken back from a foreign API, so it was left out of the cache: " + handBackError);
-            return;
-        }
+    /* A frame cached ahead reaches consumers as surely as a returned one, so its handed-over planes
+       come back here the same way; see getFrameInternal. Before the cache lock, since the acquire
+       may wait for a context or another take-back. A frame that cannot be taken back stays out of
+       the cache, to be produced again if requested. */
+    std::string handBackError;
+    if (!frame->takeBackForeignPlanes(handBackError)) {
+        core->logMessage(mtWarning, "Filter " + name + " cached a frame whose planes could not be taken back from a foreign API, so it was left out of the cache: " + handBackError);
+        return;
     }
     std::lock_guard<std::mutex> lock(cacheMutex);
     VS_LOCK_HELD(vsLockNodeCache);
@@ -1366,8 +1402,8 @@ void VSCore::notifyCaches(bool hostNeedsMemory, bool gpuNeedsMemory) {
        footprint, which for a deep chain of heavy filters is gigabytes, so every sweep
        releases what has completed; steady state pools lose nothing they would not have
        released moments later anyway. Before the cache lock, not under it: the sweep runs
-       release callbacks, which may allocate, acquire and free frames, and a freed frame can
-       drop the last reference to a node, whose destructor takes this very lock. */
+       release callbacks, which may only free (I15) but may free whatever they were handed, a
+       node included, and a node's destructor takes this very lock. */
     VSVulkanDevice *dev = vulkanDev.load();
     if (dev) {
         dev->sweepExecPools();
@@ -1799,9 +1835,11 @@ VSVulkanDevice *VSCore::vulkanDevice(std::string &errorMessage) {
         if (!dev)
             errorMessage = vulkanDeviceError;
     }
-    /* Both logged outside the lock. logMutex runs code the core did not write, and section 2 of
-       vsvulkanexec_protocol.md says no core lock is ever held across that; this was the one
-       place one was, and a handler that re-entered here deadlocked on the mutex above (L16). */
+    /* Both logged outside the lock. logMutex runs code the core did not write, and a handler
+       that re-entered here while the lock was held deadlocked on the mutex above (L16). What
+       VSVulkanDevice::create reports itself -- validation and driver messages raised during
+       creation -- still arrives under the lock, through the log bridge; see section 2 of
+       vsvulkanexec_protocol.md. */
     if (!failure.empty())
         logMessage(mtWarning, failure);
     if (!deviceLine.empty())
@@ -2638,20 +2676,27 @@ bool VSPlugin::registerFunction(const std::string &name, const std::string &args
         return false;
     }
 
-    std::lock_guard<std::mutex> lock(functionLock);
-
-    if (funcs.count(name)) {
-        core->logMessage(mtCritical, "API MISUSE! Tried to register function '" + name + "' more than once for plugin " + id);
+    /* Built under the lock and logged after it. Log handlers run code the core did not write, and
+       the Python one takes the GIL, which a binding looking up this plugin's functions may hold
+       while it waits for this lock: a modifiable plugin registers at any time, so the two can
+       meet. */
+    std::string misuse;
+    {
+        std::lock_guard<std::mutex> lock(functionLock);
+        if (funcs.count(name)) {
+            misuse = "API MISUSE! Tried to register function '" + name + "' more than once for plugin " + id;
+        } else {
+            try {
+                funcs.emplace(std::make_pair(name, VSPluginFunction(name, args, returnType, argsFunc, functionData, this)));
+            } catch (std::runtime_error &e) {
+                misuse = "API MISUSE! Function '" + name + "' failed to register with error: " + e.what();
+            }
+        }
+    }
+    if (!misuse.empty()) {
+        core->logMessage(mtCritical, misuse);
         return false;
     }
-
-    try {
-        funcs.emplace(std::make_pair(name, VSPluginFunction(name, args, returnType, argsFunc, functionData, this)));
-    } catch (std::runtime_error &e) {
-        core->logMessage(mtCritical, "API MISUSE! Function '" + name + "' failed to register with error: " + e.what());
-        return false;
-    }
-
     return true;
 }
 

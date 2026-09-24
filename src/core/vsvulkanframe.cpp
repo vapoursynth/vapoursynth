@@ -148,7 +148,7 @@ bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int
 bool VSVulkanTransfer::waitPlanesHost(VSVulkanPlane *const planes[], int numPlanes, std::string &errorMessage) {
     VSVulkanWaitList list;
     for (int p = 0; p < numPlanes; p++)
-        list.add(planes[p]->readyTimeline, planes[p]->readyValue);
+        addProducerWait(list, *planes[p]);
     if (!list.size())
         return true;
 
@@ -347,7 +347,7 @@ bool VSVulkanTransfer::uploadPlanes(VSVulkanPlane *const planes[], int numPlanes
        the host; fresh planes have no producers and wait on nothing. */
     VSVulkanWaitList waits;
     for (int p = 0; p < numPlanes; p++)
-        waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
+        addProducerWait(waits, *planes[p]);
     uint64_t value = 0;
     bool ok = uploadPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size());
     if (ok) {
@@ -427,7 +427,7 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
 
         VSVulkanWaitList waits;
         for (int p = 0; p < numPlanes; p++)
-            waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
+            addProducerWait(waits, *planes[p]);
         uint64_t value = 0;
         if (!downloadPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size()))
             return false;
@@ -496,7 +496,7 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
 
     VSVulkanWaitList waits;
     for (int p = 0; p < numPlanes; p++)
-        waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
+        addProducerWait(waits, *planes[p]);
     uint64_t value = 0;
     if (!downloadPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size())) {
         releaseSlot(readback, *slot);
@@ -520,9 +520,10 @@ bool VSVulkanTransfer::downloadPlanes(const VSVulkanPlane *const planes[], int n
     return true;
 }
 
-/* A hand-off republishes the pair of each plane it waits on, which drops the plane's reference to
-   the timeline it replaces, and that can be the last one: a filter's own timeline it has freed,
-   or a producer whose pool is gone. The submission holds one of its own until it completes. */
+/* The plane keeps every timeline its pairs have named, but only until it goes, and freeing it
+   waits for its current pair alone: a pair published after this submission but ready sooner --
+   host ready, say -- would let the plane, and the timeline this waits on, go first. So the
+   submission holds a reference of its own until it completes. */
 void VSVulkanTransfer::retainWaitedTimeline(VSVulkanExecPool &pool, VSVulkanExecContext &ctx, VSVulkanTimeline *timeline) {
     if (!timeline)
         return;
@@ -540,8 +541,9 @@ bool VSVulkanTransfer::releaseToForeign(VSVulkanPlane *const planes[], size_t nu
     for (size_t p = 0; p < numPlanes; p++) {
         barriers[p] = releaseBarrier(*planes[p], preparePool.queue()->familyIndex(),
             VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_WRITE_BIT);
-        waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
-        retainWaitedTimeline(preparePool, *ctx, planes[p]->readyTimeline);
+        const VSVulkanProducer producer = planes[p]->producer();
+        waits.add(producer.timeline, producer.value);
+        retainWaitedTimeline(preparePool, *ctx, producer.timeline);
     }
     VkDependencyInfo dep = {};
     dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
@@ -580,7 +582,7 @@ bool VSVulkanTransfer::copyToForeign(const VSVulkanPlane *const sources[], VSVul
         dev->vk.vkCmdCopyBuffer2(ctx->commandBuffer(), &copy);
         barriers[p] = releaseBarrier(*copies[p], preparePool.queue()->familyIndex(),
             VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
-        waits.add(sources[p]->readyTimeline, sources[p]->readyValue);
+        addProducerWait(waits, *sources[p]);
     }
     VkDependencyInfo dep = {};
     dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
@@ -623,8 +625,9 @@ bool VSVulkanTransfer::acquireFromForeign(VSVulkanPlane *const planes[], size_t 
         barriers[p].dstQueueFamilyIndex = handoffPool.queue()->familyIndex();
         barriers[p].buffer = planes[p]->buffer.buffer;
         barriers[p].size = VK_WHOLE_SIZE;
-        waits.add(planes[p]->readyTimeline, planes[p]->readyValue);
-        retainWaitedTimeline(handoffPool, *ctx, planes[p]->readyTimeline);
+        const VSVulkanProducer producer = planes[p]->producer();
+        waits.add(producer.timeline, producer.value);
+        retainWaitedTimeline(handoffPool, *ctx, producer.timeline);
     }
     VkDependencyInfo dep = {};
     dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
@@ -635,7 +638,8 @@ bool VSVulkanTransfer::acquireFromForeign(VSVulkanPlane *const planes[], size_t 
     uint64_t value = 0;
     if (!handoffPool.submit(*ctx, errorMessage, &value, waits.data(), waits.size()))
         return false;
+    /* Under readers: whatever else holds the frame may be reading the pair this replaces. */
     for (size_t p = 0; p < numPlanes; p++)
-        setPlaneProducer(*planes[p], handoffPool.timelineObject(), value);
+        setPlaneProducer(*planes[p], handoffPool.timelineObject(), value, true);
     return true;
 }

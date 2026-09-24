@@ -1,5 +1,6 @@
 r81:
 improved gpu up/download speed
+fixed memory model for gpu filters that export memory to cuda/vulkan
 fixed access violation in matroska muxer
 
 r80:

@@ -292,9 +292,9 @@ typedef struct VSVulkanCoreHandles {
     PFN_vkGetInstanceProcAddr getInstanceProcAddr;
     uint32_t computeQueueFamily;
     uint32_t computeQueueIndex;
-    uint32_t transferQueueFamily; /* the compute family with index 1 when there is no dedicated transfer queue
-                                     but the compute family has two, and equal to the compute values when
-                                     it has one */
+    uint32_t transferQueueFamily; /* with transferQueueIndex, the compute family's second queue when there is
+                                     no transfer family but the compute family has two queues, and equal to
+                                     the compute values when it has only one */
     uint32_t transferQueueIndex;
 } VSVulkanCoreHandles;
 
@@ -345,8 +345,9 @@ typedef struct VSVulkanPlaneInfo {
 } VSVulkanPlaneInfo;
 
 /* A timeline semaphore for publishing producer pairs, reference counted and owned by the core.
- * A filter signals it and hands it to setGPUPlaneProducer; every plane it is published on takes
- * its own reference, so the semaphore lives exactly as long as something might still wait on it.
+ * A filter signals it and hands it to setGPUPlaneProducer; every plane it is published on keeps a
+ * reference of its own until the plane is freed, so the semaphore lives for as long as something
+ * might still wait on it.
  *
  * A filter's timeline therefore need not outlive its consumers: release your reference once you
  * are done signalling -- the free callback is the natural place -- and any frame still in flight
@@ -409,14 +410,14 @@ typedef struct VSGPUMemoryReservation VSGPUMemoryReservation;
  * A foreign API writes only into new frames. Exporting a plane nothing has written yet, of a
  * frame only you hold -- created and not yet returned, copied or otherwise shared -- hands it to
  * the foreign API to write: the queue family ownership transfer Vulkan requires of external
- * memory. The core takes it back when you return the frame from getFrame or pass it to
- * cacheFrame, with any such frame held only in its properties (an _Alpha frame), ordered after
+ * memory. The core takes it back the first time a frame containing it is returned from getFrame
+ * or passed to cacheFrame, directly or through its properties (an _Alpha frame), ordered after
  * the plane's producer pair at that moment: publish the foreign side's completion with
  * setGPUPlaneProducer before that, or finish its work on the host. Until then the plane is the
- * foreign API's alone, and declaring it in an exec context is fatal. Keep no other reference to
- * the frame and no copy of it when you return or cache it, or it goes out without being taken
- * back. Input frames are handed over by taking them with getExportableFrameFilter; exporting any
- * other plane fails. */
+ * foreign API's alone, whichever frames share it: declaring it in an exec context is fatal, and
+ * so is returning or caching a frame containing it while holding an exec context, since taking
+ * it back takes one of the core's. Input frames are handed over by taking them with
+ * getExportableFrameFilter; exporting any other plane fails. */
 typedef struct VSVulkanExportedMemory {
     uint64_t memoryId;
     VkDeviceSize memorySize;

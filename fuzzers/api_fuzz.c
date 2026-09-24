@@ -40,11 +40,12 @@
    is brought up and torn down beside the first; and retentions of 24 MB trip the gate.
 
    Fourth round follows the hand-off rule: a fresh plane exported by the frame's sole holder is
-   handed to the foreign API until the frame is returned from getFrame, and declaring it in a
-   recording before then is fatal. So a thread's own frame it exported is never declared, copied
-   or published again, and a filter node here does the whole hand-off -- export, publish or not,
-   an _Alpha frame in the properties, or a kept reference that makes the frame go out without
-   the acquire -- with the threads requesting its frames and declaring them like any other. */
+   handed to the foreign API until a frame containing it is returned from getFrame or cached, and
+   declaring it in a recording before then is fatal. So a thread's own frame it exported is never
+   declared, copied or published again, and a filter node here does the whole hand-off -- export,
+   publish or not, an _Alpha frame in the properties, or a reference it keeps while the frame is
+   taken back all the same -- with the threads requesting its frames and declaring them like any
+   other. */
 #include "VapourSynth4.h"
 #include "VSVulkan4.h"
 
@@ -398,7 +399,7 @@ static void closeHandle(intptr_t h) {
 
 /* What a CUDA filter's getFrame does, with nobody on the foreign side: export a fresh frame's
    plane, then publish nothing (host synchronized), publish a reached foreign pair, add an _Alpha
-   frame handed over the same way, or keep a reference so the frame goes out without the acquire. */
+   frame handed over the same way, or keep a reference, which the take-back has to cope with. */
 static const VSFrame *VS_CC handoffGetFrame(int n, int activationReason, void *instanceData, void **frameData,
     VSFrameContext *frameCtx, VSCore *c, const VSAPI *api) {
     VSFrame *f;

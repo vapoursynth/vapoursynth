@@ -3635,8 +3635,8 @@ cdef class Core(object):
         cdef const VSVULKANAPI *vk = self.funcs.getVulkanAPI()
         cdef char err[512]
         cdef int failed
-        # released gil, same reason as log_message: this creates the device, which logs -- its
-        # own line, and every driver and validation message -- while holding vulkanDeviceLock,
+        # released gil, same reason as log_message: this creates the device, which logs every
+        # driver and validation message raised during creation while holding vulkanDeviceLock,
         # and the log handlers acquire the gil. Holding it here deadlocks against any thread
         # already inside device creation, and makes this call the one that starves it.
         with nogil:
@@ -4036,7 +4036,12 @@ cdef class Plugin(object):
         self.core.ensure_valid()
         tname = name.encode('utf-8')
         cdef const char *cname = tname
-        cdef VSPluginFunction *func = self.funcs.getPluginFunctionByName(cname, self.plugin)
+        cdef VSPluginFunction *func = NULL
+        # released gil: the lookup takes the plugin's function lock, which registerFunction holds
+        # while logging its API misuse errors, and the log handlers acquire the gil. A modifiable
+        # plugin registers at any time, so holding the gil here could wait on that thread's log.
+        with nogil:
+            func = self.funcs.getPluginFunctionByName(cname, self.plugin)
 
         if func:
             return createFunction(func, self, self.funcs)
@@ -4044,13 +4049,17 @@ cdef class Plugin(object):
             raise AttributeError('There is no function named ' + name)
 
     def functions(self):
-        # snapshotted for the same reason as Core.plugins
+        # snapshotted for the same reason as Core.plugins; the gil is released around each step
+        # for the reason given in __getattr__
         self.core.ensure_valid()
-        cdef VSPluginFunction *func = self.funcs.getNextPluginFunction(NULL, self.plugin)
+        cdef VSPluginFunction *func = NULL
+        with nogil:
+            func = self.funcs.getNextPluginFunction(NULL, self.plugin)
         result = []
         while func:
             result.append(createFunction(func, self, self.funcs))
-            func = self.funcs.getNextPluginFunction(func, self.plugin)
+            with nogil:
+                func = self.funcs.getNextPluginFunction(func, self.plugin)
         return iter(result)
 
     @property

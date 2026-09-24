@@ -1295,8 +1295,9 @@ static int VS_CC vkGetGPUPlane(const VSFrame *frame, int plane, VSVulkanPlaneInf
         return 1;
     info->buffer = gpuPlane->buffer.buffer;
     info->bufferSize = gpuPlane->buffer.size;
-    info->readySemaphore = gpuPlane->readyTimeline ? gpuPlane->readyTimeline->semaphore() : VK_NULL_HANDLE;
-    info->readyValue = gpuPlane->readyValue;
+    const VSVulkanProducer producer = gpuPlane->producer();
+    info->readySemaphore = producer.timeline ? producer.timeline->semaphore() : VK_NULL_HANDLE;
+    info->readyValue = producer.value;
     return 0;
 }
 
@@ -1485,20 +1486,23 @@ static int VS_CC vkWaitGPUFrame(const VSFrame *frame, char *errorMessage, int er
     uint32_t waitCount = 0;
     for (int p = 0; p < fmt->numPlanes; p++) {
         const VSVulkanPlane *gpuPlane = frame->getGPUPlane(p);
-        if (!gpuPlane || !gpuPlane->readyTimeline)
+        if (!gpuPlane)
             continue;
-        VkSemaphore planeSem = gpuPlane->readyTimeline->semaphore();
+        const VSVulkanProducer producer = gpuPlane->producer();
+        if (!producer.timeline)
+            continue;
+        VkSemaphore planeSem = producer.timeline->semaphore();
         uint32_t w = 0;
         for (; w < waitCount; w++) {
             if (sems[w] == planeSem) {
-                if (gpuPlane->readyValue > values[w])
-                    values[w] = gpuPlane->readyValue;
+                if (producer.value > values[w])
+                    values[w] = producer.value;
                 break;
             }
         }
         if (w == waitCount) {
             sems[waitCount] = planeSem;
-            values[waitCount] = gpuPlane->readyValue;
+            values[waitCount] = producer.value;
             waitCount++;
         }
     }
@@ -1682,17 +1686,18 @@ static VkCommandBuffer VS_CC vkGPUExecCommandBuffer(VSGPUExecContext *context) V
     return context->context->commandBuffer();
 }
 
-/* A plane handed to a foreign API is that API's until the frame is returned from getFrame, which
-   is where the core acquires it back; a recording using it before then would touch it without the
-   acquire. */
+/* A plane handed to a foreign API is that API's until a frame containing it is returned from
+   getFrame or passed to cacheFrame, which is where the core acquires it back; a recording using it
+   before then would touch it without the acquire. */
 static void failIfHandedOver(int plane, const char *what) {
     if (plane < 0)
         return;
     std::string message = std::string(what) + " called on plane " + std::to_string(plane) +
         " while a foreign API owns it: a plane handed over, as a fresh plane exported with"
         " exportGPUPlane or with its frame taken by getExportableFrameFilter, stays the foreign"
-        " API's until the frame is returned from getFrame. A filter exports a plane or records"
-        " work on it, never both; the filter that receives the returned frame can do the latter.";
+        " API's until a frame containing it is returned from getFrame or passed to cacheFrame."
+        " A filter exports a plane or records work on it, never both; the filter that receives"
+        " the returned frame can do the latter.";
     vulkanFatal(message.c_str());
 }
 
@@ -1704,7 +1709,7 @@ static void VS_CC vkGPUExecReadsFrame(VSGPUExecContext *context, const VSFrame *
     for (int p = 0; fmt && p < fmt->numPlanes; p++) {
         const VSVulkanPlane *plane = frame->getGPUPlane(p);
         if (plane)
-            context->waits.add(plane->readyTimeline, plane->readyValue);
+            addProducerWait(context->waits, *plane);
     }
     /* The context's own reference, so the caller's lifetime stays its own business. The
        frame's bytes count against the device's in-flight retention budget while queued. */
@@ -1719,7 +1724,7 @@ static void VS_CC vkGPUExecWritesPlane(VSGPUExecContext *context, VSFrame *frame
     checkExecHandle(context, "gpuExecWritesPlane");
     failIfPlaneShared(frame, plane, "gpuExecWritesPlane");
     const VSVulkanPlane *gpuPlane = frame->getGPUPlane(plane);
-    failIfHandedOver(gpuPlane && gpuPlane->foreignOwned ? plane : -1, "gpuExecWritesPlane");
+    failIfHandedOver(gpuPlane && gpuPlane->handedOver() ? plane : -1, "gpuExecWritesPlane");
     /* The context's own reference, as gpuExecReadsFrame takes. Submit dereferences every
        declared write AFTER the submission to publish the producer pair, so a caller that dropped
        its frame between declaring and submitting -- an error path, typically -- handed submit a

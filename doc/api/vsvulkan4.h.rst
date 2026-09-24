@@ -375,9 +375,9 @@ struct VSVulkanCoreHandles
 Everything needed to run your own Vulkan work on the core's device: the
 instance, physical device and device handles, ``getInstanceProcAddr`` for
 resolving entry points outside the curated table, and the compute and
-transfer queue family/index pairs. Without a dedicated transfer queue the
-transfer values name the compute family's second queue where it has one, and
-equal the compute values where it does not. Valid for the core's lifetime.
+transfer queue family/index pairs. Without a transfer family the transfer
+values name the compute family's second queue where it has one, and equal the
+compute values where it does not. Valid for the core's lifetime.
 
 .. _VSVulkanPlaneInfo:
 
@@ -405,8 +405,9 @@ setGPUPlaneProducer_ publishes. Get one from createGPUTimeline_ or, for an
 exec pool's own timeline, from gpuExecPoolTimeline_; the raw ``VkSemaphore``
 behind it comes from getGPUTimelineSemaphore_.
 
-Every plane a timeline is published on takes its own reference, so the
-semaphore lives exactly as long as something might still wait on it. This is
+Every plane a timeline is published on keeps a reference of its own until the
+plane is freed, so the semaphore lives for as long as something might still
+wait on it. This is
 why a filter's timeline no longer has to outlive its consumers: release your
 reference whenever you are done signalling — the free callback is the natural
 place — and any frame still in flight keeps it alive by itself. The semaphore
@@ -576,16 +577,16 @@ Hand-off: a foreign API writes only into new frames. Exporting a plane
 nothing has written yet, of a frame only you hold — created and not yet
 returned, copied or otherwise shared — hands it to the foreign API to write:
 the queue family ownership transfer Vulkan requires of external memory
-whatever its sharing mode. The core takes it back when you return the frame
-from getFrame or pass it to cacheFrame, with any such frame held only in its
-properties (an *_Alpha* frame), ordered after the plane's producer pair at
-that moment: publish the foreign side's completion with setGPUPlaneProducer_
-before that, or finish its work on the host. Until then the plane is the
-foreign API's alone, and declaring it in an exec context (gpuExecReadsFrame_,
-gpuExecWritesPlane_) is fatal. Keep no other reference to the frame and no
-copy of it when you return or cache it, or it goes out without being taken
-back. Input frames are handed over by taking them with
-getExportableFrameFilter_; exporting any other plane fails.
+whatever its sharing mode. The core takes it back the first time a frame
+containing it is returned from getFrame or passed to cacheFrame, directly or
+through its properties (an *_Alpha* frame), ordered after the plane's producer
+pair at that moment: publish the foreign side's completion with
+setGPUPlaneProducer_ before that, or finish its work on the host. Until then
+the plane is the foreign API's alone, whichever frames share it: declaring it
+in an exec context (gpuExecReadsFrame_, gpuExecWritesPlane_) is fatal, and so
+is returning or caching a frame containing it while holding an exec context,
+since taking it back takes one of the core's. Input frames are handed over by
+taking them with getExportableFrameFilter_; exporting any other plane fails.
 
 .. _VSVulkanExportedSemaphore:
 

@@ -24,39 +24,55 @@
 #include "vsvulkanexec.h"
 #include "VapourSynth4.h"
 
+#include <algorithm>
 #include <chrono>
+
+/* One published producer pair, immutable and never freed while a reader can hold it, so a reader
+   gets the timeline and value of one publication, the timeline still counted. Pairs are
+   republished under readers when a plane comes back from a foreign API
+   (VSFrame::takeBackForeignPlanes), and a torn pair would silently wait for a value its timeline
+   never reaches, or return early. */
+struct VSVulkanProducer {
+    VSVulkanTimeline *timeline; /* counted by the record; null means host produced */
+    uint64_t value;
+};
 
 /* One GPU resident plane: a linear pitched device local buffer, laid out exactly like the CPU
    plane it mirrors so a matching stride uploads as a single flat copy.
 
    The producer pair lives here per plane rather than per frame, because plane sharing means one
-   frame's planes can have different producers. Whoever writes the plane stores the timeline and
-   value its submission signals; consumers wait on it device side before reading. A null
+   frame's planes can have different producers. Whoever writes the plane publishes the timeline
+   and value its submission signals; consumers wait on it device side before reading. A null
    semaphore means host produced content, ready as soon as it is handed over. */
 struct VSVulkanPlane {
     VSVulkanBuffer buffer;
     ptrdiff_t stride = 0; /* bytes per row, aligned like a CPU plane would be */
     uint32_t width = 0;   /* in samples */
     uint32_t height = 0;
-    /* Counted, so the plane keeps its producer's timeline alive for exactly as long as the pair
-       remains something a consumer might wait on. Null means host produced. Always go through
-       setPlaneProducer rather than assigning the two fields, which is what keeps the count and
-       the pair in step. */
-    VSVulkanTimeline *readyTimeline = nullptr;
-    uint64_t readyValue = 0;
+    /* The current pair, a record every publication swaps in whole. A take-back publishes under
+       readers, so the record it replaces stays whole until the next writer's publication, which
+       frees the replaced records but keeps one reference per distinct timeline until the plane
+       goes, for submissions that waited on them and may still be running: a plane rewritten all
+       its life holds its timelines, not its writes. One publisher at a time -- a writer owns the
+       plane, a take-back its claim -- so neither list needs a lock. Read through producer(),
+       publish through setPlaneProducer. */
+    std::atomic<const VSVulkanProducer *> producerRecord{nullptr};
+    std::vector<const VSVulkanProducer *> retiredRecords;
+    std::vector<VSVulkanTimeline *> pinnedTimelines;
     /* Set by every producer publication, whatever wrote the plane, and by handing it to a foreign
        API: an exported plane that was never written is one a foreign API is about to write. */
     bool written = false;
-    /* Handed to a foreign API to write by exportGPUPlane and not yet taken back, so the core's
-       queues must acquire it from VK_QUEUE_FAMILY_EXTERNAL before touching it. Set only by the
-       holder of the frame's sole reference, but cleared when a frame goes out without the
-       acquire and read by any declaration, hence atomic; see VSFrame::handPlaneToForeign. */
-    std::atomic<bool> foreignOwned{false};
+    /* Who may use the plane: the core's queues (Core); the foreign API it was handed to by
+       exportGPUPlane or getExportableFrameFilter, from which the core must acquire it before
+       touching it (Foreign); or neither, while a take-back acquires it (Acquiring). The frame's
+       sole holder sets Foreign and every other move happens under the device's hand-off lock,
+       while declarations read it with no lock, hence atomic; see VSFrame::takeBackForeignPlanes. */
+    enum class HandOff : uint8_t { Core, Foreign, Acquiring };
+    std::atomic<HandOff> handOff{ HandOff::Core };
 
     VSVulkanPlane() = default;
     ~VSVulkanPlane() {
-        if (readyTimeline)
-            readyTimeline->release();
+        releaseRecords();
     }
     /* Copying would need a second reference and there is no reason to: planes are shared by
        counting the VSPlaneData that owns them, never by duplicating this. Which also means
@@ -64,23 +80,59 @@ struct VSVulkanPlane {
     VSVulkanPlane(const VSVulkanPlane &) = delete;
     VSVulkanPlane &operator=(const VSVulkanPlane &) = delete;
 
+    VSVulkanProducer producer() const {
+        const VSVulkanProducer *record = producerRecord.load(std::memory_order_acquire);
+        return record ? *record : VSVulkanProducer{ nullptr, 0 };
+    }
+    bool handedOver() const {
+        return handOff.load(std::memory_order_acquire) != HandOff::Core;
+    }
+
     void reset() {
-        if (readyTimeline)
-            readyTimeline->release();
-        readyTimeline = nullptr;
-        readyValue = 0;
+        releaseRecords();
         written = false;
-        foreignOwned.store(false, std::memory_order_relaxed);
+        handOff.store(HandOff::Core, std::memory_order_relaxed);
         buffer = {};
         stride = 0;
         width = 0;
         height = 0;
     }
+
+    /* A writer's publication, from setPlaneProducer: frees the retired records, keeping each
+       timeline they name that is not kept already. */
+    void pinRetiredRecords() {
+        for (const VSVulkanProducer *record : retiredRecords) {
+            if (record->timeline) {
+                if (std::find(pinnedTimelines.begin(), pinnedTimelines.end(), record->timeline) == pinnedTimelines.end())
+                    pinnedTimelines.push_back(record->timeline); /* takes over the record's reference */
+                else
+                    record->timeline->release();
+            }
+            delete record;
+        }
+        retiredRecords.clear();
+    }
+
+private:
+    void releaseRecords() {
+        if (const VSVulkanProducer *current = producerRecord.exchange(nullptr, std::memory_order_acq_rel))
+            retiredRecords.push_back(current);
+        for (const VSVulkanProducer *record : retiredRecords) {
+            if (record->timeline)
+                record->timeline->release();
+            delete record;
+        }
+        retiredRecords.clear();
+        for (VSVulkanTimeline *timeline : pinnedTimelines)
+            timeline->release();
+        pinnedTimelines.clear();
+    }
 };
 
-/* addRef before release so republishing the same timeline onto a plane -- the ordinary case for
-   a filter writing a plane twice -- cannot drop the last reference in between. */
-inline void setPlaneProducer(VSVulkanPlane &plane, VSVulkanTimeline *timeline, uint64_t value) {
+/* Publishes a pair: a new record swapped in whole, the old one retired onto the plane. Only a
+   take-back publishes under readers, and says so; every other publisher owns the plane outright,
+   so the retired records go at once and only their timelines stay (see producerRecord). */
+inline void setPlaneProducer(VSVulkanPlane &plane, VSVulkanTimeline *timeline, uint64_t value, bool underReaders = false) {
     /* A pair on a pool's timeline past what the pool submitted would be waited for by every
        consumer, by waitGPUFrame and by the plane's own destruction, and never reached; the
        header promises it is fatal instead (invariant I23). The pool records each value under
@@ -89,13 +141,22 @@ inline void setPlaneProducer(VSVulkanPlane &plane, VSVulkanTimeline *timeline, u
        filter signals itself carry no bound. */
     if (timeline && timeline->isPoolOwned() && value > timeline->lastSubmitted())
         vulkanFatal("setGPUPlaneProducer published a value on an exec pool's timeline that the pool has not submitted");
-    if (timeline)
+    const VSVulkanProducer *record = nullptr;
+    if (timeline) {
         timeline->addRef();
-    if (plane.readyTimeline)
-        plane.readyTimeline->release();
-    plane.readyTimeline = timeline;
-    plane.readyValue = value;
+        record = new VSVulkanProducer{ timeline, value };
+    }
+    if (const VSVulkanProducer *old = plane.producerRecord.exchange(record, std::memory_order_acq_rel))
+        plane.retiredRecords.push_back(old);
+    if (!underReaders)
+        plane.pinRetiredRecords();
     plane.written = true;
+}
+
+/* A plane's producer as a device side wait, from one load of its record. */
+inline void addProducerWait(VSVulkanWaitList &waits, const VSVulkanPlane &plane) {
+    const VSVulkanProducer producer = plane.producer();
+    waits.add(producer.timeline, producer.value);
 }
 
 /* One linear pitched device local plane with the stride the caller decided on, which is how
@@ -106,10 +167,11 @@ bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int
 
 /* Host wait for one plane's producer; the common case is already signaled and returns at once. */
 inline bool waitPlaneHost(VSVulkanDevice &device, const VSVulkanPlane &plane) {
-    if (!plane.readyTimeline)
+    const VSVulkanProducer producer = plane.producer();
+    if (!producer.timeline)
         return true;
-    VkSemaphore semaphore = plane.readyTimeline->semaphore();
-    return device.waitTimelines(&semaphore, &plane.readyValue, 1);
+    VkSemaphore semaphore = producer.timeline->semaphore();
+    return device.waitTimelines(&semaphore, &producer.value, 1);
 }
 
 /* Moves frames across the PCIe bus. Uploads memcpy straight into the plane buffer when it
@@ -180,15 +242,13 @@ public:
         uint8_t *const dstPlanes[], const ptrdiff_t dstStrides[],
         VSGPUReleaseFunc releaseSource, void *source, std::string &errorMessage);
 
-    /* Takes planes a foreign API wrote through exported memory back onto the core's queues: the
-       acquire half of the queue family ownership transfer Vulkan requires of external memory
-       whatever its sharing mode. No release precedes it, since only planes nobody had written
-       are handed over and their contents need not survive the foreign side's first access; see
-       VSFrame::handPlaneToForeign. One barrier per plane in one submission on the hand-off
-       queue, a compute family queue every plane can be owned by, waiting on each plane's
-       producer -- the foreign side's pair when it published one -- and published on all of them.
-       The pairs keep the buffers alive; the submission retains only the timelines it waits on,
-       see retainWaitedTimeline. */
+    /* Takes planes a foreign API held back onto the core's queues: the acquire half of the queue
+       family ownership transfer Vulkan requires of external memory. A fresh plane went over with
+       no release (VSFrame::handPlaneToForeign), an input frame with one (releaseToForeign,
+       copyToForeign). One barrier per plane in one submission on the hand-off queue, waiting on
+       each plane's producer -- the foreign side's pair when it published one -- and published on
+       all of them under readers. Destroying a plane waits for that pair, which keeps its buffer
+       alive; the submission retains only the timelines it waits on (retainWaitedTimeline). */
     bool acquireFromForeign(VSVulkanPlane *const planes[], size_t numPlanes, std::string &errorMessage);
     /* The other direction, for getExportableFrameFilter: planes with contents handed to a
        foreign API, which is the release half. releaseToForeign releases planes in place, for a

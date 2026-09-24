@@ -28,6 +28,7 @@ enum VSLockId {
     vsLockCacheSet,         /* VSCore::cacheLock */
     vsLockNodeCache,        /* VSNode::cacheMutex */
     vsLockLog,              /* VSCore::logMutex */
+    vsLockHandOff,          /* VSVulkanDevice::handOffLock */
     vsLockCount
 };
 

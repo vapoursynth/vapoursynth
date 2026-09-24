@@ -508,10 +508,10 @@ The pattern, per frame:
 #. Allocate the output with newGPUVideoFrame and export its planes before
    anything writes them: the first export of a fresh plane of a frame only
    you hold hands it to the foreign side, so foreign kernels write directly
-   into what downstream Vulkan filters will read. The core takes it back when
-   you return the frame, or cache it ahead with cacheFrame, so do either
-   holding no other reference. Declaring a handed-over plane in an exec
-   context is fatal.
+   into what downstream Vulkan filters will read. The core takes it back, for
+   every frame sharing the plane, when you return the frame or cache it ahead
+   with cacheFrame. Declaring a handed-over plane in an exec context before
+   then is fatal.
 #. Synchronize. Two options, and the second is strongly preferred:
 
    * **Host side**: call waitGPUFrame on each input frame before launching

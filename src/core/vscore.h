@@ -370,19 +370,24 @@ public:
         return iter->first.c_str();
     }
 
-    /* Calls f(frame, unshared) on every video frame the map holds, unshared saying whether this
-       map is the only way to it: storage and array both unshared. Whether anything else holds
-       the frame itself is the frame's own refcount to say. */
+    /* Whether the map holds any video frame, without looking at the frames. */
+    bool holdsVideoFrames() const {
+        for (const auto &iter : data->data) {
+            if (iter.second->type() == ptVideoFrame)
+                return true;
+        }
+        return false;
+    }
+
+    /* Calls f on every video frame the map holds. */
     template<typename F>
     void forEachVideoFrame(F &&f) const {
-        const bool storageUnshared = data->unique();
         for (const auto &iter : data->data) {
             if (iter.second->type() != ptVideoFrame)
                 continue;
-            const bool unshared = storageUnshared && iter.second->unique();
             const VSVideoFrameArray *frames = static_cast<const VSVideoFrameArray *>(iter.second.get());
             for (size_t i = 0; i < frames->size(); i++)
-                f(frames->at(i).get(), unshared);
+                f(frames->at(i).get());
         }
     }
 
@@ -472,7 +477,7 @@ private:
 
     void setAllocationInfo() noexcept;
     /* takeBackForeignPlanes' walk over one frame and the frames its properties hold; see there. */
-    void collectForeignPlanes(std::vector<VSVulkanPlane *> &planes, bool reachedAlone, std::vector<const VSFrame *> &visited) const;
+    void collectForeignPlanes(std::vector<VSVulkanPlane *> &planes, std::vector<const VSFrame *> &visited) const;
 public:
     static ptrdiff_t alignment;
 
@@ -536,10 +541,11 @@ public:
         return numPlanes ? data[0]->gpuDevice : nullptr;
     }
 
-    /* Handing a plane to a foreign API to write, and taking it back when the frame is returned:
-       the queue family ownership transfer Vulkan requires of external memory. See
-       handPlaneToForeign for which exports hand over. Const because exportGPUPlane takes a const
-       frame; neither changes anything another holder could observe. */
+    /* Handing a plane to a foreign API to write, and taking it back when a frame containing it is
+       returned or cached: the queue family ownership transfer Vulkan requires of external memory.
+       Const because exportGPUPlane takes a const frame and a returned one is const: the hand-over
+       needs a frame nobody else holds, and a take-back changes what other holders see only
+       through the plane's pair records and hand-off state, both safe to read concurrently. */
     void handPlaneToForeign(int plane) const;
     bool takeBackForeignPlanes(std::string &errorMessage) const;
     /* A plane of this frame still handed to a foreign API, or -1: what the exec declarations
@@ -1326,6 +1332,8 @@ public:
     static constexpr size_t minGPULimit = static_cast<size_t>(256) << 20;
 
     VSVulkanDevice *vulkanDevice(std::string &errorMessage);
+    /* The device if it is up, without bringing it up: nothing GPU resident exists before it is. */
+    VSVulkanDevice *vulkanDeviceIfUp() const { return vulkanDev.load(std::memory_order_acquire); }
     bool setVulkanDevice(int deviceIndex, std::string &errorMessage);
     VSVulkanTransfer *vulkanTransfer(std::string &errorMessage);
     VSNode *wrapGPUBoundary(VSNode *node, bool toGPU, std::string &errorMessage);

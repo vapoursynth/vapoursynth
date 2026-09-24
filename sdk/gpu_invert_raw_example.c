@@ -94,9 +94,9 @@ typedef struct {
 
     /* The filter's own timeline: it signals rising values and publishes them as the producer
        pairs of the frames it writes. Counted and owned by the core, so releasing it in the
-       free callback is enough -- frames still carrying it as their producer hold their own
-       reference and keep the semaphore alive for exactly as long as they need it. The raw
-       handle is cached beside it for signalling and counter queries. */
+       free callback is enough -- every plane it was published on holds a reference of its own
+       until the plane is freed, which keeps the semaphore alive for as long as anything might
+       wait on it. The raw handle is cached beside it for signalling and counter queries. */
     VSGPUTimeline *timeline;
     VkSemaphore timelineSem;
     uint64_t nextValue;

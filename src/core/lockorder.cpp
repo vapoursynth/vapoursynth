@@ -13,7 +13,7 @@
 
 static const char *const lockNames[vsLockCount] = {
     "vulkanDeviceLock", "execPoolsMutex", "claimMutex", "queueLock",
-    "flushMutex", "allocatorMutex", "cacheLock", "cacheMutex", "logMutex"
+    "flushMutex", "allocatorMutex", "cacheLock", "cacheMutex", "logMutex", "handOffMutex"
 };
 
 const char *vsLockName(int id) {

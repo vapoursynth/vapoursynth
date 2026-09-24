@@ -470,11 +470,9 @@ public:
        only failing both the same object as computeQueue(), which keeps locking correct without
        the caller caring which case it is in. Published as vqTransfer in every case. */
     VSVulkanQueue &transferQueue() { return *transferPtr; }
-    /* The transfer queue is a queue of its own rather than the compute queue itself: the
-       transfer family's, or the compute family's second. */
-    bool hasDedicatedTransferQueue() const { return transferPtr != &computeQ; }
-    /* It belongs to a transfer family, which is what decides whether buffers must be shared
-       between two families; the compute family's second queue needs no sharing. */
+    /* Whether the transfer queue belongs to a transfer family, which is what decides whether
+       buffers must be shared between two families; the compute family's second queue needs no
+       sharing. */
     bool hasTransferFamily() const { return transferPtr == &transferQ; }
     bool hasSecondComputeQueue() const { return transferPtr == &computeQ2; }
     /* What decided the layout, for the device line: a transfer family set aside by
@@ -486,13 +484,19 @@ public:
        against 28 on one queue), otherwise the same object as transferQueue(). Internal to the
        core and never handed out. */
     VSVulkanQueue &downloadQueue() { return *downloadPtr; }
-    bool hasSeparateDownloadQueue() const { return downloadPtr != transferPtr; }
     /* Where planes a foreign API wrote are acquired back: a compute family queue nothing else
        submits to where the family has one to spare, since each acquire waits on foreign work and
        a queue does not start what was submitted behind a pending wait. Otherwise the same object
        as computeQueue(). Internal to the core and never handed out. */
     VSVulkanQueue &handoffQueue() { return *handoffPtr; }
     bool hasHandoffQueue() const { return handoffPtr == &handoffQ; }
+    /* Guards every plane's hand-off state (VSVulkanPlane::handOff) while a take-back moves it
+       from Foreign to Acquiring and on, and nothing else; the condition variable wakes take-backs
+       waiting for another's acquire of a plane they share. A leaf: held across the state changes
+       and the wait only, never across the acquire in between, since submitting runs release
+       callbacks, which the protocol promises run under no core lock. */
+    std::mutex &handOffMutex() { return handOffLock; }
+    std::condition_variable &handOffCv() { return handOffCond; }
     /* Testing hooks, called before create(). The limit caps how many compute family queues the
        core takes: 1 keeps transfers on the compute queue where there is no transfer family, as
        they were before they took a second compute queue, and hand-offs on it everywhere.
@@ -823,6 +827,8 @@ private:
     VSVulkanQueue *transferPtr = &computeQ;
     VSVulkanQueue *downloadPtr = &computeQ;
     VSVulkanQueue *handoffPtr = &computeQ;
+    std::mutex handOffLock;
+    std::condition_variable handOffCond;
     /* Every queue object, used or not; one never brought up has no progress timeline and is
        skipped by everything that walks this. */
     static constexpr size_t queueObjectCount = 5;
