@@ -20,6 +20,7 @@
 
 #ifdef VS_TARGET_CPU_X86
 
+#include <cstdio>
 #include <functional>
 #include <unordered_map>
 #include <vector>

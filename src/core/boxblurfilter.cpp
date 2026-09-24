@@ -20,8 +20,10 @@
 
 #include <memory>
 #include <algorithm>
+#include <exception>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 #include "internalfilters.h"
 #include "VSHelper4.h"

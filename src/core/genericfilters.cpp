@@ -24,10 +24,12 @@
 #include <cfloat>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include "VapourSynth4.h"
 #include "VSHelper4.h"

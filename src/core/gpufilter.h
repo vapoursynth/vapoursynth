@@ -46,6 +46,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace vsgpu {

@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <iterator>
+#include <utility>
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
 #include "VSConstants4.h"

@@ -28,6 +28,7 @@
 #include <regex>
 #include <algorithm>
 #include <bit>
+#include <utility>
 #include "VSHelper4.h"
 #include "VSConstants4.h"
 #include "cpufeatures.h"

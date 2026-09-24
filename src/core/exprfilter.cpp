@@ -20,12 +20,15 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 #include "VapourSynth4.h"
 #include "VSHelper4.h"

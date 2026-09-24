@@ -48,6 +48,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <string>

@@ -28,6 +28,7 @@
 #include <limits>
 #include <memory>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 #include <VapourSynth4.h>
 #include <VSHelper4.h>

@@ -19,11 +19,14 @@
 */
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <algorithm>
+#include <exception>
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <optional>
 #include <stdexcept>
 #include <string>

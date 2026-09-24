@@ -4037,9 +4037,9 @@ cdef class Plugin(object):
         tname = name.encode('utf-8')
         cdef const char *cname = tname
         cdef VSPluginFunction *func = NULL
-        # released gil: the lookup takes the plugin's function lock, which registerFunction holds
-        # while logging its API misuse errors, and the log handlers acquire the gil. A modifiable
-        # plugin registers at any time, so holding the gil here could wait on that thread's log.
+        # released gil, defensively: the lookup takes the plugin's function lock, and while nothing
+        # in the core waits on the gil under that lock (registerFunction logs after releasing it),
+        # this keeps a later change there from turning a lookup into the other half of a deadlock.
         with nogil:
             func = self.funcs.getPluginFunctionByName(cname, self.plugin)
 

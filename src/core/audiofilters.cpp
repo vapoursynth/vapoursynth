@@ -29,6 +29,7 @@
 #include <vector>
 #include <set>
 #include <atomic>
+#include <type_traits>
 #include "internalfilters.h"
 #include "VSHelper4.h"
 #include "filtershared.h"

@@ -22,6 +22,8 @@
 #define FILTERSHARED_H
 
 #include "VapourSynth4.h"
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <stdexcept>
 #include <string>

@@ -22,7 +22,6 @@
 #include <cassert>
 #include <charconv>
 #include <cmath>
-#include <iostream>
 #include <locale>
 #include <map>
 #include <memory>
@@ -33,6 +32,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 #include "VapourSynth4.h"
 #include "expr.h"

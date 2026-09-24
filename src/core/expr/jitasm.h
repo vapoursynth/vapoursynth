@@ -78,6 +78,8 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <iterator>
+#include <utility>
 #include <string.h>
 
 #if defined(JITASM_WIN)

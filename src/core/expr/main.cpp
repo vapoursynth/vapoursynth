@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <exception>
 #include <iomanip>
 #include <iostream>
 #include "VapourSynth4.h"

@@ -23,6 +23,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <utility>
 #include "expr.h"
 
 namespace expr {
