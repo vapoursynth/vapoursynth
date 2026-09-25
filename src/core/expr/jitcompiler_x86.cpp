@@ -328,6 +328,12 @@ do { \
             VEX2IMM(shufps, limit, limit, limit, 0);
             VEX2(minps, r1, t1.first, limit);
             VEX2(minps, r2, t1.second, limit);
+            if (!cpuFeatures.sse4_1 && depth >= 16) {
+                // the bias below wraps anything from about -2^31 down (cvtps2dq's 0x80000000
+                // included) around to 65535, so the lower bound goes on before converting
+                VEX2(maxps, r1, r1, zero);
+                VEX2(maxps, r2, r2, zero);
+            }
             VEX1(cvtps2dq, r1, r1);
             VEX1(cvtps2dq, r2, r2);
 
@@ -475,7 +481,7 @@ do { \
                 if (type == FMAType::FNMSUB) {
                     VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::negmask * 16]);
                     VEX2(xorps, t4.first, t4.first, r1);
-                    VEX2(xorps, t4.second, t4.second, r2);
+                    VEX2(xorps, t4.second, t4.second, r1);
                 }
             }
         });
@@ -627,12 +633,15 @@ do { \
                 VEX2IMM(blendvps, t4.first, t3.first, t2.first, r1);
                 VEX2IMM(blendvps, t4.second, t3.second, t2.second, r2);
             } else {
-                VEX2(andps, t4.first, t3.first, r1);
-                VEX2(andps, t4.second, t3.second, r2);
-                VEX2(andnps, r1, r1, t2.first);
-                VEX2(andnps, r2, r2, t2.second);
-                VEX2(orps, t4.first, t4.first, r1);
-                VEX2(orps, t4.second, t4.second, r2);
+                // true lanes from t2, false lanes from t3, as blendvps picks them; both are
+                // read before t4 is written, since t4 may reuse either one's register
+                XmmReg f1, f2;
+                VEX2(andnps, f1, r1, t3.first);
+                VEX2(andnps, f2, r2, t3.second);
+                VEX2(andps, r1, r1, t2.first);
+                VEX2(andps, r2, r2, t2.second);
+                VEX2(orps, t4.first, r1, f1);
+                VEX2(orps, t4.second, r2, f2);
             }
         });
     }

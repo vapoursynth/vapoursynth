@@ -827,12 +827,14 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
             lSamples = std::max<long>(static_cast<long>(ai->numSamples - lStart), 0);
 
         size_t bytesPerOutputSample = (ai->format.bitsPerSample + 7) / 8;
+        const int64_t blockAlign = static_cast<int64_t>(bytesPerOutputSample) * ai->format.numChannels;
 
-        LONG bytes = static_cast<LONG>(lSamples * bytesPerOutputSample * ai->format.numChannels);
-        if (lpBuffer && bytes > cbBuffer) {
-            lSamples = static_cast<LONG>(cbBuffer / (bytesPerOutputSample * ai->format.numChannels));
-            bytes = static_cast<LONG>(lSamples * bytesPerOutputSample * ai->format.numChannels);
-        }
+        int64_t samples = std::clamp<int64_t>(lSamples, 0, std::numeric_limits<LONG>::max() / blockAlign);
+        if (lpBuffer)
+            samples = std::min<int64_t>(samples, std::max<LONG>(cbBuffer, 0) / blockAlign);
+        lSamples = static_cast<LONG>(samples);
+        LONG bytes = static_cast<LONG>(samples * blockAlign);
+
         if (plBytes)
             *plBytes = bytes;
         if (plSamples)
@@ -843,7 +845,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         const VSAudioFormat &af = ai->format;
 
         int startFrame = lStart / VS_AUDIO_FRAME_SAMPLES;
-        int endFrame = (lStart + lSamples - 1) / VS_AUDIO_FRAME_SAMPLES;
+        int endFrame = static_cast<int>((static_cast<int64_t>(lStart) + lSamples - 1) / VS_AUDIO_FRAME_SAMPLES);
 
         std::vector<const uint8_t *> tmp;
         tmp.resize(ai->format.numChannels);

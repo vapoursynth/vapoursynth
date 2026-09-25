@@ -1297,6 +1297,25 @@ static std::string convolutionBody(const GenericData *d, bool isFloat, Convoluti
        it passes 2^24 -- an 11x11 matrix on a 16 bit clip gets there -- and the drift survives
        the shared rdiv/bias/round tail as an off by one against the scalar path. */
     std::string s = isFloat ? "    float accum = 0.0;\n" : "    int accum = 0;\n";
+
+    /* int32 is not always enough either: a large square at 16 bits sums to 121 * 1023 * 65535,
+       about 8.1e9, which is why conv_plane_square widens to int64 there, and a wrapped int32
+       turns the result into garbage. Where this matrix at this depth could overflow, the taps
+       go into int32 chunks that provably fit, and every chunk is split into its high and low
+       16 bits and those are summed separately. With at most 121 chunks both sums stay below
+       2^24, so each is exact as a float, and the one rounding of accHi * 65536 + accLo is
+       exactly the rounding of the int64 total the scalar path converts -- bit exact, with no
+       need for shaderInt64. */
+    const int64_t maxval = d->vi->format.sampleType == stInteger ? (static_cast<int64_t>(1) << d->vi->format.bitsPerSample) - 1 : 0;
+    const int64_t chunkLimit = std::numeric_limits<int32_t>::max();
+    int64_t bound = 0;
+    for (int i = 0; i < n; i++)
+        bound += std::abs(static_cast<int64_t>(d->matrix[i])) * maxval;
+    const bool split = !isFloat && bound > chunkLimit;
+    if (split)
+        s += "    int accHi = 0, accLo = 0;\n";
+    int64_t chunk = 0;
+
     for (int i = 0; i < n; i++) {
         /* Integer coefficients are the rounded values the scalar path stores as int16. */
         const float c = isFloat ? d->matrixf[i] : static_cast<float>(d->matrix[i]);
@@ -1311,6 +1330,14 @@ static std::string convolutionBody(const GenericData *d, bool isFloat, Convoluti
         } else {
             dx = 0; dy = i - radius;
         }
+        if (split) {
+            const int64_t tapBound = std::abs(static_cast<int64_t>(d->matrix[i])) * maxval;
+            if (chunk + tapBound > chunkLimit) {
+                s += "    accHi += accum >> 16; accLo += accum & 0xFFFF; accum = 0;\n";
+                chunk = 0;
+            }
+            chunk += tapBound;
+        }
         char buf[160];
         if (isFloat)
             snprintf(buf, sizeof(buf), "    accum += (%.9g) * float(%s(x + %d, y + %d));\n", c, fetch, dx, dy);
@@ -1318,8 +1345,13 @@ static std::string convolutionBody(const GenericData *d, bool isFloat, Convoluti
             snprintf(buf, sizeof(buf), "    accum += (%d) * int(%s(x + %d, y + %d));\n", d->matrix[i], fetch, dx, dy);
         s += buf;
     }
-    s += "    float tmp = float(accum) * pc.f[2] + pc.f[3];\n"
-         "    if (pc.u[3] == 0u) tmp = abs(tmp);\n";
+    if (split)
+        s += "    accHi += accum >> 16; accLo += accum & 0xFFFF;\n"
+             "    precise float total = float(accHi) * 65536.0 + float(accLo);\n"
+             "    float tmp = total * pc.f[2] + pc.f[3];\n";
+    else
+        s += "    float tmp = float(accum) * pc.f[2] + pc.f[3];\n";
+    s += "    if (pc.u[3] == 0u) tmp = abs(tmp);\n";
     s += isFloat ? "    STORE(tmp);" : roundStoreInt;
     return s;
 }
