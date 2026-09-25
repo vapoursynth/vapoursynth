@@ -473,16 +473,20 @@ void VSVulkanDevice::teardown() {
     physicalDeviceHandle = VK_NULL_HANDLE;
 }
 
-void VSVulkanDevice::emitLog(int severity, const std::string &message) const {
-    /* Counted across the whole call, before the pair is even read, so onCoreFreed can drain
-       readers holding a core pointer it has already retracted; see logReaders there. */
-    CallbackReader reader(logReaders);
-    /* userData before the function, mirroring the writers' opposite order, so seeing a
+bool VSVulkanDevice::emitLog(int severity, const std::string &message) const {
+    /* userData before the function, mirroring the writer's opposite order, so seeing a
        function guarantees the userData loaded with it is the matching one. */
     void *userData = logUserData.load();
     VSVulkanLogFn fn = logFn.load();
-    if (fn)
-        fn(severity, message.c_str(), userData);
+    if (!fn)
+        return false;
+    fn(severity, message.c_str(), userData);
+    return true;
+}
+
+void VSVulkanDevice::warnDuringCreate(const char *message) {
+    setupWarnings.emplace_back(message);
+    emitLog(VS_VK_LOG_WARNING, setupWarnings.back());
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VSVulkanDevice::debugMessengerTrampoline(
@@ -494,7 +498,12 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VSVulkanDevice::debugMessengerTrampoline(
         mapped = VS_VK_LOG_ERROR;
     else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
         mapped = VS_VK_LOG_WARNING;
-    self->emitLog(mapped, (callbackData && callbackData->pMessage) ? callbackData->pMessage : "");
+    const char *message = (callbackData && callbackData->pMessage) ? callbackData->pMessage : "";
+    /* stderr unless somebody collects them, and the core does not; see setLogCallback. One
+       fprintf per message keeps reports from several threads whole lines. */
+    if (!self->emitLog(mapped, message))
+        std::fprintf(stderr, "Vulkan %s: %s\n",
+            mapped == VS_VK_LOG_ERROR ? "error" : (mapped == VS_VK_LOG_WARNING ? "warning" : "info"), message);
     /* Never abort the offending call; that choice belongs to the validation layer settings. */
     return VK_FALSE;
 }
@@ -523,7 +532,7 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         if (instanceLayerAvailable(vk, "VK_LAYER_KHRONOS_validation")) {
             layers[layerCount++] = "VK_LAYER_KHRONOS_validation";
         } else {
-            emitLog(VS_VK_LOG_WARNING, "Vulkan validation requested but VK_LAYER_KHRONOS_validation is not installed");
+            warnDuringCreate("Vulkan validation requested but VK_LAYER_KHRONOS_validation is not installed");
         }
     }
 
@@ -557,7 +566,7 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         mci.pUserData = this;
         if (vk.vkCreateDebugUtilsMessengerEXT(instanceHandle, &mci, nullptr, &messenger) != VK_SUCCESS) {
             messenger = VK_NULL_HANDLE;
-            emitLog(VS_VK_LOG_WARNING, "Failed to create the Vulkan debug messenger, validation output will be lost");
+            warnDuringCreate("Failed to create the Vulkan debug messenger, validation output will be lost");
         }
     }
 

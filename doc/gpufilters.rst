@@ -125,8 +125,10 @@ Environment variables
 
 ``VS_VULKAN_VALIDATION``
    When set, the Khronos validation layer is enabled on core created devices
-   (if installed) and its messages go to the core's log. Development tool;
-   costs performance.
+   (if installed) and its messages are written to stderr. They bypass the
+   core's log because they arrive from inside driver calls, where log handlers
+   cannot safely run. A warning in the log says so if the layer is not
+   installed. Development tool; costs performance.
 
 ``VS_VULKAN_MAX_VRAM_MB``
    Overrides the default VRAM limit, mainly for exercising the pressure paths

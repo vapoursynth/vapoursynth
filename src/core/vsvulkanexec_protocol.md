@@ -104,24 +104,27 @@ reports. One of the seven has since been narrowed on purpose: `vulkanDeviceLock`
 `logMutex` existed because bring-up logged the device line under the lock, and L16 in
 `linux_tests.md` showed that deadlocks a log handler that re-enters the core on the same thread.
 The device line and the failure warning are logged after the guard now, and the expected list
-has six edges. The edge is not gone entirely: the log bridge is installed before
-`VSVulkanDevice::create` runs under the lock, so what `create` reports itself -- a validation
-layer requested but missing, a debug messenger that could not be created, and every validation
-or driver message raised during creation -- still reaches `logMutex` under `vulkanDeviceLock`.
-With validation off `create` reports nothing, which is why the runs saw six; a run with
-validation on records the seventh. Re-measured 2026-09-23 on Windows, on both GPUs and in every
-queue layout, with `handOffLock` added: the same six edges, and nothing held at any boundary. It
-is worth keeping alongside ThreadSanitizer rather than instead of it -- TSan reports a pair only
-once it has seen it taken in both orders, so it needs the bad interleaving to occur, while this
-records every edge the first time it happens and so catches a newly added one whether or not
-anything ever inverts it.
+has six edges. Since 2026-09-25 that holds with validation on as well. The core installs no log
+callback on its device, so the debug messenger writes validation and driver messages to stderr
+from wherever the driver raises them, and the two warnings `create` raises itself -- a validation
+layer requested but missing, a debug messenger that could not be created -- are handed back and
+logged after the guard like the device line. Before that, everything `create` reported reached
+`logMutex` under `vulkanDeviceLock`, so a run with validation on recorded the seventh edge;
+measured on Windows with the layer hidden, the missing-layer warning did, and a Python handler
+that read the device info from it failed fast on the recursive lock (L16). Re-measured
+2026-09-23 on Windows, on both GPUs and in every queue layout, with `handOffLock` added: the same
+six edges, and nothing held at any boundary. It is worth keeping alongside ThreadSanitizer rather
+than instead of it -- TSan reports a pair only once it has seen it taken in both orders, so it
+needs the bad interleaving to occur, while this records every edge the first time it happens and
+so catches a newly added one whether or not anything ever inverts it.
 
-What remains of `vulkanDeviceLock` before `logMutex` costs nothing inside the core and is
-written down for what it means outside it: `logMessage` dispatches to handlers, and the Python
-handler takes the GIL, so a lock held across a log call is one a Python binding may not block on
-while holding the GIL. That reversal on this very lock once froze the whole interpreter, which
-is why the Vulkan bindings in `vapoursynth.pyx` release the GIL around every call that can reach
-device creation.
+Nothing in the core logs while holding any other lock in this table, and that is written down
+for what it means outside the core: `logMessage` dispatches to handlers, and the Python handler
+takes the GIL, so a lock held across a log call is one a Python binding may not block on while
+holding the GIL. That reversal on `vulkanDeviceLock` once froze the whole interpreter. It is also
+why the debug messenger writes to stderr rather than the log: it runs inside driver calls, under
+whichever of these locks the caller holds. The Vulkan bindings in `vapoursynth.pyx` still release
+the GIL around device creation, for latency now rather than to avoid a deadlock.
 
 The queue lock is a leaf and has to stay one (I28), because it is the one lock in this table a
 plugin holds: `lockVulkanQueue` hands it out for raw submissions. `detachCompleted` used to take

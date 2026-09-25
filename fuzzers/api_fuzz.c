@@ -15,8 +15,9 @@
    I29 under random load. Every call must still return, the loss must be reported to at least
    one call, retentions must still balance after the drains, and teardown must complete.
    Refusals carrying the device-lost message are then expected and counted, not failures.
-   A core log handler counts messages by level, which is also the oracle when the run is made
-   with VS_VULKAN_VALIDATION=1: validation messages arrive through the core log.
+   A core log handler counts messages by level. Validation messages do not arrive there: under
+   VS_VULKAN_VALIDATION=1 the core writes them to stderr, and the recipe's settings file also has
+   the layer write its own log, which is the oracle.
 
    Passes when every thread finishes its run, every retention it made was released exactly once
    after the drains, and teardown completes. Print the seed on failure: it reproduces the run.

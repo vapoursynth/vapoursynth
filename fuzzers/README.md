@@ -17,8 +17,9 @@ Two more modes are worth a run after any change to the GPU core: `api_fuzz 40 <s
 injects an infinite dispatch 20 s in and measures the reset under random load (one GPU reset;
 run it from a TTY as section 3 describes, and reboot rather than suspend afterwards), and both
 fuzzers with `VS_VULKAN_VALIDATION=1 VK_LAYER_SETTINGS_PATH=linux_tests/vk_layer_settings.txt`
-put the validation layer with synchronization validation under them; the C fuzzer reports the
-core log by level, which is where validation messages arrive. The layer keeps one descriptor per
+put the validation layer with synchronization validation under them. Its messages go to stderr,
+not to the core log the C fuzzer reports by level, and the settings file also has the layer write
+them to `/tmp/vk_validation.log`, which should stay empty. The layer keeps one descriptor per
 instance open until exit; the fuzzer's descriptor count excludes those and names the rest.
 `linux_tests/run_all.sh` runs both, and `check_lock_order.sh` runs the C one under the lock-order
 instrumentation.

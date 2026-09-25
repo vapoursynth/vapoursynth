@@ -85,7 +85,8 @@ will have the only the array itself returned and an array with a single value wi
 
 Similarly function arguments are first converted to the appropriate type specified by the function's argument string or fails if this isn't possible.
 There is however one quirk where the data type's type hint (utf-8/non-printable raw data) is set based on whether a *str* or a *bytes*/*bytearray*
-object is passed. Likewise a *str* object will be returned for all utf-8 hinted data and a bytes object for all other types.
+object is passed. Likewise a *str* object will be returned for all utf-8 hinted data and a bytes object for all other types,
+as well as for utf-8 hinted data that isn't actually valid utf-8.
 
 Frame properties and "anything goes" function arguments have much stricter type requirements since the underlying type has to be possible to deduce from them.
 When using this type of functions, such as SetFrameProps, or property assignment it may be necessary to convert to int, float, str or bytes explicitly

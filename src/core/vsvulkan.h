@@ -398,10 +398,14 @@ public:
     /* Every Vulkan call goes through here, as dev->vk.vkCmdDispatch(...). */
     const VSVulkanFunctions &vk;
 
-    /* Must be set before create() for validation and driver messages to go anywhere. The
-       pair is atomics so onCoreFreed can retract it while driver threads may still emit:
-       userData is written first and read last, so any reader that observes a function also
-       observes the userData that belongs to it. */
+    /* Optional; set it before create() to receive the validation and driver messages. Without
+       one the debug messenger writes them to stderr, and the core installs none on purpose: the
+       messenger runs inside driver calls, on whichever thread made the call and under whatever
+       GPU locks it holds, so what it calls must never block on another thread -- a log handler
+       taking the GIL did, and deadlocked against a binding waiting on those locks (section 2 of
+       vsvulkanexec_protocol.md). The pair is atomics because driver threads read it
+       concurrently: userData is written first and read last, so any reader that observes a
+       function also observes the userData that belongs to it. */
     void setLogCallback(VSVulkanLogFn callback, void *userData) {
         logUserData.store(userData);
         logFn.store(callback);
@@ -410,9 +414,19 @@ public:
     /* Opens the platform loader, creates an instance and picks a physical device: the given index
        into the enumeration order, or with -1 the first suitable discrete GPU falling back to any
        suitable device. enableValidation asks for the Khronos validation layer and a debug
-       messenger routed to the log callback, degrading with a warning when the layer is not
-       installed since it is a development tool that may legitimately be absent. */
+       messenger routed to the log callback (or stderr, see setLogCallback), degrading with a
+       warning when the layer is not installed since it is a development tool that may
+       legitimately be absent. That warning, and the one for a messenger that could not be
+       created, are also kept for takeSetupWarnings, for an owner that calls this under a lock
+       and so has to report them after releasing it. */
     bool create(int physicalDeviceIndex, bool enableValidation, std::string &errorMessage);
+
+    /* What create() warned about itself, handed over once. */
+    std::vector<std::string> takeSetupWarnings() {
+        std::vector<std::string> taken;
+        taken.swap(setupWarnings);
+        return taken;
+    }
 
     /* Lists every physical device the loader can see, usable or not, for frontends that let the
        user pick. Self-contained: uses its own temporary instance. */
@@ -438,25 +452,8 @@ public:
     /* Called from the core destructor only, after every pool and the transfer machinery are
        gone, so every submission on a pool's timeline has completed by now. Surviving planes
        still wait their producer at destruction, before and after this alike: the timeline a
-       plane names is counted and alive for as long as the plane holds it (invariant I24). Log
-       routing points into the core and is dropped here; teardown messages after this go
-       nowhere. */
+       plane names is counted and alive for as long as the plane holds it (invariant I24). */
     void onCoreFreed() {
-        /* Function first, then its context: a reader that still saw the function cannot have
-           seen the context nulled yet, so the pair it calls with is always consistent. */
-        logFn.store(nullptr);
-        logUserData.store(nullptr);
-        /* Consistent is not the same as alive, which is what this waits for. Retracting stops
-           readers that have not started; one that already loaded the pair holds a pointer to
-           the core and calls through it whenever it next runs, which may be after this core is
-           gone. Sequential consistency puts all of these in one order, so a reader that counts
-           itself in after the store above loads a null function and calls nothing, while one
-           that counted itself in before is seen here and waited for -- and no call can still be
-           in flight when this returns. The wait is bounded by the log handler, which for the
-           Python one takes the GIL, so a binding must not hold the GIL across freeCore;
-           vapoursynth.pyx does not. Only the debug messenger reaches emitLog concurrently, and
-           it exists only under VS_VULKAN_VALIDATION, so this drains nothing in a normal run. */
-        drainCallbacks(logReaders);
         release();
     }
 
@@ -739,20 +736,20 @@ public:
        by the core before teardown, since the device may outlive it. */
     typedef void (*VSVulkanPressureFn)(void *userData);
     void setPressureCallback(VSVulkanPressureFn callback, void *userData) {
-        /* The same discipline as the log pair, for the same retraction: install stores the
-           function last and clearing stores it first, so a reader that observed a function
-           always loads the userData that belongs to it. */
+        /* Install stores the function last and clearing stores it first, so a reader that
+           observed a function always loads the userData that belongs to it. */
         if (callback) {
             pressureUserData.store(userData);
             pressureFn.store(callback);
         } else {
             pressureFn.store(nullptr);
             pressureUserData.store(nullptr);
-            /* And the same drain, for the same reason, which matters more here than it does
-               there: this pair is read from the allocation ladder, on any thread that allocates
-               GPU memory, where the log pair is only reachable through the debug messenger. A
-               reader that took the pair before the stores above is holding a pointer to the
-               core that is about to be destroyed. */
+            /* Consistent is not the same as alive, which is what this waits for: the pair is
+               read from the allocation ladder, on any thread that allocates GPU memory, and a
+               reader that took it before the stores above is holding a pointer to the core that
+               is about to be destroyed. Sequential consistency puts the stores and the counting
+               in one order, so a reader that counts itself in after them loads a null function
+               and calls nothing, while one that counted itself in before is waited for here. */
             drainCallbacks(pressureReaders);
         }
     }
@@ -806,7 +803,9 @@ private:
     }
 
     void teardown();
-    void emitLog(int severity, const std::string &message) const;
+    /* False when no log callback is set. */
+    bool emitLog(int severity, const std::string &message) const;
+    void warnDuringCreate(const char *message);
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugMessengerTrampoline(
         VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT types,
         const VkDebugUtilsMessengerCallbackDataEXT *callbackData, void *userData);
@@ -869,15 +868,15 @@ private:
     bool luidValid = false;
     std::atomic<VSVulkanLogFn> logFn{nullptr};
     std::atomic<void *> logUserData{nullptr};
-    /* Readers currently inside a callback out to the core, so the retraction of each pair can
-       wait out the ones that captured it first. Mutable because emitLog is const.
+    /* Written by create() alone; see takeSetupWarnings. */
+    std::vector<std::string> setupWarnings;
+    /* Readers currently inside the pressure callback, so its retraction can wait out the ones
+       that captured the pair first.
 
        Scoped rather than counted by hand: the count has to come back even if the callback
-       throws -- vulkanLogBridge builds a std::string and then walks handlers a plugin wrote,
-       either of which can -- because the drain below spins on it, so a count left behind is not
-       a leak but a hang, which is worse than the race the counting exists to close. */
-    mutable std::atomic<int> logReaders{0};
-    mutable std::atomic<int> pressureReaders{0};
+       throws, because the drain spins on it, so a count left behind is not a leak but a hang,
+       which is worse than the race the counting exists to close. */
+    std::atomic<int> pressureReaders{0};
     VSVulkanAccountFn accountFn = nullptr;
     VSVulkanAccountFn hostAccountFn = nullptr;
     VSVulkanAccountFn callAccountFn = nullptr;

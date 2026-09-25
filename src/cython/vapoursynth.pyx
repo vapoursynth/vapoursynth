@@ -483,7 +483,9 @@ cdef void _unset_logger(EnvironmentData env):
 
 cdef void __stdcall _logCb(int msgType, const char *msg, void *userData) noexcept nogil:
     with gil:
-        message = msg.decode("utf-8")
+        # backslashreplace, like every error text taken from the core: a plugin message in
+        # the local 8 bit code page must still arrive rather than raise here
+        message = msg.decode("utf-8", "backslashreplace")
         (<object>userData)(msgType, message)
 
 cdef void __stdcall _logFree(void* userData) noexcept nogil:
@@ -1226,7 +1228,7 @@ cdef class Func(object):
                 funcs.callFunction(ref, inm, outm)
             error = funcs.mapGetError(outm)
             if error:
-                msg_str = error.decode('utf-8')
+                msg_str = error.decode('utf-8', 'backslashreplace')
                 env = _env_current()
                 py_exc = env.retrieve_exception(msg_str) if env is not None else None
                 raise py_exc or Error(msg_str)
@@ -1353,9 +1355,8 @@ cdef class FramePtr(object):
         cdef const VSFrame *f = self.f
         cdef const VSAPI *funcs = self.funcs
         if funcs:
-            # See RawFrame.close: the free reaches the GPU allocator, which must never be
-            # entered holding the GIL. Nothing else can reach this object at dealloc, so no
-            # detaching is needed.
+            # Released for the reason RawFrame.close gives. Nothing else can reach this object
+            # at dealloc, so no detaching is needed.
             with nogil:
                 funcs.freeFrame(f)
 
@@ -1400,22 +1401,28 @@ cdef void frameDoneImpl(void *data, const VSFrame *f, int n, VSNode *node, const
         _enter_frame_callback(caller_env, ident)
 
     try:
-        if d.node.node == NULL or d.node.core is None:
-            if f != NULL:
-                # Freeing a frame reaches the GPU allocator, which must not be entered
-                # holding the GIL: see RawFrame.close. Inline rather than deferred to the end
-                # of the call, where anything raising in the finally would skip it.
-                with nogil:
-                    d.funcs.freeFrame(f)
-            error = Error("Use of invalidated VideoNode (the environment has been destroyed).")
-        elif f == NULL:
-            error_str = 'Internal error - no error message.'
-            if errormsg != NULL:
-                error_str = errormsg.decode('utf-8')
-            py_exc = d.env.retrieve_exception(error_str) if d.env is not None else None
-            error = py_exc or Error(error_str)
-        else:
-            result = createConstFrame(f, d.funcs, d.node.core.core, d.env)
+        try:
+            if d.node.node == NULL or d.node.core is None:
+                if f != NULL:
+                    # Released for the reason RawFrame.close gives. Inline rather than deferred
+                    # to the end of the call, where anything raising in the finally would skip it.
+                    with nogil:
+                        d.funcs.freeFrame(f)
+                error = Error("Use of invalidated VideoNode (the environment has been destroyed).")
+            elif f == NULL:
+                error_str = 'Internal error - no error message.'
+                if errormsg != NULL:
+                    error_str = errormsg.decode('utf-8', 'backslashreplace')
+                py_exc = d.env.retrieve_exception(error_str) if d.env is not None else None
+                error = py_exc or Error(error_str)
+            else:
+                result = createConstFrame(f, d.funcs, d.node.core.core, d.env)
+        except BaseException as e:
+            # Whatever went wrong building the answer is the answer. The callback is the only
+            # thing that settles get_frame_async's future and wakes frames(), so an exception
+            # here that skipped it would leave them waiting forever.
+            result = None
+            error = e
 
         try:
             if d.caller_env is not None:
@@ -1479,7 +1486,12 @@ cdef object mapToDict(const VSMap *map, bint flatten, Core core = None):
             elif proptype == ptData:
                 newval = funcs.mapGetData(map, retkey, y, NULL)[:funcs.mapGetDataSize(map, retkey, y, NULL)]
                 if funcs.mapGetDataTypeHint(map, retkey, y, NULL) == dtUtf8:
-                    newval = newval.decode('utf-8')
+                    try:
+                        newval = newval.decode('utf-8')
+                    except UnicodeDecodeError:
+                        # tagged as text but not valid utf-8: the bytes as they are, the way
+                        # an untagged value comes back, rather than an unreadable map
+                        pass
             elif proptype == ptVideoNode or proptype == ptAudioNode:
                 # the wrapper belongs to the core the node lives in, the caller's when it
                 # is known; resolved before the reference is taken, since without a
@@ -1777,7 +1789,10 @@ cdef class FrameProps(object):
                 data = self.funcs.mapGetData(m, b, i, NULL)
                 aval = data[:self.funcs.mapGetDataSize(m, b, i, NULL)]
                 if self.funcs.mapGetDataTypeHint(m, b, i, NULL) == dtUtf8:
-                    aval = aval.decode('utf-8')
+                    try:
+                        aval = aval.decode('utf-8')
+                    except UnicodeDecodeError:
+                        pass  # not valid utf-8 despite the tag: bytes, as in mapToDict
                 ol.append(aval)
         elif t == ptVideoNode or t == ptAudioNode:
             core = _get_core()
@@ -2063,11 +2078,11 @@ cdef class RawFrame(object):
         self.constf = NULL
         if funcs:
             # Freeing a GPU resident frame destroys its planes, which returns their regions
-            # through the allocator's mutex. A Vulkan diagnostic raised while that mutex is
-            # held travels to the core's log handlers, and the Python one takes the GIL -- so
-            # holding the GIL across this free is the other half of a cycle. The core cannot
-            # close it from its side: the allocator's mutex has to cover the driver call it
-            # guards. Every freeFrame in this file releases the GIL for that reason.
+            # through the allocator's mutex, and GPU work holds that mutex across driver calls,
+            # so the free can wait. Every freeFrame in this file releases the GIL rather than
+            # stall the other Python threads meanwhile. It no longer guards against a deadlock:
+            # that needed a log call under the mutex, and the Vulkan validation messages that
+            # were one go to stderr now.
             with nogil:
                 funcs.freeFrame(f)
 
@@ -2590,7 +2605,7 @@ cdef class RawNode(object):
 
             if f == NULL:
                 if (errorMsg[0]):
-                    msg_str = ep.decode('utf-8')
+                    msg_str = ep.decode('utf-8', 'backslashreplace')
                     py_exc = env.retrieve_exception(msg_str) if env is not None else None
                     raise py_exc or Error(msg_str)
                 else:
@@ -2767,7 +2782,11 @@ cdef class RawNode(object):
 
     def clear_cache(self):
         self.ensure_valid()
-        self.funcs.clearNodeCache(self.node)
+        # Clearing the cache releases the frames it held, which for a GPU node reaches the
+        # GPU allocator's mutex exactly as freeing a frame does, so the GIL goes for the reason
+        # RawFrame.close gives.
+        with nogil:
+            self.funcs.clearNodeCache(self.node)
 
     # Inspect API
     cdef bint _inspectable(self):
@@ -2880,7 +2899,7 @@ cdef class RawNode(object):
         # Freeing a node is a heavier version of freeing a frame: it clears the node's cache,
         # so it reaches the GPU allocator's mutex the same way, and it runs the filter's free
         # callback, which for a GPU filter drains the exec pool -- an unbounded host wait on
-        # the GPU. Neither belongs under the GIL; see RawFrame.close for the cycle.
+        # the GPU. Neither belongs under the GIL; see RawFrame.close.
         cdef VSNode *n = self.node
         cdef const VSAPI *funcs = self.funcs
         self.node = NULL
@@ -3515,7 +3534,7 @@ cdef LogHandle createLogHandle(object handler_func):
 
 cdef void __stdcall log_handler_wrapper(int msgType, const char *msg, void *userData) noexcept nogil:
     with gil:
-        (<LogHandle>userData).handler_func(msgType, msg.decode('utf-8'))
+        (<LogHandle>userData).handler_func(msgType, msg.decode('utf-8', 'backslashreplace'))
 
 cdef void __stdcall log_handler_free(void *userData) noexcept nogil:
     with gil:
@@ -3602,7 +3621,10 @@ cdef class Core(object):
     @num_threads.setter
     def num_threads(self, int value):
         self.ensure_valid()
-        self.funcs.setThreadCount(value, self.core)
+        # released gil, same reason as log_message: setThreadCount can log a warning, and the log
+        # api dispatches to handlers that acquire the gil
+        with nogil:
+            self.funcs.setThreadCount(value, self.core)
 
     @property
     def max_cache_size(self):
@@ -3635,14 +3657,14 @@ cdef class Core(object):
         cdef const VSVULKANAPI *vk = self.funcs.getVulkanAPI()
         cdef char err[512]
         cdef int failed
-        # released gil, same reason as log_message: this creates the device, which logs every
-        # driver and validation message raised during creation while holding vulkanDeviceLock,
-        # and the log handlers acquire the gil. Holding it here deadlocks against any thread
-        # already inside device creation, and makes this call the one that starves it.
+        # released gil: creating the device takes long enough that the other Python threads
+        # should not wait on it, nor while this waits for a thread that got there first. It no
+        # longer guards against a deadlock: nothing is logged under vulkanDeviceLock now, and
+        # validation and driver messages go to stderr.
         with nogil:
             failed = vk.setVulkanDevice(self.core, index, err, 512)
         if failed:
-            raise Error(err.decode('utf-8'))
+            raise Error(err.decode('utf-8', 'backslashreplace'))
 
     @property
     def max_vram_cache_size(self):
@@ -3678,7 +3700,7 @@ cdef class Core(object):
         with nogil:
             count = vk.enumerateVulkanDevices(NULL, 0, err, 512)
         if count < 0:
-            raise Error(err.decode('utf-8'))
+            raise Error(err.decode('utf-8', 'backslashreplace'))
         if count == 0:
             return []
         cdef VSVulkanDeviceListEntry *entries = <VSVulkanDeviceListEntry *> malloc(count * sizeof(VSVulkanDeviceListEntry))
@@ -3691,7 +3713,7 @@ cdef class Core(object):
             with nogil:
                 fetched = vk.enumerateVulkanDevices(entries, count, err, 512)
             if fetched < 0:
-                raise Error(err.decode('utf-8'))
+                raise Error(err.decode('utf-8', 'backslashreplace'))
             for i in range(min(count, fetched)):
                 result.append({
                     'index': i,
@@ -3715,14 +3737,12 @@ cdef class Core(object):
         cdef VSVulkanCoreInfo info
         cdef char err[512]
         cdef int failed
-        # released gil: this initializes the device on first access, so it can be the thread
-        # holding vulkanDeviceLock and logging under it; and when another thread got there
-        # first it waits for that lock, which must not be done while holding the gil that
-        # thread's log handler is trying to acquire.
+        # released gil: this initializes the device on first access, or waits for the thread
+        # doing so; see set_vulkan_device.
         with nogil:
             failed = vk.getVulkanCoreInfo(self.core, &info, err, 512)
         if failed:
-            raise Error(err.decode('utf-8'))
+            raise Error(err.decode('utf-8', 'backslashreplace'))
         return { 'name': (<bytes>(<char *>info.deviceName)).decode('utf-8'),
                  'device_memory': info.deviceMemory, 'budget': info.budget,
                  'allocated': info.allocated, 'limit': info.limit,
@@ -3825,7 +3845,11 @@ cdef class Core(object):
 
     def clear_cache(self):
         self.ensure_valid()
-        self.funcs.clearCoreCaches(self.core)
+        # Frees every cached frame and then hands idle GPU memory back to the driver
+        # (releaseGPUMemory), all through the GPU allocator's mutex, so the GIL goes for the
+        # reason RawFrame.close gives.
+        with nogil:
+            self.funcs.clearCoreCaches(self.core)
 
     @property
     def core_version(self):
@@ -4245,7 +4269,7 @@ cdef class Function(object):
         if err:
             emsg = err
             self.funcs.freeMap(outm)
-            msg_str = emsg.decode('utf-8')
+            msg_str = emsg.decode('utf-8', 'backslashreplace')
             env = _env_current()
             py_exc = env.retrieve_exception(msg_str) if env is not None else None
             raise py_exc or Error(msg_str)

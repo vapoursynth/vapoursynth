@@ -1627,20 +1627,12 @@ void VSCore::logMessage(VSMessageType type, const std::string &msg) {
     std::terminate();
 }
 
-static void vulkanLogBridge(int severity, const char *message, void *userData) {
-    VSCore *core = static_cast<VSCore *>(userData);
-    VSMessageType type = mtInformation;
-    if (severity == VS_VK_LOG_ERROR)
-        type = mtCritical;
-    else if (severity == VS_VK_LOG_WARNING)
-        type = mtWarning;
-    core->logMessage(type, message);
-}
-
-bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine) {
+bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine, std::vector<std::string> &warnings) {
     vulkanDeviceTried = true;
+    /* No log callback, so validation and driver messages go to stderr: they are raised inside
+       driver calls, often under the GPU locks, where a log handler must not run. See section 2
+       of vsvulkanexec_protocol.md. */
     auto dev = std::make_unique<VSVulkanDevice>();
-    dev->setLogCallback(vulkanLogBridge, this);
     /* Where there is no transfer family, transfers take the compute family's second queue. The
        first switch keeps them on the compute queue, as before, so the two can be measured against
        each other; the second pretends there is no transfer family, so that layout can be
@@ -1653,8 +1645,12 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine) 
        uploads can be measured against staged ones on the driver where the two differ. */
     if (std::getenv("VS_VULKAN_EXPORTABLE_UPLOADS"))
         dev->setExportableUploads(true);
-    /* Validation is a development switch, so an environment variable rather than API surface. */
-    if (!dev->create(deviceIndex, std::getenv("VS_VULKAN_VALIDATION") != nullptr, vulkanDeviceError))
+    /* Validation is a development switch, so an environment variable rather than API surface.
+       What create warns about itself goes back to the caller, which logs it once this lock is
+       released, like the device line. */
+    bool deviceUp = dev->create(deviceIndex, std::getenv("VS_VULKAN_VALIDATION") != nullptr, vulkanDeviceError);
+    warnings = dev->takeSetupWarnings();
+    if (!deviceUp)
         return false;
 
     /* VRAM flows into the same MemoryUse as host memory, wired before the first allocation
@@ -1825,21 +1821,23 @@ VSNode *VSCore::wrapGPUBoundary(VSNode *node, bool toGPU, std::string &errorMess
 
 VSVulkanDevice *VSCore::vulkanDevice(std::string &errorMessage) {
     std::string deviceLine, failure;
+    std::vector<std::string> warnings;
     VSVulkanDevice *dev = nullptr;
     {
         std::lock_guard<std::mutex> lock(vulkanDeviceLock);
         VS_LOCK_HELD(vsLockVulkanDevice);
-        if (!vulkanDeviceTried && !createVulkanDeviceLocked(-1, deviceLine))
+        if (!vulkanDeviceTried && !createVulkanDeviceLocked(-1, deviceLine, warnings))
             failure = "Vulkan device creation failed: " + vulkanDeviceError;
         dev = vulkanDev;
         if (!dev)
             errorMessage = vulkanDeviceError;
     }
-    /* Both logged outside the lock. logMutex runs code the core did not write, and a handler
-       that re-entered here while the lock was held deadlocked on the mutex above (L16). What
-       VSVulkanDevice::create reports itself -- validation and driver messages raised during
-       creation -- still arrives under the lock, through the log bridge; see section 2 of
-       vsvulkanexec_protocol.md. */
+    /* All logged outside the lock, and nothing is logged under it. logMutex runs code the core
+       did not write, and a handler that re-entered here while the lock was held deadlocked on
+       the mutex above (L16). Validation and driver messages raised during creation go to stderr
+       instead; see section 2 of vsvulkanexec_protocol.md. */
+    for (const auto &warning : warnings)
+        logMessage(mtWarning, warning);
     if (!failure.empty())
         logMessage(mtWarning, failure);
     if (!deviceLine.empty())
@@ -1849,6 +1847,7 @@ VSVulkanDevice *VSCore::vulkanDevice(std::string &errorMessage) {
 
 bool VSCore::setVulkanDevice(int deviceIndex, std::string &errorMessage) {
     std::string deviceLine;
+    std::vector<std::string> warnings;
     bool created = false;
     {
         std::lock_guard<std::mutex> lock(vulkanDeviceLock);
@@ -1858,12 +1857,15 @@ bool VSCore::setVulkanDevice(int deviceIndex, std::string &errorMessage) {
                 : "Vulkan device creation already failed: " + vulkanDeviceError;
             return false;
         }
-        created = createVulkanDeviceLocked(deviceIndex, deviceLine);
+        created = createVulkanDeviceLocked(deviceIndex, deviceLine, warnings);
         if (!created)
             errorMessage = vulkanDeviceError;
     }
+    /* Outside the lock, for the reason vulkanDevice gives. */
+    for (const auto &warning : warnings)
+        logMessage(mtWarning, warning);
     if (!deviceLine.empty())
-        logMessage(mtInformation, deviceLine); /* outside the lock, for the reason vulkanDevice gives */
+        logMessage(mtInformation, deviceLine);
     return created;
 }
 
