@@ -5,6 +5,7 @@ fixed access violation in matroska muxer
 fixed missing includes in anticipation of libc++ 23 insanity
 logging is now much less likely to create deadlocks
 requests for negative frame numbers are now simply clamped unlike before where it was a fatal error to request negative frame numbers
+setmaxcpu no longer accepts random strings
 
 r80:
 gpu support using the vulkan 1.4 api

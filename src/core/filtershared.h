@@ -83,6 +83,16 @@ static inline void setBlack(uint32_t color[3], const VSVideoFormat *format) {
         color[1] = color[2] = (1 << (format->bitsPerSample - 1));
 }
 
+static inline bool isValidPropertyName(const char *s) {
+    auto alphaUnderscore = [](char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; };
+    if (!s || !alphaUnderscore(*s))
+        return false;
+    for (s++; *s; s++)
+        if (!alphaUnderscore(*s) && !(*s >= '0' && *s <= '9'))
+            return false;
+    return true;
+}
+
 static inline int floatToIntS(float f) {
     if (f > static_cast<float>(std::numeric_limits<int>::max()))
         return std::numeric_limits<int>::max();

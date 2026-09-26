@@ -1777,8 +1777,13 @@ int main(int argc, char **argv) {
     vssapi->evalSetWorkingDir(se, 1);
     if (!opts.scriptArgs.empty()) {
         VSMap *foldedArgs = vsapi->createMap();
-        for (const auto &iter : opts.scriptArgs)
-            vsapi->mapSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, maAppend);
+        for (const auto &iter : opts.scriptArgs) {
+            if (vsapi->mapSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, maAppend) != 0) {
+                fprintf(stderr, "Invalid argument name: %s\n", iter.first.c_str());
+                vsapi->freeMap(foldedArgs);
+                return 1;
+            }
+        }
         vssapi->setVariables(se, foldedArgs);
         vsapi->freeMap(foldedArgs);
     }
@@ -1907,14 +1912,12 @@ int main(int argc, char **argv) {
 
     bool success = true;
 
-    if (opts.mode == VSPipeMode::PrintSimpleGraph) {
-        std::string graph = printNodeGraph(NodePrintMode::Simple, node, 0, vsapi);
-        if (outFile)
-            fprintf(outFile, "%s\n", graph.c_str());
-    } else if (opts.mode == VSPipeMode::PrintFullGraph) {
-        std::string graph = printNodeGraph(NodePrintMode::Full, node, 0, vsapi);
-        if (outFile)
-            fprintf(outFile, "%s\n", graph.c_str());
+    if (opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph) {
+        std::string graph = printNodeGraph(opts.mode == VSPipeMode::PrintSimpleGraph ? NodePrintMode::Simple : NodePrintMode::Full, node, 0, vsapi);
+        if (outFile && fprintf(outFile, "%s\n", graph.c_str()) < 0)
+            success = false;
+        if (!finishOutput(outFile, outFileHolder, "output"))
+            success = false;
     } else {
 #ifdef VS_TARGET_OS_WINDOWS
         if (outFile == stdout) {
@@ -1935,6 +1938,7 @@ int main(int argc, char **argv) {
             bool written = finishOutput(outFile, outFileHolder, "output");
             written = finishOutput(timecodesFile, timecodesHolder, "timecodes file") && written;
             written = finishOutput(jsonFile, jsonHolder, "json file") && written;
+            written = finishOutput(filterTimeGraphFile, filterTimeGraphHolder, "filter time graph") && written;
             return (muxFailed || !written) ? 1 : 0;
         };
 
@@ -2008,13 +2012,14 @@ int main(int argc, char **argv) {
 
             if (opts.printFilterTime)
                 fprintf(stderr, "%s", printNodeTimes(timingNode, muxElapsed.count(), vsapi->getFreedNodeProcessingTime(core, 0), vsapi).c_str());
+            bool graphFailed = false;
             if (filterTimeGraphFile) {
                 std::string graph = printNodeGraph(NodePrintMode::FullWithTimes, timingNode, muxElapsed.count(), vsapi);
-                fprintf(filterTimeGraphFile, "%s", graph.c_str());
+                graphFailed = fprintf(filterTimeGraphFile, "%s", graph.c_str()) < 0;
             }
             vsapi->freeNode(timingNode);
 
-            return matroskaExit(muxFailed);
+            return matroskaExit(muxFailed || graphFailed);
         }
 
         std::unique_ptr<VSPipeOutputData> data(new VSPipeOutputData());

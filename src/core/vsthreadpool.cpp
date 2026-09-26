@@ -445,7 +445,7 @@ void VSThreadPool::queueTask(const PVSFrameContext &ctx) {
 void VSThreadPool::wakeThread() {
     size_t numActive = activeThreads;
     if (numActive < maxThreads) {
-        if (core->memory->is_over_limit() && numActive > 0) {
+        if ((core->memory->is_over_limit() || core->memory->is_gpu_over_limit()) && numActive > 0) {
             // do nothing
         } else {
             if (idleThreads == 0) // newly spawned threads are active so no need to notify an additional thread

@@ -87,7 +87,9 @@ struct KernelSpec {
     }
 };
 
-bool makeKernelSpec(const std::string &name, double a, double b, KernelSpec *out) {
+/* False for a kernel this path has no implementation of, or, with invalid set, for a
+   parameter no path accepts. */
+bool makeKernelSpec(const std::string &name, double a, double b, KernelSpec *out, std::string &invalid) {
     KernelSpec k;
     if (name == "point") {
         k.type = KernelSpec::Point;
@@ -110,10 +112,13 @@ bool makeKernelSpec(const std::string &name, double a, double b, KernelSpec *out
         k.type = KernelSpec::Spline64;
         k.support = 4.0;
     } else if (name == "lanczos") {
-        k.taps = std::isnan(a) ? 3 : static_cast<int>(std::max(a, 1.0));
-        /* zimg's MAX_TAPS is exclusive at 16. */
-        if (k.taps >= 16)
+        /* zimg's MAX_TAPS is exclusive at 16, checked on the double: an int cannot hold every
+           value a script can pass. */
+        if (!std::isnan(a) && !(a < 16.0)) {
+            invalid = "lanczos tap count too high";
             return false;
+        }
+        k.taps = std::isnan(a) ? 3 : static_cast<int>(std::max(a, 1.0));
         k.type = KernelSpec::Lanczos;
         k.support = k.taps;
     } else {
@@ -2413,7 +2418,7 @@ bool buildPipeSet(GPUResizeData *d, PipeSet &ps, VSCore *core, std::string &erro
 
 bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
     const VSVideoInfo *vi, VSCore *core, const VSAPI *vsapi, ConversionSpec *out,
-    std::string &decline);
+    std::string &decline, std::string &error);
 
 const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instanceData, void **,
     VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2781,13 +2786,18 @@ bool anyColourArg(const VSMap *in, const VSAPI *vsapi) {
     return false;
 }
 
-/* Builds the spec from the argument map, or declines with a reason. Touches no Vulkan
-   state and owns nothing. */
+/* Builds the spec from the argument map, or declines with a reason; an argument no path
+   accepts sets error instead, for the caller to report as final. Touches no Vulkan state
+   and owns nothing. */
 bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
     const VSVideoInfo *vi, VSCore *core, const VSAPI *vsapi, ConversionSpec *out,
-    std::string &decline) {
+    std::string &decline, std::string &error) {
     auto give_up = [&](const std::string &reason) {
         decline = reason;
+        return false;
+    };
+    auto fail = [&](const std::string &reason) {
+        error = reason;
         return false;
     };
 
@@ -2863,10 +2873,11 @@ bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
     if (present(in, "cpu_type", vsapi))
         return give_up("cpu_type was given");
 
+    std::string invalid;
     if (!makeKernelSpec(lowercased(kernelName),
             optFloat(in, "filter_param_a", NAN, vsapi),
-            optFloat(in, "filter_param_b", NAN, vsapi), &spec.kernelY))
-        return give_up("the kernel or its parameters are not implemented");
+            optFloat(in, "filter_param_b", NAN, vsapi), &spec.kernelY, invalid))
+        return invalid.empty() ? give_up("the kernel or its parameters are not implemented") : fail(invalid);
     /* zimg's own quirk, kept deliberately: the uv kernel is chosen by plane index, so on
        RGB it applies to green and blue. Matching resize matters more than the name. */
     int uvErr;
@@ -2875,8 +2886,8 @@ bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
         spec.kernelUV = spec.kernelY;
     } else if (!makeKernelSpec(uvName,
             optFloat(in, "filter_param_a_uv", NAN, vsapi),
-            optFloat(in, "filter_param_b_uv", NAN, vsapi), &spec.kernelUV)) {
-        return give_up("the chroma kernel or its parameters are not implemented");
+            optFloat(in, "filter_param_b_uv", NAN, vsapi), &spec.kernelUV, invalid)) {
+        return invalid.empty() ? give_up("the chroma kernel or its parameters are not implemented") : fail(invalid);
     }
     spec.uvDiffers = !(spec.kernelUV == spec.kernelY);
 
@@ -3177,7 +3188,10 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
        trip over first. */
     if (!isConstantVideoFormat(vi))
         return give_up("a variable format or variable dimension clip");
-    if (!resolveSpec(in, kernelName, deinterlace, vi, core, vsapi, &d->pipes.spec, decline)) {
+    std::string error;
+    if (!resolveSpec(in, kernelName, deinterlace, vi, core, vsapi, &d->pipes.spec, decline, error)) {
+        if (!error.empty())
+            return hard_error(error);
         vsapi->freeNode(node);
         return false;
     }
@@ -3198,7 +3212,6 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
        kernel class. Built up front because which of them a frame needs is per frame but
        the set of possibilities is not; the core caches compiles by source text, so the
        repeat combinations parse once. */
-    std::string error;
     if (!buildPipeSet(d.get(), d->pipes, core, error))
         return hard_error(error);
 

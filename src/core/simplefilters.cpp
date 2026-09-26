@@ -2641,6 +2641,8 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
 
     const char *tmpprop = vsapi->mapGetData(in, "prop", 0, &err);
     std::string tempprop = tmpprop ? tmpprop : "PlaneStats";
+    if (!isValidPropertyName(tempprop.c_str()))
+        RETERROR("PlaneStats: 'prop' must be a valid property name, a letter or underscore followed by letters, digits and underscores");
     d->propMin = tempprop + "Min";
     d->propMax = tempprop + "Max";
     d->propAverage = tempprop + "Average";
@@ -2859,7 +2861,8 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
 
     const char *tmpprop = vsapi->mapGetData(in, "prop", 0, &err);
     d->prop = tmpprop ? tmpprop : "_Alpha";
-
+    if (!isValidPropertyName(d->prop.c_str()))
+        RETERROR("ClipToProp: 'prop' must be a valid property name, a letter or underscore followed by letters, digits and underscores");
 
     VSFilterDependency deps[] = {{d->node1, (vi.numFrames >= vi2->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}, {d->node2, 1}};
     vi.numFrames = vi2->numFrames;
@@ -3022,12 +3025,9 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
     if (num_ints + num_floats + num_strings == -3)
         RETERROR("SetFrameProp: one of 'intval', 'floatval', or 'data' must be passed.");
 
-    int prop_len = vsapi->mapGetDataSize(in, "prop", 0, nullptr);
-
-    if (prop_len == 0)
-        RETERROR("SetFrameProp: 'prop' can't be an empty string.");
-
     d->prop = vsapi->mapGetData(in, "prop", 0, nullptr);
+    if (!isValidPropertyName(d->prop.c_str()))
+        RETERROR("SetFrameProp: 'prop' must be a valid property name, a letter or underscore followed by letters, digits and underscores");
 
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 

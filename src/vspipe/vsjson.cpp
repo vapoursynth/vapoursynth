@@ -30,6 +30,35 @@ static bool isAsciiPrintable(const std::string &s) {
     return true;
 }
 
+/* JSON has to be UTF-8, and a utf8 hint on a value is a promise the core never checks. */
+static bool isValidUtf8(const std::string &s) {
+    size_t i = 0;
+    while (i < s.size()) {
+        unsigned char c = static_cast<unsigned char>(s[i]);
+        size_t cont;
+        unsigned char lo = 0x80, hi = 0xBF;
+        if (c < 0x80) { i++; continue; }
+        else if (c >= 0xC2 && c <= 0xDF) cont = 1;
+        else if (c == 0xE0) { cont = 2; lo = 0xA0; }
+        else if (c >= 0xE1 && c <= 0xEC) cont = 2;
+        else if (c == 0xED) { cont = 2; hi = 0x9F; }
+        else if (c >= 0xEE && c <= 0xEF) cont = 2;
+        else if (c == 0xF0) { cont = 3; lo = 0x90; }
+        else if (c >= 0xF1 && c <= 0xF3) cont = 3;
+        else if (c == 0xF4) { cont = 3; hi = 0x8F; }
+        else return false;
+        if (i + cont >= s.size())
+            return false;
+        for (size_t k = 1; k <= cont; k++) {
+            unsigned char cc = static_cast<unsigned char>(s[i + k]);
+            if (cc < (k == 1 ? lo : 0x80) || cc > (k == 1 ? hi : 0xBF))
+                return false;
+        }
+        i += cont + 1;
+    }
+    return true;
+}
+
 static std::string doubleToString(double v) {
     /* JSON has no way to write these as numbers, and emitting them bare produces a file no
        parser accepts, so they turn into null. */
@@ -101,11 +130,12 @@ std::string convertVSMapToJSON(const VSMap *map, const VSAPI *vsapi) {
             case ptData:
                 for (int j = 0; j < numElems; j++) {
                     int typeHint = vsapi->mapGetDataTypeHint(map, key, j, nullptr);
+                    std::string data(vsapi->mapGetData(map, key, j, nullptr), vsapi->mapGetDataSize(map, key, j, nullptr));
                     jsonStr += (j ? ", " : "");
-                    if (typeHint == dtUtf8 || (typeHint == dtUnknown && vsapi->mapGetDataSize(map, key, j, nullptr) < 200 && isAsciiPrintable(std::string(vsapi->mapGetData(map, key, j, nullptr), vsapi->mapGetDataSize(map, key, j, nullptr)))))
-                        jsonStr += escapeJSONString(std::string(vsapi->mapGetData(map, key, j, nullptr), vsapi->mapGetDataSize(map, key, j, nullptr)));
+                    if ((typeHint == dtUtf8 && isValidUtf8(data)) || (typeHint == dtUnknown && data.size() < 200 && isAsciiPrintable(data)))
+                        jsonStr += escapeJSONString(data);
                     else
-                        jsonStr += "\"[binary data size: " + std::to_string(vsapi->mapGetDataSize(map, key, j, nullptr)) + "]\"";
+                        jsonStr += "\"[binary data size: " + std::to_string(data.size()) + "]\"";
                 }
                 break;
             default:

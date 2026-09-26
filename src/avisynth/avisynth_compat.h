@@ -170,7 +170,7 @@ public:
     VSClip(VSNode *inclip, FakeAvisynth *fakeEnv, bool pack, const VSAPI *vsapi);
     PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env);
     bool __stdcall GetParity(int n) {
-        return true;
+        return false;
     }
     void __stdcall GetAudio(void *buf, int64_t start, int64_t count, IScriptEnvironment *env) {}
     int __stdcall SetCacheHints(int cachehints, int frame_range) {

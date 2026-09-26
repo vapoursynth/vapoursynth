@@ -1948,7 +1948,9 @@ cdef class FrameProps(object):
             raise Error('Cannot delete properties of a read only object')
         cdef VSMap *m = self.funcs.getFramePropertiesRW(self.frame.f)
         cdef bytes b = name.encode('utf-8')
-        self.funcs.mapDeleteKey(m, b)
+        cdef const char *key = b
+        with nogil:
+            self.funcs.mapDeleteKey(m, key)
 
     def __iter__(self):
         # the keys are snapshotted: a caller may close the frame while iterating, and
