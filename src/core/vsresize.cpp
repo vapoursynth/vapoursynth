@@ -188,7 +188,7 @@ T propGetScalarDef(const VSMap *map, const char *key, T def, const VSAPI *vsapi)
 
 template <class T, class U, class Pred>
 void propGetIfValid(const VSMap *map, const char *key, U *out, Pred pred, const VSAPI *vsapi) {
-    if (vsapi->mapNumElements(map, key) > 0) {
+    if (vsapi->mapGetType(map, key) == ptInt) {
         T x = propGetScalar<T>(map, key, vsapi);
         if (pred(x))
             *out = static_cast<U>(x);
@@ -248,7 +248,7 @@ void translate_vsformat(const VSVideoFormat *vsformat, zimg_image_format *format
 void import_frame_props(const VSMap *props, zimg_image_format *format, bool *interlaced, const VSAPI *vsapi) {
     propGetIfValid<int>(props, "_ChromaLocation", &format->chroma_location, [](int x) { return x >= 0; }, vsapi);
 
-    if (vsapi->mapNumElements(props, "_Range") > 0) {
+    if (vsapi->mapGetType(props, "_Range") == ptInt) {
         int64_t x = vsapi->mapGetInt(props, "_Range", 0, nullptr);
 
         if (x == VSC_RANGE_FULL)
@@ -265,7 +265,7 @@ void import_frame_props(const VSMap *props, zimg_image_format *format, bool *int
     propGetIfValid<int>(props, "_Primaries", &format->color_primaries, [](int x) { return x != ZIMG_PRIMARIES_UNSPECIFIED; }, vsapi);
 
     bool is_interlaced = false;
-    if (vsapi->mapNumElements(props, "_Field") > 0) {
+    if (vsapi->mapGetType(props, "_Field") == ptInt) {
         int64_t x = vsapi->mapGetInt(props, "_Field", 0, nullptr);
 
         if (x == 0)
@@ -274,7 +274,7 @@ void import_frame_props(const VSMap *props, zimg_image_format *format, bool *int
             format->field_parity = ZIMG_FIELD_TOP;
         else
             throw std::runtime_error{ "bad _Field value: " + std::to_string(x) };
-    } else if (vsapi->mapNumElements(props, "_FieldBased") > 0) {
+    } else if (vsapi->mapGetType(props, "_FieldBased") == ptInt) {
         int64_t x = vsapi->mapGetInt(props, "_FieldBased", 0, nullptr);
 
         if (x != VSC_FIELD_PROGRESSIVE && x != VSC_FIELD_BOTTOM && x != VSC_FIELD_TOP)
@@ -320,9 +320,9 @@ void propagate_sar(const VSMap *src_props, VSMap *dst_props, const zimg_image_fo
     int64_t sar_num = 0;
     int64_t sar_den = 0;
 
-    if (vsapi->mapNumElements(src_props, "_SARNum") > 0)
+    if (vsapi->mapGetType(src_props, "_SARNum") == ptInt)
         sar_num = vsapi->mapGetInt(src_props, "_SARNum", 0, nullptr);
-    if (vsapi->mapNumElements(src_props, "_SARDen") > 0)
+    if (vsapi->mapGetType(src_props, "_SARDen") == ptInt)
         sar_den = vsapi->mapGetInt(src_props, "_SARDen", 0, nullptr);
 
     if (sar_num <= 0 || sar_den <= 0) {

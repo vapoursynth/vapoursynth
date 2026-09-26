@@ -911,9 +911,9 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->nodes[1])))
         RETERROR(("MaskedMerge: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[1]), vsapi)).c_str());
 
-    if (maskvi->width != d->vi->width || maskvi->height != d->vi->height || maskvi->format.bitsPerSample != d->vi->format.bitsPerSample
+    if (maskvi->width != d->vi->width || maskvi->height != d->vi->height || maskvi->format.sampleType != d->vi->format.sampleType || maskvi->format.bitsPerSample != d->vi->format.bitsPerSample
         || (!isSameVideoFormat(&maskvi->format, &d->vi->format) && maskvi->format.colorFamily != cfGray && !d->first_plane))
-        RETERROR(("MaskedMerge: mask clip must have same dimensions as main clip and be the same format or grayscale, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(maskvi, vsapi)).c_str());
+        RETERROR(("MaskedMerge: mask clip must have same dimensions, sample type and bitdepth as main clip and be the same format or grayscale, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(maskvi, vsapi)).c_str());
 
     if (!getProcessPlanesArg(in, out, "MaskedMerge", d->process, vsapi))
         return;

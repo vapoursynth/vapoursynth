@@ -201,12 +201,12 @@ struct ExprGlsl {
    sign is carried around the call.
 
    sin and cos: Vulkan specifies their precision only inside [-pi, pi], and expressions
-   routinely feed them raw sample values, so the argument is reduced first. That reduction is
-   a single float32 step, coarser than either scalar backend -- the interpreter's std::sin is
-   exact, the JIT uses a four constant Cody-Waite split (float_pi1..pi4 in
-   jitcompiler_x86.cpp). Against the JIT at arguments up to 65535 radians it costs a mean
-   absolute error of 7e-4 and a worst case of 5e-3, two samples per 1080p plane once quantised
-   back to 16 bit. The same four piece pi would close it. */
+   routinely feed them raw sample values, so they are the JIT's sincos_ (jitcompiler_x86.cpp)
+   instead, constants and all: n = |x| / pi rounded to even, |x| - n * pi through its four
+   piece Cody-Waite split, the minimax polynomials on [-pi/2, pi/2], the sign flipped for odd
+   n. y is precise, which reaches everything feeding it and makes each fma one operation, as
+   on the JIT's FMA3 path; that is what the documented 2e-6 for |x| <= 1e5 rests on, and a
+   single float32 reduction step missed it by three orders of magnitude. */
 const char exprHelpers[] =
     "float vsExprPow(float base, float e) {\n"
     "    if (base >= 0.0) return pow(base, e);\n"
@@ -214,11 +214,41 @@ const char exprHelpers[] =
     "    float m = pow(-base, e);\n"
     "    return mod(abs(e), 2.0) == 1.0 ? -m : m;\n"
     "}\n"
-    "float vsExprReduce(float x) { return x - 6.28318530717958648 * round(x * 0.15915494309189535); }\n"
-    "float vsExprSin(float x) { return sin(vsExprReduce(x)); }\n"
-    "float vsExprCos(float x) { return cos(vsExprReduce(x)); }\n";
+    "float vsExprSinCos(float x, bool isSin) {\n"
+    "    float ax = abs(x);\n"
+    "    float n = roundEven(ax * uintBitsToFloat(0x3ea2f983u));\n"
+    "    float r = fma(-n, uintBitsToFloat(0x40490000u), ax);\n"
+    "    r = fma(-n, uintBitsToFloat(0x3a7da000u), r);\n"
+    "    r = fma(-n, uintBitsToFloat(0x34222000u), r);\n"
+    "    r = fma(-n, uintBitsToFloat(0x2cb4611au), r);\n"
+    "    float r2 = r * r;\n"
+    "    precise float y;\n"
+    "    if (isSin) {\n"
+    "        float p = fma(r2, uintBitsToFloat(0x362edef8u), uintBitsToFloat(0xb94fb7ffu));\n"
+    "        p = fma(p, r2, uintBitsToFloat(0x3c08876au));\n"
+    "        p = fma(p, r2, uintBitsToFloat(0xbe2aaaa6u));\n"
+    "        y = fma(r, p * r2, r);\n"
+    "    } else {\n"
+    "        float p = fma(r2, uintBitsToFloat(0x37c1ad76u), uintBitsToFloat(0xbab58d50u));\n"
+    "        p = fma(p, r2, uintBitsToFloat(0x3d2aa73cu));\n"
+    "        p = fma(p, r2, uintBitsToFloat(0xbeffffe2u));\n"
+    "        y = fma(p, r2, 1.0);\n"
+    "    }\n"
+    "    bool negate = mod(n, 2.0) == 1.0;\n"
+    "    if (isSin && floatBitsToUint(x) >= 0x80000000u)\n"
+    "        negate = !negate;\n"
+    "    return negate ? -y : y;\n"
+    "}\n"
+    "float vsExprSin(float x) { return vsExprSinCos(x, true); }\n"
+    "float vsExprCos(float x) { return vsExprSinCos(x, false); }\n";
 
-std::string exprPlaneBody(const std::vector<ExprInstruction> &code, int &maxReg) {
+/* Constants are read from vsExprK, which the kernel maps to its push constants or a buffer,
+   rather than being printed into the source: the source then depends only on the expression's
+   shape, so a filter differing only in a constant -- a FrameEval fading by a per frame value
+   -- reuses the compiled kernel instead of paying a compile and adding a shader cache entry
+   that is never evicted. They are numbered by bit pattern, so planes with the same expression
+   still share a body. */
+std::string exprPlaneBody(const std::vector<ExprInstruction> &code, int &maxReg, std::vector<uint32_t> &constants) {
     ExprGlsl g;
     for (const ExprInstruction &insn : code) {
         maxReg = std::max(maxReg, insn.dst + 1);
@@ -238,13 +268,10 @@ std::string exprPlaneBody(const std::vector<ExprInstruction> &code, int &maxReg)
             g.emit(d, "float(s" + in + "[idx" + in + "])");
             break;
         case ExprOpType::CONSTANT: {
-            char buf[64];
-            snprintf(buf, sizeof(buf), "%.9g", insn.op.imm.f);
-            std::string lit = buf;
-            if (lit.find_first_of(".eE") == std::string::npos && lit.find("inf") == std::string::npos
-                && lit.find("nan") == std::string::npos)
-                lit += ".0";
-            g.emit(d, lit);
+            auto k = std::find(constants.begin(), constants.end(), insn.op.imm.u);
+            if (k == constants.end())
+                k = constants.insert(k, insn.op.imm.u);
+            g.emit(d, "vsExprK[" + std::to_string(k - constants.begin()) + "]");
             break;
         }
         case ExprOpType::ADD:  g.emit(d, a + " + " + b); break;
@@ -562,9 +589,10 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         std::string planes[3];
         int maxReg = 1;
         bool ok = true;
+        std::vector<uint32_t> constants;
         for (int i = 0; i < d->vi.format.numPlanes; i++) {
             if (d->plane[i] == poProcess) {
-                planes[i] = exprPlaneBody(d->bytecode[i], maxReg);
+                planes[i] = exprPlaneBody(d->bytecode[i], maxReg, constants);
                 ok = ok && !planes[i].empty();
             } else if (d->plane[i] == poUndefined) {
                 /* The scalar path leaves these planes as the allocator found them. Writing
@@ -613,11 +641,26 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
         src += "layout(std430, set = 0, binding = " + std::to_string(d->numInputs) +
                ") writeonly buffer Dst { SAMPLE_T dstData[]; };\n";
+        /* The constants go in the push constants when they fit beside the strides in the 128
+           bytes Vulkan guarantees, as they nearly always do. Otherwise they go in a constant
+           buffer after the output, as in the simple layer, which costs an upload and a wait
+           at creation. */
+        const size_t strideWords = 3 + static_cast<size_t>(d->numInputs);
+        const bool pushK = !constants.empty() && (strideWords + constants.size()) * sizeof(uint32_t) <= 128;
+        const bool bufferK = !constants.empty() && !pushK;
+        if (bufferK)
+            src += "layout(std430, set = 0, binding = " + std::to_string(d->numInputs + 1) +
+                   ") readonly buffer Consts { float vsExprK[]; };\n";
         src += "layout(constant_id = 0) const uint GROUP = 0u;\n";
         src += "layout(push_constant) uniform PC {\n"
                "    uint width, height, dstStride;\n"
-               "    uint srcStride[" + std::to_string(MAX_EXPR_INPUTS) + "];\n"
-               "} pc;\n\n";
+               "    uint srcStride[" + std::to_string(d->numInputs) + "];\n";
+        if (pushK)
+            src += "    float k[" + std::to_string(constants.size()) + "];\n"
+                   "} pc;\n"
+                   "#define vsExprK pc.k\n\n";
+        else
+            src += "} pc;\n\n";
         src += vsgpu::glslVsSqrt;
         src += exprHelpers;
         src += "\nvoid main() {\n"
@@ -634,12 +677,6 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             src += "    if (GROUP == " + std::to_string(g) + "u) {\n" + groupBodies[g] + "    }\n";
         src += "}\n";
 
-        struct ExprPush {
-            uint32_t width, height, dstStride;
-            uint32_t srcStride[MAX_EXPR_INPUTS];
-        };
-        static_assert(sizeof(ExprPush) <= 128, "must fit Vulkan's guaranteed 128 byte push constant minimum");
-
         vsgpu::FilterDesc desc;
         desc.vi = d->vi;
         for (int i = 0; i < d->numInputs; i++)
@@ -648,12 +685,18 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
            above, so it counts as processed like any other plane. */
         for (int i = 0; i < 3; i++)
             desc.process[i] = d->plane[i] != poCopy;
+        if (bufferK) {
+            const uint8_t *bytes = reinterpret_cast<const uint8_t *>(constants.data());
+            desc.constants.emplace_back(bytes, bytes + constants.size() * sizeof(uint32_t));
+            constants.clear();
+        }
+        const size_t pushWords = strideWords + constants.size();
 
         for (size_t g = 0; g < groupBodies.size(); g++) {
             vsgpu::Program program;
             program.glsl = src; /* shared text: the shader cache parses it once */
-            program.storageBufferCount = d->numInputs + 1;
-            program.pushConstantBytes = sizeof(ExprPush);
+            program.storageBufferCount = d->numInputs + 1 + (bufferK ? 1 : 0);
+            program.pushConstantBytes = static_cast<int>(pushWords * sizeof(uint32_t));
             const uint32_t group = static_cast<uint32_t>(g);
             program.specData.resize(sizeof(group));
             std::memcpy(program.specData.data(), &group, sizeof(group));
@@ -665,6 +708,8 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             for (int i = 0; i < d->numInputs; i++)
                 pass.bindings.push_back(vsgpu::Operand::source(i));
             pass.bindings.push_back(vsgpu::Operand::output());
+            if (bufferK)
+                pass.bindings.push_back(vsgpu::Operand::constant(0));
             for (int i = 0; i < 3; i++)
                 pass.planes[i] = planeGroup[i] == static_cast<int>(g);
             /* Every pass reads only source planes and writes only its own planes, so the
@@ -674,14 +719,14 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
 
         const int numInputs = d->numInputs;
-        desc.fillPush = [numInputs](const vsgpu::PassInfo &info, void *pushData) {
-            ExprPush push = {};
-            push.width = info.width;
-            push.height = info.height;
-            push.dstStride = info.dstStrideElements();
-            for (int i = 0; i < numInputs && i < MAX_EXPR_INPUTS; i++)
-                push.srcStride[i] = info.strideElements[i];
-            std::memcpy(pushData, &push, sizeof(push));
+        desc.fillPush = [numInputs, constants, pushWords](const vsgpu::PassInfo &info, void *pushData) {
+            uint32_t push[128 / sizeof(uint32_t)];
+            push[0] = info.width;
+            push[1] = info.height;
+            push[2] = info.strideElements[numInputs]; /* the output: a constant buffer comes after it */
+            std::copy(info.strideElements, info.strideElements + numInputs, push + 3);
+            std::copy(constants.begin(), constants.end(), push + 3 + numInputs);
+            std::memcpy(pushData, push, pushWords * sizeof(uint32_t));
         };
 
         std::string error;

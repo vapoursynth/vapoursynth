@@ -2140,6 +2140,15 @@ bool VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexc
     return true;
 }
 
+/* u8path converts on Windows, and throws std::system_error there on invalid UTF-8. */
+static std::filesystem::path pathFromUTF8(const std::string &path) {
+    try {
+        return std::filesystem::u8path(path);
+    } catch (std::system_error &) {
+        throw VSException("Invalid UTF-8 in path: " + path);
+    }
+}
+
 static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
         int err;
@@ -2150,16 +2159,16 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
         if (!forceid)
             forceid = "";
         bool altSearchPath = !!vsapi->mapGetInt(in, "altsearchpath", 0, &err);
-        core->loadPlugin(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)), true, forcens, forceid, altSearchPath);
-    } catch (VSException &e) {
+        core->loadPlugin(pathFromUTF8(vsapi->mapGetData(in, "path", 0, nullptr)), true, forcens, forceid, altSearchPath);
+    } catch (std::exception &e) {
         vsapi->mapSetError(out, e.what());
     }
 }
 
 static void VS_CC loadAllPlugins(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
-        core->loadAllPluginsInPath(std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr)));
-    } catch (VSException &e) {
+        core->loadAllPluginsInPath(pathFromUTF8(vsapi->mapGetData(in, "path", 0, nullptr)));
+    } catch (std::exception &e) {
         vsapi->mapSetError(out, e.what());
     }
 }
@@ -2173,21 +2182,11 @@ bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
     std::filesystem::path manifestPath = path;
     manifestPath /= "manifest.vs";
 
-#ifdef VS_TARGET_OS_WINDOWS
-    FILE *f = _wfopen(manifestPath.c_str(), L"rb");
-#else
-    FILE *f = fopen(manifestPath.c_str(), "rb");
-#endif
-
+    std::ifstream f(manifestPath, std::ios::binary);
     if (!f)
         return false;
 
-    std::string contents;
-    contents.resize(10000);
-    size_t numRead = fread(contents.data(), 1, contents.size(), f);
-    contents.resize(numRead);
-
-    fclose(f);
+    std::string contents((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
 
     if (contents.empty()) {
         logMessage(mtCritical, ("Couldn't read contents of manifest file: " + manifestPath.u8string()).c_str());
@@ -2195,16 +2194,12 @@ bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
     }
 
     std::vector<std::string> lines;
-
-    size_t lastPos = contents.find_first_not_of("\r\n", 0);
-    size_t pos = contents.find_first_of("\r\n", lastPos + 1);
-    while (pos != std::string::npos) {
-        lines.push_back(contents.substr(lastPos, pos - lastPos));
-        lastPos = contents.find_first_not_of("\r\n", pos + 1);
-        pos = contents.find_first_of("\r\n", lastPos);
+    for (size_t start = 0; start < contents.size();) {
+        size_t end = std::min(contents.find_first_of("\r\n", start), contents.size());
+        if (end > start)
+            lines.push_back(contents.substr(start, end - start));
+        start = end + 1;
     }
-    if (lastPos != std::string::npos)
-        lines.push_back(contents.substr(lastPos));
 
     if (lines.empty() || lines[0] != "[VapourSynth Manifest V1]") {
         logMessage(mtCritical, ("Invalid header in manifest: " + manifestPath.u8string()).c_str());
@@ -2212,16 +2207,14 @@ bool VSCore::loadPluginManifest(const std::filesystem::path &path) {
     }
 
     for (size_t i = 1; i < lines.size(); ++i) {
-        if (lines[i].empty())
-            continue;
-        std::filesystem::path pluginPath = path;
-        pluginPath /= std::filesystem::u8path(lines[i]);
-        pluginPath += libraryExtension;
+        std::filesystem::path pluginPath;
         try {
+            pluginPath = path / pathFromUTF8(lines[i]);
+            pluginPath += libraryExtension;
             loadPlugin(pluginPath, true);
         } catch (VSNoEntryPointException &) {
             logMessage(mtCritical, ("Manifest declared plugin has no entry point: " + pluginPath.u8string()).c_str());
-        } catch (VSException &e) {
+        } catch (std::exception &e) {
             logMessage(mtCritical, e.what());
         }
     }
@@ -2242,7 +2235,8 @@ bool VSCore::loadAllPluginsInPath(const std::filesystem::path &path, bool plugin
                         loadPlugin(iter.path());
                     } catch (VSNoEntryPointException &) {
                         // do nothing since we may encounter supporting dlls without an entry point
-                    } catch (VSException &e) {
+                    } catch (std::exception &e) {
+                        // std::exception: a file name with no UTF-8 form throws std::system_error on Windows
                         logMessage(mtWarning, e.what());
                     }
                 } else if (iter.is_directory(ec) && !ec) {

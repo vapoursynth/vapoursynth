@@ -1581,8 +1581,8 @@ bool resolveFrameState(const ConversionSpec &spec, const VSMap *props, const VSA
 
     /* _Field names the frame as a single field, stored whole; _FieldBased says it holds
        two interleaved ones. The scalar path reads them in this order and never both. */
-    if (vsapi->mapNumElements(props, "_Field") > 0) {
-        const int64_t f = vsapi->mapGetInt(props, "_Field", 0, nullptr);
+    const int64_t f = vsapi->mapGetInt(props, "_Field", 0, &err);
+    if (!err) {
         if (f != 0 && f != 1) {
             error = "Resize: bad _Field value: " + std::to_string(f);
             return false;
@@ -1636,8 +1636,8 @@ bool resolveFrameState(const ConversionSpec &spec, const VSMap *props, const VSA
     /* RGB is full range and everything else limited unless the frame says otherwise. */
     bool fullIn = spec.rangeIn >= 0 ? spec.rangeIn == VSC_RANGE_FULL
         : spec.srcFmt.colorFamily == cfRGB;
-    if (vsapi->mapNumElements(props, "_Range") > 0) {
-        const int64_t r = vsapi->mapGetInt(props, "_Range", 0, nullptr);
+    const int64_t r = vsapi->mapGetInt(props, "_Range", 0, &err);
+    if (!err) {
         if (r != VSC_RANGE_FULL && r != VSC_RANGE_LIMITED) {
             error = "Resize: bad _Range value: " + std::to_string(r);
             return false;

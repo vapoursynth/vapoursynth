@@ -1282,7 +1282,14 @@ PVideoFrame FakeAvisynth::SubframePlanarA(PVideoFrame src, int rel_offset, int n
 }
 
 static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::filesystem::path fsPath = std::filesystem::u8path(vsapi->mapGetData(in, "path", 0, nullptr));
+    const char *path = vsapi->mapGetData(in, "path", 0, nullptr);
+    std::filesystem::path fsPath;
+    try {
+        fsPath = std::filesystem::u8path(path);
+    } catch (std::system_error &) {
+        vsapi->mapSetError(out, ("Invalid UTF-8 in path: "s + path).c_str());
+        return;
+    }
 
     HMODULE plugin = LoadLibraryW(fsPath.c_str());
 
@@ -1321,7 +1328,13 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
 
     if (avisynthPluginInit3) {
         FakeAvisynth *avs = new FakeAvisynth(3, core, vsapi);
-        avisynthPluginInit3(avs, AVS_linkage);
+        try {
+            avisynthPluginInit3(avs, AVS_linkage);
+        } catch (const AvisynthError &e) {
+            vsapi->mapSetError(out, ("Avisynth Loader: initializing " + fsPath.u8string() + " failed: " + e.msg).c_str());
+        } catch (...) {
+            vsapi->mapSetError(out, ("Avisynth Loader: initializing " + fsPath.u8string() + " failed").c_str());
+        }
         delete avs;
     } else {
         vsapi->mapSetError(out, "Avisynth Loader: 2.5 plugins can't be loaded on x64");
