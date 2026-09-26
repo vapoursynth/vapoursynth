@@ -28,6 +28,11 @@ static decltype(Py_InitializeEx) *p_Py_InitializeEx = nullptr;
 static decltype(PyGILState_Ensure) *p_PyGILState_Ensure = nullptr;
 static decltype(PyEval_SaveThread) *p_PyEval_SaveThread = nullptr;
 static decltype(Py_SetProgramName) *p_Py_SetProgramName = nullptr;
+/* Optional, only for the text of an exception a failed import left behind; a library without
+   them just loses that detail. PyErr_Fetch is spelled out since the header marks it deprecated. */
+static void (*p_PyErr_Fetch)(PyObject **, PyObject **, PyObject **) = nullptr;
+static decltype(PyObject_Str) *p_PyObject_Str = nullptr;
+static decltype(PyUnicode_AsUTF8AndSize) *p_PyUnicode_AsUTF8AndSize = nullptr;
 
 
 static int (*__pyx_api_f_11vapoursynth_vpy4_createScript)(VSScript *) = 0;

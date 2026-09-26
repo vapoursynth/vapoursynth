@@ -165,6 +165,64 @@ static std::pair<std::filesystem::path, std::filesystem::path> readEnvConfig(con
 
 static std::string extendedErrorMessage;
 
+/* The pending Python exception as text, cleared on the way; empty when the optional symbols
+   are missing or nothing is pending. */
+static std::string pendingPythonError() {
+    if (!p_PyErr_Fetch || !p_PyObject_Str || !p_PyUnicode_AsUTF8AndSize)
+        return "";
+    PyObject *type = nullptr, *value = nullptr, *traceback = nullptr;
+    p_PyErr_Fetch(&type, &value, &traceback);
+    std::string text;
+    if (value) {
+        if (PyObject *str = p_PyObject_Str(value)) {
+            Py_ssize_t len = 0;
+            if (const char *utf8 = p_PyUnicode_AsUTF8AndSize(str, &len))
+                text.assign(utf8, static_cast<size_t>(len));
+            p_Py_DecRef(str);
+        }
+    }
+    for (PyObject *o : { type, value, traceback })
+        if (o)
+            p_Py_DecRef(o);
+    return text;
+}
+
+#ifdef VS_TARGET_OS_WINDOWS
+/* The config tool is looked up on PATH here and run without a console, where cmd.exe would
+   look in the current directory first and flash a window in a GUI host. */
+static void runConfigTool() {
+    DWORD pathLen = GetEnvironmentVariableW(L"PATH", nullptr, 0);
+    if (!pathLen)
+        return;
+    std::wstring rawPath(pathLen, L'\0');
+    rawPath.resize(GetEnvironmentVariableW(L"PATH", rawPath.data(), pathLen));
+    /* Only the real directories: an empty entry, which a trailing semicolon leaves behind, or a
+       "." means the current directory, the very place this must not look. */
+    std::wstring path;
+    for (size_t start = 0; start <= rawPath.size();) {
+        size_t end = rawPath.find(L';', start);
+        if (end == std::wstring::npos)
+            end = rawPath.size();
+        std::wstring entry = rawPath.substr(start, end - start);
+        if (!entry.empty() && entry != L"." && entry != L".\\")
+            path += (path.empty() ? L"" : L";") + entry;
+        start = end + 1;
+    }
+    std::vector<wchar_t> exe(32768);
+    if (path.empty() || !SearchPathW(path.c_str(), L"vapoursynth", L".exe", static_cast<DWORD>(exe.size()), exe.data(), nullptr))
+        return;
+    std::wstring commandLine = L"\"" + std::wstring(exe.data()) + L"\" config";
+    STARTUPINFOW si = {};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi = {};
+    if (!CreateProcessW(exe.data(), commandLine.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+        return;
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+}
+#endif
+
 static void realInit() VS_NOEXCEPT {
     extendedErrorMessage.clear();
 
@@ -176,7 +234,7 @@ static void realInit() VS_NOEXCEPT {
 
     if (pythonExePath.empty() || pythonSymbolPath.empty()) {
 #ifdef VS_TARGET_OS_WINDOWS
-        _wsystem(L"vapoursynth config >NUL 2>&1");
+        runConfigTool();
 #else
         system("vapoursynth config >/dev/null 2>&1");
 #endif
@@ -212,6 +270,9 @@ static void realInit() VS_NOEXCEPT {
         extendedErrorMessage = "Failed to load required Python API functions from " + pythonSymbolPath.u8string();
         return;
     }
+    p_PyErr_Fetch = reinterpret_cast<decltype(p_PyErr_Fetch)>(GET_FUNCTION_ADDRESS(libraryHandle, "PyErr_Fetch"));
+    p_PyObject_Str = reinterpret_cast<decltype(p_PyObject_Str)>(GET_FUNCTION_ADDRESS(libraryHandle, "PyObject_Str"));
+    p_PyUnicode_AsUTF8AndSize = reinterpret_cast<decltype(p_PyUnicode_AsUTF8AndSize)>(GET_FUNCTION_ADDRESS(libraryHandle, "PyUnicode_AsUTF8AndSize"));
 
     int preInitialized = p_Py_IsInitialized();
     if (!preInitialized) {
@@ -220,15 +281,17 @@ static void realInit() VS_NOEXCEPT {
     }
     s = p_PyGILState_Ensure();
     if (import_vapoursynth()) {
+        std::string reason = pendingPythonError();
         p_PyEval_SaveThread();
         FREE_LIBRARY(libraryHandle);
-        extendedErrorMessage = "Failed to import the VapourSynth Python module.";
+        extendedErrorMessage = "Failed to import the VapourSynth Python module" + (reason.empty() ? std::string(".") : ": " + reason);
         return;
     }
     if (vpy4_initVSScript()) {
+        std::string reason = pendingPythonError();
         p_PyEval_SaveThread();
         FREE_LIBRARY(libraryHandle);
-        extendedErrorMessage = "Failed to initialize the VapourSynth Python module for VSScript use.";
+        extendedErrorMessage = "Failed to initialize the VapourSynth Python module for VSScript use" + (reason.empty() ? std::string(".") : ": " + reason);
         return;
     }
     ts = p_PyEval_SaveThread();
