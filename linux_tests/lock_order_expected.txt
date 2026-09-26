@@ -1,0 +1,19 @@
+# The lock graph from section 2 of ../src/core/vsvulkanexec_protocol.md, as observed by the
+# instrumentation in src/core/lockorder.{h,cpp}. check_lock_order.sh fails on any edge NOT in
+# this list, on any pair seen in both orders, and on anything held at one of the four plugin
+# boundaries.
+#
+# An edge here that is NOT observed is only a coverage note, not a failure: which edges a run
+# reaches depends on the workload and on whether the machine has a GPU at all.
+#
+# vulkanDeviceLock -> logMutex used to be here: bring-up logged the device line under the lock,
+# which L16 showed deadlocks a handler that re-enters the core. It is logged after the guard now,
+# and this gate is what notices if that regresses.
+#
+# Adding a line to this file is the point at which someone has to say why a new edge is safe.
+cacheLock -> allocatorMutex
+cacheLock -> cacheMutex
+cacheMutex -> allocatorMutex
+execPoolsMutex -> claimMutex
+flushMutex -> queueLock
+vulkanDeviceLock -> execPoolsMutex

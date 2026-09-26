@@ -1008,8 +1008,7 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
     }
 
     registeredFunctions.insert(fname);
-    // Simply assume a single video node is returned
-    vsapi->registerFunction(fname.c_str(), newArgs.c_str(), "clip:vnode;", fakeAvisynthFunctionWrapper, new WrappedFunction(fname, apply, parsedArgs, user_data, interfaceVersion), vsapi->getPluginByID("com.vapoursynth.avisynth", core));
+    vsapi->registerFunction(fname.c_str(), newArgs.c_str(), "any", fakeAvisynthFunctionWrapper, new WrappedFunction(fname, apply, parsedArgs, user_data, interfaceVersion), vsapi->getPluginByID("com.vapoursynth.avisynth", core));
 }
 
 bool FakeAvisynth::FunctionExists(const char *name) {

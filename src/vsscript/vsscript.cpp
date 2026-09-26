@@ -473,6 +473,7 @@ static int VS_CC setVariable(VSScript *handle, const VSMap *vars) VS_NOEXCEPT {
 }
 
 static void VS_CC evalSetWorkingDir(VSScript *handle, int setCWD) VS_NOEXCEPT {
+    assert(handle);
     std::lock_guard<std::mutex> lock(vsscriptlock);
     handle->setCWD = setCWD;
 }
@@ -513,6 +514,9 @@ static VSSCRIPTAPI vsscript_api = {
     &getVariableEx
 };
 
+static const std::string versionErrorText = "The requested VSScript API version is not provided by this library, which implements R" + std::to_string(VSSCRIPT_API_MAJOR) + "." + std::to_string(VSSCRIPT_API_MINOR);
+static std::atomic<const char *> versionError = nullptr;
+
 const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {
     int apiMajor = (version >> 16);
     int apiMinor = (version & 0xFFFF);
@@ -522,10 +526,14 @@ const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {
         if (initialized) {
             return &vsscript_api;
         }
-    } 
+    } else {
+        versionError = versionErrorText.c_str();
+    }
     return nullptr;
 }
 
 const char *VS_CC getVSScriptAPILastError() VS_NOEXCEPT {
-    return extendedErrorMessage.empty() ? nullptr : extendedErrorMessage.c_str();
+    if (!extendedErrorMessage.empty())
+        return extendedErrorMessage.c_str();
+    return versionError;
 }

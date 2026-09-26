@@ -1,0 +1,20 @@
+# Khronos validation settings for the GPU workloads. Synchronization validation and thread
+# safety are the two that matter here; best practices is off because it reports style, not bugs.
+# GPU-assisted validation and shader printf are deliberately absent: they slow execution enough
+# to change the timing the concurrency paths depend on.
+#
+# Use with VS_VULKAN_VALIDATION=1 and VK_LAYER_SETTINGS_PATH pointing at this file.
+# The expected result across every GPU workload is an empty log.
+khronos_validation.validate_core = true
+khronos_validation.check_command_buffer = true
+khronos_validation.check_object_in_use = true
+khronos_validation.check_query = true
+khronos_validation.check_shaders = true
+khronos_validation.thread_safety = true
+khronos_validation.validate_sync = true
+khronos_validation.syncval_submit_time_validation = true
+khronos_validation.validate_best_practices = false
+khronos_validation.report_flags = error,warn
+khronos_validation.enable_message_limit = false
+khronos_validation.debug_action = VK_DBG_LAYER_ACTION_LOG_MSG
+khronos_validation.log_filename = /tmp/vk_validation.log

@@ -1023,7 +1023,8 @@ private:
     bool cacheLastOnly = false;
     VSCache cache;
 
-    void registerCache(bool add);
+    void registerCache();
+    void unregisterCache();
     PVSFrame getCachedFrameInternal(int n);
     PVSFrame getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
     void updateTransientAllocEstimate(int64_t hostSample, int64_t gpuSample);

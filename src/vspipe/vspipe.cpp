@@ -1774,6 +1774,10 @@ int main(int argc, char **argv) {
     vsapi->setCoreNodeTiming(core, opts.printFilterTime || filterTimeGraphFile);
     ScriptHandle scriptHolder = wrapScript(vssapi->createScript(core), vssapi);
     VSScript *se = scriptHolder.get();
+    if (!se) {
+        fprintf(stderr, "Failed to create the script environment\n");
+        return 1;
+    }
     vssapi->evalSetWorkingDir(se, 1);
     if (!opts.scriptArgs.empty()) {
         VSMap *foldedArgs = vsapi->createMap();

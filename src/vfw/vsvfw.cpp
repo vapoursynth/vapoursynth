@@ -372,7 +372,7 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) noexcept 
 VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), pending_requests(0) {
     vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
     if (!vssapi)
-        error_msg = getVSScriptAPILastError();
+        error_msg = getVSScriptAPILastError() ? getVSScriptAPILastError() : "Failed to initialize VSScript";
     else
         vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
     AddRef();
@@ -423,6 +423,10 @@ msg.set_output()\n";
 bool VapourSynthFile::DelayInit2() {
     if (vssapi && !szScriptName.empty() && !vi) {
         se = vssapi->createScript(nullptr);
+        if (!se) {
+            error_msg = "Failed to create the script environment";
+            return false;
+        }
         vssapi->evalSetWorkingDir(se, 1);
         vssapi->evaluateFile(se, szScriptName.u8string().c_str());
 
@@ -504,6 +508,8 @@ bool VapourSynthFile::DelayInit2() {
             error_script += error_msg;
             error_script += ErrorScript2;
             se = vssapi->createScript(nullptr);
+            if (!se)
+                return false;
             vssapi->evaluateBuffer(se, error_script.c_str(), "vfw_error.message");
             videoNode = vssapi->getOutputNode(se, 0);
             if (!videoNode) {

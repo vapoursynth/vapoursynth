@@ -1,0 +1,28 @@
+# ThreadSanitizer suppressions for the uninstrumented Vulkan drivers and the dynamic linker.
+#
+# The drivers synchronize with inline atomics TSan cannot see, so their internal caches show up
+# as races with both stacks inside the driver. Those are not core findings. See section L3 of
+# ../linux_tests.md: a suppressed report stays a known unknown, so do not extend this file to
+# make a run green, and never suppress a frame in VapourSynth code.
+
+race:libvulkan_*.so
+race:libnvidia-glcore.so
+race:libnvidia-eglcore.so
+race:libGLX_nvidia.so
+race:libnvidia-vulkan-producer.so
+deadlock:libvulkan_*.so
+deadlock:libnvidia-glcore.so
+
+# The dynamic linker, not anything above it. glibc runs _dl_close_worker under GL(dl_load_lock),
+# an __rtld_lock_* rather than a pthread mutex, so ThreadSanitizer cannot see the synchronization
+# and reports every pair of threads in dlopen/dlclose as a race. linux_tests/rtld_dlrace.c
+# reproduces it with no Vulkan call at all, which is how L25 established that the ~800 reports a
+# Vulkan run produces are noise. These two lines are what that noise actually is.
+race:_dl_close_worker
+race:_dl_open_worker
+
+# race:libvulkan.so used to be here, blamed for the above before rtld_dlrace.c said otherwise
+# (L24, L25). It is gone: with the linker named directly, the only reports it still covered turned
+# out to be an ICD's own one-time init racing itself across two instances -- a driver, matched
+# through a loader frame in the stack, and the glob above names it. Nothing should hide the loader
+# itself any more, so a real race in it would be visible.

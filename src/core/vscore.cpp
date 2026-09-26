@@ -988,8 +988,7 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame 
     }
 
     updateCacheState();
-    if (cacheEnabled)
-        registerCache(true);
+    registerCache();
 
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
@@ -1018,8 +1017,7 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame 
     }
 
     updateCacheState();
-    if (cacheEnabled)
-        registerCache(true);
+    registerCache();
 
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
@@ -1027,7 +1025,7 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame 
 }
 
 VSNode::~VSNode() {
-    registerCache(false);
+    unregisterCache();
 
     cache.clear();
 
@@ -1039,14 +1037,23 @@ VSNode::~VSNode() {
     core->destroyFilterInstance(this);
 }
 
-void VSNode::registerCache(bool add) {
+/* Applies cacheEnabled to the core's set of caches, read again under cacheLock rather than
+   passed in from under cacheMutex: two consumer changes on one node otherwise land their
+   registrations in either order, and an enabled cache can stay out of the set until the next
+   change. */
+void VSNode::registerCache() {
     std::lock_guard<std::mutex> lock(core->cacheLock);
     VS_LOCK_HELD(vsLockCacheSet);
-    if (add) {
+    if (cacheEnabled)
         core->caches.insert(this);
-    } else {
+    else
         core->caches.erase(this);
-    }
+}
+
+void VSNode::unregisterCache() {
+    std::lock_guard<std::mutex> lock(core->cacheLock);
+    VS_LOCK_HELD(vsLockCacheSet);
+    core->caches.erase(this);
 }
 
 void VSNode::updateCacheState() {
@@ -1067,7 +1074,7 @@ void VSNode::addConsumer(VSNode *consumer, int strictSpatial) {
 
         updateCacheState();
     }
-    registerCache(cacheEnabled);
+    registerCache();
 }
 
 void VSNode::removeConsumer(VSNode *consumer, int strictSpatial) {
@@ -1083,7 +1090,7 @@ void VSNode::removeConsumer(VSNode *consumer, int strictSpatial) {
 
         updateCacheState();
     }
-    registerCache(cacheEnabled);
+    registerCache();
 }
 
 
@@ -1170,7 +1177,7 @@ int VSNode::setLinear() {
         cache.setFixedSize(true);
         cache.setMaxFrames(static_cast<int>(threadCount) * 2 + 20);
     }
-    registerCache(cacheEnabled);
+    registerCache();
     return cache.getMaxFrames() / 2;
 }
 
@@ -1203,7 +1210,7 @@ void VSNode::setCacheMode(int mode) {
         if (!cacheEnabled)
             cache.clear();
     }
-    registerCache(cacheEnabled);
+    registerCache();
 }
 
 void VSNode::setCacheOptions(int fixedSize, int maxSize, int maxHistorySize) {
