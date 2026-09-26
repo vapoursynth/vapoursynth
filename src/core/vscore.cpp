@@ -313,6 +313,8 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
 
     for (int i = 0; i < numPlanes; i++) {
         if (planeSrc[i]) {
+            if (planeSrc[i]->contentType != mtVideo)
+                core->logFatal("Error in frame creation: the source of plane " + std::to_string(i) + " is not a video frame");
             if (plane[i] < 0 || plane[i] >= planeSrc[i]->format.vf.numPlanes)
                 core->logFatal("Error in frame creation: plane " + std::to_string(plane[i]) + " does not exist in the source frame");
             if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
@@ -396,10 +398,17 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *
 
     for (int i = 0; i < numPlanes; i++) {
         if (channelSrc[i]) {
+            if (channelSrc[i]->contentType != mtAudio)
+                core->logFatal("Error in frame creation: the source of channel " + std::to_string(i) + " is not an audio frame");
             if (channel[i] < 0 || channel[i] >= channelSrc[i]->format.af.numChannels)
                 core->logFatal("Error in frame creation: channel " + std::to_string(channel[i]) + " does not exist in the source frame");
             if (channelSrc[i]->getFrameLength() != getFrameLength())
                 core->logFatal("Error in frame creation: length of frame does not match. Source: " + std::to_string(channelSrc[i]->getFrameLength()) + "; destination: " + std::to_string(getFrameLength()));
+            if (channelSrc[i]->format.af.bytesPerSample != format.af.bytesPerSample || channelSrc[i]->format.af.sampleType != format.af.sampleType)
+                core->logFatal("Error in frame creation: channel " + std::to_string(channel[i]) + " of the source frame stores " +
+                    std::to_string(channelSrc[i]->format.af.bytesPerSample) + " byte " + (channelSrc[i]->format.af.sampleType == stFloat ? std::string("float") : std::string("integer")) +
+                    " samples but the destination frame stores " + std::to_string(format.af.bytesPerSample) + " byte " +
+                    (format.af.sampleType == stFloat ? std::string("float") : std::string("integer")) + " samples; a channel can only be copied between frames with the same sample storage");
             memcpy(getWritePtr(i), channelSrc[i]->getReadPtr(channel[i]), getFrameLength() * format.af.bytesPerSample);
         }
     }
@@ -920,7 +929,8 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
 
         if (!v->hasError()) {
             for (const auto &ra : retArgs) {
-                if (ra.type != ptVideoNode || ra.residency == VSArgResidency::All)
+                // a non-node under a vnode key is the return type mismatch warned about below
+                if (ra.type != ptVideoNode || ra.residency == VSArgResidency::All || vs_internal_vsapi.mapGetType(v, ra.name.c_str()) != ptVideoNode)
                     continue;
                 int numElems = vs_internal_vsapi.mapNumElements(v, ra.name.c_str());
                 for (int i = 0; i < numElems; i++) {
@@ -1217,10 +1227,10 @@ PVSFrame VSNode::getCachedFrameInternal(int n) {
 }
 
 PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx) {
-    std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
+    std::chrono::steady_clock::time_point startTime;
     bool enableFilterTiming = core->enableFilterTiming;
     if (enableFilterTiming)
-        startTime = std::chrono::high_resolution_clock::now();
+        startTime = std::chrono::steady_clock::now();
 
     vs::MemoryUse::CallTracking savedTracking = vs::MemoryUse::begin_call_tracking();
 
@@ -1233,7 +1243,7 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
     updateTransientAllocEstimate(callPeaks.host, callPeaks.gpu);
 
     if (enableFilterTiming) {
-        std::chrono::nanoseconds duration = std::chrono::high_resolution_clock::now() - startTime;
+        std::chrono::nanoseconds duration = std::chrono::steady_clock::now() - startTime;
         processingTime.fetch_add(duration.count(), std::memory_order_relaxed);
     }
 #ifdef VS_TARGET_CPU_X86
@@ -1243,6 +1253,9 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
 
     if (r) {
         assert(r->getFrameType());
+
+        if (r->getFrameType() != nodeType)
+            core->logFatal("Filter " + name + (nodeType == mtVideo ? " returned an audio frame but is a video filter" : " returned a video frame but is an audio filter"));
 
         if (r->getFrameType() == mtVideo) {
             const VSVideoFormat *fi = r->getVideoFormat();

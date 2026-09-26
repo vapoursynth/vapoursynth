@@ -244,7 +244,7 @@ static VSNode *VS_CC unpackYUY2Create(VSNode *node, VSCore *core, const VSAPI *v
     vsapi->getVideoFormatByID(&d->vi.format, pfYUV422P8, core);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    VSNode *ret = vsapi->createVideoFilter2("UnpackRGB32", &d->vi, unpackYUY2GetFrame, filterFree<UnpackYUY2Data>, fmParallel, deps, 1, d.get(), core);
+    VSNode *ret = vsapi->createVideoFilter2("UnpackYUY2", &d->vi, unpackYUY2GetFrame, filterFree<UnpackYUY2Data>, fmParallel, deps, 1, d.get(), core);
     d.release();
     return ret;
 }

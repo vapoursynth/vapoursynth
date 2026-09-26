@@ -23,12 +23,13 @@
 *
 * gpufilter.h is INTERNAL to the core, not part of the installed API, and deliberately so: it
 * is inline code over the public VSVULKANAPI with no ABI commitment, so it may change shape
-* between releases. Copy it next to your source and build against your copy -- the way
-* VSHelper4.h is used -- rather than including it from a VapourSynth checkout, so a core update
-* cannot silently change what your plugin compiles. It needs C++20 and nothing else.
+* between releases. Copy it, together with the vsgpuglsl.h it includes, next to your source and
+* build against your copies -- the way VSHelper4.h is used -- rather than including them from a
+* VapourSynth checkout, so a core update cannot silently change what your plugin compiles. They
+* need C++20 and nothing else.
 *
 *   clang-cl /LD /MD /O2 /EHsc /std:c++20 gpu_invert_driver_example.cpp ^
-*       /I<your copy of gpufilter.h> /I<vapoursynth include> /I<vulkan sdk include>
+*       /I<your copies of gpufilter.h and vsgpuglsl.h> /I<vapoursynth include> /I<vulkan sdk include>
 *
 * Unlike the other two this handles float formats as well as 8-16 bit integer, which is the
 * two extra lines of bodyFloat below. Doing that by hand means a second kernel, a second

@@ -94,7 +94,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     const VSVideoInfo *vi = vsapi->getVideoInfo(d.node);
 
     // In this first version we only want to handle 8bit integer formats. Note that
-    // vi->format can be 0 if the input clip can change format midstream.
+    // vi->format.colorFamily is cfUndefined if the input clip can change format midstream.
     if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stInteger || vi->format.bitsPerSample != 8) {
         vsapi->mapSetError(out, "Invert: only constant format 8bit integer input supported");
         vsapi->freeNode(d.node);
@@ -161,10 +161,11 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 // should be CamelCase. The argument string has this format:
 // name:type; or name:type:flag1:flag2....;
 // All argument name should be lowercase and only use [a-z_].
-// The valid types are int,float,data,clip,frame,func. [] can be appended to allow arrays
+// The valid types are int,float,data,vnode,anode,vframe,aframe,func. [] can be appended to allow arrays
 // of type to be passed (numbers:int[])
 // The available flags are opt, to make an argument optional, empty, which controls whether
-// or not empty arrays are accepted
+// or not empty arrays are accepted, and the residency modifiers gpu and all for vnode and vframe
+// arguments (see the GPU filter documentation). A trailing "any" passes every remaining argument through.
 
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {

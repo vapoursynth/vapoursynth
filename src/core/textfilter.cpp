@@ -968,6 +968,10 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     std::unique_ptr<TextData> d(new TextData{});
     int err;
 
+    static const char *const filterNames[] = { "Text", "ClipInfo", "CoreInfo", "FrameNum", "FrameProps" };
+    d->st.filter = reinterpret_cast<intptr_t>(userData);
+    d->st.instanceName = filterNames[d->st.filter];
+
     d->node = vsapi->mapGetNode(in, "clip", 0, &err);
     if (err) {
         // Can only happen for CoreInfo.
@@ -989,7 +993,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     d->vi = vsapi->getVideoInfo(d->node);
 
     if (!is8to16orFloatFormat(d->vi->format, true)) {
-        vsapi->mapSetError(out, invalidVideoFormatMessage(d->vi->format, vsapi, "Text", true).c_str());
+        vsapi->mapSetError(out, invalidVideoFormatMessage(d->vi->format, vsapi, d->st.instanceName.c_str(), true).c_str());
         vsapi->freeNode(d->node);
         return;
     }
@@ -1000,7 +1004,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     if (d->st.alignment < 1 || d->st.alignment > 9) {
-        vsapi->mapSetError(out, "Text: alignment must be between 1 and 9 (think numpad)");
+        vsapi->mapSetError(out, (d->st.instanceName + ": alignment must be between 1 and 9 (think numpad)").c_str());
         vsapi->freeNode(d->node);
         return;
     }
@@ -1011,27 +1015,16 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     if (d->st.scale < 1 || d->st.scale > (1 << 16)) {
-        vsapi->mapSetError(out, "Text: scale must be a positive integer no larger than 65536");
+        vsapi->mapSetError(out, (d->st.instanceName + ": scale must be a positive integer no larger than 65536").c_str());
         vsapi->freeNode(d->node);
         return;
     }
 
-    d->st.filter = reinterpret_cast<intptr_t>(userData);
     d->st.vi = *d->vi;
 
     switch (d->st.filter) {
     case FILTER_TEXT:
         d->st.text = vsapi->mapGetData(in, "text", 0, nullptr);
-        d->st.instanceName = "Text";
-        break;
-    case FILTER_CLIPINFO:
-        d->st.instanceName = "ClipInfo";
-        break;
-    case FILTER_COREINFO:
-        d->st.instanceName = "CoreInfo";
-        break;
-    case FILTER_FRAMENUM:
-        d->st.instanceName = "FrameNum";
         break;
     case FILTER_FRAMEPROPS:
         int numProps = vsapi->mapNumElements(in, "props");
@@ -1039,8 +1032,6 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         for (int i = 0; i < numProps; i++) {
             d->st.props.push_back(vsapi->mapGetData(in, "props", i, nullptr));
         }
-
-        d->st.instanceName = "FrameProps";
         break;
     }
 

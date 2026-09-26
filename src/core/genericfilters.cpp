@@ -1722,7 +1722,6 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
 /////////////////
 
 struct LevelsDataExtra {
-    VSNode *node;
     const VSVideoInfo *vi;
     const char *name;
     bool process[3];

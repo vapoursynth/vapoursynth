@@ -98,7 +98,7 @@ typedef enum VSSampleType {
     stFloat = 1
 } VSSampleType;
 
-#define VS_MAKE_VIDEO_ID(colorFamily, sampleType, bitsPerSample, subSamplingW, subSamplingH) ((colorFamily << 28) | (sampleType << 24) | (bitsPerSample << 16) | (subSamplingW << 8) | (subSamplingH << 0))
+#define VS_MAKE_VIDEO_ID(colorFamily, sampleType, bitsPerSample, subSamplingW, subSamplingH) (((colorFamily) << 28) | ((sampleType) << 24) | ((bitsPerSample) << 16) | ((subSamplingW) << 8) | ((subSamplingH) << 0))
 
 typedef enum VSPresetVideoFormat {
     pfNone = 0,
@@ -341,7 +341,7 @@ typedef enum VSRequestPattern {
     rpStrictSpatial = 2 /* Always (and only) requests frame n from the input clip when generating output frame n, never requests frames beyond the end of the clip */
 #if VAPOURSYNTH_API_MINOR >= 1   
     ,
-    rpFrameReuseLastOnly = 3 /* Added in API 4.1, This modes is basically identical rpNoFrameReuse except that it hints the last frame may be requested multiple times */
+    rpFrameReuseLastOnly = 3 /* Added in API 4.1, This mode is basically identical to rpNoFrameReuse except that it hints the last frame may be requested multiple times */
 #endif
 } VSRequestPattern;
 

@@ -177,7 +177,7 @@ static inline int VSH4_MANGLE_FUNCTION_NAME(int64ToIntS)(int64_t i) {
     else return (int)i;
 }
 
-/* converts a double to float with saturation, useful to silence warnings when reading float properties among other things */
+/* converts a double to float, useful to silence warnings when reading float properties among other things */
 static inline float VSH4_MANGLE_FUNCTION_NAME(doubleToFloatS)(double d) {
     return (float)d;
 }

@@ -267,9 +267,9 @@ void VSThreadPool::runTasks(bool &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
-            bool requestedFrames = frameContext->reqList.size() > 0 && !frameProcessingDone;
-            if (f && requestedFrames)
+            if (f && frameContext->reqList.size() > 0)
                 core->logFatal("A frame was returned at the end of processing by " + node->name + " but there are still outstanding requests");
+            bool requestedFrames = frameContext->reqList.size() > 0 && !frameProcessingDone;
 
             bool needsSort = requestedFrames;
 

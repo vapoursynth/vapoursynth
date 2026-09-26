@@ -971,7 +971,8 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
        device cannot run is refused at creation with the reason. Neither cap is theoretical:
        the specification guarantees a range of only 128 MB, which one 8K float plane exceeds,
        and Vulkan on Metal reports 31 storage buffers per stage without argument buffers, one
-       short of AverageFrames at its widest. */
+       short of AverageFrames at its widest. The push constant block has a cap of its own, 128
+       bytes guaranteed, which only a filter outside the tree can exceed. */
     VkPhysicalDevicePushDescriptorProperties pushProps = {};
     pushProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES;
     VkPhysicalDeviceProperties2 props = {};
@@ -984,10 +985,15 @@ inline VSNode *createFilter(const char *name, const FilterDesc &desc, const VSFi
     const uint32_t maxStorageBuffers = std::min({ limits.maxPerStageDescriptorStorageBuffers,
         limits.maxDescriptorSetStorageBuffers, pushProps.maxPushDescriptors });
     for (size_t idx = 0; idx < desc.programs.size(); idx++) {
-        if (static_cast<uint32_t>(desc.programs[idx].storageBufferCount) > maxStorageBuffers)
+        const Program &prog = desc.programs[idx];
+        if (static_cast<uint32_t>(prog.storageBufferCount) > maxStorageBuffers)
             return fail("program " + std::to_string(idx) + " declares " +
-                std::to_string(desc.programs[idx].storageBufferCount) + " storage buffers, but this device binds at most " +
+                std::to_string(prog.storageBufferCount) + " storage buffers, but this device binds at most " +
                 std::to_string(maxStorageBuffers) + " in one pass");
+        if (prog.pushConstantBytes < 0 || prog.pushConstantBytes % 4 != 0 || static_cast<uint32_t>(prog.pushConstantBytes) > limits.maxPushConstantsSize)
+            return fail("program " + std::to_string(idx) + " declares " + std::to_string(prog.pushConstantBytes) +
+                " bytes of push constants, but this device allows at most " + std::to_string(limits.maxPushConstantsSize) +
+                " and the size must be a multiple of 4");
     }
     /* The sizes the filter declares are exact. A plane's is known here only from below, the
        row padding being the core's, so planes are bounded here and checked exactly where they

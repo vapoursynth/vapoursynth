@@ -861,12 +861,6 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
         }
     }
 
-    if (numSrcNodes > numSrcChannels) {
-        for (const auto &iter : d->sourceNodes)
-            vsapi->freeNode(iter.node);
-        RETERROR("AudioMix: cannot have more input nodes than selected input channels");
-    }
-
     if (numDstChannels * numSrcChannels != numMatrixWeights) {
         for (const auto &iter : d->sourceNodes)
             vsapi->freeNode(iter.node);
@@ -1413,7 +1407,7 @@ void audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("AudioSplice", "clips:anode[];", "clip:anode;", audioSpliceCreate, 0, plugin);
     vspapi->registerFunction("AudioLoop", "clip:anode;times:int:opt;", "clip:anode;", audioLoopCreate, 0, plugin);
     vspapi->registerFunction("AudioReverse", "clip:anode;", "clip:anode;", audioReverseCreate, 0, plugin);
-    vspapi->registerFunction("AudioGain", "clip:anode;gain:float[]:opt;overflow_error:int:opt;", "clip:anode;", audioGainCreate, 0, plugin);
+    vspapi->registerFunction("AudioGain", "clip:anode;gain:float[];overflow_error:int:opt;", "clip:anode;", audioGainCreate, 0, plugin);
     vspapi->registerFunction("AudioMix", "clips:anode[];matrix:float[];channels_out:int[];overflow_error:int:opt;", "clip:anode;", audioMixCreate, 0, plugin);
     vspapi->registerFunction("ShuffleChannels", "clips:anode[];channels_in:int[];channels_out:int[];", "clip:anode;", shuffleChannelsCreate, 0, plugin);
     vspapi->registerFunction("SplitChannels", "clip:anode;", "clip:anode[];", splitChannelsCreate, 0, plugin);

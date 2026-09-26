@@ -407,7 +407,8 @@ void vs_lut2_gather_bw_b_avx512(const uint8_t *, const uint16_t *, uint8_t *, in
    Returns false (compile-time) for combos without a kernel so the caller falls
    back to the scalar path; only ever called when d->use_gather is set. */
 template<typename T, typename U, typename V>
-static inline bool lut2GatherRow(const T *sx, const U *sy, V *d, int w, const V *lut, int bitsx, unsigned mx, unsigned my) {
+static inline bool lut2GatherRow([[maybe_unused]] const T *sx, [[maybe_unused]] const U *sy, [[maybe_unused]] V *d, [[maybe_unused]] int w,
+    [[maybe_unused]] const V *lut, [[maybe_unused]] int bitsx, [[maybe_unused]] unsigned mx, [[maybe_unused]] unsigned my) {
 #ifdef VS_TARGET_CPU_X86
     if constexpr (std::is_integral_v<V>) {
         if constexpr (std::is_same_v<T, uint16_t> && std::is_same_v<U, uint16_t>) {
@@ -425,7 +426,6 @@ static inline bool lut2GatherRow(const T *sx, const U *sy, V *d, int w, const V 
         }
     }
 #endif
-    (void)sx; (void)sy; (void)d; (void)w; (void)lut; (void)bitsx; (void)mx; (void)my;
     return false;
 }
 

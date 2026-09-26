@@ -402,9 +402,10 @@ the pipeline. gpu_invert_driver_example.cpp is the invert filter in that form,
 next to the same filter written both other ways.
 
 It is INTERNAL, not part of the installed API — inline code over VSVULKANAPI
-with no ABI commitment, free to change shape between releases. Copy it beside
-your source and build against your copy, the way VSHelper4.h is used, so a core
-update cannot change what your plugin compiles. It needs C++20.
+with no ABI commitment, free to change shape between releases. Copy it, together
+with the vsgpuglsl.h it includes, beside your source and build against your
+copies, the way VSHelper4.h is used, so a core update cannot change what your
+plugin compiles. They need C++20.
 
 A filter outside the shape it models — indirect dispatch, its own descriptor
 layout, a dispatch count that varies per frame — drops back to VSVULKANAPI and
