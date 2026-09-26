@@ -319,9 +319,10 @@ std::string exprPlaneBody(const std::vector<ExprInstruction> &code, int &maxReg,
                       "), 0.0, 65535.0)), " + std::to_string((1u << insn.op.imm.u) - 1) + "u));\n";
             break;
         case ExprOpType::MEM_STORE_F16:
-            /* Not a plain conversion: SPIR-V leaves 32 to 16 bit rounding implementation
-               defined and at least one desktop driver truncates toward zero, where every
-               scalar path here rounds to nearest even; see the note in gpufilter.h. */
+            /* A plain conversion, but not the same rounding everywhere: SPIR-V leaves 32 to
+               16 bit rounding implementation defined and at least one desktop driver
+               truncates toward zero, where every scalar path here rounds to nearest even;
+               see the note in gpufilter.h. */
             g.body += "        dstData[dstIdx] = SAMPLE_T(" + a + ");\n";
             break;
         case ExprOpType::MEM_STORE_F32:

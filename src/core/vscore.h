@@ -56,7 +56,7 @@
 static const uint32_t VS_FRAME_GUARD_PATTERN = 0xDEADBEEF;
 #endif
 
-#define VS_FATAL_ERROR(msg) do { fprintf(stderr, "%s\n", (msg)); std::terminate(); } while (false);
+#define VS_FATAL_ERROR(msg) do { fprintf(stderr, "%s\n", (msg)); std::terminate(); } while (false)
 
 
 struct VSFrame;

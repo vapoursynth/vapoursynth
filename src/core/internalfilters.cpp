@@ -54,6 +54,10 @@ static void VS_CC setCache(const VSMap *in, VSMap *out, void *userData, VSCore *
 static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     const char *str = vsapi->mapGetData(in, "cpu", 0, nullptr);
     int level = vs_cpulevel_from_str(str);
+    if (level == VS_CPU_LEVEL_INVALID) {
+        vsapi->mapSetError(out, (std::string("SetMaxCPU: unknown cpu level: ") + str).c_str());
+        return;
+    }
     level = vs_set_cpulevel(core, level);
     str = vs_cpulevel_to_str(level);
     vsapi->mapSetData(out, "cpu", str, -1, dtUtf8, maReplace);

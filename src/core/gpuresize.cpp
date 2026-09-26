@@ -2761,7 +2761,7 @@ ArgLookup lookupSharedEnum(const VSMap *in, const char *key,
     const std::string strKey = std::string(key) + "_s";
     if (!present(in, strKey.c_str(), vsapi))
         return ArgLookup::Absent;
-    const std::string name = lowercased(vsapi->mapGetData(in, strKey.c_str(), 0, nullptr));
+    const std::string name = vsapi->mapGetData(in, strKey.c_str(), 0, nullptr);
     if (const int *v = findResizeEnum(table, name)) {
         *value = *v;
         return ArgLookup::Resolved;
@@ -2845,17 +2845,19 @@ bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
     int ditherErr;
     const char *ditherType = vsapi->mapGetData(in, "dither_type", 0, &ditherErr);
     if (!ditherErr) {
-        const std::string d = lowercased(ditherType);
+        const std::string d = ditherType;
         if (d == "none")
             spec.dither = DitherMode::None;
         else if (d == "ordered")
             spec.dither = DitherMode::Ordered;
         else if (d == "random")
             spec.dither = DitherMode::Random;
-        else
+        else if (d == "error_diffusion")
             /* Error diffusion is a serial recurrence over the whole image; the scalar
                implementation is the right one for it. */
             return give_up("error diffusion dithering");
+        else
+            return give_up("a dither_type this path does not recognise");
     }
     /* Asking for a specific CPU is a statement about where the work should run. */
     if (present(in, "cpu_type", vsapi))
@@ -2871,7 +2873,7 @@ bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
     const char *uvName = vsapi->mapGetData(in, "resample_filter_uv", 0, &uvErr);
     if (uvErr) {
         spec.kernelUV = spec.kernelY;
-    } else if (!makeKernelSpec(lowercased(uvName),
+    } else if (!makeKernelSpec(uvName,
             optFloat(in, "filter_param_a_uv", NAN, vsapi),
             optFloat(in, "filter_param_b_uv", NAN, vsapi), &spec.kernelUV)) {
         return give_up("the chroma kernel or its parameters are not implemented");

@@ -28,6 +28,7 @@ extern "C" {
 #endif
 
 enum {
+    VS_CPU_LEVEL_INVALID = -1, /* only from vs_cpulevel_from_str, for a name it does not know */
     VS_CPU_LEVEL_NONE = 0,
 #ifdef VS_TARGET_CPU_X86
     VS_CPU_LEVEL_SSE2 = 1,

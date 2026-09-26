@@ -1790,6 +1790,10 @@ struct VSAPI
       After this function returns, *out* will contain the new node appended to the
       "clip" property, or an error, if something went wrong.
 
+      Under normal conditions this function never fails; the only error is an
+      invalid *vi*. When it does fail the *free* function is not called and
+      *instanceData* remains the caller's to free.
+
 ----------
 
    .. _createVideoFilter2:
@@ -1797,7 +1801,8 @@ struct VSAPI
    VSNode_ \*createVideoFilter2(const char \*name, const VSVideoInfo_ \*vi, VSFilterGetFrame_ getFrame, VSFilterFree_ free, int filterMode, const VSFilterDependency_ \*dependencies, int numDeps, void \*instanceData, VSCore_ \*core)
 
       Identical to createVideoFilter_ except that the new node is returned
-      instead of appended to the *out* map. Returns NULL on error.
+      instead of appended to the *out* map. Returns NULL on error without
+      reporting the reason; *instanceData* remains the caller's to free.
 
 ----------
 
@@ -1818,8 +1823,9 @@ struct VSAPI
    VSNode_ \*createVideoFilterEx2(const char \*name, const VSVideoInfo_ \*vi, VSFilterGetFrame_ getFrame, VSFilterFree_ free, int filterMode, int flags, const VSFilterDependency_ \*dependencies, int numDeps, void \*instanceData, VSCore_ \*core)
 
       Identical to createVideoFilterEx_ except that the new node is returned
-      instead of appended to the *out* map. Returns NULL on error. Added in
-      API 4.3.
+      instead of appended to the *out* map. Returns NULL on error, with
+      *instanceData* remaining the caller's to free as in createVideoFilter2_;
+      unknown flags are also logged. Added in API 4.3.
 
 ----------
 
@@ -1863,6 +1869,11 @@ struct VSAPI
       After this function returns, *out* will contain the new node appended to the
       "clip" property, or an error, if something went wrong.
 
+      Under normal conditions this function never fails; the only errors are an
+      invalid *ai* or a sample count too large for its frames to be numbered.
+      When it does fail the *free* function is not called and *instanceData*
+      remains the caller's to free.
+
 ----------
 
    .. _createAudioFilter2:
@@ -1870,7 +1881,8 @@ struct VSAPI
    VSNode \*createAudioFilter2(const char \*name, const VSAudioInfo \*ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency_ \*dependencies, int numDeps, void \*instanceData, VSCore \*core)
 
       Identical to createAudioFilter_ except that the new node is returned
-      instead of appended to the *out* map. Returns NULL on error.
+      instead of appended to the *out* map. Returns NULL on error without
+      reporting the reason; *instanceData* remains the caller's to free.
 
 ----------
 

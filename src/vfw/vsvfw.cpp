@@ -551,8 +551,8 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) noexcept {
     afi.dwHeight = vi->height;
     afi.dwEditCount = 0;
 
-    afi.dwRate = int64ToIntS(vi->fpsNum ? vi->fpsNum : 1);
-    afi.dwScale = int64ToIntS(vi->fpsDen ? vi->fpsDen : 30);
+    afi.dwRate = int64ToIntS(vi->fpsNum ? vi->fpsNum : 30);
+    afi.dwScale = int64ToIntS(vi->fpsDen ? vi->fpsDen : 1);
     afi.dwLength = vi->numFrames;
 
     wcscpy(afi.szFileType, L"VapourSynth");

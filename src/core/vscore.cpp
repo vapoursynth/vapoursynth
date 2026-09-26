@@ -2053,6 +2053,9 @@ bool VSCore::isValidVideoInfo(const VSVideoInfo &vi) noexcept {
     if (vi.fpsDen < 0 || vi.fpsNum < 0 || vi.height < 0 || vi.width < 0 || vi.numFrames < 1)
         return false;
 
+    if ((vi.fpsNum == 0) != (vi.fpsDen == 0))
+        return false;
+
     int64_t num = vi.fpsNum;
     int64_t den = vi.fpsDen;
     reduceRational(&num, &den);

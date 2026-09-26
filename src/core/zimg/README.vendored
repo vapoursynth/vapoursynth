@@ -1,4 +1,9 @@
-Vendored from zimg, unmodified except that "common/x.h" includes are flattened to "x.h".
+Vendored from zimg, with three departures from the upstream files:
+  - "common/x.h" includes are flattened to "x.h" (colorspace_param.cpp).
+  - colorspace.h ends after ColorspaceDefinition and its comparison operators: the
+    ColorspaceConversion struct below them needs common/builder.h and graphengine, and
+    nothing here uses it.
+  - The files carry a UTF-8 BOM (blue.cpp and blue.h excepted), which upstream's do not.
 
 Source revision: release-3.0.6-251-g274b46e
 

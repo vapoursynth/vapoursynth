@@ -66,10 +66,9 @@ void report() {
    first time it occurs, so check a lock-free table and touch the mutex only for a new one. */
 static std::atomic<bool> seenEdge[vsLockCount][vsLockCount];
 /* Registered before main for the same fork reason: no call_once, no lazy guard. */
-static const bool reportRegistered = [] { std::atexit(&report); return true; }();
+[[maybe_unused]] static const bool reportRegistered = [] { std::atexit(&report); return true; }();
 
 void vsLockOrderPush(int id) {
-    (void)reportRegistered;
     for (int outer : held) {
         if (seenEdge[outer][id].load(std::memory_order_relaxed))
             continue;

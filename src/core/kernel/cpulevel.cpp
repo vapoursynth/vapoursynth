@@ -31,7 +31,9 @@ int vs_set_cpulevel(struct VSCore *core, int level) {
 }
 
 int vs_cpulevel_from_str(const char *name) {
-    if (!strcmp(name, "none"))
+    if (!strcmp(name, ""))
+        return VS_CPU_LEVEL_MAX; /* the default, which is also what vs_cpulevel_to_str calls it */
+    else if (!strcmp(name, "none"))
         return VS_CPU_LEVEL_NONE;
 #ifdef VS_TARGET_CPU_X86
     else if (!strcmp(name, "sse2"))
@@ -45,7 +47,7 @@ int vs_cpulevel_from_str(const char *name) {
         return VS_CPU_LEVEL_NEON;
 #endif
     else
-        return VS_CPU_LEVEL_MAX;
+        return VS_CPU_LEVEL_INVALID;
 }
 
 const char *vs_cpulevel_to_str(int level) {

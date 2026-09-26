@@ -2381,7 +2381,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
 
     if (numupper < 0) {
         for (int i = 0; i < vi->format.numPlanes; i++) {
-            d->upper[i] = (1 << vi->format.bitsPerSample) - 1;
+            d->upper[i] = (vi->format.sampleType == stInteger) ? (1 << vi->format.bitsPerSample) - 1 : 0;
             d->upperf[i] = (vi->format.colorFamily == cfYUV && i) ? 0.5f : 1.0f;
         }
     } else if (numupper == vi->format.numPlanes) {
@@ -2891,6 +2891,12 @@ static const VSFrame *VS_CC propToClipGetFrame(int n, int activationReason, void
         vsapi->freeFrame(src);
 
         if (dst) {
+            if (vsapi->getFrameType(dst) != mtVideo) {
+                vsapi->freeFrame(dst);
+                vsapi->setFilterError("PropToClip: retrieved frame is not a video frame", frameCtx);
+                return nullptr;
+            }
+
             if (!isSameVideoFormat(&d->vi.format, vsapi->getVideoFrameFormat(dst)) || d->vi.height != vsapi->getFrameHeight(dst, 0) || d->vi.width != vsapi->getFrameWidth(dst, 0)) {
                 vsapi->freeFrame(dst);
                 vsapi->setFilterError("PropToClip: retrieved frame doesn't match output format or dimensions", frameCtx);
@@ -2942,6 +2948,12 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     if (err) {
         vsapi->freeFrame(src);
         RETERROR(("PropToClip: no frame stored in property: " + d->prop + " index " + std::to_string(d->index)).c_str());
+    }
+
+    if (vsapi->getFrameType(msrc) != mtVideo) {
+        vsapi->freeFrame(msrc);
+        vsapi->freeFrame(src);
+        RETERROR(("PropToClip: the frame stored in property: " + d->prop + " index " + std::to_string(d->index) + " is not a video frame").c_str());
     }
 
     d->vi.format = *vsapi->getVideoFrameFormat(msrc);
@@ -3293,16 +3305,11 @@ static const VSFrame *VS_CC copyFramePropsGetFrame(int n, int activationReason, 
                 } else if (ptype == ptData) {
                     for (int i = 0; i < num; i++)
                         vsapi->mapSetData(dstprops, iter.c_str(), vsapi->mapGetData(srcprops, iter.c_str(), i, nullptr), vsapi->mapGetDataSize(srcprops, iter.c_str(), i, nullptr), vsapi->mapGetDataTypeHint(srcprops, iter.c_str(), i, nullptr), maAppend);
-                } else if (ptype == ptAudioNode || ptype == ptVideoNode) {
-                    for (int i = 0; i < num; i++)
-                        vsapi->mapConsumeNode(dstprops, iter.c_str(), vsapi->mapGetNode(srcprops, iter.c_str(), i, nullptr), maAppend);
                 } else if (ptype == ptAudioFrame || ptype == ptVideoFrame) {
                     for (int i = 0; i < num; i++)
                         vsapi->mapConsumeFrame(dstprops, iter.c_str(), vsapi->mapGetFrame(srcprops, iter.c_str(), i, nullptr), maAppend);
-                } else if (ptype == ptFunction) {
-                    for (int i = 0; i < num; i++)
-                        vsapi->mapConsumeFunction(dstprops, iter.c_str(), vsapi->mapGetFunction(srcprops, iter.c_str(), i, nullptr), maAppend);
                 }
+                // nodes and functions need no branch since frame property maps refuse them
             }
         }
 

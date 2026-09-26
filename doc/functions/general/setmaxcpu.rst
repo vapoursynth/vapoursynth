@@ -13,4 +13,8 @@ SetMaxCPU
 
    Other platforms: "none"
 
-   By default all supported cpu features are used.
+   By default all supported cpu features are used, and an empty string
+   restores that default. Any other value is an error.
+
+   Returns the level that was set before the call, as one of the strings
+   above, or an empty string if it was the default.

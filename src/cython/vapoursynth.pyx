@@ -1638,6 +1638,9 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                 iter(val)
             except:
                 val = [val]
+            else:
+                # materialized, since a generator or iterator is consumed by the loop below and then fails at len(val)
+                val = list(val)
 
         for v in val:
             if (atypes[key][:5] == 'vnode' and isinstance(v, VideoNode)) or (atypes[key][:5] == 'anode' and isinstance(v, AudioNode)):
@@ -1864,7 +1867,7 @@ cdef class FrameProps(object):
     def __setitem__(self, str name, value):
         self.frame._ensure_open()
         if self.readonly:
-            raise Error('Cannot delete properties of a read only object')
+            raise Error('Cannot set properties of a read only object')
         cdef VSMap *m = NULL
         cdef bytes b = name.encode('utf-8')
         cdef const VSAPI *funcs = self.funcs
