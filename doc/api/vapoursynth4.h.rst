@@ -1349,8 +1349,9 @@ struct VSAPI
       *msgType*
          The type of message. One of VSMessageType_.
 
-         If *msgType* is mtFatal, VapourSynth will call abort() after
-         delivering the message.
+         If *msgType* is mtFatal, the message is written to stderr and
+         delivered to the handlers, unless another thread is delivering
+         messages at the time, and then VapourSynth calls abort().
 
       *msg*
          The message.
@@ -1364,14 +1365,24 @@ struct VSAPI
       Installs a custom handler for the various error messages VapourSynth
       emits. The message handler is per VSCore_ instance. Returns a unique handle.
 
-      If no log handler is installed up to a few hundred messages are cached and
-      will be delivered as soon as a log handler is attached. This behavior exists
+      If no log handler is installed up to 64 KiB of messages are kept and
+      delivered as soon as a log handler is attached. This behavior exists
       mostly so that warnings when auto-loading plugins (default behavior) won't disappear-
 
-      A handler must only pass the message on and return quickly. Calling
-      logMessage_ from a handler is allowed but no other api function is, and a
-      handler must never add or remove log handlers or wait for frame requests
-      to complete.
+      Handlers are called one at a time, in the order the messages were logged,
+      but not always on the thread that logged them: when another thread is
+      already delivering messages, logMessage_ queues the message for that
+      thread and returns, so logging never waits for a handler another thread
+      is running. Should more than 16 MiB of messages be waiting, further ones
+      are discarded, and a warning saying how many follows once the queue has
+      drained.
+
+      A handler may call logMessage_, whose message is then delivered after
+      the handler returns, and may add or remove log handlers, itself
+      included. It must not call freeCore_ and, since it may be running on
+      one of the core's worker threads, must not wait for frame requests to
+      complete or for anything another thread will only do once the handler
+      has returned.
 
       *handler*
          typedef void (VS_CC \*VSLogHandler)(int msgType, const char \*msg, void \*userdata)
@@ -1404,6 +1415,11 @@ struct VSAPI
 
       Removes a custom handler. Return non-zero on success and zero if
       the handle is invalid.
+
+      Returns once the handler has run for the last time and its free
+      function has been called: a call of it in progress on another thread
+      is waited for. May be called from inside the handler itself, which
+      must then not touch its *userData* afterwards.
 
       *handle*
          Handle obtained from addLogHandler_\ ().
@@ -2947,6 +2963,10 @@ struct VSAPI
       Requests a frame from a node and returns immediately.
 
       Only use inside a filter's "getframe" function.
+
+      *n* is clamped to the clip's frame range, so a filter may request the
+      neighbours of the first and last frame without checking the bounds
+      itself. getFrameFilter_\ () clamps the same way.
 
       A filter usually calls this function when its activation reason is
       arInitial. The requested frame can then be retrieved using

@@ -52,7 +52,7 @@ followed by a release, retaining the source frame.
 | allocator mutex | blocks and free lists |
 | `VSCore::cacheLock` | the set of nodes with caches |
 | `VSNode::cacheMutex` | one node's cache and consumer list |
-| `VSCore::logMutex` | the message handler list, held across the dispatch to each handler; recursive, and the only lock here that runs code the core did not write |
+| `VSCore::logMutex` | the message handlers and the queue of messages waiting for delivery. A leaf, never held while a handler runs: one thread at a time delivers, dropping the lock around each call, and a thread that logs while another is delivering queues its message and returns. Until 2026-09-25 it was recursive, held across every handler call, and the only lock here that ran code the core did not write |
 | `VSVulkanDevice::handOffLock` + `handOffCond` | every plane's hand-off state (`VSVulkanPlane::handOff`) during a take-back, and nothing else: a take-back claims the planes still Foreign as Acquiring, acquires them with nothing held, then settles them and notifies; a take-back wanting a plane another is acquiring waits on the condition variable. A leaf |
 
 Three more locks are leaves -- none takes another lock while held -- so they add no edge the

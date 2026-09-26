@@ -296,8 +296,10 @@ void VSThreadPool::runTasks(bool &stop) {
             if (requestedFrames) {
                 assert(frameContext->numFrameRequests == 0);
 
-                for (size_t i = 0; i < frameContext->reqList.size(); i++)
+                for (size_t i = 0; i < frameContext->reqList.size(); i++) {
+                    assert(frameContext->reqList[i].second >= 0); // requestFrameFilter clamps
                     startInternalRequest(frameContextRef, frameContext->reqList[i]);
+                }
 
                 frameContext->numFrameRequests = frameContext->reqList.size();
                 frameContext->reqList.clear();
@@ -351,7 +353,9 @@ void VSThreadPool::runTasks(bool &stop) {
             } else if (requestedFrames) {
                 // already scheduled, do nothing
             } else {
-                core->logFatal("No frame returned at the end of processing by " + node->name);
+                std::string message = "No frame returned at the end of processing by " + node->name;
+                lock.unlock();
+                core->logFatal(message);
             }
 
             if (needsSort)
@@ -510,9 +514,6 @@ void VSThreadPool::returnFrame(VSFrameContext *rCtx, const PVSFrame &f, std::uni
 void VSThreadPool::startInternalRequest(const PVSFrameContext &notify, NodeOutputKey key) {
     //technically this could be done by walking up the context chain and add a new notification to the correct one
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
-
-    if (key.second < 0)
-        core->logFatal("Negative frame request by: " + notify->key.first->getName());
 
     auto it = allContexts.find(key);
     if (it != allContexts.end()) {

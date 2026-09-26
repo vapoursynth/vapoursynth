@@ -1223,10 +1223,14 @@ public:
     int getPluginVersion() const { return pluginVersion; }
 };
 
+class VSTrackedLock;
+
 struct VSLogHandle {
     VSLogHandler handler;
     VSLogHandlerFree freeFunc;
     void *userData;
+    /* Never reused, unlike the address. */
+    uint64_t id;
     ~VSLogHandle() {
         if (freeFunc)
             freeFunc(userData);
@@ -1278,11 +1282,26 @@ private:
     virtual ~VSCore();
 
 
-    static constexpr size_t maxStoredLogMessages = 500;
+    /* Queue bounds: while delivering, and while no handler exists (possibly forever). */
+    static constexpr size_t maxStoredLogBytes = 64 * 1024;
+    static constexpr size_t maxQueuedLogBytes = 16 * 1024 * 1024;
 
-    std::recursive_mutex logMutex;
-    std::set<VSLogHandle *> messageHandlers;
-    std::list<std::pair<VSMessageType, std::string>> storedMessages;
+    /* Guards the rest; never held while a handler or free function runs. See logMessage. */
+    std::mutex logMutex;
+    std::condition_variable logIdle;
+    std::vector<VSLogHandle *> messageHandlers;
+    std::deque<std::pair<VSMessageType, std::string>> logQueue;
+    size_t logQueuedBytes = 0;
+    uint64_t logDropped = 0;
+    uint64_t logHandleIds = 0;
+    std::thread::id logDeliverer;
+    VSLogHandle *logInFlight = nullptr;
+
+    VSLogHandle *findLogHandle(uint64_t id) const noexcept;
+    void dispatchLogLocked(VSMessageType type, const char *message, VSTrackedLock &lock);
+    void deliverLogLocked(VSTrackedLock &lock);
+    void deliverLogIfIdleLocked(VSTrackedLock &lock);
+    void removeAllLogHandlers();
 
     static const std::filesystem::path libraryExtension;
 public:

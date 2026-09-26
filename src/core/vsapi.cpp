@@ -129,21 +129,23 @@ static const VSFrame *VS_CC getFrame(int n, VSNode *node, char *errorMsg, int bu
     return g.r;
 }
 
+/* Both ends, so a filter can ask for its neighbours at the clip's edges without checking. */
+static int clampFrameNumber(int n, VSNode *node) {
+    int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
+    if (numFrames && n >= numFrames)
+        n = numFrames - 1;
+    return n < 0 ? 0 : n;
+}
+
 static void VS_CC requestFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
-    int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
-    if (n >= numFrames)
-        n = numFrames - 1;
-    frameCtx->reqList.emplace_back(NodeOutputKey(node, n));
+    frameCtx->reqList.emplace_back(NodeOutputKey(node, clampFrameNumber(n, node)));
 }
 
 static const VSFrame *VS_CC getFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
 
-    int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
-    if (numFrames && n >= numFrames)
-        n = numFrames - 1;
-    auto key = NodeOutputKey(node, n);
+    auto key = NodeOutputKey(node, clampFrameNumber(n, node));
     for (size_t i = 0; i < frameCtx->availableFrames.size(); i++) {
         const auto &tmp = frameCtx->availableFrames[i];
         if (tmp.first == key) {
@@ -685,6 +687,7 @@ static void VS_CC freeFunction(VSFunction *f) VS_NOEXCEPT {
 
 static void VS_CC releaseFrameEarly(VSNode *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
+    /* Not clamped: a request clamped onto an edge frame shares its entries, which this drops all of. */
     auto key = NodeOutputKey(node, n);
     for (size_t i = 0; i < frameCtx->availableFrames.size(); i++) {
         auto &tmp = frameCtx->availableFrames[i];
@@ -1517,10 +1520,7 @@ static int VS_CC vkWaitGPUFrame(const VSFrame *frame, char *errorMessage, int er
 static VSFrame *VS_CC vkGetExportableFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx,
     char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     assert(node && frameCtx);
-    int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
-    if (numFrames && n >= numFrames)
-        n = numFrames - 1;
-    auto key = NodeOutputKey(node, n);
+    auto key = NodeOutputKey(node, clampFrameNumber(n, node));
     for (size_t i = 0; i < frameCtx->availableFrames.size(); i++) {
         auto &entry = frameCtx->availableFrames[i];
         if (!(entry.first == key))

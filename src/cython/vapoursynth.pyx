@@ -24,7 +24,9 @@ from vshelper cimport bitblt
 from vsscript_internal cimport VSScript
 from wave cimport WaveHeader, Wave64Header, CreateWave64Header, CreateWaveHeader, PackChannels16to16le, PackChannels32to24le, PackChannels32to32le
 cimport cython
+from libc.stdio cimport fprintf, stderr
 from libc.stdlib cimport malloc, free, realloc
+from libcpp.atomic cimport atomic
 from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t, uint8_t, uint64_t, int64_t
 from cpython.buffer cimport PyBUF_READ, PyBUF_SIMPLE, PyBuffer_FillInfo, PyBuffer_Release
 from cpython.memoryview cimport PyMemoryView_FromMemory, PyMemoryView_FromObject
@@ -47,6 +49,7 @@ import functools
 import typing
 import warnings
 import keyword
+import time
 from threading import local as ThreadLocal, Condition, Lock, Thread, get_ident
 from types import MappingProxyType
 from collections.abc import ItemsView, Iterable, KeysView, MutableMapping, ValuesView
@@ -446,6 +449,24 @@ cdef object _policy_cond = Condition(Lock())
 cdef cython.pythread_type_lock _policy_mutex
 cdef object _registering_thread = None
 
+# Set by the last exit hook; the log callbacks then stay out of Python. Callbacks already inside
+# are counted so the hook can wait them out while the gil can still be taken.
+cdef atomic[int] _finalizing
+cdef atomic[int] _python_callbacks
+
+
+cdef bint _enter_python_callback() noexcept nogil:
+    # counted before the flag is read; the hook sets the flag before reading the count
+    _python_callbacks.fetch_add(1)
+    if _finalizing.load():
+        _python_callbacks.fetch_sub(1)
+        return False
+    return True
+
+
+cdef void _leave_python_callback() noexcept nogil:
+    _python_callbacks.fetch_sub(1)
+
 
 cdef object _policy_snapshot():
     # The one safe way to read the slot without holding _policy_cond: under the leaf
@@ -459,14 +480,9 @@ cdef const VSAPI *_vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
 cdef void _set_logger(EnvironmentData env, VSLogHandler handler, VSLogHandlerFree free, void *userData):
     vsscript_get_core_internal(env)
     _unset_logger(env)
-    # released gil, the log api dispatches to handlers that acquire the gil so calling in while
-    # holding it can deadlock against a thread mid message delivery
     cdef const VSAPI *funcs = env.core.funcs
     cdef VSCore *core = env.core.core
-    cdef VSLogHandle *log
-    with nogil:
-        log = funcs.addLogHandler(handler, free, userData, core)
-    env.log = log
+    env.log = funcs.addLogHandler(handler, free, userData, core)
 
 cdef void _unset_logger(EnvironmentData env):
     if env.log == NULL or env.core is None:
@@ -476,21 +492,41 @@ cdef void _unset_logger(EnvironmentData env):
     cdef const VSAPI *funcs = env.core.funcs
     cdef VSCore *core = env.core.core
     cdef VSLogHandle *log = env.log
+    # released gil: waits for a running call of the handler, which needs it
     with nogil:
         funcs.removeLogHandler(log, core)
     env.log = NULL
 
 
+cdef void _log_while_finalizing(int msgType, const char *msg) noexcept nogil:
+    # Python is out of reach during finalization (a thread asking for the gil is parked or ended,
+    # and whoever waits for its delivery hangs); warnings and worse go to stderr instead
+    if msgType == mtWarning:
+        fprintf(stderr, "Warning: %s\n", msg)
+    elif msgType == mtCritical:
+        fprintf(stderr, "Critical: %s\n", msg)
+
 cdef void __stdcall _logCb(int msgType, const char *msg, void *userData) noexcept nogil:
+    if not _enter_python_callback():
+        _log_while_finalizing(msgType, msg)
+        return
     with gil:
-        # backslashreplace, like every error text taken from the core: a plugin message in
-        # the local 8 bit code page must still arrive rather than raise here
-        message = msg.decode("utf-8", "backslashreplace")
-        (<object>userData)(msgType, message)
+        try:
+            # backslashreplace, like every error text taken from the core: a plugin message in
+            # the local 8 bit code page must still arrive rather than raise here
+            message = msg.decode("utf-8", "backslashreplace")
+            (<object>userData)(msgType, message)
+        finally:
+            _leave_python_callback()
 
 cdef void __stdcall _logFree(void* userData) noexcept nogil:
+    if not _enter_python_callback():
+        return
     with gil:
-        Py_DECREF(<object>userData)
+        try:
+            Py_DECREF(<object>userData)
+        finally:
+            _leave_python_callback()
 
 
 @cython.final
@@ -834,6 +870,16 @@ cdef EnvironmentData _env_current():
     return get_policy().get_current_environment()
 
 
+def _mark_finalizing():
+    _finalizing.store(1)
+    # lets callbacks already inside Python finish while the gil can still be taken; bounded, since
+    # at exit a handler may wait on something that never comes
+    deadline = time.monotonic() + 2.0
+    while _python_callbacks.load() > 0 and time.monotonic() < deadline:
+        time.sleep(0.001)
+
+# registered first so it runs last: the policy teardown below still logs through Python
+atexit.register(_mark_finalizing)
 # Make sure the policy is cleared at exit.
 atexit.register(lambda: clear_policy(delay=True))
 
@@ -1207,8 +1253,13 @@ cdef class Func(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        if self.funcs:
-            self.funcs.freeFunction(self.ref)
+        # released gil: the plugin's free callback may wait on a lock a plugin thread holds while
+        # it delivers to the Python log handler
+        cdef VSFunction *ref = self.ref
+        cdef const VSAPI *funcs = self.funcs
+        if funcs:
+            with nogil:
+                funcs.freeFunction(ref)
 
     def __call__(self, **kwargs):
         cdef VSMap *outm
@@ -2896,10 +2947,9 @@ cdef class RawNode(object):
             return hash(int(<uintptr_t>self.node))
 
     def __dealloc__(self):
-        # Freeing a node is a heavier version of freeing a frame: it clears the node's cache,
-        # so it reaches the GPU allocator's mutex the same way, and it runs the filter's free
-        # callback, which for a GPU filter drains the exec pool -- an unbounded host wait on
-        # the GPU. Neither belongs under the GIL; see RawFrame.close.
+        # Freeing a node clears its cache (the GPU allocator's mutex, as for a frame) and runs the
+        # filter's free callback (plugin locks, see Func.__dealloc__; a GPU filter drains its exec
+        # pool). None of that belongs under the GIL.
         cdef VSNode *n = self.node
         cdef const VSAPI *funcs = self.funcs
         self.node = NULL
@@ -3533,12 +3583,23 @@ cdef LogHandle createLogHandle(object handler_func):
     return instance
 
 cdef void __stdcall log_handler_wrapper(int msgType, const char *msg, void *userData) noexcept nogil:
+    if not _enter_python_callback():
+        _log_while_finalizing(msgType, msg)
+        return
     with gil:
-        (<LogHandle>userData).handler_func(msgType, msg.decode('utf-8', 'backslashreplace'))
+        try:
+            (<LogHandle>userData).handler_func(msgType, msg.decode('utf-8', 'backslashreplace'))
+        finally:
+            _leave_python_callback()
 
 cdef void __stdcall log_handler_free(void *userData) noexcept nogil:
+    if not _enter_python_callback():
+        return
     with gil:
-        Py_DECREF(<LogHandle>userData)
+        try:
+            Py_DECREF(<LogHandle>userData)
+        finally:
+            _leave_python_callback()
 
 
 cdef class CoreTimings(object):
@@ -3621,10 +3682,7 @@ cdef class Core(object):
     @num_threads.setter
     def num_threads(self, int value):
         self.ensure_valid()
-        # released gil, same reason as log_message: setThreadCount can log a warning, and the log
-        # api dispatches to handlers that acquire the gil
-        with nogil:
-            self.funcs.setThreadCount(value, self.core)
+        self.funcs.setThreadCount(value, self.core)
 
     @property
     def max_cache_size(self):
@@ -3657,10 +3715,7 @@ cdef class Core(object):
         cdef const VSVULKANAPI *vk = self.funcs.getVulkanAPI()
         cdef char err[512]
         cdef int failed
-        # released gil: creating the device takes long enough that the other Python threads
-        # should not wait on it, nor while this waits for a thread that got there first. It no
-        # longer guards against a deadlock: nothing is logged under vulkanDeviceLock now, and
-        # validation and driver messages go to stderr.
+        # released gil: device creation is slow and serialized
         with nogil:
             failed = vk.setVulkanDevice(self.core, index, err, 512)
         if failed:
@@ -3816,29 +3871,22 @@ cdef class Core(object):
 
     def log_message(self, int message_type, str message):
         self.ensure_valid()
-        # released gil, the log api dispatches to handlers that acquire the gil so calling in
-        # while holding it can deadlock against a thread mid message delivery
         cdef bytes message_bytes = message.encode('utf-8')
-        cdef const char *message_cstr = message_bytes
-        with nogil:
-            self.funcs.logMessage(message_type, message_cstr, self.core)
+        self.funcs.logMessage(message_type, message_bytes, self.core)
 
     def add_log_handler(self, handler_func):
         self.ensure_valid()
         handler_func(mtDebug, 'New message handler installed from python')
         cdef LogHandle lh = createLogHandle(handler_func)
         Py_INCREF(lh)
-        cdef void *userData = <void *>lh
-        cdef VSLogHandle *handle
-        with nogil:
-            handle = self.funcs.addLogHandler(log_handler_wrapper, log_handler_free, userData, self.core)
-        lh.handle = handle
+        lh.handle = self.funcs.addLogHandler(log_handler_wrapper, log_handler_free, <void *>lh, self.core)
         return lh
 
     def remove_log_handler(self, LogHandle handle):
         self.ensure_valid()
         cdef VSLogHandle *h = handle.handle
         cdef bint result
+        # released gil, see _unset_logger
         with nogil:
             result = self.funcs.removeLogHandler(h, self.core)
         return result
@@ -4060,12 +4108,7 @@ cdef class Plugin(object):
         self.core.ensure_valid()
         tname = name.encode('utf-8')
         cdef const char *cname = tname
-        cdef VSPluginFunction *func = NULL
-        # released gil, defensively: the lookup takes the plugin's function lock, and while nothing
-        # in the core waits on the gil under that lock (registerFunction logs after releasing it),
-        # this keeps a later change there from turning a lookup into the other half of a deadlock.
-        with nogil:
-            func = self.funcs.getPluginFunctionByName(cname, self.plugin)
+        cdef VSPluginFunction *func = self.funcs.getPluginFunctionByName(cname, self.plugin)
 
         if func:
             return createFunction(func, self, self.funcs)
@@ -4073,17 +4116,13 @@ cdef class Plugin(object):
             raise AttributeError('There is no function named ' + name)
 
     def functions(self):
-        # snapshotted for the same reason as Core.plugins; the gil is released around each step
-        # for the reason given in __getattr__
+        # snapshotted for the same reason as Core.plugins
         self.core.ensure_valid()
-        cdef VSPluginFunction *func = NULL
-        with nogil:
-            func = self.funcs.getNextPluginFunction(NULL, self.plugin)
+        cdef VSPluginFunction *func = self.funcs.getNextPluginFunction(NULL, self.plugin)
         result = []
         while func:
             result.append(createFunction(func, self, self.funcs))
-            with nogil:
-                func = self.funcs.getNextPluginFunction(func, self.plugin)
+            func = self.funcs.getNextPluginFunction(func, self.plugin)
         return iter(result)
 
     @property

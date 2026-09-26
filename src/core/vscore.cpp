@@ -1571,43 +1571,130 @@ bool VSCore::queryAudioFormat(VSAudioFormat &f, VSSampleType sampleType, int bit
     return true;
 }
 
-VSLogHandle *VSCore::addLogHandler(VSLogHandler handler, VSLogHandlerFree freeFunc, void *userData) {
-    std::lock_guard<std::recursive_mutex> lock(logMutex);
-    VS_LOCK_HELD(vsLockLog);
-    VSLogHandle *handle = *(messageHandlers.insert(new VSLogHandle{ handler, freeFunc, userData }).first);
+/* One queue; whoever logs while nobody is delivering drains it, dropping logMutex around each
+   handler call, and everybody else just queues. Logging therefore never waits for a handler on
+   another thread (a Python handler taking the GIL used to deadlock). Handlers run one at a time
+   in logging order. With no handler installed the queue is the store the first one drains. Only
+   removing a running handler and freeCore wait; a fatal is on stderr and delivered only if this
+   thread can. */
 
-    for (const auto &iter : storedMessages)
-        handler(iter.first, iter.second.c_str(), userData);
-    if (storedMessages.size() == maxStoredLogMessages)
-        handler(mtWarning, "Log messages after this point may have been discarded due to the buffer reaching its max size", userData);
-    storedMessages.clear();
+static size_t logRecordCost(size_t length) noexcept {
+    /* Text plus an allowance for the record, so short-message floods are bounded too. */
+    return length + 64;
+}
+
+VSLogHandle *VSCore::findLogHandle(uint64_t id) const noexcept {
+    for (VSLogHandle *handle : messageHandlers)
+        if (handle->id == id)
+            return handle;
+    return nullptr;
+}
+
+void VSCore::dispatchLogLocked(VSMessageType type, const char *message, VSTrackedLock &lock) {
+    /* By id: a handle freed while the lock is dropped is not found, and its address may be reused. */
+    std::vector<uint64_t> targets;
+    for (const VSLogHandle *handle : messageHandlers)
+        targets.push_back(handle->id);
+    for (uint64_t id : targets) {
+        VSLogHandle *handle = findLogHandle(id);
+        if (!handle)
+            continue;
+        logInFlight = handle;
+        lock.unlock();
+        VS_LOCK_BOUNDARY("a log handler");
+        /* Not touched after the call: self-removal frees it. */
+        handle->handler(type, message, handle->userData);
+        lock.lock();
+        logInFlight = nullptr;
+        logIdle.notify_all();
+    }
+}
+
+void VSCore::deliverLogLocked(VSTrackedLock &lock) {
+    /* What is left when no handler remains waits for the next one. */
+    while (!messageHandlers.empty()) {
+        if (logQueue.empty()) {
+            if (!logDropped)
+                return;
+            std::string notice = std::to_string(logDropped) + " log message(s) were discarded before they could be delivered";
+            logDropped = 0;
+            dispatchLogLocked(mtWarning, notice.c_str(), lock);
+        } else {
+            std::pair<VSMessageType, std::string> record = std::move(logQueue.front());
+            logQueue.pop_front();
+            logQueuedBytes -= logRecordCost(record.second.size());
+            dispatchLogLocked(record.first, record.second.c_str(), lock);
+        }
+    }
+}
+
+void VSCore::deliverLogIfIdleLocked(VSTrackedLock &lock) {
+    if (logDeliverer != std::thread::id() || messageHandlers.empty())
+        return;
+    logDeliverer = std::this_thread::get_id();
+    deliverLogLocked(lock);
+    logDeliverer = std::thread::id();
+    logIdle.notify_all();
+}
+
+VSLogHandle *VSCore::addLogHandler(VSLogHandler handler, VSLogHandlerFree freeFunc, void *userData) {
+    VSTrackedLock lock(logMutex, vsLockLog);
+    VSLogHandle *handle = new VSLogHandle{ handler, freeFunc, userData, ++logHandleIds };
+    messageHandlers.push_back(handle);
+    /* Drains the store to it, unless a delivery in progress gets there first. */
+    deliverLogIfIdleLocked(lock);
     return handle;
 }
 
 bool VSCore::removeLogHandler(VSLogHandle *rec) {
-    std::lock_guard<std::recursive_mutex> lock(logMutex);
-    VS_LOCK_HELD(vsLockLog);
-    auto f = messageHandlers.find(rec);
-    if (f != messageHandlers.end()) {
-        delete rec;
-        messageHandlers.erase(f);
-        return true;
-    } else {
+    VSTrackedLock lock(logMutex, vsLockLog);
+    auto it = std::find(messageHandlers.begin(), messageHandlers.end(), rec);
+    if (it == messageHandlers.end())
         return false;
+    messageHandlers.erase(it);
+    /* At most one call can still be running, on another thread; waiting for it makes "removed"
+       mean "will not run again". From inside that call: freed at once. */
+    if (logInFlight == rec && logDeliverer != std::this_thread::get_id())
+        logIdle.wait(lock.native(), [this, rec] { return logInFlight != rec; });
+    lock.unlock();
+    delete rec;
+    return true;
+}
+
+void VSCore::removeAllLogHandlers() {
+    std::vector<VSLogHandle *> doomed;
+    {
+        VSTrackedLock lock(logMutex, vsLockLog);
+        doomed.swap(messageHandlers);
+        /* A delivery running elsewhere ends at its next message, and must before the core may be
+           deleted. From inside a handler it is this thread's own. */
+        if (logDeliverer != std::this_thread::get_id())
+            logIdle.wait(lock.native(), [this] { return logDeliverer == std::thread::id(); });
     }
+    for (VSLogHandle *handle : doomed)
+        delete handle;
 }
 
 void VSCore::logMessage(VSMessageType type, const char *msg) {
     assert(msg);
-    std::lock_guard<std::recursive_mutex> lock(logMutex);
-    VS_LOCK_HELD(vsLockLog);
-    for (auto iter : messageHandlers)
-        iter->handler(type, msg, iter->userData);
-    if (messageHandlers.empty() && storedMessages.size() < maxStoredLogMessages)
-        storedMessages.push_back(std::make_pair(type, msg));
+    /* First, so a fatal shows even if delivery hangs. */
+    if (type == mtFatal)
+        fprintf(stderr, "VapourSynth encountered a fatal error: %s\n", msg);
+    {
+        VSTrackedLock lock(logMutex, vsLockLog);
+        const size_t cap = messageHandlers.empty() ? maxStoredLogBytes : maxQueuedLogBytes;
+        if (logQueuedBytes >= cap) {
+            /* Dropped rather than waited for: the logger may hold what the deliverer needs. Checked
+               before adding, so a large message still fits while the bound isn't reached. */
+            logDropped++;
+        } else {
+            logQueue.emplace_back(type, msg);
+            logQueuedBytes += logRecordCost(logQueue.back().second.size());
+        }
+        deliverLogIfIdleLocked(lock);
+    }
 
     if (type == mtFatal) {
-        fprintf(stderr, "VapourSynth encountered a fatal error: %s\n", msg);
         assert(false);
         std::terminate();
     }
@@ -2396,8 +2483,7 @@ void VSCore::freeCore() {
     }
     // Remove all message handlers on free to prevent a zombie core from crashing the whole application by calling a no longer usable
     // message handler
-    while (!messageHandlers.empty())
-        removeLogHandler(*messageHandlers.begin());
+    removeAllLogHandlers();
     // Release the extra filter instance that always keeps the core alive
     filterInstanceDestroyed();
 }

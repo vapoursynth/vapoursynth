@@ -356,9 +356,12 @@ Classes and Functions
       The message handler is per Core instance.
       Returns a LogHandle object.
       *handler_func* is a callback function of the form *func(MessageType, message)*.
-      The handler may only present or record the message; it must not call into
-      the VapourSynth bindings (request frames, query cores or nodes, add or
-      remove log handlers) or block waiting for processing to finish.
+      The handler runs on whichever thread delivers the message, often one of
+      the core's worker threads, so it must not request frames or otherwise
+      wait for processing to finish. It may log and add or remove log
+      handlers, itself included.
+      Once the interpreter has begun shutting down, handlers are no longer
+      called; warnings and errors logged after that point go to stderr.
 
    .. py:method:: remove_log_handler(handle)
 

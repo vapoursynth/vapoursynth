@@ -426,8 +426,8 @@ struct VSAPI {
     /* Frame request and filter getframe functions */
     const VSFrame *(VS_CC *getFrame)(int n, VSNode *node, char *errorMsg, int bufSize) VS_NOEXCEPT; /* only for external applications using the core as a library or for requesting frames in a filter constructor, do not use inside a filter's getframe function */
     void (VS_CC *getFrameAsync)(int n, VSNode *node, VSFrameDoneCallback callback, void *userData) VS_NOEXCEPT; /* only for external applications using the core as a library or for requesting frames in a filter constructor, do not use inside a filter's getframe function */
-    const VSFrame *(VS_CC *getFrameFilter)(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
-    void (VS_CC *requestFrameFilter)(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
+    const VSFrame *(VS_CC *getFrameFilter)(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function, n is clamped like in requestFrameFilter */
+    void (VS_CC *requestFrameFilter)(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function, n is clamped to the clip so the first and last frame's neighbours can be requested without checking */
     void (VS_CC *releaseFrameEarly)(VSNode *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function, unless this function is called a requested frame is kept in memory until the end of processing the current frame */
     void (VS_CC *cacheFrame)(const VSFrame *frame, int n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to store intermediate frames in cache, useful for filters where random access is slow, must call setLinearFilter on the node before using or the result is undefined  */
     void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to signal errors in the filter getframe function */
@@ -510,8 +510,8 @@ struct VSAPI {
 
     /* Message handler */
     void (VS_CC *logMessage)(int msgType, const char *msg, VSCore *core) VS_NOEXCEPT;
-    VSLogHandle *(VS_CC *addLogHandler)(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT; /* free and userData can be NULL, returns a handle that can be passed to removeLogHandler, handlers must only pass the message on and return quickly, calling logMessage is allowed but no other api function and a handler must never add or remove log handlers or wait for frame requests to complete */
-    int (VS_CC *removeLogHandler)(VSLogHandle *handle, VSCore *core) VS_NOEXCEPT; /* returns non-zero if successfully removed */
+    VSLogHandle *(VS_CC *addLogHandler)(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT; /* free and userData can be NULL, returns a handle for removeLogHandler; handlers run one at a time in logging order, not necessarily on the logging thread, may call logMessage and add or remove handlers (themselves included) but must never call freeCore or wait for frame requests since they may run on a worker thread */
+    int (VS_CC *removeLogHandler)(VSLogHandle *handle, VSCore *core) VS_NOEXCEPT; /* returns non-zero if removed, once any call of it on another thread has returned and its free function has run; callable from inside the handler, which must then not touch userData afterwards */
     
     /* Added in API 4.1, mostly graph and node inspection, PLEASE DON'T USE INSIDE FILTERS */
 #if VAPOURSYNTH_API_MINOR >= 1

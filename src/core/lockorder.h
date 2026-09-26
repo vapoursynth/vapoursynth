@@ -4,8 +4,8 @@
  * instrumented to record what the acquiring thread already held, collected over the suites and
  * the GPU workloads, and no pair appeared in both orders. The instrumentation itself was not
  * kept. This is it rebuilt, to the description given there -- a scoped object recording the
- * thread's held set after each acquisition, plus a check at each of the four boundaries where
- * nothing of ours may be held.
+ * thread's held set after each acquisition, plus a check at each boundary where nothing of ours
+ * may be held.
  *
  * Why this rather than ThreadSanitizer, which already reports lock-order inversions: TSan can
  * only report a pair it has seen taken in BOTH orders, so it needs the bad interleaving to
@@ -18,6 +18,8 @@
 #ifndef VS_LOCKORDER_H
 #define VS_LOCKORDER_H
 
+#include <mutex>
+
 enum VSLockId {
     vsLockVulkanDevice = 0, /* VSCore::vulkanDeviceLock */
     vsLockExecPools,        /* VSVulkanDevice::execPoolsMutex */
@@ -27,7 +29,7 @@ enum VSLockId {
     vsLockAllocator,        /* the allocator's block and free lists */
     vsLockCacheSet,         /* VSCore::cacheLock */
     vsLockNodeCache,        /* VSNode::cacheMutex */
-    vsLockLog,              /* VSCore::logMutex */
+    vsLockLog,              /* VSCore::logMutex, never held while a handler runs */
     vsLockHandOff,          /* VSVulkanDevice::handOffLock */
     vsLockCount
 };
@@ -38,32 +40,59 @@ const char *vsLockName(int id);
 /* Records (everything already held) -> id, and pops on scope exit. */
 void vsLockOrderPush(int id);
 void vsLockOrderPop(int id);
-/* The four boundaries where the core must hold nothing of its own: a filter's getFrame, a
-   release callback, a filter free callback and a plugin function's invoke. */
+/* The boundaries where the core must hold nothing of its own: a filter's getFrame, a release
+   callback, a filter free callback, a plugin function's invoke and a log handler. */
 void vsLockOrderAssertNoneHeld(const char *boundary);
 
-namespace vs {
-class LockHeld {
+class VSLockHeld {
 public:
-    explicit LockHeld(int id) : id_(id) { vsLockOrderPush(id_); }
-    ~LockHeld() { vsLockOrderPop(id_); }
-    LockHeld(const LockHeld &) = delete;
-    LockHeld &operator=(const LockHeld &) = delete;
+    explicit VSLockHeld(int id) : id_(id) { vsLockOrderPush(id_); }
+    ~VSLockHeld() { vsLockOrderPop(id_); }
+    VSLockHeld(const VSLockHeld &) = delete;
+    VSLockHeld &operator=(const VSLockHeld &) = delete;
 private:
     int id_;
 };
-}
 
 #define VS_LOCK_PASTE2(a, b) a##b
 #define VS_LOCK_PASTE(a, b) VS_LOCK_PASTE2(a, b)
-#define VS_LOCK_HELD(id) ::vs::LockHeld VS_LOCK_PASTE(vsLockHeld_, __LINE__)(id)
+#define VS_LOCK_HELD(id) ::VSLockHeld VS_LOCK_PASTE(vsLockHeld_, __LINE__)(id)
+#define VS_LOCK_ACQUIRED(id) ::vsLockOrderPush(id)
+#define VS_LOCK_RELEASING(id) ::vsLockOrderPop(id)
 #define VS_LOCK_BOUNDARY(what) ::vsLockOrderAssertNoneHeld(what)
 
 #else
 
 #define VS_LOCK_HELD(id) ((void)0)
+#define VS_LOCK_ACQUIRED(id) ((void)0)
+#define VS_LOCK_RELEASING(id) ((void)0)
 #define VS_LOCK_BOUNDARY(what) ((void)0)
 
 #endif /* VS_LOCK_ORDER_CHECK */
+
+/* A unique_lock whose lock()/unlock() keep the record in step, for a lock dropped mid-scope. */
+class VSTrackedLock {
+public:
+    VSTrackedLock(std::mutex &mutex, int id) : lock_(mutex), id_(id) { VS_LOCK_ACQUIRED(id_); }
+    ~VSTrackedLock() {
+        if (lock_.owns_lock())
+            VS_LOCK_RELEASING(id_);
+    }
+    void unlock() {
+        VS_LOCK_RELEASING(id_);
+        lock_.unlock();
+    }
+    void lock() {
+        lock_.lock();
+        VS_LOCK_ACQUIRED(id_);
+    }
+    /* For condition variables. */
+    std::unique_lock<std::mutex> &native() { return lock_; }
+    VSTrackedLock(const VSTrackedLock &) = delete;
+    VSTrackedLock &operator=(const VSTrackedLock &) = delete;
+private:
+    std::unique_lock<std::mutex> lock_;
+    [[maybe_unused]] int id_;
+};
 
 #endif /* VS_LOCKORDER_H */
