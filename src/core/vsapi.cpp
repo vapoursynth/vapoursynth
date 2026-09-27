@@ -186,6 +186,7 @@ static bool uniformPlaneSrcResidency(const VSVideoFormat &format, const VSFrame 
 
 static VSFrame *VS_CC newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrame **planeSrc, const int *planes, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
+    VSFrame::checkVideoFrameFormat(*format, width, height, core);
     if (!uniformPlaneSrcResidency(*format, planeSrc))
         return nullptr;
     return new VSFrame(*format, width, height, planeSrc, planes, propSrc, core);
@@ -878,12 +879,12 @@ static int VS_CC getFrameResidency(const VSFrame *frame) VS_NOEXCEPT {
 }
 
 static VSFrame *VS_CC newAudioFrame(const VSAudioFormat *format, int numSamples, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
-    assert(format && core && numSamples > 0);
+    assert(format && core);
     return new VSFrame(*format, numSamples, propSrc, core);
 }
 
 static VSFrame *VS_CC newAudioFrame2(const VSAudioFormat *format, int numSamples, const VSFrame **channelSrc, const int *channels, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT {
-    assert(format && core && numSamples > 0 && channelSrc && channels);
+    assert(format && core && channelSrc && channels);
     return new VSFrame(*format, numSamples, channelSrc, channels, propSrc, core);
 }
 

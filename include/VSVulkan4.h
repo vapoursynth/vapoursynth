@@ -299,11 +299,12 @@ typedef struct VSVulkanCoreHandles {
 } VSVulkanCoreHandles;
 
 /* The device feature baseline. The core creates every device itself: Vulkan 1.4 with exactly
- * the features below and no extensions except the platform's opaque memory and semaphore handle
- * export (VK_KHR_external_memory/_semaphore_win32 or _fd) where available, plus
- * VK_KHR_portability_subset where the device demands it. Every REQUIRED entry is mandatory for a
- * conformant 1.4 implementation. Sharing frames with another device or API goes through
- * exportGPUPlane, not device sharing.
+ * the features below, and no extensions but the platform's opaque memory and semaphore handle
+ * export (VK_KHR_external_memory/_semaphore_win32 or _fd) where available,
+ * VK_KHR_portability_subset where the device demands it and the atomic float pair described at
+ * the end of this comment. Every REQUIRED entry is mandatory for a conformant 1.4
+ * implementation. Sharing frames with another device or API goes through exportGPUPlane, not
+ * device sharing.
  *
  *   required (VkPhysicalDeviceFeatures): shaderInt16, shaderImageGatherExtended,
  *     shaderStorageImageExtendedFormats, shaderUniformBufferArrayDynamicIndexing,

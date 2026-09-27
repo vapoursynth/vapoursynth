@@ -99,6 +99,15 @@ static std::string mismatchToText(const MismatchInfo &info) {
     return s;
 }
 
+/* videoInfoToString leaves out the frame rate, so a mismatch in it would otherwise name two
+   clips that print the same. */
+static std::string mismatchedClipToString(const VSVideoInfo *vi, const MismatchInfo &info, const VSAPI *vsapi) {
+    std::string s = videoInfoToString(vi, vsapi);
+    if (info.differentFrameRate)
+        s += (vi->fpsNum && vi->fpsDen) ? " at " + std::to_string(vi->fpsNum) + "/" + std::to_string(vi->fpsDen) + " fps" : " at a variable frame rate";
+    return s;
+}
+
 //////////////////////////////////////////
 // Trim
 
@@ -240,7 +249,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
 
         MismatchInfo mminfo = findCommonVi(d->nodes.data(), d->numclips, &d->vi, vsapi);
         if (!mminfo.match && !mismatch)
-            RETERROR(("Interleave: clips are mismatched in " + mismatchToText(mminfo) + " starting at clip #" + std::to_string(mminfo.clipnum) + ", passed " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum - 1]), vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum]), vsapi)).c_str());
+            RETERROR(("Interleave: clips are mismatched in " + mismatchToText(mminfo) + " starting at clip #" + std::to_string(mminfo.clipnum) + ", passed " + mismatchedClipToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum - 1]), mminfo, vsapi) + " and " + mismatchedClipToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum]), mminfo, vsapi)).c_str());
 
         bool overflow = false;
 
@@ -521,9 +530,18 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         if (residency.kind == ClipResidency::Mixed)
             RETERROR(residencyMismatchError("Splice", residency.mixedAt).c_str());
 
-        MismatchInfo mminfo = findCommonVi(d->nodes.data(), d->numclips, &vi, vsapi);
-        if (!mminfo.match && !mismatch && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d->nodes[0])))
-            RETERROR(("Splice: clips are mismatched in " + mismatchToText(mminfo) + " starting at clip #" + std::to_string(mminfo.clipnum) + ", passed " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum - 1]), vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->nodes[mminfo.clipnum]), vsapi)).c_str());
+        findCommonVi(d->nodes.data(), d->numclips, &vi, vsapi);
+        if (!mismatch) {
+            const VSVideoInfo *first = vsapi->getVideoInfo(d->nodes[0]);
+            for (int i = 1; i < d->numclips; i++) {
+                const VSVideoInfo *cur = vsapi->getVideoInfo(d->nodes[i]);
+                MismatchInfo bad = {};
+                bad.differentFormat = first->format.colorFamily != cfUndefined && !isSameVideoFormat(&first->format, &cur->format);
+                bad.differentDimensions = first->width && (first->width != cur->width || first->height != cur->height);
+                if (bad.differentFormat || bad.differentDimensions)
+                    RETERROR(("Splice: clips are mismatched in " + mismatchToText(bad) + " starting at clip #" + std::to_string(i) + ", passed " + videoInfoToString(vsapi->getVideoInfo(d->nodes[i - 1]), vsapi) + " and " + videoInfoToString(cur, vsapi)).c_str());
+            }
+        }
 
         d->numframes.resize(d->numclips);
         vi.numFrames = 0;

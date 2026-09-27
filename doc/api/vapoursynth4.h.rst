@@ -1369,7 +1369,7 @@ struct VSAPI
 
       If no log handler is installed up to 64 KiB of messages are kept and
       delivered as soon as a log handler is attached. This behavior exists
-      mostly so that warnings when auto-loading plugins (default behavior) won't disappear-
+      mostly so that warnings when auto-loading plugins (default behavior) won't disappear.
 
       Handlers are called one at a time, in the order the messages were logged,
       but not always on the thread that logged them: when another thread is
@@ -1389,8 +1389,8 @@ struct VSAPI
       *handler*
          typedef void (VS_CC \*VSLogHandler)(int msgType, const char \*msg, void \*userdata)
 
-         Custom message handler. If this is NULL, the default message
-         handler will be restored.
+         Custom message handler. Must not be NULL, a handler is uninstalled
+         with removeLogHandler_.
 
          *msgType*
             The type of message. One of VSMessageType_.
@@ -1529,7 +1529,7 @@ struct VSAPI
          The desired audio format. Must not be NULL.
 
       *numSamples*
-         The number of samples in the frame. All audio frames apart from the last one returned by a filter must have VS_AUDIO_FRAME_SAMPLES_.
+         The number of samples in the frame, 1 to VS_AUDIO_FRAME_SAMPLES_. All audio frames apart from the last one returned by a filter must have VS_AUDIO_FRAME_SAMPLES_.
 
       *propSrc*
          A frame from which properties will be copied. Can be NULL.
@@ -1554,7 +1554,7 @@ struct VSAPI
          The desired audio format. Must not be NULL.
 
       *numSamples*
-         The number of samples in the frame. All audio frames apart from the last one returned by a filter must have VS_AUDIO_FRAME_SAMPLES_.
+         The number of samples in the frame, 1 to VS_AUDIO_FRAME_SAMPLES_. All audio frames apart from the last one returned by a filter must have VS_AUDIO_FRAME_SAMPLES_.
 
       *channelSrc*
          Array of frames from which channels will be copied. If any elements of

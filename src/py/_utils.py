@@ -186,7 +186,9 @@ def _check_windows_env():
         except Exception:
             pass
 
-        if vapoursynth_path and PurePath(__file__).parent.full_match(vapoursynth_path):
+        # PureWindowsPath equality ignores case already; full_match would need Python 3.13
+        # and would read the registry value as a glob pattern
+        if vapoursynth_path and PurePath(__file__).parent == PurePath(vapoursynth_path):
             print("Registry entries: this installation")
         elif vapoursynth_path:
             print(f'Registry entries: (other installation) "{vapoursynth_path}"')
@@ -209,7 +211,7 @@ def _check_windows_env():
         except Exception:
             pass
 
-        if vfw_path and PurePath(__file__).with_name("vsvfw.dll").full_match(vfw_path):
+        if vfw_path and PurePath(__file__).with_name("vsvfw.dll") == PurePath(vfw_path):
             print("VFW module: this installation")
         elif vfw_path:
             print(f'VFW module: (other installation) "{vfw_path}"')

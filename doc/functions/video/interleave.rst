@@ -11,9 +11,11 @@ Interleave
    The *extend* argument controls whether or not all input clips will be treated
    as if they have the same length as the longest clip.
 
-   Interleaving clips with different formats or dimensions is considered an
-   error unless *mismatch* is true.
+   Interleaving clips with different formats, dimensions or frame rates is
+   considered an error unless *mismatch* is true.
 
    If *modify_duration* is set then the output clip's frame rate is the first
    input clip's frame rate multiplied by the number of input clips. The frame durations are divided
    by the number of input clips. Otherwise the first input clip's frame rate is used.
+   When *mismatch* lets clips with different frame rates through, the output
+   clip has a variable frame rate either way.

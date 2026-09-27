@@ -481,6 +481,8 @@ private:
 public:
     static ptrdiff_t alignment;
 
+    static void checkVideoFrameFormat(const VSVideoFormat &f, int width, int height, VSCore *core) noexcept;
+
 #ifdef VS_FRAME_GUARD
     static const int guardSpace = 64;
 #else

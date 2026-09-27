@@ -68,8 +68,8 @@ struct VSSCRIPTAPI {
     * 
     * Returns 0 on success.
     * 
-    * Note that calling any function other than getError() and freeScript() on a VSScript object in the error state
-    * will result in undefined behavior.
+    * Note that calling any function other than getError(), getExitCode() and freeScript() on a VSScript object in the
+    * error state will result in undefined behavior.
     */
     int (VS_CC *evaluateBuffer)(VSScript *handle, const char *buffer, const char *scriptFilename) VS_NOEXCEPT;
 

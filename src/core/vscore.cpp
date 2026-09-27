@@ -192,11 +192,29 @@ void VSFrame::setAllocationInfo() noexcept {
     }
 }
 
-static void checkFrameDimensions(const VSVideoFormat &f, int width, int height, VSCore *core) {
+void VSFrame::checkVideoFrameFormat(const VSVideoFormat &f, int width, int height, VSCore *core) noexcept {
+    /* The format goes first, since the size checks read its subsampling. getVideoFormatByID(0)
+       succeeds with the all zero undefined format, which would make a frame without planes. */
+    if (f.colorFamily == cfUndefined)
+        core->logFatal("Error in frame creation: the format is undefined, which only describes clips whose format varies");
+    if (!VSCore::isValidVideoFormat(f))
+        core->logFatal("Error in frame creation: invalid video format (color family " + std::to_string(f.colorFamily) + ", sample type " + std::to_string(f.sampleType) +
+            ", " + std::to_string(f.bitsPerSample) + " bits in " + std::to_string(f.bytesPerSample) + " bytes, subsampling " + std::to_string(f.subSamplingW) + "/" +
+            std::to_string(f.subSamplingH) + ", " + std::to_string(f.numPlanes) + " planes)");
     if (width <= 0 || height <= 0)
         core->logFatal("Error in frame creation: dimensions are negative (" + std::to_string(width) + "x" + std::to_string(height) + ")");
     if (width % (1 << f.subSamplingW) || height % (1 << f.subSamplingH))
         core->logFatal("Error in frame creation: dimensions (" + std::to_string(width) + "x" + std::to_string(height) + ") are not a multiple of the format's subsampling");
+}
+
+static void checkAudioFrameFormat(const VSAudioFormat &f, int numSamples, VSCore *core) {
+    if (!VSCore::isValidAudioFormat(f))
+        core->logFatal("Error in frame creation: invalid audio format (sample type " + std::to_string(f.sampleType) + ", " + std::to_string(f.bitsPerSample) + " bits in " +
+            std::to_string(f.bytesPerSample) + " bytes, channel layout " + std::to_string(f.channelLayout) + ", " + std::to_string(f.numChannels) + " channels)");
+    /* Every channel gets a slot of VS_AUDIO_FRAME_SAMPLES samples, so a longer frame would
+       write into the next channel's slot and past the end of the last one. */
+    if (numSamples <= 0 || numSamples > VS_AUDIO_FRAME_SAMPLES)
+        core->logFatal("Error in frame creation: bad number of samples (" + std::to_string(numSamples) + "), an audio frame holds 1 to " + std::to_string(VS_AUDIO_FRAME_SAMPLES));
 }
 
 VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr, true), core(core) {
@@ -206,7 +224,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
         core->frameRefs.insert(this);
     }
 
-    checkFrameDimensions(f, width, height, core);
+    checkVideoFrameFormat(f, width, height, core);
 
     format.vf = f;
     numPlanes = format.vf.numPlanes;
@@ -243,7 +261,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
         core->frameRefs.insert(this);
     }
 
-    checkFrameDimensions(f, width, height, core);
+    checkVideoFrameFormat(f, width, height, core);
 
     format.vf = f;
     numPlanes = format.vf.numPlanes;
@@ -287,7 +305,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
         core->frameRefs.insert(this);
     }
 
-    checkFrameDimensions(f, width, height, core);
+    checkVideoFrameFormat(f, width, height, core);
 
     format.vf = f;
     numPlanes = format.vf.numPlanes;
@@ -364,8 +382,7 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame *propSrc,
         core->frameRefs.insert(this);
     }
 
-    if (numSamples <= 0)
-        core->logFatal("Error in frame creation: bad number of samples (" + std::to_string(numSamples) + ")");
+    checkAudioFrameFormat(f, numSamples, core);
 
     format.af = f;
     numPlanes = format.af.numChannels;
@@ -388,8 +405,7 @@ VSFrame::VSFrame(const VSAudioFormat &f, int numSamples, const VSFrame * const *
         core->frameRefs.insert(this);
     }
 
-    if (numSamples <= 0)
-        core->logFatal("Error in frame creation: bad number of samples (" + std::to_string(numSamples) + ")");
+    checkAudioFrameFormat(f, numSamples, core);
 
     format.af = f;
     numPlanes = format.af.numChannels;

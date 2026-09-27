@@ -25,6 +25,8 @@
 #include <cerrno>
 #include <cstring>
 #include <cmath>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 namespace {
 
@@ -117,6 +119,22 @@ bool fileSeek(FILE *f, int64_t position) {
 #else
     return fseeko(f, static_cast<off_t>(position), SEEK_SET) == 0;
 #endif
+}
+
+/* Only a regular file can take the index pointer written back at the end. Asking ftell is
+   not enough: the Windows CRT reports a position on an anonymous pipe, and a seek on one
+   "succeeds" by appending, which would put the pointer after the index instead of in front. */
+bool fileIsSeekable(FILE *f) {
+#ifdef VS_TARGET_OS_WINDOWS
+    struct _stat64 st;
+    if (_fstat64(_fileno(f), &st) != 0 || (st.st_mode & _S_IFMT) != _S_IFREG)
+        return false;
+#else
+    struct stat st;
+    if (fstat(fileno(f), &st) != 0 || !S_ISREG(st.st_mode))
+        return false;
+#endif
+    return filePosition(f) >= 0;
 }
 
 constexpr uint32_t makeFourCC(char a, char b, char c, char d) {
@@ -304,7 +322,7 @@ bool MatroskaWriter::initialize(FILE *file, const std::vector<MatroskaTrackInfo>
     /* A file that can be seeked in gets an index, which needs somewhere near the front pointing at
        it. The space is claimed now and filled in once the index has been written and its position
        is known; until then it reads as padding. */
-    seekable = outFile && filePosition(outFile) >= 0;
+    seekable = outFile && fileIsSeekable(outFile);
     if (seekable) {
         seekHeadPosition = bytesWritten;
         EbmlBuffer placeholder;

@@ -3865,10 +3865,11 @@ cdef class Core(object):
     def create_video_frame(self, int format, int width, int height):
         self.ensure_valid()
         cdef VSVideoFormat fmt
-        if not self.funcs.getVideoFormatByID(&fmt, format, self.core):
+        # id 0 decodes to the undefined format of variable format clips, which a frame can't have
+        if not self.funcs.getVideoFormatByID(&fmt, format, self.core) or fmt.colorFamily == cfUndefined:
             raise Error('Invalid format id specified')
-        # sizes that are zero, negative or not a multiple of the subsampling are fatal
-        # errors in the core, so they are refused before the core sees them
+        # an undefined format and sizes that are zero, negative or not a multiple of the
+        # subsampling are fatal errors in the core, so they are refused before the core sees them
         if width <= 0 or height <= 0:
             raise ValueError('Frame dimensions must be positive')
         if width % (1 << fmt.subSamplingW) or height % (1 << fmt.subSamplingH):
@@ -4594,6 +4595,22 @@ cdef void _vpy_replace_pyenvdict(VSScript *se, dict pyenvdict):
         se.pyenvdict = <void*>pyenvdict
 
 
+cdef void _vpy_clear_error(VSScript *se) noexcept:
+    if se.errstr:
+        errstr = <bytes>se.errstr
+        se.errstr = NULL
+        Py_DECREF(errstr)
+        errstr = None
+
+
+cdef void _vpy_set_error(VSScript *se, str message):
+    # the same handle can fail again, so a message still held from before is released first
+    _vpy_clear_error(se)
+    errstr = message.encode('utf-8')
+    Py_INCREF(errstr)
+    se.errstr = <void *>errstr
+
+
 cdef int _vpy_evaluate(VSScript *se, bytes script, str filename):
     try:
         pyenvdict = {}
@@ -4612,11 +4629,7 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename):
 
         code = compile(script, filename=filename, dont_inherit=True, mode="exec")
 
-        if se.errstr:
-            errstr = <bytes>se.errstr
-            se.errstr = NULL
-            Py_DECREF(errstr)
-            errstr = None
+        _vpy_clear_error(se)
 
         with _vsscript_use_or_create_environment2(se.id, se).use():
             exec(code, pyenvdict, pyenvdict)
@@ -4626,16 +4639,10 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename):
             se.exitCode = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
         except OverflowError:
             se.exitCode = 1
-        errstr = 'Python exit with code ' + str(e.code) + '\n'
-        errstr = errstr.encode('utf-8')
-        Py_INCREF(errstr)
-        se.errstr = <void *>errstr
+        _vpy_set_error(se, 'Python exit with code ' + str(e.code) + '\n')
         return 3
     except BaseException as e:
-        errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
-        errstr = errstr.encode('utf-8')
-        Py_INCREF(errstr)
-        se.errstr = <void *>errstr
+        _vpy_set_error(se, 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc())
         return 2
 
 
@@ -4674,10 +4681,7 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
                 return _vpy_evaluate(se, buffer, fn)
 
         except BaseException as e:
-            errstr = 'Script evaluation exception:\n' + str(e)
-            errstr = errstr.encode('utf-8')
-            Py_INCREF(errstr)
-            se.errstr = <void *>errstr
+            _vpy_set_error(se, 'Script evaluation exception:\n' + str(e))
             return 2
 
 cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename) nogil:
@@ -4692,10 +4696,7 @@ cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename) 
                 raise RuntimeError("The script is larger than 16 MiB, refusing to evaluate a truncated copy of it")
             return vpy4_evaluateBuffer(se, script, scriptFilename)
         except BaseException as e:
-            errstr = 'File reading exception:\n' + str(e)
-            errstr = errstr.encode('utf-8')
-            Py_INCREF(errstr)
-            se.errstr = <void *>errstr
+            _vpy_set_error(se, 'File reading exception:\n' + str(e))
             return 2
 
 cdef public api void vpy4_freeScript(VSScript *se) noexcept nogil:
@@ -4710,11 +4711,7 @@ cdef public api void vpy4_freeScript(VSScript *se) noexcept nogil:
             Py_DECREF(pyenvdict)
             pyenvdict = None
 
-        if se.errstr:
-            errstr = <bytes>se.errstr
-            se.errstr = NULL
-            Py_DECREF(errstr)
-            errstr = None
+        _vpy_clear_error(se)
 
         try:
             _get_vsscript_policy()._free_environment(se.id)

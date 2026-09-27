@@ -1056,6 +1056,8 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
     for (const auto &iter : nodeSet)
         d->reqNodes.push_back(iter);
 
+    d->ai.numFrames = static_cast<int>((d->ai.numSamples + VS_AUDIO_FRAME_SAMPLES - 1) / VS_AUDIO_FRAME_SAMPLES);
+
     std::vector<VSFilterDependency> deps;
     for (const auto &iter : d->reqNodes)
         deps.push_back({iter, (d->ai.numFrames <= vsapi->getAudioInfo(iter)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });

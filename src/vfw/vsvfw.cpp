@@ -418,13 +418,16 @@ stacked = core.std.StackHorizontal([red, green, blue])\n\
 msg = core.text.Text(stacked, vfw_error_message)\n\
 msg.set_output()\n";
 
-// The message is passed as a variable since quotes or backslashes in it would break the script's syntax
-static VSScript *evaluateErrorScript(const VSSCRIPTAPI *vssapi, const VSAPI *vsapi, const std::string &script, const std::string &message) {
+// The message is passed as a variable since quotes or backslashes in it would break the script's syntax.
+// A non-zero format id is passed as vfw_error_format the same way.
+static VSScript *evaluateErrorScript(const VSSCRIPTAPI *vssapi, const VSAPI *vsapi, const std::string &script, const std::string &message, uint32_t formatId = 0) {
     VSScript *se = vssapi->createScript(nullptr);
     if (!se)
         return nullptr;
     VSMap *vars = vsapi->createMap();
     vsapi->mapSetData(vars, "vfw_error_message", message.c_str(), static_cast<int>(message.size()), dtUtf8, maReplace);
+    if (formatId)
+        vsapi->mapSetInt(vars, "vfw_error_format", formatId, maReplace);
     vssapi->setVariables(se, vars);
     vsapi->freeMap(vars);
     if (vssapi->evaluateBuffer(se, script.c_str(), "vfw_error.message")) {
@@ -771,19 +774,20 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         if (parent->vi->format.colorFamily == cfYUV || parent->vi->format.colorFamily == cfGray)
             matrix = ", matrix_s=\"709\"";
 
-        char nameBuffer[32];
-        vsapi->getVideoFormatName(&parent->vi->format, nameBuffer);
+        /* The output format goes in by id: a format name is not necessarily a preset constant,
+           Gray8 is vs.GRAY8, and naming a missing one fails the whole script. */
+        const VSVideoFormat &fmt = parent->vi->format;
+        uint32_t formatId = vsapi->queryVideoFormatID(fmt.colorFamily, fmt.sampleType, fmt.bitsPerSample, fmt.subSamplingW, fmt.subSamplingH, vssapi->getCore(parent->se));
 
         std::string frameErrorScript = "import vapoursynth as vs\nimport sys\ncore = vs.core\n";
-        frameErrorScript += "err_script_formatid = vs." + std::string(nameBuffer) + "\n";
         frameErrorScript += "err_script_width = " + std::to_string(parent->vi->width) + "\n";
         frameErrorScript += "err_script_height = " + std::to_string(parent->vi->height) + "\n";
         frameErrorScript += "err_script_background = core.std.BlankClip(width=err_script_width, height=err_script_height, format=vs.RGB24)\n";
         frameErrorScript += "err_script_clip = core.text.Text(err_script_background, vfw_error_message)\n";
-        frameErrorScript += "err_script_clip = core.resize.Bilinear(err_script_clip, format=err_script_formatid" + matrix + ")\n";
+        frameErrorScript += "err_script_clip = core.resize.Bilinear(err_script_clip, format=vfw_error_format" + matrix + ")\n";
         frameErrorScript += "err_script_clip.set_output()\n";
 
-        errSe = evaluateErrorScript(vssapi, vsapi, frameErrorScript, errMsg.data());
+        errSe = evaluateErrorScript(vssapi, vsapi, frameErrorScript, errMsg.data(), formatId);
         if (!errSe)
             return false;
         VSNode *node = vssapi->getOutputNode(errSe, 0);

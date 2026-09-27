@@ -97,10 +97,10 @@ __all__ = [
         'MESSAGE_TYPE_CRITICAL', 'MESSAGE_TYPE_FATAL',
 
     'FilterMode',
-        'fmParallel', 'fmParallelRequests', 'fmUnordered', 'fmFrameState',
+        'PARALLEL', 'PARALLEL_REQUESTS', 'UNORDERED', 'FRAME_STATE',
 
     'CoreCreationFlags',
-        'ccfEnableGraphInspection', 'ccfDisableAutoLoading', 'ccfDisableLibraryUnloading',
+        'ENABLE_GRAPH_INSPECTION', 'DISABLE_AUTO_LOADING', 'DISABLE_LIBRARY_UNLOADING', 'ENABLE_FRAME_REF_DEBUG',
 
     'MediaType',
         'VIDEO', 'AUDIO',
@@ -108,7 +108,7 @@ __all__ = [
     'ColorFamily',
         'UNDEFINED', 'GRAY', 'RGB', 'YUV',
 
-    'ColorRange',
+    'Range', 'ColorRange',
         'RANGE_FULL', 'RANGE_LIMITED',
 
     'SampleType',
@@ -332,11 +332,13 @@ class CoreCreationFlags(IntFlag):
     ENABLE_GRAPH_INSPECTION = cast(CoreCreationFlags, ...)
     DISABLE_AUTO_LOADING = cast(CoreCreationFlags, ...)
     DISABLE_LIBRARY_UNLOADING = cast(CoreCreationFlags, ...)
+    ENABLE_FRAME_REF_DEBUG = cast(CoreCreationFlags, ...)
 
 
 ENABLE_GRAPH_INSPECTION: Literal[CoreCreationFlags.ENABLE_GRAPH_INSPECTION]
 DISABLE_AUTO_LOADING: Literal[CoreCreationFlags.DISABLE_AUTO_LOADING]
 DISABLE_LIBRARY_UNLOADING: Literal[CoreCreationFlags.DISABLE_LIBRARY_UNLOADING]
+ENABLE_FRAME_REF_DEBUG: Literal[CoreCreationFlags.ENABLE_FRAME_REF_DEBUG]
 
 
 class MediaType(IntEnum):
@@ -361,13 +363,17 @@ RGB: Literal[ColorFamily.RGB]
 YUV: Literal[ColorFamily.YUV]
 
 
-class ColorRange(IntEnum):
-    RANGE_FULL = cast(ColorRange, ...)
-    RANGE_LIMITED = cast(ColorRange, ...)
+class Range(IntEnum):
+    RANGE_FULL = cast(Range, ...)
+    RANGE_LIMITED = cast(Range, ...)
 
 
-RANGE_FULL: Literal[ColorRange.RANGE_FULL]
-RANGE_LIMITED: Literal[ColorRange.RANGE_LIMITED]
+# Deprecated alias of Range
+ColorRange = Range
+
+
+RANGE_FULL: Literal[Range.RANGE_FULL]
+RANGE_LIMITED: Literal[Range.RANGE_LIMITED]
 
 
 class SampleType(IntEnum):
@@ -489,9 +495,22 @@ YUV420P14: Literal[PresetVideoFormat.YUV420P14]
 YUV422P14: Literal[PresetVideoFormat.YUV422P14]
 YUV444P14: Literal[PresetVideoFormat.YUV444P14]
 
+YUV410P16: Literal[PresetVideoFormat.YUV410P16]
+YUV411P16: Literal[PresetVideoFormat.YUV411P16]
+YUV440P16: Literal[PresetVideoFormat.YUV440P16]
+
 YUV420P16: Literal[PresetVideoFormat.YUV420P16]
 YUV422P16: Literal[PresetVideoFormat.YUV422P16]
 YUV444P16: Literal[PresetVideoFormat.YUV444P16]
+
+YUV410PH: Literal[PresetVideoFormat.YUV410PH]
+YUV410PS: Literal[PresetVideoFormat.YUV410PS]
+
+YUV411PH: Literal[PresetVideoFormat.YUV411PH]
+YUV411PS: Literal[PresetVideoFormat.YUV411PS]
+
+YUV440PH: Literal[PresetVideoFormat.YUV440PH]
+YUV440PS: Literal[PresetVideoFormat.YUV440PS]
 
 YUV420PH: Literal[PresetVideoFormat.YUV420PH]
 YUV420PS: Literal[PresetVideoFormat.YUV420PS]
@@ -1292,7 +1311,7 @@ class Core:
 
     def get_video_format(self, id: Union[VideoFormat, int, PresetVideoFormat]) -> VideoFormat: ...
 
-    def create_video_frame(self, format: VideoFormat, width: int, height: int) -> VideoFrame: ...
+    def create_video_frame(self, format: Union[VideoFormat, int, PresetVideoFormat], width: int, height: int) -> VideoFrame: ...
 
     def log_message(self, message_type: MessageType, message: str) -> None: ...
 
