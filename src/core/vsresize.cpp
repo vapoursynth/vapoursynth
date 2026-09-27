@@ -231,6 +231,15 @@ void translate_color_family(VSColorFamily cf, zimg_color_family_e *out, zimg_mat
     }
 }
 
+void check_subsampling_multiple(unsigned width, unsigned height, const VSVideoFormat &format) {
+    if (width % (1 << format.subSamplingW) || height % (1 << format.subSamplingH)) {
+        vszimgxx::zerror e;
+        e.code = ZIMG_ERROR_IMAGE_NOT_DIVISIBLE;
+        snprintf(e.msg, sizeof(e.msg), "%s", "image dimensions must be divisible by subsampling factor");
+        throw e;
+    }
+}
+
 void translate_vsformat(const VSVideoFormat *vsformat, zimg_image_format *format, const VSAPI *vsapi) {
     translate_color_family(static_cast<VSColorFamily>(vsformat->colorFamily), &format->color_family, &format->matrix_coefficients);
     translate_pixel_type(vsformat, &format->pixel_type, vsapi);
@@ -723,6 +732,7 @@ class vszimg {
                 return clone;
             }
 
+            check_subsampling_multiple(dst_format.width, dst_format.height, *dst_vsformat);
             dst_frame = vsapi->newVideoFrame(dst_vsformat, dst_format.width, dst_format.height, src_frame, core);
 
             if (interlaced) {
@@ -873,6 +883,12 @@ public:
             }
 
             vszimg *x = new vszimg{ args, userData, core, vsapi };
+            try {
+                check_subsampling_multiple(x->m_vi.width, x->m_vi.height, x->m_vi.format);
+            } catch (...) {
+                vszimg::free(x, core, vsapi);
+                throw;
+            }
             VSFilterDependency deps[] = {{x->m_node, rpStrictSpatial}};
             vsapi->createVideoFilter(out, name, &x->m_vi, &vszimg::static_get_frame, &vszimg::free, fmParallel, deps, 1, x, core);
             if (vsapi->mapGetError(out))

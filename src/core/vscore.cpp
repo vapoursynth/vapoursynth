@@ -192,6 +192,13 @@ void VSFrame::setAllocationInfo() noexcept {
     }
 }
 
+static void checkFrameDimensions(const VSVideoFormat &f, int width, int height, VSCore *core) {
+    if (width <= 0 || height <= 0)
+        core->logFatal("Error in frame creation: dimensions are negative (" + std::to_string(width) + "x" + std::to_string(height) + ")");
+    if (width % (1 << f.subSamplingW) || height % (1 << f.subSamplingH))
+        core->logFatal("Error in frame creation: dimensions (" + std::to_string(width) + "x" + std::to_string(height) + ") are not a multiple of the format's subsampling");
+}
+
 VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr, true), core(core) {
     frameRefDebug = core->enableFrameRefDebug;
     if (frameRefDebug) {
@@ -199,8 +206,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
         core->frameRefs.insert(this);
     }
 
-    if (width <= 0 || height <= 0)
-        core->logFatal("Error in frame creation: dimensions are negative (" + std::to_string(width) + "x" + std::to_string(height) + ")");
+    checkFrameDimensions(f, width, height, core);
 
     format.vf = f;
     numPlanes = format.vf.numPlanes;
@@ -237,8 +243,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame *p
         core->frameRefs.insert(this);
     }
 
-    if (width <= 0 || height <= 0)
-        core->logFatal("Error in frame creation: dimensions are negative " + std::to_string(width) + "x" + std::to_string(height));
+    checkFrameDimensions(f, width, height, core);
 
     format.vf = f;
     numPlanes = format.vf.numPlanes;
@@ -282,8 +287,7 @@ VSFrame::VSFrame(const VSVideoFormat &f, int width, int height, const VSFrame * 
         core->frameRefs.insert(this);
     }
 
-    if (width <= 0 || height <= 0)
-        core->logFatal("Error in frame creation: dimensions are negative " + std::to_string(width) + "x" + std::to_string(height));
+    checkFrameDimensions(f, width, height, core);
 
     format.vf = f;
     numPlanes = format.vf.numPlanes;
@@ -2070,6 +2074,10 @@ bool VSCore::isValidVideoInfo(const VSVideoInfo &vi) noexcept {
         return false;
 
     if ((!!vi.height) ^ (!!vi.width))
+        return false;
+
+    // Frames can't have dimensions that aren't a multiple of the subsampling, so a clip can't either
+    if (vi.width % (1 << vi.format.subSamplingW) || vi.height % (1 << vi.format.subSamplingH))
         return false;
 
     return true;

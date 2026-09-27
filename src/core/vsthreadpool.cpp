@@ -118,6 +118,18 @@ void VSThreadPool::runTasks(bool &stop) {
             VSNode *node = frameContext->key.first;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
+// An external request that failed before the filter ever ran (an invalid frame number) is
+// returned without calling it, a filter must never see arError without arInitial first
+
+            if (frameContext->external && frameContext->first && frameContext->hasError()) {
+                PVSFrameContext mainContextRef = std::move(*iter);
+                tasks.erase(iter);
+                returnFrame(frameContext, PVSFrame(), lock);
+                ranTask = true;
+                break;
+            }
+
+/////////////////////////////////////////////////////////////////////////////////////////////
 // Fast path if a frame is cached
 
             if (node->cacheEnabled && frameContext->first) {

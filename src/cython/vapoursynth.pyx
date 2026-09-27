@@ -1871,6 +1871,7 @@ cdef class FrameProps(object):
         cdef VSMap *m = NULL
         cdef bytes b = name.encode('utf-8')
         cdef const VSAPI *funcs = self.funcs
+        cdef int ret
         val = value
         if (name == '_ColorRange'):
             warnings.warn('The _ColorRange frame property has been deprecated, use _Range instead', DeprecationWarning)
@@ -1922,22 +1923,22 @@ cdef class FrameProps(object):
         self.__delitem__(name)
         m = self.funcs.getFramePropertiesRW(self.frame.f)
         try:
-            for kind, v in converted:
+            for i, (kind, v) in enumerate(converted):
                 if kind == 'frame':
-                    if funcs.mapSetFrame(m, b, (<RawFrame>v).constf, 1) != 0:
-                        raise Error('Not all values are of the same type')
+                    ret = funcs.mapSetFrame(m, b, (<RawFrame>v).constf, 1)
                 elif kind == 'int':
-                    if funcs.mapSetInt(m, b, v, 1) != 0:
-                        raise Error('Not all values are of the same type')
+                    ret = funcs.mapSetInt(m, b, v, 1)
                 elif kind == 'float':
-                    if funcs.mapSetFloat(m, b, v, 1) != 0:
-                        raise Error('Not all values are of the same type')
+                    ret = funcs.mapSetFloat(m, b, v, 1)
                 elif kind == 'utf8':
-                    if funcs.mapSetData(m, b, v, <int>len(v), dtUtf8, 1) != 0:
-                        raise Error('Not all values are of the same type')
+                    ret = funcs.mapSetData(m, b, v, <int>len(v), dtUtf8, 1)
                 else:
-                    if funcs.mapSetData(m, b, v, <int>len(v), dtBinary, 1) != 0:
-                        raise Error('Not all values are of the same type')
+                    ret = funcs.mapSetData(m, b, v, <int>len(v), dtBinary, 1)
+                if ret != 0:
+                    # the key was deleted above, so only the name can make the first value fail
+                    if i == 0:
+                        raise Error(repr(name) + ' is not a valid property name, it must be a letter or underscore followed by letters, digits and underscores')
+                    raise Error('Not all values are of the same type')
         except Error:
             self.__delitem__(name)
             raise
@@ -3863,9 +3864,8 @@ cdef class Core(object):
         cdef VSVideoFormat fmt
         if not self.funcs.getVideoFormatByID(&fmt, format, self.core):
             raise Error('Invalid format id specified')
-        # zero or negative sizes are a fatal error in the core, and sizes not aligned to
-        # the subsampling are silently truncated into a frame no node may carry; both
-        # are refused before the core sees them
+        # sizes that are zero, negative or not a multiple of the subsampling are fatal
+        # errors in the core, so they are refused before the core sees them
         if width <= 0 or height <= 0:
             raise ValueError('Frame dimensions must be positive')
         if width % (1 << fmt.subSamplingW) or height % (1 << fmt.subSamplingH):

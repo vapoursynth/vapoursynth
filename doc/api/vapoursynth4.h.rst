@@ -1026,10 +1026,12 @@ struct VSVideoInfo
    .. c:member:: int width
 
       Width of the clip. Both width and height will be 0 if the clip's dimensions can vary.
+      Otherwise it must be a multiple of the horizontal subsampling of *format*.
 
    .. c:member:: int height
 
       Height of the clip. Both width and height will be 0 if the clip's dimensions can vary.
+      Otherwise it must be a multiple of the vertical subsampling of *format*.
 
    .. c:member:: int numFrames
 
