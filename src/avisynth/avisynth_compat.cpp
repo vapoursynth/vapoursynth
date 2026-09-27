@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <cstdarg>
 #include <cstddef>
+#include <exception>
 #include <limits>
 #include <filesystem>
 #include "p2p_api.h"
@@ -110,6 +111,8 @@ static int VSFormatToAVSPixelType(const VSVideoFormat &fi, bool pack) {
         return VideoInfo::CS_RGBP14;
     else if (IsSameVideoFormat(fi, cfRGB, stInteger, 16))
         return VideoInfo::CS_RGBP16;
+    else if (IsSameVideoFormat(fi, cfRGB, stFloat, 32))
+        return VideoInfo::CS_RGBPS;
     else
         return 0;
 }
@@ -267,12 +270,14 @@ static const VSFrame *VS_CC packRGB32GetFrame(int n, int activationReason, void 
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
 
+        // Avisynth stores packed RGB bottom-up
+        ptrdiff_t stride = vsapi->getStride(dst, 0);
         p2p_buffer_param p = {};
         p.packing = p2p_argb32;
         p.width = d->vi.width;
         p.height = d->vi.height;
-        p.dst[0] = vsapi->getWritePtr(dst, 0);
-        p.dst_stride[0] = vsapi->getStride(dst, 0);
+        p.dst[0] = vsapi->getWritePtr(dst, 0) + stride * (d->vi.height - 1);
+        p.dst_stride[0] = -stride;
 
         for (int plane = 0; plane < 3; plane++) {
             p.src[plane] = vsapi->getReadPtr(src, plane);
@@ -324,12 +329,14 @@ static const VSFrame *VS_CC unpackRGB32GetFrame(int n, int activationReason, voi
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
 
+        // Avisynth stores packed RGB bottom-up
+        ptrdiff_t stride = vsapi->getStride(src, 0);
         p2p_buffer_param p = {};
         p.packing = p2p_argb32;
         p.width = d->vi.width;
         p.height = d->vi.height;
-        p.src[0] = vsapi->getReadPtr(src, 0);
-        p.src_stride[0] = vsapi->getStride(src, 0);
+        p.src[0] = vsapi->getReadPtr(src, 0) + stride * (d->vi.height - 1);
+        p.src_stride[0] = -stride;
 
         for (int plane = 0; plane < 3; plane++) {
             p.dst[plane] = vsapi->getWritePtr(dst, plane);
@@ -467,7 +474,6 @@ std::string FakeAvisynth::charToFilterArgumentString(char c) {
     case 'c':
         return "vnode";
     default:
-        vsapi->logMessage(mtFatal, "Avisynth Compat: invalid argument type character, I quit", core);
         return "";
     }
 }
@@ -495,8 +501,14 @@ VSClip::VSClip(VSNode *inclip, FakeAvisynth *fakeEnv, bool pack, const VSAPI *vs
         vsapi->logMessage(mtFatal, "Bad colorspace", fakeEnv->core);
 
     vi.image_type = VideoInfo::IT_BFF;
-    vi.fps_numerator = int64ToIntS(srcVi->fpsNum);
-    vi.fps_denominator = int64ToIntS(srcVi->fpsDen);
+    // Avisynth has no variable frame rate and divides by the denominator, so those clips get a dummy rate
+    if (srcVi->fpsNum > 0 && srcVi->fpsDen > 0) {
+        vi.fps_numerator = int64ToIntS(srcVi->fpsNum);
+        vi.fps_denominator = int64ToIntS(srcVi->fpsDen);
+    } else {
+        vi.fps_numerator = 30;
+        vi.fps_denominator = 1;
+    }
     vi.num_frames = srcVi->numFrames;
     vi.sample_type = SAMPLE_INT16;
 }
@@ -639,6 +651,8 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     BROKEN(ColorMatrix)
     PREFETCHR1(Cnr2)
     temp = vsapi->mapGetIntSaturated(in, "tbsize", 0, &err);
+    if (err)
+        temp = 5;
     PREFETCH(dfttest, 1, 1, -(temp / 2), temp / 2)
 
     // MPEG2DEC
@@ -658,6 +672,8 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     PREFETCH(Telecide, 1, 1, -2, 10) // not good
     PREFETCH(DGTelecide, 1, 1, -2, 10) // also not good
     temp = vsapi->mapGetIntSaturated(in, "cycle", 0, &err);
+    if (err || temp < 2)
+        temp = 5;
     PREFETCH(DGDecimate, temp - 1, temp, -(temp + 3), temp + 3) // probably suboptimal
     PREFETCH(Decimate, temp - 1, temp, -(temp + 3), temp + 3) // probably suboptimal too
 
@@ -836,6 +852,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     std::unique_ptr<FakeAvisynth> fakeEnv(new FakeAvisynth(wf->interfaceVersion, core, vsapi));
     std::vector<AVSValue> inArgs(wf->parsedArgs.size());
     std::vector<VSNode *> preFetchClips;
+    bool variableRate = false;
 
     int err;
     bool pack = !!vsapi->mapGetInt(in, "compatpack", 0, &err);
@@ -855,7 +872,8 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                 inArgs[i] = !!vsapi->mapGetInt(in, parsedArg.name.c_str(), 0, nullptr);
                 break;
             case 's':
-                inArgs[i] = vsapi->mapGetData(in, parsedArg.name.c_str(), 0, nullptr);
+                // Plugins may keep argument strings, Avisynth keeps them alive as long as the environment
+                inArgs[i] = fakeEnv->SaveString(vsapi->mapGetData(in, parsedArg.name.c_str(), 0, nullptr), vsapi->mapGetDataSize(in, parsedArg.name.c_str(), 0, nullptr));
                 break;
             case 'c':
                 VSNode *cr = vsapi->mapGetNode(in, parsedArg.name.c_str(), 0, nullptr);
@@ -865,6 +883,9 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                     vsapi->freeNode(cr);
                     return;
                 }
+
+                if (preFetchClips.empty())
+                    variableRate = !vi->fpsNum;
 
                 VSClip *tmpclip = new VSClip(cr, fakeEnv.get(), pack, vsapi);
                 preFetchClips.push_back(tmpclip->GetVSNode());
@@ -884,6 +905,12 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         return;
     } catch (const IScriptEnvironment::NotFound &) {
         vsapi->logMessage(mtFatal, "Avisynth Error: escaped IScriptEnvironment::NotFound exceptions are non-recoverable, crashing... ", core);
+    } catch (const std::exception &e) {
+        vsapi->mapSetError(out, ("Avisynth Compat: " + wf->name + " failed: " + e.what()).c_str());
+        return;
+    } catch (...) {
+        vsapi->mapSetError(out, ("Avisynth Compat: " + wf->name + " failed with an unknown exception").c_str());
+        return;
     }
 
     fakeEnv->initializing = false;
@@ -891,26 +918,32 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     if (ret.IsClip()) {
         PClip clip = ret.AsClip();
 
-        PrefetchInfo prefetchInfo = getPrefetchInfo(wf->name, in, core, vsapi);
-        std::unique_ptr<WrappedClip> filterData(new WrappedClip(wf->name, clip, preFetchClips, prefetchInfo, fakeEnv.release()));
-
-        if (!filterData->preFetchClips.empty())
-            filterData->fakeEnv->uglyNode = filterData->preFetchClips.front();
-
-        const VideoInfo &viAvs = filterData->clip->GetVideoInfo();
+        const VideoInfo &viAvs = clip->GetVideoInfo();
         VSVideoInfo vi;
         vi.height = viAvs.height;
         vi.width = viAvs.width;
         vi.numFrames = viAvs.num_frames;
-        vi.fpsNum = viAvs.fps_numerator;
-        vi.fpsDen = viAvs.fps_denominator;
-        reduceRational(&vi.fpsNum, &vi.fpsDen);
+        // The first clip's dummy rate or Avisynth's unknown rate (0/x) means variable
+        if (variableRate || !viAvs.fps_numerator || !viAvs.fps_denominator) {
+            vi.fpsNum = 0;
+            vi.fpsDen = 0;
+        } else {
+            vi.fpsNum = viAvs.fps_numerator;
+            vi.fpsDen = viAvs.fps_denominator;
+            reduceRational(&vi.fpsNum, &vi.fpsDen);
+        }
 
         bool unpack;
         if (!AVSPixelTypeToVSFormat(vi.format, unpack, viAvs, core, vsapi)) {
             vsapi->mapSetError(out, "Avisynth Compat: bad format!");
             return;
         }
+
+        PrefetchInfo prefetchInfo = getPrefetchInfo(wf->name, in, core, vsapi);
+        std::unique_ptr<WrappedClip> filterData(new WrappedClip(wf->name, clip, preFetchClips, prefetchInfo, fakeEnv.release()));
+
+        if (!filterData->preFetchClips.empty())
+            filterData->fakeEnv->uglyNode = filterData->preFetchClips.front();
 
         std::vector<VSFilterDependency> deps;
         for (size_t i = 0; i < preFetchClips.size(); i++)
@@ -924,8 +957,21 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                                     (preFetchClips.empty() || prefetchInfo.from > prefetchInfo.to) ? fmFrameState : fmParallelRequests,
                                     deps.data(),
                                     static_cast<int>(preFetchClips.size()),
-                                    filterData.release(),
+                                    filterData.get(),
                                     core);
+
+        /* Refused when the clip's VideoInfo is one VapourSynth does not accept, 0 frames for
+           one. The free callback does not run for a refused filter, so the data is still
+           ours; the environment goes back to fakeEnv to be deleted last, as above. */
+        if (!node) {
+            vsapi->mapSetError(out, ("Avisynth Compat: " + wf->name + " returned a clip VapourSynth cannot represent (" +
+                std::to_string(vi.width) + "x" + std::to_string(vi.height) + ", " + std::to_string(vi.numFrames) + " frames, " +
+                std::to_string(viAvs.fps_numerator) + "/" + std::to_string(viAvs.fps_denominator) + " fps)").c_str());
+            fakeEnv.reset(filterData->fakeEnv);
+            filterData->fakeEnv = nullptr;
+            return;
+        }
+        filterData.release();
 
         if (unpack) {
             const VideoInfo &vi = clip->GetVideoInfo();
@@ -933,6 +979,10 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                 node = unpackRGB32Create(node, core, vsapi);
             } else if (vi.IsYUY2()) {
                 node = unpackYUY2Create(node, core, vsapi);
+            }
+            if (!node) {
+                vsapi->mapSetError(out, ("Avisynth Compat: failed to unpack the output of " + wf->name).c_str());
+                return;
             }
         }
 
@@ -972,8 +1022,11 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
             return;
         }
 
+        std::string argName;
+        bool required = true;
+
         if (params[paramPos] == '[') { // named argument start
-            std::string argName(params);
+            argName = params;
             size_t nameStart = ++paramPos;
 
             while (paramPos < paramLength) {
@@ -983,14 +1036,19 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
                 }
             }
 
-            newArgs += argName + ":" + charToFilterArgumentString(params[paramPos]) + ":opt;";
-            parsedArgs.push_back(AvisynthArgs(argName, params[paramPos++], false));
+            required = false;
         } else {
-            newArgs += params[paramPos] + std::to_string(argNum) + ":" + charToFilterArgumentString(params[paramPos]) + ";";
-            parsedArgs.push_back(AvisynthArgs((params[paramPos] + std::to_string(argNum)), params[paramPos], true));
-            paramPos++;
-            argNum++;
+            argName = params[paramPos] + std::to_string(argNum++);
         }
+
+        std::string argType = charToFilterArgumentString(params[paramPos]);
+        if (argType.empty()) {
+            vsapi->logMessage(mtWarning, ("Avisynth Compat: unsupported argument type in \""s + params + "\" so I'm just gonna skip importing " + fname).c_str(), core);
+            return;
+        }
+
+        newArgs += argName + ":" + argType + (required ? ";" : ":opt;");
+        parsedArgs.push_back(AvisynthArgs(argName, params[paramPos++], required));
     }
 
     newArgs += "compatpack:int:opt;";
@@ -1290,7 +1348,13 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
-    HMODULE plugin = LoadLibraryW(fsPath.c_str());
+    // Look for dependencies in the plugin's directory first like Avisynth does, this needs an absolute path
+    std::error_code ec;
+    std::filesystem::path absPath = std::filesystem::absolute(fsPath, ec);
+    if (!ec)
+        fsPath = absPath;
+
+    HMODULE plugin = LoadLibraryExW(fsPath.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
 
     typedef const char *(__stdcall *AvisynthPluginInit2Func)(IScriptEnvironment *env);
     typedef const char *(__stdcall *AvisynthPluginInit3Func)(IScriptEnvironment *env, const AVS_Linkage *const vectors);
