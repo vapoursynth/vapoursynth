@@ -654,6 +654,8 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     std::unique_ptr<MergeData> d(new MergeData(vsapi));
 
     int nweight = vsapi->mapNumElements(in, "weight");
+    if (nweight > 3)
+        RETERROR("Merge: more weights given than the number of planes to merge");
     for (int i = 0; i < 3; i++)
         d->fweight[i] = 0.5f;
     for (int i = 0; i < nweight; i++)

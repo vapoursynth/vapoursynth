@@ -134,9 +134,9 @@ struct VSSCRIPTAPI {
 VS_API(const VSSCRIPTAPI *) getVSScriptAPI(int version) VS_NOEXCEPT;
 
 /*
-* Same as getVSScriptAPI() but will write a NULL terminated error message to errMsg. A size of 200 bytes should be enough for most error messages.
-* The message is always NULL terminated and truncated if it exceeds errSize and empty on success.
-* Returns NULL on failure.
+* Returns why getVSScriptAPI() returned NULL, or NULL if it never has. A failure to initialize (Python or the vapoursynth
+* module could not be found or loaded) is reported in preference to an unsupported version, and is permanent for the process
+* since initialization is only attempted once. The string belongs to the library and stays valid.
 */
 #if VSSCRIPT_API_MINOR >= 3
 VS_API(const char *) getVSScriptAPILastError() VS_NOEXCEPT;

@@ -2241,6 +2241,10 @@ struct GPUResizeData {
     const VSVulkanFunctions *vk = nullptr;
     VSVulkanCoreHandles handles = {};
     VSGPUExecPool *pool = nullptr;
+    /* Every buffer is bound whole, so its size is its descriptor's range, and the device
+       caps that range; the specification guarantees only 128 MB, which one 8K float plane
+       exceeds. A binding past it is undefined behaviour, not an error anything reports. */
+    VkDeviceSize maxStorageBufferRange = 0;
 
     /* The dither table lives in device local memory for the instance's whole life,
        uploaded once at create; null when the instance does not dither. */
@@ -2416,6 +2420,12 @@ bool buildPipeSet(GPUResizeData *d, PipeSet &ps, VSCore *core, std::string &erro
 /* ------------------------------------------------------------------------------------------
    The frame: resolve state, plan, record. */
 
+/* gpufilter.h's wording for a binding past the device's cap. */
+std::string pastStorageRange(const std::string &what, VkDeviceSize bytes, VkDeviceSize limit) {
+    return what + " is " + std::to_string(bytes) + " bytes, but this device binds at most " +
+        std::to_string(limit) + " bytes as one storage buffer";
+}
+
 bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
     const VSVideoInfo *vi, VSCore *core, const VSAPI *vsapi, ConversionSpec *out,
     std::string &decline, std::string &error);
@@ -2478,6 +2488,21 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
         return dst;
     }
 
+    /* Which intermediates exist and how big they are is this frame's plan, so their range
+       is checked here, before anything is allocated; the frame planes are checked where
+       they are bound. */
+    const VkDeviceSize maxRange = d->maxStorageBufferRange;
+    const VkDeviceSize workBytes = static_cast<VkDeviceSize>(fp.workW) * fp.workH * sizeof(float);
+    std::string rangeError;
+    if (fp.scratchBytes > maxRange)
+        rangeError = pastStorageRange("the intermediate plane", fp.scratchBytes, maxRange);
+    else if (fp.colourActive && workBytes > maxRange)
+        rangeError = pastStorageRange("a working plane", workBytes, maxRange);
+    if (!rangeError.empty()) {
+        vsapi->freeFrame(dst);
+        return fail("Resize: " + rangeError);
+    }
+
     VSGPUExecContext *ctx = d->vkapi->gpuExecAcquire(d->pool, err, sizeof(err));
     if (!ctx) {
         vsapi->freeFrame(dst);
@@ -2506,11 +2531,10 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
     if (fp.scratchBytes && !allocBuffer(fp.scratchBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, &scratch))
         return abandon(std::string("Resize: ") + err);
     if (fp.colourActive) {
-        const VkDeviceSize wbytes = static_cast<VkDeviceSize>(fp.workW) * fp.workH * sizeof(float);
         for (int p = 0; p < 3; p++) {
-            if (fp.workInUsed[p] && !allocBuffer(wbytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, &workIn[p]))
+            if (fp.workInUsed[p] && !allocBuffer(workBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, &workIn[p]))
                 return abandon(std::string("Resize: ") + err);
-            if (fp.workOutUsed[p] && !allocBuffer(wbytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, &workOut[p]))
+            if (fp.workOutUsed[p] && !allocBuffer(workBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, &workOut[p]))
                 return abandon(std::string("Resize: ") + err);
         }
         if (!allocBuffer(sizeof(ColourConstants),
@@ -2546,25 +2570,30 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
         }
     };
     bool bindFailed = false;
-    auto surfaceBuffer = [&](const Surface &s, uint32_t *strideBase) -> VkBuffer {
+    std::string bindError;
+    auto framePlane = [&](const VSFrame *frame, int plane, const char *side, int bytesPerSample,
+        uint32_t *strideBase) -> VkBuffer {
         VSVulkanPlaneInfo info;
+        if (d->vkapi->getGPUPlane(frame, plane, &info)) {
+            bindFailed = true;
+            bindError = "Resize: a frame plane is not GPU resident";
+            return VK_NULL_HANDLE;
+        }
+        if (info.bufferSize > maxRange) {
+            bindFailed = true;
+            bindError = "Resize: " + pastStorageRange(std::string(side) + " plane " + std::to_string(plane),
+                info.bufferSize, maxRange);
+            return VK_NULL_HANDLE;
+        }
+        *strideBase = static_cast<uint32_t>(vsapi->getStride(frame, plane) / bytesPerSample);
+        return info.buffer;
+    };
+    auto surfaceBuffer = [&](const Surface &s, uint32_t *strideBase) -> VkBuffer {
         switch (s.kind) {
         case Surface::SrcPlane:
-            if (d->vkapi->getGPUPlane(src, s.plane, &info)) {
-                bindFailed = true;
-                return VK_NULL_HANDLE;
-            }
-            *strideBase = static_cast<uint32_t>(
-                vsapi->getStride(src, s.plane) / spec.srcFmt.bytesPerSample);
-            return info.buffer;
+            return framePlane(src, s.plane, "source", spec.srcFmt.bytesPerSample, strideBase);
         case Surface::DstPlane:
-            if (d->vkapi->getGPUPlane(dst, s.plane, &info)) {
-                bindFailed = true;
-                return VK_NULL_HANDLE;
-            }
-            *strideBase = static_cast<uint32_t>(
-                vsapi->getStride(dst, s.plane) / spec.dstFmt.bytesPerSample);
-            return info.buffer;
+            return framePlane(dst, s.plane, "output", spec.dstFmt.bytesPerSample, strideBase);
         case Surface::WorkIn:
             *strideBase = fp.workW;
             return workIn[s.plane].buffer;
@@ -2685,7 +2714,7 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
     for (int p = 0; p < 3; p++)
         recordChain(fp.inChain[p]);
     if (bindFailed)
-        return abandon("Resize: a frame plane is not GPU resident");
+        return abandon(bindError);
 
     if (fp.colourActive) {
         VkBuffer bufs[8];
@@ -2700,7 +2729,7 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
             bufs[3 + i] = surfaceBuffer(fp.colourOut[i], &cpush.outStride[i]);
         }
         if (bindFailed)
-            return abandon("Resize: a frame plane is not GPU resident");
+            return abandon(bindError);
         int count = 3 + fp.colourOutPlanes;
         bufs[count++] = constsBuf.buffer;
         if (d->ditherInfo.buffer)
@@ -2711,7 +2740,7 @@ const VSFrame *VS_CC gpuResizeGetFrame(int n, int activationReason, void *instan
     for (int p = 0; p < numPlanes; p++)
         recordChain(fp.plane[p]);
     if (bindFailed)
-        return abandon("Resize: a frame plane is not GPU resident");
+        return abandon(bindError);
 
     if (d->vkapi->gpuExecSubmit(ctx, nullptr, err, sizeof(err))) {
         vsapi->freeFrame(dst);
@@ -2891,10 +2920,15 @@ bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
     }
     spec.uvDiffers = !(spec.kernelUV == spec.kernelY);
 
+    /* Dimensions and windows no path accepts are final errors, in the scalar path's words:
+       declining would point the reader at GPUDownload, and a resident clip never reaches
+       the scalar path to be told there. */
     const int dstWArg = present(in, "width", vsapi) ? vsapi->mapGetIntSaturated(in, "width", 0, nullptr) : 0;
     const int dstHArg = present(in, "height", vsapi) ? vsapi->mapGetIntSaturated(in, "height", 0, nullptr) : 0;
-    if (dstWArg < 0 || dstHArg < 0)
-        return give_up("bad output dimensions");
+    if (dstWArg < 0)
+        return fail("value for key \"width\" out of range");
+    if (dstHArg < 0)
+        return fail("value for key \"height\" out of range");
     spec.srcW = static_cast<uint32_t>(vi->width);
     spec.srcH = static_cast<uint32_t>(vi->height);
     spec.dstW = dstWArg > 0 ? static_cast<uint32_t>(dstWArg) : spec.srcW;
@@ -2903,16 +2937,19 @@ bool resolveSpec(const VSMap *in, const char *kernelName, bool deinterlace,
     spec.deinterlace = deinterlace;
     spec.dstH = deinterlace ? spec.srcH * 2
         : dstHArg > 0 ? static_cast<uint32_t>(dstHArg) : spec.srcH;
-    /* An output the chroma planes cannot be cut from is a script error, and phrasing it
-       is the scalar path's job rather than something to reword here. */
+    /* An output the chroma planes cannot be cut from. */
     if ((spec.dstW & ((1u << spec.dstFmt.subSamplingW) - 1)) ||
         (spec.dstH & ((1u << spec.dstFmt.subSamplingH) - 1)))
-        return give_up("the output size does not divide by the subsampling");
+        return fail("image dimensions must be divisible by subsampling factor");
 
     spec.activeLeft = optFloat(in, "src_left", 0.0, vsapi);
     spec.activeTop = optFloat(in, "src_top", 0.0, vsapi);
     spec.activeWidth = optFloat(in, "src_width", vi->width, vsapi);
     spec.activeHeight = optFloat(in, "src_height", vi->height, vsapi);
+    if (spec.activeWidth <= 0 || spec.activeHeight <= 0)
+        return fail("active window must be positive");
+    /* What remains is NaN, which the scalar path reads as the whole image, so it is only
+       this path that cannot take it. */
     if (!(spec.activeWidth > 0) || !(spec.activeHeight > 0))
         return give_up("bad source window");
     spec.windowed = spec.activeLeft != 0 || spec.activeTop != 0 ||
@@ -3207,6 +3244,10 @@ bool createGPUResize(const VSMap *in, VSMap *out, const char *kernelName, bool d
     d->vk = d->vkapi->getVulkanFunctions(core, err, sizeof(err));
     if (!d->vk)
         return hard_error(err);
+    VkPhysicalDeviceProperties2 props = {};
+    props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    d->vk->vkGetPhysicalDeviceProperties2(d->handles.physicalDevice, &props);
+    d->maxStorageBufferRange = props.properties.limits.maxStorageBufferRange;
 
     /* Every pass shape the planner can emit: direction x which end is samples, per
        kernel class. Built up front because which of them a frame needs is per frame but

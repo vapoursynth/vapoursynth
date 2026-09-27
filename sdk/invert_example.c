@@ -29,9 +29,16 @@ static const VSFrame *VS_CC invertGetFrame(int n, int activationReason, void *in
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        // The reason we query this on a per frame basis is because we want our filter
-        // to accept clips with varying dimensions. If we reject such content using d->vi
-        // would be easier.
+
+        // Disabled means passing the source frame on untouched. Returning it hands our
+        // reference to the caller, so it must not be freed here.
+        if (!d->enabled)
+            return src;
+
+        // The format and dimensions are read from the frame rather than from the clip's
+        // VSVideoInfo. invertCreate only accepts clips with a constant format and size, so
+        // both give the same answer here, but asking the frame is what keeps working if the
+        // filter is later extended to clips whose format or size varies.
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
         int height = vsapi->getFrameHeight(src, 0);
         int width = vsapi->getFrameWidth(src, 0);
@@ -107,11 +114,11 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // strict checking because of what we wrote in the argument string, the only
     // reason this could fail is when the value wasn't set by the user.
     // And when it's not set we want it to default to enabled.
-    d.enabled = !!vsapi->mapGetInt(in, "enabled", 0, &err);
+    d.enabled = vsapi->mapGetIntSaturated(in, "enabled", 0, &err);
     if (err)
         d.enabled = 1;
 
-    // Let's pretend the only allowed values are 1 or 0...
+    // Only 1 and 0 mean anything, so anything else is an error rather than a guess
     if (d.enabled < 0 || d.enabled > 1) {
         vsapi->mapSetError(out, "Invert: enabled must be 0 or 1");
         vsapi->freeNode(d.node);
@@ -123,18 +130,19 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     data = (InvertData *)malloc(sizeof(d));
     *data = d;
 
-    // Creates a new filter and returns a reference to it. Always pass on the in and out
-    // arguments or unexpected things may happen. The name should be something that's
-    // easy to connect to the filter, like its function name.
-    // The three function pointers handle initialization, frame processing and filter destruction.
+    // Creates a new filter and appends a reference to it to the clip key of the out map. The
+    // name should be something that's easy to connect to the filter, like its function name.
+    // The two function pointers handle frame processing and filter destruction.
     // The filtermode is very important to get right as it controls how threading of the filter
     // is handled. In general you should only use fmParallel whenever possible. This is if you
     // need to modify no shared data at all when the filter is running.
     // For more complicated filters, fmParallelRequests is usually easier to achieve as it can
     // be prefetched in parallel but the actual processing is single-threaded.
-    // The others can be considered special cases where fmFrameState is useful to source filters and
-    // fmUnordered is useful when a filter's state may change even when deciding which frames to
-    // prefetch (such as a cache filter).
+    // fmUnordered is for filters whose state changes with every request, such as source
+    // filters that read a file in order. fmFrameState only exists for compatibility with other
+    // filtering architectures and shouldn't be used in new filters.
+    // The dependencies tell the core which clips frames are requested from and how:
+    // rpStrictSpatial means output frame n only ever needs frame n of the input.
 
     VSFilterDependency deps[] = {{d.node, rpStrictSpatial}};
     vsapi->createVideoFilter(out, "Invert", vi, invertGetFrame, invertFree, fmParallel, deps, 1, data, core);
@@ -145,7 +153,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
 // This is the entry point that is called when a plugin is loaded. You are only supposed
 // to call the two provided functions here.
-// configFunc sets the id, namespace, and long name of the plugin (the last 3 arguments
+// configPlugin sets the id, namespace, and long name of the plugin (the last 3 arguments
 // never need to be changed for a normal plugin).
 //
 // id: Needs to be a "reverse" url and unique among all plugins.

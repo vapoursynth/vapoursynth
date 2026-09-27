@@ -2706,7 +2706,7 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
             dlclose(libHandle);
         if (isAPI3)
             throw VSException("Plugin " + relFilename.u8string() + " uses API 3, which is no longer supported.");
-        throw VSException("No entry point found in " + relFilename.u8string());
+        throw VSNoEntryPointException("No entry point found in " + relFilename.u8string());
     }
 #endif
     pluginInit(this, &vs_internal_vspapi);

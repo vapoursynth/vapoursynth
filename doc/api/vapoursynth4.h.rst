@@ -3389,8 +3389,10 @@ typedef const VSFrame_ \*(VS_CC \*VSFilterGetFrame)(int n, int activationReason,
       The function should only return a frame when called with
       *activationReason* arAllFramesReady.
 
-      If a the function is called with arError all processing has to be aborted
-      and any.
+      If the function is called with arError, one of the frames it requested
+      could not be produced. All processing of frame *n* has to be aborted:
+      free whatever *frameData* holds and return NULL. Returning a frame at
+      that point is a fatal error.
 
    *instanceData*
       The filter's private instance data.

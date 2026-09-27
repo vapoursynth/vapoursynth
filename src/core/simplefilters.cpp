@@ -55,7 +55,7 @@ static inline uint32_t doubleToUInt32S(double v) {
 static inline uint32_t doubleToIntPixelValue(double v, int bits, int *err) {
     *err = 0;
 
-    if (!isfinite(v) || v < 0) {
+    if (!std::isfinite(v) || v < 0) {
         *err = 1;
         return 0;
     }
@@ -73,7 +73,7 @@ static inline uint32_t doubleToFloatPixelValue(double v, int *err) {
     *err = 0;
 
     float f = (float)v;
-    if (!isfinite(f)) {
+    if (!std::isfinite(f)) {
         *err = 1;
         return 0;
     }
@@ -85,7 +85,7 @@ static inline uint16_t doubleToHalfPixelValue(double v, int *err) {
     *err = 0;
 
     float f = (float)v;
-    if (!isfinite(f)) {
+    if (!std::isfinite(f)) {
         *err = 1;
         return 0;
     }
@@ -1896,6 +1896,12 @@ static const VSFrame *VS_CC frameEvalGetFrameWithProps(int n, int activationReas
             return nullptr;
         }
 
+        if (vsapi->getNodeType(node) != mtVideo) {
+            vsapi->freeNode(node);
+            vsapi->setFilterError("FrameEval: Function didn't return a video clip", frameCtx);
+            return nullptr;
+        }
+
         if ((vsapi->getNodeResidency(node) == nrGPU) != d->gpuOutput) {
             vsapi->freeNode(node);
             vsapi->setFilterError("FrameEval: Returned clip has the wrong residency", frameCtx);
@@ -1954,6 +1960,12 @@ static const VSFrame *VS_CC frameEvalGetFrameNoProps(int n, int activationReason
 
         if (err) {
             vsapi->setFilterError("FrameEval: Function didn't return a clip", frameCtx);
+            return nullptr;
+        }
+
+        if (vsapi->getNodeType(node) != mtVideo) {
+            vsapi->freeNode(node);
+            vsapi->setFilterError("FrameEval: Function didn't return a video clip", frameCtx);
             return nullptr;
         }
 
@@ -2086,6 +2098,12 @@ static const VSFrame *VS_CC modifyFrameGetFrame(int n, int activationReason, voi
         if (err) {
             vsapi->freeFrame(f);
             vsapi->setFilterError("ModifyFrame: Returned value not a frame", frameCtx);
+            return nullptr;
+        }
+
+        if (vsapi->getFrameType(f) != mtVideo) {
+            vsapi->freeFrame(f);
+            vsapi->setFilterError("ModifyFrame: Returned value not a video frame", frameCtx);
             return nullptr;
         }
 
@@ -2307,7 +2325,7 @@ static const VSFrame *VS_CC pemVerifierGetFrame(int n, int activationReason, voi
                     for (int y = 0; y < height; y++) {
                         for (int x = 0; x < width; x++) {
                             f = halfToFloat(((const uint16_t *)srcp)[x]);
-                            if (f < d->lowerf[plane] || f > d->upperf[plane] || !isfinite(f)) {
+                            if (f < d->lowerf[plane] || f > d->upperf[plane] || !std::isfinite(f)) {
                                 snprintf(strbuf, sizeof(strbuf), "PEMVerifier: Illegal sample value (%f) at: plane: %d Y: %d, X: %d, Frame: %d", f, plane, y, x, n);
                                 vsapi->setFilterError(strbuf, frameCtx);
                                 vsapi->freeFrame(src);
@@ -2335,7 +2353,7 @@ static const VSFrame *VS_CC pemVerifierGetFrame(int n, int activationReason, voi
                 for (int y = 0; y < height; y++) {
                     for (int x = 0; x < width; x++) {
                         f = ((const float *)srcp)[x];
-                        if (f < d->lowerf[plane] || f > d->upperf[plane] || !isfinite(f)) {
+                        if (f < d->lowerf[plane] || f > d->upperf[plane] || !std::isfinite(f)) {
                             snprintf(strbuf, sizeof(strbuf), "PEMVerifier: Illegal sample value (%f) at: plane: %d Y: %d, X: %d, Frame: %d", f, plane, y, x, n);
                             vsapi->setFilterError(strbuf, frameCtx);
                             vsapi->freeFrame(src);

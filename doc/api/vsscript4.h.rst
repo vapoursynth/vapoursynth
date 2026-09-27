@@ -16,6 +16,8 @@ Structs_
 Functions_
    getVSScriptAPI_
 
+   getVSScriptAPILastError_
+
    getAPIVersion_
       
    getVSAPI_
@@ -102,10 +104,24 @@ getVSScriptAPI
 
 .. c:function:: const VSSCRIPTAPI *getVSScriptAPI(int version)
 
-    Returns a struct containing function pointer for the api. Will return NULL is the specified *version* isn't supported.
-    
+    Returns a struct containing function pointer for the api. Will return NULL if the specified *version* isn't supported
+    or initializing Python failed; getVSScriptAPILastError_ says which.
+
     It is recommended to always pass *VSSCRIPT_API_VERSION*.
-    
+
+
+getVSScriptAPILastError
+-----------------------
+
+.. c:function:: const char *getVSScriptAPILastError()
+
+    Returns why getVSScriptAPI_ returned NULL, or NULL if it never has. A failure to initialize --
+    Python or the vapoursynth module could not be found or loaded -- is reported in preference to an
+    unsupported *version*, and is permanent for the process since initialization is only attempted once.
+    The string belongs to the library and stays valid.
+
+    Added in VSSCRIPT_API_MINOR 3.
+
 
 getAPIVersion
 -------------
