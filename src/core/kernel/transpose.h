@@ -38,7 +38,7 @@ void vs_transpose_plane_dword_sse2(const void * VS_RESTRICT src, ptrdiff_t src_s
 /* Implementation details. */
 #ifdef VS_TRANSPOSE_IMPL
 
-#define ADD_OFFSET(p, stride) ((p) + (stride) / (sizeof(*(p))))
+#define ADD_OFFSET(p, stride) ((p) + (stride) / (ptrdiff_t)(sizeof(*(p))))
 
 #define CACHELINE_SIZE 64
 #define CACHELINE_SIZE_BYTE (CACHELINE_SIZE / sizeof(uint8_t))

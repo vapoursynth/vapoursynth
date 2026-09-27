@@ -213,7 +213,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         maAppend
 
     struct VSCoreInfo:
-        char *versionString
+        const char *versionString
         int core
         int api
         int numThreads
@@ -221,7 +221,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int64_t usedFramebufferSize
         
     struct VSCoreInfo2:
-        char *versionString
+        const char *versionString
         int coreVersion
         int apiVersion
         int creationFlags
@@ -294,16 +294,17 @@ cdef extern from "include/VapourSynth4.h" nogil:
 
     ctypedef struct VSAPI:
         # Audio and video filter
-        void createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
-        VSNode *createVideoFilter2(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
-        void createAudioFilter(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
-        VSNode *createAudioFilter2(const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        void createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) nogil
+        VSNode *createVideoFilter2(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) nogil
+        void createAudioFilter(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) nogil
+        VSNode *createAudioFilter2(const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) nogil
         int setLinearFilter(VSNode *node) nogil
 
         void freeNode(VSNode *node) nogil
         VSNode *addNodeRef(VSNode *node) nogil
         int getNodeType(VSNode *node) nogil
         void setCacheMode(VSNode *node, int mode) nogil
+        void setCacheOptions(VSNode *node, int fixedSize, int maxSize, int maxHistorySize) nogil
         const VSVideoInfo *getVideoInfo(VSNode *node) nogil
         const VSAudioInfo *getAudioInfo(VSNode *node) nogil
 
@@ -359,7 +360,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void copyMap(const VSMap *src, VSMap *dst) nogil
 
         void mapSetError(VSMap *map, const char *errorMessage) nogil
-        char *mapGetError(const VSMap *map) nogil
+        const char *mapGetError(const VSMap *map) nogil
 
         int mapNumKeys(const VSMap *map) nogil
         const char *mapGetKey(const VSMap *map, int index) nogil
@@ -411,7 +412,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         const char *getPluginFunctionArguments(VSPluginFunction *func) nogil
         const char *getPluginFunctionReturnType(VSPluginFunction *func) nogil
         const char *getPluginPath(const VSPlugin *plugin) nogil
-        int *getPluginVersion(const VSPlugin *plugin) nogil;
+        int getPluginVersion(const VSPlugin *plugin) nogil
         VSMap *invoke(VSPlugin *plugin, const char *name, const VSMap *args) nogil
 
         # Core and information
@@ -423,7 +424,9 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void getCoreInfo2(VSCore *core, VSCoreInfo2 *info) nogil
         int getAPIVersion() nogil
 
-        # Residency and the Vulkan API; see vsvulkan.pxd
+        # Filter creation with flags, residency and the Vulkan API; see vsvulkan.pxd
+        void createVideoFilterEx(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) nogil
+        VSNode *createVideoFilterEx2(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) nogil
         const VSVULKANAPI *getVulkanAPI() nogil
         int getNodeResidency(VSNode *node) nogil
         int getFrameResidency(const VSFrame *frame) nogil

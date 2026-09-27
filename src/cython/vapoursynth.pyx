@@ -4133,7 +4133,7 @@ cdef class Plugin(object):
     @property
     def version(self):
         self.core.ensure_valid()
-        ver = <int>self.funcs.getPluginVersion(self.plugin)
+        ver = self.funcs.getPluginVersion(self.plugin)
 
         ver_major = (ver >> 16)
         ver_minor = (ver_major > -1) and (ver - (ver_major << 16)) or 0

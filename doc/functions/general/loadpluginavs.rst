@@ -22,6 +22,9 @@ LoadPlugin (Avisynth Compatibility)
         will most likely trigger a fatal error.
       * Plugins trying to read global variables.
         There are no global variables.
+      * Clips with a variable frame rate. Avisynth has no variable frame
+        rate so they are passed to plugins as 30 fps. If the first clip
+        has a variable frame rate the returned clip gets one too.
 
    If there are function name collisions functions will have a number appended
    to them to make them distinct. For example if three functions are named

@@ -405,7 +405,7 @@ bool VapourSynthFile::DelayInit() {
     return result;
 }
 
-static const char *ErrorScript1 = "\
+static const char *ErrorScript = "\
 import vapoursynth as vs\n\
 import sys\n\
 core = vs.core\n\
@@ -415,10 +415,24 @@ red = core.std.BlankClip(width=w, height=h, format=vs.RGB24, color=[255, 0, 0])\
 green = core.std.BlankClip(width=w, height=h, format=vs.RGB24, color=[0, 255, 0])\n\
 blue = core.std.BlankClip(width=w, height=h, format=vs.RGB24, color=[0, 0, 255])\n\
 stacked = core.std.StackHorizontal([red, green, blue])\n\
-msg = core.text.Text(stacked, r\"\"\"";
-
-static const char *ErrorScript2 = "\"\"\")\n\
+msg = core.text.Text(stacked, vfw_error_message)\n\
 msg.set_output()\n";
+
+// The message is passed as a variable since quotes or backslashes in it would break the script's syntax
+static VSScript *evaluateErrorScript(const VSSCRIPTAPI *vssapi, const VSAPI *vsapi, const std::string &script, const std::string &message) {
+    VSScript *se = vssapi->createScript(nullptr);
+    if (!se)
+        return nullptr;
+    VSMap *vars = vsapi->createMap();
+    vsapi->mapSetData(vars, "vfw_error_message", message.c_str(), static_cast<int>(message.size()), dtUtf8, maReplace);
+    vssapi->setVariables(se, vars);
+    vsapi->freeMap(vars);
+    if (vssapi->evaluateBuffer(se, script.c_str(), "vfw_error.message")) {
+        vssapi->freeScript(se);
+        return nullptr;
+    }
+    return se;
+}
 
 bool VapourSynthFile::DelayInit2() {
     if (vssapi && !szScriptName.empty() && !vi) {
@@ -504,13 +518,9 @@ bool VapourSynthFile::DelayInit2() {
             ai = nullptr;
             vssapi->freeScript(se);
             se = nullptr;
-            std::string error_script = ErrorScript1;
-            error_script += error_msg;
-            error_script += ErrorScript2;
-            se = vssapi->createScript(nullptr);
+            se = evaluateErrorScript(vssapi, vsapi, ErrorScript, error_msg);
             if (!se)
                 return false;
-            vssapi->evaluateBuffer(se, error_script.c_str(), "vfw_error.message");
             videoNode = vssapi->getOutputNode(se, 0);
             if (!videoNode) {
                 vssapi->freeScript(se);
@@ -769,14 +779,13 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         frameErrorScript += "err_script_width = " + std::to_string(parent->vi->width) + "\n";
         frameErrorScript += "err_script_height = " + std::to_string(parent->vi->height) + "\n";
         frameErrorScript += "err_script_background = core.std.BlankClip(width=err_script_width, height=err_script_height, format=vs.RGB24)\n";
-        frameErrorScript += "err_script_clip = core.text.Text(err_script_background, r\"\"\"";
-        frameErrorScript += errMsg.data();
-        frameErrorScript += "\"\"\")\n";
+        frameErrorScript += "err_script_clip = core.text.Text(err_script_background, vfw_error_message)\n";
         frameErrorScript += "err_script_clip = core.resize.Bilinear(err_script_clip, format=err_script_formatid" + matrix + ")\n";
         frameErrorScript += "err_script_clip.set_output()\n";
 
-        errSe = vssapi->createScript(nullptr);
-        vssapi->evaluateBuffer(errSe, frameErrorScript.c_str(), "vfw_error.message");
+        errSe = evaluateErrorScript(vssapi, vsapi, frameErrorScript, errMsg.data());
+        if (!errSe)
+            return false;
         VSNode *node = vssapi->getOutputNode(errSe, 0);
         if (node) {
             f = vsapi->getFrame(0, node, nullptr, 0);

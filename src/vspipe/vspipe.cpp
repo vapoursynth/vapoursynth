@@ -1356,8 +1356,8 @@ static void printHelp() {
         "                                    mkv writes every output the script sets, or just the\n"
         "                                    selected one when --outputindex is given, while the\n"
         "                                    other types only ever carry the selected output\n"
-        "  -t, --timecodes FILE              Write timecodes v2 file\n"
-        "  -j, --json FILE                   Write properties of output frames in json format to file\n"
+        "  -t, --timecodes FILE              Write timecodes v2 file, video output only\n"
+        "  -j, --json FILE                   Write properties of output frames in json format to file, video output only\n"
         "  -p, --progress                    Print progress to stderr\n"
         "      --filter-time                 Print time spent in individual filters to stderr after processing\n"
         "      --filter-time-graph FILE      Write output node's filter graph in dot format with time information after processing\n"
@@ -1963,6 +1963,11 @@ int main(int argc, char **argv) {
         }
 
         int nodeType = vsapi->getNodeType(node);
+
+        if (nodeType == mtAudio && (timecodesFile || jsonFile)) {
+            fprintf(stderr, "Error: --timecodes and --json can only be used with video output\n");
+            return 1;
+        }
 
         if (opts.startPos != 0 || opts.endPos != -1) {
             MapHandle args = wrapMap(vsapi->createMap(), vsapi);

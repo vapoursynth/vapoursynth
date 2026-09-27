@@ -791,10 +791,11 @@ public:
   friend class Cache;
 
   VideoFrame(BYTE *_vfb, bool writable, size_t _offset, int _pitch, int _row_size, int _height,
-      size_t _offsetU, size_t _offsetV, int _pitchUV, int _row_sizeUV, int _heightUV)
+      size_t _offsetU, size_t _offsetV, int _pitchUV, int _row_sizeUV, int _heightUV,
+      size_t _offsetA = 0, int _pitchA = 0, int _row_sizeA = 0)
       : refcount(0), vfb(new VideoFrameBuffer(_vfb, writable)), offset(_offset), pitch(_pitch), row_size(_row_size),
       height(_height), offsetU(_offsetU), offsetV(_offsetV), pitchUV(_pitchUV), row_sizeUV(_row_sizeUV), heightUV(_heightUV),
-      offsetA(0), pitchA(0), row_sizeA(0) {
+      offsetA(_offsetA), pitchA(_pitchA), row_sizeA(_row_sizeA) {
   }
 
 // TESTME: OFFSET U/V may be switched to what could be expected from AVI standard!

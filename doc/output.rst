@@ -46,10 +46,10 @@ Options
     accepts.
 
 ``-t, --timecodes FILE``
-    Write timecodes v2 file
+    Write timecodes v2 file. Only for video output.
 
 ``-j, --json FILE``
-    Write properties of output frames in json format to file
+    Write properties of output frames in json format to file. Only for video output.
 
 ``-p, --progress``
     Print progress to stderr

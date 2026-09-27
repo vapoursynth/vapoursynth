@@ -1334,7 +1334,7 @@ struct VSAPI
    int getFrameResidency(const VSFrame \*frame)
 
       Returns where the frame's planes live as a VSNodeResidency_. The CPU
-      data accessors (getReadPtr_, getWritePtr_) are fatal errors on nrGPU
+      data accessors (getReadPtr_, getWritePtr_) return NULL on nrGPU
       frames; properties always work. Added in API 4.3.
 
 ----------

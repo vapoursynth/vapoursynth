@@ -28,7 +28,6 @@
 #include <set>
 #include <vector>
 #include <string>
-#include <mutex>
 
 namespace AvisynthCompat {
 
@@ -38,14 +37,18 @@ class FakeAvisynth : public IScriptEnvironment2 {
     friend class VSClip;
     friend class ::VideoFrame;
 private:
+    // The frame a view shows and, for the alpha formats, the alpha plane that gets discarded
+    struct OwnedFrame {
+        const VSFrame *frame;
+        const VSFrame *alpha;
+    };
+
     VSCore *core;
     std::set<std::string> savedStrings;
     const VSAPI *vsapi;
-    std::map<VideoFrame *, const VSFrame *> ownedFrames;
+    std::map<VideoFrame *, OwnedFrame> ownedFrames;
     int interfaceVersion;
     std::string charToFilterArgumentString(char c);
-    std::mutex registerFunctionLock;
-    std::set<std::string> registeredFunctions;
 public:
     const VSFrame *avsToVSFrame(VideoFrame *frame);
 
@@ -203,6 +206,9 @@ struct WrappedClip {
     std::vector<VSNode *> preFetchClips;
     PClip clip;
     FakeAvisynth *fakeEnv;
+    // Set when output frames need a new duration, 0 leaves the one they have
+    int64_t durationNum = 0;
+    int64_t durationDen = 0;
     WrappedClip(const std::string &filterName, const PClip &clip, const std::vector<VSNode *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv);
     ~WrappedClip() {
         clip = nullptr;

@@ -28,6 +28,9 @@
 #include <cstddef>
 #include <exception>
 #include <limits>
+#include <map>
+#include <mutex>
+#include <tuple>
 #include <filesystem>
 #include "p2p_api.h"
 
@@ -128,11 +131,13 @@ static bool AVSPixelTypeToVSFormat(VSVideoFormat &f, bool &unpack, const VideoIn
         return vsapi->getVideoFormatByID(&f, pfGray32, core);
     }
 
+    // The alpha formats map to the same format without alpha, the alpha plane is discarded
     if (vi.IsPlanar()) {
         const bool gray = vi.IsY();
-        const bool hasSubSampling = !gray && vi.IsYUV();
-        unsigned colorFamily = gray ? cfGray : (vi.IsYUV() ? cfYUV : (vi.IsRGB() ? cfRGB : 0));
-        return vsapi->queryVideoFormat(&f, colorFamily, vi.BitsPerComponent() == 32 ? stFloat : stInteger, vi.BitsPerComponent(), hasSubSampling ? vi.GetPlaneWidthSubsampling(PLANAR_U) : 0, hasSubSampling ? vi.GetPlaneHeightSubsampling(PLANAR_U) : 0, core);
+        const bool yuv = vi.IsYUV() || vi.IsYUVA();
+        const bool hasSubSampling = !gray && yuv;
+        unsigned colorFamily = gray ? cfGray : (yuv ? cfYUV : (vi.IsRGB() ? cfRGB : 0));
+        return colorFamily && vsapi->queryVideoFormat(&f, colorFamily, vi.BitsPerComponent() == 32 ? stFloat : stInteger, vi.BitsPerComponent(), hasSubSampling ? vi.GetPlaneWidthSubsampling(PLANAR_U) : 0, hasSubSampling ? vi.GetPlaneHeightSubsampling(PLANAR_U) : 0, core);
     }
 
     return false;
@@ -374,10 +379,10 @@ static VSNode *VS_CC unpackRGB32Create(VSNode *node, VSCore *core, const VSAPI *
 
 const VSFrame *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
     const VSFrame *ref = nullptr;
-    std::map<VideoFrame *, const VSFrame *>::iterator it = ownedFrames.find(frame);
+    auto it = ownedFrames.find(frame);
 
     if (it != ownedFrames.end()) {
-        ref = vsapi->addFrameRef(it->second);
+        ref = vsapi->addFrameRef(it->second.frame);
     } else {
         vsapi->logMessage(mtFatal, "unreachable condition", core);
         assert(false);
@@ -386,9 +391,10 @@ const VSFrame *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
     it = ownedFrames.begin();
 
     while (it != ownedFrames.end()) {
-        if (it->first->refcount == 0 || it->first->refcount == 9000) {
+        if (it->first->refcount == 0) {
             delete it->first;
-            vsapi->freeFrame(it->second);
+            vsapi->freeFrame(it->second.frame);
+            vsapi->freeFrame(it->second.alpha);
             it = ownedFrames.erase(it);
         } else {
             ++it;
@@ -400,11 +406,12 @@ const VSFrame *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
 }
 
 FakeAvisynth::~FakeAvisynth() {
-    std::map<VideoFrame *, const VSFrame *>::iterator it = ownedFrames.begin();
+    auto it = ownedFrames.begin();
 
     while (it != ownedFrames.end()) {
         delete it->first;
-        vsapi->freeFrame(it->second);
+        vsapi->freeFrame(it->second.frame);
+        vsapi->freeFrame(it->second.alpha);
         it = ownedFrames.erase(it);
     }
 
@@ -515,8 +522,8 @@ VSClip::VSClip(VSNode *inclip, FakeAvisynth *fakeEnv, bool pack, const VSAPI *vs
 
 /* Builds the AviSynth view over a frame whose plane pointers the caller already fetched: G, B, R
    order for RGB, matching VideoFrame::GetOffset, plane order for everything else; a single
-   plane frame leaves the secondary slots empty. */
-static VideoFrame *buildFrameView(const VSFrame *frame, bool writable, const uint8_t *const planes[3], const VSAPI *vsapi) {
+   plane frame leaves the secondary slots empty. An alpha frame, if any, backs the alpha plane. */
+static VideoFrame *buildFrameView(const VSFrame *frame, bool writable, const uint8_t *const planes[3], const VSAPI *vsapi, const VSFrame *alpha = nullptr, const uint8_t *alphaPlane = nullptr) {
     const VSVideoFormat *f = vsapi->getVideoFrameFormat(frame);
     const bool rgb = f->colorFamily == cfRGB;
     const int base = rgb ? 1 : 0;
@@ -534,7 +541,10 @@ static VideoFrame *buildFrameView(const VSFrame *frame, bool writable, const uin
         multiplePlanes ? planes[third] - planes[base] : 0,
         multiplePlanes ? static_cast<int>(vsapi->getStride(frame, second)) : 0,
         multiplePlanes ? vsapi->getFrameWidth(frame, second) * f->bytesPerSample : 0,
-        multiplePlanes ? vsapi->getFrameHeight(frame, second) : 0);
+        multiplePlanes ? vsapi->getFrameHeight(frame, second) : 0,
+        alpha ? alphaPlane - planes[base] : 0,
+        alpha ? static_cast<int>(vsapi->getStride(alpha, 0)) : 0,
+        alpha ? vsapi->getFrameWidth(alpha, 0) * f->bytesPerSample : 0);
 }
 
 /* A view the plugin only reads through. */
@@ -550,12 +560,12 @@ static VideoFrame *newReadView(const VSFrame *frame, const VSAPI *vsapi) {
    was copied from -- MakeWritable copies with copyFrame, which is copy on write -- and only
    getWritePtr detaches them, reallocating the plane as it does, so every plane goes through it
    before any pointer is kept. */
-static VideoFrame *newWritableView(VSFrame *frame, const VSAPI *vsapi) {
+static VideoFrame *newWritableView(VSFrame *frame, const VSAPI *vsapi, VSFrame *alpha = nullptr) {
     const uint8_t *planes[3] = {};
     const int numPlanes = vsapi->getVideoFrameFormat(frame)->numPlanes;
     for (int p = 0; p < numPlanes; p++)
         planes[p] = vsapi->getWritePtr(frame, p);
-    return buildFrameView(frame, true, planes, vsapi);
+    return buildFrameView(frame, true, planes, vsapi, alpha, alpha ? vsapi->getWritePtr(alpha, 0) : nullptr);
 }
 
 PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
@@ -583,7 +593,7 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
 
     VideoFrame *vfb = newReadView(ref, vsapi);
     PVideoFrame pvf(vfb);
-    fakeEnv->ownedFrames.insert(std::make_pair(vfb, ref));
+    fakeEnv->ownedFrames.insert({vfb, {ref, nullptr}});
     return pvf;
 }
 
@@ -603,8 +613,6 @@ static void prefetchHelper(int n, VSNode *node, const PrefetchInfo &p, VSFrameCo
     }
 }
 
-#define WARNING(fname, warning) if (name == #fname) vsapi->logMessage(mtWarning, "Avisynth Compat: "s + #fname + " - " + #warning).c_str(), core);
-#define BROKEN(fname) if (name == #fname) vsapi->logMessage(mtWarning, ("Avisynth Compat: Invoking known broken function "s + name).c_str(), core);
 #define OTHER(fname) if (name == #fname) return PrefetchInfo(1, 1, 0, 0);
 #define SOURCE(fname) if (name == #fname) return PrefetchInfo(1, 1, 0, 0);
 #define PREFETCHR0(fname) if (name == #fname) return PrefetchInfo(1, 1, 0, 0);
@@ -648,7 +656,6 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     case 1:
         PREFETCH(TDeint, 2, 1, -2, 2); break;
     }
-    BROKEN(ColorMatrix)
     PREFETCHR1(Cnr2)
     temp = vsapi->mapGetIntSaturated(in, "tbsize", 0, &err);
     if (err)
@@ -667,7 +674,6 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     PREFETCHR0(DGSharpen)
     temp = vsapi->mapGetIntSaturated(in, "mode", 0, &err);
     PREFETCH(DGBob, (temp > 0) ? 2 : 1, 1, -2, 2) // close enough?
-    BROKEN(IsCombed)
     PREFETCHR0(FieldDeinterlace)
     PREFETCH(Telecide, 1, 1, -2, 10) // not good
     PREFETCH(DGTelecide, 1, 1, -2, 10) // also not good
@@ -706,8 +712,6 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     OTHER(mt_ellipse)
     OTHER(mt_polish)
     // Mixed
-    BROKEN(RemoveGrain)
-    BROKEN(Repair)
     PREFETCHR0(VagueDenoiser)
     PREFETCHR0(UnDot)
     PREFETCHR0(SangNom)
@@ -830,6 +834,15 @@ static const VSFrame *VS_CC avisynthFilterGetFrame(int n, int activationReason, 
     if (frame)
         ref = clip->fakeEnv->avsToVSFrame((VideoFrame *)((void *)frame));
 
+    if (ref && clip->durationNum) {
+        VSFrame *dst = vsapi->copyFrame(ref, core);
+        vsapi->freeFrame(ref);
+        VSMap *props = vsapi->getFramePropertiesRW(dst);
+        vsapi->mapSetInt(props, "_DurationNum", clip->durationNum, maReplace);
+        vsapi->mapSetInt(props, "_DurationDen", clip->durationDen, maReplace);
+        ref = dst;
+    }
+
     return ref;
 }
 
@@ -945,6 +958,15 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         if (!filterData->preFetchClips.empty())
             filterData->fakeEnv->uglyNode = filterData->preFetchClips.front();
 
+        // Avisynth has no frame durations, so they're set when the rate differs from the first clip's or there's no clip
+        if (vi.fpsNum) {
+            const VSVideoInfo *firstVi = preFetchClips.empty() ? nullptr : vsapi->getVideoInfo(preFetchClips.front());
+            if (!firstVi || firstVi->fpsNum != vi.fpsNum || firstVi->fpsDen != vi.fpsDen) {
+                filterData->durationNum = vi.fpsDen;
+                filterData->durationDen = vi.fpsNum;
+            }
+        }
+
         std::vector<VSFilterDependency> deps;
         for (size_t i = 0; i < preFetchClips.size(); i++)
             deps.push_back({preFetchClips[i], rpGeneral});
@@ -1007,12 +1029,12 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
     std::string fname(name);
 
     if (fname == "RemoveGrain" || fname == "Repair" || fname == "ColorMatrix" || fname == "IsCombed") {
-        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + fname + "because it is too broken").c_str(), core);
+        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + fname + " because it is too broken").c_str(), core);
         return;
     }
 
     if (fname == "FFMS2" || fname == "FFCopyrightInfringement") {
-        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + fname + "because it calls invoke").c_str(), core);
+        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + fname + " because it calls invoke").c_str(), core);
         return;
     }
 
@@ -1053,20 +1075,25 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
 
     newArgs += "compatpack:int:opt;";
 
-    std::lock_guard<std::mutex> lock(registerFunctionLock);
+    /* A name already taken by any loaded plugin gets a number appended. The core can't tell what
+       registered a name so that's remembered here, which makes loading the same plugin again a no-op. */
+    static std::mutex registerLock;
+    static std::map<std::pair<VSPlugin *, std::string>, std::tuple<ApplyFunc, void *, std::string>> registrations;
+    std::lock_guard<std::mutex> lock(registerLock);
 
-    if (registeredFunctions.count(fname)) {
-        for (size_t i = 2; i < SIZE_MAX; i++) {
-            std::string numberedName = fname + "_" + std::to_string(i);
-            if (!registeredFunctions.count(numberedName)) {
-                fname = numberedName;
-                break;
-            }
-        }
+    VSPlugin *plugin = vsapi->getPluginByID("com.vapoursynth.avisynth", core);
+    const auto registration = std::make_tuple(apply, user_data, std::string(params));
+    std::string registeredName = fname;
+
+    for (int i = 2; vsapi->getPluginFunctionByName(registeredName.c_str(), plugin); i++) {
+        auto it = registrations.find({plugin, registeredName});
+        if (it != registrations.end() && it->second == registration)
+            return;
+        registeredName = fname + "_" + std::to_string(i);
     }
 
-    registeredFunctions.insert(fname);
-    vsapi->registerFunction(fname.c_str(), newArgs.c_str(), "any", fakeAvisynthFunctionWrapper, new WrappedFunction(fname, apply, parsedArgs, user_data, interfaceVersion), vsapi->getPluginByID("com.vapoursynth.avisynth", core));
+    registrations[{plugin, registeredName}] = registration;
+    vsapi->registerFunction(registeredName.c_str(), newArgs.c_str(), "any", fakeAvisynthFunctionWrapper, new WrappedFunction(registeredName, apply, parsedArgs, user_data, interfaceVersion), plugin);
 }
 
 bool FakeAvisynth::FunctionExists(const char *name) {
@@ -1129,16 +1156,24 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
 
     bool unpack;
     if (!AVSPixelTypeToVSFormat(f, unpack, vi, core, vsapi))
-        vsapi->logMessage(mtFatal, "Unsupported frame format in newvideoframe (alpha and/or packed RGB not supported)", core);
+        vsapi->logMessage(mtFatal, "Unsupported frame format in newvideoframe (packed RGB other than RGB32 not supported)", core);
 
     ref = vsapi->newVideoFrame(&f, vi.width, vi.height, propSrc, core);
 
     if (propSrc)
         vsapi->freeFrame(propSrc);
 
-    VideoFrame *vfb = newWritableView(ref, vsapi);
+    // Plugins may write to the alpha plane so it needs memory of its own, it's discarded afterwards
+    VSFrame *alpha = nullptr;
+    if (vi.IsYUVA() || vi.IsPlanarRGBA()) {
+        VSVideoFormat af;
+        vsapi->queryVideoFormat(&af, cfGray, f.sampleType, f.bitsPerSample, 0, 0, core);
+        alpha = vsapi->newVideoFrame(&af, vi.width, vi.height, nullptr, core);
+    }
+
+    VideoFrame *vfb = newWritableView(ref, vsapi, alpha);
     PVideoFrame pvf(vfb);
-    ownedFrames.insert(std::make_pair(vfb, ref));
+    ownedFrames.insert({vfb, {ref, alpha}});
     return pvf;
 }
 
@@ -1147,10 +1182,11 @@ bool FakeAvisynth::MakeWritable(PVideoFrame *pvf) {
     VideoFrame *vfb = (VideoFrame *)(void *)(*pvf);
     auto it = ownedFrames.find(vfb);
     assert(it != ownedFrames.end());
-    VSFrame *ref = vsapi->copyFrame(it->second, core);
-    VideoFrame *newVfb = newWritableView(ref, vsapi);
+    VSFrame *ref = vsapi->copyFrame(it->second.frame, core);
+    VSFrame *alpha = it->second.alpha ? vsapi->copyFrame(it->second.alpha, core) : nullptr;
+    VideoFrame *newVfb = newWritableView(ref, vsapi, alpha);
     *pvf = PVideoFrame(newVfb);
-    ownedFrames.insert(std::make_pair(newVfb, ref));
+    ownedFrames.insert({newVfb, {ref, alpha}});
     return true;
 }
 
@@ -1177,18 +1213,7 @@ void FakeAvisynth::CheckVersion(int version) {
 
 PVideoFrame FakeAvisynth::Subframe(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height) {
     vsapi->logMessage(mtFatal, "Subframe not implemented", core);
-    if (src->row_size != new_row_size)
-        vsapi->logMessage(mtFatal, "Subframe only partially implemented (row_size != new_row_size)", core);
-    // not pretty at all, but the underlying frame has to be fished out to have any idea what the input really is
-    const VSFrame *f = avsToVSFrame((VideoFrame *)(void *)src);
-    VideoInfo vi;
-    vi.height = new_height;
-    vi.width = vsapi->getFrameWidth(f, 0);
-
-    PVideoFrame dst = NewVideoFrame(vi);
-    BitBlt(dst->GetWritePtr(), dst->GetPitch(), src->GetReadPtr() + rel_offset, new_pitch, new_row_size, new_height);
-
-    return dst;
+    return nullptr;
 }
 
 int FakeAvisynth::SetMemoryMax(int mem) {
