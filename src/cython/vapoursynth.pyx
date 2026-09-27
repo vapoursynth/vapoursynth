@@ -3603,6 +3603,9 @@ cdef void __stdcall log_handler_free(void *userData) noexcept nogil:
         return
     with gil:
         try:
+            # the core freed the record, so a later remove_log_handler must not look for its
+            # address, which a newly added handler may reuse
+            (<LogHandle>userData).handle = NULL
             Py_DECREF(<LogHandle>userData)
         finally:
             _leave_python_callback()
@@ -3891,6 +3894,8 @@ cdef class Core(object):
         self.ensure_valid()
         cdef VSLogHandle *h = handle.handle
         cdef bint result
+        if h == NULL:
+            return False
         # released gil, see _unset_logger
         with nogil:
             result = self.funcs.removeLogHandler(h, self.core)
