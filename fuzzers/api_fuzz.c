@@ -46,7 +46,8 @@
    declared, copied or published again, and a filter node here does the whole hand-off -- export,
    publish or not, an _Alpha frame in the properties, or a reference it keeps while the frame is
    taken back all the same -- with the threads requesting its frames and declaring them like any
-   other. */
+   other. Two more take such a node's frames with getExportableFrameFilter and return new frames:
+   one mostly in place, one as a temporal filter whose copies are shared between requests. */
 #include "VapourSynth4.h"
 #include "VSVulkan4.h"
 
@@ -131,9 +132,17 @@ static const VSFrame *handoffKept;
 static volatile LONG handoffReturned = 0;
 /* And two consumers taking their own hand-off source's frames with getExportableFrameFilter: the
    first as that source's only consumer with a strict pattern, so mostly in place, the second
-   with a general one, so the source caches and every frame is copied. */
+   with a general one, so the source caches and every frame is copied. The second takes two
+   neighbouring frames out of a small window, as a temporal filter does, so its taps share the
+   copies and requests running side by side race to link one. A copy is released in one
+   submission, so a hand-over pair seen before, kept in recentPairs under ringLock, marks a tap
+   that got a copy another request linked. */
+#define PREPARE_WINDOW 16
+#define RECENT_PAIRS 64
 static VSNode *prepareSource[2], *prepareNode[2];
-static volatile LONG preparedReturned = 0;
+static volatile LONG preparedReturned = 0, temporalTaps = 0, sharedTaps = 0;
+static struct { VkSemaphore semaphore; uint64_t value; } recentPairs[RECENT_PAIRS];
+static int recentNext = 0;
 static int canExport = 0; /* the prepared frames fail without it */
 
 /* The reset injection and what it is measured by. */
@@ -428,33 +437,60 @@ static const VSFrame *VS_CC handoffGetFrame(int n, int activationReason, void *i
     return f;
 }
 
+/* Counts the temporal consumer's taps, and those that got a copy another request linked. */
+static void noteTemporalTap(const VSFrame *prepared) {
+    VSVulkanPlaneInfo pi;
+    int i, seen = 0;
+    if (vkapi->getGPUPlane(prepared, 0, &pi) || !pi.readySemaphore)
+        return;
+    ringEnter();
+    for (i = 0; i < RECENT_PAIRS && !seen; i++)
+        seen = recentPairs[i].semaphore == pi.readySemaphore && recentPairs[i].value == pi.readyValue;
+    if (!seen) {
+        recentPairs[recentNext].semaphore = pi.readySemaphore;
+        recentPairs[recentNext].value = pi.readyValue;
+        recentNext = (recentNext + 1) % RECENT_PAIRS;
+    }
+    ringLeave();
+    InterlockedIncrement(&temporalTaps);
+    if (seen)
+        InterlockedIncrement(&sharedTaps);
+}
+
 /* What a CUDA filter reading its input does: take it with getExportableFrameFilter, export it,
-   then return the prepared frame itself or a fresh one. The foreign side either waits on the
-   hand-over before touching the frame, on the host here, so the reached pair it publishes comes
-   after it, or leaves the frame alone and publishes nothing. */
+   and return a fresh frame, since inputs never go back to the core. The foreign side either
+   waits on the hand-over before touching the frame, on the host here, and publishes a reached
+   pair as the completion of its reads, or leaves the frame alone and publishes nothing. The
+   strict consumer takes frame n alone, the temporal one two neighbouring frames of its window. */
 static const VSFrame *VS_CC prepareGetFrame(int n, int activationReason, void *instanceData, void **frameData,
     VSFrameContext *frameCtx, VSCore *c, const VSAPI *api) {
     VSNode *source = prepareSource[instanceData != NULL];
-    VSFrame *prepared, *fresh;
+    const int first = instanceData ? n % PREPARE_WINDOW : n, taps = instanceData ? 2 : 1;
+    const VSFrame *prepared;
+    VSFrame *fresh;
     VSVulkanExportedMemory em;
     char e[256];
+    int t;
     if (activationReason == arInitial) {
-        api->requestFrameFilter(n, source, frameCtx);
+        for (t = 0; t < taps; t++)
+            api->requestFrameFilter(first + t, source, frameCtx);
         return NULL;
     }
     if (activationReason != arAllFramesReady)
         return NULL;
-    prepared = vkapi->getExportableFrameFilter(n, source, frameCtx, e, sizeof(e));
-    if (!prepared) { api->setFilterError(e, frameCtx); return NULL; }
-    if (vkapi->exportGPUPlane(prepared, 0, &em, e, sizeof(e))) { api->freeFrame(prepared); api->setFilterError(e, frameCtx); return NULL; }
-    closeHandle(em.handle);
-    if (n % 4 < 2) {
-        if (vkapi->waitGPUFrame(prepared, e, sizeof(e))) { api->freeFrame(prepared); api->setFilterError(e, frameCtx); return NULL; }
-        vkapi->setGPUPlaneProducer(prepared, 0, handoffTl, 0);
+    for (t = 0; t < taps; t++) {
+        prepared = vkapi->getExportableFrameFilter(first + t, source, frameCtx, e, sizeof(e));
+        if (!prepared) { api->setFilterError(e, frameCtx); return NULL; }
+        if (instanceData)
+            noteTemporalTap(prepared);
+        if (vkapi->exportGPUPlane(prepared, 0, &em, e, sizeof(e))) { api->freeFrame(prepared); api->setFilterError(e, frameCtx); return NULL; }
+        closeHandle(em.handle);
+        if ((n + t) % 4 < 2) {
+            if (vkapi->waitGPUFrame(prepared, e, sizeof(e))) { api->freeFrame(prepared); api->setFilterError(e, frameCtx); return NULL; }
+            vkapi->setGPUPlaneProducer(prepared, 0, handoffTl, 0);
+        }
+        api->freeFrame(prepared);
     }
-    if (n % 2 == 0)
-        return prepared;
-    api->freeFrame(prepared);
     fresh = vkapi->newGPUVideoFrame(&fmt, 64, 64, NULL, c);
     if (!fresh) { api->setFilterError("newGPUVideoFrame failed", frameCtx); return NULL; }
     if (!vkapi->exportGPUPlane(fresh, 0, &em, e, sizeof(e))) closeHandle(em.handle);
@@ -851,6 +887,11 @@ int main(int argc, char **argv) {
             prepareNode[i] = vsapi->createVideoFilterEx2("PrepareFuzz", &vi, prepareGetFrame, NULL, fmParallel, ffGPUOutput, &dep, 1, i ? (void *)1 : NULL, core);
             if (!prepareNode[i]) { printf("createVideoFilterEx2 failed\n"); return 3; }
         }
+        /* The temporal consumer's source keeps a fixed cache of half its window, so its frames
+           are evicted and made again all the time: copies are linked, shared and released
+           continually, whatever the gate's pressure does to the adaptive caches. */
+        vsapi->setCacheMode(prepareSource[1], cmForceEnable);
+        vsapi->setCacheOptions(prepareSource[1], 1, PREPARE_WINDOW / 2, -1);
     }
     for (i = 0; i < nthreads; i++) {
         memset(&workers[i], 0, sizeof(workers[i]));
@@ -913,8 +954,10 @@ int main(int argc, char **argv) {
         totalOps, totalRetains, totalReleases, totalHanded, totalExports);
     printf("  third round: %ld real dispatches, %ld frames published, %ld uses of another thread's frame, %ld second cores\n",
         (long)InterlockedGet(&dispatches), (long)InterlockedGet(&ringPublished), (long)InterlockedGet(&ringUsed), (long)InterlockedGet(&secondCores));
-    printf("  fourth round: %ld frames returned through a hand-off, %ld from filters taking their input with getExportableFrameFilter\n",
-        (long)InterlockedGet(&handoffReturned), (long)InterlockedGet(&preparedReturned));
+    printf("  fourth round: %ld frames returned through a hand-off, %ld from filters taking their input with getExportableFrameFilter; "
+        "%ld of %ld temporal taps got a copy another request linked\n",
+        (long)InterlockedGet(&handoffReturned), (long)InterlockedGet(&preparedReturned),
+        (long)InterlockedGet(&sharedTaps), (long)InterlockedGet(&temporalTaps));
     printf("  open fds: %d before, %d after%s\n", fdsBefore, fdsAfter,
         (fdsBefore >= 0 && fdsAfter > fdsBefore + 2) ? "   <-- LEAKED DESCRIPTORS" : "");
     if (layerAfter) printf("     (plus the validation layer's log file: %d before, %d after, the layer's per-instance descriptor, excluded)\n", layerBefore, layerAfter);

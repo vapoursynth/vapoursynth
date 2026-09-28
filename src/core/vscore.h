@@ -472,6 +472,12 @@ private:
     bool frameRefDebug = false;
     bool gpuResident = false;
 
+    /* The copy getExportableFrameFilter made of this frame for foreign APIs, counted, which every
+       later request of this frame shares for as long as this frame lives; see prepareForForeign.
+       Set once, by the first request to link a copy, and never cleared, so it is read with no
+       lock: the link's reference goes only with this frame. */
+    mutable std::atomic<VSFrame *> foreignCopy{nullptr};
+
     std::string debugAllocationInfo;
     static std::atomic<uint64_t> allocationSeq;
 
@@ -557,7 +563,8 @@ public:
        handPlaneToForeign would hand over. */
     bool planeExportable(int plane) const;
     /* getExportableFrameFilter's work, on a frame only the caller's frame context holds or not;
-       returns a new reference to a frame the caller owns outright, planes handed over. */
+       returns a new reference to a frame whose planes are handed over for reading, never to come
+       back: this frame itself, or a copy of it shared by every request of this frame. */
     VSFrame *prepareForForeign(std::string &errorMessage) const;
 
     VSMap &getProperties() {

@@ -418,7 +418,8 @@ typedef struct VSGPUMemoryReservation VSGPUMemoryReservation;
  * foreign API's alone, whichever frames share it: declaring it in an exec context is fatal, and
  * so is returning or caching a frame containing it while holding an exec context, since taking
  * it back takes one of the core's. Input frames are handed over by taking them with
- * getExportableFrameFilter; exporting any other plane fails. */
+ * getExportableFrameFilter, for reading only, and never come back; exporting any other plane
+ * fails. */
 typedef struct VSVulkanExportedMemory {
     uint64_t memoryId;
     VkDeviceSize memorySize;
@@ -585,8 +586,10 @@ struct VSVULKANAPI {
        construction, which is why an exec pool's timeline is checked rather than trusted; on
        your own timeline the ordering is yours to keep. Signal, or enqueue the signal, and only
        then publish. On a plane you handed to a foreign API this pair is also what taking it
-       back waits on; see VSVulkanExportedMemory. */
-    void (VS_CC *setGPUPlaneProducer)(VSFrame *frame, int plane, VSGPUTimeline *timeline, uint64_t value) VS_NOEXCEPT;
+       back waits on; see VSVulkanExportedMemory. On a plane of a frame from
+       getExportableFrameFilter it is recorded as the completion of your foreign reads instead,
+       for the core to wait on before the memory is reused; see there. */
+    void (VS_CC *setGPUPlaneProducer)(const VSFrame *frame, int plane, VSGPUTimeline *timeline, uint64_t value) VS_NOEXCEPT;
 
     /* ---- Timelines, the semaphores producer pairs are published on ---- */
 
@@ -961,30 +964,36 @@ struct VSVULKANAPI {
     int (VS_CC *waitGPUFrame)(const VSFrame *frame, char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 
     /* Takes a requested input frame for a foreign API, the way getFrameFilter takes one for the
-       core's queues: it comes back owned outright by you, every plane handed to the foreign side
-       with its contents and ready for exportGPUPlane, its producer pairs naming the hand-over.
-       Wait on those, or call waitGPUFrame, before the foreign side touches it. A pair you then
-       publish with setGPUPlaneProducer replaces the hand-over's, so it must come after it, as
-       the completion of foreign work that waited does; publish nothing for a frame the foreign
-       side left alone. Where nothing else holds the frame -- this filter its only consumer,
-       requesting it rpStrictSpatial or rpNoFrameReuse, so the source keeps no cache -- the
-       planes are handed over in place; otherwise the frame is copied first, one GPU copy per
-       plane, on the compute queue. A frame std.GPUUpload made is always copied where
-       exportable memory cannot be host visible (AMD's Windows driver): its planes are left
-       unexportable there, so the upload can write them directly.
+       core's queues: it comes back with every plane handed to the foreign side with its
+       contents and ready for exportGPUPlane, its producer pairs naming the hand-over. Wait on
+       those, or call waitGPUFrame, before the foreign side touches it. Where nothing else holds
+       the frame -- this filter its only consumer, requesting it rpStrictSpatial or
+       rpNoFrameReuse, so the source keeps no cache -- the planes are handed over in place;
+       otherwise the frame is copied first, one GPU copy per plane, on the compute queue. That
+       copy is made once per frame and shared by every request of it, from any filter, for as
+       long as the frame stays cached, so a temporal filter pays one copy per source frame
+       rather than one per tap. A frame std.GPUUpload made is always copied where exportable
+       memory cannot be host visible (AMD's Windows driver): its planes are left unexportable
+       there, so the upload can write them directly.
 
-       The frame is yours as a new one is: the foreign side may modify it, and returning it
-       takes it back while freeing it needs nothing. Declaring it in an exec context is fatal,
-       as for any plane handed over. Frames in its properties are not prepared: take an _Alpha
-       frame as a clip of its own (std.PropToClip) and request that. Consumes one request of the
-       frame for this activation: getFrameFilter and this return NULL for it afterwards unless
-       it was requested again, as a temporal filter clamping at the clip's ends requests one
-       frame twice, each request giving a frame. Call getFrameFilter first to keep the original
-       as well, which makes this copy. Fails on CPU frames and on
-       devices without export support, and returns NULL for a frame that was not requested.
-       Fatal when the calling thread holds an exec context, since preparing takes one of the
-       core's. */
-    VSFrame *(VS_CC *getExportableFrameFilter)(int n, VSNode *node, VSFrameContext *frameCtx,
+       Like any input frame it is read only, on the foreign side as much as on the core's
+       queues, and it never goes back to the core: returning it, or a frame that shares its
+       planes or holds it in its properties, fails that frame with an error, and cacheFrame
+       leaves such a frame out of the cache with a warning. Return a new frame, and take a frame
+       you pass through with getFrameFilter instead, freeing that before calling this if you
+       process it after all, so it can still be handed over in place. Keep it until the foreign
+       reads are done, or publish their completion with setGPUPlaneProducer, which the core
+       waits for before the memory is reused; the pair other requests wait on stays the
+       hand-over's. Declaring it in an exec context is fatal, as for any plane handed over.
+       Frames in its properties are not prepared: take an _Alpha frame as a clip of its own
+       (std.PropToClip) and request that. Consumes one request of the frame for this activation:
+       getFrameFilter and this return NULL for it afterwards unless it was requested again, as a
+       temporal filter clamping at the clip's ends requests one frame twice, each request giving
+       a frame. Call getFrameFilter first to keep the original as well, which makes this a copy.
+       Fails on CPU frames and on devices without export support, and returns NULL for a frame
+       that was not requested. Fatal when the calling thread holds an exec context, since
+       preparing takes one of the core's. */
+    const VSFrame *(VS_CC *getExportableFrameFilter)(int n, VSNode *node, VSFrameContext *frameCtx,
         char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
 };
 

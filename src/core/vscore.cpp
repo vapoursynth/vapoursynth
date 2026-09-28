@@ -467,6 +467,9 @@ VSFrame::VSFrame(const VSFrame &f) noexcept : refcount(1), properties(nullptr, t
 }
 
 VSFrame::~VSFrame() {
+    /* The copy lives on while requests still hold it. */
+    if (VSFrame *copy = foreignCopy.load(std::memory_order_relaxed))
+        copy->release();
     data[0]->release();
     if (data[1]) {
         data[1]->release();
@@ -531,12 +534,15 @@ uint8_t *VSFrame::getWritePtr(int plane) {
    exporter holds: a new frame it has not returned yet. The first export hands such a plane over
    until a frame containing it is returned or cached (takeBackForeignPlanes), with no release,
    since contents nobody wrote need not survive the foreign side's first access. The holder tests
-   come first, so only a sole holder ever reads the written flag. */
+   come first, so only a sole holder ever reads the written flag. Only a plane still the core's
+   moves, so an input's terminal state never turns into a fresh hand-over, whatever its written
+   flag says. */
 void VSFrame::handPlaneToForeign(int plane) const {
     if (!gpuResident || plane < 0 || plane >= numPlanes || plane >= 3)
         return;
     VSVulkanPlane *gpu = data[plane]->gpu;
-    if (gpu && refcount == 1 && data[plane]->unique() && !gpu->written) {
+    if (gpu && refcount == 1 && data[plane]->unique() && !gpu->written &&
+            gpu->handOff.load(std::memory_order_acquire) == VSVulkanPlane::HandOff::Core) {
         /* Written from here on, whatever the foreign side does: a plane taken back with no pair
            published must not look fresh to whoever exports it next and be handed over twice. */
         gpu->written = true;
@@ -568,7 +574,14 @@ void VSFrame::collectForeignPlanes(std::vector<VSVulkanPlane *> &planes, std::ve
    claims what is still Foreign under the device's hand-off lock, acquires it with nothing held and
    settles it, then waits for any plane another take-back is acquiring, since this frame may not
    go out before that plane's pair names the acquire. A failed acquire hands its planes back to
-   Foreign, for whoever waits on them to try in turn. */
+   Foreign, for whoever waits on them to try in turn.
+
+   Only fresh planes a foreign API wrote come back. A plane of an input getExportableFrameFilter
+   handed over never does: the frame holding it is refused instead, whether it is the input
+   itself, a frame sharing its planes, or one holding it in its properties. Such a plane is read only, and a
+   copy may be shared with other requests whose foreign reads the core cannot see, so taking it back
+   would pull it from under them; refused before anything is claimed, which leaves every plane as it
+   was. */
 bool VSFrame::takeBackForeignPlanes(std::string &errorMessage) const {
     /* Nothing is handed over on a core whose device never came up, and the common frame -- no
        plane handed over, no frame in its properties -- is settled without allocating. A CPU frame
@@ -581,6 +594,13 @@ bool VSFrame::takeBackForeignPlanes(std::string &errorMessage) const {
     collectForeignPlanes(planes, visited);
     if (planes.empty())
         return true;
+    for (const VSVulkanPlane *gpu : planes) {
+        if (gpu->handOff.load(std::memory_order_acquire) == VSVulkanPlane::HandOff::Input) {
+            errorMessage = "it holds a plane of an input taken with getExportableFrameFilter, and such inputs never go "
+                "back to the core, unlike new frames and frames taken with getFrameFilter";
+            return false;
+        }
+    }
     /* Taking planes back takes one of the core's contexts, and waiting for one while holding
        another is the cycle I26 rules out: refused every time, as getExportableFrameFilter refuses
        it, rather than only when the hand-off ring happens to be full. */
@@ -645,8 +665,11 @@ bool VSFrame::planeExportable(int plane) const {
     if (!gpuResident || plane < 0 || plane >= numPlanes || plane >= 3)
         return false;
     const VSVulkanPlane *gpu = data[plane]->gpu;
-    return gpu && (gpu->handOff.load(std::memory_order_acquire) == VSVulkanPlane::HandOff::Foreign ||
-        (refcount == 1 && data[plane]->unique() && !gpu->written));
+    if (!gpu)
+        return false;
+    const VSVulkanPlane::HandOff state = gpu->handOff.load(std::memory_order_acquire);
+    return state == VSVulkanPlane::HandOff::Foreign || state == VSVulkanPlane::HandOff::Input ||
+        (refcount == 1 && data[plane]->unique() && !gpu->written);
 }
 
 static void VS_CC releasePreparedSource(void *frame) {
@@ -658,11 +681,26 @@ static void VS_CC releasePreparedSource(void *frame) {
    which then becomes the caller's, and its planes are exportable at all, which an upload's may
    not be (VSVulkanDevice::plainUploadTargets); otherwise into a copy, since releasing planes others
    read would leave their contents undefined for them. Properties come along unprepared: an _Alpha
-   frame stays shared. */
+   frame stays shared.
+
+   Either way the planes are read only and never come back to the core's queues
+   (takeBackForeignPlanes refuses them), so one copy serves every request of this frame, from any
+   filter: it is linked here and lives as long as this frame, or the requests still holding it,
+   and a temporal filter's taps cost one copy per source frame instead of one per request. Readers
+   finish before letting go of it, or record their completion (addPlaneReader). */
 VSFrame *VSFrame::prepareForForeign(std::string &errorMessage) const {
     VSVulkanTransfer *transfer = core->vulkanTransfer(errorMessage);
     if (!transfer)
         return nullptr;
+
+    /* A copy an earlier request linked. The link's reference keeps it alive and goes only with
+       this frame, which the caller's frame context holds, so a reference of the caller's own can
+       be added with no lock. */
+    if (VSFrame *existing = foreignCopy.load(std::memory_order_acquire)) {
+        existing->add_ref();
+        return existing;
+    }
+
     bool inPlace = refcount == 1;
     for (int p = 0; p < numPlanes; p++) {
         const VSVulkanAllocator::Block *block = data[p]->gpu->buffer.poolBlock;
@@ -676,7 +714,7 @@ VSFrame *VSFrame::prepareForForeign(std::string &errorMessage) const {
         if (!transfer->releaseToForeign(planes, numPlanes, errorMessage))
             return nullptr;
         for (int p = 0; p < numPlanes; p++)
-            planes[p]->handOff.store(VSVulkanPlane::HandOff::Foreign, std::memory_order_release);
+            planes[p]->handOff.store(VSVulkanPlane::HandOff::Input, std::memory_order_release);
         VSFrame *self = const_cast<VSFrame *>(this);
         self->add_ref();
         return self;
@@ -698,7 +736,18 @@ VSFrame *VSFrame::prepareForForeign(std::string &errorMessage) const {
         return nullptr;
     }
     for (int p = 0; p < numPlanes; p++)
-        copies[p]->handOff.store(VSVulkanPlane::HandOff::Foreign, std::memory_order_release);
+        copies[p]->handOff.store(VSVulkanPlane::HandOff::Input, std::memory_order_release);
+
+    /* Linked for the requests to come, the link keeping the reference the copy was made with,
+       unless one running alongside linked its own copy first: then that one serves this request
+       too, and this one goes once its copy is done, since its last reference waits out its
+       planes. */
+    VSFrame *linked = nullptr;
+    if (!foreignCopy.compare_exchange_strong(linked, copy, std::memory_order_acq_rel, std::memory_order_acquire)) {
+        copy->release();
+        copy = linked;
+    }
+    copy->add_ref();
     return copy;
 }
 
@@ -1313,8 +1362,8 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
 #endif
 
         /* Planes handed to a foreign API come back before anything else can see the frame,
-           including those of GPU frames in a CPU frame's properties; see
-           VSFrame::takeBackForeignPlanes. */
+           including those of GPU frames in a CPU frame's properties, and a frame holding an
+           input's, which never comes back, fails here; see VSFrame::takeBackForeignPlanes. */
         std::string handBackError;
         if (!r->takeBackForeignPlanes(handBackError)) {
             const_cast<VSFrame *>(r)->release();

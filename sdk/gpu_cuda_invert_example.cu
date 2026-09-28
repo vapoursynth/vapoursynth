@@ -288,9 +288,11 @@ static const VSFrame *VS_CC cudaInvertGetFrame(int n, int activationReason, void
         return NULL;
 
     /* Taken for CUDA rather than with getFrameFilter: the frame comes back handed over with its
-       contents and owned by this filter, which is what lets its planes be exported at all. As
-       this filter's input is requested rpStrictSpatial, it is usually the frame's only holder
-       and nothing is copied. Must come before any exec context is held; this filter holds none. */
+       contents for reading, which is what lets its planes be exported at all, and it never goes
+       back to the core, so a new frame is returned. As this filter's input is requested
+       rpStrictSpatial, it is usually the frame's only holder and nothing is copied; otherwise
+       the copy is shared with every other request of the frame. Must come before any exec
+       context is held; this filter holds none. */
     char err[512] = { 0 };
     const VSFrame *src = d->vkapi->getExportableFrameFilter(n, d->node, frameCtx, err, sizeof(err));
     if (!src) {

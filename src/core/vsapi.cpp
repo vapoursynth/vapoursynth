@@ -1315,11 +1315,21 @@ static void failIfPlaneShared(const VSFrame *frame, int plane, const char *what)
     vulkanFatal(message.c_str());
 }
 
-static void VS_CC vkSetGPUPlaneProducer(VSFrame *frame, int plane, VSGPUTimeline *timeline, uint64_t value) VS_NOEXCEPT {
+static void VS_CC vkSetGPUPlaneProducer(const VSFrame *frame, int plane, VSGPUTimeline *timeline, uint64_t value) VS_NOEXCEPT {
     assert(frame);
-    VSVulkanPlane *gpuPlane = frame->getGPUPlane(plane);
+    /* Const because an input from getExportableFrameFilter is one, and a pair is bookkeeping on
+       the plane, not a write to the frame, as a take-back publishes on a returned const frame. */
+    VSVulkanPlane *gpuPlane = const_cast<VSFrame *>(frame)->getGPUPlane(plane);
     if (!gpuPlane)
         return;
+    /* An input from getExportableFrameFilter is read, never written, and never comes back, and
+       when it is a shared copy other requests may be waiting on its pair right now: the pair is
+       the completion of foreign reads, which freeing the plane waits for, and is recorded as that
+       rather than published. */
+    if (gpuPlane->handOff.load(std::memory_order_acquire) == VSVulkanPlane::HandOff::Input) {
+        addPlaneReader(*frame->getGPUDevice(), *gpuPlane, reinterpret_cast<VSVulkanTimeline *>(timeline), value);
+        return;
+    }
     failIfPlaneShared(frame, plane, "setGPUPlaneProducer");
     setPlaneProducer(*gpuPlane, reinterpret_cast<VSVulkanTimeline *>(timeline), value);
 }
@@ -1518,7 +1528,7 @@ static int VS_CC vkWaitGPUFrame(const VSFrame *frame, char *errorMessage, int er
     return 0;
 }
 
-static VSFrame *VS_CC vkGetExportableFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx,
+static const VSFrame *VS_CC vkGetExportableFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx,
     char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     assert(node && frameCtx);
     auto key = NodeOutputKey(node, clampFrameNumber(n, node));
@@ -1694,11 +1704,11 @@ static void failIfHandedOver(int plane, const char *what) {
     if (plane < 0)
         return;
     std::string message = std::string(what) + " called on plane " + std::to_string(plane) +
-        " while a foreign API owns it: a plane handed over, as a fresh plane exported with"
-        " exportGPUPlane or with its frame taken by getExportableFrameFilter, stays the foreign"
-        " API's until a frame containing it is returned from getFrame or passed to cacheFrame."
-        " A filter exports a plane or records work on it, never both; the filter that receives"
-        " the returned frame can do the latter.";
+        " while a foreign API owns it: a fresh plane exported with exportGPUPlane stays the"
+        " foreign API's until a frame containing it is returned from getFrame or passed to"
+        " cacheFrame, and an input taken with getExportableFrameFilter is the foreign API's for"
+        " good. A filter exports a plane or records work on it, never both; the filter that"
+        " receives a returned frame can do the latter.";
     vulkanFatal(message.c_str());
 }
 

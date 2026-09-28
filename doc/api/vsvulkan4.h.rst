@@ -586,7 +586,8 @@ the plane is the foreign API's alone, whichever frames share it: declaring it
 in an exec context (gpuExecReadsFrame_, gpuExecWritesPlane_) is fatal, and so
 is returning or caching a frame containing it while holding an exec context,
 since taking it back takes one of the core's. Input frames are handed over by
-taking them with getExportableFrameFilter_; exporting any other plane fails.
+taking them with getExportableFrameFilter_, for reading only, and never come
+back; exporting any other plane fails.
 
 .. _VSVulkanExportedSemaphore:
 
@@ -810,7 +811,7 @@ int getGPUPlane(const VSFrame \*frame, int plane, VSVulkanPlaneInfo_ \*info)
 
 .. _setGPUPlaneProducer:
 
-void setGPUPlaneProducer(VSFrame \*frame, int plane, VSGPUTimeline_ \*timeline, uint64_t value)
+void setGPUPlaneProducer(const VSFrame \*frame, int plane, VSGPUTimeline_ \*timeline, uint64_t value)
 
    Publishes the producer pair of a plane you write: consumers will make
    their submissions wait for *timeline* to reach *value* before reading.
@@ -836,7 +837,10 @@ void setGPUPlaneProducer(VSFrame \*frame, int plane, VSGPUTimeline_ \*timeline, 
    and only then publish. The CUDA example does exactly this: it enqueues
    cudaSignalExternalSemaphoresAsync on its stream and publishes the value
    afterwards. On a plane you handed to a foreign API the pair is also what
-   taking it back waits on; see VSVulkanExportedMemory_.
+   taking it back waits on; see VSVulkanExportedMemory_. On a plane of a frame
+   from getExportableFrameFilter_ it is recorded as the completion of your
+   foreign reads instead, for the core to wait on before the memory is reused;
+   see there.
 
 ----------
 
@@ -1491,25 +1495,33 @@ int waitGPUFrame(const VSFrame \*frame, char \*errorMessage, int errorMessageSiz
 
 .. _getExportableFrameFilter:
 
-VSFrame \*getExportableFrameFilter(int n, VSNode \*node, VSFrameContext \*frameCtx, char \*errorMessage, int errorMessageSize)
+const VSFrame \*getExportableFrameFilter(int n, VSNode \*node, VSFrameContext \*frameCtx, char \*errorMessage, int errorMessageSize)
 
    Takes a requested input frame for a foreign API, the way getFrameFilter
-   takes one for the core's queues. It comes back owned outright by the
-   caller, every plane handed to the foreign side with its contents and ready
-   for exportGPUPlane_, its producer pairs naming the hand-over: wait on those,
-   or call waitGPUFrame_, before the foreign side touches it. A pair published
-   afterwards with setGPUPlaneProducer_ replaces the hand-over's, so it must
-   come after it, as the completion of foreign work that waited does; publish
-   nothing for a frame the foreign side left alone. Where nothing else holds
-   the frame (this filter its only consumer, requesting it rpStrictSpatial or
+   takes one for the core's queues. It comes back with every plane handed to
+   the foreign side with its contents and ready for exportGPUPlane_, its
+   producer pairs naming the hand-over: wait on those, or call waitGPUFrame_,
+   before the foreign side touches it. Where nothing else holds the frame
+   (this filter its only consumer, requesting it rpStrictSpatial or
    rpNoFrameReuse, so the source keeps no cache) the planes are handed over in
    place; otherwise the frame is copied first, one GPU copy per plane, on the
-   compute queue. A frame std.GPUUpload made is always copied where exportable
-   memory cannot be host visible (AMD's Windows driver): its planes are left
-   unexportable there, so the upload can write them directly.
+   compute queue. That copy is made once per frame and shared by every request
+   of it, from any filter, for as long as the frame stays cached, so a
+   temporal filter pays one copy per source frame rather than one per tap. A
+   frame std.GPUUpload made is always copied where exportable memory cannot be
+   host visible (AMD's Windows driver): its planes are left unexportable
+   there, so the upload can write them directly.
 
-   The frame is the caller's as a new one is: the foreign side may modify it,
-   and returning it takes it back while freeing it needs nothing. Declaring it
+   Like any input frame it is read only, on the foreign side as much as on the
+   core's queues, and it never goes back to the core: returning it, or a frame
+   that shares its planes or holds it in its properties, fails that frame with
+   an error, and cacheFrame leaves such a frame out of the cache with a
+   warning. Return a new frame, and take a frame you pass through with
+   getFrameFilter instead, freeing that before calling this if you process it
+   after all, so it can still be handed over in place. Keep it until the
+   foreign reads are done, or publish their completion with
+   setGPUPlaneProducer_, which the core waits for before the memory is
+   reused; the pair other requests wait on stays the hand-over's. Declaring it
    in an exec context is fatal, as for any plane handed over. Frames in its
    properties are not prepared: take an *_Alpha* frame as a clip of its own
    (std.PropToClip) and request that.

@@ -77,6 +77,26 @@ VkBufferMemoryBarrier2 releaseBarrier(const VSVulkanPlane &plane, uint32_t famil
 
 } // namespace
 
+/* The check first, since a fatal logs and nothing logs under a GPU lock; then one pair per
+   timeline, a later value on a timeline covering every earlier one, so the list stays as long
+   as the number of foreign timelines that read the plane. Taking the reference is an atomic
+   increment, fine under the lock. */
+void addPlaneReader(VSVulkanDevice &device, VSVulkanPlane &plane, VSVulkanTimeline *timeline, uint64_t value) {
+    failIfUnsubmittedValue(timeline, value);
+    if (!timeline)
+        return;
+    std::lock_guard<std::mutex> lock(device.handOffMutex());
+    VS_LOCK_HELD(vsLockHandOff);
+    for (VSVulkanProducer &reader : plane.readerPairs) {
+        if (reader.timeline == timeline) {
+            reader.value = std::max(reader.value, value);
+            return;
+        }
+    }
+    timeline->addRef();
+    plane.readerPairs.push_back({ timeline, value });
+}
+
 VSVulkanTransfer::~VSVulkanTransfer() {
     if (!dev)
         return;

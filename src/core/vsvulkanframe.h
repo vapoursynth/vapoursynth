@@ -59,15 +59,25 @@ struct VSVulkanPlane {
     std::atomic<const VSVulkanProducer *> producerRecord{nullptr};
     std::vector<const VSVulkanProducer *> retiredRecords;
     std::vector<VSVulkanTimeline *> pinnedTimelines;
+    /* On a plane of an input frame getExportableFrameFilter handed over (Input below), the
+       completions foreign readers published on it, one counted pair per timeline at its highest
+       value: recorded rather than published, so the pair other requests of a shared copy wait on
+       stays the hand-over's, and waited for with it before the buffer is recycled
+       (waitPlaneHost). Added under the device's hand-off lock, since several requests may publish
+       at once (addPlaneReader). */
+    std::vector<VSVulkanProducer> readerPairs;
     /* Set by every producer publication, whatever wrote the plane, and by handing it to a foreign
        API: an exported plane that was never written is one a foreign API is about to write. */
     bool written = false;
-    /* Who may use the plane: the core's queues (Core); the foreign API it was handed to by
-       exportGPUPlane or getExportableFrameFilter, from which the core must acquire it before
-       touching it (Foreign); or neither, while a take-back acquires it (Acquiring). The frame's
-       sole holder sets Foreign and every other move happens under the device's hand-off lock,
-       while declarations read it with no lock, hence atomic; see VSFrame::takeBackForeignPlanes. */
-    enum class HandOff : uint8_t { Core, Foreign, Acquiring };
+    /* Who may use the plane: the core's queues (Core); the foreign API a fresh plane was handed to
+       by exportGPUPlane, from which the core must acquire it before touching it (Foreign);
+       neither, while a take-back acquires it (Acquiring); or the foreign API for good, as an
+       input getExportableFrameFilter handed over for reading, in place or as a copy, which never
+       comes back -- returning or caching a frame holding it fails (Input;
+       VSFrame::takeBackForeignPlanes). The frame's sole holder sets Foreign or Input and every
+       other move happens under the device's hand-off lock, while declarations read it with no
+       lock, hence atomic. */
+    enum class HandOff : uint8_t { Core, Foreign, Acquiring, Input };
     std::atomic<HandOff> handOff{ HandOff::Core };
 
     VSVulkanPlane() = default;
@@ -126,21 +136,28 @@ private:
         for (VSVulkanTimeline *timeline : pinnedTimelines)
             timeline->release();
         pinnedTimelines.clear();
+        for (const VSVulkanProducer &reader : readerPairs)
+            reader.timeline->release();
+        readerPairs.clear();
     }
 };
 
 /* Publishes a pair: a new record swapped in whole, the old one retired onto the plane. Only a
    take-back publishes under readers, and says so; every other publisher owns the plane outright,
    so the retired records go at once and only their timelines stay (see producerRecord). */
-inline void setPlaneProducer(VSVulkanPlane &plane, VSVulkanTimeline *timeline, uint64_t value, bool underReaders = false) {
-    /* A pair on a pool's timeline past what the pool submitted would be waited for by every
-       consumer, by waitGPUFrame and by the plane's own destruction, and never reached; the
-       header promises it is fatal instead (invariant I23). The pool records each value under
-       its queue lock before anyone can learn it, so a value obtained legitimately -- the
-       signaledValue of a submit, or a plane's published pair -- always passes. Timelines a
-       filter signals itself carry no bound. */
+/* A pair on a pool's timeline past what the pool submitted would be waited for by every
+   consumer, by waitGPUFrame and by the plane's own destruction, and never reached; the header
+   promises it is fatal instead (invariant I23). The pool records each value under its queue lock
+   before anyone can learn it, so a value obtained legitimately -- the signaledValue of a submit,
+   or a plane's published pair -- always passes. Timelines a filter signals itself carry no
+   bound. */
+inline void failIfUnsubmittedValue(VSVulkanTimeline *timeline, uint64_t value) {
     if (timeline && timeline->isPoolOwned() && value > timeline->lastSubmitted())
         vulkanFatal("setGPUPlaneProducer published a value on an exec pool's timeline that the pool has not submitted");
+}
+
+inline void setPlaneProducer(VSVulkanPlane &plane, VSVulkanTimeline *timeline, uint64_t value, bool underReaders = false) {
+    failIfUnsubmittedValue(timeline, value);
     const VSVulkanProducer *record = nullptr;
     if (timeline) {
         timeline->addRef();
@@ -165,13 +182,28 @@ inline void addProducerWait(VSVulkanWaitList &waits, const VSVulkanPlane &plane)
 bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int bytesPerSample,
     ptrdiff_t stride, bool exportable, VSVulkanPlane &plane, std::string &errorMessage);
 
-/* Host wait for one plane's producer; the common case is already signaled and returns at once. */
+/* A foreign read of a prepared input's plane, complete at the pair: recorded among the plane's
+   readerPairs, not published; see there. Fatal for a pool value never submitted, as a publish
+   is; a null timeline records nothing, the read being done already. */
+void addPlaneReader(VSVulkanDevice &device, VSVulkanPlane &plane, VSVulkanTimeline *timeline, uint64_t value);
+
+/* Host wait for one plane's producer, and for the foreign reads recorded on a prepared input's
+   plane; the common case is already signaled and returns at once. One pair at a time, so the
+   destructor this serves allocates nothing. Only where nothing else can reach the plane any
+   more, since readerPairs is read without the lock. */
 inline bool waitPlaneHost(VSVulkanDevice &device, const VSVulkanPlane &plane) {
     const VSVulkanProducer producer = plane.producer();
-    if (!producer.timeline)
-        return true;
-    VkSemaphore semaphore = producer.timeline->semaphore();
-    return device.waitTimelines(&semaphore, &producer.value, 1);
+    if (producer.timeline) {
+        VkSemaphore semaphore = producer.timeline->semaphore();
+        if (!device.waitTimelines(&semaphore, &producer.value, 1))
+            return false;
+    }
+    for (const VSVulkanProducer &reader : plane.readerPairs) {
+        VkSemaphore semaphore = reader.timeline->semaphore();
+        if (!device.waitTimelines(&semaphore, &reader.value, 1))
+            return false;
+    }
+    return true;
 }
 
 /* Moves frames across the PCIe bus. Uploads memcpy straight into the plane buffer when it
@@ -243,21 +275,24 @@ public:
         VSGPUReleaseFunc releaseSource, void *source, std::string &errorMessage);
 
     /* Takes planes a foreign API held back onto the core's queues: the acquire half of the queue
-       family ownership transfer Vulkan requires of external memory. A fresh plane went over with
-       no release (VSFrame::handPlaneToForeign), an input frame with one (releaseToForeign,
-       copyToForeign). One barrier per plane in one submission on the hand-off queue, waiting on
-       each plane's producer -- the foreign side's pair when it published one -- and published on
-       all of them under readers. Destroying a plane waits for that pair, which keeps its buffer
-       alive; the submission retains only the timelines it waits on (retainWaitedTimeline). */
+       family ownership transfer Vulkan requires of external memory. Only fresh planes come
+       back, which went over with no release (VSFrame::handPlaneToForeign); input frames that
+       releaseToForeign or copyToForeign released never do. One barrier per plane in one
+       submission on the hand-off queue, waiting on each plane's producer -- the foreign side's
+       pair when it published one -- and published on all of them under readers. Destroying a
+       plane waits for that pair, which keeps its buffer alive; the submission retains only the
+       timelines it waits on (retainWaitedTimeline). */
     bool acquireFromForeign(VSVulkanPlane *const planes[], size_t numPlanes, std::string &errorMessage);
     /* The other direction, for getExportableFrameFilter: planes with contents handed to a
-       foreign API, which is the release half. releaseToForeign releases planes in place, for a
-       frame nothing else can reach; copyToForeign copies each source plane into its fresh
-       counterpart and releases the copy, for a frame others may be reading, keeping the source
-       alive through releaseSource until the copy is done, with sourceBytes metered like any
-       retention. Both wait on the planes' producers, run as one submission on the compute
-       queue -- not the hand-off queue, whose acquires wait on foreign work -- and are published
-       as the planes' producers, which is what the foreign side waits on. */
+       foreign API for reading, which is the release half, with no acquire ever to follow: the
+       planes die in the foreign side's hands and are never taken back. releaseToForeign
+       releases planes in place, for a frame nothing else can reach; copyToForeign copies each
+       source plane into its fresh counterpart and releases the copy, for a frame others may be
+       reading, keeping the source alive through releaseSource until the copy is done, with
+       sourceBytes metered like any retention. Both wait on the planes' producers, run as one
+       submission on the compute queue -- not the hand-off queue, whose acquires wait on foreign
+       work -- and are published as the planes' producers, which is what the foreign side waits
+       on. */
     bool releaseToForeign(VSVulkanPlane *const planes[], size_t numPlanes, std::string &errorMessage);
     bool copyToForeign(const VSVulkanPlane *const sources[], VSVulkanPlane *const copies[], size_t numPlanes,
         VSGPUReleaseFunc releaseSource, void *source, VkDeviceSize sourceBytes, std::string &errorMessage);

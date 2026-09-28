@@ -493,11 +493,15 @@ The pattern, per frame:
 #. Take each input with getExportableFrameFilter instead of getFrameFilter.
    It hands the frame over with its contents — in place when your filter is
    the source's only consumer and requests it ``rpStrictSpatial`` or
-   ``rpNoFrameReuse``, otherwise through one GPU copy per plane — and the
-   frame is yours alone afterwards. On AMD's Windows driver, whose exportable
-   memory cannot be host visible, a frame std.GPUUpload made is always
-   copied: its planes are left unexportable so the upload can write them
-   directly. Frames in its properties are not handed over: request an
+   ``rpNoFrameReuse``, otherwise through one GPU copy per plane. The copy is
+   made once per source frame and shared by every request of it while the
+   frame stays cached, so a temporal filter's taps cost one copy per frame,
+   not one per tap. Either way the frame is read only, like every input, and
+   it never goes back to the core: a frame you return must not be it, share
+   its planes or hold it in its properties. On AMD's Windows driver, whose
+   exportable memory cannot be host visible, a frame std.GPUUpload made is
+   always copied: its planes are left unexportable so the upload can write
+   them directly. Frames in its properties are not handed over: request an
    *_Alpha* frame as a clip of its own (std.PropToClip). Never call it while
    holding an exec context.
 #. Export each plane you touch. Cache imports keyed by *memoryId* — one
@@ -542,10 +546,9 @@ The pattern, per frame:
    An input's pairs name one of the core's own timelines once
    getExportableFrameFilter has handed it over, and every core timeline is
    exportable when the capability exists, so the device side path is there
-   whenever ``semaphoreExportHandleType`` is nonzero. An input you return
-   rather than drop is taken back like the output: publish your completion on
-   it too, since a pair published there replaces the hand-over's and must
-   come after it.
+   whenever ``semaphoreExportHandleType`` is nonzero. Inputs never go back
+   to the core: return a new frame, and take a frame you pass through with
+   getFrameFilter.
 
 **Declare memory you allocate yourself.** A CUDA pool, a second Vulkan device
 or a video session allocates VRAM the core cannot see, and what it cannot see
