@@ -776,7 +776,6 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
 
     // PVBob
     temp = int64ToIntS(vsapi->mapGetInt(in, "mode", 0, &err));
-    PREFETCH(DGBob, (temp > 0) ? 2 : 1, 1, -2, 2)
     PREFETCH(PVBob, (temp > 0) ? 2 : 1, 1, -2, 2)
 
     // Avisynth internal

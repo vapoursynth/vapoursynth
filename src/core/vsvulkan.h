@@ -166,16 +166,6 @@ private:
     FT(14, shaderExpectAssume, VS_VK_REQUIRED) \
     FT(14, pipelineRobustness, VS_VK_REQUIRED)
 
-enum VSVulkanLogSeverity {
-    VS_VK_LOG_INFO = 0,
-    VS_VK_LOG_WARNING = 1,
-    VS_VK_LOG_ERROR = 2
-};
-
-/* Deliberately a bare function pointer with a context so it can later be forwarded from the C API
-   without an adapter. */
-typedef void (*VSVulkanLogFn)(int severity, const char *message, void *userData);
-
 /* What enumerateDevices() reports per physical device, mainly so a frontend can present the
    choice. The reason string is filled in when a device is unusable and says which requirement it
    failed first. */
@@ -398,23 +388,10 @@ public:
     /* Every Vulkan call goes through here, as dev->vk.vkCmdDispatch(...). */
     const VSVulkanFunctions &vk;
 
-    /* Optional; set it before create() to receive the validation and driver messages. Without
-       one the debug messenger writes them to stderr, and the core installs none on purpose: the
-       messenger runs inside driver calls, on whichever thread made the call and under whatever
-       GPU locks it holds, so what it calls must never block on another thread -- a log handler
-       taking the GIL did, and deadlocked against a binding waiting on those locks (section 2 of
-       vsvulkanexec_protocol.md). The pair is atomics because driver threads read it
-       concurrently: userData is written first and read last, so any reader that observes a
-       function also observes the userData that belongs to it. */
-    void setLogCallback(VSVulkanLogFn callback, void *userData) {
-        logUserData.store(userData);
-        logFn.store(callback);
-    }
-
     /* Opens the platform loader, creates an instance and picks a physical device: the given index
        into the enumeration order, or with -1 the first suitable discrete GPU falling back to any
        suitable device. enableValidation asks for the Khronos validation layer and a debug
-       messenger routed to the log callback (or stderr, see setLogCallback), degrading with a
+       messenger that writes to stderr (see debugMessengerTrampoline), degrading with a
        warning when the layer is not installed since it is a development tool that may
        legitimately be absent. That warning, and the one for a messenger that could not be
        created, are also kept for takeSetupWarnings, for an owner that calls this under a lock
@@ -803,8 +780,6 @@ private:
     }
 
     void teardown();
-    /* False when no log callback is set. */
-    bool emitLog(int severity, const std::string &message) const;
     void warnDuringCreate(const char *message);
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugMessengerTrampoline(
         VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT types,
@@ -866,8 +841,6 @@ private:
     uint8_t luid[VK_LUID_SIZE] = {};
     uint32_t nodeMask = 0;
     bool luidValid = false;
-    std::atomic<VSVulkanLogFn> logFn{nullptr};
-    std::atomic<void *> logUserData{nullptr};
     /* Written by create() alone; see takeSetupWarnings. */
     std::vector<std::string> setupWarnings;
     /* Readers currently inside the pressure callback, so its retraction can wait out the ones

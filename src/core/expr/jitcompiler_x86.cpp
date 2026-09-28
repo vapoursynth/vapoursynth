@@ -684,7 +684,7 @@ do { \
 
     void log_(XmmReg x, XmmReg zero, XmmReg one, Reg constants)
     {
-        XmmReg emm0, invalid_mask, mask, y, etmp, z;
+        XmmReg emm0, mask, y, etmp, z;
         VEX2(maxps, x, x, xmmword_ptr[constants + ConstantIndex::min_norm_pos * 16]);
         VEX1IMM(psrld, emm0, x, 23);
         VEX2(andps, x, x, xmmword_ptr[constants + ConstantIndex::inv_mant_mask * 16]);
@@ -1154,7 +1154,6 @@ class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, Expr
 
     CPUFeatures cpuFeatures;
     int numInputs;
-    int curLabel;
 
 #define EMIT() [this, insn](Reg regptrs, YmmReg zero, Reg constants, std::unordered_map<int, YmmReg> &bytecodeRegs)
 
@@ -1246,7 +1245,7 @@ class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, Expr
         {
             int depth = insn.op.imm.u;
             auto t1 = bytecodeRegs[insn.src1];
-            YmmReg r1, limit;
+            YmmReg r1;
             Reg a;
             vminps(r1, t1, ymmword_ptr[constants + (ConstantIndex::float_255 + depth - 8) * 32]);
             vcvtps2dq(r1, r1);
@@ -1407,7 +1406,6 @@ do { \
         {
             auto t1 = bytecodeRegs[insn.src1];
             auto t2 = bytecodeRegs[insn.dst];
-            YmmReg r1;
             vcmpps(t2, t1, zero, static_cast<int>(ComparisonType::LE));
             vandps(t2, t2, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
         });
@@ -1507,7 +1505,7 @@ do { \
 
     void log_(YmmReg x, YmmReg zero, YmmReg one, Reg constants)
     {
-        YmmReg emm0, invalid_mask, mask, y, etmp, z;
+        YmmReg emm0, mask, y, etmp, z;
         vmaxps(x, x, ymmword_ptr[constants + ConstantIndex::min_norm_pos * 32]);
         vpsrld(emm0, x, 23);
         vandps(x, x, ymmword_ptr[constants + ConstantIndex::inv_mant_mask * 32]);
@@ -1858,7 +1856,6 @@ class ExprCompiler512 : public ExprCompiler, private jitasm::function<void, Expr
 
     CPUFeatures cpuFeatures;
     int numInputs;
-    int curLabel;
 
 #define EMIT() [this, insn](Reg regptrs, ZmmReg zero, Reg constants, std::unordered_map<int, ZmmReg> &bytecodeRegs)
 
@@ -2355,7 +2352,7 @@ do { \
     }
 
 public:
-    explicit ExprCompiler512(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs), curLabel()
+    explicit ExprCompiler512(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs)
     {
         // AVX-512 exposes 32 vector registers (zmm0-31), not 16. This tier is only
         // selected when the aggregate avx512 feature (which includes AVX-512VL) is

@@ -164,7 +164,6 @@ private:
     std::atomic<long> m_refs;
 
     VapourSynthFile *parent;
-    std::string sName;
     bool fAudio = false;
 
     //////////// internal
@@ -689,7 +688,7 @@ STDMETHODIMP VapourSynthStream::SetInfo(AVISTREAMINFOW *psi, LONG lSize) noexcep
 ////////////////////////////////////////////////////////////////////////
 //////////// local
 
-VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) : m_refs(0), sName(isAudio ? "audio" : "video"), fAudio(isAudio) {
+VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) : m_refs(0), fAudio(isAudio) {
     AddRef();
     parent = parentPtr;
     parent->AddRef();

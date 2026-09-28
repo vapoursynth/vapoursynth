@@ -932,10 +932,6 @@ private:
             return fixedSize;
         }
 
-        inline size_t size() const {
-            return hash.size();
-        }
-
         inline void clear() {
             hash.clear();
             first = nullptr;
@@ -956,9 +952,6 @@ private:
 
         bool insert(const int key, const PVSFrame &object);
         PVSFrame object(const int key);
-        inline bool contains(const int key) const {
-            return hash.count(key) > 0;
-        }
 
         bool remove(const int key);
 
@@ -1373,6 +1366,8 @@ public:
     void createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData);
     VSNode *createAudioFilter(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData);
 
+    /* Virtual so that libvapoursynthfilters.dll can call them through the vtable; the core
+       exports nothing to it, so a non-virtual member would not link there. */
     virtual int getCpuLevel() const;
     virtual int setCpuLevel(int cpu);
 

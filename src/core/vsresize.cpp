@@ -660,12 +660,6 @@ class vszimg {
         propagate_if_present(params.chromaloc, &format->chroma_location);
     }
 
-    void set_src_colorspace(const VSMap *props, zimg_image_format *src_format, bool *interlaced, const VSAPI *vsapi) {
-        // Frame properties take precedence over defaults.
-        set_frame_params(m_frame_params_in, src_format);
-        import_frame_props(props, src_format, interlaced, vsapi);
-    }
-
     void set_dst_colorspace(const zimg_image_format &src_format, zimg_image_format *dst_format) {
         // Avoid copying matrix coefficients when restricted by color family.
         if (dst_format->matrix_coefficients != ZIMG_MATRIX_RGB)

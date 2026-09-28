@@ -61,11 +61,6 @@ class MemoryUse {
     std::atomic_size_t m_combined_limit{ 0 };
     std::atomic_size_t m_total_ram{ 0 };
 
-    /* Teardown breadcrumb only; the "core is still here" guard it used to provide is now
-       the unit m_live starts with, which no self delete can get past until on_core_freed
-       gives it back. */
-    std::atomic_bool m_core_freed{ false };
-
     /* One counter for everything that keeps this object reachable: a unit per outstanding
        byte in either pool, plus one unit held by the core itself and released in
        on_core_freed. Testing the pool counters separately cannot decide who tears the

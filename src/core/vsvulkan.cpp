@@ -473,37 +473,26 @@ void VSVulkanDevice::teardown() {
     physicalDeviceHandle = VK_NULL_HANDLE;
 }
 
-bool VSVulkanDevice::emitLog(int severity, const std::string &message) const {
-    /* userData before the function, mirroring the writer's opposite order, so seeing a
-       function guarantees the userData loaded with it is the matching one. */
-    void *userData = logUserData.load();
-    VSVulkanLogFn fn = logFn.load();
-    if (!fn)
-        return false;
-    fn(severity, message.c_str(), userData);
-    return true;
-}
-
 void VSVulkanDevice::warnDuringCreate(const char *message) {
     setupWarnings.emplace_back(message);
-    emitLog(VS_VK_LOG_WARNING, setupWarnings.back());
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VSVulkanDevice::debugMessengerTrampoline(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT,
-    const VkDebugUtilsMessengerCallbackDataEXT *callbackData, void *userData) {
-    const VSVulkanDevice *self = static_cast<const VSVulkanDevice *>(userData);
-    int mapped = VS_VK_LOG_INFO;
+    const VkDebugUtilsMessengerCallbackDataEXT *callbackData, void *) {
+    const char *level = "info";
     if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-        mapped = VS_VK_LOG_ERROR;
+        level = "error";
     else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-        mapped = VS_VK_LOG_WARNING;
+        level = "warning";
     const char *message = (callbackData && callbackData->pMessage) ? callbackData->pMessage : "";
-    /* stderr unless somebody collects them, and the core does not; see setLogCallback. One
-       fprintf per message keeps reports from several threads whole lines. */
-    if (!self->emitLog(mapped, message))
-        std::fprintf(stderr, "Vulkan %s: %s\n",
-            mapped == VS_VK_LOG_ERROR ? "error" : (mapped == VS_VK_LOG_WARNING ? "warning" : "info"), message);
+    /* Straight to stderr and never to a log handler, on purpose: the messenger runs inside
+       driver calls, on whichever thread made the call and under whatever GPU locks it holds,
+       so what it calls must never block on another thread -- a handler taking the GIL did,
+       and deadlocked against a binding waiting on those locks (section 2 of
+       vsvulkanexec_protocol.md). One fprintf per message keeps reports from several threads
+       whole lines. */
+    std::fprintf(stderr, "Vulkan %s: %s\n", level, message);
     /* Never abort the offending call; that choice belongs to the validation layer settings. */
     return VK_FALSE;
 }

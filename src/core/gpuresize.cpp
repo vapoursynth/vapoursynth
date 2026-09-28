@@ -2803,18 +2803,6 @@ ArgLookup lookupSharedEnum(const VSMap *in, const char *key,
     return ArgLookup::Unsupported;
 }
 
-/* Any argument that means colour work: matrix, transfer and primaries are not
-   implemented, so their mere presence is a decline. Both spellings. */
-bool anyColourArg(const VSMap *in, const VSAPI *vsapi) {
-    static const char *const keys[] = { "matrix", "transfer", "primaries",
-        "matrix_in", "transfer_in", "primaries_in" };
-    for (const char *k : keys) {
-        if (present(in, k, vsapi) || present(in, (std::string(k) + "_s").c_str(), vsapi))
-            return true;
-    }
-    return false;
-}
-
 /* Builds the spec from the argument map, or declines with a reason; an argument no path
    accepts sets error instead, for the caller to report as final. Touches no Vulkan state
    and owns nothing. */

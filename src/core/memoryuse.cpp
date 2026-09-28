@@ -311,8 +311,6 @@ size_t MemoryUse::set_limit(size_t bytes)
 
 void MemoryUse::on_core_freed()
 {
-    m_core_freed = true;
-
     // The core's own unit, taken at construction. Deletes here only when nothing else is
     // outstanding; otherwise the last buffer or GPU block still to be returned does it.
     live_release(1);
