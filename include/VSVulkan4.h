@@ -949,7 +949,11 @@ struct VSVULKANAPI {
        it on the readySemaphore of a plane taken with getExportableFrameFilter, always one of
        the core's own timelines, all of which are created exportable when the capability
        exists, or on your own timeline created with VkExportSemaphoreCreateInfo, to signal
-       your producer pairs from the foreign API. Only available when
+       your producer pairs from the foreign API. On Windows, the first call for a timeline the
+       core created -- its own or one from createGPUTimeline -- exports it, and every call
+       returns a duplicate of that one handle. A semaphore you created yourself is exported
+       anew on every call, which Vulkan allows only once per semaphore for an NT handle: export
+       it once and duplicate that handle if you need more. Only available when
        VSVulkanCoreInfo::semaphoreExportHandleType is nonzero. */
     int (VS_CC *exportGPUSemaphore)(VSCore *core, VkSemaphore semaphore, VSVulkanExportedSemaphore *out,
         char *errorMessage, int errorMessageSize) VS_NOEXCEPT;

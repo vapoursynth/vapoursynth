@@ -547,11 +547,25 @@ public:
        support for the two differs. */
     VkExternalSemaphoreHandleTypeFlagBits semaphoreExportHandleType() const { return semaphoreExportType; }
 
-    /* Wins a new handle to the semaphore's payload on every call. On Windows the specification
-       allows that only once per semaphore, the same rule as exportMemory's; exportGPUSemaphore
-       passes the caller's semaphore straight through, so keeping to it is left to the caller.
-       The semaphore must have been created exportable or the driver rejects the call. */
+    /* Wins a new handle to the semaphore's payload on every call. On Windows that may happen
+       only once per semaphore, the same rule as exportMemory's, so the core's own timelines are
+       exported through exportTimelineSemaphore. The semaphore must have been created exportable
+       or the driver rejects the call. */
     bool exportSemaphore(VkSemaphore semaphore, intptr_t &handle, std::string &errorMessage);
+
+    /* A new handle to a semaphore for exportGPUSemaphore, owned by the caller. On Windows a
+       timeline the core created (VSVulkanTimeline) is exported at the first call for it, and
+       every call duplicates that handle. A filter's own semaphore is exported anew each time:
+       the core cannot know when it is destroyed, and a later semaphore may reuse its handle
+       value, so exporting it once is left to the filter. */
+    bool exportTimelineSemaphore(VkSemaphore semaphore, intptr_t &handle, std::string &errorMessage);
+
+    /* Called by VSVulkanTimeline as it creates and destroys its semaphore, so
+       exportTimelineSemaphore can tell the core's timelines from a filter's own semaphores.
+       Adding is a no-op off Windows and on devices without semaphore export; removing erases
+       whatever adding recorded and closes the kept export handle, if any. */
+    void addExportableTimeline(VkSemaphore semaphore);
+    void removeExportableTimeline(VkSemaphore semaphore);
 
     /* One wait policy for everything that has to establish GPU completion before recycling
        or destroying what a submission still uses. vkWaitSemaphores fails in two very different
@@ -845,6 +859,13 @@ private:
        headers. */
     PFN_vkVoidFunction exportMemoryFn = nullptr;
     PFN_vkVoidFunction exportSemaphoreFn = nullptr;
+    /* Windows, on a device that can export semaphores: the semaphores of every live
+       VSVulkanTimeline, each with its one exported NT handle once exportGPUSemaphore has asked
+       for it (0 until then) -- an NT handle may be exported only once per semaphore
+       (VkSemaphoreGetWin32HandleInfoKHR), so every call gets a duplicate. A leaf: nothing else
+       is locked while it is held. */
+    std::mutex exportableTimelinesMutex;
+    std::map<VkSemaphore, intptr_t> exportableTimelines;
     std::mutex flushMutex;
     VkCommandPool flushPool = VK_NULL_HANDLE;
     VkCommandBuffer flushCmd = VK_NULL_HANDLE;
@@ -911,8 +932,10 @@ private:
 struct VSVulkanTimeline {
 public:
     /* Exportable whenever the device can, since a producer pair a foreign API can wait on
-       device side beats one that forces a host stall. Returns null with the error set.
-       poolOwned marks an exec pool's timeline, whose values only its submits may publish. */
+       device side beats one that forces a host stall, and registered with the device so that
+       on Windows exportGPUSemaphore exports it at most once, at the first request
+       (VSVulkanDevice::exportTimelineSemaphore). Returns null with the error set. poolOwned
+       marks an exec pool's timeline, whose values only its submits may publish. */
     static VSVulkanTimeline *create(VSVulkanDevice &device, std::string &errorMessage, bool poolOwned = false);
 
     VkSemaphore semaphore() const { return sem; }

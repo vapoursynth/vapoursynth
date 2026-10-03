@@ -1579,7 +1579,7 @@ static int VS_CC vkExportGPUSemaphore(VSCore *core, VkSemaphore semaphore, VSVul
         return 1;
     }
     intptr_t handle = 0;
-    if (!dev->exportSemaphore(semaphore, handle, err)) {
+    if (!dev->exportTimelineSemaphore(semaphore, handle, err)) {
         copyVulkanError(err, errorMessage, errorMessageSize);
         return 1;
     }

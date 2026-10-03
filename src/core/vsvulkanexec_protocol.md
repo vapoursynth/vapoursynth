@@ -57,10 +57,13 @@ shared by every later request of it (I34).
 | `VSCore::logMutex` | the message handlers and the queue of messages waiting for delivery. A leaf, never held while a handler runs: one thread at a time delivers, dropping the lock around each call, and a thread that logs while another is delivering queues its message and returns. Until 2026-09-25 it was recursive, held across every handler call, and the only lock here that ran code the core did not write |
 | `VSVulkanDevice::handOffLock` + `handOffCond` | every plane's hand-off state (`VSVulkanPlane::handOff`) during a take-back: a take-back claims the planes still Foreign as Acquiring, acquires them with nothing held, then settles them and notifies; a take-back wanting a plane another is acquiring waits on the condition variable. Also the reader completions on each plane of an input handed over (`VSVulkanPlane::readerPairs`), I34. A leaf |
 
-Three more locks are leaves -- none takes another lock while held -- so they add no edge the
+Four more locks are leaves -- none takes another lock while held -- so they add no edge the
 order below has to rank: each `VSGPUMemoryReservation`'s lock, held while its delta reaches
 `MemoryUse`, which touches only atomics; each transfer ring's `demandMutex`, over its slot
-sizing statistics; and `MemoryUse`'s own mutex, over the host freelist.
+sizing statistics; `MemoryUse`'s own mutex, over the host freelist; and
+`VSVulkanDevice::exportableTimelinesMutex`, over the semaphores of the live timelines and the
+one export handle each keeps once `exportGPUSemaphore` has asked for it, taken as a timeline is
+created or destroyed and by the export, which makes or duplicates the handle under it.
 
 Order, outermost first: `vulkanDeviceLock` before `execPoolsMutex` (bringing the device up
 registers the transfer's pools; the device line is logged only after the lock is released -- see

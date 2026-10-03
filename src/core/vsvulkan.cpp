@@ -1058,6 +1058,58 @@ bool VSVulkanDevice::exportSemaphore(VkSemaphore semaphore, intptr_t &handle, st
     return true;
 }
 
+bool VSVulkanDevice::exportTimelineSemaphore(VkSemaphore semaphore, intptr_t &handle, std::string &errorMessage) {
+#ifdef VS_TARGET_OS_WINDOWS
+    {
+        /* Under the mutex so that threads exporting one timeline make a single handle between
+           them, and so the timeline's destruction cannot close it mid duplication. */
+        std::lock_guard<std::mutex> lock(exportableTimelinesMutex);
+        auto timeline = exportableTimelines.find(semaphore);
+        if (timeline != exportableTimelines.end()) {
+            if (!timeline->second && !exportSemaphore(semaphore, timeline->second, errorMessage))
+                return false;
+            HANDLE duplicate = nullptr;
+            if (!DuplicateHandle(GetCurrentProcess(), reinterpret_cast<HANDLE>(timeline->second), GetCurrentProcess(),
+                    &duplicate, 0, FALSE, DUPLICATE_SAME_ACCESS)) {
+                errorMessage = "DuplicateHandle failed for an exported timeline semaphore (error " +
+                    std::to_string(GetLastError()) + ")";
+                return false;
+            }
+            handle = reinterpret_cast<intptr_t>(duplicate);
+            return true;
+        }
+    }
+#endif
+    return exportSemaphore(semaphore, handle, errorMessage);
+}
+
+void VSVulkanDevice::addExportableTimeline(VkSemaphore semaphore) {
+#ifdef VS_TARGET_OS_WINDOWS
+    if (!semaphoreExportType)
+        return;
+    std::lock_guard<std::mutex> lock(exportableTimelinesMutex);
+    exportableTimelines.emplace(semaphore, 0);
+#else
+    (void)semaphore;
+#endif
+}
+
+void VSVulkanDevice::removeExportableTimeline(VkSemaphore semaphore) {
+#ifdef VS_TARGET_OS_WINDOWS
+    /* Not gated on semaphoreExportType like adding: the map itself says whether this timeline
+       was recorded, so the two pair up however the device's export support was settled. */
+    std::lock_guard<std::mutex> lock(exportableTimelinesMutex);
+    auto timeline = exportableTimelines.find(semaphore);
+    if (timeline == exportableTimelines.end())
+        return;
+    if (timeline->second)
+        CloseHandle(reinterpret_cast<HANDLE>(timeline->second));
+    exportableTimelines.erase(timeline);
+#else
+    (void)semaphore;
+#endif
+}
+
 bool VSVulkanDevice::waitTimelines(const VkSemaphore *semaphores, const uint64_t *values, uint32_t count) {
     if (!count)
         return true;
@@ -1819,8 +1871,9 @@ bool VSVulkanDevice::enumerateDevices(std::vector<VSVulkanDeviceInfo> &devices, 
     return true;
 }
 
-/* The one place a producer timeline is made, so the export opt-in and the value semantics are
-   decided once for core exec pools and third party filters alike. */
+/* The one place a producer timeline is made, so the export opt-in, its registration for
+   exportGPUSemaphore and the value semantics are decided once for core exec pools and third
+   party filters alike. */
 VSVulkanTimeline *VSVulkanTimeline::create(VSVulkanDevice &device, std::string &errorMessage, bool poolOwned) {
     VkExportSemaphoreCreateInfo exportInfo = {};
     exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
@@ -1840,13 +1893,17 @@ VSVulkanTimeline *VSVulkanTimeline::create(VSVulkanDevice &device, std::string &
         errorMessage = "vkCreateSemaphore failed for a producer timeline (VkResult " + std::to_string(res) + ")";
         return nullptr;
     }
+    device.addExportableTimeline(semaphore);
     return new VSVulkanTimeline(device, semaphore, poolOwned);
 }
 
 /* Semaphore before device, like VSPlaneData destroys its buffer before releasing the device:
    the reference taken at construction is what guarantees there is still a device to destroy
-   the semaphore through, however long after the core the last plane let go. */
+   the semaphore through, however long after the core the last plane let go. The registration
+   goes first, closing the kept export handle, so a semaphore created later with the same handle
+   value is never taken for this one. */
 VSVulkanTimeline::~VSVulkanTimeline() {
+    dev->removeExportableTimeline(sem);
     dev->vk.vkDestroySemaphore(dev->device(), sem, nullptr);
     dev->release();
 }
