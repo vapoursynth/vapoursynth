@@ -228,6 +228,12 @@ public:
            block free/allocate cycles. Assigned whether or not the block is exportable. */
         uint64_t exportId = 0;
         bool exportable = false;
+        /* Windows: the block's one NT handle, exported the first time a plane in it is and
+           closed when the block's memory goes back to the driver. An NT handle may be exported
+           only once per memory object (VUID-VkMemoryGetWin32HandleInfoKHR-handleType-00663),
+           and NVIDIA and Intel refuse to import any later export, so every export call gets a
+           duplicate of this one instead. Guarded by the allocator's mutex. */
+        intptr_t exportHandle = 0;
     };
 
     /* Exportable blocks and plain blocks never mix, matching the bind rule that couples
@@ -244,6 +250,10 @@ public:
     VkDeviceSize trim(VSVulkanDevice &dev);
     /* Frees every block; all buffers carved from them must already be gone. */
     void destroy(VSVulkanDevice &dev);
+    /* A new handle to an exportable block's memory, owned by the caller. On Windows the block
+       is exported once and every call duplicates that handle (Block::exportHandle); the fd
+       path exports anew each time, which vkGetMemoryFdKHR allows. */
+    bool exportBlock(VSVulkanDevice &dev, Block *block, intptr_t &handle, std::string &errorMessage);
     VSVulkanAllocatorStats stats() const;
 
 private:
@@ -520,10 +530,15 @@ public:
        exportable host visible ones at all. */
     VkExternalMemoryHandleTypeFlagBits exportHandleType() const { return exportType; }
 
-    /* Wins a new handle to the memory's underlying allocation. Every call returns a fresh
-       handle to the same memory; callers dedup by Block::exportId, never by handle value.
-       Ownership rules differ per platform and are documented at the public API. */
+    /* Wins a new handle to the memory's underlying allocation. On Windows that may happen only
+       once per memory object (VUID-VkMemoryGetWin32HandleInfoKHR-handleType-00663), so pooled
+       blocks are exported through exportPooledBlock, which keeps the one handle and hands out
+       duplicates. Ownership rules differ per platform and are documented at the public API. */
     bool exportMemory(VkDeviceMemory memory, intptr_t &handle, std::string &errorMessage);
+
+    /* A new handle to a pooled block's memory, owned by the caller. Every call returns a fresh
+       handle to the same memory; callers dedup by Block::exportId, never by handle value. */
+    bool exportPooledBlock(VSVulkanAllocator::Block *block, intptr_t &handle, std::string &errorMessage);
 
     /* The opaque handle type timeline semaphores can be exported as, or 0. When nonzero
        every exec pool timeline is created exportable, so the producer pairs of core produced
@@ -532,8 +547,10 @@ public:
        support for the two differs. */
     VkExternalSemaphoreHandleTypeFlagBits semaphoreExportHandleType() const { return semaphoreExportType; }
 
-    /* Same fresh-handle-per-call semantics as exportMemory. The semaphore must have been
-       created exportable or the driver rejects the call. */
+    /* Wins a new handle to the semaphore's payload on every call. On Windows the specification
+       allows that only once per semaphore, the same rule as exportMemory's; exportGPUSemaphore
+       passes the caller's semaphore straight through, so keeping to it is left to the caller.
+       The semaphore must have been created exportable or the driver rejects the call. */
     bool exportSemaphore(VkSemaphore semaphore, intptr_t &handle, std::string &errorMessage);
 
     /* One wait policy for everything that has to establish GPU completion before recycling

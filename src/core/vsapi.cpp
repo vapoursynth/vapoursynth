@@ -1462,14 +1462,14 @@ static int VS_CC vkExportGPUPlane(const VSFrame *frame, int plane, VSVulkanExpor
             errorMessage, errorMessageSize);
         return 1;
     }
-    const VSVulkanAllocator::Block *block = gpuPlane->buffer.poolBlock;
+    VSVulkanAllocator::Block *block = gpuPlane->buffer.poolBlock;
     if (!block || !block->exportable) {
         copyVulkanError("The plane is not backed by exportable pooled memory", errorMessage, errorMessageSize);
         return 1;
     }
     std::string err;
     intptr_t handle = 0;
-    if (!dev->exportMemory(gpuPlane->buffer.memory, handle, err)) {
+    if (!dev->exportPooledBlock(block, handle, err)) {
         copyVulkanError(err, errorMessage, errorMessageSize);
         return 1;
     }

@@ -18,6 +18,16 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#ifdef VS_TARGET_OS_WINDOWS
+#    ifndef WIN32_LEAN_AND_MEAN
+#        define WIN32_LEAN_AND_MEAN
+#    endif
+#    ifndef NOMINMAX
+#        define NOMINMAX
+#    endif
+#    include <windows.h>
+#endif
+
 #include "vsvulkan.h"
 #include "lockorder.h"
 
@@ -34,6 +44,17 @@ constexpr VkDeviceSize regionGranularity = 4096;
 /* At least this alignment for every region so any buffer requirement up to it is satisfied
    without tracking per usage alignments. */
 constexpr VkDeviceSize regionAlignment = 256;
+
+/* Closes the block's kept export handle, if it has one, before its memory goes back to the
+   driver. Imports made from that handle or its duplicates hold references of their own and
+   keep the memory alive until they are freed. */
+void closeExportHandle(VSVulkanAllocator::Block &block) {
+#ifdef VS_TARGET_OS_WINDOWS
+    if (block.exportHandle)
+        CloseHandle(reinterpret_cast<HANDLE>(block.exportHandle));
+#endif
+    block.exportHandle = 0;
+}
 
 } // namespace
 
@@ -196,6 +217,7 @@ VkDeviceSize VSVulkanAllocator::trimLocked(VSVulkanDevice &dev) {
             }
             bucket = regions.empty() ? freeLists.erase(bucket) : std::next(bucket);
         }
+        closeExportHandle(*victim);
         dev.vk.vkFreeMemory(dev.device(), victim->memory, nullptr); /* implicitly unmaps */
         dev.accountAllocation(-static_cast<int64_t>(victim->size));
         freed += victim->size;
@@ -209,6 +231,7 @@ void VSVulkanAllocator::destroy(VSVulkanDevice &dev) {
     VS_LOCK_HELD(vsLockAllocator);
     for (auto &block : blocks) {
         if (block->memory) {
+            closeExportHandle(*block);
             dev.vk.vkFreeMemory(dev.device(), block->memory, nullptr); /* implicitly unmaps */
             dev.accountAllocation(-static_cast<int64_t>(block->size));
         }
@@ -217,6 +240,29 @@ void VSVulkanAllocator::destroy(VSVulkanDevice &dev) {
     freeLists.clear();
     usedBytes = 0;
     freeRegions = 0;
+}
+
+bool VSVulkanAllocator::exportBlock(VSVulkanDevice &dev, Block *block, intptr_t &handle, std::string &errorMessage) {
+#ifdef VS_TARGET_OS_WINDOWS
+    /* Under the mutex so that threads exporting planes of one new block make a single handle
+       between them; trim() cannot close it meanwhile in any case, since a block with a plane
+       being exported has a live region. */
+    std::lock_guard<std::mutex> lock(mutex);
+    VS_LOCK_HELD(vsLockAllocator);
+    if (!block->exportHandle && !dev.exportMemory(block->memory, block->exportHandle, errorMessage))
+        return false;
+    HANDLE duplicate = nullptr;
+    if (!DuplicateHandle(GetCurrentProcess(), reinterpret_cast<HANDLE>(block->exportHandle), GetCurrentProcess(),
+            &duplicate, 0, FALSE, DUPLICATE_SAME_ACCESS)) {
+        errorMessage = "DuplicateHandle failed for an exported allocator block (error " +
+            std::to_string(GetLastError()) + ")";
+        return false;
+    }
+    handle = reinterpret_cast<intptr_t>(duplicate);
+    return true;
+#else
+    return dev.exportMemory(block->memory, handle, errorMessage);
+#endif
 }
 
 VSVulkanAllocatorStats VSVulkanAllocator::stats() const {
@@ -313,6 +359,10 @@ bool VSVulkanDevice::allocatePooled(const VkMemoryRequirements &req, VkMemoryPro
 
 void VSVulkanDevice::freePooled(const VSVulkanPooledRegion &region) {
     allocator.free(*this, region.block, region.offset, region.size);
+}
+
+bool VSVulkanDevice::exportPooledBlock(VSVulkanAllocator::Block *block, intptr_t &handle, std::string &errorMessage) {
+    return allocator.exportBlock(*this, block, handle, errorMessage);
 }
 
 bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize size, VkBufferUsageFlags usage,

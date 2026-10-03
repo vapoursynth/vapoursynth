@@ -51,7 +51,7 @@ shared by every later request of it (I34).
 | `VSVulkanExecPool::claimMutex` + `claimCv`, and each transfer ring's `claimMutex` + `claimCv` | nothing but the rendezvous between a full ring and the release of a claim (`releaseClaim`, `releaseSlot`); the claim itself is the atomic `claimed` |
 | `VSVulkanQueue` | `vkQueueSubmit2`, the `nextValue` of every pool on the queue, the queue's own `progressNext`. The only lock here a plugin can hold, through `lockVulkanQueue` |
 | `VSVulkanDevice::flushMutex` | the device's one flush context -- its command pool, buffer, timeline and value -- held across the flush submission and the host wait for it |
-| allocator mutex | blocks and free lists |
+| allocator mutex | blocks and free lists, and each exportable block's one export handle (`Block::exportHandle`), made and duplicated under it by `exportGPUPlane` |
 | `VSCore::cacheLock` | the set of nodes with caches |
 | `VSNode::cacheMutex` | one node's cache and consumer list |
 | `VSCore::logMutex` | the message handlers and the queue of messages waiting for delivery. A leaf, never held while a handler runs: one thread at a time delivers, dropping the lock around each call, and a thread that logs while another is delivering queues its message and returns. Until 2026-09-25 it was recursive, held across every handler call, and the only lock here that ran code the core did not write |
