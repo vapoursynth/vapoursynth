@@ -564,7 +564,10 @@ reserve or update **before** the allocation and the VRAM it is about to ask for
 has actually been vacated. Two rules: only declare memory on the core's own
 device (match by UUID, below), and never declare bytes the core already
 accounts — anything from createGPUBuffer, allocateGPUMemory or GPU frames —
-or they count twice. Release the reservation in the filter's free callback.
+or they count twice. The exception is your imports of exported planes: where
+``VS_GPU_IMPORT_CHARGED_AGAIN`` is 1, as on Windows, each one costs the
+process its size again, so declare those. Release the reservation in the
+filter's free callback.
 
 Match devices by UUID: ``VSVulkanCoreInfo::deviceUUID`` equals the UUID CUDA
 reports for the same GPU. Whether export is available at all is
@@ -574,7 +577,9 @@ opaque handle extensions and are absent on MoltenVK, so a CUDA-backed filter
 should fail creation with a clear message when memory export is 0, and fall
 back to host synchronization when only the semaphore half is missing. Cached
 imports may safely outlive the frames that led to them: the OS keeps an
-imported allocation alive until the importer releases it.
+imported allocation alive until the importer releases it. That cuts both
+ways, since an import of an allocation the core has since freed holds the
+memory by itself, uncounted by the core, so keep the cache bounded.
 
 Performance notes
 -----------------

@@ -404,9 +404,9 @@ typedef struct VSGPUMemoryReservation VSGPUMemoryReservation;
  * successful import and must only be closed when the import failed.
  *
  * The OS reference-counts the memory, so a cached import may outlive the frames, and the core,
- * that led to it. Synchronization is host side: call waitGPUFrame before reading through an
- * import (a bare producer pair wait is not enough, see there) and finish foreign writes before
- * returning a frame containing them.
+ * that led to it; VS_GPU_IMPORT_CHARGED_AGAIN says what holding one costs. Synchronization is
+ * host side: call waitGPUFrame before reading through an import (a bare producer pair wait is
+ * not enough, see there) and finish foreign writes before returning a frame containing them.
  *
  * A foreign API writes only into new frames. Exporting a plane nothing has written yet, of a
  * frame only you hold -- created and not yet returned, copied or otherwise shared -- hands it to
@@ -436,6 +436,21 @@ typedef struct VSVulkanExportedMemory {
     int handleType;      /* the VkExternalMemoryHandleTypeFlagBits of the handle */
     intptr_t handle;     /* HANDLE on Windows, file descriptor elsewhere */
 } VSVulkanExportedMemory;
+
+/* Whether holding an import of memory exportGPUPlane handed out costs the process that memory a
+ * second time, on top of the core's own allocation: 1 where it does, so an importer declares its
+ * imports with reserveGPUMemory, and 0 where it doesn't, so declaring them would only make the
+ * core cache fewer frames. Windows charges a shared allocation against the process's budget
+ * again for every device that opens it. On Linux an import is the same kernel buffer object as
+ * the core's allocation and takes no memory of its own, though the driver adds it to the
+ * process's heap usage as Vulkan requires. Everywhere, an import of a block the core has since
+ * freed keeps that memory alive by itself, and the core no longer counts it, so keep the number
+ * of imports you hold bounded. */
+#ifdef _WIN32
+#define VS_GPU_IMPORT_CHARGED_AGAIN 1
+#else
+#define VS_GPU_IMPORT_CHARGED_AGAIN 0
+#endif
 
 /* An exec pool and one of its recording slots. The pool owns a timeline semaphore, a
    command pool and contextCount command buffers; a context is one recording, claimed by
@@ -702,7 +717,9 @@ struct VSVULKANAPI {
        Only declare memory on the core's device -- match deviceUUID or deviceLUID from
        getVulkanCoreInfo -- and never declare bytes the core already accounts (createGPUBuffer,
        allocateGPUMemory, GPU frames) or they count twice. On unified memory this matters
-       doubly, the pool's bytes and the host's being the same RAM. Returns NULL on error. */
+       doubly, the pool's bytes and the host's being the same RAM. The exception is your imports
+       of planes exportGPUPlane handed out, which belong in the declaration where
+       VS_GPU_IMPORT_CHARGED_AGAIN is 1. Returns NULL on error. */
     VSGPUMemoryReservation *(VS_CC *reserveGPUMemory)(VSCore *core, int64_t bytes,
         char *errorMessage, int errorMessageSize) VS_NOEXCEPT;
     void (VS_CC *updateGPUMemoryReservation)(VSGPUMemoryReservation *reservation, int64_t bytes) VS_NOEXCEPT;

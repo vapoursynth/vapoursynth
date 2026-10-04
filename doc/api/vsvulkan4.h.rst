@@ -8,6 +8,9 @@ Introduction_
 
 `The GPU model`_
 
+Macros_
+   VS_GPU_IMPORT_CHARGED_AGAIN_
+
 Enums_
    VSVulkanQueueType_
 
@@ -291,6 +294,26 @@ enabled extension, for example — can be resolved through the
 ``getInstanceProcAddr`` in VSVulkanCoreHandles_.
 
 
+Macros
+######
+
+VS_GPU_IMPORT_CHARGED_AGAIN
+---------------------------
+
+Whether holding an import of memory exportGPUPlane_ handed out costs the
+process that memory a second time, on top of the core's own allocation: 1
+where it does, so an importer declares its imports with reserveGPUMemory_, and
+0 where it doesn't, so declaring them would only make the core cache fewer
+frames. Windows charges a shared allocation against the process's budget
+again for every device that opens it. On Linux an import is the same kernel
+buffer object as the core's allocation and takes no memory of its own, though
+the driver adds it to the process's heap usage as Vulkan requires.
+
+Everywhere, an import of a block the core has since freed keeps that memory
+alive by itself, and the core no longer counts it, so keep the number of
+imports you hold bounded.
+
+
 Enums
 #####
 
@@ -569,7 +592,8 @@ exists; a POSIX fd is consumed by a successful import and must only be closed
 when the import failed or never happened. The OS reference counts the
 underlying memory, so a live import keeps the allocation valid even after
 every VapourSynth side reference — frames, and like frames the core — is
-gone. Synchronization stays host side for now: call waitGPUFrame_ before
+gone; VS_GPU_IMPORT_CHARGED_AGAIN_ says what holding one costs.
+Synchronization stays host side for now: call waitGPUFrame_ before
 reading a frame through an import, and finish foreign writes
 (cudaStreamSynchronize) before returning a frame containing them.
 
@@ -1023,7 +1047,9 @@ VSGPUMemoryReservation_ \*reserveGPUMemory(VSCore \*core, int64_t bytes, char \*
    Never declare bytes the core already accounts — anything from
    createGPUBuffer_, allocateGPUMemory_ or GPU frames — or they count twice.
    On unified memory devices this bookkeeping matters doubly, since the
-   pool's bytes and the host's are the same RAM.
+   pool's bytes and the host's are the same RAM. The exception is your
+   imports of planes exportGPUPlane_ handed out, which belong in the
+   declaration where VS_GPU_IMPORT_CHARGED_AGAIN_ is 1.
 
 ----------
 
