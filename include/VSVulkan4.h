@@ -301,8 +301,8 @@ typedef struct VSVulkanCoreHandles {
 /* The device feature baseline. The core creates every device itself: Vulkan 1.4 with exactly
  * the features below, and no extensions but the platform's opaque memory and semaphore handle
  * export (VK_KHR_external_memory/_semaphore_win32 or _fd) where available,
- * VK_KHR_portability_subset where the device demands it and the atomic float pair described at
- * the end of this comment. Every REQUIRED entry is mandatory for a conformant 1.4
+ * VK_KHR_portability_subset where the device demands it and the two float atomic extensions
+ * described at the end of this comment. Every REQUIRED entry is mandatory for a conformant 1.4
  * implementation. Sharing frames with another device or API goes through exportGPUPlane, not
  * device sharing.
  *
@@ -326,12 +326,14 @@ typedef struct VSVulkanCoreHandles {
  *     shaderFloat64 (Features), shaderBufferInt64Atomics and shaderSharedInt64Atomics
  *     (Vulkan12Features) -- query the physical device to find out whether you got them
  *
- * One extension pair is enabled beyond the handle export pair, under the same policy the
- * optional features above follow: whenever the device offers VK_EXT_shader_atomic_float and its
- * float2 companion they are enabled, with exactly the feature bits the device reports. That
- * guarantee is the availability contract -- Vulkan cannot ask a created device what was enabled,
- * so enable-whatever-is-reported is what makes the physical device's own queries authoritative.
- * Check presence with vkEnumerateDeviceExtensionProperties and the bits with
+ * Two more extensions are enabled beyond the handle export pair, under the same policy the
+ * optional features above follow: VK_EXT_shader_atomic_float whenever the device offers it, and
+ * VK_EXT_shader_atomic_float2 in addition whenever it offers that too, each with exactly the
+ * feature bits the device reports. The two are independent: the first never waits for the
+ * second, so shaderBufferFloat32AtomicAdd, say, needs only VK_EXT_shader_atomic_float and that
+ * bit. That guarantee is the availability contract -- Vulkan cannot ask a created device what
+ * was enabled, so enable-whatever-is-reported is what makes the physical device's own queries
+ * authoritative. Check presence with vkEnumerateDeviceExtensionProperties and the bits with
  * vkGetPhysicalDeviceFeatures2; what they report is what is live. Resolve any extension entry
  * points you need yourself through the handles' getInstanceProcAddr -- the function table below
  * stays core 1.4 plus debug utils by design. */

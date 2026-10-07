@@ -776,8 +776,8 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
        paths nothing uses. Optional features are enabled when the device has them, which is what
        the earlier suitability check deliberately did not insist on. Device extensions follow
        the same philosophy: none are ever load-bearing. The ones enabled at all are the
-       platform's opaque handle export pair when export is possible, and the float atomic
-       pair below when the device offers it. */
+       platform's opaque handle export pair when export is possible, and the two float atomic
+       extensions below, each whenever the device offers it. */
     VSVulkanFeatureChain queried;
     vk.vkGetPhysicalDeviceFeatures2(physicalDeviceHandle, &queried.f2);
     VSVulkanFeatureChain enabled;
@@ -786,59 +786,36 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     VS_VK_FEATURE_LIST(VS_VK_ENABLE_FEATURE)
 #undef VS_VK_ENABLE_FEATURE
 
-    /* The float atomic pair, enabled whenever present with exactly the feature bits the device
+    /* VK_EXT_shader_atomic_float whenever the device offers it, and VK_EXT_shader_atomic_float2
+       in addition whenever it offers that too, each with exactly the feature bits the device
        reports: pure SPIR-V capability unlocks with no cost to code that never uses them, and
-       enabling exactly what is reported is what keeps the physical device's own feature query
-       authoritative for what a kernel may declare.
-       float2 requires the base extension, hence the nesting. Both predate every header this
-       project can build with, so unlike maintenance1 there is no version concern anywhere. */
+       enabling exactly what is reported is what keeps the physical device's own queries
+       authoritative for what a kernel may declare. The first never waits for the second, which
+       some devices do not offer at all. float2 requires the first, which every device offering
+       float2 offers too, hence the nesting. Both predate every header this project can build
+       with, so unlike maintenance1 there is no version concern anywhere. */
     VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatEnable = {};
     atomicFloatEnable.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
     VkPhysicalDeviceShaderAtomicFloat2FeaturesEXT atomicFloat2Enable = {};
     atomicFloat2Enable.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_2_FEATURES_EXT;
-    bool atomicFloatEnabled = false;
-    bool atomicFloat2Enabled = false;
-    if (deviceExtensionAvailable(vk, physicalDeviceHandle, VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME)) {
-        VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatQuery = {};
-        atomicFloatQuery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
-        VkPhysicalDeviceShaderAtomicFloat2FeaturesEXT atomicFloat2Query = {};
-        atomicFloat2Query.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_2_FEATURES_EXT;
-        const bool atomicFloat2Available = deviceExtensionAvailable(vk, physicalDeviceHandle,
-            VK_EXT_SHADER_ATOMIC_FLOAT_2_EXTENSION_NAME);
-        if (atomicFloat2Available)
-            atomicFloatQuery.pNext = &atomicFloat2Query;
+    const bool atomicFloatEnabled =
+        deviceExtensionAvailable(vk, physicalDeviceHandle, VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME);
+    const bool atomicFloat2Enabled = atomicFloatEnabled &&
+        deviceExtensionAvailable(vk, physicalDeviceHandle, VK_EXT_SHADER_ATOMIC_FLOAT_2_EXTENSION_NAME);
+    if (atomicFloatEnabled) {
+        if (atomicFloat2Enabled)
+            atomicFloatEnable.pNext = &atomicFloat2Enable;
         VkPhysicalDeviceFeatures2 atomicFloatFeatures = {};
         atomicFloatFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        atomicFloatFeatures.pNext = &atomicFloatQuery;
+        atomicFloatFeatures.pNext = &atomicFloatEnable;
         vk.vkGetPhysicalDeviceFeatures2(physicalDeviceHandle, &atomicFloatFeatures);
-
-        atomicFloatEnable = atomicFloatQuery;
-        atomicFloatEnable.pNext = nullptr;
-        atomicFloatEnabled =
-            atomicFloatEnable.shaderBufferFloat32Atomics || atomicFloatEnable.shaderBufferFloat32AtomicAdd ||
-            atomicFloatEnable.shaderBufferFloat64Atomics || atomicFloatEnable.shaderBufferFloat64AtomicAdd ||
-            atomicFloatEnable.shaderSharedFloat32Atomics || atomicFloatEnable.shaderSharedFloat32AtomicAdd ||
-            atomicFloatEnable.shaderSharedFloat64Atomics || atomicFloatEnable.shaderSharedFloat64AtomicAdd ||
-            atomicFloatEnable.shaderImageFloat32Atomics || atomicFloatEnable.shaderImageFloat32AtomicAdd ||
-            atomicFloatEnable.sparseImageFloat32Atomics || atomicFloatEnable.sparseImageFloat32AtomicAdd;
-        if (atomicFloatEnabled) {
+        /* Queried in place, so the structures hold exactly the reported bits; the chain they
+           form goes in front of the rest of the enable chain whole. */
+        if (atomicFloat2Enabled)
+            atomicFloat2Enable.pNext = enabled.f14.pNext;
+        else
             atomicFloatEnable.pNext = enabled.f14.pNext;
-            enabled.f14.pNext = &atomicFloatEnable;
-
-            atomicFloat2Enable = atomicFloat2Query;
-            atomicFloat2Enable.pNext = nullptr;
-            atomicFloat2Enabled = atomicFloat2Available &&
-                (atomicFloat2Enable.shaderBufferFloat16Atomics || atomicFloat2Enable.shaderBufferFloat16AtomicAdd ||
-                 atomicFloat2Enable.shaderBufferFloat16AtomicMinMax || atomicFloat2Enable.shaderBufferFloat32AtomicMinMax ||
-                 atomicFloat2Enable.shaderBufferFloat64AtomicMinMax || atomicFloat2Enable.shaderSharedFloat16Atomics ||
-                 atomicFloat2Enable.shaderSharedFloat16AtomicAdd || atomicFloat2Enable.shaderSharedFloat16AtomicMinMax ||
-                 atomicFloat2Enable.shaderSharedFloat32AtomicMinMax || atomicFloat2Enable.shaderSharedFloat64AtomicMinMax ||
-                 atomicFloat2Enable.shaderImageFloat32AtomicMinMax || atomicFloat2Enable.sparseImageFloat32AtomicMinMax);
-            if (atomicFloat2Enabled) {
-                atomicFloat2Enable.pNext = atomicFloatEnable.pNext;
-                atomicFloatEnable.pNext = &atomicFloat2Enable;
-            }
-        }
+        enabled.f14.pNext = &atomicFloatEnable;
     }
 
     /* The one extension that is not a choice: a device advertising VK_KHR_portability_subset
