@@ -15,7 +15,9 @@ frames to a file.
 If *outfile* is a hyphen (``-``), vspipe will write to the standard output.
 
 If *outfile* is a double hyphen (``--``), vspipe will do everything as usual, except it
-will not write the video frames anywhere.
+will not write the video frames anywhere. Since nothing reads their pixels then, GPU
+resident outputs are not downloaded either, so a benchmark measures the script alone.
+``--timecodes`` and ``--json`` still work, as they only read frame properties.
 
 
 Options

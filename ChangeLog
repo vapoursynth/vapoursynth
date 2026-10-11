@@ -1,3 +1,6 @@
+r82:
+vspipe no longer downloads gpu resident frames when there's no output
+
 r81:
 improved gpu up/download speed
 fixed memory model for gpu filters that export memory to cuda/vulkan, input frames they take are copied at most once per source frame and shared between requests

@@ -400,6 +400,10 @@ static bool writeFrameData(const VSFrame *frame, const VSAPI *vsapi, FILE *outFi
     return true;
 }
 
+static int outputNodeFlags(const FILE *outFile) {
+    return outFile ? 0 : sgfAllowGPUResident;
+}
+
 static void outputFrame(const VSFrame *frame, VSPipeOutputData *data) {
     if (data->outputError || !data->outFile)
         return;
@@ -975,7 +979,7 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
     bool failed = false;
 
     for (int outputIndex : outputIndices) {
-        VSNode *node = singleNode ? singleNode : vssapi->getOutputNode(se, outputIndex);
+        VSNode *node = singleNode ? singleNode : vssapi->getOutputNodeEx(se, outputIndex, outputNodeFlags(outFile));
         if (!node) {
             fprintf(stderr, "Error: failed to retrieve output node %d\n", outputIndex);
             failed = true;
@@ -993,7 +997,7 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
         /* An attached alpha clip is carried as a fourth plane of the same track, when the format
            has a fourcc that says so. Where it does not, the alpha is dropped rather than the whole
            output being refused, but never silently. */
-        stream.alphaNode = singleNode ? singleAlphaNode : vssapi->getOutputAlphaNode(se, outputIndex);
+        stream.alphaNode = singleNode ? singleAlphaNode : vssapi->getOutputAlphaNodeEx(se, outputIndex, outputNodeFlags(outFile));
 
         MatroskaTrackInfo info;
         info.isVideo = stream.isVideo;
@@ -1368,7 +1372,7 @@ static void printHelp() {
         "\n"
         "Special output options for <outfile>:\n"
         "  -                                 Write to stdout\n"
-        "  --                                No output\n"
+        "  --                                No output, GPU resident frames are not downloaded\n"
         "\n"
         "Examples:\n"
         "  Show script info:\n"
@@ -1898,14 +1902,14 @@ int main(int argc, char **argv) {
     VSNode *node = nullptr;
     VSNode *alphaNode = nullptr;
     if (!matroskaAllTracks) {
-        nodeHolder = wrapNode(vssapi->getOutputNode(se, opts.outputIndex), vsapi);
+        nodeHolder = wrapNode(vssapi->getOutputNodeEx(se, opts.outputIndex, outputNodeFlags(outFile)), vsapi);
         node = nodeHolder.get();
         if (!node) {
             fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
             return 1;
         }
 
-        alphaHolder = wrapNode(vssapi->getOutputAlphaNode(se, opts.outputIndex), vsapi);
+        alphaHolder = wrapNode(vssapi->getOutputAlphaNodeEx(se, opts.outputIndex, outputNodeFlags(outFile)), vsapi);
         alphaNode = alphaHolder.get();
 
         // disable cache since no frame is ever requested twice

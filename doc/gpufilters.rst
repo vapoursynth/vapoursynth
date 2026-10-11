@@ -67,9 +67,10 @@ Property-only inputs like ``prop_src`` and ClipToProp's ``mclip`` are exempt.
 A script may leave its outputs GPU resident: ``set_output`` stores the node as
 given, and the consumer decides where the download goes — ``output`` inserts
 one, and so do the VSScript entry points vspipe and most applications use,
-each with a log message, so scripts just work. A clip and its alpha must share
-a residency, which is the one thing ``set_output`` checks. Reading pixel data
-of a GPU resident *frame* from
+each with a log message, so scripts just work. vspipe skips it when it writes
+no output (``--``), since nothing reads the pixels then. A clip and its alpha
+must share a residency, which is the one thing ``set_output`` checks. Reading
+pixel data of a GPU resident *frame* from
 Python raises an error — pass the clip through GPUDownload first; whether a
 node or frame is GPU resident is exposed as the ``gpu_resident`` property.
 Frame properties are always CPU side and work normally on GPU frames. (In the
