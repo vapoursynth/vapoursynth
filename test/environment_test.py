@@ -2,34 +2,43 @@ import contextlib
 import gc
 import io
 import multiprocessing
+import pickle
 import threading
 import time
+import traceback
 import unittest
 import weakref
-from concurrent.futures import ProcessPoolExecutor
 from threading import Lock
 
 import vapoursynth as vs
 
 
 class StubPolicy(vs.EnvironmentPolicy):
+    # The current environment is kept per thread, as the policy contract describes it and as
+    # VSScript's policy keeps it. The module switches environments around every callback it runs
+    # on a worker thread, restoring what it found there afterwards. With one environment shared
+    # by all threads, a worker that entered while the main thread was still inside a use() block
+    # saved that environment, and restored it after the main thread had left: the policy then
+    # held a strong reference past teardown, and the collection checks failed at random.
     def __init__(self) -> None:
-        self._current = None
+        self._local = threading.local()
         self._api = None
 
     def on_policy_registered(self, special_api):
         self._api = special_api
-        self._current = None
+        self._local = threading.local()
 
     def on_policy_cleared(self):
         assert self._api is not None
-        self._current = None
+        self._local = threading.local()
 
     def get_current_environment(self):
-        return self._current
+        return getattr(self._local, "current", None)
 
     def set_environment(self, environment):
-        self._current = environment
+        previous = getattr(self._local, "current", None)
+        self._local.current = environment
+        return previous
 
 
 @contextlib.contextmanager
@@ -42,6 +51,22 @@ def _with_policy():
         pol._api.unregister_policy()
 
 
+@contextlib.contextmanager
+def _holding(lock, *threads):
+    # For tests that hold the lock a frame request blocks on. However the block exits, the lock
+    # is released and the threads that were started are joined. A failed check that left it held
+    # would hang the run instead of failing it: the blocked request never completes, and neither
+    # does a teardown waiting for it, nor the test process.
+    lock.acquire()
+    try:
+        yield
+    finally:
+        lock.release()
+        for thread in threads:
+            if thread.ident is not None:
+                thread.join()
+
+
 test_functions = {}
 counter = 0
 
@@ -51,6 +76,34 @@ def _wrap_with(ident):
     return func(EnvironmentTest())
 
 
+# How long one test may run in its process, and how long that process then gets to exit. Every
+# test takes seconds at most; the margins are for slow CI runners.
+SUBPROCESS_TEST_TIMEOUT = 120
+SUBPROCESS_EXIT_TIMEOUT = 30
+
+
+class _RemoteTraceback(Exception):
+    # The test process's traceback, attached as the cause of the exception raised here again, the
+    # way concurrent.futures shows one.
+    def __str__(self):
+        return self.args[0]
+
+
+def _run_in_subprocess(ident, conn):
+    try:
+        _wrap_with(ident)
+        outcome = None
+    except BaseException as e:
+        remote = "".join(traceback.format_exception(e))
+        try:
+            pickle.dumps(e)
+        except Exception:
+            e = RuntimeError(f"{type(e).__name__}: {e}")
+        outcome = (e, remote)
+    conn.send(outcome)
+    conn.close()
+
+
 def subprocess_runner(func):
     global counter
     my_counter = counter
@@ -58,8 +111,44 @@ def subprocess_runner(func):
     test_functions[my_counter] = func
 
     def _wrapper(self):
-        with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as executor:
-            executor.submit(_wrap_with, my_counter).result()
+        # Each test runs in a fresh process, against a deadline: a hang, whether a deadlock in
+        # VapourSynth or a thread left waiting for good, fails the test instead of stalling the
+        # whole run. A process that misses its deadline, or does not exit after reporting, is
+        # killed rather than waited for. What the test raised is raised here again, so failures,
+        # errors and skips are reported as before.
+        ctx = multiprocessing.get_context("spawn")
+        receiver, sender = ctx.Pipe(duplex=False)
+        proc = ctx.Process(target=_run_in_subprocess, args=(my_counter, sender), daemon=True)
+        proc.start()
+        sender.close()
+        outcome = None
+        finished = reported = False
+        try:
+            # True once the result arrives, or the process dies without sending one
+            finished = receiver.poll(SUBPROCESS_TEST_TIMEOUT)
+            if finished:
+                try:
+                    outcome = receiver.recv()
+                    reported = True
+                except EOFError:
+                    pass
+                proc.join(SUBPROCESS_EXIT_TIMEOUT)
+        finally:
+            lingering = proc.is_alive()
+            if lingering:
+                proc.kill()
+            proc.join()
+            receiver.close()
+
+        if not finished:
+            self.fail(f"did not finish within {SUBPROCESS_TEST_TIMEOUT} s, its process was killed")
+        if not reported:
+            self.fail(f"its process exited with code {proc.exitcode} before reporting a result")
+        if outcome is not None:
+            exc, remote = outcome
+            raise exc from _RemoteTraceback(remote)
+        if lingering:
+            self.fail(f"passed, but its process did not exit within {SUBPROCESS_EXIT_TIMEOUT} s and was killed")
 
     return _wrapper
 
@@ -442,34 +531,29 @@ class EnvironmentTest(unittest.TestCase):
         with _with_policy() as pol:
             env = pol._api.create_environment()
             wrapped = pol._api.wrap_environment(env)
-
-            with wrapped.use():
-                core = vs.core.core
-                clip = core.std.BlankClip(width=16, height=16, length=2)
-                clip = core.std.ModifyFrame(clip, clip, modify_func)
-                lock.acquire()
-                fut = clip.get_frame_async(0)
-
-                fut_ref = weakref.ref(fut)
-                self.assertIsNotNone(fut_ref())
-
             thread = threading.Thread(target=lambda: pol._api.destroy_environment(env))
 
-            thread.start()
-            thread.join(0.25)
+            with _holding(lock, thread):
+                with wrapped.use():
+                    core = vs.core.core
+                    clip = core.std.BlankClip(width=16, height=16, length=2)
+                    clip = core.std.ModifyFrame(clip, clip, modify_func)
+                    fut = clip.get_frame_async(0)
 
-            gc.collect()
-            gc.collect()
-            gc.collect()
+                    fut_ref = weakref.ref(fut)
+                    self.assertIsNotNone(fut_ref())
 
-            # Environment should still be alive because wait_futures blocks destroy_environment
-            # until the pending future resolves.
-            self.assertIsNotNone(wrapped.env())
-            self.assertTrue(running)
+                thread.start()
+                thread.join(0.25)
 
-            lock.release()
+                gc.collect()
+                gc.collect()
+                gc.collect()
 
-            thread.join()
+                # Environment should still be alive because wait_futures blocks destroy_environment
+                # until the pending future resolves.
+                self.assertIsNotNone(wrapped.env())
+                self.assertTrue(running)
 
             # The future should have resolved successfully.
             self.assertFalse(running)
@@ -495,28 +579,30 @@ class EnvironmentTest(unittest.TestCase):
         with _with_policy() as pol:
             env = pol._api.create_environment()
             wrapped = pol._api.wrap_environment(env)
-
-            with wrapped.use():
-                core = vs.core.core
-                clip = core.std.BlankClip(width=16, height=16, length=2)
-                clip = core.std.ModifyFrame(clip, clip, modify_func)
-                lock.acquire()
-                fut = clip.get_frame_async(0)
-
             thread = threading.Thread(target=lambda: pol._api.destroy_environment(env))
-            thread.start()
-            thread.join(0.25)
 
-            # destroy_environment is blocked waiting for the first request, and every
-            # request made after it claimed the environment must be refused, keyed on
-            # the environment owning the node even though none is current here
-            self.assertIsNotNone(wrapped.env())
-            with self.assertRaisesRegex(vs.Error, "being destroyed"):
-                clip.get_frame(1)
-            self.assertIsInstance(clip.get_frame_async(1).exception(), vs.Error)
+            with _holding(lock, thread):
+                with wrapped.use():
+                    core = vs.core.core
+                    clip = core.std.BlankClip(width=16, height=16, length=2)
+                    clip = core.std.ModifyFrame(clip, clip, modify_func)
+                    fut = clip.get_frame_async(0)
 
-            lock.release()
-            thread.join()
+                thread.start()
+                thread.join(0.25)
+
+                # destroy_environment is blocked waiting for the first request, and every
+                # request made after it claimed the environment must be refused, keyed on
+                # the environment owning the node even though none is current here; checked,
+                # since the worker blocked in modify_func is inside an environment switch right
+                # now. The asynchronous request goes first and with a timeout: both kinds share
+                # one admission check, and a synchronous request it let through would block on
+                # this lock for good instead of failing.
+                self.assertIsNotNone(wrapped.env())
+                self.assertIsNone(pol.get_current_environment())
+                self.assertIsInstance(clip.get_frame_async(1).exception(timeout=10), vs.Error)
+                with self.assertRaisesRegex(vs.Error, "being destroyed"):
+                    clip.get_frame(1)
 
             self.assertIsInstance(fut.result(), vs.VideoFrame)
 
@@ -599,20 +685,17 @@ class EnvironmentTest(unittest.TestCase):
                 clip = core.std.BlankClip(width=16, height=16, length=2)
                 clip = core.std.ModifyFrame(clip, clip, modify_func)
 
-            lock.acquire()
-            with wrapped_b.use():
-                fut = clip.get_frame_async(0)
-
-            # the request was made from B on a node owned by A, so destroying B has to
-            # wait for it just like destroying A would
             thread = threading.Thread(target=lambda: pol._api.destroy_environment(env_b))
-            thread.start()
-            thread.join(0.25)
-            self.assertIsNotNone(wrapped_b.env())
-            self.assertTrue(thread.is_alive())
+            with _holding(lock, thread):
+                with wrapped_b.use():
+                    fut = clip.get_frame_async(0)
 
-            lock.release()
-            thread.join()
+                # the request was made from B on a node owned by A, so destroying B has to
+                # wait for it just like destroying A would
+                thread.start()
+                thread.join(0.25)
+                self.assertIsNotNone(wrapped_b.env())
+                self.assertTrue(thread.is_alive())
 
             self.assertIsInstance(fut.result(), vs.VideoFrame)
             pol._api.destroy_environment(env_a)
@@ -834,24 +917,22 @@ class DeferredDestroyTest(unittest.TestCase):
             env = pol._api.create_environment()
             wrapped = pol._api.wrap_environment(env)
 
-            with wrapped.use():
-                core = vs.core.core
-                clip = core.std.BlankClip(width=16, height=16, length=1)
-                clip = core.std.ModifyFrame(clip, clip, modify_func)
-                lock.acquire()
-                fut = clip.get_frame_async(0)
+            seen_alive = []
 
-                seen_alive = []
+            def dispose(f):
+                # from inside the environment's own frame callback: the call returns at
+                # once and hands the teardown to a helper thread
+                pol._api.destroy_environment(env)
+                seen_alive.append(wrapped.alive)
 
-                def dispose(f):
-                    # from inside the environment's own frame callback: the call returns at
-                    # once and hands the teardown to a helper thread
-                    pol._api.destroy_environment(env)
-                    seen_alive.append(wrapped.alive)
+            with _holding(lock):
+                with wrapped.use():
+                    core = vs.core.core
+                    clip = core.std.BlankClip(width=16, height=16, length=1)
+                    clip = core.std.ModifyFrame(clip, clip, modify_func)
+                    fut = clip.get_frame_async(0)
+                    fut.add_done_callback(dispose)
 
-                fut.add_done_callback(dispose)
-
-            lock.release()
             self.assertIsInstance(fut.result(timeout=10), vs.VideoFrame)
 
             for _ in range(200):
@@ -881,19 +962,17 @@ class DeferredDestroyTest(unittest.TestCase):
                 clip = core.std.BlankClip(width=16, height=16, length=1)
                 clip = core.std.ModifyFrame(clip, clip, modify_func)
 
-            with wrapped_caller.use():
-                lock.acquire()
-                fut = clip.get_frame_async(0)
+            seen_alive = []
 
-                seen_alive = []
+            def dispose(f):
+                pol._api.destroy_environment(caller)
+                seen_alive.append(wrapped_caller.alive)
 
-                def dispose(f):
-                    pol._api.destroy_environment(caller)
-                    seen_alive.append(wrapped_caller.alive)
+            with _holding(lock):
+                with wrapped_caller.use():
+                    fut = clip.get_frame_async(0)
+                    fut.add_done_callback(dispose)
 
-                fut.add_done_callback(dispose)
-
-            lock.release()
             self.assertIsInstance(fut.result(timeout=10), vs.VideoFrame)
 
             for _ in range(200):
