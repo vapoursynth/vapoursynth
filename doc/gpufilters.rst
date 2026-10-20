@@ -628,10 +628,15 @@ for itself. The two float atomic extensions are independent of each other: a
 float32 atomic add needs only VK_EXT_shader_atomic_float and its
 ``shaderBufferFloat32AtomicAdd`` bit, whether or not the device offers float2.
 Everything else that is optional in Vulkan is simply absent: beyond the float
-atomic extensions, the only device extensions a core device enables are the
+atomic extensions, the only device extensions a core device enables are
+VK_KHR_pipeline_executable_properties where the device offers it, the
 platform's opaque handle export pair and, where the device demands it,
 VK_KHR_portability_subset — none of them reachable from a kernel, so vendor
-specific paths cannot exist on them.
+specific paths cannot exist on them. The first is there for tuning kernels:
+create a pipeline with ``VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR`` and
+vkGetPipelineExecutableStatisticsKHR reports what it uses, registers and local
+memory among it. Enabling the extension costs nothing, and its capture flags
+never change the compiled code.
 
 Porting an existing Vulkan filter
 ---------------------------------

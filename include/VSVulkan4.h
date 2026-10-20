@@ -301,10 +301,10 @@ typedef struct VSVulkanCoreHandles {
 /* The device feature baseline. The core creates every device itself: Vulkan 1.4 with exactly
  * the features below, and no extensions but the platform's opaque memory and semaphore handle
  * export (VK_KHR_external_memory/_semaphore_win32 or _fd) where available,
- * VK_KHR_portability_subset where the device demands it and the two float atomic extensions
- * described at the end of this comment. Every REQUIRED entry is mandatory for a conformant 1.4
- * implementation. Sharing frames with another device or API goes through exportGPUPlane, not
- * device sharing.
+ * VK_KHR_portability_subset where the device demands it, and the two float atomic extensions and
+ * VK_KHR_pipeline_executable_properties described at the end of this comment. Every REQUIRED
+ * entry is mandatory for a conformant 1.4 implementation. Sharing frames with another device or
+ * API goes through exportGPUPlane, not device sharing.
  *
  *   required (VkPhysicalDeviceFeatures): shaderInt16, shaderImageGatherExtended,
  *     shaderStorageImageExtendedFormats, shaderUniformBufferArrayDynamicIndexing,
@@ -326,12 +326,16 @@ typedef struct VSVulkanCoreHandles {
  *     shaderFloat64 (Features), shaderBufferInt64Atomics and shaderSharedInt64Atomics
  *     (Vulkan12Features) -- query the physical device to find out whether you got them
  *
- * Two more extensions are enabled beyond the handle export pair, under the same policy the
+ * Three more extensions are enabled beyond the handle export pair, under the same policy the
  * optional features above follow: VK_EXT_shader_atomic_float whenever the device offers it, and
  * VK_EXT_shader_atomic_float2 in addition whenever it offers that too, each with exactly the
  * feature bits the device reports. The two are independent: the first never waits for the
  * second, so shaderBufferFloat32AtomicAdd, say, needs only VK_EXT_shader_atomic_float and that
- * bit. That guarantee is the availability contract -- Vulkan cannot ask a created device what
+ * bit. VK_KHR_pipeline_executable_properties is enabled whenever offered as well, for tuning
+ * kernels: create a pipeline with VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR and read its
+ * register and memory use back with vkGetPipelineExecutableStatisticsKHR. Enabling it costs
+ * nothing, and its capture flags cost compile time at most, never changing the compiled code.
+ * That guarantee is the availability contract -- Vulkan cannot ask a created device what
  * was enabled, so enable-whatever-is-reported is what makes the physical device's own queries
  * authoritative. Check presence with vkEnumerateDeviceExtensionProperties and the bits with
  * vkGetPhysicalDeviceFeatures2; what they report is what is live. Resolve any extension entry

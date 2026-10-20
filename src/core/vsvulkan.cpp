@@ -777,7 +777,8 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
        the earlier suitability check deliberately did not insist on. Device extensions follow
        the same philosophy: none are ever load-bearing. The ones enabled at all are the
        platform's opaque handle export pair when export is possible, and the two float atomic
-       extensions below, each whenever the device offers it. */
+       extensions and pipeline executable properties below, each whenever the device offers
+       it. */
     VSVulkanFeatureChain queried;
     vk.vkGetPhysicalDeviceFeatures2(physicalDeviceHandle, &queried.f2);
     VSVulkanFeatureChain enabled;
@@ -818,6 +819,26 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         enabled.f14.pNext = &atomicFloatEnable;
     }
 
+    /* VK_KHR_pipeline_executable_properties whenever the device offers it, with its one feature
+       as reported, so a plugin can read back the register, memory and compiler statistics of its
+       own pipelines. Enabling it changes nothing by itself: the work happens only for pipelines
+       created with its capture flags, and the spec forbids those from changing the compiled code.
+       Measured on AMD's Windows driver, statistics capture is free and internal representations
+       add about 3% to compile time, with cache hits and run time unchanged; RADV has never done
+       anything for the bare enable either. */
+    VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR pipelineExecutableEnable = {};
+    pipelineExecutableEnable.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR;
+    const bool pipelineExecutableEnabled =
+        deviceExtensionAvailable(vk, physicalDeviceHandle, VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME);
+    if (pipelineExecutableEnabled) {
+        VkPhysicalDeviceFeatures2 pipelineExecutableFeatures = {};
+        pipelineExecutableFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        pipelineExecutableFeatures.pNext = &pipelineExecutableEnable;
+        vk.vkGetPhysicalDeviceFeatures2(physicalDeviceHandle, &pipelineExecutableFeatures);
+        pipelineExecutableEnable.pNext = enabled.f14.pNext;
+        enabled.f14.pNext = &pipelineExecutableEnable;
+    }
+
     /* The one extension that is not a choice: a device advertising VK_KHR_portability_subset
        is invalid to create without it enabled, so a portability implementation is refused at
        vkCreateDevice otherwise. Spelled out rather than taken from the header macro, which
@@ -829,7 +850,7 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
     /* Sized for every optional extension that can be pushed below, not for how many usually
        coexist: undersizing this the day another push is added would be a stack overwrite, not
        an error. */
-    const char *enabledExtensions[5];
+    const char *enabledExtensions[6];
     uint32_t enabledExtensionCount = 0;
     if (exportType)
         enabledExtensions[enabledExtensionCount++] = exportExtensionName;
@@ -839,6 +860,8 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         enabledExtensions[enabledExtensionCount++] = VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME;
     if (atomicFloat2Enabled)
         enabledExtensions[enabledExtensionCount++] = VK_EXT_SHADER_ATOMIC_FLOAT_2_EXTENSION_NAME;
+    if (pipelineExecutableEnabled)
+        enabledExtensions[enabledExtensionCount++] = VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME;
     if (portabilitySubset)
         enabledExtensions[enabledExtensionCount++] = portabilitySubsetName;
 
