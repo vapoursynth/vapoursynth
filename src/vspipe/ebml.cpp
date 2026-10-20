@@ -58,9 +58,11 @@ void ebmlPutSize(EbmlBuffer &dst, uint64_t size) {
 }
 
 static void ebmlPutUnknownSize(EbmlBuffer &dst) {
-    /* One byte of all ones. Wider forms exist but readers handle the short one and it keeps the
-       header compact. */
-    dst.push_back(0xFF);
+    /* The eight byte form, the length marker followed by all ones, which is what other muxers
+       write. The one byte form means the same and is valid, but mpv refuses a cluster opened with
+       it and then plays nothing at all. */
+    dst.push_back(0x01);
+    dst.insert(dst.end(), 7, 0xFF);
 }
 
 static int uintLength(uint64_t value) {

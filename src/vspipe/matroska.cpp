@@ -19,12 +19,14 @@
 */
 
 #include "matroska.h"
+#include "VSConstants4.h"
 #include "../core/version.h"
 
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
 #include <cmath>
+#include <numeric>
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -57,9 +59,21 @@ constexpr uint32_t idDefaultDuration = 0x23E383;
 constexpr uint32_t idCodecID = 0x86;
 
 constexpr uint32_t idVideo = 0xE0;
+constexpr uint32_t idFlagInterlaced = 0x9A;
+constexpr uint32_t idFieldOrder = 0x9D;
 constexpr uint32_t idPixelWidth = 0xB0;
 constexpr uint32_t idPixelHeight = 0xBA;
+constexpr uint32_t idDisplayWidth = 0x54B0;
+constexpr uint32_t idDisplayHeight = 0x54BA;
+constexpr uint32_t idDisplayUnit = 0x54B2;
 constexpr uint32_t idColourSpace = 0x2EB524;
+constexpr uint32_t idColour = 0x55B0;
+constexpr uint32_t idMatrixCoefficients = 0x55B1;
+constexpr uint32_t idChromaSitingHorz = 0x55B7;
+constexpr uint32_t idChromaSitingVert = 0x55B8;
+constexpr uint32_t idRange = 0x55B9;
+constexpr uint32_t idTransferCharacteristics = 0x55BA;
+constexpr uint32_t idPrimaries = 0x55BB;
 
 constexpr uint32_t idAudio = 0xE1;
 constexpr uint32_t idSamplingFrequency = 0xB5;
@@ -89,6 +103,23 @@ constexpr size_t seekHeadReservedBytes = 64;
 
 constexpr uint64_t trackTypeVideo = 1;
 constexpr uint64_t trackTypeAudio = 2;
+
+constexpr int64_t flagInterlacedInterlaced = 1;
+constexpr int64_t flagInterlacedProgressive = 2;
+/* The interleaved orders, for frames holding both fields line by line with the top field's line
+   first, which is how every VapourSynth frame stores them; 1 and 6 mean fields stored one after
+   the other. They are also what ffmpeg writes for interleaved frames. */
+constexpr int64_t fieldOrderTopFirstInterleaved = 9;
+constexpr int64_t fieldOrderBottomFirstInterleaved = 14;
+
+constexpr int64_t rangeBroadcast = 1;
+constexpr int64_t rangeFull = 2;
+
+/* Horizontal siting on the left sample or halfway, vertical on the top line or halfway. */
+constexpr int64_t chromaSitingCollocated = 1;
+constexpr int64_t chromaSitingHalf = 2;
+
+constexpr uint64_t displayUnitAspectRatio = 3;
 
 /* One microsecond. Fine enough that variable frame durations survive the conversion to integer
    ticks essentially intact, while leaving a block able to sit 32 milliseconds away from its
@@ -271,6 +302,92 @@ bool MatroskaWriter::isAudioFormatSupported(const VSAudioFormat &format) {
     return format.bitsPerSample == 16 || format.bitsPerSample == 24 || format.bitsPerSample == 32;
 }
 
+MatroskaVideoDescription MatroskaWriter::describeVideoFrame(const VSFrame *frame, const VSAPI *vsapi) {
+    MatroskaVideoDescription description;
+    const VSMap *props = vsapi->getFramePropertiesRO(frame);
+    const VSVideoFormat *format = vsapi->getVideoFrameFormat(frame);
+
+    auto getInt = [&](const char *key, int64_t &value) {
+        int err = 0;
+        value = vsapi->mapGetInt(props, key, 0, &err);
+        return !err;
+    };
+
+    int64_t value = 0;
+
+    /* Both sides number these with the ITU-T H.273 code points, so a value goes through unchanged
+       wherever Matroska lists it. Unspecified is left out like an absent property, since it is
+       what the header says by default. */
+    if (getInt("_Matrix", value) &&
+        (value == VSC_MATRIX_RGB || value == VSC_MATRIX_BT709 || (value >= VSC_MATRIX_FCC && value <= VSC_MATRIX_ICTCP)))
+        description.matrixCoefficients = value;
+    if (getInt("_Transfer", value) &&
+        (value == VSC_TRANSFER_BT709 || (value >= VSC_TRANSFER_BT470_M && value <= VSC_TRANSFER_ARIB_B67)))
+        description.transferCharacteristics = value;
+    if (getInt("_Primaries", value) &&
+        (value == VSC_PRIMARIES_BT709 || (value >= VSC_PRIMARIES_BT470_M && value <= VSC_PRIMARIES_ST432_1) || value == VSC_PRIMARIES_EBU3213_E))
+        description.primaries = value;
+
+    if (getInt("_Range", value) && (value == VSC_RANGE_LIMITED || value == VSC_RANGE_FULL))
+        description.range = (value == VSC_RANGE_FULL) ? rangeFull : rangeBroadcast;
+
+    /* Chroma location only means something where chroma is subsampled, which is also the only
+       place the resizer sets it. Matroska has no vertical siting on the bottom line, so the two
+       bottom locations are left out rather than half described. */
+    if (format->colorFamily == cfYUV && (format->subSamplingW || format->subSamplingH) && getInt("_ChromaLocation", value)) {
+        switch (value) {
+        case VSC_CHROMA_LEFT:
+            description.chromaSitingHorz = chromaSitingCollocated;
+            description.chromaSitingVert = chromaSitingHalf;
+            break;
+        case VSC_CHROMA_CENTER:
+            description.chromaSitingHorz = chromaSitingHalf;
+            description.chromaSitingVert = chromaSitingHalf;
+            break;
+        case VSC_CHROMA_TOP_LEFT:
+            description.chromaSitingHorz = chromaSitingCollocated;
+            description.chromaSitingVert = chromaSitingCollocated;
+            break;
+        case VSC_CHROMA_TOP:
+            description.chromaSitingHorz = chromaSitingHalf;
+            description.chromaSitingVert = chromaSitingCollocated;
+            break;
+        }
+    }
+
+    if (getInt("_FieldBased", value)) {
+        if (value == VSC_FIELD_PROGRESSIVE) {
+            description.flagInterlaced = flagInterlacedProgressive;
+        } else if (value == VSC_FIELD_TOP || value == VSC_FIELD_BOTTOM) {
+            description.flagInterlaced = flagInterlacedInterlaced;
+            description.fieldOrder = (value == VSC_FIELD_TOP) ? fieldOrderTopFirstInterleaved : fieldOrderBottomFirstInterleaved;
+        }
+    }
+
+    /* The sample aspect ratio is stored as the display aspect ratio it produces, which keeps it
+       exact where display dimensions in pixels would have to be rounded. Square pixels need
+       nothing, being what the header implies anyway, and a ratio too large to multiply out is
+       not a real one. */
+    int64_t sarNum = 0;
+    int64_t sarDen = 0;
+    if (getInt("_SARNum", sarNum) && getInt("_SARDen", sarDen) && sarNum > 0 && sarDen > 0) {
+        const int64_t sarDivisor = std::gcd(sarNum, sarDen);
+        sarNum /= sarDivisor;
+        sarDen /= sarDivisor;
+        const int64_t width = vsapi->getFrameWidth(frame, 0);
+        const int64_t height = vsapi->getFrameHeight(frame, 0);
+        if (sarNum != sarDen && sarNum <= INT64_MAX / width && sarDen <= INT64_MAX / height) {
+            const int64_t darNum = width * sarNum;
+            const int64_t darDen = height * sarDen;
+            const int64_t darDivisor = std::gcd(darNum, darDen);
+            description.displayAspectNum = darNum / darDivisor;
+            description.displayAspectDen = darDen / darDivisor;
+        }
+    }
+
+    return description;
+}
+
 bool MatroskaWriter::writeBuffer(const EbmlBuffer &buffer, const char *context, std::string &errorMessage) {
     if (!outFile || buffer.empty())
         return true;
@@ -305,7 +422,10 @@ bool MatroskaWriter::initialize(FILE *file, const std::vector<MatroskaTrackInfo>
     ebmlUInt(ebmlHead, idEBMLMaxIDLength, 4);
     ebmlUInt(ebmlHead, idEBMLMaxSizeLength, 8);
     ebmlString(ebmlHead, idDocType, "matroska");
-    ebmlUInt(ebmlHead, idDocTypeVersion, 2);
+    /* The version has to be at least that of any element the file contains, and the colour
+       description and field order are version 4 elements. Reading still needs only version 2,
+       since a reader that does not know them can skip them, which is how ffmpeg sets both. */
+    ebmlUInt(ebmlHead, idDocTypeVersion, 4);
     ebmlUInt(ebmlHead, idDocTypeReadVersion, 2);
     ebmlMaster(header, idEBML, ebmlHead);
 
@@ -368,9 +488,19 @@ bool MatroskaWriter::initialize(FILE *file, const std::vector<MatroskaTrackInfo>
                     ? static_cast<uint64_t>(1000000000LL * track.frameDurationNum / track.frameDurationDen)
                     : static_cast<uint64_t>(std::floor(1e9 * static_cast<double>(track.frameDurationNum) / static_cast<double>(track.frameDurationDen))));
 
+            const MatroskaVideoDescription &description = track.description;
             EbmlBuffer video;
+            if (description.flagInterlaced >= 0)
+                ebmlUInt(video, idFlagInterlaced, static_cast<uint64_t>(description.flagInterlaced));
+            if (description.fieldOrder >= 0)
+                ebmlUInt(video, idFieldOrder, static_cast<uint64_t>(description.fieldOrder));
             ebmlUInt(video, idPixelWidth, static_cast<uint64_t>(track.width));
             ebmlUInt(video, idPixelHeight, static_cast<uint64_t>(track.height));
+            if (description.displayAspectNum > 0 && description.displayAspectDen > 0) {
+                ebmlUInt(video, idDisplayWidth, static_cast<uint64_t>(description.displayAspectNum));
+                ebmlUInt(video, idDisplayHeight, static_cast<uint64_t>(description.displayAspectDen));
+                ebmlUInt(video, idDisplayUnit, displayUnitAspectRatio);
+            }
             /* The layout of the frames is carried entirely by this fourcc, stored little endian
                the same way the equivalent AVI field is. */
             uint8_t colourSpace[4] = {
@@ -380,6 +510,22 @@ bool MatroskaWriter::initialize(FILE *file, const std::vector<MatroskaTrackInfo>
                 static_cast<uint8_t>(track.fourCC >> 24)
             };
             ebmlBinary(video, idColourSpace, colourSpace, sizeof(colourSpace));
+
+            EbmlBuffer colour;
+            if (description.matrixCoefficients >= 0)
+                ebmlUInt(colour, idMatrixCoefficients, static_cast<uint64_t>(description.matrixCoefficients));
+            if (description.chromaSitingHorz >= 0)
+                ebmlUInt(colour, idChromaSitingHorz, static_cast<uint64_t>(description.chromaSitingHorz));
+            if (description.chromaSitingVert >= 0)
+                ebmlUInt(colour, idChromaSitingVert, static_cast<uint64_t>(description.chromaSitingVert));
+            if (description.range >= 0)
+                ebmlUInt(colour, idRange, static_cast<uint64_t>(description.range));
+            if (description.transferCharacteristics >= 0)
+                ebmlUInt(colour, idTransferCharacteristics, static_cast<uint64_t>(description.transferCharacteristics));
+            if (description.primaries >= 0)
+                ebmlUInt(colour, idPrimaries, static_cast<uint64_t>(description.primaries));
+            if (!colour.empty())
+                ebmlMaster(video, idColour, colour);
             ebmlMaster(entry, idVideo, video);
         } else {
             ebmlString(entry, idCodecID, track.isFloat ? "A_PCM/FLOAT/IEEE" : "A_PCM/INT/LIT");

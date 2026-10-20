@@ -117,6 +117,14 @@ index so that nothing drifts over a long clip. A clip with no frame rate is trea
 and its timeline is accumulated from the ``_DurationNum`` and ``_DurationDen`` frame properties,
 which must then be present on every frame.
 
+Each video track's header also carries what the reserved frame properties of its first frame say
+about it: ``_Matrix``, ``_Transfer``, ``_Primaries``, ``_Range``, ``_ChromaLocation`` for subsampled
+YUV, ``_FieldBased``, and the pixel aspect ratio from ``_SARNum`` and ``_SARDen``. Readers such as
+ffmpeg and mpv pick these up, so an encode or a preview gets them right without repeating them on
+a command line. Properties that are absent, unspecified or have no Matroska equivalent are left
+out. A header describes its whole track and cannot change partway through, so a later frame whose
+properties differ from the first frame's is still written, with a warning.
+
 Supported formats
 -----------------
 

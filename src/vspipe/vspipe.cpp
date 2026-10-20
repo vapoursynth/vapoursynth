@@ -845,6 +845,12 @@ struct MuxStream {
     std::map<int, const VSFrame *> arrivedAlpha;
     const VSFrame *pendingAlphaFrame = nullptr;
 
+    /* What the track header says about the colour, field order and aspect ratio, taken from the
+       first frame. A track cannot change it partway, so a later frame that disagrees is still
+       written, with a warning the first time it happens. */
+    MatroskaVideoDescription description;
+    bool descriptionChangeReported = false;
+
     int frameCount() const {
         return isVideo ? vi->numFrames : ai->numFrames;
     }
@@ -1065,11 +1071,7 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
 
     std::vector<uint8_t> buffer(maxBufferSize);
     MatroskaWriter writer;
-
-    if (!failed && !writer.initialize(outFile, trackInfos, errorMessage)) {
-        fprintf(stderr, "%s\n", errorMessage.c_str());
-        failed = true;
-    }
+    bool headerWritten = false;
 
     if (!failed && timecodesFile && fprintf(timecodesFile, "# timecode format v2\n") < 0) {
         fprintf(stderr, "Error: failed to write timecodes file header, errno: %d\n", errno);
@@ -1202,6 +1204,30 @@ static bool outputMatroska(const VSPipeOptions &opts, FILE *outFile, FILE *timec
             break;
 
         MuxStream &stream = streams[nextStream];
+
+        /* The header waits until here, the first point at which every stream holds its first
+           frame, since that frame's properties are where each video track's colour, field order
+           and aspect ratio come from. */
+        if (!headerWritten) {
+            for (auto &iter : streams) {
+                if (iter.isVideo && iter.pendingFrame) {
+                    iter.description = MatroskaWriter::describeVideoFrame(iter.pendingFrame, vsapi);
+                    trackInfos[iter.trackIndex].description = iter.description;
+                }
+            }
+            if (!writer.initialize(outFile, trackInfos, errorMessage)) {
+                fprintf(stderr, "%s\n", errorMessage.c_str());
+                failed = true;
+                break;
+            }
+            headerWritten = true;
+        } else if (stream.isVideo && !stream.descriptionChangeReported &&
+            MatroskaWriter::describeVideoFrame(stream.pendingFrame, vsapi) != stream.description) {
+            fprintf(stderr, "Warning: frame %d of output %d has different colour, field order or aspect ratio properties than its first frame, which the Matroska track header describes\n",
+                stream.frameIndex, stream.outputIndex);
+            stream.descriptionChangeReported = true;
+        }
+
         size_t frameSize = stream.isVideo ? muxVideoFrameSize(stream.vi, stream.alphaNode != nullptr) : muxAudioFrameSize(stream.pendingFrame, vsapi);
 
         if (!writer.writeFrameHeader(stream.trackIndex, stream.pendingTimeNs, frameSize, true, errorMessage) ||

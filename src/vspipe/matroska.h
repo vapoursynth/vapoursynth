@@ -29,6 +29,24 @@
 #include <string>
 #include <vector>
 
+/* What a video track's header says about its colour, field order and pixel aspect, in Matroska's
+   own numbering. Every entry is optional and stays out of the header while negative. */
+struct MatroskaVideoDescription {
+    int64_t matrixCoefficients = -1;
+    int64_t transferCharacteristics = -1;
+    int64_t primaries = -1;
+    int64_t range = -1;
+    int64_t chromaSitingHorz = -1;
+    int64_t chromaSitingVert = -1;
+    int64_t flagInterlaced = -1;
+    int64_t fieldOrder = -1;
+    /* The display aspect ratio, zero when the pixels are square or their shape is unknown. */
+    int64_t displayAspectNum = 0;
+    int64_t displayAspectDen = 0;
+
+    bool operator==(const MatroskaVideoDescription &) const = default;
+};
+
 struct MatroskaTrackInfo {
     bool isVideo = true;
 
@@ -38,6 +56,7 @@ struct MatroskaTrackInfo {
     uint32_t fourCC = 0;
     int64_t frameDurationNum = 0;   // seconds per frame, zero when the rate is unknown
     int64_t frameDurationDen = 1;
+    MatroskaVideoDescription description;
 
     /* Audio */
     int sampleRate = 0;
@@ -69,6 +88,11 @@ public:
        Returns false for formats with no fourcc a reader would recognise. */
     static bool getVideoFourCC(const VSVideoFormat &format, bool hasAlpha, uint32_t &fourCC);
     static bool isAudioFormatSupported(const VSAudioFormat &format);
+
+    /* Translates the reserved colour, field and aspect ratio properties of a video frame into
+       the track header's terms. Properties that are absent, unspecified or have no Matroska
+       equivalent are left out. */
+    static MatroskaVideoDescription describeVideoFrame(const VSFrame *frame, const VSAPI *vsapi);
 
 private:
     bool writeBuffer(const EbmlBuffer &buffer, const char *context, std::string &errorMessage);
