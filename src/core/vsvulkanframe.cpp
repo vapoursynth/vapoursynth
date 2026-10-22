@@ -146,10 +146,11 @@ bool VSVulkanTransfer::init(VSVulkanDevice &device, uint32_t slots, std::string 
     return true;
 }
 
-/* Device local required, host visible preferred: on resizable BAR systems a plane lands
-   writable straight from the CPU and uploads never touch staging -- where being exportable
-   does not rule that out, which is why upload targets are made plain where it does. Pooled,
-   since planes are exactly what the block allocator exists for. */
+/* Device local required, host visible preferred: on resizable BAR systems a plain plane lands
+   writable straight from the CPU and uploads never touch staging. An exportable one does not
+   wherever export narrows host visibility, every discrete card included, which is why upload
+   targets are made plain there. Pooled, since planes are exactly what the block allocator
+   exists for. */
 bool createGPUPlane(VSVulkanDevice &device, uint32_t width, uint32_t height, int bytesPerSample,
     ptrdiff_t stride, bool exportable, VSVulkanPlane &plane, std::string &errorMessage) {
     plane.reset();

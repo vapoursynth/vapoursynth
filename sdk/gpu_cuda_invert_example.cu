@@ -12,7 +12,8 @@
 *   - only planes handed to CUDA can be exported: the output is a fresh frame, handed over by
 *     its first export and taken back by the core when it is returned, and the input is taken
 *     with getExportableFrameFilter, which hands it over with its contents (in place when this
-*     filter is its only consumer, which the rpStrictSpatial request below arranges)
+*     filter is its only consumer, which the rpStrictSpatial request below arranges, unless the
+*     input is std.GPUUpload's on a card with resizable BAR, which is always copied)
 *   - synchronization is device side when possible: input producer pairs are imported with
 *     cudaImportExternalSemaphore (cached by VkSemaphore value, which the producer pair
 *     contract keeps stable for this instance's lifetime) and waited IN THE STREAM; the

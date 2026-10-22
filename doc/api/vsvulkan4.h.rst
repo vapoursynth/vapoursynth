@@ -1534,9 +1534,10 @@ const VSFrame \*getExportableFrameFilter(int n, VSNode \*node, VSFrameContext \*
    compute queue. That copy is made once per frame and shared by every request
    of it, from any filter, for as long as the frame stays cached, so a
    temporal filter pays one copy per source frame rather than one per tap. A
-   frame std.GPUUpload made is always copied where exportable memory cannot be
-   host visible (AMD's Windows driver): its planes are left unexportable
-   there, so the upload can write them directly.
+   frame std.GPUUpload made is always copied where exportable memory is not
+   host visible (discrete cards with resizable BAR, and AMD's Windows driver):
+   its planes are left unexportable there, so the upload can write them
+   directly.
 
    Like any input frame it is read only, on the foreign side as much as on the
    core's queues, and it never goes back to the core: returning it, or a frame

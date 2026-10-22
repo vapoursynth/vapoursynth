@@ -499,12 +499,12 @@ The pattern, per frame:
    frame stays cached, so a temporal filter's taps cost one copy per frame,
    not one per tap. Either way the frame is read only, like every input, and
    it never goes back to the core: a frame you return must not be it, share
-   its planes or hold it in its properties. On AMD's Windows driver, whose
-   exportable memory cannot be host visible, a frame std.GPUUpload made is
-   always copied: its planes are left unexportable so the upload can write
-   them directly. Frames in its properties are not handed over: request an
-   *_Alpha* frame as a clip of its own (std.PropToClip). Never call it while
-   holding an exec context.
+   its planes or hold it in its properties. Where exportable memory is not
+   host visible — discrete cards with resizable BAR, and AMD's Windows
+   driver — a frame std.GPUUpload made is always copied: its planes are left
+   unexportable so the upload can write them directly. Frames in its
+   properties are not handed over: request an *_Alpha* frame as a clip of its
+   own (std.PropToClip). Never call it while holding an exec context.
 #. Export each plane you touch. Cache imports keyed by *memoryId* — one
    ``cudaImportExternalMemory`` per 128 MB allocation, then per-plane
    pointers are just base + offset. Close surplus handles per the ownership

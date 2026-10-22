@@ -498,7 +498,7 @@ public:
 
     /* Whether a host visible device local memory type sits on a heap that is the card, or most
        of it, rather than a BAR window: resizable BAR in the loose sense. Without ReBAR, or with
-       it gated off per application as NVIDIA does on Windows, drivers expose the same type on
+       it gated off per application as NVIDIA's Windows driver can, drivers expose the same type on
        the classic 256 MiB window (246 MiB on NVIDIA), which holds a few small buffers and no
        frames. findMemoryType never lets a preference land on such a window, only a requirement,
        and the transfer stages uploads through VRAM only when this is set. */
@@ -507,7 +507,10 @@ public:
     /* Whether exporting a plane would cost it its host visibility: a buffer shaped like a plane
        may bind to a host visible device local type when plain, and to none once it is created
        exportable. AMD's Windows driver does this on its discrete and integrated devices alike;
-       RADV, NVIDIA and MoltenVK do not. Probed at creation where there is such a type to lose. */
+       RADV, NVIDIA and MoltenVK do not, so on a discrete card the core does it for them
+       (createBufferPooled), since NVIDIA's Windows driver backs exportable host visible memory
+       with something the card reaches at bus speed. Unified memory narrows only where the
+       driver does. Probed at creation where there is such a type to lose. */
     bool exportNarrowsHostVisible() const { return exportNarrowsFlag; }
 
     /* Whether the frames GPUUpload writes are allocated plain, wherever export narrows host

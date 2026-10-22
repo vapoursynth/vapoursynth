@@ -1817,8 +1817,8 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine, 
         dev->setComputeQueueLimit(1);
     if (std::getenv("VS_VULKAN_NO_TRANSFER_QUEUE"))
         dev->setIgnoreTransferFamily(true);
-    /* Upload targets exportable even where that makes the upload stage, as before, so direct
-       uploads can be measured against staged ones on the driver where the two differ. */
+    /* Upload targets exportable even where that makes the upload stage, so direct uploads can
+       be measured against staged ones on the devices where the two differ. */
     if (std::getenv("VS_VULKAN_EXPORTABLE_UPLOADS"))
         dev->setExportableUploads(true);
     /* Validation is a development switch, so an environment variable rather than API surface.
@@ -1932,8 +1932,8 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine, 
             std::to_string(memory->limit() >> 20) + " MB host limit (combined ceiling " +
             std::to_string(memory->combined_limit() >> 20) + " MB)";
     /* Said out loud because it decides a transfer path and cannot be seen from Python. Uploads
-       write planes directly wherever the planes can be host visible, which on a driver that
-       narrows export means upload targets that are not exportable; the staging left is BAR
+       write planes directly wherever the planes can be host visible, which takes upload targets
+       that are not exportable wherever export narrows host visibility; the staging left is BAR
        memory on a discrete card, host memory otherwise. */
     const VSVulkanDevice *created = vulkanDev.load();
     if (created->hasResizableBar()) {
