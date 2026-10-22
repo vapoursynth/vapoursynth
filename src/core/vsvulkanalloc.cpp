@@ -373,8 +373,13 @@ bool VSVulkanDevice::createBufferPooled(VSVulkanBuffer &buffer, VkDeviceSize siz
     /* The external info here and the export info on the block must appear together or binding
        is invalid, and it restricts the compatible memory types -- on some drivers to ones that
        are not host visible (exportNarrowsHostVisible) -- which is why a request that requires
-       host visibility never asks for it. */
+       host visibility never asks for it. Where the device narrows but the driver does not, an
+       exportable buffer's host preferences are dropped here, so it lands where the driver's
+       own narrowing would have put it. */
     const bool exportable = wantExportable && exportType && !(requiredFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    if (exportable && exportNarrowsFlag)
+        preferredFlags &= ~(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
+            VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
     VkExternalMemoryBufferCreateInfo externalInfo = {};
     externalInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
     externalInfo.handleTypes = exportType;

@@ -1016,7 +1016,13 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
             }
             return false;
         };
-        exportNarrowsFlag = allowsHostVisible(false) && !allowsHostVisible(true);
+        /* A discrete card counts as narrowing whether or not its driver does: NVIDIA's Windows
+           driver lets an exportable buffer bind to its host visible device local type and then
+           backs it with memory the card reaches at bus speed. A 1080p float box blur pass took
+           1.0 to 1.6 ms there against 0.02 for the same type plain or device local memory
+           exportable, on an RTX 4060 Ti, and every frame plane landed in it. Unified memory
+           has no bus to lose, so there the driver alone decides. */
+        exportNarrowsFlag = allowsHostVisible(false) && (!unifiedMemoryFlag || !allowsHostVisible(true));
     }
 
     state = State::Ready;
