@@ -4,6 +4,7 @@ vspipe's matroska output now sets track properties based on the first frame valu
 vspipe no longer downloads gpu resident frames when there's no output
 vk_khr_pipeline_executable_properties is now enabled when available so gpu filter authors can inspect their compiled pipelines
 fixed gpu filters running at pcie speed on nvidia cards with resizable bar exposed, exportable gpu memory is never placed in host visible vram on discrete cards anymore
+fixed plugins defining vs_use_api_43 getting the deprecated vscolorrange constants with full and limited swapped
 
 r81:
 improved gpu up/download speed
