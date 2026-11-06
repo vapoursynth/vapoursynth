@@ -48,6 +48,13 @@ VSVulkanExecPool::~VSVulkanExecPool() {
        reap. */
     std::string ignored;
     const bool completed = waitAll(ignored) || dev->deviceLost();
+    /* And then the driver's own bookkeeping, which reaching the timeline value does not drain
+       and which some drivers require drained before a command pool may be destroyed; see
+       VSVulkanDevice::queueIdleBeforePoolDestroy for which ones, and for what the drain costs.
+       Only the destroys below need it -- the retentions are safe on the value alone -- so it
+       goes after everything that waited and before the first of them. */
+    if (completed && q && dev->queueIdleBeforePoolDestroy())
+        dev->waitQueueIdle(*q);
     for (auto &context : contexts) {
         if (!completed) {
             settleRetained(*context);

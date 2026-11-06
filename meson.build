@@ -135,6 +135,16 @@ else
     warning('Unknown host OS')
 endif
 
+# Apple silicon only for the GPU paths. They assume unified memory everywhere on Apple -- that a
+# frame plane's memory is host visible and cached, so uploads write it and downloads read it
+# directly instead of staging -- and an Intel Mac's discrete card provides none of that. Keeping
+# a second policy for machines nothing can test any more buys less than it costs, so GPU support
+# is compiled out there and the GPU filters report what they report with no Vulkan driver.
+if host_system == 'darwin' and host_cpu_family != 'aarch64'
+    add_project_arguments('-DVS_NO_GPU_SUPPORT', language: ['c', 'cpp'])
+    message('macOS on @0@: GPU support disabled, Apple silicon only'.format(host_cpu_family))
+endif
+
 if not is_win
     add_project_arguments('-D_FILE_OFFSET_BITS=64', language: ['c', 'cpp'])
 endif

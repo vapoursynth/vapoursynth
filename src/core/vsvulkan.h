@@ -446,6 +446,16 @@ public:
 
     /* Only meaningful once create() has succeeded. */
     const VkPhysicalDeviceProperties &properties() const { return props; }
+
+    /* The driver as it reports itself, worth having beyond the device name because two drivers
+       for one Apple GPU report identical device names: the name alone does not say which one
+       the selection landed on, so the setup line prints both. Neither is what the selection
+       itself reads -- that runs before vkCreateDevice, off the driver ID. driverInfo is the
+       free form version string a driver chooses to print, "Mesa 26.2.6" or "1.4.2", and is
+       deliberately not called driverVersion: VkPhysicalDeviceProperties::driverVersion is a
+       different field, a packed number, reachable through properties() with the rest of it. */
+    const char *driverName() const { return driverNameStr; }
+    const char *driverInfo() const { return driverInfoStr; }
     const VkPhysicalDeviceMemoryProperties &memoryProperties() const { return memProps; }
 
     VSVulkanQueue &computeQueue() { return computeQ; }
@@ -585,6 +595,32 @@ public:
        the callers that most need it are destructors, where composing a message is one more
        allocation that can fail. */
     bool waitTimelines(const VkSemaphore *semaphores, const uint64_t *values, uint32_t count);
+
+    /* Whether a command pool a completed submission named may only be destroyed once its queue
+       has been drained, which is true of MoltenVK and of nothing else here; waitQueueIdle below
+       is that drain and explains the bug. Worth gating on rather than simply doing, because the
+       drain holds the queue lock until the GPU is idle: with no transfer family every filter
+       shares one queue, so freeing one pool would stall every other filter's submissions for
+       the length of their own in flight work. */
+    bool queueIdleBeforePoolDestroy() const { return queueIdleBeforePoolDestroyFlag; }
+
+    /* Drains the driver's own bookkeeping for a queue, which reaching a timeline value does not.
+       The spec says it should: a signal operation completes after everything before it in the
+       batch, so once the host sees the value the batch's command buffers are no longer pending
+       and their command pool may be destroyed. MoltenVK does not honour that -- it hands the
+       Metal command buffer's completion handler to a dispatch queue, and the handler returns an
+       internal allocation to a pool inside the MVKCommandPool, so destroying the command pool
+       between the signal and the handler aborts the process inside
+       MVKMTLBufferAllocationPool::returnAllocation. A queue wait does drain it, because Metal
+       does not report a command buffer completed until its handlers have run.
+
+       Only where Vulkan objects a submission named are destroyed, never where memory is merely
+       recycled: a frame's buffers go back to the allocator on the timeline wait alone, hundreds
+       of times a second, and serialising a queue for each of those would cost far more than it
+       could protect. Takes the queue's lock, which vkQueueWaitIdle requires and which this is
+       never called holding, and keeps it until the GPU is idle -- hence the gate above, which
+       every caller tests first. */
+    void waitQueueIdle(VSVulkanQueue &queue);
 
     /* Makes writes available outside the device's own domain: one tiny submission that
        device-waits the given timeline pairs, then executes an ALL_COMMANDS/MEMORY_WRITE to
@@ -826,6 +862,10 @@ private:
     VkDevice deviceHandle = VK_NULL_HANDLE;
     VkDebugUtilsMessengerEXT messenger = VK_NULL_HANDLE;
     VkPhysicalDeviceProperties props = {};
+    char driverNameStr[VK_MAX_DRIVER_NAME_SIZE] = {};
+    char driverInfoStr[VK_MAX_DRIVER_INFO_SIZE] = {};
+    /* See queueIdleBeforePoolDestroy; set from the driver ID in create. */
+    bool queueIdleBeforePoolDestroyFlag = false;
     VkPhysicalDeviceMemoryProperties memProps = {};
     VSVulkanQueue computeQ;
     VSVulkanQueue computeQ2;
@@ -862,6 +902,9 @@ private:
        headers. */
     PFN_vkVoidFunction exportMemoryFn = nullptr;
     PFN_vkVoidFunction exportSemaphoreFn = nullptr;
+    /* vkQueueWaitIdle, resolved privately: the frozen function table plugins share cannot gain
+       an entry, and nothing outside the core needs this. */
+    PFN_vkVoidFunction queueWaitIdleFn = nullptr;
     /* Windows, on a device that can export semaphores: the semaphores of every live
        VSVulkanTimeline, each with its one exported NT handle once exportGPUSemaphore has asked
        for it (0 until then) -- an NT handle may be exported only once per semaphore

@@ -44,6 +44,7 @@
 #include <cstdio>
 #include <cstring>
 #include <exception>
+#include <tuple>
 
 namespace {
 
@@ -78,8 +79,12 @@ struct VSVulkanFeatureChain {
 };
 
 /* The version and feature gate shared by device selection and enumeration. The reason
-   is phrased to continue a sentence beginning with the device name. */
-bool deviceSuitable(const VSVulkanFunctions &vkf, VkPhysicalDevice dev, uint32_t &apiVersion, std::string &reason) {
+   is phrased to continue a sentence beginning with the device name.
+
+   maybe_unused here and on the four helpers below: a VS_NO_GPU_SUPPORT build compiles out the
+   bodies of create and enumerateDevices, which are between them the only callers of all five,
+   and the one build this gate exists to produce should not be the one build that warns. */
+[[maybe_unused]] bool deviceSuitable(const VSVulkanFunctions &vkf, VkPhysicalDevice dev, uint32_t &apiVersion, std::string &reason) {
     VkPhysicalDeviceProperties2 props = {};
     props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
     vkf.vkGetPhysicalDeviceProperties2(dev, &props);
@@ -103,7 +108,7 @@ bool deviceSuitable(const VSVulkanFunctions &vkf, VkPhysicalDevice dev, uint32_t
     return true;
 }
 
-VkDeviceSize largestDeviceLocalHeap(const VSVulkanFunctions &vkf, VkPhysicalDevice dev) {
+[[maybe_unused]] VkDeviceSize largestDeviceLocalHeap(const VSVulkanFunctions &vkf, VkPhysicalDevice dev) {
     VkPhysicalDeviceMemoryProperties2 memProps = {};
     memProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
     vkf.vkGetPhysicalDeviceMemoryProperties2(dev, &memProps);
@@ -115,7 +120,7 @@ VkDeviceSize largestDeviceLocalHeap(const VSVulkanFunctions &vkf, VkPhysicalDevi
     return best;
 }
 
-bool deviceExtensionAvailable(const VSVulkanFunctions &vkf, VkPhysicalDevice dev, const char *extensionName) {
+[[maybe_unused]] bool deviceExtensionAvailable(const VSVulkanFunctions &vkf, VkPhysicalDevice dev, const char *extensionName) {
     uint32_t count = 0;
     if (vkf.vkEnumerateDeviceExtensionProperties(dev, nullptr, &count, nullptr) != VK_SUCCESS)
         return false;
@@ -129,7 +134,7 @@ bool deviceExtensionAvailable(const VSVulkanFunctions &vkf, VkPhysicalDevice dev
     return false;
 }
 
-bool instanceLayerAvailable(const VSVulkanFunctions &vkf, const char *layerName) {
+[[maybe_unused]] bool instanceLayerAvailable(const VSVulkanFunctions &vkf, const char *layerName) {
     uint32_t count = 0;
     if (vkf.vkEnumerateInstanceLayerProperties(&count, nullptr) != VK_SUCCESS)
         return false;
@@ -168,7 +173,7 @@ bool instanceExtensionAvailable(const VSVulkanFunctions &vkf, const char *layerN
    Opting in only makes the device visible; it still has to pass the same 1.4 version and
    feature gate as everything else, and is reported as unusable with a reason when it does
    not. */
-VkResult createBareInstance(const VSVulkanFunctions &vkf, uint32_t layerCount, const char *const *layers,
+[[maybe_unused]] VkResult createBareInstance(const VSVulkanFunctions &vkf, uint32_t layerCount, const char *const *layers,
     uint32_t extensionCount, const char *const *extensions, VkInstance &instance) {
     VkApplicationInfo app = {};
     app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -497,7 +502,24 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VSVulkanDevice::debugMessengerTrampoline(
     return VK_FALSE;
 }
 
+/* Builds with GPU support compiled out, which on macOS means everything but Apple silicon:
+   there is no device and no enumeration, so a GPU filter reports the same thing it reports on a
+   machine with no Vulkan driver. See the meson.build comment for why Intel Macs are excluded
+   rather than carried. */
+#ifdef VS_NO_GPU_SUPPORT
+static const char *noGPUSupportMessage() {
+    return "GPU support is not available in this build";
+}
+#endif
+
 bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std::string &errorMessage) {
+#ifdef VS_NO_GPU_SUPPORT
+    (void)physicalDeviceIndex;
+    (void)enableValidation;
+    state = State::Failed;
+    errorMessage = noGPUSupportMessage();
+    return false;
+#else
     if (state != State::Unused) {
         errorMessage = "VSVulkanDevice cannot be reused after a previous create";
         return false;
@@ -597,14 +619,30 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         /* Most powerful wins: discrete before integrated before anything else, and among
            equals the one with the most VRAM, which is the best power proxy available without
            benchmarking. The reasons of every rejected device end up in the error so a refusal
-           is diagnosable from the message alone. */
+           is diagnosable from the message alone.
+
+           A tie on both goes to the driver, which on an Apple silicon Mac with both Metal
+           drivers installed is the whole decision: the two report the same GPU, the same device
+           type and the same heap, so without this the pick fell out of enumeration order.
+           Anything that is not MoltenVK is preferred. Khronos deprecated it in 2026 and now
+           recommends KosmicKrisp on Apple silicon, which is also the driver without the command
+           buffer completion bug VSVulkanDevice::waitQueueIdle exists to absorb. Phrased as "not
+           MoltenVK" rather than "KosmicKrisp" on purpose: VK_DRIVER_ID_MOLTENVK has been in the
+           headers since 1.2 while VK_DRIVER_ID_MESA_KOSMICKRISP may postdate the bundled header
+           fallback, and the rule should hold for whatever replaces either. */
         int pick = -1;
         int bestRank = -1;
         VkDeviceSize bestHeap = 0;
+        int bestDriver = 0;
         std::string reasons;
         for (uint32_t i = 0; i < deviceCount; i++) {
+            /* Chained onto the properties this loop asks for anyway, so the tie break below
+               costs no query of its own. */
+            VkPhysicalDeviceDriverProperties driverProps = {};
+            driverProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
             VkPhysicalDeviceProperties2 p2 = {};
             p2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+            p2.pNext = &driverProps;
             vk.vkGetPhysicalDeviceProperties2(devices[i], &p2);
             uint32_t apiVersion = 0;
             std::string reason;
@@ -618,10 +656,14 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
             else if (p2.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
                 rank = 1;
             VkDeviceSize heap = largestDeviceLocalHeap(vk, devices[i]);
-            if (rank > bestRank || (rank == bestRank && heap > bestHeap)) {
+            /* Largest wins through the whole key; bestRank starting at -1 is what makes the
+               first suitable device take the slot whatever the rest of its key says. */
+            int driver = driverProps.driverID == VK_DRIVER_ID_MOLTENVK ? 0 : 1;
+            if (std::tie(rank, heap, driver) > std::tie(bestRank, bestHeap, bestDriver)) {
                 pick = static_cast<int>(i);
                 bestRank = rank;
                 bestHeap = heap;
+                bestDriver = driver;
             }
         }
         if (pick < 0) {
@@ -931,11 +973,21 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
 
     VkPhysicalDeviceIDProperties idProps = {};
     idProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
+    VkPhysicalDeviceDriverProperties driverProps = {};
+    driverProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
+    idProps.pNext = &driverProps;
     VkPhysicalDeviceProperties2 props2 = {};
     props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
     props2.pNext = &idProps;
     vk.vkGetPhysicalDeviceProperties2(physicalDeviceHandle, &props2);
     props = props2.properties;
+    memcpy(driverNameStr, driverProps.driverName, sizeof(driverNameStr));
+    memcpy(driverInfoStr, driverProps.driverInfo, sizeof(driverInfoStr));
+    driverNameStr[sizeof(driverNameStr) - 1] = 0;
+    driverInfoStr[sizeof(driverInfoStr) - 1] = 0;
+    /* Off the driver ID rather than the name just copied, which is free form. See
+       queueIdleBeforePoolDestroy for what this gates and why it is not done unconditionally. */
+    queueIdleBeforePoolDestroyFlag = driverProps.driverID == VK_DRIVER_ID_MOLTENVK;
     unifiedMemoryFlag = props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ||
                         props.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU;
     memcpy(uuid, idProps.deviceUUID, VK_UUID_SIZE);
@@ -975,6 +1027,7 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
         if (!exportSemaphoreFn)
             semaphoreExportType = static_cast<VkExternalSemaphoreHandleTypeFlagBits>(0);
     }
+    queueWaitIdleFn = vk.vkGetDeviceProcAddr(deviceHandle, "vkQueueWaitIdle");
 
     /* The memory types a plane may bind to, asked of a buffer made the way createBufferPooled
        makes one, plain and exportable: whether any of them is a host visible device local type
@@ -1027,6 +1080,18 @@ bool VSVulkanDevice::create(int physicalDeviceIndex, bool enableValidation, std:
 
     state = State::Ready;
     return true;
+#endif
+}
+
+void VSVulkanDevice::waitQueueIdle(VSVulkanQueue &queue) {
+    if (!queueWaitIdleFn || !queue.handle() || deviceLost())
+        return;
+    std::lock_guard<VSVulkanQueue> lock(queue);
+    VS_LOCK_HELD(vsLockQueue);
+    /* Nothing to report: the caller fixed its decision about retiring its objects before
+       calling, from waitAll and deviceLost, and a failure here is device loss -- already one of
+       those two, so a result could change nothing. */
+    reinterpret_cast<PFN_vkQueueWaitIdle>(queueWaitIdleFn)(queue.handle());
 }
 
 bool VSVulkanDevice::exportSemaphore(VkSemaphore semaphore, intptr_t &handle, std::string &errorMessage) {
@@ -1812,6 +1877,10 @@ void VSVulkanDevice::destroyBuffer(VSVulkanBuffer &buffer) {
 
 bool VSVulkanDevice::enumerateDevices(std::vector<VSVulkanDeviceInfo> &devices, std::string &errorMessage) {
     devices.clear();
+#ifdef VS_NO_GPU_SUPPORT
+    errorMessage = noGPUSupportMessage();
+    return false;
+#else
 
     VSVulkanLoader loader;
     if (!loader.initialize(errorMessage))
@@ -1875,6 +1944,7 @@ bool VSVulkanDevice::enumerateDevices(std::vector<VSVulkanDeviceInfo> &devices, 
 
     vkf.vkDestroyInstance(instance, nullptr);
     return true;
+#endif
 }
 
 /* The one place a producer timeline is made, so the export opt-in, its registration for

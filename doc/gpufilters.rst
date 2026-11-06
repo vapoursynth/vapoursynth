@@ -13,13 +13,30 @@ Requirements
 A GPU and driver with conformant Vulkan 1.4 support. That is the entire
 hardware gate: everything VapourSynth requires beyond the version is mandatory
 for conformant 1.4 implementations, so there is no fine print. In practice
-this means reasonably recent hardware from every desktop vendor, and macOS
-through MoltenVK. The Vulkan runtime is loaded dynamically; systems without it
-simply have no GPU support, and nothing else changes.
+this means reasonably recent hardware from every desktop vendor, and Apple
+silicon through either of the Metal drivers, KosmicKrisp or MoltenVK. The
+Vulkan runtime is loaded dynamically; systems without it simply have no GPU
+support, and nothing else changes.
+
+On macOS this is Apple silicon only. The GPU paths assume unified memory
+everywhere on Apple -- that a frame plane's memory is the host's, host visible
+and cached, so transfers read and write it directly rather than staging it
+through a copy -- and an Intel Mac's discrete card provides none of that, so
+builds for x86 macOS leave GPU support out: a GPU filter there reports what it
+reports on a machine with no Vulkan driver installed.
 
 Whether a specific device qualifies can be checked from Python with
 ``core.vulkan_devices``, which lists every device with a usable flag and, when
 not usable, the first requirement it failed.
+
+With no device selected the core takes the most capable one: discrete before
+integrated before anything else, then the largest device-local heap. Where that
+still ties — an Apple silicon Mac with both Metal drivers installed presents the
+same GPU twice, with the same type and the same heap — **MoltenVK is taken last**,
+since Khronos deprecated it in 2026 and now recommends KosmicKrisp on Apple
+silicon. It is still chosen when it is the only driver present, and
+``core.set_vulkan_device`` overrides all of this. The device line the core logs
+names the driver as well as the device.
 
 Using GPU filters
 #################

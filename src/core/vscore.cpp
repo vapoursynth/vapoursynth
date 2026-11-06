@@ -1968,7 +1968,18 @@ bool VSCore::createVulkanDeviceLocked(int deviceIndex, std::string &deviceLine, 
        that touches the core, vulkan_device_info from Python say, re-enters vulkanDevice() and
        takes the same non-recursive mutex again (L16 in linux_tests.md). They log it once the
        guard is gone. */
-    deviceLine = "Vulkan device: " + std::string(vulkanDev.load()->properties().deviceName) + ", " + limitInfo;
+    /* The driver as well as the device, because on a Mac with both Metal drivers installed the
+       device names are identical and the selection's choice between them would otherwise be
+       invisible; see the driver tie break in VSVulkanDevice::create. */
+    const VSVulkanDevice *named = vulkanDev.load();
+    std::string driverPart;
+    if (named->driverName()[0]) {
+        driverPart = std::string(" (") + named->driverName();
+        if (named->driverInfo()[0])
+            driverPart += std::string(" ") + named->driverInfo();
+        driverPart += ")";
+    }
+    deviceLine = "Vulkan device: " + std::string(named->properties().deviceName) + driverPart + ", " + limitInfo;
     return true;
 }
 
