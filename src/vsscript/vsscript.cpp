@@ -61,26 +61,59 @@ static PyGILState_STATE s;
 #define FREE_LIBRARY(x) dlclose(x)
 #endif
 
+/* The path this library was loaded from, as the loader recorded it. That needn't be the path the
+   configuration names it by: a distribution's /usr/lib/libvapoursynth-script.so is a symlink to
+   the wheel's library, and the path can also lead through a symlinked directory or a junction. */
 static std::filesystem::path getLibraryPath() {
 #ifdef VS_TARGET_OS_WINDOWS
     HMODULE module;
     if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(&getLibraryPath), &module)) {
         std::vector<wchar_t> pathBuf(65536);
         GetModuleFileNameW(module, pathBuf.data(), (DWORD)pathBuf.size());
-        LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE, pathBuf.data(), -1, pathBuf.data(), static_cast<int>(pathBuf.size()), nullptr, nullptr, 0);
         return pathBuf.data();
     }
 #else
     Dl_info info = {};
-    if (dladdr(reinterpret_cast<void *>(&getLibraryPath), &info)) {
-        std::string fname = info.dli_fname;
-        auto pos = fname.find("/lib64/");
-        if (pos != std::string::npos)
-            fname.replace(pos, 7, "/lib/");
-        return std::filesystem::path(fname).lexically_normal();
-    }
+    if (dladdr(reinterpret_cast<void *>(&getLibraryPath), &info))
+        return std::filesystem::path(info.dli_fname).lexically_normal();
 #endif
     return {};
+}
+
+#ifdef VS_TARGET_OS_WINDOWS
+static std::filesystem::path lowercasePath(const std::filesystem::path &path) {
+    std::wstring s = path.wstring();
+    LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE, s.data(), static_cast<int>(s.size()), s.data(), static_cast<int>(s.size()), nullptr, nullptr, 0);
+    return s;
+}
+#endif
+
+/* A library path in the form `vapoursynth config` writes it as a key, see _mangle_vsscript_key in
+   _utils.py: lowercased on Windows, with /lib64/ folded into /lib/ elsewhere. */
+static std::string configKey(const std::filesystem::path &path) {
+#ifdef VS_TARGET_OS_WINDOWS
+    return lowercasePath(path).u8string();
+#else
+    std::string s = path.u8string();
+    auto pos = s.find("/lib64/");
+    if (pos != std::string::npos)
+        s.replace(pos, 7, "/lib/");
+    return s;
+#endif
+}
+
+/* A path with every symlink and junction on it resolved, so that two paths to the same file come
+   out the same; the path itself when it can't be resolved, as for a key whose library is gone.
+   Case is ignored on Windows, as in the keys. */
+static std::string resolvedPath(const std::filesystem::path &path) {
+    std::error_code ec;
+    std::filesystem::path resolved = std::filesystem::canonical(path, ec);
+    if (ec)
+        resolved = path.lexically_normal();
+#ifdef VS_TARGET_OS_WINDOWS
+    resolved = lowercasePath(resolved);
+#endif
+    return resolved.u8string();
 }
 
 static std::string unescapeTOMLString(const std::string &input) {
@@ -134,15 +167,25 @@ static std::pair<std::filesystem::path, std::filesystem::path> readEnvConfig(con
     if (!configFile.is_open())
         return {};
     std::string line;
-    // Temp string here to ensure correct utf8 conversion
-    std::string vsscriptStrPath = vsscriptPath.u8string();
+    const std::string vsscriptKey = configKey(vsscriptPath);
+    std::string vsscriptResolved;
+    /* An entry names the library the way `vapoursynth config` found it, which is the file in the
+       wheel. This library may have been loaded by another path to that file, so where the key
+       doesn't match as written, the two paths are compared resolved. */
+    auto namesThisLibrary = [&](const std::string &key) {
+        if (key == vsscriptKey)
+            return true;
+        if (vsscriptResolved.empty())
+            vsscriptResolved = resolvedPath(vsscriptPath);
+        return resolvedPath(std::filesystem::u8path(key)) == vsscriptResolved;
+    };
     while (std::getline(configFile, line)) {
         if (line.empty() || line[0] == '#')
             continue;
         
         auto s1 = getTOMLString(line);
 
-        if (s1.first == vsscriptStrPath) {
+        if (namesThisLibrary(s1.first)) {
             auto s2 = getTOMLString(line, s1.second);
             auto s3 = getTOMLString(line, s2.second);
             auto s4 = getTOMLString(line, s3.second);

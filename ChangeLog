@@ -1,3 +1,6 @@
+r83:
+fixed vsscript not finding its configuration when loaded through a symlink, such as the libvapoursynth-script.so some distributions install
+
 r82:
 vspipe's matroska output is now playable by mpv as well
 vspipe's matroska output now sets track properties based on the first frame values of _Matrix, _Transfer, _Primaries, _Range, _ChromaLocation, _FieldBased, _SARNum and _SARDen
