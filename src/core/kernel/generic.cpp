@@ -568,24 +568,11 @@ void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
 template <class T>
 void conv_plane_v(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
 {
-    unsigned fwidth = params.matrixsize;
-    unsigned support = fwidth / 2;
-
     for (unsigned i = 0; i < height; ++i) {
         const void *srcp[25];
         void *dstp = line_ptr(dst, i, dst_stride);
 
-        unsigned dist_from_bottom = height - 1 - i;
-
-        for (unsigned k = 0; k < support; ++k) {
-            unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
-            srcp[k] = line_ptr(src, row, src_stride);
-        }
-        for (unsigned k = support; k < fwidth; ++k) {
-            unsigned row = dist_from_bottom < k - support ? height - std::min(k - support - dist_from_bottom, i) : i - support + k;
-            srcp[k] = line_ptr(src, row, src_stride);
-        }
-
+        vs_generic_gather_v_rows(src, src_stride, i, height, params.matrixsize, srcp);
         conv_scanline_v<T>(srcp, dstp, params, width);
     }
 }
@@ -594,24 +581,12 @@ template <class T>
 void conv_plane_x(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
 {
     void *tmp = vsh::vsh_aligned_malloc(width * sizeof(T), 64);
-    unsigned fwidth = params.matrixsize;
-    unsigned support = fwidth / 2;
 
     for (unsigned i = 0; i < height; ++i) {
         const void *srcp[25];
         void *dstp = line_ptr(dst, i, dst_stride);
 
-        unsigned dist_from_bottom = height - 1 - i;
-
-        for (unsigned k = 0; k < support; ++k) {
-            unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
-            srcp[k] = line_ptr(src, row, src_stride);
-        }
-        for (unsigned k = support; k < fwidth; ++k) {
-            unsigned row = dist_from_bottom < k - support ? height - std::min(k - support - dist_from_bottom, i) : i - support + k;
-            srcp[k] = line_ptr(src, row, src_stride);
-        }
-
+        vs_generic_gather_v_rows(src, src_stride, i, height, params.matrixsize, srcp);
         conv_scanline_v<T>(srcp, tmp, params, width);
         conv_scanline_h<T>(tmp, dstp, params, width);
     }

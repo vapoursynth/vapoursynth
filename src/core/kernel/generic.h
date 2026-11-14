@@ -46,6 +46,30 @@ struct vs_generic_params {
 	uint8_t saturate;
 };
 
+#ifdef __cplusplus
+#include <algorithm>
+
+/* The source rows of a vertical convolution pass over row i: fwidth taps, at most 25, mirrored
+   at the edges of a plane of height rows. Every ISA's kernels take their rows from here, so they
+   all mirror the same way. Static: each ISA's translation unit keeps its own copy built with its
+   own flags, which the linker could otherwise fold into one built for a CPU this one is not. */
+static inline void vs_generic_gather_v_rows(const void *src, ptrdiff_t src_stride, unsigned i, unsigned height, unsigned fwidth,
+	const void *srcp[])
+{
+	unsigned support = fwidth / 2;
+	unsigned dist_from_bottom = height - 1 - i;
+
+	for (unsigned k = 0; k < support; ++k) {
+		unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
+		srcp[k] = static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(row) * src_stride;
+	}
+	for (unsigned k = support; k < fwidth; ++k) {
+		unsigned row = dist_from_bottom < k - support ? height - std::min(k - support - dist_from_bottom, i) : i - support + k;
+		srcp[k] = static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(row) * src_stride;
+	}
+}
+#endif
+
 #define DECL(kernel, pixel, isa) void vs_generic_##kernel##_##pixel##_##isa(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
 #define DECL_3x3(kernel, pixel, isa) DECL(3x3_##kernel, pixel, isa)
 

@@ -67,24 +67,6 @@ void flip_right(T *ptr, unsigned n)
     }
 }
 
-// Fill srcp[0..fwidth-1] with the clamped/mirrored source row pointers for a
-// vertical pass centered on row i. Shared by conv_plane_v and conv_plane_x.
-inline void gather_v_rows(const void *src, ptrdiff_t src_stride, unsigned i, unsigned height, unsigned fwidth, const void *srcp[])
-{
-    unsigned support = fwidth / 2;
-    unsigned dist_from_bottom = height - 1 - i;
-
-    for (unsigned k = 0; k < support; ++k) {
-        unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
-        srcp[k] = line_ptr(src, row, src_stride);
-    }
-    for (unsigned k = support; k < fwidth; ++k) {
-        unsigned row = dist_from_bottom < k - support ? height - std::min(k - support - dist_from_bottom, i) : i - support + k;
-        srcp[k] = line_ptr(src, row, src_stride);
-    }
-}
-
-
 /* ---- horizontal pass kernels ------------------------------------------- */
 
 template <class ISA, unsigned N, unsigned K, bool First, bool Last>
@@ -687,7 +669,7 @@ void conv_plane_v(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
         const void *srcp[25];
         void *dstp = line_ptr(dst, i, dst_stride);
 
-        gather_v_rows(src, src_stride, i, height, fwidth, srcp);
+        vs_generic_gather_v_rows(src, src_stride, i, height, fwidth, srcp);
         kernel(srcp, dstp, tmp, params, width);
     }
 
@@ -709,7 +691,7 @@ void conv_plane_x(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
         const void *srcp[25];
         void *dstp = line_ptr(dst, i, dst_stride);
 
-        gather_v_rows(src, src_stride, i, height, fwidth, srcp);
+        vs_generic_gather_v_rows(src, src_stride, i, height, fwidth, srcp);
 
         kernel_v(srcp, tmp1 + 32, tmp2, params, width);
         flip_left(tmp1 + 32, 12);

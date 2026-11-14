@@ -616,23 +616,6 @@ void conv_v_scanline(const void *const *srcs, typename cv_traits<TY>::T *dstp, u
     }
 }
 
-// Mirror row-pointer selection of conv_plane_v / conv_plane_x, verbatim.
-inline void conv_v_select_rows(const void *src, ptrdiff_t src_stride, const void *srcp[25],
-                               unsigned i, unsigned height, unsigned fwidth)
-{
-    unsigned support = fwidth / 2;
-    unsigned dist_from_bottom = height - 1 - i;
-
-    for (unsigned k = 0; k < support; ++k) {
-        unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
-        srcp[k] = static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(row) * src_stride;
-    }
-    for (unsigned k = support; k < fwidth; ++k) {
-        unsigned row = dist_from_bottom < k - support ? height - std::min(k - support - dist_from_bottom, i) : i - support + k;
-        srcp[k] = static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(row) * src_stride;
-    }
-}
-
 // ---- plane drivers ------------------------------------------------------------
 
 template <CvType TY, unsigned FW>
@@ -664,7 +647,7 @@ void conv_plane_v_impl(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff
 
     for (unsigned i = 0; i < height; ++i) {
         const void *srcp[25];
-        conv_v_select_rows(src, src_stride, srcp, i, height, p.matrixsize);
+        vs_generic_gather_v_rows(src, src_stride, i, height, p.matrixsize, srcp);
         T *dstp = reinterpret_cast<T *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i) * dst_stride);
         conv_v_scanline<TY, FW>(srcp, dstp, width, p, sc, bi, sm, mv, wb);
     }
@@ -697,7 +680,7 @@ void conv_plane_x_impl(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff
 
     for (unsigned i = 0; i < height; ++i) {
         const void *srcp[25];
-        conv_v_select_rows(src, src_stride, srcp, i, height, p.matrixsize);
+        vs_generic_gather_v_rows(src, src_stride, i, height, p.matrixsize, srcp);
         T *dstp = reinterpret_cast<T *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i) * dst_stride);
         conv_v_scanline<TY, FW>(srcp, tmp, width, p, sc, bi, sm, mv, wb);
 #ifdef VS_TARGET_ARM_I8MM
