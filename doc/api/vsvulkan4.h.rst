@@ -1035,7 +1035,8 @@ VSGPUMemoryReservation_ \*reserveGPUMemory(VSCore \*core, int64_t bytes, char \*
    The core never refuses a reservation: it does not own the memory and
    cannot veto it. What an increase buys is cooperation. When the declared
    bytes push the GPU pool past its limit, the least valuable cached GPU
-   frames are evicted down to a tenth under it and fully idle allocator
+   frames no request is still reading are evicted down to a tenth under it
+   (evicting one in use would free nothing) and fully idle allocator
    blocks are handed back to the driver before the call returns — so reserve
    or update **before** the foreign allocation, and the VRAM it is about to
    ask the driver for has actually been vacated. Shrinking and releasing just

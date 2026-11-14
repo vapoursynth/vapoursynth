@@ -65,92 +65,57 @@ typedef SingleNodeData<LutDataExtra> LutData;
 } // namespace
 
 template<typename T, typename U>
-static const VSFrame *VS_CC lutGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    LutData *d = reinterpret_cast<LutData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSVideoFormat &fi = d->vi_out.format;
-        const int pl[] = {0, 1, 2};
-        const VSFrame *fr[] = {d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src};
-        VSFrame *dst = vsapi->newVideoFrame2(&fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
-
-        for (int plane = 0; plane < fi.numPlanes; plane++) {
-
-            if (d->process[plane]) {
-                const T * VS_RESTRICT srcp = reinterpret_cast<const T *>(vsapi->getReadPtr(src, plane));
-                ptrdiff_t src_stride = vsapi->getStride(src, plane);
-                U * VS_RESTRICT dstp = reinterpret_cast<U *>(vsapi->getWritePtr(dst, plane));
-                ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
-                int h = vsapi->getFrameHeight(src, plane);
-                int w = vsapi->getFrameWidth(src, plane);
-
-                const U * VS_RESTRICT lut = reinterpret_cast<const U *>(d->lut);
-
+static void lutRow(const T * VS_RESTRICT srcp, U * VS_RESTRICT dstp, int w, const U * VS_RESTRICT lut, [[maybe_unused]] const LutData *d) {
 #ifdef VS_TARGET_CPU_X86
-                if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>) {
-                    if (d->use_vbmi) {
-                        for (int hl = 0; hl < h; hl++) {
-                            vs_lut1_b_b_avx512vbmi(srcp, dstp, w, lut);
-                            dstp += dst_stride / sizeof(U);
-                            srcp += src_stride / sizeof(T);
-                        }
-                        continue; // plane done; skip the scalar fallback
-                    }
-                }
+    if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>) {
+        if (d->use_vbmi) {
+            vs_lut1_b_b_avx512vbmi(srcp, dstp, w, lut);
+            return;
+        }
+    }
 #endif
 #ifdef VS_TARGET_CPU_ARM64
-                if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>) {
-                    if (d->use_neon) {
-                        for (int hl = 0; hl < h; hl++) {
-                            vs_lut1_b_b_neon(srcp, dstp, w, lut);
-                            dstp += dst_stride / sizeof(U);
-                            srcp += src_stride / sizeof(T);
-                        }
-                        continue; // plane done; skip the scalar fallback
-                    }
-                }
-#endif
-                for (int hl = 0; hl < h; hl++) {
-                    if constexpr (std::is_same_v<U, uint8_t>) {
-                        constexpr bool le = std::endian::native == std::endian::little;
-                        for (int x = 0; x < w; x += 8) {
-                            uint64_t p = ((uint64_t)lut[srcp[x + 0]] << (le ?  0 : 56))
-                                | ((uint64_t)lut[srcp[x + 1]] << (le ?  8 : 48))
-                                | ((uint64_t)lut[srcp[x + 2]] << (le ? 16 : 40))
-                                | ((uint64_t)lut[srcp[x + 3]] << (le ? 24 : 32))
-                                | ((uint64_t)lut[srcp[x + 4]] << (le ? 32 : 24))
-                                | ((uint64_t)lut[srcp[x + 5]] << (le ? 40 : 16))
-                                | ((uint64_t)lut[srcp[x + 6]] << (le ? 48 :  8))
-                                | ((uint64_t)lut[srcp[x + 7]] << (le ? 56 :  0));
-                            std::memcpy(dstp + x, &p, sizeof(p));
-                        }
-                    } else if constexpr (std::is_same_v<U, uint16_t>) {
-                        constexpr bool le = std::endian::native == std::endian::little;
-                        for (int x = 0; x < w; x += 4) {
-                            uint64_t p = ((uint64_t)lut[srcp[x + 0]] << (le ?  0 : 48))
-                                | ((uint64_t)lut[srcp[x + 1]] << (le ? 16 : 32))
-                                | ((uint64_t)lut[srcp[x + 2]] << (le ? 32 : 16))
-                                | ((uint64_t)lut[srcp[x + 3]] << (le ? 48 :  0));
-                            std::memcpy(dstp + x, &p, sizeof(p));
-                        }
-                    } else {
-                        for (int x = 0; x < w; x++)
-                            dstp[x] = lut[srcp[x]];
-                    }
-                    dstp += dst_stride / sizeof(U);
-                    srcp += src_stride / sizeof(T);
-                }
-            }
+    if constexpr (std::is_same_v<T, uint8_t> && std::is_same_v<U, uint8_t>) {
+        if (d->use_neon) {
+            vs_lut1_b_b_neon(srcp, dstp, w, lut);
+            return;
         }
-
-        vsapi->freeFrame(src);
-        return dst;
     }
+#endif
+    if constexpr (std::is_same_v<U, uint8_t>) {
+        constexpr bool le = std::endian::native == std::endian::little;
+        for (int x = 0; x < w; x += 8) {
+            uint64_t p = ((uint64_t)lut[srcp[x + 0]] << (le ?  0 : 56))
+                | ((uint64_t)lut[srcp[x + 1]] << (le ?  8 : 48))
+                | ((uint64_t)lut[srcp[x + 2]] << (le ? 16 : 40))
+                | ((uint64_t)lut[srcp[x + 3]] << (le ? 24 : 32))
+                | ((uint64_t)lut[srcp[x + 4]] << (le ? 32 : 24))
+                | ((uint64_t)lut[srcp[x + 5]] << (le ? 40 : 16))
+                | ((uint64_t)lut[srcp[x + 6]] << (le ? 48 :  8))
+                | ((uint64_t)lut[srcp[x + 7]] << (le ? 56 :  0));
+            std::memcpy(dstp + x, &p, sizeof(p));
+        }
+    } else if constexpr (std::is_same_v<U, uint16_t>) {
+        constexpr bool le = std::endian::native == std::endian::little;
+        for (int x = 0; x < w; x += 4) {
+            uint64_t p = ((uint64_t)lut[srcp[x + 0]] << (le ?  0 : 48))
+                | ((uint64_t)lut[srcp[x + 1]] << (le ? 16 : 32))
+                | ((uint64_t)lut[srcp[x + 2]] << (le ? 32 : 16))
+                | ((uint64_t)lut[srcp[x + 3]] << (le ? 48 :  0));
+            std::memcpy(dstp + x, &p, sizeof(p));
+        }
+    } else {
+        for (int x = 0; x < w; x++)
+            dstp[x] = lut[srcp[x]];
+    }
+}
 
-    return nullptr;
+template<typename T, typename U>
+static void VS_CC lutProcess(const VSTileRegion *region, const VSTileBuffer *src, const VSTileBuffer *dst, [[maybe_unused]] void *frameState, void *instanceData) {
+    const LutData *d = static_cast<const LutData *>(instanceData);
+    const U *lut = reinterpret_cast<const U *>(d->lut);
+    for (int y = region->rowStart; y < region->rowEnd; y++)
+        lutRow<T, U>(reinterpret_cast<const T *>(tileRow(&src[0], y)), reinterpret_cast<U *>(tileRow(dst, y)), region->width, lut, d);
 }
 
 template<typename T>
@@ -275,8 +240,9 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std::
         return;
     }
 
-    VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "Lut", &d->vi_out, lutGetframe<T, U>, filterFree<LutData>, fmParallel, deps, 1, d.get(), core);
+    /* Lut only takes clips of constant format and size, so on the CPU it is always tiled. */
+    createTiledFilter(out, "Lut", &d->vi_out, &d->node, 1, unprocessedPlanes(d->process, d->vi_out.format.numPlanes),
+        lutProcess<T, U>, nullptr, filterFree<LutData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -430,55 +396,22 @@ static inline bool lut2GatherRow([[maybe_unused]] const T *sx, [[maybe_unused]] 
 }
 
 template<typename T, typename U, typename V>
-static const VSFrame *VS_CC lut2Getframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    Lut2Data *d = reinterpret_cast<Lut2Data *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node1, frameCtx);
-        vsapi->requestFrameFilter(n, d->node2, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *srcx = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrame *srcy = vsapi->getFrameFilter(n, d->node2, frameCtx);
-        const VSVideoFormat &fi = d->vi_out.format;
-        const int pl[] = {0, 1, 2};
-        const VSFrame *fr[] = {d->process[0] ? 0 : srcx, d->process[1] ? 0 : srcx, d->process[2] ? 0 : srcx};
-        VSFrame *dst = vsapi->newVideoFrame2(&fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), fr, pl, srcx, core);
-
-        int shift = vsapi->getVideoFrameFormat(srcx)->bitsPerSample;
-        T maxvalx = static_cast<T>((static_cast<int64_t>(1) << shift) - 1);
-        U maxvaly = static_cast<U>((static_cast<int64_t>(1) << vsapi->getVideoFrameFormat(srcy)->bitsPerSample) - 1);
-
-        for (int plane = 0; plane < fi.numPlanes; plane++) {
-
-            if (d->process[plane]) {
-                const T * VS_RESTRICT srcpx = reinterpret_cast<const T *>(vsapi->getReadPtr(srcx, plane));
-                const U * VS_RESTRICT srcpy = reinterpret_cast<const U *>(vsapi->getReadPtr(srcy, plane));
-                ptrdiff_t srcx_stride = vsapi->getStride(srcx, plane);
-                ptrdiff_t srcy_stride = vsapi->getStride(srcy, plane);
-                V * VS_RESTRICT dstp = reinterpret_cast<V *>(vsapi->getWritePtr(dst, plane));
-                const V * VS_RESTRICT lut = reinterpret_cast<const V *>(d->lut);
-                ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
-                int h = vsapi->getFrameHeight(srcx, plane);
-                int w = vsapi->getFrameWidth(srcx, plane);
-
-                for (int hl = 0; hl < h; hl++) {
-                    if (!(d->use_gather && lut2GatherRow<T, U, V>(srcpx, srcpy, dstp, w, lut, shift, maxvalx, maxvaly))) {
-                        for (int x = 0; x < w; x++)
-                            dstp[x] =  lut[(std::min(srcpy[x], maxvaly) << shift) + std::min(srcpx[x], maxvalx)];
-                    }
-                    srcpx += srcx_stride / sizeof(T);
-                    srcpy += srcy_stride / sizeof(U);
-                    dstp += dst_stride / sizeof(V);
-                }
-            }
-        }
-
-        vsapi->freeFrame(srcx);
-        vsapi->freeFrame(srcy);
-        return dst;
+static void lut2Row(const T * VS_RESTRICT srcpx, const U * VS_RESTRICT srcpy, V * VS_RESTRICT dstp, int w, const V * VS_RESTRICT lut, int shift, T maxvalx, U maxvaly, bool use_gather) {
+    if (!(use_gather && lut2GatherRow<T, U, V>(srcpx, srcpy, dstp, w, lut, shift, maxvalx, maxvaly))) {
+        for (int x = 0; x < w; x++)
+            dstp[x] =  lut[(std::min(srcpy[x], maxvaly) << shift) + std::min(srcpx[x], maxvalx)];
     }
+}
 
-    return nullptr;
+template<typename T, typename U, typename V>
+static void VS_CC lut2Process(const VSTileRegion *region, const VSTileBuffer *src, const VSTileBuffer *dst, [[maybe_unused]] void *frameState, void *instanceData) {
+    const Lut2Data *d = static_cast<const Lut2Data *>(instanceData);
+    const int shift = d->vi[0]->format.bitsPerSample;
+    const T maxvalx = static_cast<T>((static_cast<int64_t>(1) << shift) - 1);
+    const U maxvaly = static_cast<U>((static_cast<int64_t>(1) << d->vi[1]->format.bitsPerSample) - 1);
+    const V *lut = reinterpret_cast<const V *>(d->lut);
+    for (int y = region->rowStart; y < region->rowEnd; y++)
+        lut2Row<T, U, V>(reinterpret_cast<const T *>(tileRow(&src[0], y)), reinterpret_cast<const U *>(tileRow(&src[1], y)), reinterpret_cast<V *>(tileRow(dst, y)), region->width, lut, shift, maxvalx, maxvaly, d->use_gather);
 }
 
 template<typename T>
@@ -633,8 +566,11 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunction *func, std:
         return;
     }
 
-    VSFilterDependency deps[] = {{ d->node1, rpStrictSpatial }, { d->node2, (d->vi[0]->numFrames <= d->vi[1]->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }};
-    vsapi->createVideoFilter(out, "Lut2", &d->vi_out, lut2Getframe<T, U, V>, filterFree<Lut2Data>, fmParallel, deps, 2, d.get(), core);
+    /* Lut2 only takes clips of constant format and size, and clipb has every plane that is
+       processed, so on the CPU it is always tiled. */
+    VSNode *inputs[] = { d->node1, d->node2 };
+    createTiledFilter(out, "Lut2", &d->vi_out, inputs, 2, unprocessedPlanes(d->process, d->vi_out.format.numPlanes),
+        lut2Process<T, U, V>, nullptr, filterFree<Lut2Data>, d.get(), core, vsapi);
     d.release();
 }
 

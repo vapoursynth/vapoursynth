@@ -198,15 +198,16 @@ void sq_plane_byte_dot_3x3(const void *src, ptrdiff_t ss, void *dst, ptrdiff_t d
     const float32x4_t sc = vdupq_n_f32(p.div), bi = vdupq_n_f32(p.bias);
     const uint32x4_t sm = nc_satmask(p.saturate);
 
-    for (unsigned i = 0; i < H; ++i) {
+    const vs_generic_rows window(p, H);
+    for (unsigned i = window.start; i < window.end; ++i) {
         unsigned above = i == 0 ? 0 : i - 1;
         unsigned below = i == H - 1 ? H - 1 : i + 1;
         const uint8_t *rows[3] = {
-            static_cast<const uint8_t *>(src) + static_cast<ptrdiff_t>(above) * ss,
-            static_cast<const uint8_t *>(src) + static_cast<ptrdiff_t>(i) * ss,
-            static_cast<const uint8_t *>(src) + static_cast<ptrdiff_t>(below) * ss,
+            static_cast<const uint8_t *>(src) + static_cast<ptrdiff_t>(above & window.src_mask) * ss,
+            static_cast<const uint8_t *>(src) + static_cast<ptrdiff_t>(i & window.src_mask) * ss,
+            static_cast<const uint8_t *>(src) + static_cast<ptrdiff_t>(below & window.src_mask) * ss,
         };
-        uint8_t *d = static_cast<uint8_t *>(dst) + static_cast<ptrdiff_t>(i) * ds;
+        uint8_t *d = static_cast<uint8_t *>(dst) + static_cast<ptrdiff_t>(i & window.dst_mask) * ds;
 
         const unsigned aend = sq_interior_byte_dot<3>(rows, d, 1, W, cg, sc, bi, sm);
 
@@ -344,10 +345,11 @@ void h_plane_byte_dot(const void *src, ptrdiff_t ss, void *dst, ptrdiff_t ds,
                       const vs_generic_params &p, unsigned W, unsigned H)
 {
     const h_dot_ctx c = h_dot_make(p, W);
+    const vs_generic_rows rows(p, H);
 
-    for (unsigned i = 0; i < H; ++i) {
-        const uint8_t *srcp = static_cast<const uint8_t *>(src) + static_cast<ptrdiff_t>(i) * ss;
-        uint8_t *d = static_cast<uint8_t *>(dst) + static_cast<ptrdiff_t>(i) * ds;
+    for (unsigned i = rows.start; i < rows.end; ++i) {
+        const uint8_t *srcp = static_cast<const uint8_t *>(src) + static_cast<ptrdiff_t>(i & rows.src_mask) * ss;
+        uint8_t *d = static_cast<uint8_t *>(dst) + static_cast<ptrdiff_t>(i & rows.dst_mask) * ds;
         h_dot_scanline(c, srcp, d, W, p);
     }
 }

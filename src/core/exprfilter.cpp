@@ -66,6 +66,7 @@ struct ExprData {
     ExprCompiler::ProcessLineProc proc[3];
     size_t procSize[3];
     int procPixels[3] = { 8, 8, 8 };  // pixels/iteration of the JIT proc (16 for the AVX-512 path)
+    int srcBytes[MAX_EXPR_INPUTS] = {};  // bytes per sample of each input, for the tiled path that has no frames to ask
 
     ExprData() : node(), vi(), plane(), numInputs(), proc() {}
 
@@ -337,82 +338,44 @@ std::string exprPlaneBody(const std::vector<ExprInstruction> &code, int &maxReg,
 
 } // namespace
 
-static const VSFrame *VS_CC exprGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    ExprData *d = static_cast<ExprData *>(instanceData);
-    int numInputs = d->numInputs;
+/* Expr runs tiled: the core hands over rows of each plane. A plane left undefined is simply not
+   written. */
+static void VS_CC exprProcess(const VSTileRegion *region, const VSTileBuffer *src, const VSTileBuffer *dst, [[maybe_unused]] void *frameState, void *instanceData) {
+    const ExprData *d = static_cast<const ExprData *>(instanceData);
+    const int plane = region->plane;
+    const int numInputs = d->numInputs;
+    if (d->plane[plane] != poProcess)
+        return;
 
-    if (activationReason == arInitial) {
-        for (int i = 0; i < numInputs; i++)
-            vsapi->requestFrameFilter(n, d->node[i], frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src[MAX_EXPR_INPUTS] = {};
-        for (int i = 0; i < numInputs; i++)
-            src[i] = vsapi->getFrameFilter(n, d->node[i], frameCtx);
-
-        int height = vsapi->getFrameHeight(src[0], 0);
-        int width = vsapi->getFrameWidth(src[0], 0);
-        int planes[3] = { 0, 1, 2 };
-        const VSFrame *srcf[3] = { d->plane[0] != poCopy ? nullptr : src[0], d->plane[1] != poCopy ? nullptr : src[0], d->plane[2] != poCopy ? nullptr : src[0] };
-        VSFrame *dst = vsapi->newVideoFrame2(&d->vi.format, width, height, srcf, planes, src[0], core);
-
-        const uint8_t *srcp[MAX_EXPR_INPUTS] = {};
-        ptrdiff_t src_stride[MAX_EXPR_INPUTS] = {};
+    if (d->proc[plane]) {
+        ExprCompiler::ProcessLineProc proc = d->proc[plane];
+        // Pixels the compiled proc consumes per iteration (16 on the AVX-512 path,
+        // 8 otherwise). Drives both the per-iteration pointer advance and the count.
+        int lanes = d->procPixels[plane];
         alignas(32) intptr_t ptroffsets[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = {};
+        ptroffsets[0] = d->vi.format.bytesPerSample * lanes;
+        for (int i = 0; i < numInputs; i++)
+            ptroffsets[i + 1] = d->srcBytes[i] * lanes;
+        int niterations = (region->width + lanes - 1) / lanes;
 
-        for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
-            if (d->plane[plane] != poProcess)
-                continue;
-
-            // Pixels the compiled proc consumes per iteration (16 on the AVX-512 path,
-            // 8 otherwise). Drives both the per-iteration pointer advance and the count.
-            int lanes = d->procPixels[plane];
-            ptroffsets[0] = d->vi.format.bytesPerSample * lanes;
-
-            for (int i = 0; i < numInputs; i++) {
-                srcp[i] = vsapi->getReadPtr(src[i], plane);
-                src_stride[i] = vsapi->getStride(src[i], plane);
-                ptroffsets[i + 1] = vsapi->getVideoFrameFormat(src[i])->bytesPerSample * lanes;
-            }
-
-            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
-            int h = vsapi->getFrameHeight(dst, plane);
-            int w = vsapi->getFrameWidth(dst, plane);
-
-            if (d->proc[plane]) {
-                ExprCompiler::ProcessLineProc proc = d->proc[plane];
-                int niterations = (w + lanes - 1) / lanes;
-
-                for (int y = 0; y < h; y++) {
-                    alignas(32) uint8_t *rwptrs[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = { dstp + dst_stride * y };
-                    for (int i = 0; i < numInputs; i++) {
-                        rwptrs[i + 1] = const_cast<uint8_t *>(srcp[i] + src_stride[i] * y);
-                    }
-                    proc(rwptrs, ptroffsets, niterations);
-                }
-            } else {
-                ExprInterpreter interpreter(d->bytecode[plane].data(), d->bytecode[plane].size());
-
-                for (int y = 0; y < h; y++) {
-                    for (int x = 0; x < w; x++) {
-                        interpreter.eval(srcp, dstp, x);
-                    }
-
-                    for (int i = 0; i < numInputs; i++) {
-                        srcp[i] += src_stride[i];
-                    }
-                    dstp += dst_stride;
-                }
-            }
+        for (int y = region->rowStart; y < region->rowEnd; y++) {
+            alignas(32) uint8_t *rwptrs[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = { tileRow(dst, y) };
+            for (int i = 0; i < numInputs; i++)
+                rwptrs[i + 1] = tileRow(&src[i], y);
+            proc(rwptrs, ptroffsets, niterations);
         }
+    } else {
+        ExprInterpreter interpreter(d->bytecode[plane].data(), d->bytecode[plane].size());
+        const uint8_t *srcp[MAX_EXPR_INPUTS] = {};
 
-        for (int i = 0; i < MAX_EXPR_INPUTS; i++) {
-            vsapi->freeFrame(src[i]);
+        for (int y = region->rowStart; y < region->rowEnd; y++) {
+            for (int i = 0; i < numInputs; i++)
+                srcp[i] = tileRow(&src[i], y);
+            uint8_t *dstp = tileRow(dst, y);
+            for (int x = 0; x < region->width; x++)
+                interpreter.eval(srcp, dstp, x);
         }
-        return dst;
     }
-
-    return nullptr;
 }
 
 static void VS_CC exprFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
@@ -456,8 +419,10 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         residency = residencyOfClips(d->node, d->numInputs, vsapi);
 
         const VSVideoInfo *vi[MAX_EXPR_INPUTS] = {};
-        for (int i = 0; i < d->numInputs; i++)
+        for (int i = 0; i < d->numInputs; i++) {
             vi[i] = vsapi->getVideoInfo(d->node[i]);
+            d->srcBytes[i] = vi[i]->format.bytesPerSample;
+        }
 
         for (int i = 0; i < d->numInputs; i++) {
             if (!isConstantVideoFormat(vi[i]))
@@ -525,7 +490,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 continue;
 
             // The JIT converts half via F16C; when that's missing, leave proc[i] null for
-            // any plane that loads or stores half so exprGetFrame runs the interpreter for
+            // any plane that loads or stores half so exprProcess runs the interpreter for
             // it (which does the conversion in software) instead of emitting an illegal
             // vcvtph2ps.
             bool planeUsesHalf = false;
@@ -560,10 +525,6 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         vsapi->mapSetError(out, (std::string{ "Expr: " } + e.what()).c_str());
         return;
     }
-
-    std::vector<VSFilterDependency> deps;
-    for (int i = 0; i < d->numInputs; i++)
-        deps.push_back({d->node[i], (d->vi.numFrames <= vsapi->getVideoInfo(d->node[i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
 
     /* Nothing else frees these: ~ExprData only unmaps the JIT code, and exprFree runs only
        for a filter that was actually created, so every path that gives up here has to
@@ -730,6 +691,10 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             std::memcpy(pushData, push, pushWords * sizeof(uint32_t));
         };
 
+        std::vector<VSFilterDependency> deps;
+        for (int i = 0; i < d->numInputs; i++)
+            deps.push_back({d->node[i], (d->vi.numFrames <= vsapi->getVideoInfo(d->node[i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
+
         std::string error;
         VSNode *result = vsgpu::createFilter("Expr", desc, deps.data(), d->numInputs, core, vsapi, error);
         for (int i = 0; i < d->numInputs; i++)
@@ -741,7 +706,13 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         return;
     }
 
-    vsapi->createVideoFilter(out, "Expr", &d->vi, exprGetFrame, exprFree, fmParallel, deps.data(), d->numInputs, d.get(), core);
+    /* Every input already has the output's constant size, planes and subsampling, which is all
+       a tiled filter needs. */
+    int passthrough = 0;
+    for (int i = 0; i < d->vi.format.numPlanes; i++)
+        if (d->plane[i] == poCopy)
+            passthrough |= 1 << i;
+    createTiledFilter(out, "Expr", &d->vi, d->node, d->numInputs, passthrough, exprProcess, nullptr, exprFree, d.get(), core, vsapi);
     d.release();
 }
 

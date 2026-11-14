@@ -2,6 +2,7 @@ import gc
 import os
 import subprocess
 import sys
+import time
 import unittest
 
 import vapoursynth as vs
@@ -303,6 +304,64 @@ class FramePoolTests(unittest.TestCase):
         gc.collect()
         self.core.max_cache_size = 1
         self._check([self._frame(2048, 1024, 200)])
+
+
+class CachePressureTests(unittest.TestCase):
+    """Pressure sweeps evict cached frames to get memory back, which a frame something else still
+    holds cannot give: evicting it frees nothing and only makes the next request compute it again,
+    which for a temporal filter is every frame its outputs in flight are reading."""
+
+    def setUp(self):
+        self.core = vs.core
+        self._limit = self.core.max_cache_size
+
+    def tearDown(self):
+        self.core.max_cache_size = self._limit
+
+    def _pressure(self):
+        # over the limit for well under the two seconds after which the whole pipeline is
+        # flushed, with calls completing all along: each samples the pressure, and the sweeps
+        # run 150 ms apart under it
+        other = self.core.std.BlankClip(format=vs.GRAY8, width=1024, height=1024, length=100000)
+        self.core.max_cache_size = 1
+        deadline = time.monotonic() + 0.8
+        n = 0
+        while time.monotonic() < deadline:
+            other.get_frame(n).close()
+            n += 1
+        self.core.max_cache_size = self._limit
+
+    def _counted(self):
+        calls = {}
+
+        def count(n, f):
+            calls[n] = calls.get(n, 0) + 1
+            return f
+        src = self.core.std.BlankClip(format=vs.GRAY8, width=1024, height=1024, length=2)
+        return self.core.std.ModifyFrame(src, src, count), calls
+
+    def test_pressure_evicts_only_frames_nothing_else_holds(self):
+        counted, calls = self._counted()
+        held = counted.get_frame(0)  # cached and held here, so in use
+        counted.get_frame(1).close()  # cached only
+        self._pressure()
+        counted.get_frame(1).close()
+        counted.get_frame(0).close()
+        held.close()
+        self.assertEqual(calls[1], 2, "no pressure sweep evicted the frame nothing held")
+        self.assertEqual(calls[0], 1, "a pressure sweep evicted a frame that was in use")
+
+    def test_pressure_evicts_frames_only_caches_hold(self):
+        # The same frame in two caches, a node's and a frame map's over it, which takes it as it is:
+        # neither cache's reference makes it in use, so pressure still takes it from both.
+        counted, calls = self._counted()
+        mapped = self.core.std.Trim(counted, first=0, last=0)
+        second = self.core.std.Trim(counted, first=1)  # a second consumer keeps counted's own cache on
+        mapped.get_frame(0).close()
+        self._pressure()
+        mapped.get_frame(0).close()
+        self.assertEqual(calls[0], 2, "pressure left a frame only caches held in them")
+        self.assertEqual(second.num_frames, 1)
 
 
 if __name__ == "__main__":

@@ -861,15 +861,17 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
     Traits traits{ params };
     unsigned vec_end = (width - 1) & ~(Traits::vec_len - 1);
 
+    const vs_generic_rows rows(params, height);
+
 #define INVOKE(p0, p1, p2) (traits.op(Traits::loadu(p0 - 1), Traits::load(p0), Traits::loadu(p0 + 1), Traits::loadu(p1 - 1), Traits::load(p1), Traits::loadu(p1 + 1), Traits::loadu(p2 - 1), Traits::load(p2), Traits::loadu(p2 + 1)))
-    for (unsigned i = 0; i < height; ++i) {
+    for (unsigned i = rows.start; i < rows.end; ++i) {
         unsigned above_idx = i == 0 ? 0 : i - 1;
         unsigned below_idx = i == height - 1 ? height - 1 : i + 1;
 
-        const T *srcp0 = static_cast<const T *>(line_ptr(src, above_idx, src_stride));
-        const T *srcp1 = static_cast<const T *>(line_ptr(src, i, src_stride));
-        const T *srcp2 = static_cast<const T *>(line_ptr(src, below_idx, src_stride));
-        T *dstp = static_cast<T *>(line_ptr(dst, i, dst_stride));
+        const T *srcp0 = static_cast<const T *>(line_ptr(src, above_idx & rows.src_mask, src_stride));
+        const T *srcp1 = static_cast<const T *>(line_ptr(src, i & rows.src_mask, src_stride));
+        const T *srcp2 = static_cast<const T *>(line_ptr(src, below_idx & rows.src_mask, src_stride));
+        T *dstp = static_cast<T *>(line_ptr(dst, i & rows.dst_mask, dst_stride));
 
         {
             vec_type a01 = Traits::load(srcp0);

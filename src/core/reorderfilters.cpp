@@ -108,6 +108,20 @@ static std::string mismatchedClipToString(const VSVideoInfo *vi, const MismatchI
     return s;
 }
 
+/* Every filter here is a frame map: it outputs its input frames as they are, and at most changes
+   their properties. This scales a frame's duration by mul / div, the change of frame rate the
+   filters keeping the clip's length in time make. */
+static void scaleDuration(VSMap *props, int64_t mul, int64_t div, const VSAPI *vsapi) {
+    int errNum, errDen;
+    int64_t durationNum = vsapi->mapGetInt(props, "_DurationNum", 0, &errNum);
+    int64_t durationDen = vsapi->mapGetInt(props, "_DurationDen", 0, &errDen);
+    if (!errNum && !errDen) {
+        muldivRational(&durationNum, &durationDen, mul, div);
+        vsapi->mapSetInt(props, "_DurationNum", durationNum, maReplace);
+        vsapi->mapSetInt(props, "_DurationDen", durationDen, maReplace);
+    }
+}
+
 //////////////////////////////////////////
 // Trim
 
@@ -117,16 +131,8 @@ typedef struct {
 
 typedef SingleNodeData<TrimDataExtra> TrimData;
 
-static const VSFrame *VS_CC trimGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    TrimData *d = reinterpret_cast<TrimData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n + d->first, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(n + d->first, d->node, frameCtx);
-    }
-
-    return nullptr;
+static int VS_CC trimMapFrame(int n, [[maybe_unused]] int *input, void *instanceData) {
+    return n + reinterpret_cast<TrimData *>(instanceData)->first;
 }
 
 static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -179,7 +185,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     vi.numFrames = trimlen;
 
     VSFilterDependency deps[] = {{d->node, (d->first == 0) ? rpStrictSpatial : rpNoFrameReuse}};
-    vsapi->createVideoFilterEx(out, "Trim", &vi, trimGetframe, filterFree<TrimData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createFrameMap(out, "Trim", &vi, deps, 1, trimMapFrame, nullptr, filterFree<TrimData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -195,33 +201,15 @@ typedef struct {
 typedef VariableNodeData<InterleaveDataExtra> InterleaveData;
 
 
-static const VSFrame *VS_CC interleaveGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    InterleaveData *d = reinterpret_cast<InterleaveData *>(instanceData);
+static int VS_CC interleaveMapFrame(int n, int *input, void *instanceData) {
+    const InterleaveData *d = reinterpret_cast<const InterleaveData *>(instanceData);
+    *input = n % d->numclips;
+    return n / d->numclips;
+}
 
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n / d->numclips, d->nodes[n % d->numclips], frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n / d->numclips, d->nodes[n % d->numclips], frameCtx);
-        if (d->modifyDuration) {
-            VSFrame *dst = vsapi->copyFrame(src, core);
-            vsapi->freeFrame(src);
-
-            VSMap *dst_props = vsapi->getFramePropertiesRW(dst);
-            int errNum, errDen;
-            int64_t durationNum = vsapi->mapGetInt(dst_props, "_DurationNum", 0, &errNum);
-            int64_t durationDen = vsapi->mapGetInt(dst_props, "_DurationDen", 0, &errDen);
-            if (!errNum && !errDen) {
-                muldivRational(&durationNum, &durationDen, 1, d->numclips);
-                vsapi->mapSetInt(dst_props, "_DurationNum", durationNum, maReplace);
-                vsapi->mapSetInt(dst_props, "_DurationDen", durationDen, maReplace);
-            }
-            return dst;
-        } else {
-            return src;
-        }
-    }
-
-    return nullptr;
+static int VS_CC interleaveBeginFrame([[maybe_unused]] int n, [[maybe_unused]] const VSMap *const *inputProps, VSMap *outputProps, [[maybe_unused]] void **frameState, void *instanceData, [[maybe_unused]] char *errorMessage, [[maybe_unused]] int errorMessageSize, [[maybe_unused]] VSCore *core, const VSAPI *vsapi) {
+    scaleDuration(outputProps, 1, reinterpret_cast<const InterleaveData *>(instanceData)->numclips, vsapi);
+    return 1;
 }
 
 static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -281,7 +269,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < d->numclips; i++)
             deps.push_back({d->nodes[i], (maxNumFrames <= vsapi->getVideoInfo(d->nodes[i])->numFrames) ? rpNoFrameReuse : rpFrameReuseLastOnly});
-        vsapi->createVideoFilterEx(out, "Interleave", &d->vi, interleaveGetframe, filterFree<InterleaveData>, fmParallel, residencyFlags(d->nodes[0], vsapi), deps.data(), d->numclips, d.get(), core);
+        createFrameMap(out, "Interleave", &d->vi, deps.data(), d->numclips, interleaveMapFrame, d->modifyDuration ? interleaveBeginFrame : nullptr, filterFree<InterleaveData>, d.get(), core, vsapi);
         d.release();
     }
 }
@@ -291,16 +279,8 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
 
 typedef SingleNodeData<VIPointerData> ReverseData;
 
-static const VSFrame *VS_CC reverseGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    ReverseData *d = reinterpret_cast<ReverseData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(std::max(d->vi->numFrames - n - 1, 0), d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(std::max(d->vi->numFrames - n - 1, 0), d->node, frameCtx);
-    }
-
-    return nullptr;
+static int VS_CC reverseMapFrame(int n, [[maybe_unused]] int *input, void *instanceData) {
+    return std::max(reinterpret_cast<ReverseData *>(instanceData)->vi->numFrames - n - 1, 0);
 }
 
 static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -310,7 +290,7 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d->vi = vsapi->getVideoInfo(d->node);
 
     VSFilterDependency deps[] = {{ d->node, rpNoFrameReuse }};
-    vsapi->createVideoFilterEx(out, "Reverse", d->vi, reverseGetframe, filterFree<ReverseData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createFrameMap(out, "Reverse", d->vi, deps, 1, reverseMapFrame, nullptr, filterFree<ReverseData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -319,16 +299,8 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
 typedef SingleNodeData<VIPointerData> LoopData;
 
-static const VSFrame *VS_CC loopGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    LoopData *d = reinterpret_cast<LoopData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n % d->vi->numFrames, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(n % d->vi->numFrames, d->node, frameCtx);
-    }
-
-    return nullptr;
+static int VS_CC loopMapFrame(int n, [[maybe_unused]] int *input, void *instanceData) {
+    return n % reinterpret_cast<LoopData *>(instanceData)->vi->numFrames;
 }
 
 static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -358,7 +330,7 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
-    vsapi->createVideoFilterEx(out, "Loop", &vi, loopGetframe, filterFree<LoopData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createFrameMap(out, "Loop", &vi, deps, 1, loopMapFrame, nullptr, filterFree<LoopData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -376,38 +348,18 @@ typedef struct {
 
 typedef SingleNodeData<SelectEveryDataExtra> SelectEveryData;
 
-static const VSFrame *VS_CC selectEveryGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    SelectEveryData *d = reinterpret_cast<SelectEveryData *>(instanceData);
+static int VS_CC selectEveryMapFrame(int n, [[maybe_unused]] int *input, void *instanceData) {
+    const SelectEveryData *d = reinterpret_cast<const SelectEveryData *>(instanceData);
+    int cyc = n / d->num;
+    if (cyc == d->fullCycles)
+        return cyc * d->cycle + d->tailOffsets[n % d->num];
+    return cyc * d->cycle + d->offsets[n % d->num];
+}
 
-    if (activationReason == arInitial) {
-        int cyc = n / d->num;
-        if (cyc == d->fullCycles)
-            n = cyc * d->cycle + d->tailOffsets[n % d->num];
-        else
-            n = cyc * d->cycle + d->offsets[n % d->num];
-        frameData[0] = reinterpret_cast<void *>(static_cast<intptr_t>(n));
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[0])), d->node, frameCtx);
-        if (d->modifyDuration) {
-            VSFrame *dst = vsapi->copyFrame(src, core);
-            VSMap *dst_props = vsapi->getFramePropertiesRW(dst);
-            int errNum, errDen;
-            int64_t durationNum = vsapi->mapGetInt(dst_props, "_DurationNum", 0, &errNum);
-            int64_t durationDen = vsapi->mapGetInt(dst_props, "_DurationDen", 0, &errDen);
-            if (!errNum && !errDen) {
-                muldivRational(&durationNum, &durationDen, d->cycle, d->num);
-                vsapi->mapSetInt(dst_props, "_DurationNum", durationNum, maReplace);
-                vsapi->mapSetInt(dst_props, "_DurationDen", durationDen, maReplace);
-            }
-            vsapi->freeFrame(src);
-            return dst;
-        } else {
-            return src;
-        }
-    }
-
-    return nullptr;
+static int VS_CC selectEveryBeginFrame([[maybe_unused]] int n, [[maybe_unused]] const VSMap *const *inputProps, VSMap *outputProps, [[maybe_unused]] void **frameState, void *instanceData, [[maybe_unused]] char *errorMessage, [[maybe_unused]] int errorMessageSize, [[maybe_unused]] VSCore *core, const VSAPI *vsapi) {
+    const SelectEveryData *d = reinterpret_cast<const SelectEveryData *>(instanceData);
+    scaleDuration(outputProps, d->cycle, d->num, vsapi);
+    return 1;
 }
 
 static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -467,7 +419,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
         muldivRational(&vi.fpsNum, &vi.fpsDen, d->num, d->cycle);
 
     VSFilterDependency deps[] = {{d->node, duplicateOffset ? rpGeneral : rpNoFrameReuse}};
-    vsapi->createVideoFilterEx(out, "SelectEvery", &vi, selectEveryGetframe, filterFree<SelectEveryData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createFrameMap(out, "SelectEvery", &vi, deps, 1, selectEveryMapFrame, d->modifyDuration ? selectEveryBeginFrame : nullptr, filterFree<SelectEveryData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -481,33 +433,14 @@ typedef struct {
 
 typedef VariableNodeData<SpliceDataExtra> SpliceData;
 
-static const VSFrame *VS_CC spliceGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    SpliceData *d = reinterpret_cast<SpliceData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        int frame = 0;
-        int idx = 0;
-        int cumframe = 0;
-
-        for (int i = 0; i < d->numclips; i++) {
-            if ((n >= cumframe && n < cumframe + d->numframes[i]) || i == d->numclips - 1) {
-                idx = i;
-                frame = n - cumframe;
-                break;
-            }
-
-            cumframe += d->numframes[i];
-        }
-
-        frameData[0] = d->nodes[idx];
-        frameData[1] = reinterpret_cast<void *>(static_cast<intptr_t>(frame));
-        vsapi->requestFrameFilter(frame, d->nodes[idx], frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *f = vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[1])), reinterpret_cast<VSNode *>(frameData[0]), frameCtx);
-        return f;
-    }
-
-    return nullptr;
+/* The last clip takes every frame past the end of the others. */
+static int VS_CC spliceMapFrame(int n, int *input, void *instanceData) {
+    const SpliceData *d = reinterpret_cast<const SpliceData *>(instanceData);
+    int i = 0;
+    for (; i < d->numclips - 1 && n >= d->numframes[i]; i++)
+        n -= d->numframes[i];
+    *input = i;
+    return n;
 }
 
 static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -557,7 +490,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         std::vector<VSFilterDependency> deps;
         for (int i = 0; i < d->numclips; i++)
             deps.push_back({ d->nodes[i], rpNoFrameReuse });
-        vsapi->createVideoFilterEx(out, "Splice", &vi, spliceGetframe, filterFree<SpliceData>, fmParallel, residencyFlags(d->nodes[0], vsapi), deps.data(), d->numclips, d.get(), core);
+        createFrameMap(out, "Splice", &vi, deps.data(), d->numclips, spliceMapFrame, nullptr, filterFree<SpliceData>, d.get(), core, vsapi);
         d.release();
     }
 }
@@ -572,24 +505,14 @@ typedef struct {
 
 typedef SingleNodeData<DuplicateFramesDataExtra> DuplicateFramesData;
 
-static const VSFrame *VS_CC duplicateFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    DuplicateFramesData *d = reinterpret_cast<DuplicateFramesData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        for (int i = 0; i < d->num_dups; i++)
-            if (n > d->dups[i])
-                n--;
-            else
-                break;
-
-        frameData[0] = reinterpret_cast<void *>(static_cast<intptr_t>(n));
-
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[0])), d->node, frameCtx);
-    }
-
-    return nullptr;
+static int VS_CC duplicateFramesMapFrame(int n, [[maybe_unused]] int *input, void *instanceData) {
+    const DuplicateFramesData *d = reinterpret_cast<const DuplicateFramesData *>(instanceData);
+    for (int i = 0; i < d->num_dups; i++)
+        if (n > d->dups[i])
+            n--;
+        else
+            break;
+    return n;
 }
 
 static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -617,7 +540,7 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
     vi.numFrames += d->num_dups;
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
-    vsapi->createVideoFilterEx(out, "DuplicateFrames", &vi, duplicateFramesGetFrame, filterFree<DuplicateFramesData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createFrameMap(out, "DuplicateFrames", &vi, deps, 1, duplicateFramesMapFrame, nullptr, filterFree<DuplicateFramesData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -631,22 +554,14 @@ typedef struct {
 
 typedef SingleNodeData<DeleteFramesDataExtra> DeleteFramesData;
 
-static const VSFrame *VS_CC deleteFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    DeleteFramesData *d = reinterpret_cast<DeleteFramesData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        for (int i = 0; i < d->num_delete; i++)
-            if (n >= d->del[i])
-                n++;
-            else
-                break;
-        frameData[0] = reinterpret_cast<void *>(static_cast<intptr_t>(n));
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[0])), d->node, frameCtx);
-    }
-
-    return nullptr;
+static int VS_CC deleteFramesMapFrame(int n, [[maybe_unused]] int *input, void *instanceData) {
+    const DeleteFramesData *d = reinterpret_cast<const DeleteFramesData *>(instanceData);
+    for (int i = 0; i < d->num_delete; i++)
+        if (n >= d->del[i])
+            n++;
+        else
+            break;
+    return n;
 }
 
 static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -680,7 +595,7 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
     }
 
     VSFilterDependency deps[] = {{d->node, rpNoFrameReuse}};
-    vsapi->createVideoFilterEx(out, "DeleteFrames", &vi, deleteFramesGetFrame, filterFree<DeleteFramesData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createFrameMap(out, "DeleteFrames", &vi, deps, 1, deleteFramesMapFrame, nullptr, filterFree<DeleteFramesData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -702,25 +617,13 @@ typedef struct {
 
 typedef SingleNodeData<FreezeFramesDataExtra> FreezeFramesData;
 
-static const VSFrame *VS_CC freezeFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    FreezeFramesData *d = reinterpret_cast<FreezeFramesData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        if (n >= d->freeze.front().first && n <= d->freeze.back().last)
-            for (auto &iter : d->freeze)
-                if (n >= iter.first && n <= iter.last) {
-                    n = iter.replacement;
-                    break;
-                }
-
-        frameData[0] = reinterpret_cast<void *>(static_cast<intptr_t>(n));
-
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[0])), d->node, frameCtx);
-    }
-
-    return nullptr;
+static int VS_CC freezeFramesMapFrame(int n, [[maybe_unused]] int *input, void *instanceData) {
+    const FreezeFramesData *d = reinterpret_cast<const FreezeFramesData *>(instanceData);
+    if (n >= d->freeze.front().first && n <= d->freeze.back().last)
+        for (const auto &iter : d->freeze)
+            if (n >= iter.first && n <= iter.last)
+                return iter.replacement;
+    return n;
 }
 
 static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -763,7 +666,7 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
             RETERROR("FreezeFrames: the frame ranges must not overlap");
 
     VSFilterDependency deps[] = {{d->node, rpGeneral}};
-    vsapi->createVideoFilterEx(out, "FreezeFrames", vi, freezeFramesGetFrame, filterFree<FreezeFramesData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createFrameMap(out, "FreezeFrames", vi, deps, 1, freezeFramesMapFrame, nullptr, filterFree<FreezeFramesData>, d.get(), core, vsapi);
     d.release();
 }
 

@@ -1039,8 +1039,8 @@ const std::string &VSPluginFunction::getReturnType() const {
     return returnType;
 }
 
-VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput, VSCore *core) :
-    refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), gpuOutput(gpuOutput), core(core), serialFrame(-1), processingTime(0) {
+VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput, VSTiledFilter *tiled, VSFrameMapFilter *frameMap, VSPlaneMapFilter *planeMap, VSCore *core) :
+    refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), gpuOutput(gpuOutput), tiled(tiled), frameMap(frameMap), planeMap(planeMap), core(core), serialFrame(-1), processingTime(0) {
 
     if (!core->isValidVideoInfo(*vi))
         throw VSException("The VSVideoInfo structure passed by " + name + " is invalid.");
@@ -1162,6 +1162,15 @@ void VSNode::removeConsumer(VSNode *consumer, int strictSpatial) {
     registerCache();
 }
 
+
+bool VSNode::fusableInto(const VSNode *consumer) {
+    if (!tiled && !frameMap && !planeMap)
+        return false;
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    VS_LOCK_HELD(vsLockNodeCache);
+    return !cacheEnabled && !cacheLinear && consumers.size() == 1 && consumers[0].source == consumer &&
+        (consumers[0].requestPattern == rpStrictSpatial || consumers[0].requestPattern == rpNoFrameReuse);
+}
 
 void VSNode::getFrame(const PVSFrameContext &ct) {
     core->threadPool->startExternal(ct);
@@ -1320,8 +1329,9 @@ PVSFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *f
 
     if (enableFilterTiming) {
         std::chrono::nanoseconds duration = std::chrono::steady_clock::now() - startTime;
-        processingTime.fetch_add(duration.count(), std::memory_order_relaxed);
+        processingTime.fetch_add(duration.count() - frameCtx->fusedTime, std::memory_order_relaxed);
     }
+    frameCtx->fusedTime = 0;
 #ifdef VS_TARGET_CPU_X86
     if (!vs_isSSEStateOk())
         core->logFatal("Bad SSE state detected after return from "+ name);
@@ -2665,7 +2675,7 @@ void VSCore::loadPlugin(const std::filesystem::path &filename, bool loadCPUOptim
 
 void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput) {
     try {
-        VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, gpuOutput, this);
+        VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, gpuOutput, nullptr, nullptr, nullptr, this);
         vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
@@ -2674,7 +2684,7 @@ void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVide
 
 VSNode *VSCore::createVideoFilter(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput) {
     try {
-        return new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, gpuOutput, this);
+        return new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, gpuOutput, nullptr, nullptr, nullptr, this);
     } catch (VSException &) {
         return nullptr;
     }
@@ -2987,24 +2997,22 @@ bool VSNode::VSCache::insert(const int akey, const PVSFrame &aobject) {
     if (!last)
         last = first;
 
-    evictFrames(maxSize, SIZE_MAX);
+    evictFrames(maxSize);
 
     return true;
 }
 
 
-size_t VSNode::VSCache::evictFrames(int maxCount, size_t byteBudget) {
-    size_t freed = 0;
-
-    // turn cached frames into history nodes until both the count and byte conditions hold
-    while (currentSize > maxCount && freed < byteBudget) {
+void VSNode::VSCache::evictFrames(int maxCount) {
+    // turn cached frames into history nodes until the count condition holds
+    while (currentSize > maxCount) {
         if (!weakpoint)
             weakpoint = last;
         else
             weakpoint = weakpoint->prevNode;
 
         if (weakpoint) {
-            freed += subtractFrameBytes(*weakpoint);
+            subtractFrameBytes(*weakpoint);
             weakpoint->frame.reset();
         }
 
@@ -3015,12 +3023,33 @@ size_t VSNode::VSCache::evictFrames(int maxCount, size_t byteBudget) {
     // remove history until the tail is small enough
     while (last && historySize > maxHistorySize)
         unlink(*last);
-
-    return freed;
 }
 
 size_t VSNode::VSCache::dropLRUFrames(size_t maxBytes) {
-    size_t freed = evictFrames(0, maxBytes);
+    /* Pressure wants memory back now, and a frame a request still holds -- an output in flight
+       reading it, a GPU submission -- goes with its last holder whether this cache keeps it or
+       not, so evicting it gives nothing back and only makes the next request for it compute it
+       again. A temporal filter's outputs in flight hold exactly the frames its next outputs
+       read, which turned pressure into recomputation instead of freed memory. So the walk goes
+       from the least recently used frame and takes only frames held by no more references than
+       cache entries, crediting what each actually gives back: nothing either while another
+       cache holds the frame or its planes, but evicting it is what lets that cache give it. */
+    size_t freed = 0;
+    Node *n = weakpoint ? weakpoint->prevNode : last;
+    while (n && freed < maxBytes) {
+        Node *newer = n->prevNode;
+        const VSFrame *frame = n->frame.get();
+        assert(frame);
+        if (frame->references() <= frame->cacheHolders()) {
+            freed += frame->releasableByteSize();
+            demoteToHistory(*n);
+        }
+        n = newer;
+    }
+
+    // remove history until the tail is small enough
+    while (last && historySize > maxHistorySize)
+        unlink(*last);
 
     // lower the ceiling to match so the freed memory doesn't immediately get reclaimed but never
     // below the reseed size so the cache can relearn its working set once the pressure is gone

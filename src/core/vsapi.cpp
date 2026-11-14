@@ -21,6 +21,7 @@
 #include "vscore.h"
 #include "cpufeatures.h"
 #include "VSHelper4.h"
+#include "vstiled.h"
 #include "vsvulkanframe.h"
 #include "vsvulkanshader.h"
 #include "VSVulkan4.h"
@@ -862,6 +863,63 @@ static VSNode *VS_CC createVideoFilterEx2(const char *name, const VSVideoInfo *v
     return core->createVideoFilter(name, vi, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, (flags & ffGPUOutput) != 0);
 }
 
+static void VS_CC createTiledVideoFilter(VSMap *out, const char *name, const VSTiledFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
+    assert(out && name && desc && core);
+    std::string error;
+    VSNode *node = createTiledFilterNode(name, desc, core, error);
+    if (node)
+        vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
+    else
+        vs_internal_vsapi.mapSetError(out, error.c_str());
+}
+
+static VSNode *VS_CC createTiledVideoFilter2(const char *name, const VSTiledFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
+    assert(name && desc && core);
+    std::string error;
+    VSNode *node = createTiledFilterNode(name, desc, core, error);
+    if (!node)
+        core->logMessage(mtCritical, error);
+    return node;
+}
+
+static void VS_CC createFrameMapVideoFilter(VSMap *out, const char *name, const VSFrameMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
+    assert(out && name && desc && core);
+    std::string error;
+    VSNode *node = createFrameMapFilterNode(name, desc, core, error);
+    if (node)
+        vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
+    else
+        vs_internal_vsapi.mapSetError(out, error.c_str());
+}
+
+static VSNode *VS_CC createFrameMapVideoFilter2(const char *name, const VSFrameMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
+    assert(name && desc && core);
+    std::string error;
+    VSNode *node = createFrameMapFilterNode(name, desc, core, error);
+    if (!node)
+        core->logMessage(mtCritical, error);
+    return node;
+}
+
+static void VS_CC createPlaneMapVideoFilter(VSMap *out, const char *name, const VSPlaneMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
+    assert(out && name && desc && core);
+    std::string error;
+    VSNode *node = createPlaneMapFilterNode(name, desc, core, error);
+    if (node)
+        vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
+    else
+        vs_internal_vsapi.mapSetError(out, error.c_str());
+}
+
+static VSNode *VS_CC createPlaneMapVideoFilter2(const char *name, const VSPlaneMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
+    assert(name && desc && core);
+    std::string error;
+    VSNode *node = createPlaneMapFilterNode(name, desc, core, error);
+    if (!node)
+        core->logMessage(mtCritical, error);
+    return node;
+}
+
 static int VS_CC setLinearFilter(VSNode *node) VS_NOEXCEPT {
     return node->setLinear();
 }
@@ -1179,6 +1237,13 @@ const VSAPI vs_internal_vsapi = {
     &getVulkanAPIImpl,
     &getNodeResidency,
     &getFrameResidency,
+
+    &createTiledVideoFilter,
+    &createTiledVideoFilter2,
+    &createFrameMapVideoFilter,
+    &createFrameMapVideoFilter2,
+    &createPlaneMapVideoFilter,
+    &createPlaneMapVideoFilter2,
 
     &getNodeCreationFunctionName,
     &getNodeCreationPluginID,

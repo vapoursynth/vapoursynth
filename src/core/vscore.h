@@ -70,6 +70,9 @@ class VSVulkanDevice;
 class VSVulkanTransfer;
 struct VSVulkanPlane;
 class VSMapData;
+struct VSTiledFilter;
+struct VSFrameMapFilter;
+struct VSPlaneMapFilter;
 
 typedef vs_intrusive_ptr<VSFrame> PVSFrame;
 typedef vs_intrusive_ptr<VSNode> PVSNode;
@@ -449,6 +452,9 @@ public:
     VSPlaneData(VSVulkanPlane *plane, VSVulkanDevice *device, size_t dataSize) noexcept;
     VSPlaneData(const VSPlaneData &d) noexcept;
     bool unique() noexcept;
+    long references() const noexcept {
+        return refcount;
+    }
     void add_ref() noexcept;
     void release() noexcept;
 };
@@ -457,6 +463,7 @@ struct VSFrame {
     friend struct VSCore;
 private:
     std::atomic<long> refcount;
+    std::atomic<long> cacheHolderCount{0}; /* see cacheHolders */
     VSMediaType contentType;
     union {
         VSVideoFormat vf;
@@ -601,6 +608,38 @@ public:
                 total += data[i]->size;
         return total;
     }
+    long references() const {
+        return refcount;
+    }
+    /* What dropping one reference gives back right now, for the caches' pressure eviction:
+       nothing while anything else holds the frame, else the planes no other frame shares. A
+       snapshot, since the other holders come and go. */
+    size_t releasableByteSize() const {
+        if (refcount != 1)
+            return 0;
+        size_t total = 0;
+        for (int i = 0; i < 3; i++) {
+            /* each plane once: a frame can hold one in several slots, a reference per slot */
+            if (!data[i] || (i > 0 && data[i] == data[0]) || (i > 1 && data[i] == data[1]))
+                continue;
+            const long slots = (data[i] == data[0]) + (data[i] == data[1]) + (data[i] == data[2]);
+            if (data[i]->references() == slots)
+                total += data[i]->size;
+        }
+        return total;
+    }
+    /* The node cache entries holding this frame, each with a reference of its own, kept by the
+       entries themselves: more references than that means something else holds the frame, a
+       request reading it say, so evicting it from a cache would free nothing. */
+    void addCacheHolder() noexcept {
+        ++cacheHolderCount;
+    }
+    void releaseCacheHolder() noexcept {
+        --cacheHolderCount;
+    }
+    long cacheHolders() const noexcept {
+        return cacheHolderCount;
+    }
     ptrdiff_t getStride(int plane) const;
     const uint8_t *getReadPtr(int plane) const;
     uint8_t *getWritePtr(int plane);
@@ -718,6 +757,11 @@ public:
     NodeOutputKey key;
     void *frameContext[4];
 
+    /* Nanoseconds the current filter call spent computing other nodes' frames as part of its own,
+       which a tiled filter does for the filters it runs together with. That time is credited to
+       those nodes, so getFrameInternal leaves it out of this node's processing time. */
+    int64_t fusedTime = 0;
+
     void add_ref() noexcept {
         ++refcount;
     }
@@ -762,11 +806,51 @@ struct VSNode {
 private:
     class VSCache {
     private:
+        /* An entry's reference to its frame, which the frame counts too (VSFrame::cacheHolders):
+           kept by construction and destruction, so the count is exact however an entry gets or
+           loses its frame. Taken after the reference and given back before it, so a frame
+           changing hands looks in use for that moment rather than free. */
+        class CachedFrame {
+            PVSFrame frame;
+        public:
+            CachedFrame() noexcept = default;
+            explicit CachedFrame(const PVSFrame &f) noexcept : frame(f) {
+                if (frame)
+                    frame->addCacheHolder();
+            }
+            CachedFrame(CachedFrame &&other) noexcept : frame(std::move(other.frame)) {
+            }
+            CachedFrame(const CachedFrame &) = delete;
+            CachedFrame &operator=(const CachedFrame &) = delete;
+            CachedFrame &operator=(CachedFrame &&) = delete;
+            ~CachedFrame() {
+                reset();
+            }
+            void reset() noexcept {
+                if (frame) {
+                    frame->releaseCacheHolder();
+                    frame.reset();
+                }
+            }
+            explicit operator bool() const noexcept {
+                return !!frame;
+            }
+            VSFrame *operator->() const noexcept {
+                return frame.get();
+            }
+            VSFrame *get() const noexcept {
+                return frame.get();
+            }
+            const PVSFrame &ptr() const noexcept {
+                return frame;
+            }
+        };
+
         struct Node {
             inline Node() : key(-1) {}
             inline Node(int key, const PVSFrame &frame) : key(key), frame(frame) {}
             int key;
-            PVSFrame frame;
+            CachedFrame frame;
             Node *prevNode = nullptr;
             Node *nextNode = nullptr;
         };
@@ -805,12 +889,9 @@ private:
         static constexpr int cacheHistoryMax = 4096;
         static constexpr uint64_t deadBranchDelay = 2 * cacheHistoryLookahead;
 
-        inline size_t subtractFrameBytes(const Node &n) {
-            if (!n.frame)
-                return 0;
-            size_t frameBytes = n.frame->totalByteSize();
-            currentBytes -= frameBytes;
-            return frameBytes;
+        inline void subtractFrameBytes(const Node &n) {
+            if (n.frame)
+                currentBytes -= n.frame->totalByteSize();
         }
 
         inline void unlink(Node &n) {
@@ -895,10 +976,38 @@ private:
 
             assert(historySize <= maxHistorySize);
 
-            return n.frame;
+            return n.frame.ptr();
         }
 
-        size_t evictFrames(int maxCount, size_t byteBudget);
+        /* Turns a frame node, wherever it is among them, into the newest history node: the
+           one right after the oldest frame node. Pressure eviction skips frames still in use,
+           so it takes newer frames while older ones stay. */
+        inline void demoteToHistory(Node &n) {
+            Node *oldest = weakpoint ? weakpoint->prevNode : last;
+            if (&n != oldest) {
+                // n is newer than the oldest frame node, so a node follows it
+                if (n.prevNode)
+                    n.prevNode->nextNode = n.nextNode;
+                else
+                    first = n.nextNode;
+                n.nextNode->prevNode = n.prevNode;
+
+                n.prevNode = oldest;
+                n.nextNode = oldest->nextNode;
+                if (oldest->nextNode)
+                    oldest->nextNode->prevNode = &n;
+                else
+                    last = &n;
+                oldest->nextNode = &n;
+            }
+            weakpoint = &n;
+            subtractFrameBytes(n);
+            n.frame.reset();
+            currentSize--;
+            historySize++;
+        }
+
+        void evictFrames(int maxCount);
     public:
         enum class CacheAction {
             Grow,
@@ -919,7 +1028,7 @@ private:
 
         inline void setMaxFrames(int m) {
             maxSize = m;
-            evictFrames(maxSize, SIZE_MAX);
+            evictFrames(maxSize);
         }
 
         inline int getMaxHistory() const {
@@ -928,7 +1037,7 @@ private:
 
         inline void setMaxHistory(int m) {
             maxHistorySize = m;
-            evictFrames(maxSize, SIZE_MAX);
+            evictFrames(maxSize);
         }
 
         inline void setFixedSize(bool fixed) {
@@ -996,6 +1105,12 @@ private:
     VSFilterFree freeFunc = nullptr;
     VSFilterMode filterMode;
     bool gpuOutput = false;
+    /* The description of a node made by createTiledVideoFilter, createFrameMapVideoFilter or
+       createPlaneMapVideoFilter, which is also its instanceData; null for every other node. Set
+       by the constructor and never changed. */
+    VSTiledFilter *const tiled = nullptr;
+    VSFrameMapFilter *const frameMap = nullptr;
+    VSPlaneMapFilter *const planeMap = nullptr;
 
     VSCore *core;
     PVSFunctionFrame functionFrame;
@@ -1035,8 +1150,10 @@ public:
        publishes the node: it ends in registerCache, and a fresh node has no consumers so
        cacheEnabled is always true there. Setting the flag afterwards left every GPU node
        visible to the cache sweeps for a moment with the wrong residency, and the write raced
-       the sweep's read of it. */
-    VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput, VSCore *core);
+       the sweep's read of it. tiled, frameMap and planeMap, the descriptions of nodes made by
+       createTiledVideoFilter, createFrameMapVideoFilter and createPlaneMapVideoFilter, are passed
+       the same way for the same reason. */
+    VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput, VSTiledFilter *tiled, VSFrameMapFilter *frameMap, VSPlaneMapFilter *planeMap, VSCore *core);
     VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core);
     ~VSNode();
 
@@ -1066,10 +1183,34 @@ public:
         return gpuOutput;
     }
 
+    VSTiledFilter *getTiled() const {
+        return tiled;
+    }
+
+    VSFrameMapFilter *getFrameMap() const {
+        return frameMap;
+    }
+
+    VSPlaneMapFilter *getPlaneMap() const {
+        return planeMap;
+    }
+
+    /* Whether consumer, a tiled node or a frame or plane map in a tiled node's tree, may make this
+       tiled node's, frame map's or plane map's frames part of its own instead of requesting them:
+       nothing caches them and consumer is the only consumer, never requesting a frame twice.
+       Consumers and cache modes change as the graph grows, so this is asked anew for every frame. */
+    bool fusableInto(const VSNode *consumer);
+
     int64_t getProcessingTime(bool reset) {
         if (reset)
             return processingTime.exchange(0);
         return processingTime;
+    }
+
+    /* Credits time a consumer spent computing this node's frames as part of its own request; see
+       VSFrameContext::fusedTime. */
+    void addProcessingTime(int64_t nanoseconds) {
+        processingTime.fetch_add(nanoseconds, std::memory_order_relaxed);
     }
 
     const VSFilterDependency *getDependency(int index) const {
@@ -1160,6 +1301,10 @@ public:
     void returnFrame(VSFrameContext *rCtx, const PVSFrame &f, std::unique_lock<std::mutex> &lock);
     size_t threadCount();
     size_t setThreadCount(size_t threads);
+    /* How many more filter calls could start right now: threads the pool may run that have found
+       nothing to do. None while the core is over a memory limit, when the pool is kept to one
+       thread on purpose. A snapshot for scheduling decisions, stale as soon as it is returned. */
+    size_t spareThreads();
     void startExternal(const PVSFrameContext &context);
     void waitForDone();
     uint64_t getCompletedExternalFrames() const {

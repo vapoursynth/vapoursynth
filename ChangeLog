@@ -1,5 +1,10 @@
 r83:
+added tiled filters (api 4.4, createtiledvideofilter), chains of them now run together in bands of rows that stay in the cpu cache instead of passing whole frames through memory, 8 inverts in a row at 4k are about 7x faster
+invert, invertmask, limiter, binarize, binarizemask, levels, lut, lut2, expr, merge, makediff, mergediff, maskedmerge, the 3x3 filters (convolution, minimum, maximum, median, deflate, inflate, prewitt, sobel) and the horizontal, vertical and separable convolutions are now tiled filters
+added frame maps (api 4.4, createframemapvideofilter) for filters that only pick frames or change frame properties, tiled filters see through them so that trim, splice, interleave, selectevery, reverse, loop, duplicateframes, deleteframes, freezeframes, assumefps, setframeprop, setframeprops, removeframeprops and setfieldbased no longer keep the filters around them from running together
+added plane maps (api 4.4, createplanemapvideofilter) for filters that only move planes, tiled filters see through shuffleplanes, splitplanes and copyframeprops so that splitting a clip into planes, processing them and joining them again runs together with what follows, and the clip copyframeprops takes properties from is never computed when a tiled filter makes it
 fixed vsscript not finding its configuration when loaded through a symlink, such as the libvapoursynth-script.so some distributions install
+fixed caches under memory pressure evicting frames that filters were still reading, which freed nothing and made temporal filters like averageframes compute or upload those frames again
 
 r82:
 vspipe's matroska output is now playable by mpv as well

@@ -77,15 +77,16 @@ void conv_plane_3x3_half_fhm(const void *src, ptrdiff_t src_stride, void *dst, p
     for (unsigned i = 0; i < 9; ++i)
         cf[i] = vdupq_n_f16(static_cast<float16_t>(coeffs[i]));
 
-    for (unsigned i = 0; i < height; ++i) {
+    const vs_generic_rows window(p, height);
+    for (unsigned i = window.start; i < window.end; ++i) {
         unsigned above_idx = i == 0 ? 0 : i - 1;
         unsigned below_idx = i == height - 1 ? height - 1 : i + 1;
         const uint16_t *rows[3] = {
-            reinterpret_cast<const uint16_t *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(above_idx) * src_stride),
-            reinterpret_cast<const uint16_t *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(i) * src_stride),
-            reinterpret_cast<const uint16_t *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(below_idx) * src_stride),
+            reinterpret_cast<const uint16_t *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(above_idx & window.src_mask) * src_stride),
+            reinterpret_cast<const uint16_t *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(i & window.src_mask) * src_stride),
+            reinterpret_cast<const uint16_t *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(below_idx & window.src_mask) * src_stride),
         };
-        uint16_t *dstp = reinterpret_cast<uint16_t *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i) * dst_stride);
+        uint16_t *dstp = reinterpret_cast<uint16_t *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i & window.dst_mask) * dst_stride);
 
         dstp[0] = h3x3_scalar_px(rows, coeffs, 0, 0, width > 1 ? 1 : 0, p.div, p.bias, p.saturate);
 
@@ -383,33 +384,17 @@ void fhm_v_scanline(const void *const *srcs, uint16_t *dstp, unsigned width,
     }
 }
 
-// Mirror row-pointer selection of conv_plane_v / conv_plane_x, verbatim.
-inline void fhm_v_select_rows(const void *src, ptrdiff_t src_stride, const void *srcp[25],
-                              unsigned i, unsigned height, unsigned fwidth)
-{
-    unsigned support = fwidth / 2;
-    unsigned dist_from_bottom = height - 1 - i;
-
-    for (unsigned k = 0; k < support; ++k) {
-        unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
-        srcp[k] = static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(row) * src_stride;
-    }
-    for (unsigned k = support; k < fwidth; ++k) {
-        unsigned row = dist_from_bottom < k - support ? height - std::min(k - support - dist_from_bottom, i) : i - support + k;
-        srcp[k] = static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(row) * src_stride;
-    }
-}
-
 template <unsigned FW>
 void fhm_plane_h_impl(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride,
                       const vs_generic_params &p, unsigned width, unsigned height)
 {
     float32x4_t sc = vdupq_n_f32(p.div), bi = vdupq_n_f32(p.bias);
     uint32x4_t sm = nc_satmask(p.saturate);
+    const vs_generic_rows rows(p, height);
 
-    for (unsigned i = 0; i < height; ++i) {
-        const uint16_t *srcp = reinterpret_cast<const uint16_t *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(i) * src_stride);
-        uint16_t *dstp = reinterpret_cast<uint16_t *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i) * dst_stride);
+    for (unsigned i = rows.start; i < rows.end; ++i) {
+        const uint16_t *srcp = reinterpret_cast<const uint16_t *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(i & rows.src_mask) * src_stride);
+        uint16_t *dstp = reinterpret_cast<uint16_t *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i & rows.dst_mask) * dst_stride);
         fhm_h_scanline<FW>(srcp, dstp, width, p, sc, bi, sm);
     }
 }
@@ -420,11 +405,12 @@ void fhm_plane_v_impl(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
 {
     float32x4_t sc = vdupq_n_f32(p.div), bi = vdupq_n_f32(p.bias);
     uint32x4_t sm = nc_satmask(p.saturate);
+    const vs_generic_rows rows(p, height);
 
-    for (unsigned i = 0; i < height; ++i) {
+    for (unsigned i = rows.start; i < rows.end; ++i) {
         const void *srcp[25];
-        fhm_v_select_rows(src, src_stride, srcp, i, height, p.matrixsize);
-        uint16_t *dstp = reinterpret_cast<uint16_t *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i) * dst_stride);
+        vs_generic_gather_v_rows(src, src_stride, rows.src_mask, i, height, p.matrixsize, srcp);
+        uint16_t *dstp = reinterpret_cast<uint16_t *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i & rows.dst_mask) * dst_stride);
         fhm_v_scanline<FW>(srcp, dstp, width, p, sc, bi, sm);
     }
 }
@@ -439,25 +425,25 @@ void fhm_plane_x_impl(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
 {
     float32x4_t sc = vdupq_n_f32(p.div), bi = vdupq_n_f32(p.bias);
     uint32x4_t sm = nc_satmask(p.saturate);
+    const vs_generic_rows rows(p, height);
 
-    uint16_t *tmp = static_cast<uint16_t *>(vsh::vsh_aligned_malloc(width * sizeof(uint16_t), 64));
+    vs_generic_conv_scratch scratch(p, width);
+    uint16_t *tmp = static_cast<uint16_t *>(scratch.row(0));
     if (!tmp) {
         // Deterministic zeros rather than whatever the frame allocator handed
         // out; see conv_plane_x_impl.
-        for (unsigned i = 0; i < height; ++i)
-            std::memset(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i) * dst_stride, 0, width * sizeof(uint16_t));
+        for (unsigned i = rows.start; i < rows.end; ++i)
+            std::memset(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i & rows.dst_mask) * dst_stride, 0, width * sizeof(uint16_t));
         return;
     }
 
-    for (unsigned i = 0; i < height; ++i) {
+    for (unsigned i = rows.start; i < rows.end; ++i) {
         const void *srcp[25];
-        fhm_v_select_rows(src, src_stride, srcp, i, height, p.matrixsize);
-        uint16_t *dstp = reinterpret_cast<uint16_t *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i) * dst_stride);
+        vs_generic_gather_v_rows(src, src_stride, rows.src_mask, i, height, p.matrixsize, srcp);
+        uint16_t *dstp = reinterpret_cast<uint16_t *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i & rows.dst_mask) * dst_stride);
         fhm_v_scanline<FW>(srcp, tmp, width, p, sc, bi, sm);
         fhm_h_scanline<FW>(tmp, dstp, width, p, sc, bi, sm);
     }
-
-    vsh::vsh_aligned_free(tmp);
 }
 
 // Same tap-count switch as convolution_neon.cpp's VS_CONV_PLANE_SELECT: runs

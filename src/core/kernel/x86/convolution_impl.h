@@ -67,24 +67,6 @@ void flip_right(T *ptr, unsigned n)
     }
 }
 
-// Fill srcp[0..fwidth-1] with the clamped/mirrored source row pointers for a
-// vertical pass centered on row i. Shared by conv_plane_v and conv_plane_x.
-inline void gather_v_rows(const void *src, ptrdiff_t src_stride, unsigned i, unsigned height, unsigned fwidth, const void *srcp[])
-{
-    unsigned support = fwidth / 2;
-    unsigned dist_from_bottom = height - 1 - i;
-
-    for (unsigned k = 0; k < support; ++k) {
-        unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
-        srcp[k] = line_ptr(src, row, src_stride);
-    }
-    for (unsigned k = support; k < fwidth; ++k) {
-        unsigned row = dist_from_bottom < k - support ? height - std::min(k - support - dist_from_bottom, i) : i - support + k;
-        srcp[k] = line_ptr(src, row, src_stride);
-    }
-}
-
-
 /* ---- horizontal pass kernels ------------------------------------------- */
 
 template <class ISA, unsigned N, unsigned K, bool First, bool Last>
@@ -632,11 +614,13 @@ void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
 
     // Multi-pass threshold = 13.
     auto kernel = select_conv_scanline_h_for<ISA>(T{})(params.matrixsize);
-    void *tmp = (params.matrixsize > 13 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc((width + ISA::TMP_PAD) * sizeof(int32_t), ISA::ALIGN) : nullptr;
+    vs_generic_conv_scratch scratch(params, width);
+    void *tmp = (params.matrixsize > 13 && std::is_integral<T>::value) ? scratch.row(1) : nullptr;
+    const vs_generic_rows rows(params, height);
 
-    for (unsigned i = 0; i < height; ++i) {
-        const T *srcp = static_cast<const T *>(line_ptr(src, i, src_stride));
-        T *dstp = static_cast<T *>(line_ptr(dst, i, dst_stride));
+    for (unsigned i = rows.start; i < rows.end; ++i) {
+        const T *srcp = static_cast<const T *>(line_ptr(src, i & rows.src_mask, src_stride));
+        T *dstp = static_cast<T *>(line_ptr(dst, i & rows.dst_mask, dst_stride));
 
         // Pixels 0...HBLK-1.
         {
@@ -670,8 +654,6 @@ void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
             kernel(padded + 16, dstp + vec_end, tmp, params, width - vec_end);
         }
     }
-
-    vsh::vsh_aligned_free(tmp);
 }
 
 template <class ISA, class T>
@@ -681,17 +663,17 @@ void conv_plane_v(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
 
     // Multi-pass threshold = 9.
     auto kernel = select_conv_scanline_v_for<ISA>(T{})(params.matrixsize);
-    void *tmp = (params.matrixsize > 9 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc((width + ISA::TMP_PAD) * sizeof(int32_t), ISA::ALIGN) : nullptr;
+    vs_generic_conv_scratch scratch(params, width);
+    void *tmp = (params.matrixsize > 9 && std::is_integral<T>::value) ? scratch.row(1) : nullptr;
+    const vs_generic_rows rows(params, height);
 
-    for (unsigned i = 0; i < height; ++i) {
+    for (unsigned i = rows.start; i < rows.end; ++i) {
         const void *srcp[25];
-        void *dstp = line_ptr(dst, i, dst_stride);
+        void *dstp = line_ptr(dst, i & rows.dst_mask, dst_stride);
 
-        gather_v_rows(src, src_stride, i, height, fwidth, srcp);
+        vs_generic_gather_v_rows(src, src_stride, rows.src_mask, i, height, fwidth, srcp);
         kernel(srcp, dstp, tmp, params, width);
     }
-
-    vsh::vsh_aligned_free(tmp);
 }
 
 template <class ISA, class T>
@@ -702,29 +684,29 @@ void conv_plane_x(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
     // Multi-pass threshold = 9 (v), 13 (h).
     auto kernel_v = select_conv_scanline_v_for<ISA>(T{})(params.matrixsize);
     auto kernel_h = select_conv_scanline_h_for<ISA>(T{})(params.matrixsize);
-    T *tmp1 = vsh::vsh_aligned_malloc<T>((width + 64) * sizeof(T), ISA::ALIGN);
-    void *tmp2 = (params.matrixsize > 9 && std::is_integral<T>::value) ? vsh::vsh_aligned_malloc((width + ISA::TMP_PAD) * sizeof(int32_t), ISA::ALIGN) : nullptr;
+    vs_generic_conv_scratch scratch(params, width);
+    T *tmp1 = static_cast<T *>(scratch.row(0));
+    void *tmp2 = (params.matrixsize > 9 && std::is_integral<T>::value) ? scratch.row(1) : nullptr;
+    const vs_generic_rows rows(params, height);
 
-    for (unsigned i = 0; i < height; ++i) {
+    for (unsigned i = rows.start; i < rows.end; ++i) {
         const void *srcp[25];
-        void *dstp = line_ptr(dst, i, dst_stride);
+        void *dstp = line_ptr(dst, i & rows.dst_mask, dst_stride);
 
-        gather_v_rows(src, src_stride, i, height, fwidth, srcp);
+        vs_generic_gather_v_rows(src, src_stride, rows.src_mask, i, height, fwidth, srcp);
 
         kernel_v(srcp, tmp1 + 32, tmp2, params, width);
         flip_left(tmp1 + 32, 12);
         flip_right(tmp1 + 32 + width, 12);
         kernel_h(tmp1 + 32, dstp, tmp2, params, width);
     }
-
-    vsh::vsh_aligned_free(tmp2);
-    vsh::vsh_aligned_free(tmp1);
 }
 
 } // namespace
 
 /* Emit the 9 exported entry points for one ISA tier. */
 #define VS_CONV_ENTRYPOINTS(ISA, SUFFIX) \
+    static_assert(ISA::TMP_PAD <= 64 && ISA::ALIGN <= 64, "the accumulator rows come from vs_generic_conv_scratch: width + 64 samples, 64 byte aligned"); \
     void vs_generic_1d_conv_h_byte_##SUFFIX(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height) \
     { conv_plane_h<ISA, uint8_t>(src, src_stride, dst, dst_stride, *params, width, height); } \
     void vs_generic_1d_conv_h_word_##SUFFIX(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height) \

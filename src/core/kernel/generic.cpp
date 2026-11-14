@@ -290,14 +290,16 @@ void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_
     Traits traits{ params };
     uint16_t maxval = params.maxval;
 
-    for (unsigned i = 0; i < height; ++i) {
+    const vs_generic_rows rows(params, height);
+
+    for (unsigned i = rows.start; i < rows.end; ++i) {
         unsigned above_idx = i == 0 ? 0 : i - 1;
         unsigned below_idx = i == height - 1 ? height - 1 : i + 1;
 
-        const T *srcp0 = static_cast<const T *>(line_ptr(src, above_idx, src_stride));
-        const T *srcp1 = static_cast<const T *>(line_ptr(src, i, src_stride));
-        const T *srcp2 = static_cast<const T *>(line_ptr(src, below_idx, src_stride));
-        T *dstp = static_cast<T *>(line_ptr(dst, i, dst_stride));
+        const T *srcp0 = static_cast<const T *>(line_ptr(src, above_idx & rows.src_mask, src_stride));
+        const T *srcp1 = static_cast<const T *>(line_ptr(src, i & rows.src_mask, src_stride));
+        const T *srcp2 = static_cast<const T *>(line_ptr(src, below_idx & rows.src_mask, src_stride));
+        T *dstp = static_cast<T *>(line_ptr(dst, i & rows.dst_mask, dst_stride));
 
         {
             unsigned a = 0;
@@ -557,9 +559,11 @@ void conv_scanline_v(const void * const src[], void *dst, const vs_generic_param
 template <class T>
 void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
 {
-    for (unsigned i = 0; i < height; ++i) {
-        const void *srcp = line_ptr(src, i, src_stride);
-        void *dstp = line_ptr(dst, i, dst_stride);
+    const vs_generic_rows rows(params, height);
+
+    for (unsigned i = rows.start; i < rows.end; ++i) {
+        const void *srcp = line_ptr(src, i & rows.src_mask, src_stride);
+        void *dstp = line_ptr(dst, i & rows.dst_mask, dst_stride);
 
         conv_scanline_h<T>(srcp, dstp, params, width);
     }
@@ -568,24 +572,13 @@ void conv_plane_h(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
 template <class T>
 void conv_plane_v(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
 {
-    unsigned fwidth = params.matrixsize;
-    unsigned support = fwidth / 2;
+    const vs_generic_rows rows(params, height);
 
-    for (unsigned i = 0; i < height; ++i) {
+    for (unsigned i = rows.start; i < rows.end; ++i) {
         const void *srcp[25];
-        void *dstp = line_ptr(dst, i, dst_stride);
+        void *dstp = line_ptr(dst, i & rows.dst_mask, dst_stride);
 
-        unsigned dist_from_bottom = height - 1 - i;
-
-        for (unsigned k = 0; k < support; ++k) {
-            unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
-            srcp[k] = line_ptr(src, row, src_stride);
-        }
-        for (unsigned k = support; k < fwidth; ++k) {
-            unsigned row = dist_from_bottom < k - support ? height - std::min(k - support - dist_from_bottom, i) : i - support + k;
-            srcp[k] = line_ptr(src, row, src_stride);
-        }
-
+        vs_generic_gather_v_rows(src, src_stride, rows.src_mask, i, height, params.matrixsize, srcp);
         conv_scanline_v<T>(srcp, dstp, params, width);
     }
 }
@@ -593,30 +586,18 @@ void conv_plane_v(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t ds
 template <class T>
 void conv_plane_x(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
 {
-    void *tmp = vsh::vsh_aligned_malloc(width * sizeof(T), 64);
-    unsigned fwidth = params.matrixsize;
-    unsigned support = fwidth / 2;
+    vs_generic_conv_scratch scratch(params, width);
+    void *tmp = scratch.row(0);
+    const vs_generic_rows rows(params, height);
 
-    for (unsigned i = 0; i < height; ++i) {
+    for (unsigned i = rows.start; i < rows.end; ++i) {
         const void *srcp[25];
-        void *dstp = line_ptr(dst, i, dst_stride);
+        void *dstp = line_ptr(dst, i & rows.dst_mask, dst_stride);
 
-        unsigned dist_from_bottom = height - 1 - i;
-
-        for (unsigned k = 0; k < support; ++k) {
-            unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
-            srcp[k] = line_ptr(src, row, src_stride);
-        }
-        for (unsigned k = support; k < fwidth; ++k) {
-            unsigned row = dist_from_bottom < k - support ? height - std::min(k - support - dist_from_bottom, i) : i - support + k;
-            srcp[k] = line_ptr(src, row, src_stride);
-        }
-
+        vs_generic_gather_v_rows(src, src_stride, rows.src_mask, i, height, params.matrixsize, srcp);
         conv_scanline_v<T>(srcp, tmp, params, width);
         conv_scanline_h<T>(tmp, dstp, params, width);
     }
-
-    vsh::vsh_aligned_free(tmp);
 }
 
 } // namespace

@@ -3,7 +3,7 @@ project('VapourSynth', 'c', 'cpp', 'cython',
     license: 'LGPL-2.1-or-later',
     license_files: 'COPYING.LESSER',
     meson_version: '>=1.3.0',
-    version: '82',
+    version: '83rc1',
 )
 
 enable_guard_pattern = get_option('enable_guard_pattern')
@@ -285,6 +285,7 @@ libvapoursynth = library('libvapoursynth',
         'src/core/vscore.cpp',
         'src/core/vsresize.cpp',
         'src/core/vsthreadpool.cpp',
+        'src/core/vstiled.cpp',
         'src/core/vsvulkan.cpp',
         'src/core/vsvulkanalloc.cpp',
         'src/core/vsvulkanexec.cpp',

@@ -19,6 +19,7 @@
 */
 
 #include <array>
+#include <cstdio>
 #include <cstdlib>
 #include <cmath>
 #include <memory>
@@ -157,12 +158,16 @@ static std::string createChromaResizeCandidates(VSNode *mask_node, int dst_width
     return {};
 }
 
-static int resolveChromaLocation(const VSFrame *frame, const VSAPI *vsapi) {
+static int resolveChromaLocation(const VSMap *props, const VSAPI *vsapi) {
     int err;
-    int64_t raw = vsapi->mapGetInt(vsapi->getFramePropertiesRO(frame), "_ChromaLocation", 0, &err);
+    int64_t raw = vsapi->mapGetInt(props, "_ChromaLocation", 0, &err);
     if (err || raw < VSC_CHROMA_LEFT || raw > VSC_CHROMA_BOTTOM)
         return VSC_CHROMA_LEFT;
     return static_cast<int>(raw);
+}
+
+static int resolveChromaLocation(const VSFrame *frame, const VSAPI *vsapi) {
+    return resolveChromaLocation(vsapi->getFramePropertiesRO(frame), vsapi);
 }
 
 namespace {
@@ -346,12 +351,16 @@ typedef VariableNodeData<PreMultiplyDataExtra> PreMultiplyData;
 
 /* Takes the format rather than the VideoInfo so a compute path can capture it by value; the
    VideoInfo overload is what the scalar paths already had. */
-static unsigned getLimitedRangeOffset(const VSFrame *f, const VSVideoFormat &fmt, const VSAPI *vsapi) {
+static unsigned getLimitedRangeOffset(const VSMap *props, const VSVideoFormat &fmt, const VSAPI *vsapi) {
     int err;
-    bool limited = (vsapi->mapGetInt(vsapi->getFramePropertiesRO(f), "_Range", 0, &err) == VSC_RANGE_LIMITED);
+    bool limited = (vsapi->mapGetInt(props, "_Range", 0, &err) == VSC_RANGE_LIMITED);
     if (err)
         limited = (fmt.colorFamily == cfGray || fmt.colorFamily == cfYUV);
     return (limited ? (16 << (fmt.bitsPerSample - 8)) : 0);
+}
+
+static unsigned getLimitedRangeOffset(const VSFrame *f, const VSVideoFormat &fmt, const VSAPI *vsapi) {
+    return getLimitedRangeOffset(vsapi->getFramePropertiesRO(f), fmt, vsapi);
 }
 
 static unsigned getLimitedRangeOffset(const VSFrame *f, const VSVideoInfo *vi, const VSAPI *vsapi) {
@@ -557,97 +566,78 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
 //////////////////////////////////////////
 // Merge
 
+typedef void (*MergeKernel)(const void *, const void *, void *, union vs_merge_weight, unsigned);
+
 typedef struct {
     const VSVideoInfo *vi;
     unsigned weight[3];
     float fweight[3];
     int process[3];
-    int cpulevel;
+    MergeKernel kernel;
 } MergeDataExtra;
 
 typedef DualNodeData<MergeDataExtra> MergeData;
 
 const unsigned MergeShift = 15;
 
-static const VSFrame *VS_CC mergeGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    MergeData *d = reinterpret_cast<MergeData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node1, frameCtx);
-        vsapi->requestFrameFilter(n, d->node2, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
-        const int pl[] = {0, 1, 2};
-        const VSFrame *fs[] = { 0, src1, src2 };
-        const VSFrame *fr[] = {fs[d->process[0]], fs[d->process[1]], fs[d->process[2]]};
-        VSFrame *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
-        for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
-            if (d->process[plane] == 0) {
-                int h = vsapi->getFrameHeight(src1, plane);
-                int w = vsapi->getFrameWidth(src2, plane);
-                ptrdiff_t stride = vsapi->getStride(src1, plane);
-                const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
-                const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-                uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
-
-                void (*func)(const void *, const void *, void *, union vs_merge_weight, unsigned) = 0;
-                union vs_merge_weight weight;
-
+/* The row kernels of one filter per instruction set, each indexed by sampleKind. A null entry
+   means the instruction set has none for that sample type, and the next one down is used; a
+   table without AVX-512 kernels leaves that row out. */
+template<typename Kernel>
+struct KernelTable {
+    Kernel c[4];
 #ifdef VS_TARGET_CPU_X86
-                if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = vs_merge_byte_avx2;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = vs_merge_word_avx2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = vs_merge_float_avx2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
-                        func = vs_merge_half_avx2;
-                }
-                if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = vs_merge_byte_sse2;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = vs_merge_word_sse2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = vs_merge_float_sse2;
-                }
+    Kernel sse2[4];
+    Kernel avx2[4];
+    Kernel avx512[4];
 #endif
-                if (!func) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = vs_merge_byte_c;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = vs_merge_word_c;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = vs_merge_float_c;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
-                        func = vs_merge_half_c;
-                }
+};
 
-                if (!func)
-                    continue;
+/* 8 bit integer, 16 bit integer, single and half precision float: the formats
+   is8to16orFloatFormat lets through. */
+static int sampleKind(const VSVideoFormat &f) {
+    if (f.sampleType == stInteger)
+        return f.bytesPerSample == 1 ? 0 : 1;
+    return f.bytesPerSample == 4 ? 2 : 3;
+}
 
-                if (d->vi->format.sampleType == stInteger)
-                    weight.u = d->weight[plane];
-                else
-                    weight.f = d->fweight[plane];
+/* The fastest kernel in table for f that the CPU and cpulevel allow. */
+template<typename Kernel>
+static Kernel selectKernel(const KernelTable<Kernel> &table, const VSVideoFormat &f, [[maybe_unused]] int cpulevel) {
+    const int kind = sampleKind(f);
+#ifdef VS_TARGET_CPU_X86
+    if (getCPUFeatures()->avx512 && cpulevel >= VS_CPU_LEVEL_AVX512 && table.avx512[kind])
+        return table.avx512[kind];
+    if (getCPUFeatures()->avx2 && cpulevel >= VS_CPU_LEVEL_AVX2 && table.avx2[kind])
+        return table.avx2[kind];
+    if (cpulevel >= VS_CPU_LEVEL_SSE2 && table.sse2[kind])
+        return table.sse2[kind];
+#endif
+    return table.c[kind];
+}
 
-                for (int y = 0; y < h; ++y) {
-                    func(srcp1, srcp2, dstp, weight, w);
-                    srcp1 += stride;
-                    srcp2 += stride;
-                    dstp += stride;
-                }
-            }
-        }
+static const KernelTable<MergeKernel> mergeKernels = {
+    { vs_merge_byte_c, vs_merge_word_c, vs_merge_float_c, vs_merge_half_c },
+#ifdef VS_TARGET_CPU_X86
+    { vs_merge_byte_sse2, vs_merge_word_sse2, vs_merge_float_sse2, nullptr },
+    { vs_merge_byte_avx2, vs_merge_word_avx2, vs_merge_float_avx2, vs_merge_half_avx2 },
+#endif
+};
 
-        vsapi->freeFrame(src1);
-        vsapi->freeFrame(src2);
-        return dst;
-    }
+static union vs_merge_weight mergeWeight(const MergeData *d, int plane) {
+    union vs_merge_weight weight;
+    if (d->vi->format.sampleType == stInteger)
+        weight.u = d->weight[plane];
+    else
+        weight.f = d->fweight[plane];
+    return weight;
+}
 
-    return nullptr;
+static void VS_CC mergeProcess(const VSTileRegion *region, const VSTileBuffer *src, const VSTileBuffer *dst, [[maybe_unused]] void *frameState, void *instanceData) {
+    const MergeData *d = static_cast<const MergeData *>(instanceData);
+    union vs_merge_weight weight = mergeWeight(d, region->plane);
+    for (int y = region->rowStart; y < region->rowEnd; y++)
+        d->kernel(tileRow(&src[0], y), tileRow(&src[1], y), tileRow(dst, y), weight, region->width);
 }
 
 static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -693,10 +683,10 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         }
     }
 
-    d->cpulevel = vs_get_cpulevel(core);
-
     if (!is8to16orFloatFormat(d->vi->format))
         RETERROR(invalidVideoFormatMessage(d->vi->format, vsapi, "Merge").c_str());
+
+    d->kernel = selectKernel(mergeKernels, d->vi->format, vs_get_cpulevel(core));
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("Merge: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
@@ -741,24 +731,85 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         return;
     }
 
-    VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
-    vsapi->createVideoFilter(out, "Merge", d->vi, mergeGetFrame, filterFree<MergeData>, fmParallel, deps, 2, d.get(), core);
+    /* A plane with weight 0 or 1 is one clip's plane unchanged: passed through, not merged. */
+    int passthrough = 0;
+    int passthroughInput[3] = {};
+    for (int p = 0; p < d->vi->format.numPlanes; p++) {
+        if (d->process[p] != 0) {
+            passthrough |= 1 << p;
+            passthroughInput[p] = d->process[p] - 1;
+        }
+    }
+    VSNode *inputs[] = { d->node1, d->node2 };
+    createTiledFilter(out, "Merge", d->vi, inputs, 2, passthrough, mergeProcess, nullptr, filterFree<MergeData>, d.get(), core, vsapi, 0, passthroughInput);
     d.release();
 }
 
 //////////////////////////////////////////
 // MaskedMerge
 
+typedef void (*MaskMergeKernel)(const void *, const void *, const void *, void *, unsigned, unsigned, unsigned);
+
 typedef struct {
     const VSVideoInfo *vi;
     bool premultiplied;
     bool first_plane;
     bool process[3];
-    int cpulevel;
     bool chroma_dispatch;   // If true, nodes 3-8 are 6 per-chromaloc resizes of mask
+    bool checkLoc;          // chroma is merged, so clipa and clipb must agree on chroma location
+    bool checkRange;        // premultiplied integer, so clipa and clipb must agree on range
+    MaskMergeKernel kernel;
 } MaskedMergeDataExtra;
 
 typedef VariableNodeData<MaskedMergeDataExtra> MaskedMergeData;
+
+static const KernelTable<MaskMergeKernel> maskMergeKernels = {
+    { vs_mask_merge_byte_c, vs_mask_merge_word_c, vs_mask_merge_float_c, vs_mask_merge_half_c },
+#ifdef VS_TARGET_CPU_X86
+    { vs_mask_merge_byte_sse2, vs_mask_merge_word_sse2, vs_mask_merge_float_sse2, nullptr },
+    { vs_mask_merge_byte_avx2, vs_mask_merge_word_avx2, vs_mask_merge_float_avx2, vs_mask_merge_half_avx2 },
+    { vs_mask_merge_byte_avx512, vs_mask_merge_word_avx512, nullptr, nullptr },
+#endif
+};
+
+static const KernelTable<MaskMergeKernel> maskMergePremulKernels = {
+    { vs_mask_merge_premul_byte_c, vs_mask_merge_premul_word_c, vs_mask_merge_premul_float_c, vs_mask_merge_premul_half_c },
+#ifdef VS_TARGET_CPU_X86
+    { vs_mask_merge_premul_byte_sse2, vs_mask_merge_premul_word_sse2, vs_mask_merge_premul_float_sse2, nullptr },
+    { vs_mask_merge_premul_byte_avx2, vs_mask_merge_premul_word_avx2, vs_mask_merge_premul_float_avx2, vs_mask_merge_premul_half_avx2 },
+    { vs_mask_merge_premul_byte_avx512, vs_mask_merge_premul_word_avx512, nullptr, nullptr },
+#endif
+};
+
+/* The per frame checks of maskedMergeGetFrame, made on the properties when the core runs the
+   filter tiled. Leaves clipa's range offset in *frameState for maskedMergeProcess. */
+static int VS_CC maskedMergeBeginFrame([[maybe_unused]] int n, const VSMap *const *inputProps, [[maybe_unused]] VSMap *outputProps, void **frameState, void *instanceData, char *errorMessage, int errorMessageSize, [[maybe_unused]] VSCore *core, const VSAPI *vsapi) {
+    const MaskedMergeData *d = static_cast<const MaskedMergeData *>(instanceData);
+    if (d->checkLoc) {
+        int loc1 = resolveChromaLocation(inputProps[0], vsapi);
+        int loc2 = resolveChromaLocation(inputProps[1], vsapi);
+        if (loc1 != loc2) {
+            snprintf(errorMessage, errorMessageSize, "clipa and clipb have different chroma locations (_ChromaLocation %d vs %d)", loc1, loc2);
+            return 0;
+        }
+    }
+    unsigned offset1 = getLimitedRangeOffset(inputProps[0], d->vi->format, vsapi);
+    if (d->checkRange && offset1 != getLimitedRangeOffset(inputProps[1], d->vi->format, vsapi)) {
+        snprintf(errorMessage, errorMessageSize, "Input frames must have the same range");
+        return 0;
+    }
+    *frameState = reinterpret_cast<void *>(static_cast<uintptr_t>(offset1));
+    return 1;
+}
+
+static void VS_CC maskedMergeProcess(const VSTileRegion *region, const VSTileBuffer *src, const VSTileBuffer *dst, void *frameState, void *instanceData) {
+    const MaskedMergeData *d = static_cast<const MaskedMergeData *>(instanceData);
+    const VSVideoFormat &f = d->vi->format;
+    const unsigned depth = static_cast<unsigned>(f.bitsPerSample);
+    const unsigned offset = (region->plane > 0 && f.colorFamily == cfYUV) ? (1u << (depth - 1)) : static_cast<unsigned>(reinterpret_cast<uintptr_t>(frameState));
+    for (int y = region->rowStart; y < region->rowEnd; y++)
+        d->kernel(vsh::tileRow(&src[0], y), vsh::tileRow(&src[1], y), vsh::tileRow(&src[2], y), vsh::tileRow(dst, y), depth, offset, static_cast<unsigned>(region->width));
+}
 
 static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     MaskedMergeData *d = reinterpret_cast<MaskedMergeData *>(instanceData);
@@ -816,7 +867,6 @@ static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, voi
                 const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-                void (*func)(const void *, const void *, const void *, void *, unsigned, unsigned, unsigned) = 0;
                 int yuvhandling = (plane > 0) && (d->vi->format.colorFamily == cfYUV);
 
                 if (d->premultiplied && d->vi->format.sampleType == stInteger && offset1 != offset2) {
@@ -829,50 +879,10 @@ static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, voi
                     return nullptr;
                 }
 
-#ifdef VS_TARGET_CPU_X86
-                if (getCPUFeatures()->avx512 && d->cpulevel >= VS_CPU_LEVEL_AVX512) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = d->premultiplied ? vs_mask_merge_premul_byte_avx512 : vs_mask_merge_byte_avx512;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = d->premultiplied ? vs_mask_merge_premul_word_avx512 : vs_mask_merge_word_avx512;
-                }
-                if (!func && getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = d->premultiplied ? vs_mask_merge_premul_byte_avx2 : vs_mask_merge_byte_avx2;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = d->premultiplied ? vs_mask_merge_premul_word_avx2 : vs_mask_merge_word_avx2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = d->premultiplied ? vs_mask_merge_premul_float_avx2 : vs_mask_merge_float_avx2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
-                        func = d->premultiplied ? vs_mask_merge_premul_half_avx2 : vs_mask_merge_half_avx2;
-                }
-                if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = d->premultiplied ? vs_mask_merge_premul_byte_sse2 : vs_mask_merge_byte_sse2;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = d->premultiplied ? vs_mask_merge_premul_word_sse2 : vs_mask_merge_word_sse2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = d->premultiplied ? vs_mask_merge_premul_float_sse2 : vs_mask_merge_float_sse2;
-                }
-#endif
-                if (!func) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = d->premultiplied ? vs_mask_merge_premul_byte_c : vs_mask_merge_byte_c;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = d->premultiplied ? vs_mask_merge_premul_word_c : vs_mask_merge_word_c;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = d->premultiplied ? vs_mask_merge_premul_float_c : vs_mask_merge_float_c;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
-                        func = d->premultiplied ? vs_mask_merge_premul_half_c : vs_mask_merge_half_c;
-                }
-
-                if (!func)
-                    continue;
-
                 int depth = d->vi->format.bitsPerSample;
 
                 for (int y = 0; y < h; y++) {
-                    func(srcp1, srcp2, maskp, dstp, depth, yuvhandling ? (1 << (depth - 1)) : offset1, w);
+                    d->kernel(srcp1, srcp2, maskp, dstp, depth, yuvhandling ? (1 << (depth - 1)) : offset1, w);
                     srcp1 += stride;
                     srcp2 += stride;
                     maskp += stride;
@@ -920,6 +930,18 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     if (!getProcessPlanesArg(in, out, "MaskedMerge", d->process, vsapi))
         return;
 
+    /* Two per frame checks every path makes: the two inputs have to agree on chroma siting before
+       their chroma can be merged at all, and premultiplied integer needs them to agree on black
+       level too, since one offset is applied to both. The range check only when a plane is
+       processed: the frame path makes it inside its per plane loop, which a call processing
+       nothing never enters, and bounded by numPlanes like that loop, since the planes argument
+       fills all three flags. */
+    bool anyProcessed = false;
+    for (int p = 0; p < d->vi->format.numPlanes; p++)
+        anyProcessed = anyProcessed || d->process[p];
+    d->checkLoc = (d->process[1] || d->process[2]) && (d->vi->format.subSamplingW > 0 || d->vi->format.subSamplingH > 0);
+    d->checkRange = d->premultiplied && d->vi->format.sampleType == stInteger && anyProcessed;
+
     // Do we need to resample the first mask plane and use it for the chroma planes?
     bool need_chroma_resize = (d->first_plane && d->vi->format.numPlanes > 1)
                               && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0)
@@ -936,7 +958,6 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
         const unsigned depth = fmt.bitsPerSample;
         const uint32_t maxval = static_cast<uint32_t>((1ull << depth) - 1u);
         const bool isYUV = fmt.colorFamily == cfYUV;
-        const bool isInt = fmt.sampleType == stInteger;
         const bool premul = d->premultiplied;
 
         vsgpu::SimpleFilter sf;
@@ -980,21 +1001,12 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
         }
         const uint32_t storageMask = fmt.bytesPerSample == 1 ? 0xFFu : 0xFFFFu;
 
-        /* Two per frame checks the scalar path makes and the compute path must keep: the
-           two inputs have to agree on chroma siting before their chroma can be merged at
-           all, and premultiplied integer needs them to agree on black level too, since
-           one offset is applied to both. */
-        const bool checkLoc = (d->process[1] || d->process[2]) &&
-            (fmt.subSamplingW > 0 || fmt.subSamplingH > 0);
-        /* The scalar path makes the range check inside its per plane loop, so a call that
-           processes nothing never reaches it; gated on the same condition here because
-           prepareFrame runs ahead of the driver's no-work shortcut and would otherwise
-           fail a frame the CPU path hands back untouched. Bounded by numPlanes for the
-           same reason that loop is: the planes argument fills all three flags. */
-        bool anyProcessed = false;
-        for (int p = 0; p < fmt.numPlanes; p++)
-            anyProcessed = anyProcessed || d->process[p];
-        const bool checkRange = premul && isInt && anyProcessed;
+        /* The per frame checks every path makes, worked out above. The range check being only
+           made when a plane is processed matters here too: prepareFrame runs ahead of the
+           driver's no-work shortcut and would otherwise fail a frame the CPU path hands back
+           untouched. */
+        const bool checkLoc = d->checkLoc;
+        const bool checkRange = d->checkRange;
 
         /* Resampling always implies checkLoc -- both want subsampling and chroma being
            processed -- so the chroma location the gather needs is already being read and
@@ -1085,7 +1097,35 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
             d->nodes[3 + i] = candidates[i];
     }
 
-    d->cpulevel = vs_get_cpulevel(core);
+    d->kernel = selectKernel(d->premultiplied ? maskMergePremulKernels : maskMergeKernels, d->vi->format, vs_get_cpulevel(core));
+
+    /* When the mask's first plane stands in for processed chroma planes of the same size, a plane
+       map repeating it makes plane p of the mask the one for plane p, as tiled filters read it. */
+    if (d->first_plane && d->vi->format.numPlanes > 1 && (d->process[1] || d->process[2]) && !need_chroma_resize) {
+        VSVideoInfo maskvi3 = *d->vi;
+        maskvi3.numFrames = maskvi->numFrames;
+        VSPlaneMapFilterDesc desc = {};
+        desc.version = VS_PLANE_MAP_FILTER_VERSION;
+        desc.vi = &maskvi3;
+        desc.inputs = &d->nodes[2];
+        desc.numInputs = 1;
+        VSNode *mask3 = vsapi->createPlaneMapVideoFilter2("MaskedMerge", &desc, core);
+        if (!mask3)
+            RETERROR("MaskedMerge: the first mask plane could not be repeated for the other planes");
+        vsapi->freeNode(d->nodes[2]);
+        d->nodes[2] = mask3;
+        d->first_plane = false;
+    }
+
+    /* Tiled unless the mask's first plane stands in for subsampled chroma planes, which takes a
+       resampled mask the frame's chroma location picks. */
+    if (!(d->first_plane && d->vi->format.numPlanes > 1 && (d->process[1] || d->process[2]))) {
+        VSNode *inputs[] = { d->nodes[0], d->nodes[1], d->nodes[2] };
+        createTiledFilter(out, "MaskedMerge", d->vi, inputs, 3, unprocessedPlanes(d->process, d->vi->format.numPlanes), maskedMergeProcess,
+            maskedMergeBeginFrame, filterFree<MaskedMergeData>, d.get(), core, vsapi);
+        d.release();
+        return;
+    }
 
     std::vector<VSFilterDependency> deps;
     deps.push_back({ d->nodes[0], rpStrictSpatial });
@@ -1101,94 +1141,43 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 }
 
 //////////////////////////////////////////
-// MakeDiff
+// MakeDiff and MergeDiff
+
+typedef void (*DiffKernel)(const void *, const void *, void *, unsigned, unsigned);
 
 typedef struct {
     const VSVideoInfo *vi;
     bool process[3];
-    int cpulevel;
-} MakeDiffDataExtra;
+    DiffKernel kernel;
+} DiffDataExtra;
 
-typedef DualNodeData<MakeDiffDataExtra> MakeDiffData;
+typedef DualNodeData<DiffDataExtra> DiffData;
 
-static const VSFrame *VS_CC makeDiffGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    MakeDiffData *d = reinterpret_cast<MakeDiffData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node1, frameCtx);
-        vsapi->requestFrameFilter(n, d->node2, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
-        const int pl[] = { 0, 1, 2 };
-        const VSFrame *fr[] = { d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1 };
-        VSFrame *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
-        for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
-            if (d->process[plane]) {
-                int h = vsapi->getFrameHeight(src1, plane);
-                int w = vsapi->getFrameWidth(src2, plane);
-                ptrdiff_t stride = vsapi->getStride(src1, plane);
-                const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
-                const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-                uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
-
-                void (*func)(const void *, const void *, void *, unsigned, unsigned) = 0;
-
+static const KernelTable<DiffKernel> makeDiffKernels = {
+    { vs_makediff_byte_c, vs_makediff_word_c, vs_makediff_float_c, vs_makediff_half_c },
 #ifdef VS_TARGET_CPU_X86
-                if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = vs_makediff_byte_avx2;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = vs_makediff_word_avx2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = vs_makediff_float_avx2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
-                        func = vs_makediff_half_avx2;
-                }
-                if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = vs_makediff_byte_sse2;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = vs_makediff_word_sse2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = vs_makediff_float_sse2;
-                }
+    { vs_makediff_byte_sse2, vs_makediff_word_sse2, vs_makediff_float_sse2, nullptr },
+    { vs_makediff_byte_avx2, vs_makediff_word_avx2, vs_makediff_float_avx2, vs_makediff_half_avx2 },
 #endif
-                if (!func) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = vs_makediff_byte_c;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = vs_makediff_word_c;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = vs_makediff_float_c;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
-                        func = vs_makediff_half_c;
-                }
+};
 
-                if (!func)
-                    continue;
+static const KernelTable<DiffKernel> mergeDiffKernels = {
+    { vs_mergediff_byte_c, vs_mergediff_word_c, vs_mergediff_float_c, vs_mergediff_half_c },
+#ifdef VS_TARGET_CPU_X86
+    { vs_mergediff_byte_sse2, vs_mergediff_word_sse2, vs_mergediff_float_sse2, nullptr },
+    { vs_mergediff_byte_avx2, vs_mergediff_word_avx2, vs_mergediff_float_avx2, vs_mergediff_half_avx2 },
+#endif
+};
 
-                int depth = d->vi->format.bitsPerSample;
-
-                for (int y = 0; y < h; ++y) {
-                    func(srcp1, srcp2, dstp, depth, w);
-                    srcp1 += stride;
-                    srcp2 += stride;
-                    dstp += stride;
-                }
-            }
-        }
-
-        vsapi->freeFrame(src1);
-        vsapi->freeFrame(src2);
-        return dst;
-    }
-
-    return nullptr;
+static void VS_CC diffProcess(const VSTileRegion *region, const VSTileBuffer *src, const VSTileBuffer *dst, [[maybe_unused]] void *frameState, void *instanceData) {
+    const DiffData *d = static_cast<const DiffData *>(instanceData);
+    unsigned depth = static_cast<unsigned>(d->vi->format.bitsPerSample);
+    for (int y = region->rowStart; y < region->rowEnd; y++)
+        d->kernel(tileRow(&src[0], y), tileRow(&src[1], y), tileRow(dst, y), depth, region->width);
 }
 
 static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<MakeDiffData> d(new MakeDiffData(vsapi));
+    std::unique_ptr<DiffData> d(new DiffData(vsapi));
 
     d->node1 = vsapi->mapGetNode(in, "clipa", 0, 0);
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
@@ -1203,7 +1192,7 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
     if (!getProcessPlanesArg(in, out, "MakeDiff", d->process, vsapi))
         return;
 
-    d->cpulevel = vs_get_cpulevel(core);
+    d->kernel = selectKernel(makeDiffKernels, d->vi->format, vs_get_cpulevel(core));
 
     const ClipResidencyResult residency = residencyOfClips(d->node1, d->node2, vsapi);
     if (residency.kind == ClipResidency::Mixed)
@@ -1226,8 +1215,8 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
-    vsapi->createVideoFilter(out, "MakeDiff", d->vi, makeDiffGetFrame, filterFree<MakeDiffData>, fmParallel, deps, 2, d.get(), core);
+    VSNode *inputs[] = { d->node1, d->node2 };
+    createTiledFilter(out, "MakeDiff", d->vi, inputs, 2, unprocessedPlanes(d->process, d->vi->format.numPlanes), diffProcess, nullptr, filterFree<DiffData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -1363,92 +1352,8 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
 //////////////////////////////////////////
 // MergeDiff
 
-struct MergeDiffDataExtra {
-    const VSVideoInfo *vi;
-    bool process[3];
-    int cpulevel;
-};
-
-typedef DualNodeData<MergeDiffDataExtra> MergeDiffData;
-
-static const VSFrame *VS_CC mergeDiffGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    MergeDiffData *d = reinterpret_cast<MergeDiffData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node1, frameCtx);
-        vsapi->requestFrameFilter(n, d->node2, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
-        const int pl[] = { 0, 1, 2 };
-        const VSFrame *fr[] = { d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1 };
-        VSFrame *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
-        for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
-            if (d->process[plane]) {
-                int h = vsapi->getFrameHeight(src1, plane);
-                int w = vsapi->getFrameWidth(src1, plane);
-                ptrdiff_t stride = vsapi->getStride(src1, plane);
-                const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
-                const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-                uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
-
-                void (*func)(const void *, const void *, void *, unsigned, unsigned) = 0;
-
-#ifdef VS_TARGET_CPU_X86
-                if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = vs_mergediff_byte_avx2;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = vs_mergediff_word_avx2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = vs_mergediff_float_avx2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
-                        func = vs_mergediff_half_avx2;
-                }
-                if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = vs_mergediff_byte_sse2;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = vs_mergediff_word_sse2;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = vs_mergediff_float_sse2;
-                }
-#endif
-                if (!func) {
-                    if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                        func = vs_mergediff_byte_c;
-                    else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                        func = vs_mergediff_word_c;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                        func = vs_mergediff_float_c;
-                    else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
-                        func = vs_mergediff_half_c;
-                }
-
-                if (!func)
-                    continue;
-
-                int depth = d->vi->format.bitsPerSample;
-
-                for (int y = 0; y < h; ++y) {
-                    func(srcp1, srcp2, dstp, depth, w);
-                    srcp1 += stride;
-                    srcp2 += stride;
-                    dstp += stride;
-                }
-            }
-        }
-
-        vsapi->freeFrame(src1);
-        vsapi->freeFrame(src2);
-        return dst;
-    }
-
-    return nullptr;
-}
-
 static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<MergeDiffData> d(new MergeDiffData(vsapi));
+    std::unique_ptr<DiffData> d(new DiffData(vsapi));
 
     d->node1 = vsapi->mapGetNode(in, "clipa", 0, 0);
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
@@ -1463,7 +1368,7 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
     if (!getProcessPlanesArg(in, out, "MergeDiff", d->process, vsapi))
         return;
 
-    d->cpulevel = vs_get_cpulevel(core);
+    d->kernel = selectKernel(mergeDiffKernels, d->vi->format, vs_get_cpulevel(core));
 
     const ClipResidencyResult residency = residencyOfClips(d->node1, d->node2, vsapi);
     if (residency.kind == ClipResidency::Mixed)
@@ -1486,8 +1391,8 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
         return;
     }
 
-    VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
-    vsapi->createVideoFilter(out, "MergeDiff", d->vi, mergeDiffGetFrame, filterFree<MergeDiffData>, fmParallel, deps, 2, d.get(), core);
+    VSNode *inputs[] = { d->node1, d->node2 };
+    createTiledFilter(out, "MergeDiff", d->vi, inputs, 2, unprocessedPlanes(d->process, d->vi->format.numPlanes), diffProcess, nullptr, filterFree<DiffData>, d.get(), core, vsapi);
     d.release();
 }
 

@@ -56,6 +56,8 @@ Functions_
 
    areValidDimensions_
 
+   tileRow_
+
 
 Introduction
 ############
@@ -270,3 +272,13 @@ areValidDimensions
 
    Checks if the given dimensions are valid for a particular format, with regards
    to chroma subsampling.
+
+
+tileRow
+-------
+
+.. cpp:function:: static inline uint8_t *vsh::tileRow(const VSTileBuffer *buffer, int row)
+
+   Returns the address of row *row* of a tiled filter's buffer, rows counted
+   from the top of the plane. See VSTileBuffer in VapourSynth4.h. Only defined
+   for API 4.4 and later.

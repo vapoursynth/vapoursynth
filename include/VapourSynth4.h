@@ -26,7 +26,9 @@
 
 #define VS_MAKE_VERSION(major, minor) (((major) << 16) | (minor))
 #define VAPOURSYNTH_API_MAJOR 4
-#if defined(VS_USE_LATEST_API) || defined(VS_USE_API_43)
+#if defined(VS_USE_LATEST_API) || defined(VS_USE_API_44)
+#define VAPOURSYNTH_API_MINOR 4
+#elif defined(VS_USE_API_43)
 #define VAPOURSYNTH_API_MINOR 3
 #elif defined(VS_USE_API_42)
 #define VAPOURSYNTH_API_MINOR 2
@@ -377,6 +379,132 @@ typedef struct VSFilterDependency {
     int requestPattern; /* VSRequestPattern */
 } VSFilterDependency;
 
+#if VAPOURSYNTH_API_MINOR >= 4
+/* Tiled filters, frame maps and plane maps, added in API 4.4: see createTiledVideoFilter,
+ * createFrameMapVideoFilter and createPlaneMapVideoFilter.
+ *
+ * A tiled filter computes output rows from the rows of its inputs in the same plane and declares
+ * how many rows above and below it reads. The core then decides how much of each frame exists at
+ * once: when a tiled filter's only consumer is another tiled filter and nothing caches its frames,
+ * the two can run together in bands of rows that stay in the CPU cache, and the frame between them
+ * is never allocated. Otherwise the filter produces whole frames, the same work a filter made with
+ * createVideoFilter does.
+ *
+ * Every input has the output's constant size, and each plane read from an input has the size of
+ * the output's plane; the sample type and bit depth may differ. Output plane p is computed from
+ * plane p of the inputs only, and output frame n from frame n of each input only. A filter that
+ * needs anything else (other frames, other planes, a variable format) uses createVideoFilter.
+ *
+ * A frame map outputs frames of its inputs as they are apart from their properties: output frame
+ * n is one frame of one input, chosen by a function of n. Trim, Splice, SelectEvery and the other
+ * filters that only reorder frames are frame maps, and so are the ones that only change frame
+ * properties. A tiled filter reading a frame map sees through it, so whatever produces the chosen
+ * frame can still run together with the tiled filter.
+ *
+ * A plane map makes each output plane a plane of one of its inputs, unchanged, all at the same
+ * frame: ShufflePlanes, SplitPlanes and CopyFrameProps are plane maps. Tiled filters see through
+ * them as well, and an input a plane map only takes properties from costs no pixels when a tiled
+ * filter produces it. */
+
+/* Some or all rows of one plane: row r, counted from the top of the plane, starts at
+   ptr + (r & mask) * stride. Only the rows a call may read or write are guaranteed to be present
+   and the others alias them, so nothing outside those rows may be touched; within a row the
+   padding up to stride may be read and written as in a frame. vsh::tileRow computes the address. */
+typedef struct VSTileBuffer {
+    uint8_t *ptr;
+    ptrdiff_t stride;
+    unsigned mask;
+} VSTileBuffer;
+
+/* The rows one process call writes. */
+typedef struct VSTileRegion {
+    int plane;
+    int width; /* of the plane, in pixels */
+    int height; /* of the plane, in rows */
+    int rowStart; /* the first row to write */
+    int rowEnd; /* one past the last row to write */
+} VSTileRegion;
+
+/* Sets the properties of output frame n before any of its pixels exist; tiled filters, frame maps
+   and plane maps share it. inputProps holds the properties of the frames the output frame is made
+   from: for a tiled filter or a plane map frame n of each input, in order, for a frame map the one
+   frame mapFrame chose. outputProps starts as a copy of inputProps[0]. n is the filter's own frame
+   number, which is not always the requested one: when the core runs filters together through a
+   frame map, each gets the number of the frame of its own that is being made. A tiled filter's per
+   frame state goes in *frameState, which every process call of the frame and endFrame receive; for
+   a frame map or a plane map, which have neither, frameState is NULL. Must give the same result for
+   the same n and inputProps: when
+   the core runs filters together it is called inside another filter's frame request, once for
+   every request of a frame that nothing caches. Returns non-zero on success; on failure it writes
+   a message to errorMessage (errorMessageSize bytes) and the frame fails with it. */
+typedef int (VS_CC *VSFilterBeginFrame)(int n, const VSMap *const *inputProps, VSMap *outputProps, void **frameState, void *instanceData, char *errorMessage, int errorMessageSize, VSCore *core, const VSAPI *vsapi);
+/* Writes rows [region->rowStart, region->rowEnd) of plane region->plane to dst. src has one buffer
+   per input, of which only rows rowStart - haloTop to rowEnd - 1 + haloBottom of the same plane
+   may be read, and of those only the ones inside the plane: rows past its top or bottom never
+   exist. A filter wanting a row past an edge clamps the row number to the plane, which always
+   lands on a row it may read; mirroring it does so only when the halo on the other side reaches
+   the mirrored row. Calls for one frame may run in any order and never write a row twice, but
+   when the core runs filters together it skips the planes of a filter that nothing reads, so not
+   every row of every plane is necessarily written. Must not fail and must not call the API: it
+   runs inside other filters' frame requests when the core runs filters together. */
+typedef void (VS_CC *VSTiledFilterProcess)(const VSTileRegion *region, const VSTileBuffer *src, const VSTileBuffer *dst, void *frameState, void *instanceData);
+/* Releases what beginFrame put in *frameState. Called once after every successful beginFrame,
+   also when the frame fails later. */
+typedef void (VS_CC *VSTiledFilterEndFrame)(void *frameState, void *instanceData);
+
+#define VS_TILED_FILTER_VERSION 1
+
+typedef struct VSTiledFilterDesc {
+    int version; /* VS_TILED_FILTER_VERSION */
+    const VSVideoInfo *vi; /* the output; a constant format and size */
+    VSNode *const *inputs; /* CPU resident video nodes of the output's size, at least one; an input needs every processed plane, and the planes passed through from it, each sized like the output's */
+    int numInputs;
+    const int *haloTop; /* per input, the number of rows above the written ones read from it, in each plane's own rows; NULL means none for every input, more than the height means the whole plane */
+    const int *haloBottom; /* the same below */
+    int passthroughPlanes; /* bit p set: output plane p is plane p of an input, unchanged, and is never processed; that input must store its samples like the output (same sample type and bytes per sample, as for newVideoFrame2) */
+    int passthroughInput[3]; /* per plane, the input a passed through plane comes from, 0 being the first */
+    VSFilterBeginFrame beginFrame; /* NULL: the output properties are the first input's */
+    VSTiledFilterProcess process; /* may only be NULL when every plane is passed through */
+    VSTiledFilterEndFrame endFrame; /* may be NULL */
+    VSFilterFree free; /* may be NULL, called like for createVideoFilter, not called when creation fails */
+    void *instanceData;
+} VSTiledFilterDesc;
+
+/* Which frame output frame n of a frame map is, n always being one of the output's frames: sets
+   *input to the index of the input it comes from, which is 0 on entry, and returns its frame
+   number there. A number past either end of the input is clamped to it, as requestFrameFilter
+   does. Must not fail, must not call the API and must give the same answer every time it is asked
+   about the same n. */
+typedef int (VS_CC *VSFilterMapFrame)(int n, int *input, void *instanceData);
+
+#define VS_FRAME_MAP_FILTER_VERSION 1
+
+typedef struct VSFrameMapFilterDesc {
+    int version; /* VS_FRAME_MAP_FILTER_VERSION */
+    const VSVideoInfo *vi; /* the output; where its format or size is constant, every input must have that format or size */
+    const VSFilterDependency *inputs; /* video nodes, all CPU or all GPU resident, each with the request pattern mapFrame follows, at least one */
+    int numInputs;
+    VSFilterMapFrame mapFrame; /* NULL: output frame n is frame n of the first input */
+    VSFilterBeginFrame beginFrame; /* NULL: the output properties are those of the frame mapFrame chose */
+    VSFilterFree free; /* may be NULL, called like for createVideoFilter, not called when creation fails */
+    void *instanceData;
+} VSFrameMapFilterDesc;
+
+#define VS_PLANE_MAP_FILTER_VERSION 1
+
+typedef struct VSPlaneMapFilterDesc {
+    int version; /* VS_PLANE_MAP_FILTER_VERSION */
+    const VSVideoInfo *vi; /* the output; a constant format and size */
+    VSNode *const *inputs; /* distinct video nodes, at least one; output frame n is made from frame n of each, and input 0's gives the properties */
+    int numInputs;
+    int planeInput[3]; /* per output plane, the input it comes from; inputs that give planes have a constant format and size and are all CPU or all GPU resident, and the node is resident where they are */
+    int planeSource[3]; /* per output plane, the plane of that input it is; it must have the output plane's size and store its samples like the output */
+    VSFilterBeginFrame beginFrame; /* NULL: the output properties are input 0's */
+    VSFilterFree free; /* may be NULL, called like for createVideoFilter, not called when creation fails */
+    void *instanceData;
+} VSPlaneMapFilterDesc;
+#endif
+
 struct VSAPI {
     /* Audio and video filter related including nodes */
     void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
@@ -548,6 +676,16 @@ struct VSAPI {
     const VSVULKANAPI *(VS_CC *getVulkanAPI)(void) VS_NOEXCEPT; /* see VSVulkan4.h; never NULL, it is versioned by the core API and getAPIVersion answers which one you got */
     int (VS_CC *getNodeResidency)(VSNode *node) VS_NOEXCEPT; /* returns VSNodeResidency; nrGPU when the node was created with ffGPUOutput */
     int (VS_CC *getFrameResidency)(const VSFrame *frame) VS_NOEXCEPT; /* returns VSNodeResidency */
+#endif
+
+    /* Added in API 4.4 */
+#if VAPOURSYNTH_API_MINOR >= 4
+    void (VS_CC *createTiledVideoFilter)(VSMap *out, const char *name, const VSTiledFilterDesc *desc, VSCore *core) VS_NOEXCEPT; /* see VSTiledFilterDesc; the node is appended to the clip key in out, errors are set on out */
+    VSNode *(VS_CC *createTiledVideoFilter2)(const char *name, const VSTiledFilterDesc *desc, VSCore *core) VS_NOEXCEPT; /* same as createTiledVideoFilter but returns the node, or NULL on failure */
+    void (VS_CC *createFrameMapVideoFilter)(VSMap *out, const char *name, const VSFrameMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT; /* see VSFrameMapFilterDesc; the node has the residency of its inputs and is appended to the clip key in out, errors are set on out */
+    VSNode *(VS_CC *createFrameMapVideoFilter2)(const char *name, const VSFrameMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT; /* same as createFrameMapVideoFilter but returns the node, or NULL on failure */
+    void (VS_CC *createPlaneMapVideoFilter)(VSMap *out, const char *name, const VSPlaneMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT; /* see VSPlaneMapFilterDesc; the node is appended to the clip key in out, errors are set on out */
+    VSNode *(VS_CC *createPlaneMapVideoFilter2)(const char *name, const VSPlaneMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT; /* same as createPlaneMapVideoFilter but returns the node, or NULL on failure */
 #endif
 
 #if VAPOURSYNTH_API_MINOR >= 2

@@ -598,58 +598,6 @@ typedef struct {
 
 typedef VariableNodeData<ShufflePlanesDataExtra> ShufflePlanesData;
 
-static const VSFrame *VS_CC shufflePlanesGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    ShufflePlanesData *d = reinterpret_cast<ShufflePlanesData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->nodes[0], frameCtx);
-
-        if (d->nodes[1] && d->nodes[1] != d->nodes[0])
-            vsapi->requestFrameFilter(n, d->nodes[1], frameCtx);
-
-        if (d->nodes[2] && d->nodes[2] != d->nodes[0] && d->nodes[2] != d->nodes[1])
-            vsapi->requestFrameFilter(n, d->nodes[2], frameCtx);
-
-        if (d->nodes[3] && d->nodes[3] != d->nodes[0] && d->nodes[3] != d->nodes[1] && d->nodes[3] != d->nodes[2])
-            vsapi->requestFrameFilter(n, d->nodes[3], frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        if (d->vi.format.colorFamily != cfGray) {
-            const VSFrame *src[4];
-            VSFrame *dst;
-
-            for (int i = 0; i < 4; i++)
-                src[i] = vsapi->getFrameFilter(n, d->nodes[i], frameCtx);
-
-            dst = vsapi->newVideoFrame2(&d->vi.format, d->vi.width, d->vi.height, src, d->plane, src[3], core);
-
-            for (int i = 0; i < 4; i++)
-                vsapi->freeFrame(src[i]);
-
-            return dst;
-        } else {
-            VSFrame *dst;
-            const VSFrame *src = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
-
-            const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
-
-            if (d->plane[0] >= fi->numPlanes) {
-                vsapi->freeFrame(src);
-                vsapi->setFilterError("ShufflePlanes: invalid plane specified", frameCtx);
-                return nullptr;
-            }
-
-            const VSFrame *prop_src = vsapi->getFrameFilter(n, d->nodes[3], frameCtx);
-
-            dst = vsapi->newVideoFrame2(&d->vi.format, vsapi->getFrameWidth(src, d->plane[0]), vsapi->getFrameHeight(src, d->plane[0]), &src, d->plane, prop_src, core);
-
-            vsapi->freeFrame(src);
-            vsapi->freeFrame(prop_src);
-            return dst;
-        }
-    }
-
-    return nullptr;
-}
 
 static int findSubSampling(int s1, int s2) {
     for (int i = 0; i < 6; i++)
@@ -760,15 +708,21 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         vsapi->queryVideoFormat(&d->vi.format, d->format, d->vi.format.sampleType, d->vi.format.bitsPerSample, ssW, ssH, core);
     }
 
-    if (d->format == cfGray) {
-        VSFilterDependency deps1[] = {{ d->nodes[0], rpStrictSpatial }, { d->nodes[3], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[3])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }};
-        vsapi->createVideoFilterEx(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, residencyFlags(d->nodes[0], vsapi), deps1, 2, d.get(), core);
-    } else {
-        VSFilterDependency deps3[] = {{ d->nodes[0], rpStrictSpatial}, { d->nodes[1], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }, { d->nodes[2], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly }, { d->nodes[3], (d->vi.numFrames <= vsapi->getVideoInfo(d->nodes[3])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly } };
-        vsapi->createVideoFilterEx(out, "ShufflePlanes", &d->vi, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, residencyFlags(d->nodes[0], vsapi), deps3, 4, d.get(), core);
+    /* The output planes are planes of the clips, unchanged, so ShufflePlanes is a plane map. Its
+       properties come from input 0, which makes prop_src the first input; each clip is passed
+       once, however many planes come from it. The node takes its own references, and d's go
+       with it here. */
+    std::vector<VSNode *> inputs = { d->nodes[3] };
+    int planeInput[3] = {};
+    int planeSource[3] = {};
+    for (int i = 0; i < outplanes; i++) {
+        auto it = std::find(inputs.begin(), inputs.end(), d->nodes[i]);
+        if (it == inputs.end())
+            it = inputs.insert(inputs.end(), d->nodes[i]);
+        planeInput[i] = static_cast<int>(it - inputs.begin());
+        planeSource[i] = d->plane[i];
     }
-
-    d.release();
+    createPlaneMap(out, "ShufflePlanes", &d->vi, inputs.data(), static_cast<int>(inputs.size()), planeInput, planeSource, nullptr, nullptr, nullptr, core, vsapi);
 }
 
 //////////////////////////////////////////
@@ -1794,22 +1748,11 @@ typedef struct {
 
 typedef SingleNodeData<AssumeFPSDataExtra> AssumeFPSData;
 
-static const VSFrame *VS_CC assumeFPSGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    AssumeFPSData *d = reinterpret_cast<AssumeFPSData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrame *dst = vsapi->copyFrame(src, core);
-        VSMap *m = vsapi->getFramePropertiesRW(dst);
-        vsapi->freeFrame(src);
-        vsapi->mapSetInt(m, "_DurationNum", d->vi.fpsDen, maReplace);
-        vsapi->mapSetInt(m, "_DurationDen", d->vi.fpsNum, maReplace);
-        return dst;
-    }
-
-    return nullptr;
+static int VS_CC assumeFPSBeginFrame([[maybe_unused]] int n, [[maybe_unused]] const VSMap *const *inputProps, VSMap *outputProps, [[maybe_unused]] void **frameState, void *instanceData, [[maybe_unused]] char *errorMessage, [[maybe_unused]] int errorMessageSize, [[maybe_unused]] VSCore *core, const VSAPI *vsapi) {
+    const AssumeFPSData *d = reinterpret_cast<const AssumeFPSData *>(instanceData);
+    vsapi->mapSetInt(outputProps, "_DurationNum", d->vi.fpsDen, maReplace);
+    vsapi->mapSetInt(outputProps, "_DurationDen", d->vi.fpsNum, maReplace);
+    return 1;
 }
 
 static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -1850,7 +1793,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
     reduceRational(&d->vi.fpsNum, &d->vi.fpsDen);
 
     VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilterEx(out, "AssumeFPS", &d->vi, assumeFPSGetframe, filterFree<AssumeFPSData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createFrameMap(out, "AssumeFPS", &d->vi, deps, 1, nullptr, assumeFPSBeginFrame, filterFree<AssumeFPSData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -2991,6 +2934,16 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
 }
 
 //////////////////////////////////////////
+// Filters that only change frame properties
+
+/* Creates a filter that changes nothing but frame properties: a frame map of frame n to frame n,
+   which tiled filters see through. */
+static void createPropertyFilter(VSMap *out, const char *name, VSNode *node, VSFilterBeginFrame beginFrame, VSFilterFree free, void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    VSFilterDependency deps[] = {{node, rpStrictSpatial}};
+    createFrameMap(out, name, vsapi->getVideoInfo(node), deps, 1, nullptr, beginFrame, free, instanceData, core, vsapi);
+}
+
+//////////////////////////////////////////
 // SetFrameProp
 
 typedef struct {
@@ -3003,31 +2956,17 @@ typedef struct {
 
 typedef SingleNodeData<SetFramePropDataExtra> SetFramePropData;
 
-static const VSFrame *VS_CC setFramePropGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    SetFramePropData *d = reinterpret_cast<SetFramePropData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrame *dst = vsapi->copyFrame(src, core);
-        vsapi->freeFrame(src);
-
-        VSMap *props = vsapi->getFramePropertiesRW(dst);
-
-        if (!d->ints.empty())
-            vsapi->mapSetIntArray(props, d->prop.c_str(), d->ints.data(), static_cast<int>(d->ints.size()));
-        else if (!d->floats.empty())
-            vsapi->mapSetFloatArray(props, d->prop.c_str(), d->floats.data(), static_cast<int>(d->floats.size()));
-        else if (!d->strings.empty()) {
-            for (size_t i = 0; i < d->strings.size(); i++)
-                vsapi->mapSetData(props, d->prop.c_str(), d->strings[i].c_str(), static_cast<int>(d->strings[i].length()), d->dataType[i], i > 0 ? maAppend : maReplace);
-        }
-
-        return dst;
+static int VS_CC setFramePropBeginFrame([[maybe_unused]] int n, [[maybe_unused]] const VSMap *const *inputProps, VSMap *outputProps, [[maybe_unused]] void **frameState, void *instanceData, [[maybe_unused]] char *errorMessage, [[maybe_unused]] int errorMessageSize, [[maybe_unused]] VSCore *core, const VSAPI *vsapi) {
+    const SetFramePropData *d = static_cast<const SetFramePropData *>(instanceData);
+    if (!d->ints.empty())
+        vsapi->mapSetIntArray(outputProps, d->prop.c_str(), d->ints.data(), static_cast<int>(d->ints.size()));
+    else if (!d->floats.empty())
+        vsapi->mapSetFloatArray(outputProps, d->prop.c_str(), d->floats.data(), static_cast<int>(d->floats.size()));
+    else if (!d->strings.empty()) {
+        for (size_t i = 0; i < d->strings.size(); i++)
+            vsapi->mapSetData(outputProps, d->prop.c_str(), d->strings[i].c_str(), static_cast<int>(d->strings[i].length()), d->dataType[i], i > 0 ? maAppend : maReplace);
     }
-
-    return nullptr;
+    return 1;
 }
 
 static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -3068,8 +3007,7 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
         }
     }
 
-    VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilterEx(out, "SetFrameProp", vsapi->getVideoInfo(d->node), setFramePropGetFrame, filterFree<SetFramePropData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createPropertyFilter(out, "SetFrameProp", d->node, setFramePropBeginFrame, filterFree<SetFramePropData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -3082,24 +3020,10 @@ typedef struct {
 
 typedef SingleNodeData<SetFramePropsDataExtra> SetFramePropsData;
 
-static const VSFrame *VS_CC setFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    SetFramePropsData *d = reinterpret_cast<SetFramePropsData *>(instanceData);
 
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrame *dst = vsapi->copyFrame(src, core);
-        vsapi->freeFrame(src);
-
-        VSMap *props = vsapi->getFramePropertiesRW(dst);
-
-        vsapi->copyMap(d->props, props);
-
-        return dst;
-    }
-
-    return nullptr;
+static int VS_CC setFramePropsBeginFrame([[maybe_unused]] int n, [[maybe_unused]] const VSMap *const *inputProps, VSMap *outputProps, [[maybe_unused]] void **frameState, void *instanceData, [[maybe_unused]] char *errorMessage, [[maybe_unused]] int errorMessageSize, [[maybe_unused]] VSCore *core, const VSAPI *vsapi) {
+    vsapi->copyMap(static_cast<const SetFramePropsData *>(instanceData)->props, outputProps);
+    return 1;
 }
 
 static void VS_CC setFramePropsFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
@@ -3125,8 +3049,7 @@ static void VS_CC setFramePropsCreate(const VSMap *in, VSMap *out, void *userDat
             RETERROR(("SetFrameProps: nodes and functions cannot be stored as frame properties ('" + std::string(key) + "')").c_str());
     }
 
-    VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilterEx(out, "SetFrameProps", vsapi->getVideoInfo(d->node), setFramePropsGetFrame, setFramePropsFree, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createPropertyFilter(out, "SetFrameProps", d->node, setFramePropsBeginFrame, setFramePropsFree, d.get(), core, vsapi);
     d.release();
 }
 
@@ -3140,41 +3063,27 @@ typedef struct {
 
 typedef SingleNodeData<RemoveFramePropsDataExtra> RemoveFramePropsData;
 
-static const VSFrame *VS_CC removeFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    RemoveFramePropsData *d = reinterpret_cast<RemoveFramePropsData *>(instanceData);
+static int VS_CC removeFramePropsBeginFrame([[maybe_unused]] int n, [[maybe_unused]] const VSMap *const *inputProps, VSMap *outputProps, [[maybe_unused]] void **frameState, void *instanceData, [[maybe_unused]] char *errorMessage, [[maybe_unused]] int errorMessageSize, [[maybe_unused]] VSCore *core, const VSAPI *vsapi) {
+    const RemoveFramePropsData *d = static_cast<const RemoveFramePropsData *>(instanceData);
+    if (d->all) {
+        vsapi->clearMap(outputProps);
+    } else {
+        int numKeys = vsapi->mapNumKeys(outputProps);
 
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrame *dst = vsapi->copyFrame(src, core);
-        vsapi->freeFrame(src);
-
-        VSMap *props = vsapi->getFramePropertiesRW(dst);
-
-        if (d->all) {
-            vsapi->clearMap(props);
-        } else {
-            int numKeys = vsapi->mapNumKeys(props);
-     
-            for (int i = 0; i < numKeys; i++) {
-                for (const auto &iter : d->delProps) {
-                    // implementation detail that may change: all keys are stored in a std::map internally which means they're sorted and this won't skip anything
-                    const char *key = vsapi->mapGetKey(props, i);
-                    if (std::regex_match(key, iter)) {
-                        vsapi->mapDeleteKey(props, key);
-                        --i;
-                        numKeys = vsapi->mapNumKeys(props);
-                        break;
-                    }
+        for (int i = 0; i < numKeys; i++) {
+            for (const auto &iter : d->delProps) {
+                // implementation detail that may change: all keys are stored in a std::map internally which means they're sorted and this won't skip anything
+                const char *key = vsapi->mapGetKey(outputProps, i);
+                if (std::regex_match(key, iter)) {
+                    vsapi->mapDeleteKey(outputProps, key);
+                    --i;
+                    numKeys = vsapi->mapNumKeys(outputProps);
+                    break;
                 }
-            }                
+            }
         }
-
-        return dst;
     }
-
-    return nullptr;
+    return 1;
 }
 
 // Translate a glob pattern ('*' and '?' wildcards) into an anchored ECMAScript
@@ -3215,8 +3124,7 @@ static void VS_CC removeFramePropsCreate(const VSMap *in, VSMap *out, void *user
 
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
-    VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilterEx(out, "RemoveFrameProps", vsapi->getVideoInfo(d->node), removeFramePropsGetFrame, filterFree<RemoveFramePropsData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createPropertyFilter(out, "RemoveFrameProps", d->node, removeFramePropsBeginFrame, filterFree<RemoveFramePropsData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -3229,24 +3137,11 @@ typedef struct {
 
 typedef SingleNodeData<SetFieldBasedDataExtra> SetFieldBasedData;
 
-static const VSFrame *VS_CC setFieldBasedGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    SetFieldBasedData *d = reinterpret_cast<SetFieldBasedData *>(instanceData);
 
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrame *dst = vsapi->copyFrame(src, core);
-        vsapi->freeFrame(src);
-
-        VSMap *props = vsapi->getFramePropertiesRW(dst);
-        vsapi->mapDeleteKey(props, "_Field");
-        vsapi->mapSetInt(props, "_FieldBased", d->fieldbased, maReplace);
-
-        return dst;
-    }
-
-    return nullptr;
+static int VS_CC setFieldBasedBeginFrame([[maybe_unused]] int n, [[maybe_unused]] const VSMap *const *inputProps, VSMap *outputProps, [[maybe_unused]] void **frameState, void *instanceData, [[maybe_unused]] char *errorMessage, [[maybe_unused]] int errorMessageSize, [[maybe_unused]] VSCore *core, const VSAPI *vsapi) {
+    vsapi->mapDeleteKey(outputProps, "_Field");
+    vsapi->mapSetInt(outputProps, "_FieldBased", static_cast<const SetFieldBasedData *>(instanceData)->fieldbased, maReplace);
+    return 1;
 }
 
 static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -3257,8 +3152,7 @@ static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userDat
         RETERROR("SetFieldBased: value must be 0, 1 or 2");
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
-    VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilterEx(out, "SetFieldBased", vsapi->getVideoInfo(d->node), setFieldBasedGetFrame, filterFree<SetFieldBasedData>, fmParallel, residencyFlags(d->node, vsapi), deps, 1, d.get(), core);
+    createPropertyFilter(out, "SetFieldBased", d->node, setFieldBasedBeginFrame, filterFree<SetFieldBasedData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -3270,6 +3164,41 @@ typedef struct {
 } CopyFramePropsDataExtra;
 
 typedef DualNodeData<CopyFramePropsDataExtra> CopyFramePropsData;
+
+/* Copies the properties named in props from src to dst, or removes them from dst where src has
+   none. */
+static void copySelectedProps(const VSMap *srcprops, VSMap *dstprops, const std::vector<std::string> &props, const VSAPI *vsapi) {
+    for (const auto &iter : props) {
+        vsapi->mapDeleteKey(dstprops, iter.c_str());
+
+        // Here's the quite long code to copy any property type from one map to another
+
+        int num = vsapi->mapNumElements(srcprops, iter.c_str());
+        int ptype = vsapi->mapGetType(srcprops, iter.c_str());
+        if (num == 0) {
+            vsapi->mapSetEmpty(dstprops, iter.c_str(), ptype);
+        } else if (num > 0) {
+            if (ptype == ptInt) {
+                vsapi->mapSetIntArray(dstprops, iter.c_str(), vsapi->mapGetIntArray(srcprops, iter.c_str(), nullptr), num);
+            } else if (ptype == ptFloat) {
+                vsapi->mapSetFloatArray(dstprops, iter.c_str(), vsapi->mapGetFloatArray(srcprops, iter.c_str(), nullptr), num);
+            } else if (ptype == ptData) {
+                for (int i = 0; i < num; i++)
+                    vsapi->mapSetData(dstprops, iter.c_str(), vsapi->mapGetData(srcprops, iter.c_str(), i, nullptr), vsapi->mapGetDataSize(srcprops, iter.c_str(), i, nullptr), vsapi->mapGetDataTypeHint(srcprops, iter.c_str(), i, nullptr), maAppend);
+            } else if (ptype == ptAudioFrame || ptype == ptVideoFrame) {
+                for (int i = 0; i < num; i++)
+                    vsapi->mapConsumeFrame(dstprops, iter.c_str(), vsapi->mapGetFrame(srcprops, iter.c_str(), i, nullptr), maAppend);
+            }
+            // nodes and functions need no branch since frame property maps refuse them
+        }
+    }
+}
+
+/* The plane map's properties when only some are copied: inputProps[0] is clip's, [1] prop_src's. */
+static int VS_CC copyFramePropsBeginFrame([[maybe_unused]] int n, const VSMap *const *inputProps, VSMap *outputProps, [[maybe_unused]] void **frameState, void *instanceData, [[maybe_unused]] char *errorMessage, [[maybe_unused]] int errorMessageSize, [[maybe_unused]] VSCore *core, const VSAPI *vsapi) {
+    copySelectedProps(inputProps[1], outputProps, static_cast<const CopyFramePropsData *>(instanceData)->copyProps, vsapi);
+    return 1;
+}
 
 static const VSFrame *VS_CC copyFramePropsAllGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     CopyFramePropsData *d = reinterpret_cast<CopyFramePropsData *>(instanceData);
@@ -3304,33 +3233,7 @@ static const VSFrame *VS_CC copyFramePropsGetFrame(int n, int activationReason, 
         VSFrame *dst = vsapi->copyFrame(dst_src, core);
         vsapi->freeFrame(dst_src);
 
-        const VSMap *srcprops = vsapi->getFramePropertiesRO(src);
-        VSMap *dstprops = vsapi->getFramePropertiesRW(dst);
-        for (const auto &iter : d->copyProps) {
-            vsapi->mapDeleteKey(dstprops, iter.c_str());
-
-            // Here's the quite long code to copy any property type from one map to another
-
-            int num = vsapi->mapNumElements(srcprops, iter.c_str());
-            int ptype = vsapi->mapGetType(srcprops, iter.c_str());
-            if (num == 0) {
-                vsapi->mapSetEmpty(dstprops, iter.c_str(), ptype);
-            } else if (num > 0) {
-                if (ptype == ptInt) {
-                    vsapi->mapSetIntArray(dstprops, iter.c_str(), vsapi->mapGetIntArray(srcprops, iter.c_str(), nullptr), num);
-                } else if (ptype == ptFloat) {
-                    vsapi->mapSetFloatArray(dstprops, iter.c_str(), vsapi->mapGetFloatArray(srcprops, iter.c_str(), nullptr), num);
-                } else if (ptype == ptData) {
-                    for (int i = 0; i < num; i++)
-                        vsapi->mapSetData(dstprops, iter.c_str(), vsapi->mapGetData(srcprops, iter.c_str(), i, nullptr), vsapi->mapGetDataSize(srcprops, iter.c_str(), i, nullptr), vsapi->mapGetDataTypeHint(srcprops, iter.c_str(), i, nullptr), maAppend);
-                } else if (ptype == ptAudioFrame || ptype == ptVideoFrame) {
-                    for (int i = 0; i < num; i++)
-                        vsapi->mapConsumeFrame(dstprops, iter.c_str(), vsapi->mapGetFrame(srcprops, iter.c_str(), i, nullptr), maAppend);
-                }
-                // nodes and functions need no branch since frame property maps refuse them
-            }
-        }
-
+        copySelectedProps(vsapi->getFramePropertiesRO(src), vsapi->getFramePropertiesRW(dst), d->copyProps, vsapi);
         vsapi->freeFrame(src);
         return dst;
     }
@@ -3348,6 +3251,28 @@ static void VS_CC copyFramePropsCreate(const VSMap *in, VSMap *out, void *userDa
 
     d->node1 = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->node2 = vsapi->mapGetNode(in, "prop_src", 0, nullptr);
+
+    // A clip's own properties copied onto it changes nothing.
+    if (d->node1 == d->node2) {
+        vsapi->mapSetNode(out, "clip", d->node1, maAppend);
+        return;
+    }
+
+    /* The output planes are clip's, unchanged, so for a clip of constant format and size this is a
+       plane map, prop_src only giving properties. Its properties start as input 0's: prop_src's,
+       which is all of them when no names are given, else clip's with the named ones copied over. */
+    const VSVideoInfo *vi = vsapi->getVideoInfo(d->node1);
+    if (vsh::isConstantVideoFormat(vi)) {
+        const bool all = d->copyProps.empty();
+        VSNode *inputs[] = { all ? d->node2 : d->node1, all ? d->node1 : d->node2 };
+        const int clipInput = all ? 1 : 0;
+        const int planeInput[3] = { clipInput, clipInput, clipInput };
+        const int planeSource[3] = { 0, 1, 2 };
+        createPlaneMap(out, "CopyFrameProps", vi, inputs, 2, planeInput, planeSource, all ? nullptr : copyFramePropsBeginFrame,
+            filterFree<CopyFramePropsData>, d.get(), core, vsapi);
+        d.release();
+        return;
+    }
 
     VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (vsapi->getVideoInfo(d->node1)->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
     vsapi->createVideoFilterEx(out, "CopyFrameProps", vsapi->getVideoInfo(d->node1), d->copyProps.empty() ? copyFramePropsAllGetFrame : copyFramePropsGetFrame, filterFree<CopyFramePropsData>, fmParallel, residencyFlags(d->node1, vsapi), deps, 2, d.get(), core);

@@ -203,6 +203,13 @@ static inline VSH4_BOOLEAN_TYPE VSH4_MANGLE_FUNCTION_NAME(areValidDimensions)(co
     return !(width % (1 << fi->subSamplingW) || height % (1 << fi->subSamplingH));
 }
 
+#if VAPOURSYNTH_API_MINOR >= 4
+/* the address of row 'row' of a tiled filter's buffer, rows counted from the top of the plane */
+static inline uint8_t *VSH4_MANGLE_FUNCTION_NAME(tileRow)(const VSTileBuffer *buffer, int row) {
+    return buffer->ptr + (ptrdiff_t)((unsigned)row & buffer->mask) * buffer->stride;
+}
+#endif
+
 /* Visual Studio doesn't recognize inline in c mode */
 #if defined(_MSC_VER) && !defined(__cplusplus)
 #undef inline

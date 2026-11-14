@@ -139,6 +139,7 @@
     <ClCompile Include="..\..\src\core\vscore.cpp" />
     <ClCompile Include="..\..\src\core\vsresize.cpp" />
     <ClCompile Include="..\..\src\core\vsthreadpool.cpp" />
+    <ClCompile Include="..\..\src\core\vstiled.cpp" />
     <ClCompile Include="..\..\src\core\vsvulkan.cpp" />
     <ClCompile Include="..\..\src\core\vsvulkanalloc.cpp" />
     <ClCompile Include="..\..\src\core\vsvulkanexec.cpp" />
@@ -163,6 +164,7 @@
     <ClInclude Include="..\..\src\core\ter-116n.h" />
     <ClInclude Include="..\..\src\core\version.h" />
     <ClInclude Include="..\..\src\core\vscore.h" />
+    <ClInclude Include="..\..\src\core\vstiled.h" />
     <ClInclude Include="..\..\src\core\vsvulkan.h" />
     <ClInclude Include="..\..\src\core\vsvulkanexec.h" />
     <ClInclude Include="..\..\src\core\vsvulkanframe.h" />

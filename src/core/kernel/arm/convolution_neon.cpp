@@ -616,23 +616,6 @@ void conv_v_scanline(const void *const *srcs, typename cv_traits<TY>::T *dstp, u
     }
 }
 
-// Mirror row-pointer selection of conv_plane_v / conv_plane_x, verbatim.
-inline void conv_v_select_rows(const void *src, ptrdiff_t src_stride, const void *srcp[25],
-                               unsigned i, unsigned height, unsigned fwidth)
-{
-    unsigned support = fwidth / 2;
-    unsigned dist_from_bottom = height - 1 - i;
-
-    for (unsigned k = 0; k < support; ++k) {
-        unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
-        srcp[k] = static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(row) * src_stride;
-    }
-    for (unsigned k = support; k < fwidth; ++k) {
-        unsigned row = dist_from_bottom < k - support ? height - std::min(k - support - dist_from_bottom, i) : i - support + k;
-        srcp[k] = static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(row) * src_stride;
-    }
-}
-
 // ---- plane drivers ------------------------------------------------------------
 
 template <CvType TY, unsigned FW>
@@ -644,10 +627,11 @@ void conv_plane_h_impl(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff
     uint32x4_t sm = nc_satmask(p.saturate);
     uint16x8_t mv = vdupq_n_u16(p.maxval);
     int32_t wb = word_bias_sum<TY>(cv_coeffs<TY>(p), p.matrixsize);
+    const vs_generic_rows rows(p, height);
 
-    for (unsigned i = 0; i < height; ++i) {
-        const T *srcp = reinterpret_cast<const T *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(i) * src_stride);
-        T *dstp = reinterpret_cast<T *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i) * dst_stride);
+    for (unsigned i = rows.start; i < rows.end; ++i) {
+        const T *srcp = reinterpret_cast<const T *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(i & rows.src_mask) * src_stride);
+        T *dstp = reinterpret_cast<T *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i & rows.dst_mask) * dst_stride);
         conv_h_scanline<TY, FW>(srcp, dstp, width, p, sc, bi, sm, mv, wb);
     }
 }
@@ -661,11 +645,12 @@ void conv_plane_v_impl(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff
     uint32x4_t sm = nc_satmask(p.saturate);
     uint16x8_t mv = vdupq_n_u16(p.maxval);
     int32_t wb = word_bias_sum<TY>(cv_coeffs<TY>(p), p.matrixsize);
+    const vs_generic_rows rows(p, height);
 
-    for (unsigned i = 0; i < height; ++i) {
+    for (unsigned i = rows.start; i < rows.end; ++i) {
         const void *srcp[25];
-        conv_v_select_rows(src, src_stride, srcp, i, height, p.matrixsize);
-        T *dstp = reinterpret_cast<T *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i) * dst_stride);
+        vs_generic_gather_v_rows(src, src_stride, rows.src_mask, i, height, p.matrixsize, srcp);
+        T *dstp = reinterpret_cast<T *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i & rows.dst_mask) * dst_stride);
         conv_v_scanline<TY, FW>(srcp, dstp, width, p, sc, bi, sm, mv, wb);
     }
 }
@@ -684,21 +669,23 @@ void conv_plane_x_impl(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff
     uint32x4_t sm = nc_satmask(p.saturate);
     uint16x8_t mv = vdupq_n_u16(p.maxval);
     int32_t wb = word_bias_sum<TY>(cv_coeffs<TY>(p), p.matrixsize);
+    const vs_generic_rows rows(p, height);
 
-    T *tmp = static_cast<T *>(vsh::vsh_aligned_malloc(width * sizeof(T), 64));
+    vs_generic_conv_scratch scratch(p, width);
+    T *tmp = static_cast<T *>(scratch.row(0));
     if (!tmp) {
         // Returning quietly would leave the destination plane as whatever the
         // frame allocator handed out (possibly other frames' data). Zero is
         // still wrong output, but deterministic and not an information leak.
-        for (unsigned i = 0; i < height; ++i)
-            std::memset(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i) * dst_stride, 0, width * sizeof(T));
+        for (unsigned i = rows.start; i < rows.end; ++i)
+            std::memset(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i & rows.dst_mask) * dst_stride, 0, width * sizeof(T));
         return;
     }
 
-    for (unsigned i = 0; i < height; ++i) {
+    for (unsigned i = rows.start; i < rows.end; ++i) {
         const void *srcp[25];
-        conv_v_select_rows(src, src_stride, srcp, i, height, p.matrixsize);
-        T *dstp = reinterpret_cast<T *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i) * dst_stride);
+        vs_generic_gather_v_rows(src, src_stride, rows.src_mask, i, height, p.matrixsize, srcp);
+        T *dstp = reinterpret_cast<T *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(i & rows.dst_mask) * dst_stride);
         conv_v_scanline<TY, FW>(srcp, tmp, width, p, sc, bi, sm, mv, wb);
 #ifdef VS_TARGET_ARM_I8MM
         if constexpr (TY == CvType::Byte) {
@@ -710,8 +697,6 @@ void conv_plane_x_impl(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff
 #endif
         conv_h_scanline<TY, FW>(tmp, dstp, width, p, sc, bi, sm, mv, wb);
     }
-
-    vsh::vsh_aligned_free(tmp);
 }
 
 // Compile-time tap counts for the fwidths the filter actually accepts (odd,
@@ -798,11 +783,12 @@ void conv_plane_3x3_neon(const void *src, ptrdiff_t src_stride, void *dst, ptrdi
             cf[i] = vdupq_n_f32(coeffs[i]);
     }
 
+    const vs_generic_rows window(p, height);
     auto src_row = [&](unsigned r) {
-        return reinterpret_cast<const T *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(r) * src_stride);
+        return reinterpret_cast<const T *>(static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(r & window.src_mask) * src_stride);
     };
     auto dst_row = [&](unsigned r) {
-        return reinterpret_cast<T *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(r) * dst_stride);
+        return reinterpret_cast<T *>(static_cast<unsigned char *>(dst) + static_cast<ptrdiff_t>(r & window.dst_mask) * dst_stride);
     };
     auto scalar_px3 = [&](const T *rt, const T *rm, const T *rb, unsigned a, unsigned b, unsigned c) -> T {
         const T *rows[3] = { rt, rm, rb };
@@ -864,7 +850,7 @@ void conv_plane_3x3_neon(const void *src, ptrdiff_t src_stride, void *dst, ptrdi
             dstp[width - 1] = scalar_px(width - 2, width - 1, width - 1);
     };
 
-    for (unsigned i = 0; i < height; ++i)
+    for (unsigned i = window.start; i < window.end; ++i)
         do_row(i);
 }
 

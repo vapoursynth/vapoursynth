@@ -44,7 +44,118 @@ struct vs_generic_params {
 	float div;
 	float bias;
 	uint8_t saturate;
+
+	/* Tiled processing, honoured by every vs_generic_3x3_* kernel and by the horizontal, vertical
+	   and separable convolutions (vs_generic_1d_conv_h_*, vs_generic_1d_conv_v_*,
+	   vs_generic_2d_conv_sep_*), and by nothing else: the larger square convolutions always
+	   process whole planes. With row_end non-zero they write just rows [row_start, row_end) of the
+	   plane, height still being the whole plane's, and address row r of src at
+	   src + (r & src_mask) * src_stride, of dst likewise; see VSTileBuffer. Zero (the default)
+	   processes the whole plane. */
+	unsigned row_start;
+	unsigned row_end;
+	unsigned src_mask;
+	unsigned dst_mask;
+
+	/* Scratch rows for the horizontal, vertical and separable convolutions: at least
+	   vs_generic_conv_scratch_bytes(width) bytes, 64 byte aligned, or NULL to have each call
+	   allocate its own. A tiled filter calls a kernel once per band of rows, which made allocating
+	   on every call cost a heap round trip per band. */
+	void *scratch;
 };
+
+#ifdef __cplusplus
+#include <algorithm>
+#include "VSHelper4.h"
+
+/* The rows a tiled kernel writes and how it finds them, decoded from the window in
+   vs_generic_params. EVERY vs_generic_3x3_* kernel and every horizontal, vertical and separable
+   convolution, whatever the ISA and however hand-written, must take its rows from this:
+   genericfilters.cpp runs all of them tiled and hands whichever kernel the selectors picked ring
+   buffers of a few rows, so a kernel walking the whole plane instead would read and write far
+   outside them. */
+struct vs_generic_rows {
+	unsigned start;
+	unsigned end;
+	unsigned src_mask;
+	unsigned dst_mask;
+
+	vs_generic_rows(const vs_generic_params &params, unsigned height) :
+		start(params.row_end ? params.row_start : 0),
+		end(params.row_end ? params.row_end : height),
+		src_mask(params.row_end ? params.src_mask : ~0u),
+		dst_mask(params.row_end ? params.dst_mask : ~0u) {
+	}
+};
+
+/* The bytes of each of the two rows vs_generic_params::scratch provides, the second starting
+   right after the first, both 64 byte aligned: width + 64 samples of up to four bytes, which
+   holds any convolution kernel's intermediate row or accumulator row. */
+static inline size_t vs_generic_conv_scratch_row_bytes(unsigned width)
+{
+	return ((static_cast<size_t>(width) + 64) * 4 + 63) & ~static_cast<size_t>(63);
+}
+
+/* What vs_generic_params::scratch has to point at for a plane of this width. */
+static inline size_t vs_generic_conv_scratch_bytes(unsigned width)
+{
+	return 2 * vs_generic_conv_scratch_row_bytes(width);
+}
+
+/* The source rows of a vertical convolution pass over row i: fwidth taps, at most 25, mirrored
+   at the edges of a plane of height rows, addressed through src_mask (see vs_generic_rows).
+   Every mirrored row lies within fwidth / 2 rows of i, so a row window with that much halo holds
+   them, and tiled and whole plane results only agree while every ISA mirrors the same way, which
+   is why all of them take their rows from here. Internal linkage here and below: each ISA's
+   translation unit keeps its own copy built with its own flags, which the linker could
+   otherwise fold into one built for a CPU this one is not. */
+static inline void vs_generic_gather_v_rows(const void *src, ptrdiff_t src_stride, unsigned src_mask, unsigned i, unsigned height,
+	unsigned fwidth, const void *srcp[])
+{
+	unsigned support = fwidth / 2;
+	unsigned dist_from_bottom = height - 1 - i;
+
+	for (unsigned k = 0; k < support; ++k) {
+		unsigned row = i < support - k ? std::min(support - k - i - 1, height - 1) : i - support + k;
+		srcp[k] = static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(row & src_mask) * src_stride;
+	}
+	for (unsigned k = support; k < fwidth; ++k) {
+		unsigned row = dist_from_bottom < k - support ? height - std::min(k - support - dist_from_bottom, i) : i - support + k;
+		srcp[k] = static_cast<const unsigned char *>(src) + static_cast<ptrdiff_t>(row & src_mask) * src_stride;
+	}
+}
+
+namespace {
+
+/* A convolution kernel's scratch rows: those vs_generic_params::scratch points at when the caller
+   gave some, else allocated on first use and freed with this. row(0) and row(1) are each
+   vs_generic_conv_scratch_row_bytes(width) bytes, 64 byte aligned, or null when allocating
+   failed. */
+class vs_generic_conv_scratch {
+	unsigned char *base;
+	void *owned = nullptr;
+	size_t row_bytes;
+public:
+	vs_generic_conv_scratch(const vs_generic_params &params, unsigned width) :
+		base(static_cast<unsigned char *>(params.scratch)), row_bytes(vs_generic_conv_scratch_row_bytes(width)) {
+	}
+
+	vs_generic_conv_scratch(const vs_generic_conv_scratch &) = delete;
+	vs_generic_conv_scratch &operator=(const vs_generic_conv_scratch &) = delete;
+
+	~vs_generic_conv_scratch() {
+		vsh::vsh_aligned_free(owned);
+	}
+
+	void *row(unsigned index) {
+		if (!base)
+			base = static_cast<unsigned char *>(owned = vsh::vsh_aligned_malloc(2 * row_bytes, 64));
+		return base ? base + index * row_bytes : nullptr;
+	}
+};
+
+} // namespace
+#endif
 
 #define DECL(kernel, pixel, isa) void vs_generic_##kernel##_##pixel##_##isa(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
 #define DECL_3x3(kernel, pixel, isa) DECL(3x3_##kernel, pixel, isa)

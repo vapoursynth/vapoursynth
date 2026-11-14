@@ -424,6 +424,13 @@ size_t VSThreadPool::threadCount() {
     return maxThreads;
 }
 
+size_t VSThreadPool::spareThreads() {
+    std::lock_guard<std::mutex> l(taskLock);
+    if (core->memory->is_over_limit() || core->memory->is_gpu_over_limit())
+        return 0;
+    return activeThreads < maxThreads ? maxThreads - activeThreads : 0;
+}
+
 void VSThreadPool::spawnThread() {
     std::thread *thread = new std::thread(runTasksWrapper, this, std::ref(stopThreads));
     allThreads.insert(std::make_pair(thread->get_id(), thread));

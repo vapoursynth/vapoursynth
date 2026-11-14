@@ -22,7 +22,7 @@
 #define VSCONSTANTS4_H
 
 /* _Range replaced _ColorRange in API 4.2, so every API version from there on needs listing here. */
-#if defined(VS_USE_LATEST_API) || defined(VS_USE_API_43) || defined(VS_USE_API_42)
+#if defined(VS_USE_LATEST_API) || defined(VS_USE_API_44) || defined(VS_USE_API_43) || defined(VS_USE_API_42)
 
 typedef enum VSRange {
 	VSC_RANGE_FULL = 1,
