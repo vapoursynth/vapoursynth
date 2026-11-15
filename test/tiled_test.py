@@ -514,6 +514,48 @@ class TiledTest(unittest.TestCase):
         for n in range(2):
             self.assertEqual(planes(out.get_frame(n)), planes(clip.get_frame(n)))
 
+    def test_reweave(self):
+        # Fields woven from tiled filters behind frame maps into a tiled filter: reinterlacing a
+        # double rate clip, the double rate pattern with a clipb one frame shorter, and the field
+        # order taken from clipa's frames. Heights are mod 4 here, which 4:2:0 needs to weave,
+        # and still just above a power of two in every plane.
+        for fmt in FORMATS:
+            for width, height in ((96, 260), (40, 132)):
+                with self.subTest(format=core.get_video_format(fmt).name, size=(width, height)):
+                    src = noise(fmt, width, height, length=6)
+
+                    def reinterlaced(keep):
+                        bob = keep(core.std.Invert(src))
+                        return core.std.Invert(keep(core.std.Reweave(keep(bob[::2]), keep(bob[1::2]), tff=True)))
+
+                    def doubled(keep):
+                        later = keep(keep(core.std.Invert(src))[1:])
+                        return core.std.Invert(keep(core.std.Reweave(keep(core.std.Median(src)), later, tff=False)))
+
+                    def ordered(keep):
+                        bff = keep(core.std.SetFieldBased(keep(core.std.Convolution(src, matrix=CONV3)), 1))
+                        return core.std.Invert(keep(core.std.Reweave(bff, keep(core.std.Invert(src)))))
+
+                    for build in (reinterlaced, doubled, ordered):
+                        self.with_and_without_spare_threads(lambda: self.assertSameAsWholeFrames(build, frames=None))
+
+    @unittest.skipIf(FUSION_DISABLED, 'VS_TILED_FUSION=0')
+    def test_reweave_runs_together_with_its_consumer(self):
+        # test_unread_input_is_never_computed for Reweave: a woven clip nothing reads, running
+        # together with its consumer, only runs its beginFrame for the properties, so the filters
+        # behind it are never computed. The same clip requested as a frame, which the pin makes it,
+        # computes them.
+        src = noise(vs.YUV420P8, 64, 68, length=4)
+        fields = [core.std.Invert(src) for _ in range(4)]
+        woven = core.std.Reweave(fields[0][::2], fields[1][1::2], tff=True)
+        pinned = self.pin(core.std.Reweave(fields[2][::2], fields[3][1::2], tff=True))
+        for clip in (woven, pinned):
+            out = core.std.Merge(src[::2], clip, weight=0)
+            for n in range(out.num_frames):
+                self.assertEqual(planes(out.get_frame(n)), planes(src.get_frame(2 * n)))
+        self.assertEqual([fields[0].timings, fields[1].timings], [0, 0])
+        self.assertGreater(min(fields[2].timings, fields[3].timings), 0)
+
 
 if __name__ == '__main__':
     unittest.main()

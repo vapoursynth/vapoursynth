@@ -452,9 +452,6 @@ public:
     VSPlaneData(VSVulkanPlane *plane, VSVulkanDevice *device, size_t dataSize) noexcept;
     VSPlaneData(const VSPlaneData &d) noexcept;
     bool unique() noexcept;
-    long references() const noexcept {
-        return refcount;
-    }
     void add_ref() noexcept;
     void release() noexcept;
 };
@@ -463,7 +460,6 @@ struct VSFrame {
     friend struct VSCore;
 private:
     std::atomic<long> refcount;
-    std::atomic<long> cacheHolderCount{0}; /* see cacheHolders */
     VSMediaType contentType;
     union {
         VSVideoFormat vf;
@@ -607,38 +603,6 @@ public:
             if (data[i])
                 total += data[i]->size;
         return total;
-    }
-    long references() const {
-        return refcount;
-    }
-    /* What dropping one reference gives back right now, for the caches' pressure eviction:
-       nothing while anything else holds the frame, else the planes no other frame shares. A
-       snapshot, since the other holders come and go. */
-    size_t releasableByteSize() const {
-        if (refcount != 1)
-            return 0;
-        size_t total = 0;
-        for (int i = 0; i < 3; i++) {
-            /* each plane once: a frame can hold one in several slots, a reference per slot */
-            if (!data[i] || (i > 0 && data[i] == data[0]) || (i > 1 && data[i] == data[1]))
-                continue;
-            const long slots = (data[i] == data[0]) + (data[i] == data[1]) + (data[i] == data[2]);
-            if (data[i]->references() == slots)
-                total += data[i]->size;
-        }
-        return total;
-    }
-    /* The node cache entries holding this frame, each with a reference of its own, kept by the
-       entries themselves: more references than that means something else holds the frame, a
-       request reading it say, so evicting it from a cache would free nothing. */
-    void addCacheHolder() noexcept {
-        ++cacheHolderCount;
-    }
-    void releaseCacheHolder() noexcept {
-        --cacheHolderCount;
-    }
-    long cacheHolders() const noexcept {
-        return cacheHolderCount;
     }
     ptrdiff_t getStride(int plane) const;
     const uint8_t *getReadPtr(int plane) const;
@@ -806,51 +770,11 @@ struct VSNode {
 private:
     class VSCache {
     private:
-        /* An entry's reference to its frame, which the frame counts too (VSFrame::cacheHolders):
-           kept by construction and destruction, so the count is exact however an entry gets or
-           loses its frame. Taken after the reference and given back before it, so a frame
-           changing hands looks in use for that moment rather than free. */
-        class CachedFrame {
-            PVSFrame frame;
-        public:
-            CachedFrame() noexcept = default;
-            explicit CachedFrame(const PVSFrame &f) noexcept : frame(f) {
-                if (frame)
-                    frame->addCacheHolder();
-            }
-            CachedFrame(CachedFrame &&other) noexcept : frame(std::move(other.frame)) {
-            }
-            CachedFrame(const CachedFrame &) = delete;
-            CachedFrame &operator=(const CachedFrame &) = delete;
-            CachedFrame &operator=(CachedFrame &&) = delete;
-            ~CachedFrame() {
-                reset();
-            }
-            void reset() noexcept {
-                if (frame) {
-                    frame->releaseCacheHolder();
-                    frame.reset();
-                }
-            }
-            explicit operator bool() const noexcept {
-                return !!frame;
-            }
-            VSFrame *operator->() const noexcept {
-                return frame.get();
-            }
-            VSFrame *get() const noexcept {
-                return frame.get();
-            }
-            const PVSFrame &ptr() const noexcept {
-                return frame;
-            }
-        };
-
         struct Node {
             inline Node() : key(-1) {}
             inline Node(int key, const PVSFrame &frame) : key(key), frame(frame) {}
             int key;
-            CachedFrame frame;
+            PVSFrame frame;
             Node *prevNode = nullptr;
             Node *nextNode = nullptr;
         };
@@ -889,9 +813,12 @@ private:
         static constexpr int cacheHistoryMax = 4096;
         static constexpr uint64_t deadBranchDelay = 2 * cacheHistoryLookahead;
 
-        inline void subtractFrameBytes(const Node &n) {
-            if (n.frame)
-                currentBytes -= n.frame->totalByteSize();
+        inline size_t subtractFrameBytes(const Node &n) {
+            if (!n.frame)
+                return 0;
+            size_t frameBytes = n.frame->totalByteSize();
+            currentBytes -= frameBytes;
+            return frameBytes;
         }
 
         inline void unlink(Node &n) {
@@ -976,38 +903,10 @@ private:
 
             assert(historySize <= maxHistorySize);
 
-            return n.frame.ptr();
+            return n.frame;
         }
 
-        /* Turns a frame node, wherever it is among them, into the newest history node: the
-           one right after the oldest frame node. Pressure eviction skips frames still in use,
-           so it takes newer frames while older ones stay. */
-        inline void demoteToHistory(Node &n) {
-            Node *oldest = weakpoint ? weakpoint->prevNode : last;
-            if (&n != oldest) {
-                // n is newer than the oldest frame node, so a node follows it
-                if (n.prevNode)
-                    n.prevNode->nextNode = n.nextNode;
-                else
-                    first = n.nextNode;
-                n.nextNode->prevNode = n.prevNode;
-
-                n.prevNode = oldest;
-                n.nextNode = oldest->nextNode;
-                if (oldest->nextNode)
-                    oldest->nextNode->prevNode = &n;
-                else
-                    last = &n;
-                oldest->nextNode = &n;
-            }
-            weakpoint = &n;
-            subtractFrameBytes(n);
-            n.frame.reset();
-            currentSize--;
-            historySize++;
-        }
-
-        void evictFrames(int maxCount);
+        size_t evictFrames(int maxCount, size_t byteBudget);
     public:
         enum class CacheAction {
             Grow,
@@ -1028,7 +927,7 @@ private:
 
         inline void setMaxFrames(int m) {
             maxSize = m;
-            evictFrames(maxSize);
+            evictFrames(maxSize, SIZE_MAX);
         }
 
         inline int getMaxHistory() const {
@@ -1037,7 +936,7 @@ private:
 
         inline void setMaxHistory(int m) {
             maxHistorySize = m;
-            evictFrames(maxSize);
+            evictFrames(maxSize, SIZE_MAX);
         }
 
         inline void setFixedSize(bool fixed) {

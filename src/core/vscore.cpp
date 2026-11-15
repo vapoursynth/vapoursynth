@@ -2997,22 +2997,24 @@ bool VSNode::VSCache::insert(const int akey, const PVSFrame &aobject) {
     if (!last)
         last = first;
 
-    evictFrames(maxSize);
+    evictFrames(maxSize, SIZE_MAX);
 
     return true;
 }
 
 
-void VSNode::VSCache::evictFrames(int maxCount) {
-    // turn cached frames into history nodes until the count condition holds
-    while (currentSize > maxCount) {
+size_t VSNode::VSCache::evictFrames(int maxCount, size_t byteBudget) {
+    size_t freed = 0;
+
+    // turn cached frames into history nodes until both the count and byte conditions hold
+    while (currentSize > maxCount && freed < byteBudget) {
         if (!weakpoint)
             weakpoint = last;
         else
             weakpoint = weakpoint->prevNode;
 
         if (weakpoint) {
-            subtractFrameBytes(*weakpoint);
+            freed += subtractFrameBytes(*weakpoint);
             weakpoint->frame.reset();
         }
 
@@ -3023,33 +3025,12 @@ void VSNode::VSCache::evictFrames(int maxCount) {
     // remove history until the tail is small enough
     while (last && historySize > maxHistorySize)
         unlink(*last);
+
+    return freed;
 }
 
 size_t VSNode::VSCache::dropLRUFrames(size_t maxBytes) {
-    /* Pressure wants memory back now, and a frame a request still holds -- an output in flight
-       reading it, a GPU submission -- goes with its last holder whether this cache keeps it or
-       not, so evicting it gives nothing back and only makes the next request for it compute it
-       again. A temporal filter's outputs in flight hold exactly the frames its next outputs
-       read, which turned pressure into recomputation instead of freed memory. So the walk goes
-       from the least recently used frame and takes only frames held by no more references than
-       cache entries, crediting what each actually gives back: nothing either while another
-       cache holds the frame or its planes, but evicting it is what lets that cache give it. */
-    size_t freed = 0;
-    Node *n = weakpoint ? weakpoint->prevNode : last;
-    while (n && freed < maxBytes) {
-        Node *newer = n->prevNode;
-        const VSFrame *frame = n->frame.get();
-        assert(frame);
-        if (frame->references() <= frame->cacheHolders()) {
-            freed += frame->releasableByteSize();
-            demoteToHistory(*n);
-        }
-        n = newer;
-    }
-
-    // remove history until the tail is small enough
-    while (last && historySize > maxHistorySize)
-        unlink(*last);
+    size_t freed = evictFrames(0, maxBytes);
 
     // lower the ceiling to match so the freed memory doesn't immediately get reclaimed but never
     // below the reseed size so the cache can relearn its working set once the pressure is gone

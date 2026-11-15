@@ -21,3 +21,6 @@ DoubleWeave
       woven = core.std.SelectEvery(woven, 2, 0)
 
    The ``_Field`` frame property is deleted and ``_FieldBased`` is set accordingly.
+
+   To weave fields taken from full frames, such as reinterlacing a double rate
+   clip, Reweave does it in one step without separating them first.
