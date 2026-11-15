@@ -1,4 +1,5 @@
 r83:
+added reweave, it weaves a field from each of two clips into one frame without separating them first, which turns the usual reinterlacing chains of separatefields, selectevery and doubleweave into one copy per frame
 fixed vsscript not finding its configuration when loaded through a symlink, such as the libvapoursynth-script.so some distributions install
 
 r82:

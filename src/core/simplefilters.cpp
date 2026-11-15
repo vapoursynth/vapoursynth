@@ -1130,6 +1130,152 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
 }
 
 //////////////////////////////////////////
+// Reweave
+
+typedef struct {
+    VSVideoInfo vi;
+    int tff; /* -1 when not given: then each frame's order comes from clipa's _FieldBased */
+} ReweaveDataExtra;
+
+typedef DualNodeData<ReweaveDataExtra> ReweaveData;
+
+static const char reweaveNoFieldOrder[] = "Reweave: no field order, pass tff or set _FieldBased on the frames of clipa";
+
+static int reweaveFieldOrder(int tff, const VSFrame *first, const VSAPI *vsapi) {
+    if (tff != -1)
+        return tff;
+    int err = 0;
+    const int fieldBased = vsapi->mapGetIntSaturated(vsapi->getFramePropertiesRO(first), "_FieldBased", 0, &err);
+    if (fieldBased == VSC_FIELD_TOP)
+        return 1;
+    if (fieldBased == VSC_FIELD_BOTTOM)
+        return 0;
+    return -1;
+}
+
+static void reweaveSetFieldProps(VSFrame *dst, int tff, const VSAPI *vsapi) {
+    VSMap *props = vsapi->getFramePropertiesRW(dst);
+    vsapi->mapDeleteKey(props, "_Field");
+    vsapi->mapSetInt(props, "_FieldBased", tff ? VSC_FIELD_TOP : VSC_FIELD_BOTTOM, maReplace);
+}
+
+static const VSFrame *VS_CC reweaveGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    ReweaveData *d = reinterpret_cast<ReweaveData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node1, frameCtx);
+        vsapi->requestFrameFilter(n, d->node2, frameCtx); /* clamped to clipb's last frame */
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrame *first = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrame *second = vsapi->getFrameFilter(n, d->node2, frameCtx);
+
+        const int tff = reweaveFieldOrder(d->tff, first, vsapi);
+        if (tff == -1) {
+            vsapi->setFilterError(reweaveNoFieldOrder, frameCtx);
+            vsapi->freeFrame(first);
+            vsapi->freeFrame(second);
+            return nullptr;
+        }
+
+        VSFrame *dst;
+        if (first == second) {
+            /* Both fields from one frame weave into that frame. */
+            dst = vsapi->copyFrame(first, core);
+        } else {
+            dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, first, core);
+            const VSFrame *top = tff ? first : second;
+            const VSFrame *bottom = tff ? second : first;
+
+            for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
+                const ptrdiff_t topStride = vsapi->getStride(top, plane);
+                const ptrdiff_t bottomStride = vsapi->getStride(bottom, plane);
+                const ptrdiff_t dstStride = vsapi->getStride(dst, plane);
+                const uint8_t *topp = vsapi->getReadPtr(top, plane);
+                const uint8_t *bottomp = vsapi->getReadPtr(bottom, plane);
+                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+                const size_t rowSize = vsapi->getFrameWidth(dst, plane) * d->vi.format.bytesPerSample;
+                const int h = vsapi->getFrameHeight(dst, plane); /* even, checked at creation */
+
+                for (int y = 0; y < h; y += 2) {
+                    memcpy(dstp + y * dstStride, topp + y * topStride, rowSize);
+                    memcpy(dstp + (y + 1) * dstStride, bottomp + (y + 1) * bottomStride, rowSize);
+                }
+            }
+        }
+
+        vsapi->freeFrame(first);
+        vsapi->freeFrame(second);
+        reweaveSetFieldProps(dst, tff, vsapi);
+        return dst;
+    }
+
+    return nullptr;
+}
+
+static void VS_CC reweaveCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<ReweaveData> d(new ReweaveData(vsapi));
+
+    int err;
+    d->tff = !!vsapi->mapGetInt(in, "tff", 0, &err);
+    if (err)
+        d->tff = -1;
+    d->node1 = vsapi->mapGetNode(in, "clipa", 0, nullptr);
+    d->node2 = vsapi->mapGetNode(in, "clipb", 0, nullptr);
+    d->vi = *vsapi->getVideoInfo(d->node1);
+    const VSVideoInfo *vi2 = vsapi->getVideoInfo(d->node2);
+
+    if (!isConstantVideoFormat(&d->vi) || !isSameVideoInfo(&d->vi, vi2))
+        RETERROR(("Reweave: both clips must have the same constant format and dimensions, passed " + videoInfoToString(&d->vi, vsapi) + " and " + videoInfoToString(vi2, vsapi)).c_str());
+
+    if (d->vi.height % (1 << (d->vi.format.subSamplingH + 1)))
+        RETERROR("Reweave: clip height must be mod 2 in the smallest subsampled plane");
+
+    const ClipResidencyResult residency = residencyOfClips(d->node1, d->node2, vsapi);
+    if (residency.kind == ClipResidency::Mixed)
+        RETERROR(residencyMismatchError("Reweave", residency.mixedAt).c_str());
+
+    if (residency.kind == ClipResidency::AllGPU) {
+        vsgpu::SimpleFilter sf;
+        sf.name = "Reweave";
+        sf.numInputs = 2; /* the driver clamps clipb's requests and copies clipa's properties */
+        const int tffArg = d->tff;
+        sf.frameParamCount = 1;
+        sf.prepareFrame = [tffArg](int, const VSFrame *const *sources, int, const VSAPI *vsapi,
+                uint32_t *params, std::string &error) {
+            const int tff = reweaveFieldOrder(tffArg, sources[0], vsapi);
+            if (tff == -1) {
+                error = reweaveNoFieldOrder;
+                return false;
+            }
+            params[0] = static_cast<uint32_t>(tff);
+            return true;
+        };
+        /* u[0] is the parity of the rows the second field fills: odd when the first is the top one. */
+        sf.bodyInt = "    STORE((uint(y) & 1u) == pc.u[0] ? uint(SRC1(x, y)) : uint(SRC0(x, y)));";
+        sf.bodyFloat = "    STORE((uint(y) & 1u) == pc.u[0] ? float(SRC1(x, y)) : float(SRC0(x, y)));";
+        sf.fillParams = [](int, const uint32_t *params, float *, uint32_t *u) { u[0] = params[0]; };
+        sf.finishFrame = [](int, VSFrame *dst, const VSFrame *const *, int, const uint32_t *params,
+                VSCore *, const VSAPI *vsapi) {
+            reweaveSetFieldProps(dst, static_cast<int>(params[0]), vsapi);
+        };
+        VSNode *nodes[2] = { d->node1, d->node2 };
+        d->node1 = nullptr; /* consumed on success and failure alike */
+        d->node2 = nullptr;
+        std::string error;
+        VSNode *result = vsgpu::createSimpleFilter(sf, nodes, 2, &d->vi, core, vsapi, error);
+        if (result)
+            vsapi->mapConsumeNode(out, "clip", result, maAppend);
+        else
+            vsapi->mapSetError(out, ("Reweave: " + error).c_str());
+        return;
+    }
+
+    VSFilterDependency deps[] = {{d->node1, rpStrictSpatial}, {d->node2, (d->vi.numFrames <= vi2->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
+    vsapi->createVideoFilter(out, "Reweave", &d->vi, reweaveGetframe, filterFree<ReweaveData>, fmParallel, deps, 2, d.get(), core);
+    d.release();
+}
+
+//////////////////////////////////////////
 // FlipVertical
 
 typedef SingleNodeData<NoExtraData> FlipVeritcalData;
@@ -3366,6 +3512,7 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("SplitPlanes", "clip:vnode:all;", "clip:vnode[]:all;", splitPlanesCreate, 0, plugin);
     vspapi->registerFunction("SeparateFields", "clip:vnode:all;tff:int:opt;modify_duration:int:opt;", "clip:vnode:all;", separateFieldsCreate, 0, plugin);
     vspapi->registerFunction("DoubleWeave", "clip:vnode:all;tff:int:opt;", "clip:vnode:all;", doubleWeaveCreate, 0, plugin);
+    vspapi->registerFunction("Reweave", "clipa:vnode:all;clipb:vnode:all;tff:int:opt;", "clip:vnode:all;", reweaveCreate, 0, plugin);
     vspapi->registerFunction("FlipVertical", "clip:vnode:all;", "clip:vnode:all;", flipVerticalCreate, 0, plugin);
     vspapi->registerFunction("FlipHorizontal", "clip:vnode:all;", "clip:vnode:all;", flipHorizontalCreate, 0, plugin);
     vspapi->registerFunction("Turn180", "clip:vnode:all;", "clip:vnode:all;", flipHorizontalCreate, (void *)1, plugin);
