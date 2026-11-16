@@ -1172,6 +1172,19 @@ bool VSNode::fusableInto(const VSNode *consumer) {
         (consumers[0].requestPattern == rpStrictSpatial || consumers[0].requestPattern == rpNoFrameReuse);
 }
 
+size_t VSNode::sharedConsumerEdges() {
+    if (!tiled && !frameMap && !planeMap)
+        return 0;
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    VS_LOCK_HELD(vsLockNodeCache);
+    if (cacheOverride || cacheLinear || consumers.size() < 2)
+        return 0;
+    for (const VSFilterDependency &consumer : consumers)
+        if (consumer.requestPattern != rpStrictSpatial && consumer.requestPattern != rpNoFrameReuse)
+            return 0;
+    return consumers.size();
+}
+
 void VSNode::getFrame(const PVSFrameContext &ct) {
     core->threadPool->startExternal(ct);
 }

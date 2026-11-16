@@ -1100,6 +1100,13 @@ public:
        Consumers and cache modes change as the graph grows, so this is asked anew for every frame. */
     bool fusableInto(const VSNode *consumer);
 
+    /* For a tiled node, frame map or plane map read by several consumers, each requesting with
+       rpStrictSpatial or rpNoFrameReuse, and whose cache no SetVideoCache override keeps: how many
+       consumer edges it has, an edge being one consumer's dependency on it. A tree holding every one
+       of those edges at the same frame computes each of its rows once for all of them (see
+       vstiled.cpp). 0 otherwise. Asked anew for every frame, like fusableInto. */
+    size_t sharedConsumerEdges();
+
     int64_t getProcessingTime(bool reset) {
         if (reset)
             return processingTime.exchange(0);

@@ -387,7 +387,9 @@ typedef struct VSFilterDependency {
  * how many rows above and below it reads. The core then decides how much of each frame exists at
  * once: when a tiled filter's only consumer is another tiled filter and nothing caches its frames,
  * the two can run together in bands of rows that stay in the CPU cache, and the frame between them
- * is never allocated. Otherwise the filter produces whole frames, the same work a filter made with
+ * is never allocated. A tiled filter several tiled filters read runs together with them in the same
+ * way when they all run together for the same frame, and its rows are then computed once for all of
+ * them. Otherwise the filter produces whole frames, the same work a filter made with
  * createVideoFilter does.
  *
  * Every input has the output's constant size, and each plane read from an input has the size of

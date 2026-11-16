@@ -3812,8 +3812,14 @@ the "getframe" function. When a tiled filter's only consumer is another tiled
 filter requesting it strictly spatially, and nothing caches its frames, the
 consumer can run it as part of its own frame requests: both are pulled through
 the frame together in bands of a few rows, and the frame between them is never
-allocated. A frame or plane map between the two does not change that (see
-`Frame maps`_ and `Plane maps`_).
+allocated. A tiled filter read by several tiled filters runs together with them
+in the same way when they all run together for the same frame, each requesting
+it strictly spatially or never twice, and no SetVideoCache override keeps its
+cache: its rows are then computed once, into one buffer that holds what all of
+them read. When some consumer is outside that request, or reads another frame of
+it, it produces whole frames, which its cache keeps for every consumer. A frame
+or plane map between the two does not change any of that (see `Frame maps`_ and
+`Plane maps`_).
 Everywhere else, for example when its output is cached or consumed by a
 non-tiled filter, it produces whole frames, calling *process* once per plane
 over the whole plane, the same work a non-tiled filter would do.
@@ -3936,6 +3942,9 @@ them strictly spatially or never twice, the consumer asks the frame map which
 frame it picks and goes on from that frame's producer. A tiled filter producing
 it still runs together with the consumer, then at the frame number the frame map
 picked, and the frame map's *beginFrame* runs as part of the consumer's request.
+A frame map read by several tiled filters is seen through the same way when
+they all run together for the same frame, as for a tiled filter read by
+several.
 A frame map that is not seen through is an ordinary node that requests frames.
 
 Frame maps take any clip a filter made with createVideoFilter_ could pass on:

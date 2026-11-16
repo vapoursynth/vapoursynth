@@ -30,6 +30,13 @@
    bands of rows, every fused node writing into a small ring buffer that its consumer reads, so the
    frames between the nodes never exist.
 
+   A node several consumers read joins too when every one of their edges into it is in the tree,
+   at the same frame: it is then planned once and produced once, into one ring that holds what all
+   its readers need (planTree, measureReaders and ringRows). So the tree is really a graph without
+   cycles, and only where nothing outside it reads the node again: one also read by a consumer
+   outside the tree, or at another frame, keeps its cache and is an external, which computes it
+   once as well.
+
    A frame map's output frame is a frame of one of its inputs, so the walk goes through a fusable
    frame map as well: it asks the frame map which input and frame that is and goes on from there,
    and the frame map joins the tree only to have its beginFrame run. Each node in the tree makes a
@@ -62,6 +69,7 @@
 #include "vscore.h"
 #include "VSHelper4.h"
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -195,6 +203,12 @@ struct PlanNode {
     const VSMap *result = nullptr; /* the output properties once begun: props, the root's frame's, or the input's */
     void *frameState = nullptr;
     int64_t time = 0; /* nanoseconds spent in its callbacks, only kept when filter timing is on */
+    /* The consumer edges of the tree reaching the node, and for one several consumers read the
+       number it has in all (VSNode::sharedConsumerEdges), else 0. A shared node only stays in the
+       tree when the two agree; see planTree. */
+    size_t edges = 0;
+    size_t consumerEdges = 0;
+    bool read = false; /* whether anything in the tree reads its rows, not only its properties */
     bool begun = false;
 
     VSFilterBeginFrame beginFrame() const {
@@ -214,8 +228,15 @@ struct Plan {
     int planned = 0; /* nodes whose rows are read, see maxTreeNodes */
     int propsOnly = 0; /* nodes only planned for their properties, see maxTreeNodes */
     size_t ringBytes = 0; /* of the inputs fused so far, see maxTreeRingBytes */
-    size_t spareThreads = 0; /* pool threads with nothing to do, asked for when first needed */
+    size_t spareThreads = 0; /* pool threads with nothing to do that this walk has not used */
+    size_t spareThreadsSample = 0; /* how many there were, asked for when first needed */
     bool spareThreadsKnown = false;
+    /* What earlier walks of planTree found: frames of nodes the tree cannot share, as a consumer
+       outside it or at another frame reads them as well, and frames of shared nodes that something
+       reads although a walk first reached them for their properties alone. */
+    std::vector<std::pair<VSNode *, int>> unshared;
+    std::vector<std::pair<VSNode *, int>> read;
+    bool walkAgain = false;
 
     ~Plan() {
         for (const VSFrame *frame : frames)
@@ -236,17 +257,56 @@ int addTiled(Plan &plan, VSNode *node, int n, bool read);
 void addInputs(Plan &plan, PlanNode &planNode, const std::vector<VSNode *> &inputs, const std::vector<char> &reads, const std::vector<size_t> &ringBytes,
     bool read, const std::vector<char> *requested = nullptr);
 
+int findNode(const Plan &plan, const VSNode *node, int frame) {
+    for (size_t i = 0; i < plan.nodes.size(); i++)
+        if (plan.nodes[i].node == node && plan.nodes[i].frame == frame)
+            return static_cast<int>(i);
+    return -1;
+}
+
+bool listed(const std::vector<std::pair<VSNode *, int>> &list, VSNode *node, int frame) {
+    return std::find(list.begin(), list.end(), std::make_pair(node, frame)) != list.end();
+}
+
 /* Plans frame `frame` of source, an input of consumer, which is in the tree: source joins the tree
    when it is fusable and the limits allow, a frame or plane map along with what it takes its
-   frames from, and otherwise the frame is an external. ringBytes is what the ring of a tiled
-   source takes, as the tiled node reading the input works it out (maps keep the planes' sizes),
-   0 when no tiled source ever joins for that input. fuse false makes the frame an external
-   anyway. read false says nothing reads the rows of the input, only its properties: it then
-   joins whatever ringBytes says, since it never gets a ring, and counts against the bound of
-   such nodes. Returns what goes in consumer's inputs. */
+   frames from, and otherwise the frame is an external. A source several consumers read can join
+   as well, once: a consumer reaching it again adds an edge to the node already there, which
+   planTree checks against the edges it has in all. ringBytes is what the ring of a tiled source
+   takes, as the tiled node reading the input works it out (maps keep the planes' sizes), 0 when no
+   tiled source ever joins for that input. fuse false makes the frame an external anyway. read
+   false says nothing reads the rows of the input, only its properties: it then joins whatever
+   ringBytes says, since it never gets a ring, and counts against the bound of such nodes. Returns
+   what goes in consumer's inputs. */
 int addInput(Plan &plan, VSNode *consumer, VSNode *source, int frame, size_t ringBytes, bool fuse, bool read) {
+    if (fuse) {
+        const int existing = findNode(plan, source, frame);
+        if (existing >= 0) {
+            PlanNode &node = plan.nodes[existing];
+            node.edges++;
+            /* Planned for its properties alone, so nothing below it was planned to have rows. */
+            if (read && !node.read && !listed(plan.read, source, frame)) {
+                plan.read.emplace_back(source, frame);
+                plan.walkAgain = true;
+            }
+            return existing;
+        }
+    }
+
+    read = read || listed(plan.read, source, frame);
     int &planned = read ? plan.planned : plan.propsOnly;
-    if (fuse && planned < maxTreeNodes && source->fusableInto(consumer)) {
+    bool fusable = false;
+    size_t consumerEdges = 0;
+    if (fuse && planned < maxTreeNodes) {
+        if (source->fusableInto(consumer)) {
+            fusable = true;
+        } else if (!listed(plan.unshared, source, frame)) {
+            consumerEdges = source->sharedConsumerEdges();
+            fusable = consumerEdges != 0;
+        }
+    }
+    if (fusable) {
+        int index = -1;
         if (VSPlaneMapFilter *planes = source->getPlaneMap()) {
             planned++;
             PlanNode planNode;
@@ -255,7 +315,7 @@ int addInput(Plan &plan, VSNode *consumer, VSNode *source, int frame, size_t rin
             planNode.frame = frame;
             addInputs(plan, planNode, planes->inputs, planes->readsInput, std::vector<size_t>(planes->inputs.size(), ringBytes), read, &planes->repeatsPlane);
             plan.nodes.push_back(std::move(planNode));
-            return static_cast<int>(plan.nodes.size()) - 1;
+            index = static_cast<int>(plan.nodes.size()) - 1;
         } else if (VSFrameMapFilter *map = source->getFrameMap()) {
             /* A frame map naming an input that does not exist is left to its own getFrame, which
                fails the frame saying so. */
@@ -269,13 +329,20 @@ int addInput(Plan &plan, VSNode *consumer, VSNode *source, int frame, size_t rin
                 planNode.frame = frame;
                 planNode.inputs.push_back(addInput(plan, source, map->inputs[input], mapped, ringBytes, true, read));
                 plan.nodes.push_back(std::move(planNode));
-                return static_cast<int>(plan.nodes.size()) - 1;
+                index = static_cast<int>(plan.nodes.size()) - 1;
             }
         } else if (!read) {
-            return addTiled(plan, source, frame, false);
+            index = addTiled(plan, source, frame, false);
         } else if (ringBytes && plan.ringBytes + ringBytes <= maxTreeRingBytes) {
             plan.ringBytes += ringBytes;
-            return addTiled(plan, source, frame, true);
+            index = addTiled(plan, source, frame, true);
+        }
+        if (index >= 0) {
+            PlanNode &node = plan.nodes[index];
+            node.edges = 1;
+            node.consumerEdges = consumerEdges;
+            node.read = read;
+            return index;
         }
     }
     return addExternal(plan, source, frame);
@@ -341,7 +408,8 @@ void addInputs(Plan &plan, PlanNode &planNode, const std::vector<VSNode *> &inpu
         }
         if (branches > 1) {
             if (!plan.spareThreadsKnown) {
-                plan.spareThreads = plan.core->threadPool->spareThreads();
+                plan.spareThreadsSample = plan.core->threadPool->spareThreads();
+                plan.spareThreads = plan.spareThreadsSample;
                 plan.spareThreadsKnown = true;
             }
             if (plan.spareThreads > 0) {
@@ -373,6 +441,37 @@ int addTiled(Plan &plan, VSNode *node, int n, bool read) {
     addInputs(plan, planNode, planNode.filter->inputs, planNode.filter->readsInput, planNode.filter->ringBytes, read);
     plan.nodes.push_back(std::move(planNode));
     return static_cast<int>(plan.nodes.size()) - 1;
+}
+
+/* Plans frame n of root, a tiled node. A node several consumers read joins the tree once, every
+   consumer reaching it adding an edge (addInput), which is only right when the tree holds all of
+   its edges at that frame: a consumer outside the tree, or one reading another frame of it, would
+   compute those rows again, where its cache computes them once. So a walk ends with the edges of
+   every shared node counted, and a node short of its edges is an external in a new walk, which can
+   leave others short in turn. A shared node first reached for its properties alone and then by a
+   reader takes a new walk as well, to be planned as read from the start. A new walk follows only
+   from a node newly listed in plan.unshared or plan.read, so there are at most as many as the tree
+   has such nodes, and usually none; the spare threads are sampled once for all of them. */
+void planTree(Plan &plan, VSNode *root, int n) {
+    for (;;) {
+        plan.nodes.clear();
+        plan.externals.clear();
+        plan.planned = 0;
+        plan.propsOnly = 0;
+        plan.ringBytes = 0;
+        plan.spareThreads = plan.spareThreadsSample;
+        plan.walkAgain = false;
+        plan.nodes[addTiled(plan, root, n, true)].read = true;
+        bool again = plan.walkAgain;
+        for (const PlanNode &node : plan.nodes) {
+            if (node.consumerEdges && node.edges != node.consumerEdges) {
+                plan.unshared.emplace_back(node.node, node.frame);
+                again = true;
+            }
+        }
+        if (!again)
+            return;
+    }
 }
 
 /* Splits the time a frame takes between the nodes that ran for it, when filter timing is on:
@@ -408,8 +507,12 @@ struct Producer {
     VSTileBuffer dst = {};
     size_t offset = 0; /* of its ring in the frame's ring memory */
     int ringRows = 0;
-    int haloTop = 0; /* what its reader reads around the rows it is producing, which sizes the ring */
-    int haloBottom = 0;
+    /* Where its readers work, which sizes its ring (see ringRows): rows from the start of the band
+       the root works on, lead how far past the end of that band they have it produced, back where
+       the rows they still need begin. */
+    int readers = 0;
+    int64_t lead = 0;
+    int64_t back = 0;
     int done = 0; /* rows written so far */
 };
 
@@ -417,6 +520,7 @@ struct PlaneRun {
     Plan *plan = nullptr;
     Stopwatch *watch = nullptr; /* null unless filter timing is on */
     std::vector<Producer> producers;
+    std::vector<std::array<int, 3>> producerOf; /* per plan node and plane of it, its producer or -1 */
     int plane = 0;
     int width = 0;
     int height = 0;
@@ -438,30 +542,74 @@ Source resolve(PlaneRun &run, int index, int plane) {
     } else if (filter->passthroughPlanes & (1 << plane)) {
         input = node.inputs[filter->passthroughInput[plane]];
     } else {
+        /* A node several consumers in the tree read has one producer, which they all read. */
+        if (run.producerOf.empty())
+            run.producerOf.assign(run.plan->nodes.size(), { -1, -1, -1 });
+        if (run.producerOf[index][plane] >= 0)
+            return { run.producerOf[index][plane], plane };
         std::vector<Source> inputs;
         inputs.reserve(node.inputs.size());
-        for (size_t i = 0; i < node.inputs.size(); i++) {
-            const int nodeInput = node.inputs[i];
-            const Source source = nodeInput < 0 ? Source{ nodeInput, plane } : resolve(run, nodeInput, plane);
-            if (source.index >= 0) {
-                run.producers[source.index].haloTop = filter->haloTop[i];
-                run.producers[source.index].haloBottom = filter->haloBottom[i];
-            }
-            inputs.push_back(source);
-        }
+        for (int nodeInput : node.inputs)
+            inputs.push_back(nodeInput < 0 ? Source{ nodeInput, plane } : resolve(run, nodeInput, plane));
         Producer producer;
         producer.planIndex = index;
         producer.plane = plane;
         producer.inputs = std::move(inputs);
         run.producers.push_back(std::move(producer));
-        return { static_cast<int>(run.producers.size()) - 1, plane };
+        run.producerOf[index][plane] = static_cast<int>(run.producers.size()) - 1;
+        return { run.producerOf[index][plane], plane };
     }
     return input < 0 ? Source{ input, inputPlane } : resolve(run, input, inputPlane);
+}
+
+/* Where the readers of every producer work, as Producer::lead and back describe it. top, which
+   writes the frame, works on the root's band itself. One pass from the top suffices, as a producer
+   comes after everything it reads in run.producers: a reader's own lead is settled before it is
+   used. */
+void measureReaders(PlaneRun &run, int top) {
+    for (Producer &producer : run.producers) {
+        producer.readers = 0;
+        producer.lead = 0;
+        producer.back = 0;
+    }
+    for (size_t i = run.producers.size(); i-- > 0;) {
+        const Producer &reader = run.producers[i];
+        if (static_cast<int>(i) != top && !reader.readers)
+            continue;
+        const VSTiledFilter *filter = run.plan->nodes[reader.planIndex].filter;
+        for (size_t j = 0; j < reader.inputs.size(); j++) {
+            if (reader.inputs[j].index < 0)
+                continue;
+            Producer &input = run.producers[reader.inputs[j].index];
+            const int64_t lead = reader.lead + filter->haloBottom[j];
+            const int64_t back = reader.lead - filter->haloTop[j];
+            input.lead = input.readers ? std::max(input.lead, lead) : lead;
+            input.back = input.readers ? std::min(input.back, back) : back;
+            input.readers++;
+        }
+    }
+}
+
+/* The rows of a producer's ring, the whole plane when a ring would be no smaller. A reader works
+   on a band of rows [a, b) at a time, having its input produced up to b + haloBottom while it still
+   needs a - haloTop, so one reader needs band + haloTop + haloBottom rows, lead - back. Several
+   readers each have their own window, and once all work a band apart the earliest row any of them
+   needs is lead - back rows behind the furthest one produced. Not in the first band, though: every
+   reader starts at row 0 there, wherever it works later, while the one ahead has its input
+   produced to band + lead, so rows from 0 are needed. Rows above the plane do not exist, and
+   band + lead - min(back, 0) covers both. */
+int ringRows(const Producer &producer, int band, int height) {
+    const int64_t needed = band + producer.lead - (producer.readers > 1 ? std::min<int64_t>(producer.back, 0) : producer.back);
+    int64_t rows = 1;
+    while (rows < needed && rows < height)
+        rows *= 2;
+    return static_cast<int>(std::min<int64_t>(rows, height));
 }
 
 /* Picks the band height and lays out the rings of every producer but top, which writes the
    frame. Returns the bytes the rings take. */
 size_t layoutPlane(PlaneRun &run, int top) {
+    measureReaders(run, top);
     size_t rowBytes = 0;
     for (size_t i = 0; i < run.producers.size(); i++) {
         if (static_cast<int>(i) == top)
@@ -486,7 +634,7 @@ size_t layoutPlane(PlaneRun &run, int top) {
         if (static_cast<int>(i) == top)
             continue;
         Producer &producer = run.producers[i];
-        producer.ringRows = ringRows(band, producer.haloTop, producer.haloBottom, run.height);
+        producer.ringRows = ringRows(producer, band, run.height);
         producer.dst.mask = producer.ringRows == run.height ? ~0u : static_cast<unsigned>(producer.ringRows - 1);
         producer.offset = total;
         total += (static_cast<size_t>(producer.ringRows) * static_cast<size_t>(producer.dst.stride) + 63) & ~static_cast<size_t>(63);
@@ -560,7 +708,7 @@ const VSFrame *VS_CC tiledGetFrame(int n, int activationReason, void *instanceDa
     if (activationReason == arInitial) {
         std::unique_ptr<Plan> plan(new Plan);
         plan->core = core;
-        addTiled(*plan, rootNode, n, true);
+        planTree(*plan, rootNode, n);
         for (const auto &external : plan->externals)
             vsapi->requestFrameFilter(external.second, external.first, frameCtx);
         *frameData = plan.release();

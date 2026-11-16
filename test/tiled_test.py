@@ -556,6 +556,103 @@ class TiledTest(unittest.TestCase):
         self.assertEqual([fields[0].timings, fields[1].timings], [0, 0])
         self.assertGreater(min(fields[2].timings, fields[3].timings), 0)
 
+    def test_shared_nodes(self):
+        # Nodes several filters of one tree read, which run together with all of them and are
+        # computed once: a diamond, one inside another, readers at different depths (the shared
+        # node's ring has to hold what the reader furthest behind needs while the one furthest
+        # ahead has it produced), sharing through a frame map, a filter reading a clip twice, and a
+        # node one reader reads rows of and another only properties.
+        def check(src, f):
+            def diamond(keep):
+                d = keep(core.std.MakeDiff(src, keep(core.std.Invert(src))))
+                return core.std.Expr([d, keep(core.std.Minimum(keep(core.std.Minimum(d)))), keep(core.std.Maximum(d))], 'x y + z - abs')
+
+            def nested(keep):
+                x = keep(core.std.Invert(src))
+                y = keep(core.std.Merge(keep(core.std.Median(x)), x, 0.3))
+                return core.std.Merge(keep(core.std.Convolution(y, matrix=CONV3)), y, 0.6)
+
+            def depths(keep):
+                x = keep(core.std.Invert(src))
+                deep = x
+                for _ in range(4):
+                    deep = keep(core.std.Convolution(deep, matrix=CONV3))
+                return core.std.Expr([x, deep, keep(core.std.Maximum(x))], 'x y + z - abs')
+
+            def through_map(keep):
+                x = keep(core.std.Invert(src))
+                return core.std.Merge(keep(core.std.SetFrameProp(x, prop='S', intval=[1])), keep(core.std.Median(x)), 0.5)
+
+            def twice(keep):
+                x = keep(core.std.Median(src))
+                return core.std.Merge(x, x, 0.5)
+
+            def rows_and_properties(keep):
+                x = keep(core.std.SetFrameProp(keep(core.std.Invert(src)), prop='X', intval=[7]))
+                return core.std.Merge(keep(core.std.CopyFrameProps(keep(core.std.Median(src)), x)), keep(core.std.Minimum(x)))
+
+            for build in (diamond, nested, depths, through_map, twice, rows_and_properties):
+                with self.subTest(graph=build.__name__):
+                    self.with_and_without_spare_threads(lambda: self.assertSameAsWholeFrames(build))
+        self.for_each_format(check)
+
+    def test_shared_node_rings_hold_what_every_reader_needs(self):
+        # Wide planes make the bands short and long chains of vertical 3-tap convolutions put the
+        # readers of a shared node far apart, so that rings a few rows short of what they need wrap
+        # into rows still read instead of hiding in the rounding to a power of two. One reader near
+        # the root and one far ahead: the ring holds what the first needs while the other has the
+        # node produced. Both far ahead: in the first band each starts from row 0, while the one
+        # pulled first has the node produced well past it.
+        src = noise(vs.GRAY8, 4096, 96, length=2)
+
+        def chain(clip, keep, matrix):
+            for _ in range(12):
+                clip = keep(core.std.Convolution(clip, matrix=matrix, mode='v'))
+            return clip
+
+        def near_and_far(keep):
+            x = keep(core.std.Invert(src))
+            return core.std.Expr([chain(x, keep, [1, 2, 1]), keep(core.std.Median(x)), x], 'x y + z - abs')
+
+        def both_far(keep):
+            x = keep(core.std.Invert(src))
+            return core.std.Merge(chain(x, keep, [1, 2, 1]), chain(x, keep, [1, 1, 1]))
+
+        # with spare threads the chains become frames of their own and nothing is shared, so the
+        # one thread case is the one that tests the rings
+        for build in (near_and_far, both_far):
+            with self.subTest(graph=build.__name__):
+                self.with_and_without_spare_threads(lambda: self.assertSameAsWholeFrames(build, frames=2))
+
+    @unittest.skipIf(FUSION_DISABLED, 'VS_TILED_FUSION=0')
+    def test_shared_node_nothing_reads_is_never_computed(self):
+        # test_unread_input_is_never_computed for a node two filters of the tree read: shared, it is
+        # planned for its properties alone and never computed, where a whole frame for its cache, as
+        # it was before nodes could be shared, is computed in full.
+        src = noise(vs.YUV420P8, 64, 66)
+        shared = core.std.Invert(src)
+        out = core.std.Merge(src, core.std.Merge(core.std.Minimum(shared), core.std.Maximum(shared)), weight=0)
+        for n in range(3):
+            self.assertEqual(planes(out.get_frame(n)), planes(src.get_frame(n)))
+        self.assertEqual(shared.timings, 0)
+
+    @unittest.skipIf(FUSION_DISABLED, 'VS_TILED_FUSION=0')
+    def test_nodes_read_outside_or_at_other_frames_are_not_shared(self):
+        # The same, except that a consumer outside the tree reads the node as well, or the tree reads
+        # it at two frames: it then produces whole frames, which its cache keeps for every consumer.
+        src = noise(vs.YUV420P8, 64, 66, length=4)
+        outside = self.pin(core.std.Invert(src))
+        frames = core.std.Invert(src)
+        cases = [
+            (outside, core.std.Merge(core.std.Minimum(outside), core.std.Maximum(outside))),
+            (frames, core.std.Merge(core.std.Minimum(frames[:3]), core.std.Maximum(frames[1:]))),
+        ]
+        for node, unread in cases:
+            out = core.std.Merge(src[:unread.num_frames], unread, weight=0)
+            for n in range(out.num_frames):
+                self.assertEqual(planes(out.get_frame(n)), planes(src.get_frame(n)))
+            self.assertGreater(node.timings, 0)
+
 
 if __name__ == '__main__':
     unittest.main()
