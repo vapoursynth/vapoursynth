@@ -872,6 +872,12 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         VSPlugin *stdplugin = vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core);
 
         if (vi->format.numPlanes == 1) {
+            /* planes leaving out the only plane leaves the clip as it is, as it leaves the planes
+               of a clip with several and the GPU path leaves them. */
+            if (!process[0]) {
+                vsapi->mapConsumeNode(out, "clip", node, maAppend);
+                return;
+            }
             VSNode *tmpnode = applyBoxBlurPlaneFiltering(stdplugin, node, hradius, hpasses, vradius, vpasses, core, vsapi);
             node = nullptr;
             vsapi->mapSetNode(out, "clip", tmpnode, maAppend);

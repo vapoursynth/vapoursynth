@@ -1,6 +1,8 @@
 r83:
 added tiled filters (api 4.4, createtiledvideofilter), chains of them now run together in bands of rows that stay in the cpu cache instead of passing whole frames through memory, 8 inverts in a row at 4k are about 7x faster
 invert, invertmask, limiter, binarize, binarizemask, levels, lut, lut2, expr, merge, makediff, mergediff, maskedmerge, reweave, the 3x3 filters (convolution, minimum, maximum, median, deflate, inflate, prewitt, sobel) and the horizontal, vertical and separable convolutions are now tiled filters
+fliphorizontal, flipvertical and turn180 are now tiled filters as well, flipvertical and turn180 read every row of their input so it comes as a whole frame, but what reads them runs together with them
+makefulldiff and mergefulldiff are now tiled filters as well, the one bit wider difference between them never becomes a whole frame when they run together
 maskedmerge with a mask the size of the luma plane for subsampled chroma (first_plane or a one plane mask) and premultiply are now tiled filters as well, they resample the mask for the chroma planes themselves instead of through resize and round only once, so a chroma sample can be one off from before
 a maskedmerge or premultiply mask that is a single field (_Field) with top or bottom chroma siting is now sited the way resize sites that field's chroma, and an interlaced mask needs an even number of chroma rows when the chroma is subsampled vertically
 tiled filters can read an input through its first plane only (api 4.4, firstplaneinputs), every plane then reads that plane whole
@@ -10,6 +12,7 @@ added frame maps (api 4.4, createframemapvideofilter) for filters that only pick
 added plane maps (api 4.4, createplanemapvideofilter) for filters that only move planes, tiled filters see through shuffleplanes, splitplanes and copyframeprops so that splitting a clip into planes, processing them and joining them again runs together with what follows, and the clip copyframeprops takes properties from is never computed when a tiled filter makes it
 added reweave, it weaves a field from each of two clips into one frame without separating them first, which turns the usual reinterlacing chains of separatefields, selectevery and doubleweave into one copy per frame
 fixed vsscript not finding its configuration when loaded through a symlink, such as the libvapoursynth-script.so some distributions install
+fixed boxblur blurring a one plane clip whatever planes said, it now leaves the plane alone when planes leaves it out, as it already did for clips with more planes and on the gpu
 
 r82:
 vspipe's matroska output is now playable by mpv as well

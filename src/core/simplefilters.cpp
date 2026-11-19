@@ -1202,12 +1202,58 @@ static void VS_CC reweaveCreate(const VSMap *in, VSMap *out, void *userData, VSC
 }
 
 //////////////////////////////////////////
-// FlipVertical
+// FlipVertical, FlipHorizontal and Turn180
 
-typedef SingleNodeData<NoExtraData> FlipVeritcalData;
+/* Which way a flip goes, a bit each: FlipHorizontal reverses every row, FlipVertical the order of
+   the rows and Turn180 both. */
+enum FlipDirections {
+    flipHorizontal = 1,
+    flipVertical = 2
+};
 
-static const VSFrame *VS_CC flipVerticalGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    FlipVeritcalData *d = reinterpret_cast<FlipVeritcalData *>(instanceData);
+typedef struct {
+    int directions;
+} FlipDataExtra;
+
+typedef SingleNodeData<FlipDataExtra> FlipData;
+
+/* Row y of the output is row y of the input, or row height - 1 - y when flipping vertically,
+   reversed when flipping horizontally. */
+template<typename T, bool horizontal, bool vertical>
+static void VS_CC flipProcess(const VSTileRegion *region, const VSTileBuffer *src, const VSTileBuffer *dst, [[maybe_unused]] void *frameState, [[maybe_unused]] void *instanceData) {
+    const int width = region->width;
+    for (int y = region->rowStart; y < region->rowEnd; y++) {
+        const T * VS_RESTRICT srcp = reinterpret_cast<const T *>(tileRow(src, vertical ? region->height - 1 - y : y));
+        T * VS_RESTRICT dstp = reinterpret_cast<T *>(tileRow(dst, y));
+        if constexpr (horizontal) {
+            for (int x = 0; x < width; x++)
+                dstp[width - 1 - x] = srcp[x];
+        } else {
+            memcpy(dstp, srcp, static_cast<size_t>(width) * sizeof(T));
+        }
+    }
+}
+
+template<typename T>
+static VSTiledFilterProcess flipProcessFor(int directions) {
+    if (directions == flipHorizontal)
+        return flipProcess<T, true, false>;
+    if (directions == flipVertical)
+        return flipProcess<T, false, true>;
+    return flipProcess<T, true, true>;
+}
+
+static VSTiledFilterProcess flipProcessFor(int directions, const VSVideoFormat &format) {
+    if (format.bytesPerSample == 1)
+        return flipProcessFor<uint8_t>(directions);
+    if (format.bytesPerSample == 2)
+        return flipProcessFor<uint16_t>(directions);
+    return flipProcessFor<uint32_t>(directions);
+}
+
+/* Only clips of a variable format are flipped a frame at a time, every plane in one call. */
+static const VSFrame *VS_CC flipGetFrame(int n, int activationReason, void *instanceData, [[maybe_unused]] void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    const FlipData *d = static_cast<const FlipData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -1215,15 +1261,14 @@ static const VSFrame *VS_CC flipVerticalGetframe(int n, int activationReason, vo
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
         VSFrame *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
+        const VSTiledFilterProcess process = flipProcessFor(d->directions, *fi);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
-            const uint8_t *srcp = vsapi->getReadPtr(src, plane);
-            ptrdiff_t src_stride = vsapi->getStride(src, plane);
-            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
-            int height = vsapi->getFrameHeight(src, plane);
-            dstp += dst_stride * (height - 1);
-            bitblt(dstp, -dst_stride, srcp, src_stride, vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample, height);
+            const int height = vsapi->getFrameHeight(src, plane);
+            const VSTileRegion region = { plane, vsapi->getFrameWidth(src, plane), height, 0, height };
+            const VSTileBuffer srcBuffer = { const_cast<uint8_t *>(vsapi->getReadPtr(src, plane)), vsapi->getStride(src, plane), ~0u };
+            const VSTileBuffer dstBuffer = { vsapi->getWritePtr(dst, plane), vsapi->getStride(dst, plane), ~0u };
+            process(&region, &srcBuffer, &dstBuffer, nullptr, nullptr);
         }
 
         vsapi->freeFrame(src);
@@ -1255,125 +1300,32 @@ static void createGeometryGPU(const char *name, const std::string &mapExpr, VSNo
         vsapi->mapSetError(out, (std::string(name) + ": " + error).c_str());
 }
 
-static void VS_CC flipVerticalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<FlipVeritcalData> d(new FlipVeritcalData(vsapi));
+static void VS_CC flipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<FlipData> d(new FlipData(vsapi));
+    d->directions = static_cast<int>(reinterpret_cast<intptr_t>(userData));
+    const bool horizontal = d->directions & flipHorizontal;
+    const bool vertical = d->directions & flipVertical;
+    const char *name = !vertical ? "FlipHorizontal" : (horizontal ? "Turn180" : "FlipVertical");
+
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
+    const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
 
     if (vsapi->getNodeResidency(d->node) == nrGPU) {
-        createGeometryGPU("FlipVertical", "x, int(pc.srcHeight) - 1 - y",
-            d->node, vsapi->getVideoInfo(d->node), out, core, vsapi);
+        createGeometryGPU(name, std::string(horizontal ? "int(pc.srcWidth) - 1 - x" : "x") + ", " + (vertical ? "int(pc.srcHeight) - 1 - y" : "y"),
+            d->node, vi, out, core, vsapi);
         return;
     }
 
-    VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "FlipVertical", vsapi->getVideoInfo(d->node), flipVerticalGetframe, filterFree<FlipVeritcalData>, fmParallel, deps, 1, d.get(), core);
-    d.release();
-}
-
-//////////////////////////////////////////
-// FlipHorizontal
-
-typedef struct {
-    bool flip;
-} FlipHorizontalDataExtra;
-
-typedef SingleNodeData<FlipHorizontalDataExtra> FlipHorizontalData;
-
-static const VSFrame *VS_CC flipHorizontalGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    // optimize, pshufb, pshufw, palignr could make flipping a lot faster
-    FlipHorizontalData *d = reinterpret_cast<FlipHorizontalData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
-        VSFrame *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
-
-        for (int plane = 0; plane < fi->numPlanes; plane++) {
-            const uint8_t * VS_RESTRICT srcp = vsapi->getReadPtr(src, plane);
-            ptrdiff_t src_stride = vsapi->getStride(src, plane);
-            uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
-            ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
-            int h = vsapi->getFrameHeight(src, plane);
-            int hl;
-            int w = vsapi->getFrameWidth(src, plane) - 1;
-            int x;
-
-            if (d->flip) {
-                dstp += dst_stride * (h - 1);
-                dst_stride = -dst_stride;
-            }
-
-            switch (fi->bytesPerSample) {
-            case 1:
-                for (hl = 0; hl < h; hl++) {
-                    for (x = 0; x <= w; x++)
-                        dstp[w - x] = srcp[x];
-
-                    dstp += dst_stride;
-                    srcp += src_stride;
-                }
-
-                break;
-            case 2:
-                for (hl = 0; hl < h; hl++) {
-                    const int16_t * VS_RESTRICT srcp16 = (const int16_t *)srcp;
-                    int16_t * VS_RESTRICT dstp16 = (int16_t *)dstp;
-
-                    for (x = 0; x <= w; x++)
-                        dstp16[w - x] = srcp16[x];
-
-                    dstp += dst_stride;
-                    srcp += src_stride;
-                }
-
-                break;
-            case 4:
-                for (hl = 0; hl < h; hl++) {
-                    const int32_t * VS_RESTRICT srcp32 = (const int32_t *)srcp;
-                    int32_t * VS_RESTRICT dstp32 = (int32_t *)dstp;
-
-                    for (x = 0; x <= w; x++)
-                        dstp32[w - x] = srcp32[x];
-
-                    dstp += dst_stride;
-                    srcp += src_stride;
-                }
-
-                break;
-            default:
-                vsapi->freeFrame(src);
-                vsapi->freeFrame(dst);
-                vsapi->setFilterError("FlipHorizontal: Unsupported sample size", frameCtx);
-                return nullptr;
-            }
-
-        }
-
-        vsapi->freeFrame(src);
-        return dst;
-
+    if (isConstantVideoFormat(vi)) {
+        /* Flipping vertically reads every row of the plane, which a halo of the height reaches from
+           any band: the input then comes as a frame, and only the output runs together with what
+           reads it. */
+        createTiledFilter(out, name, vi, &d->node, 1, 0, flipProcessFor(d->directions, vi->format), nullptr, filterFree<FlipData>, d.get(), core, vsapi,
+            vertical ? vi->height : 0);
+    } else {
+        VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
+        vsapi->createVideoFilter(out, name, vi, flipGetFrame, filterFree<FlipData>, fmParallel, deps, 1, d.get(), core);
     }
-
-    return nullptr;
-}
-
-static void VS_CC flipHorizontalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<FlipHorizontalData> d(new FlipHorizontalData(vsapi));
-    d->flip = !!userData;
-    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
-
-    if (vsapi->getNodeResidency(d->node) == nrGPU) {
-        createGeometryGPU(d->flip ? "Turn180" : "FlipHorizontal",
-            d->flip ? "int(pc.srcWidth) - 1 - x, int(pc.srcHeight) - 1 - y"
-                    : "int(pc.srcWidth) - 1 - x, y",
-            d->node, vsapi->getVideoInfo(d->node), out, core, vsapi);
-        return;
-    }
-
-    VSFilterDependency deps[] = {{d->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, d->flip ? "Turn180" : "FlipHorizontal", vsapi->getVideoInfo(d->node), flipHorizontalGetframe, filterFree<FlipHorizontalData>, fmParallel, deps, 1, d.get(), core);
     d.release();
 }
 
@@ -3410,9 +3362,9 @@ void stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("SeparateFields", "clip:vnode:all;tff:int:opt;modify_duration:int:opt;", "clip:vnode:all;", separateFieldsCreate, 0, plugin);
     vspapi->registerFunction("DoubleWeave", "clip:vnode:all;tff:int:opt;", "clip:vnode:all;", doubleWeaveCreate, 0, plugin);
     vspapi->registerFunction("Reweave", "clipa:vnode:all;clipb:vnode:all;tff:int:opt;", "clip:vnode:all;", reweaveCreate, 0, plugin);
-    vspapi->registerFunction("FlipVertical", "clip:vnode:all;", "clip:vnode:all;", flipVerticalCreate, 0, plugin);
-    vspapi->registerFunction("FlipHorizontal", "clip:vnode:all;", "clip:vnode:all;", flipHorizontalCreate, 0, plugin);
-    vspapi->registerFunction("Turn180", "clip:vnode:all;", "clip:vnode:all;", flipHorizontalCreate, (void *)1, plugin);
+    vspapi->registerFunction("FlipVertical", "clip:vnode:all;", "clip:vnode:all;", flipCreate, (void *)flipVertical, plugin);
+    vspapi->registerFunction("FlipHorizontal", "clip:vnode:all;", "clip:vnode:all;", flipCreate, (void *)flipHorizontal, plugin);
+    vspapi->registerFunction("Turn180", "clip:vnode:all;", "clip:vnode:all;", flipCreate, (void *)(flipHorizontal | flipVertical), plugin);
     vspapi->registerFunction("Turn90", "clip:vnode:all;", "clip:vnode:all;", transposeCreate, (void *)tmTurn90, plugin);
     vspapi->registerFunction("Turn270", "clip:vnode:all;", "clip:vnode:all;", transposeCreate, (void *)tmTurn270, plugin);
     vspapi->registerFunction("StackVertical", "clips:vnode[]:all;", "clip:vnode:all;", stackCreate, (void *)1, plugin);

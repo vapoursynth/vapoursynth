@@ -167,6 +167,18 @@ class KernelRegressionTests(unittest.TestCase):
                 with self.core.std.Convolution(clip, matrix=[1] * (size * size), divisor=1e-7).get_frame(0) as f:
                     self.assertEqual(set(v for row in f[0].tolist() for v in row), {maximum}, (fmt, size))
 
+    def test_boxblur_leaves_the_only_plane_alone_when_planes_leaves_it_out(self):
+        # the CPU path blurred a one plane clip whatever planes said, where clips with more planes
+        # and the GPU path leave the planes outside planes as they are
+        src = self.core.std.AddBorders(self.core.std.BlankClip(format=vs.GRAY8, width=12, height=12, length=1), left=4, top=4, color=[255])
+        with src.get_frame(0) as f:
+            original = f[0].tolist()
+        for planes in ([1], [2], [1, 2]):
+            with self.core.std.BoxBlur(src, planes=planes).get_frame(0) as f:
+                self.assertEqual(f[0].tolist(), original, planes)
+        with self.core.std.BoxBlur(src, planes=[0]).get_frame(0) as f:
+            self.assertNotEqual(f[0].tolist(), original)
+
     def test_lut2_rejects_missing_planes(self):
         a = self.core.std.BlankClip(format=vs.YUV444P8, width=4, height=4, length=1)
         b = self.core.std.BlankClip(format=vs.GRAY8, width=4, height=4, length=1)

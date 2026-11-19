@@ -1260,85 +1260,21 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
 //////////////////////////////////////////
 // MakeFullDiff
 
-typedef struct {
-    const VSVideoInfo *vi;
-    VSVideoInfo outvi;
-    int cpulevel;
-} MakeFullDiffDataExtra;
-
-typedef DualNodeData<MakeFullDiffDataExtra> MakeFullDiffData;
-
-static const VSFrame *VS_CC makeFullDiffGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    MakeFullDiffData *d = reinterpret_cast<MakeFullDiffData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node1, frameCtx);
-        vsapi->requestFrameFilter(n, d->node2, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
-        VSFrame *dst = vsapi->newVideoFrame(&d->outvi.format, d->outvi.width, d->outvi.height, src1, core);
-        for (int plane = 0; plane < d->outvi.format.numPlanes; plane++) {
-            int h = vsapi->getFrameHeight(src1, plane);
-            int w = vsapi->getFrameWidth(src2, plane);
-            ptrdiff_t srcstride = vsapi->getStride(src1, plane);
-            ptrdiff_t dststride = vsapi->getStride(dst, plane);
-            const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
-            const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-            uint8_t *VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
-
-            void (*func)(const void *, const void *, void *, unsigned, unsigned) = 0;
-
-#ifdef VS_TARGET_CPU_X86
-            if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
-                if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
-                    func = vs_makediff_float_avx2;
-                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
-                    func = vs_makediff_half_avx2;
-            }
-            if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
-                if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
-                    func = vs_makediff_float_sse2;
-            }
-#endif
-
-            if (!func) {
-                if (d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample == 8)
-                    func = vs_makefulldiff_byte_word_c;
-                else if (d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample < 16)
-                    func = vs_makefulldiff_word_word_c;
-                else if (d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample == 16)
-                    func = vs_makefulldiff_word_dword_c;
-                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
-                    func = vs_makediff_float_c;
-                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
-                    func = vs_makediff_half_c;
-            }
-
-            if (!func)
-                continue;
-
-            int depth = d->vi->format.bitsPerSample;
-
-            for (int y = 0; y < h; ++y) {
-                func(srcp1, srcp2, dstp, depth, w);
-                srcp1 += srcstride;
-                srcp2 += srcstride;
-                dstp += dststride;
-            }
-
-        }
-
-        vsapi->freeFrame(src1);
-        vsapi->freeFrame(src2);
-        return dst;
-    }
-
-    return nullptr;
+/* The row kernel for clipa's format, which diffProcess runs with clipa's depth. A full difference
+   of integer clips is one bit wider than they are, so its kernels go by bit depth; float doesn't
+   widen and takes MakeDiff's and MergeDiff's. */
+static DiffKernel fullDiffKernel(bool make, const VSVideoFormat &f, int cpulevel) {
+    if (f.sampleType == stFloat)
+        return selectKernel(make ? makeDiffKernels : mergeDiffKernels, f, cpulevel);
+    if (f.bitsPerSample == 8)
+        return make ? vs_makefulldiff_byte_word_c : vs_mergefulldiff_word_byte_c;
+    if (f.bitsPerSample < 16)
+        return make ? vs_makefulldiff_word_word_c : vs_mergefulldiff_word_word_c;
+    return make ? vs_makefulldiff_word_dword_c : vs_mergefulldiff_dword_word_c;
 }
 
 static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<MakeFullDiffData> d(new MakeFullDiffData(vsapi));
+    std::unique_ptr<DiffData> d(new DiffData(vsapi));
 
     d->node1 = vsapi->mapGetNode(in, "clipa", 0, 0);
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
@@ -1350,13 +1286,13 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("MakeFullDiff: both clips must have the same constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
 
-    d->outvi = *d->vi;
-    if (d->outvi.format.sampleType == stInteger) {
-        d->outvi.format.bitsPerSample++;
-        d->outvi.format.bytesPerSample = (d->outvi.format.bitsPerSample > 16) ? 4 : 2;
+    VSVideoInfo outvi = *d->vi;
+    if (outvi.format.sampleType == stInteger) {
+        outvi.format.bitsPerSample++;
+        outvi.format.bytesPerSample = (outvi.format.bitsPerSample > 16) ? 4 : 2;
     }
 
-    d->cpulevel = vs_get_cpulevel(core);
+    d->kernel = fullDiffKernel(true, d->vi->format, vs_get_cpulevel(core));
 
     const ClipResidencyResult residency = residencyOfClips(d->node1, d->node2, vsapi);
     if (residency.kind == ClipResidency::Mixed)
@@ -1377,12 +1313,14 @@ static void VS_CC makeFullDiffCreate(const VSMap *in, VSMap *out, void *userData
            shift a uint32 by its own width; the value is unused on the float path. */
         const uint32_t half = static_cast<uint32_t>(1ull << d->vi->format.bitsPerSample);
         sf.fillParams = [half](int, const uint32_t *, float *, uint32_t *u) { u[0] = half; };
-        createGPUFromDecl2(d, sf, out, core, vsapi, &d->outvi);
+        createGPUFromDecl2(d, sf, out, core, vsapi, &outvi);
         return;
     }
 
-    VSFilterDependency deps[] = { {d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly}};
-    vsapi->createVideoFilter(out, "MakeFullDiff", &d->outvi, makeFullDiffGetFrame, filterFree<MakeFullDiffData>, fmParallel, deps, 2, d.get(), core);
+    /* The output is one bit wider than the clips, which a tiled filter may be: only the sizes of
+       the planes have to match. */
+    VSNode *inputs[] = { d->node1, d->node2 };
+    createTiledFilter(out, "MakeFullDiff", &outvi, inputs, 2, 0, diffProcess, nullptr, filterFree<DiffData>, d.get(), core, vsapi);
     d.release();
 }
 
@@ -1436,87 +1374,12 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
 //////////////////////////////////////////
 // MergeFullDiff
 
-struct MergeFullDiffDataExtra {
-    const VSVideoInfo *vi;
-    int cpulevel;
-};
-
-typedef DualNodeData<MergeFullDiffDataExtra> MergeFullDiffData;
-
-static const VSFrame *VS_CC mergeFullDiffGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    MergeFullDiffData *d = reinterpret_cast<MergeFullDiffData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node1, frameCtx);
-        vsapi->requestFrameFilter(n, d->node2, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrame *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
-        VSFrame *dst = vsapi->newVideoFrame(&d->vi->format, d->vi->width, d->vi->height, src1, core);
-        for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
-            int h = vsapi->getFrameHeight(src1, plane);
-            int w = vsapi->getFrameWidth(src1, plane);
-            ptrdiff_t src1stride = vsapi->getStride(src1, plane);
-            ptrdiff_t src2stride = vsapi->getStride(src2, plane);
-            ptrdiff_t dststride = vsapi->getStride(dst, plane);
-            const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
-            const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-            uint8_t *VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
-
-            void (*func)(const void *, const void *, void *, unsigned, unsigned) = 0;
-
-#ifdef VS_TARGET_CPU_X86
-            if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
-                if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
-                    func = vs_mergediff_float_avx2;
-                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
-                    func = vs_mergediff_half_avx2;
-            }
-            if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
-                if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
-                    func = vs_mergediff_float_sse2;
-            }
-#endif
-            if (!func) {
-                if (d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample == 8)
-                    func = vs_mergefulldiff_word_byte_c;
-                else if (d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample < 16)
-                    func = vs_mergefulldiff_word_word_c;
-                else if (d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample == 16)
-                    func = vs_mergefulldiff_dword_word_c;
-                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 32)
-                    func = vs_mergediff_float_c;
-                else if (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample == 16)
-                    func = vs_mergediff_half_c;
-            }
-
-            if (!func)
-                continue;
-
-            int depth = d->vi->format.bitsPerSample;
-
-            for (int y = 0; y < h; ++y) {
-                func(srcp1, srcp2, dstp, depth, w);
-                srcp1 += src1stride;
-                srcp2 += src2stride;
-                dstp += dststride;
-            }
-        }
-
-        vsapi->freeFrame(src1);
-        vsapi->freeFrame(src2);
-        return dst;
-    }
-
-    return nullptr;
-}
-
 static bool mergeFullDiffIsCompatibleVideoInfo(const VSVideoInfo *v1, const VSVideoInfo *v2) {
     return v1->height == v2->height && v1->width == v2->width && v1->format.colorFamily == v2->format.colorFamily && v1->format.sampleType == v2->format.sampleType && v1->format.bitsPerSample == v2->format.bitsPerSample - ((v1->format.sampleType == stInteger) ? 1 : 0) && v1->format.subSamplingW == v2->format.subSamplingW && v1->format.subSamplingH == v2->format.subSamplingH;
 }
 
 static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<MergeFullDiffData> d(new MergeFullDiffData(vsapi));
+    std::unique_ptr<DiffData> d(new DiffData(vsapi));
 
     d->node1 = vsapi->mapGetNode(in, "clipa", 0, 0);
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
@@ -1528,7 +1391,7 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
     if (!isConstantVideoFormat(d->vi) || !mergeFullDiffIsCompatibleVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))
         RETERROR(("MergeFullDiff: both clips must have the same (bitdepth+1 for second clip) constant format and dimensions, passed " + videoInfoToString(d->vi, vsapi) + " and " + videoInfoToString(vsapi->getVideoInfo(d->node2), vsapi)).c_str());
 
-    d->cpulevel = vs_get_cpulevel(core);
+    d->kernel = fullDiffKernel(false, d->vi->format, vs_get_cpulevel(core));
 
     const ClipResidencyResult residency = residencyOfClips(d->node1, d->node2, vsapi);
     if (residency.kind == ClipResidency::Mixed)
@@ -1554,8 +1417,10 @@ static void VS_CC mergeFullDiffCreate(const VSMap *in, VSMap *out, void *userDat
         return;
     }
 
-    VSFilterDependency deps[] = { {d->node1, rpStrictSpatial}, {d->node2, (d->vi->numFrames <= vsapi->getVideoInfo(d->node2)->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly} };
-    vsapi->createVideoFilter(out, "MergeFullDiff", d->vi, mergeFullDiffGetFrame, filterFree<MergeFullDiffData>, fmParallel, deps, 2, d.get(), core);
+    /* clipb is one bit wider than clipa and the output, which a tiled filter's inputs may be:
+       only the sizes of the planes have to match. */
+    VSNode *inputs[] = { d->node1, d->node2 };
+    createTiledFilter(out, "MergeFullDiff", d->vi, inputs, 2, 0, diffProcess, nullptr, filterFree<DiffData>, d.get(), core, vsapi);
     d.release();
 }
 

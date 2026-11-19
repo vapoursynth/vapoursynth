@@ -64,6 +64,26 @@ def planes(frame):
     return [memoryview(frame[p]).tobytes() for p in range(frame.format.num_planes)]
 
 
+# The flips, and whether each reverses the samples of a row and the order of the rows.
+FLIPS = [('FlipHorizontal', True, False), ('FlipVertical', False, True), ('Turn180', True, True)]
+
+
+def flipped(frame, horizontal, vertical):
+    """planes(frame) flipped here, row by row and sample by sample."""
+    size = frame.format.bytes_per_sample
+    out = []
+    for p, data in enumerate(planes(frame)):
+        height = frame.height >> (frame.format.subsampling_h if p else 0)
+        length = len(data) // height
+        rows = [data[y * length:(y + 1) * length] for y in range(height)]
+        if vertical:
+            rows.reverse()
+        if horizontal:
+            rows = [b''.join(row[x:x + size] for x in range(length - size, -1, -size)) for row in rows]
+        out.append(b''.join(rows))
+    return out
+
+
 class TiledTest(unittest.TestCase):
     def setUp(self):
         self.timing = core.timings.enabled
@@ -567,6 +587,123 @@ class TiledTest(unittest.TestCase):
                 self.assertEqual(planes(out.get_frame(n)), planes(src.get_frame(2 * n)))
         self.assertEqual([fields[0].timings, fields[1].timings], [0, 0])
         self.assertGreater(min(fields[2].timings, fields[3].timings), 0)
+
+    def test_flips(self):
+        # FlipHorizontal reads the row it writes, FlipVertical and Turn180 every row of the plane,
+        # which they take as a frame while what reads them still runs together with them. Both
+        # sides of assertSameAsWholeFrames run the same flips, so each is checked against rows and
+        # samples reversed here as well, between inverts running together with it.
+        def check(src, f):
+            def build(keep):
+                c = keep(core.std.FlipHorizontal(keep(core.std.Invert(src))))
+                c = keep(core.std.FlipVertical(keep(core.std.Median(c))))
+                c = keep(core.std.Turn180(keep(core.std.Convolution(c, matrix=CONV3))))
+                return core.std.Maximum(c)
+            self.with_and_without_spare_threads(lambda: self.assertSameAsWholeFrames(build))
+            inverted = core.std.Invert(core.std.Invert(src))
+            for name, horizontal, vertical in FLIPS:
+                out = core.std.Invert(getattr(core.std, name)(core.std.Invert(src)))
+                for n in range(2):
+                    self.assertEqual(planes(out.get_frame(n)), flipped(inverted.get_frame(n), horizontal, vertical), f'{name} frame {n}')
+        self.for_each_format(check)
+
+    def test_whole_plane_reader_of_a_shared_node(self):
+        # A node read both by a filter reading every row of it, FlipVertical or Turn180, and by one
+        # reading a few. When the flip reaches it first, it is a frame for both readers. When the
+        # other one does, the flip reads it in the tree as well, from a ring holding the whole plane
+        # that is all produced before the flip's first band.
+        def check(src, f):
+            def flip_first(keep):
+                x = keep(core.std.Invert(src))
+                return core.std.Merge(keep(core.std.FlipVertical(x)), keep(core.std.Median(x)))
+
+            def flip_last(keep):
+                x = keep(core.std.Invert(src))
+                return core.std.Merge(keep(core.std.Median(x)), keep(core.std.Turn180(x)))
+
+            for build in (flip_first, flip_last):
+                with self.subTest(graph=build.__name__):
+                    self.with_and_without_spare_threads(lambda: self.assertSameAsWholeFrames(build))
+        self.for_each_format(check)
+
+    @unittest.skipIf(FUSION_DISABLED, 'VS_TILED_FUSION=0')
+    def test_flips_run_together_with_their_consumer(self):
+        # test_unread_input_is_never_computed for the flips: unread, running together with Merge,
+        # nothing behind them is computed, the frame FlipVertical and Turn180 read included.
+        src = noise(vs.YUV420P8, 64, 66)
+        unread = [core.std.Invert(src) for _ in FLIPS]
+        for (name, _, _), clip in zip(FLIPS, unread):
+            merged = core.std.Merge(src, getattr(core.std, name)(clip), weight=0)
+            for n in range(3):
+                self.assertEqual(planes(merged.get_frame(n)), planes(src.get_frame(n)))
+        self.assertEqual([clip.timings for clip in unread], [0] * len(FLIPS))
+
+    def test_flips_of_a_variable_format(self):
+        # a frame at a time, every sample size
+        clip = core.std.Splice([noise(vs.YUV420P8, 64, 66, length=1), noise(vs.GRAY16, 32, 48, length=1), noise(vs.YUV444PS, 40, 30, length=1)], mismatch=True)
+        for name, horizontal, vertical in FLIPS:
+            out = getattr(core.std, name)(clip)
+            for n in range(clip.num_frames):
+                self.assertEqual(planes(out.get_frame(n)), flipped(clip.get_frame(n), horizontal, vertical), f'{name} frame {n}')
+
+    @unittest.skipUnless(HAVE_GPU, 'no usable Vulkan device')
+    def test_flips_on_the_gpu(self):
+        src = noise(vs.YUV420P8, 64, 66, length=2)
+        for name, horizontal, vertical in FLIPS:
+            flip = getattr(core.std, name)(core.std.GPUUpload(src))
+            self.assertTrue(flip.gpu_resident)
+            out = core.std.GPUDownload(flip)
+            for n in range(2):
+                self.assertEqual(planes(out.get_frame(n)), flipped(src.get_frame(n), horizontal, vertical), f'{name} frame {n}')
+
+    def test_full_diffs(self):
+        # MakeFullDiff's output is one bit wider than integer clips and MergeFullDiff reads such a
+        # clip next to a narrow one, so a tree holds rings of both widths, 16 bit clips making a
+        # 17 bit one in 32 bit samples. The unsharp mask from their documentation reads its clip
+        # three times, as a shared node. For integer clips a round trip gives the clip back
+        # exactly, which checks the kernels against something other than themselves.
+        def check(src, f):
+            other = noise(f.id, src.width, src.height, seed=2)
+
+            def unsharp(keep):
+                x = keep(core.std.Invert(src))
+                return core.std.MergeFullDiff(x, keep(core.std.MakeFullDiff(x, keep(core.std.Convolution(x, matrix=CONV3)))))
+
+            def round_trip(keep):
+                a = keep(core.std.Invert(src))
+                b = keep(core.std.Median(other))
+                return core.std.Invert(core.std.MergeFullDiff(b, keep(core.std.MakeFullDiff(a, b))))
+
+            for build in (unsharp, round_trip):
+                with self.subTest(graph=build.__name__):
+                    self.with_and_without_spare_threads(lambda: self.assertSameAsWholeFrames(build))
+            if f.sample_type == vs.INTEGER:
+                back = round_trip(lambda clip: clip)
+                for n in range(2):
+                    self.assertEqual(planes(back.get_frame(n)), planes(src.get_frame(n)), f'round trip frame {n}')
+        self.for_each_format(check)
+
+    def test_full_diffs_with_a_shorter_clipb(self):
+        # past its end clipb repeats its last frame, as it did when they made whole frames
+        src = noise(vs.YUV420P10, 64, 66, length=4)
+        short = core.std.Median(src[:2])
+        diff = core.std.MakeFullDiff(core.std.Invert(src), short)
+        merged = core.std.MergeFullDiff(core.std.Maximum(src), diff[:2])
+        for n in range(4):
+            last = min(n, 1)
+            self.assertEqual(planes(diff.get_frame(n)), planes(core.std.MakeFullDiff(core.std.Invert(src[n]), short[last]).get_frame(0)), f'MakeFullDiff frame {n}')
+            self.assertEqual(planes(merged.get_frame(n)), planes(core.std.MergeFullDiff(core.std.Maximum(src[n]), diff[last]).get_frame(0)), f'MergeFullDiff frame {n}')
+
+    @unittest.skipIf(FUSION_DISABLED, 'VS_TILED_FUSION=0')
+    def test_full_diffs_run_together_with_their_consumer(self):
+        # test_unread_input_is_never_computed for the full diffs: unread, running together with
+        # Merge, nothing behind them is computed
+        src = noise(vs.YUV420P8, 64, 66)
+        unread = [core.std.Invert(src) for _ in range(3)]
+        merged = core.std.Merge(src, core.std.MergeFullDiff(unread[0], core.std.MakeFullDiff(unread[1], unread[2])), weight=0)
+        for n in range(3):
+            self.assertEqual(planes(merged.get_frame(n)), planes(src.get_frame(n)))
+        self.assertEqual([clip.timings for clip in unread], [0, 0, 0])
 
     def test_shared_nodes(self):
         # Nodes several filters of one tree read, which run together with all of them and are
