@@ -130,23 +130,15 @@ static const VSFrame *VS_CC getFrame(int n, VSNode *node, char *errorMsg, int bu
     return g.r;
 }
 
-/* Both ends, so a filter can ask for its neighbours at the clip's edges without checking. */
-static int clampFrameNumber(int n, VSNode *node) {
-    int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
-    if (numFrames && n >= numFrames)
-        n = numFrames - 1;
-    return n < 0 ? 0 : n;
-}
-
 static void VS_CC requestFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
-    frameCtx->reqList.emplace_back(NodeOutputKey(node, clampFrameNumber(n, node)));
+    frameCtx->reqList.emplace_back(NodeOutputKey(node, node->clampFrameNumber(n)));
 }
 
 static const VSFrame *VS_CC getFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
 
-    auto key = NodeOutputKey(node, clampFrameNumber(n, node));
+    auto key = NodeOutputKey(node, node->clampFrameNumber(n));
     for (size_t i = 0; i < frameCtx->availableFrames.size(); i++) {
         const auto &tmp = frameCtx->availableFrames[i];
         if (tmp.first == key) {
@@ -863,58 +855,24 @@ static VSNode *VS_CC createVideoFilterEx2(const char *name, const VSVideoInfo *v
     return core->createVideoFilter(name, vi, getFrame, free, static_cast<VSFilterMode>(filterMode), dependencies, numDeps, instanceData, (flags & ffGPUOutput) != 0);
 }
 
-static void VS_CC createTiledVideoFilter(VSMap *out, const char *name, const VSTiledFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
+/* createTiledVideoFilter, createFrameMapVideoFilter and createPlaneMapVideoFilter, which differ in
+   the description alone, and their variants returning the node. */
+template<typename Desc>
+static void VS_CC createFusableVideoFilter(VSMap *out, const char *name, const Desc *desc, VSCore *core) VS_NOEXCEPT {
     assert(out && name && desc && core);
     std::string error;
-    VSNode *node = createTiledFilterNode(name, desc, core, error);
+    VSNode *node = createFusableFilterNode(name, desc, core, error);
     if (node)
         vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
     else
         vs_internal_vsapi.mapSetError(out, error.c_str());
 }
 
-static VSNode *VS_CC createTiledVideoFilter2(const char *name, const VSTiledFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
+template<typename Desc>
+static VSNode *VS_CC createFusableVideoFilter2(const char *name, const Desc *desc, VSCore *core) VS_NOEXCEPT {
     assert(name && desc && core);
     std::string error;
-    VSNode *node = createTiledFilterNode(name, desc, core, error);
-    if (!node)
-        core->logMessage(mtCritical, error);
-    return node;
-}
-
-static void VS_CC createFrameMapVideoFilter(VSMap *out, const char *name, const VSFrameMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
-    assert(out && name && desc && core);
-    std::string error;
-    VSNode *node = createFrameMapFilterNode(name, desc, core, error);
-    if (node)
-        vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
-    else
-        vs_internal_vsapi.mapSetError(out, error.c_str());
-}
-
-static VSNode *VS_CC createFrameMapVideoFilter2(const char *name, const VSFrameMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
-    assert(name && desc && core);
-    std::string error;
-    VSNode *node = createFrameMapFilterNode(name, desc, core, error);
-    if (!node)
-        core->logMessage(mtCritical, error);
-    return node;
-}
-
-static void VS_CC createPlaneMapVideoFilter(VSMap *out, const char *name, const VSPlaneMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
-    assert(out && name && desc && core);
-    std::string error;
-    VSNode *node = createPlaneMapFilterNode(name, desc, core, error);
-    if (node)
-        vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
-    else
-        vs_internal_vsapi.mapSetError(out, error.c_str());
-}
-
-static VSNode *VS_CC createPlaneMapVideoFilter2(const char *name, const VSPlaneMapFilterDesc *desc, VSCore *core) VS_NOEXCEPT {
-    assert(name && desc && core);
-    std::string error;
-    VSNode *node = createPlaneMapFilterNode(name, desc, core, error);
+    VSNode *node = createFusableFilterNode(name, desc, core, error);
     if (!node)
         core->logMessage(mtCritical, error);
     return node;
@@ -1238,12 +1196,12 @@ const VSAPI vs_internal_vsapi = {
     &getNodeResidency,
     &getFrameResidency,
 
-    &createTiledVideoFilter,
-    &createTiledVideoFilter2,
-    &createFrameMapVideoFilter,
-    &createFrameMapVideoFilter2,
-    &createPlaneMapVideoFilter,
-    &createPlaneMapVideoFilter2,
+    &createFusableVideoFilter<VSTiledFilterDesc>,
+    &createFusableVideoFilter2<VSTiledFilterDesc>,
+    &createFusableVideoFilter<VSFrameMapFilterDesc>,
+    &createFusableVideoFilter2<VSFrameMapFilterDesc>,
+    &createFusableVideoFilter<VSPlaneMapFilterDesc>,
+    &createFusableVideoFilter2<VSPlaneMapFilterDesc>,
 
     &getNodeCreationFunctionName,
     &getNodeCreationPluginID,
@@ -1596,7 +1554,7 @@ static int VS_CC vkWaitGPUFrame(const VSFrame *frame, char *errorMessage, int er
 static const VSFrame *VS_CC vkGetExportableFrameFilter(int n, VSNode *node, VSFrameContext *frameCtx,
     char *errorMessage, int errorMessageSize) VS_NOEXCEPT {
     assert(node && frameCtx);
-    auto key = NodeOutputKey(node, clampFrameNumber(n, node));
+    auto key = NodeOutputKey(node, node->clampFrameNumber(n));
     for (size_t i = 0; i < frameCtx->availableFrames.size(); i++) {
         auto &entry = frameCtx->availableFrames[i];
         if (!(entry.first == key))
@@ -2136,7 +2094,7 @@ const VSAPI *VS_CC getVapourSynthAPI(int version) VS_NOEXCEPT {
 
     if (!getCPUFeatures()->can_run_vs) {
         return nullptr;
-    } else if (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_MINOR) {
+    } else if (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_LATEST_MINOR) {
         return &vs_internal_vsapi;
     } else {
         return nullptr;

@@ -7,6 +7,12 @@ Table of contents
 Introduction_
 
 
+Macros_
+   VSSCRIPT_API_VERSION_
+
+   VSSCRIPT_USE_API_MINOR_
+
+
 Structs_
    VSScript_
    
@@ -79,6 +85,30 @@ Here are a few users of the VSScript library:
 .. note::
    If libvsscript is loaded with dlopen(), the RTLD_GLOBAL flag must be used. If not,
    Python won't be able to import binary modules. This is due to Python's design.
+
+
+Macros
+######
+
+VSSCRIPT_API_VERSION
+--------------------
+
+The API version built against: VSSCRIPT_API_MAJOR in the high 16 bits, and
+VSSCRIPT_API_MINOR, which VSSCRIPT_USE_API_MINOR_ selects, in the low 16 bits.
+VSSCRIPT_API_LATEST_MINOR is the newest minor version the header describes.
+
+
+VSSCRIPT_USE_API_MINOR
+----------------------
+
+Defined before including the header, selects the minor API version to build
+against, 3 for API 4.3, the way VS_USE_API_MINOR does for VapourSynth4.h;
+VSSCRIPT_USE_LATEST_API selects the newest. Without either it is 1, the first
+version of this API. VSSCRIPT_USE_API_42, VSSCRIPT_USE_API_43 and
+VSSCRIPT_USE_API_44 are the older way to select 2 to 4 and keep working; later
+versions have no such macro. A version the header does not describe, or
+VSSCRIPT_USE_API_MINOR together with one of the other macros, is a compile
+error.
 
 
 Structs

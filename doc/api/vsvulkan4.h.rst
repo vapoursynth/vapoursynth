@@ -168,9 +168,9 @@ This is the only public header that pulls in Vulkan types (it includes
 ``vulkan/vulkan_core.h``); everything a plugin needs to run compute work on
 the core's Vulkan device is reached through it. The functions live in the
 VSVULKANAPI_ struct, obtained with getVulkanAPI (added in API 4.3, so define
-``VS_USE_API_43`` or ``VS_USE_LATEST_API`` before including VapourSynth4.h)::
+``VS_USE_API_MINOR`` as 3 or later before including VapourSynth4.h)::
 
-   #define VS_USE_API_43
+   #define VS_USE_API_MINOR 3
    #include <VapourSynth4.h>
    #include <VSVulkan4.h>
 

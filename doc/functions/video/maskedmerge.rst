@@ -21,6 +21,10 @@ MaskedMerge
    for interlaced frames -- except on the GPU path, which currently always
    sites progressively, so interlaced GPU output differs slightly from the
    CPU path there. Progressive output is identical between the two.
+   A mask with ``_Field`` set is a single field, and its chroma is sited the
+   way that field's chroma is. When the chroma is subsampled vertically, an
+   interlaced mask needs an even number of chroma rows, so that each field
+   has whole rows.
 
    If *premultiplied* is set the blending is performed as if *clipb* has been pre-multiplied
    with alpha. In pre-multiplied mode it is an error to try to merge two frames with

@@ -16,17 +16,15 @@ Macros_
 
    VAPOURSYNTH_API_MINOR_
 
+   VAPOURSYNTH_API_LATEST_MINOR_
+
    VAPOURSYNTH_API_VERSION_
+
+   VS_USE_API_MINOR_
 
    VS_AUDIO_FRAME_SAMPLES_
 
    VS_MAKE_VERSION_
-
-   VS_TILED_FILTER_VERSION_
-
-   VS_FRAME_MAP_FILTER_VERSION_
-
-   VS_PLANE_MAP_FILTER_VERSION_
 
 
 Enums_
@@ -479,7 +477,17 @@ Major API version.
 VAPOURSYNTH_API_MINOR
 ---------------------
 
-Minor API version. It is bumped when new functions are added to VSAPI_ or core behavior is noticeably changed.
+The minor API version built against, which VS_USE_API_MINOR_ selects: 0
+unless something else is. What later versions add is left out of the header,
+and a plugin passing VAPOURSYNTH_API_VERSION_ to configPlugin requires a core
+with at least this version.
+
+
+VAPOURSYNTH_API_LATEST_MINOR
+----------------------------
+
+The newest minor API version the header describes. It is bumped when new
+functions are added to VSAPI_ or core behavior is noticeably changed.
 
 
 VAPOURSYNTH_API_VERSION
@@ -487,6 +495,23 @@ VAPOURSYNTH_API_VERSION
 
 API version. The high 16 bits are VAPOURSYNTH_API_MAJOR_, the low 16
 bits are VAPOURSYNTH_API_MINOR_.
+
+
+VS_USE_API_MINOR
+----------------
+
+Defined before including the header, selects the minor API version to build
+against and require of the core, 3 for API 4.3::
+
+   #define VS_USE_API_MINOR 3
+   #include <VapourSynth4.h>
+
+Defining VS_USE_LATEST_API instead selects VAPOURSYNTH_API_LATEST_MINOR_,
+which makes the plugin require the newest core the header knows about.
+VS_USE_API_41, VS_USE_API_42 and VS_USE_API_43 are the older way to select 1 to
+3 and keep working; later versions have no such macro. A version the header
+does not describe, VS_USE_API_MINOR together with one of the other macros, and
+VS_GRAPH_API with an older version than the newest are compile errors.
 
 
 VS_AUDIO_FRAME_SAMPLES
@@ -499,27 +524,6 @@ VS_MAKE_VERSION
 ---------------
 
 Used to create version numbers. The first argument is the major version and second is the minor.
-
-
-VS_TILED_FILTER_VERSION
------------------------
-
-The layout of VSTiledFilterDesc_ the header describes, to be passed in its
-*version* member. Added in API 4.4.
-
-
-VS_FRAME_MAP_FILTER_VERSION
----------------------------
-
-The layout of VSFrameMapFilterDesc_ the header describes, to be passed in its
-*version* member. Added in API 4.4.
-
-
-VS_PLANE_MAP_FILTER_VERSION
----------------------------
-
-The layout of VSPlaneMapFilterDesc_ the header describes, to be passed in its
-*version* member. Added in API 4.4.
 
 
 Enums
@@ -1301,10 +1305,6 @@ struct VSTiledFilterDesc
    Describes a tiled filter to createTiledVideoFilter_. See `Tiled filters`_.
    Added in API 4.4.
 
-   .. c:member:: int version
-
-      Must be VS_TILED_FILTER_VERSION_.
-
    .. c:member:: const VSVideoInfo *vi
 
       The output. Its format and size must be constant.
@@ -1346,6 +1346,17 @@ struct VSTiledFilterDesc
       Per plane, the input a passed through plane comes from, 0 being the first.
       Ignored for planes that are processed.
 
+   .. c:member:: int firstPlaneInputs
+
+      A bitmask: with bit *i* set, every processed plane reads the first plane
+      of input *i*, and *process* gets that plane whole, any row of which it may
+      read. That is how a mask the size of the luma plane serves subsampled
+      chroma planes, which the filter then resamples itself. Such an input has
+      the output's size, needs only its first plane and gives no passed
+      through planes. Whenever a plane is processed it is requested as a whole
+      frame, so its halos don't apply and it doesn't run together with the
+      filter.
+
    .. c:member:: VSFilterBeginFrame beginFrame
 
       Called once per output frame before any rows. May be NULL, which leaves
@@ -1377,10 +1388,6 @@ struct VSFrameMapFilterDesc
 
    Describes a frame map to createFrameMapVideoFilter_. See `Frame maps`_.
    Added in API 4.4.
-
-   .. c:member:: int version
-
-      Must be VS_FRAME_MAP_FILTER_VERSION_.
 
    .. c:member:: const VSVideoInfo *vi
 
@@ -1426,10 +1433,6 @@ struct VSPlaneMapFilterDesc
 
    Describes a plane map to createPlaneMapVideoFilter_. See `Plane maps`_.
    Added in API 4.4.
-
-   .. c:member:: int version
-
-      Must be VS_PLANE_MAP_FILTER_VERSION_.
 
    .. c:member:: const VSVideoInfo *vi
 
@@ -3599,7 +3602,8 @@ struct VSAPI
       This and the other three getNodeCreation functions are only declared
       when VS_GRAPH_API is defined. They exist to retrieve internal details for
       debugging and graph visualization, require the API version to match the
-      header's exactly, and aren't safe to call concurrently with frame
+      header's exactly (the header refuses VS_GRAPH_API with an older version
+      than VAPOURSYNTH_API_LATEST_MINOR_), and aren't safe to call concurrently with frame
       requests or other API functions, which makes them unsuitable for use in
       plugins and filters. Added in API 4.2.
 
@@ -3838,7 +3842,11 @@ planes of the same size in the inputs and the output, output frame *n* from
 input frames *n* only, output plane *p* from input planes *p* only, and the
 per-frame work split into a fallible part (*beginFrame*, which sees and sets
 frame properties) and an infallible part (*process*, which only sees rows).
-Filters that need anything else use createVideoFilter_.
+The one exception to the planes is an input read only through its first plane
+(*firstPlaneInputs*), such as a mask standing in for every plane of a clip with
+subsampled chroma: every plane gets that input's first plane whole, and the
+input is requested as a frame whenever a plane is processed. Filters that need
+anything else use createVideoFilter_.
 
 With filter timing enabled, the time spent in a filter's functions is counted
 for that filter also when it runs as part of another filter's frame request.
@@ -3904,7 +3912,9 @@ typedef void (VS_CC \*VSTiledFilterProcess)(const VSTileRegion_ \*region, const 
    does so only when the halo on the other side reaches the mirrored row, so a
    filter that mirrors declares its halos accordingly. Reading any other row
    gives rows of a different part of the plane once filters run together.
-   Inputs must never be written.
+   The buffer of an input in *firstPlaneInputs* is the exception: it is that
+   input's first plane, whole, for every plane being written, and any of its
+   rows may be read. Inputs must never be written.
 
    The calls for a frame may come in any order and in bands of any height, and
    never write a row twice. When the core runs filters together it skips the

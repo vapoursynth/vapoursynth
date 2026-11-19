@@ -24,9 +24,11 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <algorithm>
 #include "cpufeatures.h"
 #include "filtershared.h"
+#include "float16_helper.h"
 #include "gpufilter.h"
 #include "internalfilters.h"
 #include "kernel/cpulevel.h"
@@ -116,48 +118,6 @@ static void getChromalocLumaShift(int chromaloc, int subSamplingW, int subSampli
     *src_top = v_offset - center_h;
 }
 
-static std::string createChromaResizeCandidates(VSNode *mask_node, int dst_width, int dst_height,
-                                              int subSamplingW, int subSamplingH,
-                                              VSNode *out[numChromaLocations],
-                                              VSCore *core, const VSAPI *vsapi) {
-    for (int i = 0; i < numChromaLocations; i++)
-        out[i] = nullptr;
-
-    VSPlugin *resize_plugin = vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core);
-    if (!resize_plugin)
-        return "resize plugin not available";
-
-    for (int loc = 0; loc < numChromaLocations; loc++) {
-        double src_left, src_top;
-        getChromalocLumaShift(loc, subSamplingW, subSamplingH, &src_left, &src_top);
-
-        VSMap *args = vsapi->createMap();
-        vsapi->mapSetNode(args, "clip", mask_node, maAppend);
-        vsapi->mapSetInt(args, "width", dst_width, maAppend);
-        vsapi->mapSetInt(args, "height", dst_height, maAppend);
-        vsapi->mapSetFloat(args, "src_left", src_left, maAppend);
-        vsapi->mapSetFloat(args, "src_top", src_top, maAppend);
-
-        VSMap *result = vsapi->invoke(resize_plugin, "Bilinear", args);
-        vsapi->freeMap(args);
-
-        const char *invoke_err = vsapi->mapGetError(result);
-        if (invoke_err) {
-            std::string msg = std::string("resize.Bilinear failed: ") + invoke_err;
-            vsapi->freeMap(result);
-            for (int j = 0; j < loc; j++) {
-                vsapi->freeNode(out[j]);
-                out[j] = nullptr;
-            }
-            return msg;
-        }
-
-        out[loc] = vsapi->mapGetNode(result, "clip", 0, nullptr);
-        vsapi->freeMap(result);
-    }
-    return {};
-}
-
 static int resolveChromaLocation(const VSMap *props, const VSAPI *vsapi) {
     int err;
     int64_t raw = vsapi->mapGetInt(props, "_ChromaLocation", 0, &err);
@@ -207,8 +167,8 @@ AxisFilter chromaAxisFilter(int subsampling, double shift) {
     return out;
 }
 
-/* One pair per _ChromaLocation, since which one applies is a property of the frame and the
-   compute path picks between them with a push constant rather than with six resize nodes. */
+/* One pair per _ChromaLocation, since which one applies is a property of the frame: the compute
+   path picks between them with a push constant, the tiled path in beginFrame. */
 struct ChromaFilters {
     AxisFilter h[numChromaLocations];
     AxisFilter v[numChromaLocations];
@@ -270,11 +230,11 @@ MaskSource maskSource(int idx, const VSVideoFormat &fmt, bool resamples, const C
         "    return float(s" + n + "[uint(vsMirror(yy, int(pc.height) * " + std::to_string(1 << fmt.subSamplingH) + ")) * pc.srcStride[" + n + "]\n"
         "        + uint(vsMirror(xx, int(pc.width) * " + std::to_string(1 << fmt.subSamplingW) + "))]);\n"
         "}\n"
-        /* Separable and normalised on each axis, so the outer product is normalised too, and
-           one fused pass replaces the scalar path's horizontal then vertical with a quantised
-           intermediate between them. The mirroring matches compute_filter's, which reflects the
-           tap position and lets coefficients landing on the same sample accumulate -- summing
-           over mirrored indices does exactly that. */
+        /* Separable and normalised on each axis, so the outer product is normalised too: one
+           fused pass in float, rounded once, which MaskResampler matches on the CPU with exact
+           integer sums. The mirroring matches compute_filter's, which reflects the tap position
+           and lets coefficients landing on the same sample accumulate -- summing over mirrored
+           indices does exactly that. */
         "float vsMaskResampled(int x, int y) {\n"
         "    int bx = " + std::to_string(1 << fmt.subSamplingW) + " * x + int(pc.u[4]);\n"
         "    int by = " + std::to_string(1 << fmt.subSamplingH) + " * y + int(pc.u[5]);\n"
@@ -335,22 +295,353 @@ void fillMaskParams(int plane, int loc, const ChromaOrigins &origins, bool resam
     u[6] = 1;
 }
 
+/* The CPU's half of the same resample, for the tiled paths: a mask the size of the luma plane read
+   for a subsampled chroma plane from the mask's whole first plane, which the core hands to every
+   plane (VSTiledFilterDesc::firstPlaneInputs). Each axis is chromaAxisFilter's filter, the one the
+   compute path uses, whose coefficients are exact binary fractions over a power of two: integer
+   masks are summed exactly over both axes and rounded once, half up, which is what the compute
+   path does in float, and float masks are summed in float. Rows and columns past an edge mirror the
+   way zimg's compute_filter does. */
+struct MaskAxis {
+    int factor = 1; /* mask samples per output sample */
+    int origin = 0; /* the first tap, relative to factor times the output index */
+    int taps = 1;
+    int shift = 0; /* the integer weights add up to 1 << shift */
+    uint32_t weight[maxChromaTaps] = { 1 };
+    float fweight[maxChromaTaps] = { 1.0f };
+};
+
+/* f, the filter for one axis subsampled by 2^subsampling, without its zero taps and with the
+   integer weights its coefficients scale to. */
+MaskAxis maskAxis(const AxisFilter &f, int subsampling) {
+    MaskAxis out;
+    out.factor = 1 << subsampling;
+    int first = 0;
+    int last = f.taps - 1;
+    while (first < last && f.coeff[first] == 0.0f)
+        first++;
+    while (last > first && f.coeff[last] == 0.0f)
+        last--;
+    out.origin = f.origin + first;
+    out.taps = last - first + 1;
+    /* The smallest power of two that makes every weight an integer: the shifts are multiples of a
+       quarter, which keeps it below 2^11 at the largest factor. */
+    for (out.shift = 0; out.shift < 24; out.shift++) {
+        bool integral = true;
+        for (int j = first; j <= last; j++) {
+            const float scaled = std::ldexp(f.coeff[j], out.shift);
+            integral = integral && scaled == std::floor(scaled);
+        }
+        if (integral)
+            break;
+    }
+    for (int j = 0; j < out.taps; j++) {
+        out.weight[j] = static_cast<uint32_t>(std::ldexp(f.coeff[first + j], out.shift));
+        out.fweight[j] = f.coeff[first + j];
+    }
+    return out;
+}
+
+/* How the rows of a mask frame are read, which its properties say the way resize reads them
+   (import_frame_props in vsresize.cpp): _Field makes the frame one field of that parity, else
+   _FieldBased 1 or 2 makes it two fields resampled apart, the top one being the even rows, and
+   anything else one picture. The first three index MaskResampler::v, and mrFields takes the top or
+   bottom field's from the row's parity. */
+enum MaskRows { mrFrame, mrTopField, mrBottomField, mrFields };
+
+struct MaskResampler {
+    bool active = false; /* processed chroma planes are subsampled and read the first mask plane */
+    bool wide = false; /* integer sums can pass 32 bits */
+    MaskAxis h[numChromaLocations];
+    /* Per chroma location: the frame, a top and a bottom field. A field is sited the way resize
+       sites a field's chroma (chroma_offset_parity_adjustment in zimg's graph builder): half the
+       frame's shift, moved by a quarter of a field line times one less than the factor, the top
+       field up and the bottom one down. A mask that is one field (_Field) is sited like each field
+       of an interlaced one. The frame path this replaced resized the mask itself and added the
+       field's offset to the frame's whole shift rather than half of it, so with top or bottom
+       siting it put a single field's chroma elsewhere. */
+    MaskAxis v[numChromaLocations][3];
+};
+
+MaskResampler maskResampler(const VSVideoFormat &fmt, bool active) {
+    MaskResampler out;
+    out.active = active;
+    if (!active)
+        return out;
+    /* The frame's filters are the compute path's; only the fields' are the CPU's own. */
+    const ChromaFilters frame = chromaFiltersFor(fmt.subSamplingW, fmt.subSamplingH);
+    const double field = 0.25 * (1 - (1 << fmt.subSamplingH));
+    for (int loc = 0; loc < numChromaLocations; loc++) {
+        double srcLeft, srcTop;
+        getChromalocLumaShift(loc, fmt.subSamplingW, fmt.subSamplingH, &srcLeft, &srcTop);
+        out.h[loc] = maskAxis(frame.h[loc], fmt.subSamplingW);
+        out.v[loc][mrFrame] = maskAxis(frame.v[loc], fmt.subSamplingH);
+        out.v[loc][mrTopField] = maskAxis(chromaAxisFilter(fmt.subSamplingH, srcTop / 2 + field), fmt.subSamplingH);
+        out.v[loc][mrBottomField] = maskAxis(chromaAxisFilter(fmt.subSamplingH, srcTop / 2 - field), fmt.subSamplingH);
+        for (const MaskAxis &v : out.v[loc])
+            out.wide = out.wide || 8 * fmt.bytesPerSample + out.h[loc].shift + v.shift > 31;
+    }
+    return out;
+}
+
+/* Reads the mask's MaskRows from its frame properties; what = "mask" or "alpha" for the message.
+   Without vertical subsampling a field's chroma rows are the frame's own, one tap each, so any
+   arrangement of fields reads as a frame. With it, two fields need an even number of chroma rows,
+   so that every field has its own whole rows. */
+bool maskRowsOf(const VSMap *props, const VSVideoInfo *vi, const char *what, int &rows, char *errorMessage, int errorMessageSize, const VSAPI *vsapi) {
+    rows = mrFrame;
+    int err;
+    if (vsapi->mapGetType(props, "_Field") == ptInt) {
+        const int64_t field = vsapi->mapGetInt(props, "_Field", 0, &err);
+        if (field != 0 && field != 1) {
+            snprintf(errorMessage, errorMessageSize, "bad _Field value in the %s: %lld", what, static_cast<long long>(field));
+            return false;
+        }
+        rows = field ? mrTopField : mrBottomField;
+    } else if (vsapi->mapGetType(props, "_FieldBased") == ptInt) {
+        const int64_t fieldBased = vsapi->mapGetInt(props, "_FieldBased", 0, &err);
+        if (fieldBased != VSC_FIELD_PROGRESSIVE && fieldBased != VSC_FIELD_BOTTOM && fieldBased != VSC_FIELD_TOP) {
+            snprintf(errorMessage, errorMessageSize, "bad _FieldBased value in the %s: %lld", what, static_cast<long long>(fieldBased));
+            return false;
+        }
+        if (fieldBased != VSC_FIELD_PROGRESSIVE)
+            rows = mrFields;
+    }
+    if (vi->format.subSamplingH == 0)
+        rows = mrFrame;
+    if (rows == mrFields && ((vi->height >> vi->format.subSamplingH) & 1)) {
+        snprintf(errorMessage, errorMessageSize, "the %s is interlaced, which needs an even number of chroma rows", what);
+        return false;
+    }
+    return true;
+}
+
+/* What beginFrame finds for a frame, in frameState: the range offset, the chroma location and the
+   MaskRows. Float formats keep 0 for the offset, which their kernels never read. */
+void *packMaskFrame(unsigned offset, int loc, int rows) {
+    return reinterpret_cast<void *>((static_cast<uintptr_t>(offset) << 6) | (static_cast<uintptr_t>(rows) << 3) | static_cast<uintptr_t>(loc));
+}
+
+unsigned frameOffset(void *frameState) {
+    return static_cast<unsigned>(reinterpret_cast<uintptr_t>(frameState) >> 6);
+}
+
+int frameLocation(void *frameState) {
+    return static_cast<int>(reinterpret_cast<uintptr_t>(frameState) & 7);
+}
+
+int frameRows(void *frameState) {
+    return static_cast<int>((reinterpret_cast<uintptr_t>(frameState) >> 3) & 7);
+}
+
+int mirrorIndex(int i, int n) {
+    if (i < 0)
+        i = -i - 1;
+    else if (i >= n)
+        i = 2 * n - 1 - i;
+    return std::clamp(i, 0, n - 1);
+}
+
+/* The mask samples one chunk of output reads on a row, at most, which bounds the stack a chunk
+   takes: the chunk is this over the horizontal factor. */
+constexpr int maskChunkColumns = 2048;
+
+enum class MaskSample { Byte, Word, Half, Float };
+
+template<MaskSample K>
+using MaskSampleType = std::conditional_t<K == MaskSample::Byte, uint8_t, std::conditional_t<K == MaskSample::Float, float, uint16_t>>;
+
+/* Samples x0 to x0 + count - 1 of one row of a chroma plane's mask into out, from rows, the mask
+   rows its vertical taps read in a plane width samples wide. Acc holds the sums: exact integers for
+   integer samples, float otherwise. S is the horizontal factor when it is a constant, 0 to take it
+   from h; a constant one lets the horizontal pass load its columns as vectors. */
+template<MaskSample K, typename Acc, int S>
+void resampleMaskChunk(const MaskAxis &v, const uint8_t *const *rows, const MaskAxis &h, int width, int x0, int count, unsigned maxval, void *dst) {
+    using T = MaskSampleType<K>;
+    constexpr bool integer = K == MaskSample::Byte || K == MaskSample::Word;
+    auto load = [](T x) -> Acc {
+        if constexpr (K == MaskSample::Half)
+            return halfToFloat(x);
+        else
+            return static_cast<Acc>(x);
+    };
+    auto weight = [](const MaskAxis &axis, int j) -> Acc {
+        if constexpr (integer)
+            return axis.weight[j];
+        else
+            return axis.fweight[j];
+    };
+    auto vweight = [&](int j) { return weight(v, j); };
+
+    Acc tmp[maskChunkColumns + maxChromaTaps];
+    const int s = S ? S : h.factor;
+    const int first = s * x0 + h.origin;
+    const int columns = s * (count - 1) + h.taps;
+    /* The columns that need no mirroring in one pass that vectorizes, the few at the edges apart. */
+    const int lo = std::clamp(-first, 0, columns);
+    const int hi = std::clamp(width - first, lo, columns);
+    for (int k = lo; k < hi; k++)
+        tmp[k] = 0;
+    for (int j = 0; j < v.taps; j++) {
+        const T *row = reinterpret_cast<const T *>(rows[j]);
+        const Acc w = vweight(j);
+        for (int k = lo; k < hi; k++)
+            tmp[k] += w * load(row[first + k]);
+    }
+    for (int k = 0; k < columns; k++) {
+        if (k == lo)
+            k = hi;
+        if (k >= columns)
+            break;
+        const int column = mirrorIndex(first + k, width);
+        Acc sum = 0;
+        for (int j = 0; j < v.taps; j++)
+            sum += vweight(j) * load(reinterpret_cast<const T *>(rows[j])[column]);
+        tmp[k] = sum;
+    }
+
+    /* The horizontal pass a tap at a time over the whole chunk, which is the loop that vectorizes.
+       Each sample still adds its taps in order, so float sums are the same as one sample at a time. */
+    int shift = 0;
+    Acc init = 0;
+    if constexpr (integer) {
+        shift = v.shift + h.shift;
+        init = shift ? Acc(1) << (shift - 1) : 0;
+    }
+    Acc sum[maskChunkColumns];
+    for (int i = 0; i < count; i++)
+        sum[i] = init;
+    for (int j = 0; j < h.taps; j++) {
+        const Acc w = weight(h, j);
+        const Acc *column = tmp + j;
+        for (int i = 0; i < count; i++)
+            sum[i] += w * column[s * i];
+    }
+
+    T *out = static_cast<T *>(dst);
+    for (int i = 0; i < count; i++) {
+        if constexpr (integer)
+            out[i] = static_cast<T>(std::min<Acc>(sum[i] >> shift, maxval));
+        else if constexpr (K == MaskSample::Half)
+            out[i] = floatToHalf(sum[i]);
+        else
+            out[i] = sum[i];
+    }
+}
+
+/* resampleMaskChunk with the factor of 4:2:0 and 4:2:2 made a constant. */
+template<MaskSample K, typename Acc>
+void resampleMask(const MaskAxis &v, const uint8_t *const *rows, const MaskAxis &h, int width, int x0, int count, unsigned maxval, void *dst) {
+    if (h.factor == 2)
+        resampleMaskChunk<K, Acc, 2>(v, rows, h, width, x0, count, maxval, dst);
+    else
+        resampleMaskChunk<K, Acc, 0>(v, rows, h, width, x0, count, maxval, dst);
+}
+
+/* Calls fn(y, x0, count, maskChunk) for every chunk of the rows of region, a subsampled chroma
+   plane, maskChunk holding the chunk's resampled mask in the format's samples. mask is the mask's
+   whole first plane and width and height its size, the frame's. */
+template<typename Fn>
+void forEachResampledMaskChunk(const MaskResampler &r, const VSVideoFormat &fmt, const VSTileBuffer &mask, int width, int height, void *frameState, const VSTileRegion *region, Fn fn) {
+    const int loc = frameLocation(frameState);
+    const int maskRows = frameRows(frameState);
+    const bool fields = maskRows == mrFields;
+    const MaskAxis &h = r.h[loc];
+    const int chunk = maskChunkColumns / h.factor;
+    const unsigned maxval = fmt.sampleType == stInteger ? (1u << fmt.bitsPerSample) - 1 : 0;
+    alignas(64) uint8_t maskChunk[maskChunkColumns * sizeof(float)];
+    const uint8_t *rows[maxChromaTaps];
+
+    for (int y = region->rowStart; y < region->rowEnd; y++) {
+        /* An interlaced mask's field holds every other row of the frame, from the first row for
+           the top field and the second for the bottom one, and each field mirrors at its own
+           edges. */
+        const int parity = fields ? (y & 1) : 0;
+        const MaskAxis &v = r.v[loc][fields ? mrTopField + parity : maskRows];
+        const int fieldHeight = fields ? height / 2 : height;
+        const int base = v.factor * (fields ? y >> 1 : y) + v.origin;
+        for (int j = 0; j < v.taps; j++) {
+            const int row = mirrorIndex(base + j, fieldHeight);
+            rows[j] = vsh::tileRow(&mask, fields ? 2 * row + parity : row);
+        }
+        for (int x0 = 0; x0 < region->width; x0 += chunk) {
+            const int count = std::min(chunk, region->width - x0);
+            if (fmt.sampleType == stFloat && fmt.bytesPerSample == 2)
+                resampleMask<MaskSample::Half, float>(v, rows, h, width, x0, count, maxval, maskChunk);
+            else if (fmt.sampleType == stFloat)
+                resampleMask<MaskSample::Float, float>(v, rows, h, width, x0, count, maxval, maskChunk);
+            else if (fmt.bytesPerSample == 1)
+                resampleMask<MaskSample::Byte, uint32_t>(v, rows, h, width, x0, count, maxval, maskChunk);
+            else if (!r.wide)
+                resampleMask<MaskSample::Word, uint32_t>(v, rows, h, width, x0, count, maxval, maskChunk);
+            else
+                resampleMask<MaskSample::Word, uint64_t>(v, rows, h, width, x0, count, maxval, maskChunk);
+            fn(y, x0, count, static_cast<const void *>(maskChunk));
+        }
+    }
+}
+
 } // namespace
+
+/* The row kernels of one filter per instruction set, each indexed by sampleKind. A null entry
+   means the instruction set has none for that sample type, and the next one down is used; a
+   table without AVX-512 kernels leaves that row out. */
+template<typename Kernel>
+struct KernelTable {
+    Kernel c[4];
+#ifdef VS_TARGET_CPU_X86
+    Kernel sse2[4];
+    Kernel avx2[4];
+    Kernel avx512[4];
+#endif
+};
+
+/* 8 bit integer, 16 bit integer, single and half precision float: the formats
+   is8to16orFloatFormat lets through. */
+static int sampleKind(const VSVideoFormat &f) {
+    if (f.sampleType == stInteger)
+        return f.bytesPerSample == 1 ? 0 : 1;
+    return f.bytesPerSample == 4 ? 2 : 3;
+}
+
+/* The fastest kernel in table for f that the CPU and cpulevel allow. */
+template<typename Kernel>
+static Kernel selectKernel(const KernelTable<Kernel> &table, const VSVideoFormat &f, [[maybe_unused]] int cpulevel) {
+    const int kind = sampleKind(f);
+#ifdef VS_TARGET_CPU_X86
+    if (getCPUFeatures()->avx512 && cpulevel >= VS_CPU_LEVEL_AVX512 && table.avx512[kind])
+        return table.avx512[kind];
+    if (getCPUFeatures()->avx2 && cpulevel >= VS_CPU_LEVEL_AVX2 && table.avx2[kind])
+        return table.avx2[kind];
+    if (cpulevel >= VS_CPU_LEVEL_SSE2 && table.sse2[kind])
+        return table.sse2[kind];
+#endif
+    return table.c[kind];
+}
 
 //////////////////////////////////////////
 // PreMultiply
 
 
+typedef void (*PreMultiplyKernel)(const void *, const void *, void *, unsigned, unsigned, unsigned);
+
 typedef struct {
     const VSVideoInfo *vi;
-    bool chroma_dispatch;  // If true, nodes 2-7 are 6 per-chromaloc resizes
-    int cpulevel;
+    PreMultiplyKernel kernel;
+    MaskResampler resampler; /* the alpha for subsampled chroma */
 } PreMultiplyDataExtra;
 
 typedef VariableNodeData<PreMultiplyDataExtra> PreMultiplyData;
 
-/* Takes the format rather than the VideoInfo so a compute path can capture it by value; the
-   VideoInfo overload is what the scalar paths already had. */
+static const KernelTable<PreMultiplyKernel> preMultiplyKernels = {
+    { vs_premultiply_byte_c, vs_premultiply_word_c, vs_premultiply_float_c, vs_premultiply_half_c },
+#ifdef VS_TARGET_CPU_X86
+    { nullptr, nullptr, nullptr, nullptr },
+    { nullptr, nullptr, nullptr, vs_premultiply_half_avx2 },
+#endif
+};
+
+/* Takes the format rather than the VideoInfo so a compute path can capture it by value. */
 static unsigned getLimitedRangeOffset(const VSMap *props, const VSVideoFormat &fmt, const VSAPI *vsapi) {
     int err;
     bool limited = (vsapi->mapGetInt(props, "_Range", 0, &err) == VSC_RANGE_LIMITED);
@@ -363,91 +654,38 @@ static unsigned getLimitedRangeOffset(const VSFrame *f, const VSVideoFormat &fmt
     return getLimitedRangeOffset(vsapi->getFramePropertiesRO(f), fmt, vsapi);
 }
 
-static unsigned getLimitedRangeOffset(const VSFrame *f, const VSVideoInfo *vi, const VSAPI *vsapi) {
-    return getLimitedRangeOffset(f, vi->format, vsapi);
+/* The offset, and for subsampled chroma the chroma location and how resize reads the alpha's rows,
+   which the clip's and the alpha's properties give. */
+static int VS_CC preMultiplyBeginFrame([[maybe_unused]] int n, const VSMap *const *inputProps, [[maybe_unused]] VSMap *outputProps, void **frameState, void *instanceData, char *errorMessage, int errorMessageSize, [[maybe_unused]] VSCore *core, const VSAPI *vsapi) {
+    const PreMultiplyData *d = static_cast<const PreMultiplyData *>(instanceData);
+    const VSVideoFormat &fmt = d->vi->format;
+    const unsigned offset = fmt.sampleType == stInteger ? getLimitedRangeOffset(inputProps[0], fmt, vsapi) : 0;
+    int loc = 0;
+    int rows = mrFrame;
+    if (d->resampler.active) {
+        loc = resolveChromaLocation(inputProps[0], vsapi);
+        if (!maskRowsOf(inputProps[1], d->vi, "alpha", rows, errorMessage, errorMessageSize, vsapi))
+            return 0;
+    }
+    *frameState = packMaskFrame(offset, loc, rows);
+    return 1;
 }
 
-static const VSFrame *VS_CC preMultiplyGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    PreMultiplyData *d = reinterpret_cast<PreMultiplyData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->nodes[0], frameCtx);
-        vsapi->requestFrameFilter(n, d->nodes[1], frameCtx);
-        if (d->vi->format.numPlanes > 1 && !d->chroma_dispatch) {
-            // No subsampling: reuse alpha for chroma planes (nodes[2] is an alpha alias).
-            vsapi->requestFrameFilter(n, d->nodes[2], frameCtx);
-        }
-    } else if (activationReason == arAllFramesReady && d->chroma_dispatch && !frameData[0]) {
-        // Defer chroma-resize candidate selection until we've read source frame's _ChromaLocation.
-        const VSFrame *src1 = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
-        int loc = resolveChromaLocation(src1, vsapi);
-        vsapi->freeFrame(src1);
-
-        VSNode *chroma_candidate = d->nodes[2 + loc];
-        frameData[0] = chroma_candidate;
-        vsapi->requestFrameFilter(n, chroma_candidate, frameCtx);
-        return nullptr;
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src1 = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
-        const VSFrame *src2 = vsapi->getFrameFilter(n, d->nodes[1], frameCtx);
-        const VSFrame *src2_23 = nullptr;
-        if (d->vi->format.numPlanes > 1) {
-            VSNode *chroma_node = d->chroma_dispatch
-                ? reinterpret_cast<VSNode *>(frameData[0])
-                : d->nodes[2];
-            src2_23 = vsapi->getFrameFilter(n, chroma_node, frameCtx);
-        }
-        VSFrame *dst = vsapi->newVideoFrame(&d->vi->format, d->vi->width, d->vi->height, src1, core);
-        for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
-            int h = vsapi->getFrameHeight(src1, plane);
-            int w = vsapi->getFrameWidth(src1, plane);
-            ptrdiff_t stride = vsapi->getStride(src1, plane);
-            const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
-            const uint8_t *srcp2 = vsapi->getReadPtr(plane > 0 ? src2_23 : src2, 0);
-            uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
-            bool yuvhandling = (plane > 0) && (d->vi->format.colorFamily == cfYUV);
-            unsigned offset = getLimitedRangeOffset(src1, d->vi, vsapi);
-            unsigned depth = d->vi->format.bitsPerSample;
-
-            void (*func)(const void *, const void *, void *, unsigned, unsigned, unsigned) = nullptr;
-
-#ifdef VS_TARGET_CPU_X86
-            if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
-                if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
-                    func = vs_premultiply_half_avx2;
-            }
-#endif
-
-            if (!func) {
-                if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 1)
-                    func = vs_premultiply_byte_c;
-                else if (d->vi->format.sampleType == stInteger && d->vi->format.bytesPerSample == 2)
-                    func = vs_premultiply_word_c;
-                else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 4)
-                    func = vs_premultiply_float_c;
-                else if (d->vi->format.sampleType == stFloat && d->vi->format.bytesPerSample == 2)
-                    func = vs_premultiply_half_c;
-            }
-
-            if (!func)
-                continue;
-
-            for (int y = 0; y < h; ++y) {
-                func(srcp1, srcp2, dstp, depth, yuvhandling ? (1 << (depth - 1)) : offset, w);
-
-                srcp1 += stride;
-                srcp2 += stride;
-                dstp += stride;
-            }
-        }
-
-        vsapi->freeFrame(src1);
-        vsapi->freeFrame(src2);
-        vsapi->freeFrame(src2_23);
-        return dst;
+/* The alpha's first plane serves every plane; subsampled chroma reads it resampled. */
+static void VS_CC preMultiplyProcess(const VSTileRegion *region, const VSTileBuffer *src, const VSTileBuffer *dst, void *frameState, void *instanceData) {
+    const PreMultiplyData *d = static_cast<const PreMultiplyData *>(instanceData);
+    const VSVideoFormat &f = d->vi->format;
+    const unsigned depth = static_cast<unsigned>(f.bitsPerSample);
+    const unsigned offset = (region->plane > 0 && f.colorFamily == cfYUV) ? (1u << (depth - 1)) : frameOffset(frameState);
+    if (region->plane > 0 && d->resampler.active) {
+        forEachResampledMaskChunk(d->resampler, f, src[1], d->vi->width, d->vi->height, frameState, region, [&](int y, int x0, int count, const void *alpha) {
+            const size_t at = static_cast<size_t>(x0) * f.bytesPerSample;
+            d->kernel(vsh::tileRow(&src[0], y) + at, alpha, vsh::tileRow(dst, y) + at, depth, offset, static_cast<unsigned>(count));
+        });
+        return;
     }
-
-    return nullptr;
+    for (int y = region->rowStart; y < region->rowEnd; y++)
+        d->kernel(vsh::tileRow(&src[0], y), vsh::tileRow(&src[1], y), vsh::tileRow(dst, y), depth, offset, static_cast<unsigned>(region->width));
 }
 
 static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -470,10 +708,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     if (!isConstantVideoFormat(d->vi) || !isConstantVideoFormat(alphavi) || d->vi->width != alphavi->width || d->vi->height != alphavi->height)
         RETERROR("PreMultiply: both clips must have the same constant format and dimensions");
 
-    d->cpulevel = vs_get_cpulevel(core);
-
     bool subsampled = (d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0);
-    d->chroma_dispatch = subsampled;
 
     const ClipResidencyResult residency = residencyOfClips(d->nodes.data(), 2, vsapi);
     if (residency.kind == ClipResidency::Mixed)
@@ -532,34 +767,14 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         return;
     }
 
-    if (subsampled) {
-        VSNode *candidates[numChromaLocations] = {};
-        std::string err_msg = createChromaResizeCandidates(d->nodes[1],
-            d->vi->width >> d->vi->format.subSamplingW,
-            d->vi->height >> d->vi->format.subSamplingH,
-            d->vi->format.subSamplingW, d->vi->format.subSamplingH,
-            candidates, core, vsapi);
-        if (!err_msg.empty())
-            RETERROR(("PreMultiply: " + err_msg).c_str());
-        d->nodes.resize(2 + numChromaLocations);
-        for (int i = 0; i < numChromaLocations; i++)
-            d->nodes[2 + i] = candidates[i];
-    } else if (d->vi->format.numPlanes > 1) {
-        d->nodes.resize(3);
-        d->nodes[2] = vsapi->addNodeRef(d->nodes[1]);
-    }
+    const VSVideoFormat &fmt = d->vi->format;
+    d->kernel = selectKernel(preMultiplyKernels, fmt, vs_get_cpulevel(core));
 
-    std::vector<VSFilterDependency> deps;
-    deps.push_back({ d->nodes[0], rpStrictSpatial });
-    deps.push_back({ d->nodes[1], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
-    if (subsampled) {
-        for (int i = 0; i < numChromaLocations; i++)
-            deps.push_back({ d->nodes[2 + i], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[2 + i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
-    } else if (d->vi->format.numPlanes > 1) {
-        deps.push_back({ d->nodes[2], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
-    }
-
-    vsapi->createVideoFilter(out, "PreMultiply", d->vi, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, deps.data(), static_cast<int>(deps.size()), d.get(), core);
+    /* The alpha's first plane serves every plane, resampled for subsampled chroma. */
+    d->resampler = maskResampler(fmt, subsampled);
+    VSNode *inputs[] = { d->nodes[0], d->nodes[1] };
+    createTiledFilter(out, "PreMultiply", d->vi, inputs, 2, 0, preMultiplyProcess, preMultiplyBeginFrame, filterFree<PreMultiplyData>, d.get(), core, vsapi,
+        0, nullptr, nullptr, fmt.numPlanes > 1 ? 1 << 1 : 0);
     d.release();
 }
 
@@ -579,42 +794,6 @@ typedef struct {
 typedef DualNodeData<MergeDataExtra> MergeData;
 
 const unsigned MergeShift = 15;
-
-/* The row kernels of one filter per instruction set, each indexed by sampleKind. A null entry
-   means the instruction set has none for that sample type, and the next one down is used; a
-   table without AVX-512 kernels leaves that row out. */
-template<typename Kernel>
-struct KernelTable {
-    Kernel c[4];
-#ifdef VS_TARGET_CPU_X86
-    Kernel sse2[4];
-    Kernel avx2[4];
-    Kernel avx512[4];
-#endif
-};
-
-/* 8 bit integer, 16 bit integer, single and half precision float: the formats
-   is8to16orFloatFormat lets through. */
-static int sampleKind(const VSVideoFormat &f) {
-    if (f.sampleType == stInteger)
-        return f.bytesPerSample == 1 ? 0 : 1;
-    return f.bytesPerSample == 4 ? 2 : 3;
-}
-
-/* The fastest kernel in table for f that the CPU and cpulevel allow. */
-template<typename Kernel>
-static Kernel selectKernel(const KernelTable<Kernel> &table, const VSVideoFormat &f, [[maybe_unused]] int cpulevel) {
-    const int kind = sampleKind(f);
-#ifdef VS_TARGET_CPU_X86
-    if (getCPUFeatures()->avx512 && cpulevel >= VS_CPU_LEVEL_AVX512 && table.avx512[kind])
-        return table.avx512[kind];
-    if (getCPUFeatures()->avx2 && cpulevel >= VS_CPU_LEVEL_AVX2 && table.avx2[kind])
-        return table.avx2[kind];
-    if (cpulevel >= VS_CPU_LEVEL_SSE2 && table.sse2[kind])
-        return table.sse2[kind];
-#endif
-    return table.c[kind];
-}
 
 static const KernelTable<MergeKernel> mergeKernels = {
     { vs_merge_byte_c, vs_merge_word_c, vs_merge_float_c, vs_merge_half_c },
@@ -755,10 +934,10 @@ typedef struct {
     bool premultiplied;
     bool first_plane;
     bool process[3];
-    bool chroma_dispatch;   // If true, nodes 3-8 are 6 per-chromaloc resizes of mask
     bool checkLoc;          // chroma is merged, so clipa and clipb must agree on chroma location
     bool checkRange;        // premultiplied integer, so clipa and clipb must agree on range
     MaskMergeKernel kernel;
+    MaskResampler resampler; /* the mask's first plane for subsampled chroma */
 } MaskedMergeDataExtra;
 
 typedef VariableNodeData<MaskedMergeDataExtra> MaskedMergeData;
@@ -781,10 +960,15 @@ static const KernelTable<MaskMergeKernel> maskMergePremulKernels = {
 #endif
 };
 
-/* The per frame checks of maskedMergeGetFrame, made on the properties when the core runs the
-   filter tiled. Leaves clipa's range offset in *frameState for maskedMergeProcess. */
+/* The per frame checks the frame path used to make, made on the properties: clipa and clipb have to
+   agree on chroma siting before their chroma can be merged, and on range for premultiplied integer.
+   Leaves clipa's range offset in *frameState for maskedMergeProcess, and when the mask's first
+   plane is resampled for subsampled chroma, clipa's chroma location and how resize reads the mask's
+   rows. */
 static int VS_CC maskedMergeBeginFrame([[maybe_unused]] int n, const VSMap *const *inputProps, [[maybe_unused]] VSMap *outputProps, void **frameState, void *instanceData, char *errorMessage, int errorMessageSize, [[maybe_unused]] VSCore *core, const VSAPI *vsapi) {
     const MaskedMergeData *d = static_cast<const MaskedMergeData *>(instanceData);
+    const VSVideoFormat &fmt = d->vi->format;
+    int loc = 0;
     if (d->checkLoc) {
         int loc1 = resolveChromaLocation(inputProps[0], vsapi);
         int loc2 = resolveChromaLocation(inputProps[1], vsapi);
@@ -792,112 +976,36 @@ static int VS_CC maskedMergeBeginFrame([[maybe_unused]] int n, const VSMap *cons
             snprintf(errorMessage, errorMessageSize, "clipa and clipb have different chroma locations (_ChromaLocation %d vs %d)", loc1, loc2);
             return 0;
         }
+        loc = loc1;
     }
-    unsigned offset1 = getLimitedRangeOffset(inputProps[0], d->vi->format, vsapi);
-    if (d->checkRange && offset1 != getLimitedRangeOffset(inputProps[1], d->vi->format, vsapi)) {
+    unsigned offset1 = fmt.sampleType == stInteger ? getLimitedRangeOffset(inputProps[0], fmt, vsapi) : 0;
+    if (d->checkRange && offset1 != getLimitedRangeOffset(inputProps[1], fmt, vsapi)) {
         snprintf(errorMessage, errorMessageSize, "Input frames must have the same range");
         return 0;
     }
-    *frameState = reinterpret_cast<void *>(static_cast<uintptr_t>(offset1));
+    int rows = mrFrame;
+    if (d->resampler.active && !maskRowsOf(inputProps[2], d->vi, "mask", rows, errorMessage, errorMessageSize, vsapi))
+        return 0;
+    *frameState = packMaskFrame(offset1, loc, rows);
     return 1;
 }
 
+/* The mask is plane p of the mask clip, or its first plane for every plane (first_plane), which
+   subsampled chroma reads resampled. */
 static void VS_CC maskedMergeProcess(const VSTileRegion *region, const VSTileBuffer *src, const VSTileBuffer *dst, void *frameState, void *instanceData) {
     const MaskedMergeData *d = static_cast<const MaskedMergeData *>(instanceData);
     const VSVideoFormat &f = d->vi->format;
     const unsigned depth = static_cast<unsigned>(f.bitsPerSample);
-    const unsigned offset = (region->plane > 0 && f.colorFamily == cfYUV) ? (1u << (depth - 1)) : static_cast<unsigned>(reinterpret_cast<uintptr_t>(frameState));
+    const unsigned offset = (region->plane > 0 && f.colorFamily == cfYUV) ? (1u << (depth - 1)) : frameOffset(frameState);
+    if (region->plane > 0 && d->resampler.active) {
+        forEachResampledMaskChunk(d->resampler, f, src[2], d->vi->width, d->vi->height, frameState, region, [&](int y, int x0, int count, const void *mask) {
+            const size_t at = static_cast<size_t>(x0) * f.bytesPerSample;
+            d->kernel(vsh::tileRow(&src[0], y) + at, vsh::tileRow(&src[1], y) + at, mask, vsh::tileRow(dst, y) + at, depth, offset, static_cast<unsigned>(count));
+        });
+        return;
+    }
     for (int y = region->rowStart; y < region->rowEnd; y++)
         d->kernel(vsh::tileRow(&src[0], y), vsh::tileRow(&src[1], y), vsh::tileRow(&src[2], y), vsh::tileRow(dst, y), depth, offset, static_cast<unsigned>(region->width));
-}
-
-static const VSFrame *VS_CC maskedMergeGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    MaskedMergeData *d = reinterpret_cast<MaskedMergeData *>(instanceData);
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->nodes[0], frameCtx);
-        vsapi->requestFrameFilter(n, d->nodes[1], frameCtx);
-        vsapi->requestFrameFilter(n, d->nodes[2], frameCtx);
-    } else if (activationReason == arAllFramesReady && d->chroma_dispatch && !frameData[0]) {
-        // Defer chroma-resize selection until we've read source frame's _ChromaLocation.
-        const VSFrame *src1 = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
-        int loc = resolveChromaLocation(src1, vsapi);
-        vsapi->freeFrame(src1);
-
-        VSNode *chroma_candidate = d->nodes[3 + loc];
-        frameData[0] = chroma_candidate;
-        vsapi->requestFrameFilter(n, chroma_candidate, frameCtx);
-        return nullptr;
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src1 = vsapi->getFrameFilter(n, d->nodes[0], frameCtx);
-        const VSFrame *src2 = vsapi->getFrameFilter(n, d->nodes[1], frameCtx);
-        const VSFrame *mask = vsapi->getFrameFilter(n, d->nodes[2], frameCtx);
-        const VSFrame *mask23 = nullptr;
-
-        // With subsampled chroma, clipa and clipb chroma must sample the same
-        // locations to be meaningfully merged, only relevant when chroma is processed.
-        if ((d->process[1] || d->process[2]) && (d->vi->format.subSamplingW > 0 || d->vi->format.subSamplingH > 0)) {
-            int loc1 = resolveChromaLocation(src1, vsapi);
-            int loc2 = resolveChromaLocation(src2, vsapi);
-            if (loc1 != loc2) {
-                vsapi->freeFrame(src1);
-                vsapi->freeFrame(src2);
-                vsapi->freeFrame(mask);
-                vsapi->setFilterError(("MaskedMerge: clipa and clipb have different chroma locations (_ChromaLocation "
-                    + std::to_string(loc1) + " vs " + std::to_string(loc2) + ")").c_str(), frameCtx);
-                return nullptr;
-            }
-        }
-
-        unsigned offset1 = getLimitedRangeOffset(src1, d->vi, vsapi);
-        unsigned offset2 = getLimitedRangeOffset(src2, d->vi, vsapi);
-
-        const int pl[] = {0, 1, 2};
-        const VSFrame *fr[] = {d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1};
-        VSFrame *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
-        if (d->chroma_dispatch)
-            mask23 = vsapi->getFrameFilter(n, reinterpret_cast<VSNode *>(frameData[0]), frameCtx);
-        for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
-            if (d->process[plane]) {
-                int h = vsapi->getFrameHeight(src1, plane);
-                int w = vsapi->getFrameWidth(src2, plane);
-                ptrdiff_t stride = vsapi->getStride(src1, plane);
-                const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
-                const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-                const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
-                uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
-
-                int yuvhandling = (plane > 0) && (d->vi->format.colorFamily == cfYUV);
-
-                if (d->premultiplied && d->vi->format.sampleType == stInteger && offset1 != offset2) {
-                    vsapi->freeFrame(src1);
-                    vsapi->freeFrame(src2);
-                    vsapi->freeFrame(mask);
-                    vsapi->freeFrame(mask23);
-                    vsapi->freeFrame(dst);
-                    vsapi->setFilterError("MaskedMerge: Input frames must have the same range", frameCtx);
-                    return nullptr;
-                }
-
-                int depth = d->vi->format.bitsPerSample;
-
-                for (int y = 0; y < h; y++) {
-                    d->kernel(srcp1, srcp2, maskp, dstp, depth, yuvhandling ? (1 << (depth - 1)) : offset1, w);
-                    srcp1 += stride;
-                    srcp2 += stride;
-                    maskp += stride;
-                    dstp += stride;
-                }
-            }
-        }
-        vsapi->freeFrame(src1);
-        vsapi->freeFrame(src2);
-        vsapi->freeFrame(mask);
-        vsapi->freeFrame(mask23);
-        return dst;
-    }
-
-    return nullptr;
 }
 
 static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -933,9 +1041,8 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     /* Two per frame checks every path makes: the two inputs have to agree on chroma siting before
        their chroma can be merged at all, and premultiplied integer needs them to agree on black
        level too, since one offset is applied to both. The range check only when a plane is
-       processed: the frame path makes it inside its per plane loop, which a call processing
-       nothing never enters, and bounded by numPlanes like that loop, since the planes argument
-       fills all three flags. */
+       processed, as a call processing nothing applies no offset, and looking at the format's planes
+       alone, since the planes argument fills all three flags. */
     bool anyProcessed = false;
     for (int p = 0; p < d->vi->format.numPlanes; p++)
         anyProcessed = anyProcessed || d->process[p];
@@ -946,7 +1053,6 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     bool need_chroma_resize = (d->first_plane && d->vi->format.numPlanes > 1)
                               && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0)
                               && (d->process[1] || d->process[2]);
-    d->chroma_dispatch = need_chroma_resize;
 
     const ClipResidencyResult maskedResidency = residencyOfClips(d->nodes.data(), 3, vsapi);
     if (maskedResidency.kind == ClipResidency::Mixed)
@@ -1059,84 +1165,15 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
         return;
     }
 
-    if (need_chroma_resize) {
-        // If the mask has more than 1 plane, extract plane 0 first so the
-        // resize candidates only resample the plane we'll read.
-        VSNode *single_plane_mask = nullptr;
-        if (maskvi->format.numPlanes > 1) {
-            VSMap *min = vsapi->createMap();
-            vsapi->mapSetNode(min, "clips", d->nodes[2], maAppend);
-            vsapi->mapSetInt(min, "planes", 0, maAppend);
-            vsapi->mapSetInt(min, "colorfamily", cfGray, maAppend);
-            VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core), "ShufflePlanes", min);
-            vsapi->freeMap(min);
-            const char *shuffle_err = vsapi->mapGetError(mout);
-            if (shuffle_err) {
-                std::string msg = std::string("MaskedMerge: ShufflePlanes failed: ") + shuffle_err;
-                vsapi->freeMap(mout);
-                RETERROR(msg.c_str());
-            }
-            single_plane_mask = vsapi->mapGetNode(mout, "clip", 0, 0);
-            vsapi->freeMap(mout);
-        } else {
-            single_plane_mask = vsapi->addNodeRef(d->nodes[2]);
-        }
-
-        VSNode *candidates[numChromaLocations] = {};
-        std::string err_msg = createChromaResizeCandidates(single_plane_mask,
-            d->vi->width >> d->vi->format.subSamplingW,
-            d->vi->height >> d->vi->format.subSamplingH,
-            d->vi->format.subSamplingW, d->vi->format.subSamplingH,
-            candidates, core, vsapi);
-        vsapi->freeNode(single_plane_mask);
-        if (!err_msg.empty())
-            RETERROR(("MaskedMerge: " + err_msg).c_str());
-
-        d->nodes.resize(3 + numChromaLocations);
-        for (int i = 0; i < numChromaLocations; i++)
-            d->nodes[3 + i] = candidates[i];
-    }
-
     d->kernel = selectKernel(d->premultiplied ? maskMergePremulKernels : maskMergeKernels, d->vi->format, vs_get_cpulevel(core));
 
-    /* When the mask's first plane stands in for processed chroma planes of the same size, a plane
-       map repeating it makes plane p of the mask the one for plane p, as tiled filters read it. */
-    if (d->first_plane && d->vi->format.numPlanes > 1 && (d->process[1] || d->process[2]) && !need_chroma_resize) {
-        VSVideoInfo maskvi3 = *d->vi;
-        maskvi3.numFrames = maskvi->numFrames;
-        VSPlaneMapFilterDesc desc = {};
-        desc.version = VS_PLANE_MAP_FILTER_VERSION;
-        desc.vi = &maskvi3;
-        desc.inputs = &d->nodes[2];
-        desc.numInputs = 1;
-        VSNode *mask3 = vsapi->createPlaneMapVideoFilter2("MaskedMerge", &desc, core);
-        if (!mask3)
-            RETERROR("MaskedMerge: the first mask plane could not be repeated for the other planes");
-        vsapi->freeNode(d->nodes[2]);
-        d->nodes[2] = mask3;
-        d->first_plane = false;
-    }
-
-    /* Tiled unless the mask's first plane stands in for subsampled chroma planes, which takes a
-       resampled mask the frame's chroma location picks. */
-    if (!(d->first_plane && d->vi->format.numPlanes > 1 && (d->process[1] || d->process[2]))) {
-        VSNode *inputs[] = { d->nodes[0], d->nodes[1], d->nodes[2] };
-        createTiledFilter(out, "MaskedMerge", d->vi, inputs, 3, unprocessedPlanes(d->process, d->vi->format.numPlanes), maskedMergeProcess,
-            maskedMergeBeginFrame, filterFree<MaskedMergeData>, d.get(), core, vsapi);
-        d.release();
-        return;
-    }
-
-    std::vector<VSFilterDependency> deps;
-    deps.push_back({ d->nodes[0], rpStrictSpatial });
-    deps.push_back({ d->nodes[1], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[1])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
-    deps.push_back({ d->nodes[2], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[2])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
-    if (need_chroma_resize) {
-        for (int i = 0; i < numChromaLocations; i++)
-            deps.push_back({ d->nodes[3 + i], (d->vi->numFrames <= vsapi->getVideoInfo(d->nodes[3 + i])->numFrames) ? rpStrictSpatial : rpFrameReuseLastOnly });
-    }
-
-    vsapi->createVideoFilter(out, "MaskedMerge", d->vi, maskedMergeGetFrame, filterFree<MaskedMergeData>, fmParallel, deps.data(), static_cast<int>(deps.size()), d.get(), core);
+    /* The mask's first plane standing in for processed planes past the first: every plane reads it,
+       whole, and subsampled chroma resamples it. */
+    const bool firstPlaneForAll = d->first_plane && d->vi->format.numPlanes > 1 && (d->process[1] || d->process[2]);
+    d->resampler = maskResampler(d->vi->format, need_chroma_resize);
+    VSNode *inputs[] = { d->nodes[0], d->nodes[1], d->nodes[2] };
+    createTiledFilter(out, "MaskedMerge", d->vi, inputs, 3, unprocessedPlanes(d->process, d->vi->format.numPlanes), maskedMergeProcess,
+        maskedMergeBeginFrame, filterFree<MaskedMergeData>, d.get(), core, vsapi, 0, nullptr, nullptr, firstPlaneForAll ? 1 << 2 : 0);
     d.release();
 }
 

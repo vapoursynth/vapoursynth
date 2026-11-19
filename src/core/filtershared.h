@@ -248,14 +248,14 @@ static inline int unprocessedPlanes(const bool process[3], int numPlanes) {
 
 #if VAPOURSYNTH_API_MINOR >= 4
 /* The one place the std filters describe a tiled filter, every input getting the same halo above
-   and below; see VSTiledFilterDesc. passthroughInput, when given, has an entry per plane. Takes
-   instanceData either way: when creation fails it is freed here, so a caller always releases it. */
+   and below; see VSTiledFilterDesc. passthroughInput, when given, has an entry per plane, and
+   firstPlaneInputs is the desc's bitmask. Takes instanceData either way: when creation fails it is
+   freed here, so a caller always releases it. */
 static inline void createTiledFilter(VSMap *out, const char *name, const VSVideoInfo *vi, VSNode *const *inputs, int numInputs, int passthroughPlanes,
     VSTiledFilterProcess process, VSFilterBeginFrame beginFrame, VSFilterFree free, void *instanceData, VSCore *core, const VSAPI *vsapi, int halo = 0,
-    const int *passthroughInput = nullptr, VSTiledFilterEndFrame endFrame = nullptr) {
+    const int *passthroughInput = nullptr, VSTiledFilterEndFrame endFrame = nullptr, int firstPlaneInputs = 0) {
     std::vector<int> halos(halo ? numInputs : 0, halo);
     VSTiledFilterDesc desc = {};
-    desc.version = VS_TILED_FILTER_VERSION;
     desc.vi = vi;
     desc.inputs = inputs;
     desc.numInputs = numInputs;
@@ -264,6 +264,7 @@ static inline void createTiledFilter(VSMap *out, const char *name, const VSVideo
     desc.passthroughPlanes = passthroughPlanes;
     if (passthroughInput)
         std::copy(passthroughInput, passthroughInput + vi->format.numPlanes, desc.passthroughInput);
+    desc.firstPlaneInputs = firstPlaneInputs;
     desc.beginFrame = beginFrame;
     desc.process = process;
     desc.endFrame = endFrame;
@@ -278,7 +279,6 @@ static inline void createTiledFilter(VSMap *out, const char *name, const VSVideo
 static inline void createFrameMap(VSMap *out, const char *name, const VSVideoInfo *vi, const VSFilterDependency *inputs, int numInputs,
     VSFilterMapFrame mapFrame, VSFilterBeginFrame beginFrame, VSFilterFree free, void *instanceData, VSCore *core, const VSAPI *vsapi) {
     VSFrameMapFilterDesc desc = {};
-    desc.version = VS_FRAME_MAP_FILTER_VERSION;
     desc.vi = vi;
     desc.inputs = inputs;
     desc.numInputs = numInputs;
@@ -295,7 +295,6 @@ static inline void createFrameMap(VSMap *out, const char *name, const VSVideoInf
 static inline void createPlaneMap(VSMap *out, const char *name, const VSVideoInfo *vi, VSNode *const *inputs, int numInputs, const int planeInput[3],
     const int planeSource[3], VSFilterBeginFrame beginFrame, VSFilterFree free, void *instanceData, VSCore *core, const VSAPI *vsapi) {
     VSPlaneMapFilterDesc desc = {};
-    desc.version = VS_PLANE_MAP_FILTER_VERSION;
     desc.vi = vi;
     desc.inputs = inputs;
     desc.numInputs = numInputs;

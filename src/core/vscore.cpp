@@ -1039,8 +1039,8 @@ const std::string &VSPluginFunction::getReturnType() const {
     return returnType;
 }
 
-VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput, VSTiledFilter *tiled, VSFrameMapFilter *frameMap, VSPlaneMapFilter *planeMap, VSCore *core) :
-    refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), gpuOutput(gpuOutput), tiled(tiled), frameMap(frameMap), planeMap(planeMap), core(core), serialFrame(-1), processingTime(0) {
+VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput, VSFusableFilter *fusable, VSCore *core) :
+    refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), gpuOutput(gpuOutput), fusable(fusable), core(core), serialFrame(-1), processingTime(0) {
 
     if (!core->isValidVideoInfo(*vi))
         throw VSException("The VSVideoInfo structure passed by " + name + " is invalid.");
@@ -1164,7 +1164,7 @@ void VSNode::removeConsumer(VSNode *consumer, int strictSpatial) {
 
 
 bool VSNode::fusableInto(const VSNode *consumer) {
-    if (!tiled && !frameMap && !planeMap)
+    if (!fusable)
         return false;
     std::lock_guard<std::mutex> lock(cacheMutex);
     VS_LOCK_HELD(vsLockNodeCache);
@@ -1173,7 +1173,7 @@ bool VSNode::fusableInto(const VSNode *consumer) {
 }
 
 size_t VSNode::sharedConsumerEdges() {
-    if (!tiled && !frameMap && !planeMap)
+    if (!fusable)
         return 0;
     std::lock_guard<std::mutex> lock(cacheMutex);
     VS_LOCK_HELD(vsLockNodeCache);
@@ -2688,7 +2688,7 @@ void VSCore::loadPlugin(const std::filesystem::path &filename, bool loadCPUOptim
 
 void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput) {
     try {
-        VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, gpuOutput, nullptr, nullptr, nullptr, this);
+        VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, gpuOutput, nullptr, this);
         vs_internal_vsapi.mapConsumeNode(out, "clip", node, maAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
@@ -2697,7 +2697,7 @@ void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVide
 
 VSNode *VSCore::createVideoFilter(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput) {
     try {
-        return new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, gpuOutput, nullptr, nullptr, nullptr, this);
+        return new VSNode(name, vi, getFrame, free, filterMode, dependencies, numDeps, instanceData, gpuOutput, nullptr, this);
     } catch (VSException &) {
         return nullptr;
     }
@@ -2826,7 +2826,7 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
     if (readOnlySet)
         readOnly = true;
 
-    bool supported = (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_MINOR);
+    bool supported = (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_LATEST_MINOR);
 
     if (!supported) {
 #ifdef VS_TARGET_OS_WINDOWS
@@ -2836,7 +2836,7 @@ VSPlugin::VSPlugin(const std::filesystem::path &relFilename, const std::string &
         if (!core->disableLibraryUnloading)
             dlclose(libHandle);
 #endif
-        throw VSException("Core only supports API R" + std::to_string(VAPOURSYNTH_API_MAJOR) + "." + std::to_string(VAPOURSYNTH_API_MINOR) + " but the loaded plugin requires API R" + std::to_string(apiMajor) + "." + std::to_string(apiMinor) + "; Filename: " + relFilename.u8string() + "; Name: " + fullname);
+        throw VSException("Core only supports API R" + std::to_string(VAPOURSYNTH_API_MAJOR) + "." + std::to_string(VAPOURSYNTH_API_LATEST_MINOR) + " but the loaded plugin requires API R" + std::to_string(apiMajor) + "." + std::to_string(apiMinor) + "; Filename: " + relFilename.u8string() + "; Name: " + fullname);
     }
 }
 

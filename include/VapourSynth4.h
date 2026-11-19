@@ -26,8 +26,20 @@
 
 #define VS_MAKE_VERSION(major, minor) (((major) << 16) | (minor))
 #define VAPOURSYNTH_API_MAJOR 4
-#if defined(VS_USE_LATEST_API) || defined(VS_USE_API_44)
-#define VAPOURSYNTH_API_MINOR 4
+/* The newest minor version this header describes. */
+#define VAPOURSYNTH_API_LATEST_MINOR 4
+
+/* The minor version of the API to build against, which is also what a plugin requires of the core:
+   define VS_USE_API_MINOR to it before including this header, 3 for API 4.3, or VS_USE_LATEST_API
+   for the newest. Without either it is 0. VS_USE_API_41 to VS_USE_API_43 are the older way to say
+   1 to 3; later versions have no such macro. */
+#if defined(VS_USE_API_MINOR)
+#if defined(VS_USE_LATEST_API) || defined(VS_USE_API_41) || defined(VS_USE_API_42) || defined(VS_USE_API_43)
+#error "Define VS_USE_API_MINOR or one of VS_USE_LATEST_API and VS_USE_API_41 to VS_USE_API_43, not both"
+#endif
+#define VAPOURSYNTH_API_MINOR VS_USE_API_MINOR
+#elif defined(VS_USE_LATEST_API)
+#define VAPOURSYNTH_API_MINOR VAPOURSYNTH_API_LATEST_MINOR
 #elif defined(VS_USE_API_43)
 #define VAPOURSYNTH_API_MINOR 3
 #elif defined(VS_USE_API_42)
@@ -37,6 +49,17 @@
 #else
 #define VAPOURSYNTH_API_MINOR 0
 #endif
+
+#if VAPOURSYNTH_API_MINOR < 0 || VAPOURSYNTH_API_MINOR > VAPOURSYNTH_API_LATEST_MINOR
+#error "VS_USE_API_MINOR is the minor version alone, 3 for API 4.3, and at most VAPOURSYNTH_API_LATEST_MINOR"
+#endif
+
+/* The graph functions follow the functions of the version built against in VSAPI, so they only line
+   up with a core of exactly that version; with this header that is taken to be the newest. */
+#if defined(VS_GRAPH_API) && VAPOURSYNTH_API_MINOR >= 2 && VAPOURSYNTH_API_MINOR != VAPOURSYNTH_API_LATEST_MINOR
+#error "VS_GRAPH_API needs the newest API version, VS_USE_LATEST_API"
+#endif
+
 #define VAPOURSYNTH_API_VERSION VS_MAKE_VERSION(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 #define VS_AUDIO_FRAME_SAMPLES 3072
@@ -394,8 +417,12 @@ typedef struct VSFilterDependency {
  *
  * Every input has the output's constant size, and each plane read from an input has the size of
  * the output's plane; the sample type and bit depth may differ. Output plane p is computed from
- * plane p of the inputs only, and output frame n from frame n of each input only. A filter that
- * needs anything else (other frames, other planes, a variable format) uses createVideoFilter.
+ * plane p of the inputs only, and output frame n from frame n of each input only. The one
+ * exception is an input the filter reads only through its first plane (firstPlaneInputs): every
+ * output plane gets that plane whole, which is how a mask the size of the luma plane serves
+ * subsampled chroma planes, and while planes are processed that input doesn't run together with
+ * the filter. A filter that needs anything else (other frames, other planes, a variable format)
+ * uses createVideoFilter.
  *
  * A frame map outputs frames of its inputs as they are apart from their properties: output frame
  * n is one frame of one input, chosen by a function of n. Trim, Splice, SelectEvery and the other
@@ -443,28 +470,27 @@ typedef int (VS_CC *VSFilterBeginFrame)(int n, const VSMap *const *inputProps, V
 /* Writes rows [region->rowStart, region->rowEnd) of plane region->plane to dst. src has one buffer
    per input, of which only rows rowStart - haloTop to rowEnd - 1 + haloBottom of the same plane
    may be read, and of those only the ones inside the plane: rows past its top or bottom never
-   exist. A filter wanting a row past an edge clamps the row number to the plane, which always
-   lands on a row it may read; mirroring it does so only when the halo on the other side reaches
-   the mirrored row. Calls for one frame may run in any order and never write a row twice, but
-   when the core runs filters together it skips the planes of a filter that nothing reads, so not
-   every row of every plane is necessarily written. Must not fail and must not call the API: it
-   runs inside other filters' frame requests when the core runs filters together. */
+   exist. An input in firstPlaneInputs is the exception: its buffer is its first plane, whole, and
+   any of its rows may be read. A filter wanting a row past an edge clamps the row number to the
+   plane, which always lands on a row it may read; mirroring it does so only when the halo on the
+   other side reaches the mirrored row. Calls for one frame may run in any order and never write a
+   row twice, but when the core runs filters together it skips the planes of a filter that nothing
+   reads, so not every row of every plane is necessarily written. Must not fail and must not call
+   the API: it runs inside other filters' frame requests when the core runs filters together. */
 typedef void (VS_CC *VSTiledFilterProcess)(const VSTileRegion *region, const VSTileBuffer *src, const VSTileBuffer *dst, void *frameState, void *instanceData);
 /* Releases what beginFrame put in *frameState. Called once after every successful beginFrame,
    also when the frame fails later. */
 typedef void (VS_CC *VSTiledFilterEndFrame)(void *frameState, void *instanceData);
 
-#define VS_TILED_FILTER_VERSION 1
-
 typedef struct VSTiledFilterDesc {
-    int version; /* VS_TILED_FILTER_VERSION */
     const VSVideoInfo *vi; /* the output; a constant format and size */
-    VSNode *const *inputs; /* CPU resident video nodes of the output's size, at least one; an input needs every processed plane, and the planes passed through from it, each sized like the output's */
+    VSNode *const *inputs; /* CPU resident video nodes of the output's size, at least one; an input needs every processed plane, and the planes passed through from it, each sized like the output's (one in firstPlaneInputs only its first plane) */
     int numInputs;
     const int *haloTop; /* per input, the number of rows above the written ones read from it, in each plane's own rows; NULL means none for every input, more than the height means the whole plane */
     const int *haloBottom; /* the same below */
     int passthroughPlanes; /* bit p set: output plane p is plane p of an input, unchanged, and is never processed; that input must store its samples like the output (same sample type and bytes per sample, as for newVideoFrame2) */
     int passthroughInput[3]; /* per plane, the input a passed through plane comes from, 0 being the first */
+    int firstPlaneInputs; /* bit i set: every plane, processed, reads the first plane of input i, whole; that input has the output's size, gives no passed through planes and is requested as a whole frame whenever a plane is processed, so its halos don't apply */
     VSFilterBeginFrame beginFrame; /* NULL: the output properties are the first input's */
     VSTiledFilterProcess process; /* may only be NULL when every plane is passed through */
     VSTiledFilterEndFrame endFrame; /* may be NULL */
@@ -479,10 +505,7 @@ typedef struct VSTiledFilterDesc {
    about the same n. */
 typedef int (VS_CC *VSFilterMapFrame)(int n, int *input, void *instanceData);
 
-#define VS_FRAME_MAP_FILTER_VERSION 1
-
 typedef struct VSFrameMapFilterDesc {
-    int version; /* VS_FRAME_MAP_FILTER_VERSION */
     const VSVideoInfo *vi; /* the output; where its format or size is constant, every input must have that format or size */
     const VSFilterDependency *inputs; /* video nodes, all CPU or all GPU resident, each with the request pattern mapFrame follows, at least one */
     int numInputs;
@@ -492,10 +515,7 @@ typedef struct VSFrameMapFilterDesc {
     void *instanceData;
 } VSFrameMapFilterDesc;
 
-#define VS_PLANE_MAP_FILTER_VERSION 1
-
 typedef struct VSPlaneMapFilterDesc {
-    int version; /* VS_PLANE_MAP_FILTER_VERSION */
     const VSVideoInfo *vi; /* the output; a constant format and size */
     VSNode *const *inputs; /* distinct video nodes, at least one; output frame n is made from frame n of each, and input 0's gives the properties */
     int numInputs;

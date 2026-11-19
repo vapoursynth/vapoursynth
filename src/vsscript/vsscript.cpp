@@ -557,14 +557,14 @@ static VSSCRIPTAPI vsscript_api = {
     &getVariableEx
 };
 
-static const std::string versionErrorText = "The requested VSScript API version is not provided by this library, which implements R" + std::to_string(VSSCRIPT_API_MAJOR) + "." + std::to_string(VSSCRIPT_API_MINOR);
+static const std::string versionErrorText = "The requested VSScript API version is not provided by this library, which implements R" + std::to_string(VSSCRIPT_API_MAJOR) + "." + std::to_string(VSSCRIPT_API_LATEST_MINOR);
 static std::atomic<const char *> versionError = nullptr;
 
 const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {
     int apiMajor = (version >> 16);
     int apiMinor = (version & 0xFFFF);
 
-    if (apiMajor == VSSCRIPT_API_MAJOR && apiMinor <= VSSCRIPT_API_MINOR) {
+    if (apiMajor == VSSCRIPT_API_MAJOR && apiMinor <= VSSCRIPT_API_LATEST_MINOR) {
         std::call_once(flag, realInit);
         if (initialized) {
             return &vsscript_api;

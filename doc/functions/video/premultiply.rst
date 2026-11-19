@@ -23,3 +23,7 @@ PreMultiply
    for interlaced frames -- except on the GPU path, which currently always
    sites progressively, so interlaced GPU output differs slightly from the
    CPU path there. Progressive output is identical between the two.
+   An *alpha* with ``_Field`` set is a single field, and its chroma is sited
+   the way that field's chroma is. When the chroma is subsampled vertically,
+   an interlaced *alpha* needs an even number of chroma rows, so that each
+   field has whole rows.

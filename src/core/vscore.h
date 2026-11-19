@@ -70,9 +70,7 @@ class VSVulkanDevice;
 class VSVulkanTransfer;
 struct VSVulkanPlane;
 class VSMapData;
-struct VSTiledFilter;
-struct VSFrameMapFilter;
-struct VSPlaneMapFilter;
+struct VSFusableFilter;
 
 typedef vs_intrusive_ptr<VSFrame> PVSFrame;
 typedef vs_intrusive_ptr<VSNode> PVSNode;
@@ -1007,9 +1005,7 @@ private:
     /* The description of a node made by createTiledVideoFilter, createFrameMapVideoFilter or
        createPlaneMapVideoFilter, which is also its instanceData; null for every other node. Set
        by the constructor and never changed. */
-    VSTiledFilter *const tiled = nullptr;
-    VSFrameMapFilter *const frameMap = nullptr;
-    VSPlaneMapFilter *const planeMap = nullptr;
+    VSFusableFilter *const fusable = nullptr;
 
     VSCore *core;
     PVSFunctionFrame functionFrame;
@@ -1049,10 +1045,10 @@ public:
        publishes the node: it ends in registerCache, and a fresh node has no consumers so
        cacheEnabled is always true there. Setting the flag afterwards left every GPU node
        visible to the cache sweeps for a moment with the wrong residency, and the write raced
-       the sweep's read of it. tiled, frameMap and planeMap, the descriptions of nodes made by
-       createTiledVideoFilter, createFrameMapVideoFilter and createPlaneMapVideoFilter, are passed
-       the same way for the same reason. */
-    VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput, VSTiledFilter *tiled, VSFrameMapFilter *frameMap, VSPlaneMapFilter *planeMap, VSCore *core);
+       the sweep's read of it. fusable, the description of a node made by createTiledVideoFilter,
+       createFrameMapVideoFilter or createPlaneMapVideoFilter, is passed the same way for the same
+       reason. */
+    VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, bool gpuOutput, VSFusableFilter *fusable, VSCore *core);
     VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, const VSFilterDependency *dependencies, int numDeps, void *instanceData, VSCore *core);
     ~VSNode();
 
@@ -1074,6 +1070,15 @@ public:
         return nodeType;
     }
 
+    /* n clamped to the node's frames at both ends, which is the frame a request for n gets, so a
+       filter can ask for its neighbours at the clip's edges without checking. */
+    int clampFrameNumber(int n) const {
+        const int numFrames = (nodeType == mtVideo) ? vi.numFrames : ai.numFrames;
+        if (numFrames && n >= numFrames)
+            n = numFrames - 1;
+        return n < 0 ? 0 : n;
+    }
+
     VSFilterMode getFilterMode() const {
         return filterMode;
     }
@@ -1082,16 +1087,8 @@ public:
         return gpuOutput;
     }
 
-    VSTiledFilter *getTiled() const {
-        return tiled;
-    }
-
-    VSFrameMapFilter *getFrameMap() const {
-        return frameMap;
-    }
-
-    VSPlaneMapFilter *getPlaneMap() const {
-        return planeMap;
+    VSFusableFilter *getFusable() const {
+        return fusable;
     }
 
     /* Whether consumer, a tiled node or a frame or plane map in a tiled node's tree, may make this

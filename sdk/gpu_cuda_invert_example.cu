@@ -46,7 +46,7 @@
 * nothing extra; the example only needs the CUDA runtime.
 */
 
-#define VS_USE_API_43
+#define VS_USE_API_MINOR 3 /* getVulkanAPI came in API 4.3 */
 #include "VapourSynth4.h"
 #include "VSVulkan4.h"
 

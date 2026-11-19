@@ -23,16 +23,32 @@
 
 #include "VapourSynth4.h"
 #include <string>
+#include <vector>
 
-/* createTiledVideoFilter: validates the description and makes the node, whose getFrame is the
-   core's own. Returns null with the reason in errorMessage on failure, in which case nothing of
-   the description is freed. */
-VSNode *createTiledFilterNode(const char *name, const VSTiledFilterDesc *desc, VSCore *core, std::string &errorMessage);
+/* What the core keeps of the description a tiled filter, a frame map or a plane map is created
+   from, as far as the three have it in common; vstiled.cpp has the rest of each. A node made from
+   one (VSNode::getFusable) is what a tiled node can make part of its tree instead of requesting
+   its frames. It is the node's instanceData as well, and immutable once the node exists. */
+struct VSFusableFilter {
+    enum class Kind { Tiled, FrameMap, PlaneMap };
 
-/* createFrameMapVideoFilter, in the same way. */
-VSNode *createFrameMapFilterNode(const char *name, const VSFrameMapFilterDesc *desc, VSCore *core, std::string &errorMessage);
+    const Kind kind;
+    std::vector<VSNode *> inputs; /* the references are the node's dependencies */
+    VSFilterBeginFrame beginFrame = nullptr;
+    VSFilterFree freeFunc = nullptr;
+    void *instanceData = nullptr;
 
-/* createPlaneMapVideoFilter, in the same way. */
-VSNode *createPlaneMapFilterNode(const char *name, const VSPlaneMapFilterDesc *desc, VSCore *core, std::string &errorMessage);
+    explicit VSFusableFilter(Kind kind) : kind(kind) {
+    }
+
+    virtual ~VSFusableFilter() = default;
+};
+
+/* createTiledVideoFilter, createFrameMapVideoFilter and createPlaneMapVideoFilter: validates the
+   description and makes the node, whose getFrame is the core's own. Returns null with the reason
+   in errorMessage on failure, in which case nothing of the description is freed. */
+VSNode *createFusableFilterNode(const char *name, const VSTiledFilterDesc *desc, VSCore *core, std::string &errorMessage);
+VSNode *createFusableFilterNode(const char *name, const VSFrameMapFilterDesc *desc, VSCore *core, std::string &errorMessage);
+VSNode *createFusableFilterNode(const char *name, const VSPlaneMapFilterDesc *desc, VSCore *core, std::string &errorMessage);
 
 #endif // VSTILED_H

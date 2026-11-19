@@ -25,7 +25,21 @@
 
 /* Note that the base version of the API is 4.1 due to that change happening very soon after the API4 release */
 #define VSSCRIPT_API_MAJOR 4
-#if defined(VSSCRIPT_USE_LATEST_API) || defined(VSSCRIPT_USE_API_44)
+/* The newest minor version this header describes. */
+#define VSSCRIPT_API_LATEST_MINOR 4
+
+/* The minor version of the API to build against, chosen like VapourSynth4.h's: define
+   VSSCRIPT_USE_API_MINOR to it before including this header, 3 for API 4.3, or
+   VSSCRIPT_USE_LATEST_API for the newest. Without either it is 1. VSSCRIPT_USE_API_42 to
+   VSSCRIPT_USE_API_44 are the older way to say 2 to 4; later versions have no such macro. */
+#if defined(VSSCRIPT_USE_API_MINOR)
+#if defined(VSSCRIPT_USE_LATEST_API) || defined(VSSCRIPT_USE_API_42) || defined(VSSCRIPT_USE_API_43) || defined(VSSCRIPT_USE_API_44)
+#error "Define VSSCRIPT_USE_API_MINOR or one of VSSCRIPT_USE_LATEST_API and VSSCRIPT_USE_API_42 to VSSCRIPT_USE_API_44, not both"
+#endif
+#define VSSCRIPT_API_MINOR VSSCRIPT_USE_API_MINOR
+#elif defined(VSSCRIPT_USE_LATEST_API)
+#define VSSCRIPT_API_MINOR VSSCRIPT_API_LATEST_MINOR
+#elif defined(VSSCRIPT_USE_API_44)
 #define VSSCRIPT_API_MINOR 4
 #elif defined(VSSCRIPT_USE_API_43)
 #define VSSCRIPT_API_MINOR 3
@@ -34,6 +48,11 @@
 #else
 #define VSSCRIPT_API_MINOR 1
 #endif
+
+#if VSSCRIPT_API_MINOR < 1 || VSSCRIPT_API_MINOR > VSSCRIPT_API_LATEST_MINOR
+#error "VSSCRIPT_USE_API_MINOR is the minor version alone, 3 for API 4.3, from 1 and at most VSSCRIPT_API_LATEST_MINOR"
+#endif
+
 #define VSSCRIPT_API_VERSION VS_MAKE_VERSION(VSSCRIPT_API_MAJOR, VSSCRIPT_API_MINOR)
 
 typedef struct VSScript VSScript;

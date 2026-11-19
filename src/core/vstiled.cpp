@@ -52,10 +52,23 @@
    and never its process. Outside a tree, planeMapGetFrame makes the frame from the input frames'
    planes, sharing them.
 
+   Plane maps can also make one plane of a node part of several planes of the root: a plane given
+   twice, or given once and read again by a node that gives another plane. The planes of the root
+   are produced one after the other, each with rings of its own, so that node would compute its
+   plane once for each of them. planTree finds such a node and makes it an external instead, whose
+   frame holds the plane for all of them (listRepeated).
+
    A node passing a plane through hands on one of its inputs' plane, so for that plane it drops out
    of the tree: its consumer reads whatever produces that input's plane directly, and a plane the
    root passes through all the way from an external frame is shared with that frame. A frame map
    passes every plane through. A node whose plane nobody in the tree reads is not run for it.
+
+   An input a tiled node reads through its first plane alone (VSTiledFilterDesc::firstPlaneInputs),
+   such as MaskedMerge's mask standing in for subsampled chroma, is an external input whenever its
+   rows are read: every plane of the node is handed that frame's first plane, whole, which a plane
+   of another size could not get from a ring. So nothing about it depends on the plane being
+   produced, and the runs of the planes, which happen one after the other, all read the same frame.
+   A node passing every plane through reads only its properties, and then it may join.
 
    A tree runs on the one thread that produces the root's frame, which is what keeps its rows in
    that core's cache, and also means the inputs of a node with several fused inputs are computed
@@ -78,10 +91,11 @@
 #include <utility>
 #include <vector>
 
-/* A tiled node's description, which is also its instanceData. Immutable once the node exists. */
-struct VSTiledFilter {
+/* What a tiled node's description has beyond the common part. */
+struct VSTiledFilter : VSFusableFilter {
+    static constexpr Kind thisKind = Kind::Tiled;
+
     VSVideoInfo vi = {};
-    std::vector<VSNode *> inputs; /* the references are the node's dependencies */
     std::vector<int> haloTop; /* clamped to the height, which already means the whole plane */
     std::vector<int> haloBottom;
     /* Per input, what its ring takes at the smallest band. 0 when the halo makes that ring the
@@ -91,38 +105,39 @@ struct VSTiledFilter {
     /* Per input, whether any of its rows are read: all inputs when a plane is processed, else
        only those planes are passed through from. */
     std::vector<char> readsInput;
+    /* Per input, whether every plane reads its first plane, whole (firstPlaneInputs). Such an
+       input is requested as a frame whenever its rows are read. */
+    std::vector<char> firstPlaneInput;
     int passthroughPlanes = 0;
     int passthroughInput[3] = {};
-    VSFilterBeginFrame beginFrame = nullptr;
     VSTiledFilterProcess process = nullptr;
     VSTiledFilterEndFrame endFrame = nullptr;
-    VSFilterFree freeFunc = nullptr;
-    void *instanceData = nullptr;
+
+    VSTiledFilter() : VSFusableFilter(thisKind) {
+    }
 };
 
-/* A frame map's description, which is also its instanceData. Immutable once the node exists. */
-struct VSFrameMapFilter {
-    std::vector<VSNode *> inputs; /* the references are the node's dependencies */
+/* A frame map's. */
+struct VSFrameMapFilter : VSFusableFilter {
+    static constexpr Kind thisKind = Kind::FrameMap;
+
     VSFilterMapFrame mapFrame = nullptr;
-    VSFilterBeginFrame beginFrame = nullptr;
-    VSFilterFree freeFunc = nullptr;
-    void *instanceData = nullptr;
+
+    VSFrameMapFilter() : VSFusableFilter(thisKind) {
+    }
 };
 
-/* A plane map's description, which is also its instanceData. Immutable once the node exists. */
-struct VSPlaneMapFilter {
+/* A plane map's. */
+struct VSPlaneMapFilter : VSFusableFilter {
+    static constexpr Kind thisKind = Kind::PlaneMap;
+
     VSVideoInfo vi = {};
-    std::vector<VSNode *> inputs; /* the references are the node's dependencies */
     std::vector<char> readsInput; /* per input, whether an output plane comes from it */
-    /* Per input, whether two output planes are the same plane of it. Such an input is always
-       requested as a frame: running a tiled node there together with the consumer would compute
-       that plane once for every output plane it is, and write its rows more than once. */
-    std::vector<char> repeatsPlane;
     int planeInput[3] = {};
     int planeSource[3] = {};
-    VSFilterBeginFrame beginFrame = nullptr;
-    VSFilterFree freeFunc = nullptr;
-    void *instanceData = nullptr;
+
+    VSPlaneMapFilter() : VSFusableFilter(thisKind) {
+    }
 };
 
 namespace {
@@ -133,9 +148,12 @@ namespace {
    nodes whose rows are read. */
 constexpr int maxTreeNodes = 64;
 
-/* What the ring buffers of one plane may take together, which sets the band height: well inside
-   a per core L2, since the external inputs and the output stream through it as well. */
-constexpr size_t ringBudget = 512 * 1024;
+/* What one band of rows of every ring of a plane may take together, which sets the band height.
+   The rings round up to a power of two rows above the band and the rows read around it, twice
+   this for 3x3 kernels. A per core L2 is shared by two threads and the external inputs and the
+   output stream through it as well; measured, larger budgets were no faster for 4K frames and
+   slower for frames small enough to stay in L3. */
+constexpr size_t ringBudget = 128 * 1024;
 constexpr int minBandRows = 8;
 constexpr int maxBandRows = 64;
 
@@ -170,12 +188,10 @@ ptrdiff_t ringStride(int width, const VSVideoFormat &format) {
     return (static_cast<ptrdiff_t>(width) * format.bytesPerSample + (alignment - 1)) & ~(alignment - 1);
 }
 
-/* frame clamped to the frames of node, the way requestFrameFilter clamps a request. */
-int clampFrame(int frame, const VSNode *node) {
-    const int numFrames = node->getVideoInfo().numFrames;
-    if (numFrames && frame >= numFrames)
-        frame = numFrames - 1;
-    return std::max(frame, 0);
+/* desc as the kind of description T is, null when it is another kind or there is none. */
+template<typename T>
+T *as(VSFusableFilter *desc) {
+    return desc && desc->kind == T::thisKind ? static_cast<T *>(desc) : nullptr;
 }
 
 /* Which input frame n of a frame map comes from, -1 when mapFrame names one that does not exist,
@@ -185,16 +201,13 @@ int mapFrame(const VSFrameMapFilter *map, int n, int &frame) {
     frame = map->mapFrame ? map->mapFrame(n, &input, map->instanceData) : n;
     if (input < 0 || static_cast<size_t>(input) >= map->inputs.size())
         return -1;
-    frame = clampFrame(frame, map->inputs[input]);
+    frame = map->inputs[input]->clampFrameNumber(frame);
     return input;
 }
 
 struct PlanNode {
     VSNode *node = nullptr;
-    /* Exactly one of these is set. */
-    VSTiledFilter *filter = nullptr;
-    VSFrameMapFilter *map = nullptr;
-    VSPlaneMapFilter *planes = nullptr;
+    VSFusableFilter *desc = nullptr; /* the node's description, of whichever kind */
     int frame = 0; /* the number of the frame the node makes */
     /* Per input: the plan index of a fused node, or -(external slot + 1). A frame map has one, the
        input its frame comes from. */
@@ -210,14 +223,6 @@ struct PlanNode {
     size_t consumerEdges = 0;
     bool read = false; /* whether anything in the tree reads its rows, not only its properties */
     bool begun = false;
-
-    VSFilterBeginFrame beginFrame() const {
-        return filter ? filter->beginFrame : map ? map->beginFrame : planes->beginFrame;
-    }
-
-    void *instanceData() const {
-        return filter ? filter->instanceData : map ? map->instanceData : planes->instanceData;
-    }
 };
 
 struct Plan {
@@ -232,10 +237,12 @@ struct Plan {
     size_t spareThreadsSample = 0; /* how many there were, asked for when first needed */
     bool spareThreadsKnown = false;
     /* What earlier walks of planTree found: frames of nodes the tree cannot share, as a consumer
-       outside it or at another frame reads them as well, and frames of shared nodes that something
-       reads although a walk first reached them for their properties alone. */
+       outside it or at another frame reads them as well, frames of shared nodes that something
+       reads although a walk first reached them for their properties alone, and frames of nodes a
+       plane of which several planes of the root would be made from. */
     std::vector<std::pair<VSNode *, int>> unshared;
     std::vector<std::pair<VSNode *, int>> read;
+    std::vector<std::pair<VSNode *, int>> repeated;
     bool walkAgain = false;
 
     ~Plan() {
@@ -246,7 +253,7 @@ struct Plan {
 };
 
 int addExternal(Plan &plan, VSNode *node, int frame) {
-    const std::pair<VSNode *, int> external(node, clampFrame(frame, node));
+    const std::pair<VSNode *, int> external(node, node->clampFrameNumber(frame));
     auto it = std::find(plan.externals.begin(), plan.externals.end(), external);
     if (it == plan.externals.end())
         it = plan.externals.insert(plan.externals.end(), external);
@@ -254,8 +261,7 @@ int addExternal(Plan &plan, VSNode *node, int frame) {
 }
 
 int addTiled(Plan &plan, VSNode *node, int n, bool read);
-void addInputs(Plan &plan, PlanNode &planNode, const std::vector<VSNode *> &inputs, const std::vector<char> &reads, const std::vector<size_t> &ringBytes,
-    bool read, const std::vector<char> *requested = nullptr);
+void addInputs(Plan &plan, PlanNode &planNode, const std::vector<char> &reads, const std::vector<size_t> &ringBytes, bool read, const std::vector<char> *requested = nullptr);
 
 int findNode(const Plan &plan, const VSNode *node, int frame) {
     for (size_t i = 0; i < plan.nodes.size(); i++)
@@ -274,11 +280,13 @@ bool listed(const std::vector<std::pair<VSNode *, int>> &list, VSNode *node, int
    as well, once: a consumer reaching it again adds an edge to the node already there, which
    planTree checks against the edges it has in all. ringBytes is what the ring of a tiled source
    takes, as the tiled node reading the input works it out (maps keep the planes' sizes), 0 when no
-   tiled source ever joins for that input. fuse false makes the frame an external anyway. read
-   false says nothing reads the rows of the input, only its properties: it then joins whatever
-   ringBytes says, since it never gets a ring, and counts against the bound of such nodes. Returns
-   what goes in consumer's inputs. */
+   tiled source ever joins for that input. fuse false makes the frame an external anyway, as does a
+   plane of it that several planes of the root would be made from (plan.repeated). read false says
+   nothing reads the rows of the input, only its properties: it then joins whatever ringBytes says,
+   since it never gets a ring, and counts against the bound of such nodes. Returns what goes in
+   consumer's inputs. */
 int addInput(Plan &plan, VSNode *consumer, VSNode *source, int frame, size_t ringBytes, bool fuse, bool read) {
+    fuse = fuse && !listed(plan.repeated, source, frame);
     if (fuse) {
         const int existing = findNode(plan, source, frame);
         if (existing >= 0) {
@@ -307,16 +315,17 @@ int addInput(Plan &plan, VSNode *consumer, VSNode *source, int frame, size_t rin
     }
     if (fusable) {
         int index = -1;
-        if (VSPlaneMapFilter *planes = source->getPlaneMap()) {
+        VSFusableFilter *desc = source->getFusable();
+        if (VSPlaneMapFilter *planes = as<VSPlaneMapFilter>(desc)) {
             planned++;
             PlanNode planNode;
             planNode.node = source;
-            planNode.planes = planes;
+            planNode.desc = planes;
             planNode.frame = frame;
-            addInputs(plan, planNode, planes->inputs, planes->readsInput, std::vector<size_t>(planes->inputs.size(), ringBytes), read, &planes->repeatsPlane);
+            addInputs(plan, planNode, planes->readsInput, std::vector<size_t>(planes->inputs.size(), ringBytes), read);
             plan.nodes.push_back(std::move(planNode));
             index = static_cast<int>(plan.nodes.size()) - 1;
-        } else if (VSFrameMapFilter *map = source->getFrameMap()) {
+        } else if (VSFrameMapFilter *map = as<VSFrameMapFilter>(desc)) {
             /* A frame map naming an input that does not exist is left to its own getFrame, which
                fails the frame saying so. */
             int mapped;
@@ -325,7 +334,7 @@ int addInput(Plan &plan, VSNode *consumer, VSNode *source, int frame, size_t rin
                 planned++;
                 PlanNode planNode;
                 planNode.node = source;
-                planNode.map = map;
+                planNode.desc = map;
                 planNode.frame = frame;
                 planNode.inputs.push_back(addInput(plan, source, map->inputs[input], mapped, ringBytes, true, read));
                 plan.nodes.push_back(std::move(planNode));
@@ -354,13 +363,13 @@ int addInput(Plan &plan, VSNode *consumer, VSNode *source, int frame, size_t rin
    limit addInput also applies. */
 bool reachesTiled(VSNode *consumer, VSNode *source, int frame, size_t ringBytes, int budget) {
     for (; budget > 0 && source->fusableInto(consumer); budget--) {
-        if (const VSPlaneMapFilter *planes = source->getPlaneMap()) {
+        if (const VSPlaneMapFilter *planes = as<VSPlaneMapFilter>(source->getFusable())) {
             for (size_t i = 0; i < planes->inputs.size(); i++)
-                if (planes->readsInput[i] && !planes->repeatsPlane[i] && reachesTiled(source, planes->inputs[i], frame, ringBytes, budget - 1))
+                if (planes->readsInput[i] && reachesTiled(source, planes->inputs[i], frame, ringBytes, budget - 1))
                     return true;
             return false;
         }
-        const VSFrameMapFilter *map = source->getFrameMap();
+        const VSFrameMapFilter *map = as<VSFrameMapFilter>(source->getFusable());
         if (!map)
             return ringBytes != 0;
         int mapped;
@@ -377,9 +386,10 @@ bool reachesTiled(VSNode *consumer, VSNode *source, int frame, size_t ringBytes,
 /* Plans the inputs of planNode, a tiled node or a plane map, at its frame: reads says which of
    them are read, ringBytes what the ring of a tiled node joining for each takes, read whether
    anything reads the rows of planNode itself, without which nothing below it is read either, and
-   requested, when given, which are requested as frames whatever they are when it is read. */
-void addInputs(Plan &plan, PlanNode &planNode, const std::vector<VSNode *> &inputs, const std::vector<char> &reads, const std::vector<size_t> &ringBytes,
-    bool read, const std::vector<char> *requested) {
+   requested, when given, which are requested as frames whatever they are when their rows are
+   read; one only giving properties stays free to join. */
+void addInputs(Plan &plan, PlanNode &planNode, const std::vector<char> &reads, const std::vector<size_t> &ringBytes, bool read, const std::vector<char> *requested) {
+    const std::vector<VSNode *> &inputs = planNode.desc->inputs;
     VSNode *node = planNode.node;
     const int n = planNode.frame;
     const size_t numInputs = inputs.size();
@@ -388,14 +398,13 @@ void addInputs(Plan &plan, PlanNode &planNode, const std::vector<VSNode *> &inpu
        the pool has threads with nothing to do, request as many of several such inputs as it can
        compute at the same time instead; this thread is free as well while it waits for them. An
        input nothing is read from stays fused, where it costs nothing: as a frame it would be
-       computed in full. Below a node nothing reads, no input is read, and the rule for repeated
-       planes, which is about rows, does not apply. One whose maps lead to an external frame stays
-       fused too, as that takes no time to get. Only a node reading several inputs can have such
-       inputs at all. */
+       computed in full. Below a node nothing reads, no input is read. One whose maps lead to an
+       external frame stays fused too, as that takes no time to get. Only a node reading several
+       inputs can have such inputs at all. */
     std::vector<char> fuse(numInputs, fusionEnabled());
     if (requested && read)
         for (size_t i = 0; i < numInputs; i++)
-            fuse[i] = fuse[i] && !(*requested)[i];
+            fuse[i] = fuse[i] && !((*requested)[i] && reads[i]);
     if (read && fusionEnabled() && std::count(reads.begin(), reads.end(), 1) > 1) {
         const int budget = maxTreeNodes - plan.planned;
         std::vector<char> branch(numInputs, 0);
@@ -434,13 +443,101 @@ void addInputs(Plan &plan, PlanNode &planNode, const std::vector<VSNode *> &inpu
    Returns its plan index. */
 int addTiled(Plan &plan, VSNode *node, int n, bool read) {
     (read ? plan.planned : plan.propsOnly)++;
+    const VSTiledFilter *filter = as<VSTiledFilter>(node->getFusable());
     PlanNode planNode;
     planNode.node = node;
-    planNode.filter = node->getTiled();
+    planNode.desc = node->getFusable();
     planNode.frame = n;
-    addInputs(plan, planNode, planNode.filter->inputs, planNode.filter->readsInput, planNode.filter->ringBytes, read);
+    addInputs(plan, planNode, filter->readsInput, filter->ringBytes, read, &filter->firstPlaneInput);
     plan.nodes.push_back(std::move(planNode));
     return static_cast<int>(plan.nodes.size()) - 1;
+}
+
+/* Whether node hands plane `plane` on from an input as it is: a frame map from its one input, a
+   plane map from the input and plane it takes it from, a tiled node from the input it passes it
+   through from. Then input is that input's entry in node.inputs and plane which plane of it. A
+   tiled node processing the plane makes it itself. */
+bool handsOn(const PlanNode &node, int &plane, int &input) {
+    if (as<VSFrameMapFilter>(node.desc)) {
+        input = node.inputs[0];
+    } else if (const VSPlaneMapFilter *planes = as<VSPlaneMapFilter>(node.desc)) {
+        input = node.inputs[planes->planeInput[plane]];
+        plane = planes->planeSource[plane];
+    } else {
+        const VSTiledFilter *filter = as<VSTiledFilter>(node.desc);
+        if (!(filter->passthroughPlanes & (1 << plane)))
+            return false;
+        input = node.inputs[filter->passthroughInput[plane]];
+    }
+    return true;
+}
+
+/* Per plan node and plane of it, the planes of the root it is made for, a bit each. */
+typedef std::vector<std::array<uint8_t, 3>> ProducedFor;
+
+/* Sets bit for every tiled node and plane of it that plane `plane` of plan node index is made
+   from, the ones resolve() makes producers for. Goes no further down from a node in stop, when
+   that is given. */
+void markProduced(const Plan &plan, int index, int plane, uint8_t bit, ProducedFor &producedFor, const std::vector<char> *stop) {
+    const PlanNode &node = plan.nodes[index];
+    int input;
+    if (handsOn(node, plane, input)) {
+        if (input >= 0)
+            markProduced(plan, input, plane, bit, producedFor, stop);
+        return;
+    }
+    if (producedFor[index][plane] & bit)
+        return;
+    producedFor[index][plane] |= bit;
+    if (stop && (*stop)[index])
+        return;
+    const VSTiledFilter *filter = as<VSTiledFilter>(node.desc);
+    for (size_t i = 0; i < node.inputs.size(); i++)
+        if (node.inputs[i] >= 0 && !filter->firstPlaneInput[i])
+            markProduced(plan, node.inputs[i], plane, bit, producedFor, stop);
+}
+
+ProducedFor producedFor(const Plan &plan, const std::vector<char> *stop) {
+    const int root = static_cast<int>(plan.nodes.size()) - 1;
+    ProducedFor result(plan.nodes.size(), std::array<uint8_t, 3>{});
+    for (int p = 0; p < plan.nodes[root].node->getVideoInfo().format.numPlanes; p++)
+        markProduced(plan, root, p, static_cast<uint8_t>(1 << p), result, stop);
+    return result;
+}
+
+bool forSeveral(const std::array<uint8_t, 3> &planes) {
+    for (uint8_t rootPlanes : planes)
+        if (rootPlanes & (rootPlanes - 1))
+            return true;
+    return false;
+}
+
+/* Lists in plan.repeated the nodes with a plane that more than one plane of the root is made from,
+   and says whether there are any. Only plane maps bring that about: without one, plane p of the
+   root is made from plane p of everything. The planes of the root are produced one after the
+   other, so such a node would compute that plane once for each of them, and write its rows as
+   often. As an external it computes it once, into a frame. What is repeated below such a node
+   leaves the tree with it, and may be repeated through it alone, so a node is only listed when the
+   ways to it that pass no other repeated node already make it one; any left over show in the next
+   walk. The repeated node nearest the root always qualifies, as nothing repeated reads it. */
+bool listRepeated(Plan &plan) {
+    bool planeMaps = false;
+    for (const PlanNode &node : plan.nodes)
+        planeMaps = planeMaps || node.desc->kind == VSFusableFilter::Kind::PlaneMap;
+    if (!planeMaps)
+        return false;
+    const ProducedFor all = producedFor(plan, nullptr);
+    std::vector<char> repeated(plan.nodes.size(), 0);
+    bool any = false;
+    for (size_t i = 0; i < plan.nodes.size(); i++)
+        any = (repeated[i] = forSeveral(all[i])) || any;
+    if (!any)
+        return false;
+    const ProducedFor direct = producedFor(plan, &repeated);
+    for (size_t i = 0; i < plan.nodes.size(); i++)
+        if (repeated[i] && forSeveral(direct[i]))
+            plan.repeated.emplace_back(plan.nodes[i].node, plan.nodes[i].frame);
+    return true;
 }
 
 /* Plans frame n of root, a tiled node. A node several consumers read joins the tree once, every
@@ -449,9 +546,12 @@ int addTiled(Plan &plan, VSNode *node, int n, bool read) {
    compute those rows again, where its cache computes them once. So a walk ends with the edges of
    every shared node counted, and a node short of its edges is an external in a new walk, which can
    leave others short in turn. A shared node first reached for its properties alone and then by a
-   reader takes a new walk as well, to be planned as read from the start. A new walk follows only
-   from a node newly listed in plan.unshared or plan.read, so there are at most as many as the tree
-   has such nodes, and usually none; the spare threads are sampled once for all of them. */
+   reader takes a new walk as well, to be planned as read from the start. So does a node with a
+   plane several planes of the root are made from, which is an external in the new walk
+   (listRepeated); they are looked for once the walk is otherwise final. A new walk follows only from
+   a node newly listed in plan.unshared, plan.read or plan.repeated, so there are at most as many
+   as the tree has such nodes, and usually none; the spare threads are sampled once for all of
+   them. */
 void planTree(Plan &plan, VSNode *root, int n) {
     for (;;) {
         plan.nodes.clear();
@@ -469,7 +569,7 @@ void planTree(Plan &plan, VSNode *root, int n) {
                 again = true;
             }
         }
-        if (!again)
+        if (!again && !listRepeated(plan))
             return;
     }
 }
@@ -501,6 +601,7 @@ struct Source {
 /* A node producing one plane, and where its rows go. */
 struct Producer {
     int planIndex = 0;
+    const VSTiledFilter *filter = nullptr; /* the plan node's */
     int plane = 0; /* of the node, which plane maps can make another than the output's */
     std::vector<Source> inputs;
     std::vector<VSTileBuffer> src;
@@ -531,35 +632,38 @@ struct PlaneRun {
    inputs, or the external frame and plane it is passed through from. */
 Source resolve(PlaneRun &run, int index, int plane) {
     const PlanNode &node = run.plan->nodes[index];
-    const VSTiledFilter *filter = node.filter;
-    int input = -1;
-    int inputPlane = plane;
-    if (node.map) {
-        input = node.inputs[0];
-    } else if (node.planes) {
-        input = node.inputs[node.planes->planeInput[plane]];
-        inputPlane = node.planes->planeSource[plane];
-    } else if (filter->passthroughPlanes & (1 << plane)) {
-        input = node.inputs[filter->passthroughInput[plane]];
-    } else {
-        /* A node several consumers in the tree read has one producer, which they all read. */
-        if (run.producerOf.empty())
-            run.producerOf.assign(run.plan->nodes.size(), { -1, -1, -1 });
-        if (run.producerOf[index][plane] >= 0)
-            return { run.producerOf[index][plane], plane };
-        std::vector<Source> inputs;
-        inputs.reserve(node.inputs.size());
-        for (int nodeInput : node.inputs)
-            inputs.push_back(nodeInput < 0 ? Source{ nodeInput, plane } : resolve(run, nodeInput, plane));
-        Producer producer;
-        producer.planIndex = index;
-        producer.plane = plane;
-        producer.inputs = std::move(inputs);
-        run.producers.push_back(std::move(producer));
-        run.producerOf[index][plane] = static_cast<int>(run.producers.size()) - 1;
+    int input;
+    if (handsOn(node, plane, input))
+        return input < 0 ? Source{ input, plane } : resolve(run, input, plane);
+
+    /* A node several consumers in the tree read has one producer, which they all read. */
+    if (run.producerOf.empty())
+        run.producerOf.assign(run.plan->nodes.size(), { -1, -1, -1 });
+    if (run.producerOf[index][plane] >= 0)
         return { run.producerOf[index][plane], plane };
+    const VSTiledFilter *filter = as<VSTiledFilter>(node.desc);
+    std::vector<Source> inputs;
+    inputs.reserve(node.inputs.size());
+    for (size_t i = 0; i < node.inputs.size(); i++) {
+        const int nodeInput = node.inputs[i];
+        /* An input read through its first plane is always an external when the node's rows are
+           read, addInputs requesting it as a frame, and every plane gets that frame's first
+           plane. */
+        if (filter->firstPlaneInput[i]) {
+            assert(nodeInput < 0);
+            inputs.push_back(Source{ nodeInput, 0 });
+        } else {
+            inputs.push_back(nodeInput < 0 ? Source{ nodeInput, plane } : resolve(run, nodeInput, plane));
+        }
     }
-    return input < 0 ? Source{ input, inputPlane } : resolve(run, input, inputPlane);
+    Producer producer;
+    producer.planIndex = index;
+    producer.filter = filter;
+    producer.plane = plane;
+    producer.inputs = std::move(inputs);
+    run.producers.push_back(std::move(producer));
+    run.producerOf[index][plane] = static_cast<int>(run.producers.size()) - 1;
+    return { run.producerOf[index][plane], plane };
 }
 
 /* Where the readers of every producer work, as Producer::lead and back describe it. top, which
@@ -576,7 +680,7 @@ void measureReaders(PlaneRun &run, int top) {
         const Producer &reader = run.producers[i];
         if (static_cast<int>(i) != top && !reader.readers)
             continue;
-        const VSTiledFilter *filter = run.plan->nodes[reader.planIndex].filter;
+        const VSTiledFilter *filter = reader.filter;
         for (size_t j = 0; j < reader.inputs.size(); j++) {
             if (reader.inputs[j].index < 0)
                 continue;
@@ -615,7 +719,7 @@ size_t layoutPlane(PlaneRun &run, int top) {
         if (static_cast<int>(i) == top)
             continue;
         Producer &producer = run.producers[i];
-        producer.dst.stride = ringStride(run.width, run.plan->nodes[producer.planIndex].filter->vi.format);
+        producer.dst.stride = ringStride(run.width, producer.filter->vi.format);
         rowBytes += static_cast<size_t>(producer.dst.stride);
     }
 
@@ -667,7 +771,7 @@ void placePlane(PlaneRun &run, int top, uint8_t *rings, VSFrame *dst, const std:
 void produce(PlaneRun &run, int index, int rows) {
     Producer &producer = run.producers[index];
     PlanNode &node = run.plan->nodes[producer.planIndex];
-    const VSTiledFilter *filter = node.filter;
+    const VSTiledFilter *filter = producer.filter;
     while (producer.done < rows) {
         int end = std::min(rows, producer.done + run.band);
         for (size_t i = 0; i < producer.inputs.size(); i++)
@@ -679,6 +783,17 @@ void produce(PlaneRun &run, int index, int rows) {
             node.time += run.watch->lap();
         producer.done = end;
     }
+}
+
+/* Runs the beginFrame of desc, which has one, for frame n of node. False when it fails, with what
+   it said, after the node's name, in error. */
+bool beginFrame(const VSFusableFilter *desc, VSNode *node, int n, const VSMap *const *inputProps, VSMap *outputProps, void **frameState, std::string &error, VSCore *core, const VSAPI *vsapi) {
+    char message[1024] = {};
+    if (desc->beginFrame(n, inputProps, outputProps, frameState, desc->instanceData, message, sizeof(message), core, vsapi))
+        return true;
+    message[sizeof(message) - 1] = 0;
+    error = node->getName() + ": " + (message[0] ? message : "beginFrame failed");
+    return false;
 }
 
 /* A frame's rings, from the core's allocator so that they count against its memory limit like
@@ -701,9 +816,9 @@ public:
 };
 
 const VSFrame *VS_CC tiledGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    VSTiledFilter *root = static_cast<VSTiledFilter *>(instanceData);
     VSNode *rootNode = frameCtx->key.first;
-    assert(rootNode->getTiled() == root);
+    assert(rootNode->getFusable() == static_cast<VSFusableFilter *>(instanceData));
+    const VSTiledFilter *root = as<VSTiledFilter>(static_cast<VSFusableFilter *>(instanceData));
 
     if (activationReason == arInitial) {
         std::unique_ptr<Plan> plan(new Plan);
@@ -762,8 +877,7 @@ const VSFrame *VS_CC tiledGetFrame(int n, int activationReason, void *instanceDa
         watch.start();
     for (int i = 0; i <= rootIndex; i++) {
         PlanNode &node = plan->nodes[i];
-        const VSFilterBeginFrame beginFrame = node.beginFrame();
-        void *instanceData = node.instanceData();
+        const bool begins = node.desc->beginFrame != nullptr;
         inputProps.clear();
         for (int input : node.inputs)
             inputProps.push_back(input < 0 ? &plan->frames[-input - 1]->getConstProperties() : plan->nodes[input].result);
@@ -771,19 +885,16 @@ const VSFrame *VS_CC tiledGetFrame(int n, int activationReason, void *instanceDa
         if (i == rootIndex) {
             dst->getProperties() = *inputProps[0];
             props = &dst->getProperties();
-        } else if (beginFrame) {
+        } else if (begins) {
             node.props.reset(new VSMap(inputProps[0], true));
             props = node.props.get();
         }
         node.result = props ? props : inputProps[0];
-        if (beginFrame) {
-            char message[1024] = {};
+        if (begins) {
             /* A map has no per frame state, see VSFilterBeginFrame. */
-            if (!beginFrame(node.frame, inputProps.data(), props, node.filter ? &node.frameState : nullptr, instanceData, message, sizeof(message), core, vsapi)) {
-                message[sizeof(message) - 1] = 0;
-                error = node.node->getName() + ": " + (message[0] ? message : "beginFrame failed");
+            void **frameState = node.desc->kind == VSFusableFilter::Kind::Tiled ? &node.frameState : nullptr;
+            if (!beginFrame(node.desc, node.node, node.frame, inputProps.data(), props, frameState, error, core, vsapi))
                 break;
-            }
             if (timing)
                 node.time += watch.lap();
         }
@@ -811,9 +922,11 @@ const VSFrame *VS_CC tiledGetFrame(int n, int activationReason, void *instanceDa
         }
     }
 
-    for (PlanNode &node : plan->nodes)
-        if (node.begun && node.filter && node.filter->endFrame)
-            node.filter->endFrame(node.frameState, node.filter->instanceData);
+    for (PlanNode &node : plan->nodes) {
+        const VSTiledFilter *filter = as<VSTiledFilter>(node.desc);
+        if (node.begun && filter && filter->endFrame)
+            filter->endFrame(node.frameState, filter->instanceData);
+    }
 
     if (timing) {
         for (int i = 0; i < rootIndex; i++) {
@@ -831,17 +944,18 @@ const VSFrame *VS_CC tiledGetFrame(int n, int activationReason, void *instanceDa
     return dst;
 }
 
-void VS_CC tiledFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    VSTiledFilter *filter = static_cast<VSTiledFilter *>(instanceData);
-    if (filter->freeFunc)
-        filter->freeFunc(filter->instanceData, core, vsapi);
-    delete filter;
+/* The free function of every node made here: the filter's own, then the description. */
+void VS_CC fusableFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    VSFusableFilter *desc = static_cast<VSFusableFilter *>(instanceData);
+    if (desc->freeFunc)
+        desc->freeFunc(desc->instanceData, core, vsapi);
+    delete desc;
 }
 
 /* A frame map's frame when no tiled node takes it into its tree: the input frame it maps to, or a
    copy of it with the properties beginFrame sets. */
 const VSFrame *VS_CC frameMapGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    const VSFrameMapFilter *map = static_cast<const VSFrameMapFilter *>(instanceData);
+    const VSFrameMapFilter *map = as<VSFrameMapFilter>(static_cast<VSFusableFilter *>(instanceData));
 
     if (activationReason == arInitial) {
         int frame;
@@ -865,29 +979,21 @@ const VSFrame *VS_CC frameMapGetFrame(int n, int activationReason, void *instanc
 
     VSFrame *dst = new VSFrame(*src);
     const VSMap *inputProps[] = { &src->getConstProperties() };
-    char message[1024] = {};
-    const bool ok = map->beginFrame(n, inputProps, &dst->getProperties(), nullptr, map->instanceData, message, sizeof(message), core, vsapi) != 0;
+    std::string error;
+    const bool ok = beginFrame(map, frameCtx->key.first, n, inputProps, &dst->getProperties(), nullptr, error, core, vsapi);
     const_cast<VSFrame *>(src)->release();
     if (!ok) {
         dst->release();
-        message[sizeof(message) - 1] = 0;
-        vsapi->setFilterError((frameCtx->key.first->getName() + ": " + (message[0] ? message : "beginFrame failed")).c_str(), frameCtx);
+        vsapi->setFilterError(error.c_str(), frameCtx);
         return nullptr;
     }
     return dst;
 }
 
-void VS_CC frameMapFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    VSFrameMapFilter *map = static_cast<VSFrameMapFilter *>(instanceData);
-    if (map->freeFunc)
-        map->freeFunc(map->instanceData, core, vsapi);
-    delete map;
-}
-
 /* A plane map's frame when no tiled node takes it into its tree: the input frames' planes, shared,
    with input 0's properties or what beginFrame makes of them. */
 const VSFrame *VS_CC planeMapGetFrame(int n, int activationReason, void *instanceData, [[maybe_unused]] void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    const VSPlaneMapFilter *planes = static_cast<const VSPlaneMapFilter *>(instanceData);
+    const VSPlaneMapFilter *planes = as<VSPlaneMapFilter>(static_cast<VSFusableFilter *>(instanceData));
 
     if (activationReason == arInitial) {
         for (VSNode *input : planes->inputs)
@@ -912,38 +1018,59 @@ const VSFrame *VS_CC planeMapGetFrame(int n, int activationReason, void *instanc
         planeSrc[p] = frames[planes->planeInput[p]];
     VSFrame *dst = new VSFrame(planes->vi.format, planes->vi.width, planes->vi.height, planeSrc, planes->planeSource, frames[0], core);
 
-    bool ok = true;
-    char message[1024] = {};
-    if (planes->beginFrame)
-        ok = planes->beginFrame(n, inputProps.data(), &dst->getProperties(), nullptr, planes->instanceData, message, sizeof(message), core, vsapi) != 0;
+    std::string error;
+    const bool ok = !planes->beginFrame || beginFrame(planes, frameCtx->key.first, n, inputProps.data(), &dst->getProperties(), nullptr, error, core, vsapi);
     for (const VSFrame *frame : frames)
         const_cast<VSFrame *>(frame)->release();
     if (!ok) {
         dst->release();
-        message[sizeof(message) - 1] = 0;
-        vsapi->setFilterError((frameCtx->key.first->getName() + ": " + (message[0] ? message : "beginFrame failed")).c_str(), frameCtx);
+        vsapi->setFilterError(error.c_str(), frameCtx);
         return nullptr;
     }
     return dst;
 }
 
-void VS_CC planeMapFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    VSPlaneMapFilter *planes = static_cast<VSPlaneMapFilter *>(instanceData);
-    if (planes->freeFunc)
-        planes->freeFunc(planes->instanceData, core, vsapi);
-    delete planes;
+/* What a creation function fails with: the reason, after the filter's name, in errorMessage. */
+class Failure {
+    const char *name;
+    std::string &errorMessage;
+public:
+    Failure(const char *name, std::string &errorMessage) : name(name), errorMessage(errorMessage) {
+    }
+
+    VSNode *operator()(const std::string &reason) const {
+        errorMessage = std::string(name) + ": " + reason;
+        return nullptr;
+    }
+};
+
+/* The dependencies of a node whose frame n is made from frame n of every input. An input shorter
+   than the output repeats its last frame, which is no longer strictly spatial; such an input is
+   simply never fused. */
+std::vector<VSFilterDependency> sameFrameDependencies(VSNode *const *inputs, int numInputs, const VSVideoInfo *vi) {
+    std::vector<VSFilterDependency> deps(numInputs);
+    for (int i = 0; i < numInputs; i++)
+        deps[i] = { inputs[i], inputs[i]->getVideoInfo().numFrames >= vi->numFrames ? rpStrictSpatial : rpFrameReuseLastOnly };
+    return deps;
+}
+
+/* Makes the node of a description that passed its checks; the node owns it from then on. */
+VSNode *makeNode(const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, const VSFilterDependency *deps, int numDeps, bool gpu, std::unique_ptr<VSFusableFilter> desc,
+    VSCore *core, std::string &errorMessage) {
+    try {
+        VSNode *node = new VSNode(name, vi, getFrame, fusableFree, fmParallel, deps, numDeps, desc.get(), gpu, desc.get(), core);
+        desc.release();
+        return node;
+    } catch (VSException &e) {
+        errorMessage = e.what();
+        return nullptr;
+    }
 }
 
 } // namespace
 
-VSNode *createTiledFilterNode(const char *name, const VSTiledFilterDesc *desc, VSCore *core, std::string &errorMessage) {
-    auto fail = [&](const std::string &reason) -> VSNode * {
-        errorMessage = std::string(name) + ": " + reason;
-        return nullptr;
-    };
-
-    if (desc->version != VS_TILED_FILTER_VERSION)
-        return fail("unsupported VSTiledFilterDesc version " + std::to_string(desc->version));
+VSNode *createFusableFilterNode(const char *name, const VSTiledFilterDesc *desc, VSCore *core, std::string &errorMessage) {
+    const Failure fail(name, errorMessage);
 
     const VSVideoInfo *vi = desc->vi;
     if (!vi || !VSCore::isValidVideoInfo(*vi) || vi->format.colorFamily == cfUndefined || !vi->width || !vi->height)
@@ -960,6 +1087,8 @@ VSNode *createTiledFilterNode(const char *name, const VSTiledFilterDesc *desc, V
     for (int p = 0; p < numPlanes; p++)
         if ((desc->passthroughPlanes & (1 << p)) && (desc->passthroughInput[p] < 0 || desc->passthroughInput[p] >= desc->numInputs))
             return fail("passthroughInput names an input that does not exist for plane " + std::to_string(p));
+    if (desc->firstPlaneInputs < 0 || (desc->numInputs < 31 && (desc->firstPlaneInputs >> desc->numInputs)))
+        return fail("firstPlaneInputs names an input that does not exist");
 
     for (int i = 0; i < desc->numInputs; i++) {
         VSNode *input = desc->inputs[i];
@@ -971,6 +1100,14 @@ VSNode *createTiledFilterNode(const char *name, const VSTiledFilterDesc *desc, V
         const VSVideoInfo &ivi = input->getVideoInfo();
         if (ivi.format.colorFamily == cfUndefined || ivi.width != vi->width || ivi.height != vi->height)
             return fail(which + " must have a constant format and the output's size");
+        /* Read only through its first plane, which has the size of the output's first plane, as
+           the frame sizes match; it gives no plane to pass through. */
+        if (i < 31 && (desc->firstPlaneInputs & (1 << i))) {
+            for (int p = 0; p < numPlanes; p++)
+                if ((desc->passthroughPlanes & (1 << p)) && desc->passthroughInput[p] == i)
+                    return fail("plane " + std::to_string(p) + " can't be passed through from " + which + ", which is read through its first plane");
+            continue;
+        }
         /* The planes read from this input are the processed ones and those passed through from it. */
         for (int p = 0; p < numPlanes; p++) {
             const bool passed = (desc->passthroughPlanes & (1 << p)) != 0;
@@ -992,7 +1129,13 @@ VSNode *createTiledFilterNode(const char *name, const VSTiledFilterDesc *desc, V
     filter->haloTop.resize(desc->numInputs);
     filter->haloBottom.resize(desc->numInputs);
     filter->ringBytes.resize(desc->numInputs);
+    filter->firstPlaneInput.resize(desc->numInputs);
     for (int i = 0; i < desc->numInputs; i++) {
+        /* Always a whole frame, so neither a halo nor a ring applies. */
+        if (i < 31 && (desc->firstPlaneInputs & (1 << i))) {
+            filter->firstPlaneInput[i] = 1;
+            continue;
+        }
         /* A halo reaching past the plane reads the whole plane, so clamping it to the height
            changes nothing but keeps the band and ring arithmetic far from overflowing. */
         filter->haloTop[i] = desc->haloTop ? std::min(desc->haloTop[i], vi->height) : 0;
@@ -1015,31 +1158,12 @@ VSNode *createTiledFilterNode(const char *name, const VSTiledFilterDesc *desc, V
     filter->freeFunc = desc->free;
     filter->instanceData = desc->instanceData;
 
-    /* An input shorter than the output repeats its last frame, which is no longer strictly spatial;
-       such an input is simply never fused. */
-    std::vector<VSFilterDependency> deps(desc->numInputs);
-    for (int i = 0; i < desc->numInputs; i++)
-        deps[i] = { desc->inputs[i], desc->inputs[i]->getVideoInfo().numFrames >= vi->numFrames ? rpStrictSpatial : rpFrameReuseLastOnly };
-
-    VSNode *node;
-    try {
-        node = new VSNode(name, vi, tiledGetFrame, tiledFree, fmParallel, deps.data(), desc->numInputs, filter.get(), false, filter.get(), nullptr, nullptr, core);
-    } catch (VSException &e) {
-        errorMessage = e.what();
-        return nullptr;
-    }
-    filter.release();
-    return node;
+    const std::vector<VSFilterDependency> deps = sameFrameDependencies(desc->inputs, desc->numInputs, vi);
+    return makeNode(name, vi, tiledGetFrame, deps.data(), desc->numInputs, false, std::move(filter), core, errorMessage);
 }
 
-VSNode *createFrameMapFilterNode(const char *name, const VSFrameMapFilterDesc *desc, VSCore *core, std::string &errorMessage) {
-    auto fail = [&](const std::string &reason) -> VSNode * {
-        errorMessage = std::string(name) + ": " + reason;
-        return nullptr;
-    };
-
-    if (desc->version != VS_FRAME_MAP_FILTER_VERSION)
-        return fail("unsupported VSFrameMapFilterDesc version " + std::to_string(desc->version));
+VSNode *createFusableFilterNode(const char *name, const VSFrameMapFilterDesc *desc, VSCore *core, std::string &errorMessage) {
+    const Failure fail(name, errorMessage);
 
     const VSVideoInfo *vi = desc->vi;
     if (!vi || !VSCore::isValidVideoInfo(*vi))
@@ -1075,25 +1199,11 @@ VSNode *createFrameMapFilterNode(const char *name, const VSFrameMapFilterDesc *d
     map->freeFunc = desc->free;
     map->instanceData = desc->instanceData;
 
-    VSNode *node;
-    try {
-        node = new VSNode(name, vi, frameMapGetFrame, frameMapFree, fmParallel, desc->inputs, desc->numInputs, map.get(), gpu, nullptr, map.get(), nullptr, core);
-    } catch (VSException &e) {
-        errorMessage = e.what();
-        return nullptr;
-    }
-    map.release();
-    return node;
+    return makeNode(name, vi, frameMapGetFrame, desc->inputs, desc->numInputs, gpu, std::move(map), core, errorMessage);
 }
 
-VSNode *createPlaneMapFilterNode(const char *name, const VSPlaneMapFilterDesc *desc, VSCore *core, std::string &errorMessage) {
-    auto fail = [&](const std::string &reason) -> VSNode * {
-        errorMessage = std::string(name) + ": " + reason;
-        return nullptr;
-    };
-
-    if (desc->version != VS_PLANE_MAP_FILTER_VERSION)
-        return fail("unsupported VSPlaneMapFilterDesc version " + std::to_string(desc->version));
+VSNode *createFusableFilterNode(const char *name, const VSPlaneMapFilterDesc *desc, VSCore *core, std::string &errorMessage) {
+    const Failure fail(name, errorMessage);
 
     const VSVideoInfo *vi = desc->vi;
     if (!vi || !VSCore::isValidVideoInfo(*vi) || vi->format.colorFamily == cfUndefined || !vi->width || !vi->height)
@@ -1151,11 +1261,6 @@ VSNode *createPlaneMapFilterNode(const char *name, const VSPlaneMapFilterDesc *d
     planes->vi = *vi;
     planes->inputs.assign(desc->inputs, desc->inputs + desc->numInputs);
     planes->readsInput = givesPlanes;
-    planes->repeatsPlane.assign(desc->numInputs, 0);
-    for (int p = 0; p < numPlanes; p++)
-        for (int r = 0; r < p; r++)
-            if (desc->planeInput[r] == desc->planeInput[p] && desc->planeSource[r] == desc->planeSource[p])
-                planes->repeatsPlane[desc->planeInput[p]] = 1;
     for (int p = 0; p < 3; p++) {
         planes->planeInput[p] = p < numPlanes ? desc->planeInput[p] : 0;
         planes->planeSource[p] = p < numPlanes ? desc->planeSource[p] : 0;
@@ -1164,19 +1269,7 @@ VSNode *createPlaneMapFilterNode(const char *name, const VSPlaneMapFilterDesc *d
     planes->freeFunc = desc->free;
     planes->instanceData = desc->instanceData;
 
-    /* An input shorter than the output repeats its last frame, as for tiled filters. */
-    std::vector<VSFilterDependency> deps(desc->numInputs);
-    for (int i = 0; i < desc->numInputs; i++)
-        deps[i] = { desc->inputs[i], desc->inputs[i]->getVideoInfo().numFrames >= vi->numFrames ? rpStrictSpatial : rpFrameReuseLastOnly };
-
+    const std::vector<VSFilterDependency> deps = sameFrameDependencies(desc->inputs, desc->numInputs, vi);
     const bool gpu = residencyInput >= 0 && desc->inputs[residencyInput]->isGPUOutput();
-    VSNode *node;
-    try {
-        node = new VSNode(name, vi, planeMapGetFrame, planeMapFree, fmParallel, deps.data(), desc->numInputs, planes.get(), gpu, nullptr, nullptr, planes.get(), core);
-    } catch (VSException &e) {
-        errorMessage = e.what();
-        return nullptr;
-    }
-    planes.release();
-    return node;
+    return makeNode(name, vi, planeMapGetFrame, deps.data(), desc->numInputs, gpu, std::move(planes), core, errorMessage);
 }

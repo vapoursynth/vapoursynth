@@ -396,9 +396,11 @@ class TiledTest(unittest.TestCase):
             def build(keep):
                 c = keep(core.std.MaskedMerge(keep(core.std.Invert(src)), keep(core.std.Median(other)), keep(core.std.Maximum(mask))))
                 c = keep(core.std.MaskedMerge(c, src, keep(core.std.Invert(mask)), premultiplied=True, planes=[0]))
-                if f.num_planes > 1 and not f.subsampling_w and not f.subsampling_h:
-                    # the first mask plane for every plane, through a plane map repeating it
+                if f.num_planes > 1:
+                    # the first mask plane for every plane, resampled for subsampled chroma, and a
+                    # one plane alpha the same way
                     c = keep(core.std.MaskedMerge(c, other, keep(core.std.Deflate(mask)), first_plane=True))
+                    c = keep(core.std.PreMultiply(c, keep(core.std.ShufflePlanes(keep(core.std.Invert(mask)), 0, vs.GRAY))))
                 return core.std.Invert(c)
             self.with_and_without_spare_threads(lambda: self.assertSameAsWholeFrames(build))
         self.for_each_format(check)
@@ -452,6 +454,16 @@ class TiledTest(unittest.TestCase):
         for n in range(3):
             self.assertEqual(props_only.get_frame(n).props['Z'], 7)
         self.assertEqual([clip.timings for clip in unread], [0] * 6)
+        # a one plane mask or alpha resampled for subsampled chroma keeps MaskedMerge and PreMultiply
+        # tiled as well
+        src420 = noise(vs.YUV420P8, 64, 66, length=3)
+        gray = core.std.ShufflePlanes(src420, 0, vs.GRAY)
+        unread420 = [core.std.Invert(src420) for _ in range(2)]
+        for out in (core.std.MaskedMerge(unread420[0], src420, gray), core.std.PreMultiply(unread420[1], gray)):
+            merged = core.std.Merge(src420, out, weight=0)
+            for n in range(3):
+                self.assertEqual(planes(merged.get_frame(n)), planes(src420.get_frame(n)))
+        self.assertEqual([clip.timings for clip in unread420], [0, 0])
 
     @unittest.skipIf(FUSION_DISABLED, 'VS_TILED_FUSION=0')
     def test_nothing_behind_an_unread_input_is_computed(self):
@@ -652,6 +664,50 @@ class TiledTest(unittest.TestCase):
             for n in range(out.num_frames):
                 self.assertEqual(planes(out.get_frame(n)), planes(src.get_frame(n)))
             self.assertGreater(node.timings, 0)
+
+    def test_plane_in_several_output_planes(self):
+        # Plane maps can make one plane of a node part of several planes of the output: given
+        # twice, or given once and read again by a filter that gives another plane.
+        shuffles = [
+            lambda x: core.std.ShufflePlanes(x, [0, 0, 0], vs.YUV),
+            lambda x: core.std.ShufflePlanes([x, core.std.Invert(x), core.std.Maximum(x)], [0, 0, 0], vs.YUV),
+            lambda x: core.std.MakeDiff(x, core.std.ShufflePlanes(x, [1, 0, 2], vs.YUV)),
+        ]
+        for i, shuffle in enumerate(shuffles):
+            def build(keep, shuffle=shuffle):
+                x = keep(core.std.Convolution(noise(vs.YUV444P8, 64, 66), matrix=CONV3))
+                return core.std.Invert(keep(shuffle(x)))
+            with self.subTest(shuffle=i):
+                self.with_and_without_spare_threads(lambda: self.assertSameAsWholeFrames(build, frames=2))
+
+    @unittest.skipIf(FUSION_DISABLED, 'VS_TILED_FUSION=0')
+    def test_plane_in_several_output_planes_is_computed_once(self):
+        # The planes of the output are produced one after the other, so a node running together
+        # with them would compute such a plane once for each. It is requested as a frame instead,
+        # which shows in a whole frame being made: the chroma nothing reads, which the node passes
+        # through from `chroma`, is computed as well, where a node run together never asks for it.
+        core.num_threads = 1
+        shuffles = [
+            lambda x: core.std.ShufflePlanes(x, [0, 0, 0], vs.YUV),
+            lambda x: core.std.ShufflePlanes([x, core.std.Invert(x), core.std.Maximum(x)], [0, 0, 0], vs.YUV),
+        ]
+        for i, shuffle in enumerate(shuffles):
+            with self.subTest(shuffle=i):
+                src = noise(vs.YUV444P8, 64, 66)
+                chroma = core.std.Invert(src)
+                node = core.std.Invert(core.std.Merge(src, chroma, weight=[0, 1]), planes=[0])
+                out = core.std.Invert(shuffle(node))
+                for n in range(2):
+                    out.get_frame(n)
+                self.assertGreater(chroma.timings, 0)
+                # the same node with its plane in one output plane runs together with it
+                src = noise(vs.YUV444P8, 64, 66)
+                chroma = core.std.Invert(src)
+                node = core.std.Invert(core.std.Merge(src, chroma, weight=[0, 1]), planes=[0])
+                out = core.std.Invert(core.std.ShufflePlanes(node, 0, vs.GRAY))
+                for n in range(2):
+                    out.get_frame(n)
+                self.assertEqual(chroma.timings, 0)
 
 
 if __name__ == '__main__':
