@@ -193,6 +193,32 @@ deps = [
     dependency('zimg', version: '>=3.0.5'),
 ]
 
+# 32-bit targets without 8 byte atomic instructions, such as 32-bit PowerPC and RISC-V or x86 before
+# the Pentium, make every 64-bit std::atomic operation a call to __atomic_*_8, which only libatomic
+# provides, and the compiler drivers don't link it on their own. The core's timings, memory
+# counters and GPU timeline values are 64 bits wide on every target, so it links libatomic there.
+code = '''
+#include <atomic>
+#include <cstdint>
+
+std::atomic<std::int64_t> value{ 0 };
+
+int main() {
+    std::int64_t expected = value.fetch_add(1);
+    value.compare_exchange_strong(expected, value.exchange(2));
+    value.store(value.load() - value.fetch_sub(1));
+    return static_cast<int>(value.load());
+}
+'''
+
+if not cxx.links(code, name: '64-bit atomics without libatomic')
+    atomic_dep = cxx.find_library('atomic', required: false)
+    if not atomic_dep.found() or not cxx.links(code, dependencies: atomic_dep, name: '64-bit atomics with libatomic')
+        error('64-bit std::atomic operations need libatomic on this target, and linking with it failed')
+    endif
+    deps += atomic_dep
+endif
+
 # Runtime GLSL to SPIR-V compilation: glslang is embedded statically and always present,
 # taken from the wrap rather than the system so the accepted dialect stays a pinned
 # platform property instead of following whatever glslang the machine happens to have.

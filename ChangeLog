@@ -12,6 +12,9 @@ added frame maps (api 4.4, createframemapvideofilter) for filters that only pick
 added plane maps (api 4.4, createplanemapvideofilter) for filters that only move planes, tiled filters see through shuffleplanes, splitplanes and copyframeprops so that splitting a clip into planes, processing them and joining them again runs together with what follows, and the clip copyframeprops takes properties from is never computed when a tiled filter makes it
 added reweave, it weaves a field from each of two clips into one frame without separating them first, which turns the usual reinterlacing chains of separatefields, selectevery and doubleweave into one copy per frame
 fixed vsscript not finding its configuration when loaded through a symlink, such as the libvapoursynth-script.so some distributions install
+fixed resize.bob doubling _SARNum/_SARDen, the frames it makes now keep the pixel aspect of the frames their fields came from
+fixed resize.bob keeping the _Field of the field each frame was made from, which made a later resize treat every bobbed frame as a single field, its frames are now marked progressive
+fixed linking on 32-bit targets without 8 byte atomic instructions, such as 32-bit powerpc, libatomic is now linked when the 64-bit atomics need it
 fixed boxblur blurring a one plane clip whatever planes said, it now leaves the plane alone when planes leaves it out, as it already did for clips with more planes and on the gpu
 
 r82:

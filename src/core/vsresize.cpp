@@ -779,7 +779,19 @@ class vszimg {
             }
 
             VSMap *dst_props = vsapi->getFramePropertiesRW(dst_frame);
-            propagate_sar(src_props, dst_props, src_format, dst_format, vsapi);
+            if (m_field_op == FieldOp::DEINTERLACE) {
+                /* A field keeps its frame's _SARNum and _SARDen, so the frame made from it
+                   compares with that frame, which has twice the field's rows, and it is a
+                   frame now, no longer a field. */
+                vszimgxx::zimage_format frame_format = src_format;
+                frame_format.height *= 2;
+                frame_format.active_region.height *= 2;
+                propagate_sar(src_props, dst_props, frame_format, dst_format, vsapi);
+                vsapi->mapDeleteKey(dst_props, "_Field");
+                vsapi->mapSetInt(dst_props, "_FieldBased", VSC_FIELD_PROGRESSIVE, maReplace);
+            } else {
+                propagate_sar(src_props, dst_props, src_format, dst_format, vsapi);
+            }
             export_frame_props(dst_format, dst_props, vsapi);
         } catch (const vszimgxx::zerror &e) {
             vsapi->freeFrame(dst_frame);
