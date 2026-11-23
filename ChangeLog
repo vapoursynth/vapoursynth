@@ -1,6 +1,8 @@
 r83:
 added reweave, it weaves a field from each of two clips into one frame without separating them first, which turns the usual reinterlacing chains of separatefields, selectevery and doubleweave into one copy per frame
 fixed vsscript not finding its configuration when loaded through a symlink, such as the libvapoursynth-script.so some distributions install
+fixed resize.bob doubling _SARNum/_SARDen, the frames it makes now keep the pixel aspect of the frames their fields came from
+fixed resize.bob keeping the _Field of the field each frame was made from, which made a later resize treat every bobbed frame as a single field, its frames are now marked progressive
 
 r82:
 vspipe's matroska output is now playable by mpv as well

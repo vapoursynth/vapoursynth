@@ -2192,17 +2192,26 @@ void finishResizeProps(const ConversionSpec &spec, const FrameState &st, VSFrame
     } else {
         /* A windowed source resamples a fraction of the frame into the whole output, so
            the pixel aspect follows the active region; the sixteenths keep a quarter
-           pixel window rational, as the scalar path does. */
+           pixel window rational, as the scalar path does. Bob makes a frame of a field,
+           which keeps its frame's pixel aspect, so its rows compare with that frame's:
+           twice the field's. */
+        const int rowScale = spec.deinterlace ? 2 : 1;
         if (spec.activeWidth != spec.srcW)
             muldivRational(&sarNum, &sarDen, std::llround(spec.activeWidth * 16), static_cast<int64_t>(spec.dstW) * 16);
         else
             muldivRational(&sarNum, &sarDen, spec.srcW, spec.dstW);
         if (spec.activeHeight != spec.srcH)
-            muldivRational(&sarNum, &sarDen, static_cast<int64_t>(spec.dstH) * 16, std::llround(spec.activeHeight * 16));
+            muldivRational(&sarNum, &sarDen, static_cast<int64_t>(spec.dstH) * 16, std::llround(spec.activeHeight * rowScale * 16));
         else
-            muldivRational(&sarNum, &sarDen, spec.dstH, spec.srcH);
+            muldivRational(&sarNum, &sarDen, spec.dstH, static_cast<int64_t>(spec.srcH) * rowScale);
         vsapi->mapSetInt(props, "_SARNum", sarNum, maReplace);
         vsapi->mapSetInt(props, "_SARDen", sarDen, maReplace);
+    }
+
+    /* Bob's output is a frame, no longer the field it was made from. */
+    if (spec.deinterlace) {
+        vsapi->mapDeleteKey(props, "_Field");
+        vsapi->mapSetInt(props, "_FieldBased", VSC_FIELD_PROGRESSIVE, maReplace);
     }
 }
 
