@@ -45,6 +45,21 @@ jobs:
 
     - uses: astral-sh/setup-uv@v10.0.1
 
+    # The wheel builds with CC=clang-cl, and --vsenv doesn't put Visual Studio's own LLVM on
+    # PATH, so clang-cl used to resolve to the image's standalone LLVM in C:\Program Files\LLVM.
+    # That lags behind Visual Studio's STL, which refuses an older Clang than the one it ships
+    # with (MSVC 14.52 wants Clang 22), so use the clang-cl and llvm-lib bundled with it.
+    - name: Use Visual Studio's clang-cl
+      if: ${{ runner.os == 'Windows' }}
+      shell: pwsh
+      run: |
+        $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang -property installationPath
+        if (-not $vs) { throw 'no Visual Studio with the C++ Clang component' }
+        $llvm = Join-Path $vs 'VC\Tools\Llvm\x64\bin'
+        & (Join-Path $llvm 'clang-cl.exe') --version
+        if ($LASTEXITCODE -ne 0) { throw "clang-cl in $llvm did not run" }
+        Add-Content -Path $env:GITHUB_PATH -Value $llvm
+
     - uses: pypa/cibuildwheel@v4.2.0
       with:
         output-dir: dist
